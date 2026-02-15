@@ -81,7 +81,7 @@ defmodule Elektrine.MixProject do
       {:tailwind, "== 0.4.1", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
-       tag: "v2.1.1",
+       tag: "v2.2.0",
        sparse: "optimized",
        app: false,
        compile: false,
