@@ -926,31 +926,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
           end)
 
         "my_posts" ->
-          # Fetch user's own posts directly from database
           if socket.assigns.current_user do
-            import Ecto.Query
-            alias Elektrine.Messaging.Message
-            alias Elektrine.Messaging.Conversation
-
-            from(m in Message,
-              join: c in Conversation,
-              on: c.id == m.conversation_id,
-              where:
-                c.type == "timeline" and
-                  m.sender_id == ^socket.assigns.current_user.id and
-                  is_nil(m.deleted_at),
-              order_by: [desc: m.inserted_at],
-              limit: 50,
-              preload: [
-                sender: [:profile],
-                link_preview: [],
-                hashtags: [],
-                reply_to: [sender: [:profile]],
-                shared_message: [sender: [:profile], conversation: [], remote_actor: []],
-                poll: [options: []]
-              ]
-            )
-            |> Elektrine.Repo.all()
+            Enum.filter(socket.assigns.timeline_posts, fn post ->
+              post.sender_id == socket.assigns.current_user.id
+            end)
           else
             []
           end
@@ -975,12 +954,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
           end)
 
         "local" ->
-          # Fetch local posts directly from database (includes replies and community posts)
-          if socket.assigns.current_user do
-            Social.get_local_timeline(limit: 50, user_id: socket.assigns.current_user.id)
-          else
-            Social.get_local_timeline(limit: 50)
-          end
+          Enum.filter(socket.assigns.timeline_posts, fn post ->
+            !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
+          end)
 
         _ ->
           socket.assigns.timeline_posts
@@ -988,6 +964,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     # Also apply software filter if set
     filtered_posts = filter_posts_by_software(filtered_posts, socket.assigns.software_filter)
+    filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
 
     assign(socket, :filtered_posts, filtered_posts)
   end
@@ -1145,6 +1122,21 @@ defmodule ElektrineWeb.TimelineLive.Index do
       "misskey" -> instance_sw in ["misskey", "calckey", "firefish", "iceshrimp", "sharkey"]
       "mastodon" -> instance_sw in ["mastodon", "hometown", "glitch"]
       _ -> instance_sw == filter
+    end
+  end
+
+  defp maybe_prioritize_non_community_posts(posts, socket) do
+    if socket.assigns.current_filter in ["all", "following", "federated", "public"] &&
+         socket.assigns.timeline_filter == "all" &&
+         socket.assigns.software_filter == "all" do
+      {non_community, community} =
+        Enum.split_with(posts, fn post ->
+          !PostUtilities.has_community_uri?(post)
+        end)
+
+      non_community ++ community
+    else
+      posts
     end
   end
 

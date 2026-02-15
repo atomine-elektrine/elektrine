@@ -28,6 +28,9 @@ function resolveHeroiconsDir() {
 export default {
   content: [
     "./js/**/*.js",
+    "../../elektrine_web/lib/elektrine_web.ex",
+    "../../elektrine_web/lib/elektrine_web/**/*.*ex",
+    // Legacy non-umbrella fallback paths
     "../lib/elektrine_web.ex",
     "../lib/elektrine_web/**/*.*ex"
   ],

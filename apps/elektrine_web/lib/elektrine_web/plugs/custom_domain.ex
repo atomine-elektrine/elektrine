@@ -29,6 +29,7 @@ defmodule ElektrineWeb.Plugs.CustomDomain do
   @known_suffixes ~w(
     .elektrine.com
     .z.org
+    .onion
     .localhost
     .local
     .test

@@ -56,6 +56,16 @@ defmodule ElektrineWeb.Plugs.CustomDomainTest do
       refute conn.assigns[:custom_domain]
     end
 
+    test "passes through for onion domains" do
+      conn =
+        build_conn()
+        |> Map.put(:host, "khav7sdajxu6om3arvglevskg2vwuy7luyjcwfwg6xnkd7qtskr2vhad.onion")
+        |> CustomDomainPlug.call([])
+
+      refute conn.halted
+      refute conn.assigns[:custom_domain]
+    end
+
     test "passes through for localhost" do
       conn =
         build_conn()

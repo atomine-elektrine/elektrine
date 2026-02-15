@@ -23,4 +23,5 @@ done
 
 # Start Phoenix app
 echo "Starting Phoenix..."
-exec /app/bin/server
+export PHX_SERVER=true
+exec /app/bin/elektrine start
