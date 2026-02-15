@@ -1,0 +1,311 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-4 sm:mb-6">
+    <h1 class="text-xl sm:text-2xl font-bold">{gettext("Mailboxes")}</h1>
+    <p class="opacity-70 mt-2 text-sm sm:text-base">
+      {gettext("Overview of all user mailboxes in the system.")}
+    </p>
+  </div>
+  
+<!-- Search Form -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <form method="get" action={~p"/pripyat/mailboxes"} class="flex gap-4 items-end">
+        <div class="flex-1">
+          <label class="label">
+            <span>Search mailboxes</span>
+          </label>
+          <div class="join w-full">
+            <input
+              type="text"
+              name="search"
+              value={assigns[:search_query] || ""}
+              placeholder={gettext("Search by email address or username...")}
+              class="input flex-1 join-item w-full"
+            />
+            <button type="submit" class="btn btn-primary join-item">
+              <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
+            </button>
+          </div>
+        </div>
+        <%= if assigns[:search_query] && @search_query != "" do %>
+          <.link href={~p"/pripyat/mailboxes"} class="btn btn-ghost">
+            <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
+          </.link>
+        <% end %>
+      </form>
+
+      <%= if assigns[:search_query] && @search_query != "" do %>
+        <div class="mt-4">
+          <div class="alert alert-info">
+            <.icon name="hero-information-circle" class="stroke-current shrink-0 w-6 h-6" />
+            <span>
+              {gettext("Showing results for \"%{query}\"", query: @search_query)} ({ngettext(
+                "%{count} mailbox found",
+                "%{count} mailboxes found",
+                length(@mailboxes),
+                count: length(@mailboxes)
+              )})
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <!-- Desktop Table View -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th>{gettext("Email Address")}</th>
+              <th>{gettext("Owner")}</th>
+              <th>{gettext("Status")}</th>
+              <th>{gettext("Created")}</th>
+              <th>{gettext("Actions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for mailbox <- @mailboxes do %>
+              <tr>
+                <td>
+                  <div class="font-medium text-sm">{mailbox.email}</div>
+                  <div class="text-xs opacity-50">{gettext("ID:")}{" "}{mailbox.id}</div>
+                </td>
+                <td>
+                  <%= if mailbox.orphaned do %>
+                    <div class="text-error font-medium">{gettext("ORPHANED")}</div>
+                    <div class="text-xs text-error/70">{gettext("No user association")}</div>
+                  <% else %>
+                    <div class="font-medium">{mailbox.username}</div>
+                  <% end %>
+                </td>
+                <td>
+                  <%= if mailbox.orphaned do %>
+                    <div class="badge badge-warning">{gettext("Orphaned")}</div>
+                  <% else %>
+                    <div class="badge badge-success">{gettext("Active")}</div>
+                  <% end %>
+                </td>
+                <td class="text-sm opacity-70">
+                  <.local_time
+                    datetime={mailbox.inserted_at}
+                    format="date"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </td>
+                <td>
+                  <%= if mailbox.orphaned do %>
+                    <div class="flex gap-2">
+                      <div class="tooltip" data-tip={gettext("Delete orphaned mailbox")}>
+                        <form
+                          method="post"
+                          action={~p"/pripyat/mailboxes/#{mailbox.id}"}
+                          class="inline"
+                        >
+                          <input type="hidden" name="_method" value="delete" />
+                          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                          <button
+                            type="submit"
+                            class="btn btn-secondary btn-xs"
+                            data-confirm={
+                              gettext("Delete orphaned mailbox %{email}?", email: mailbox.email)
+                            }
+                          >
+                            <.icon name="hero-trash" class="h-3 w-3" />
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  <% else %>
+                    <span class="text-xs text-base-content/50">{gettext("Protected")}</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+<!-- Mobile Card View -->
+      <div class="lg:hidden space-y-3">
+        <%= for mailbox <- @mailboxes do %>
+          <div class={[
+            "bg-base-200 rounded-lg p-4 border",
+            if(mailbox.orphaned, do: "border-warning", else: "border-base-300")
+          ]}>
+            <div class="flex justify-between items-start mb-3">
+              <div class="flex-1 min-w-0">
+                <h4 class="font-medium text-sm font-medium break-all">
+                  {mailbox.email}
+                </h4>
+                <div class="text-xs opacity-50 mt-1">
+                  {gettext("ID:")}{" "}{mailbox.id}
+                </div>
+              </div>
+              <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+                <%= if mailbox.orphaned do %>
+                  <div class="badge badge-warning badge-sm">{gettext("Orphaned")}</div>
+                <% else %>
+                  <div class="badge badge-success badge-sm">{gettext("Active")}</div>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-2 text-sm">
+              <div>
+                <span class="text-xs opacity-60 uppercase tracking-wide">
+                  {gettext("Owner")}:
+                </span>
+                <div class="mt-1">
+                  <%= if mailbox.orphaned do %>
+                    <div class="text-error font-medium text-sm">{gettext("ORPHANED")}</div>
+                    <div class="text-xs text-error/70">{gettext("No user association")}</div>
+                  <% else %>
+                    <div class="font-medium">{mailbox.username}</div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center mt-3 pt-3 border-t border-base-300">
+              <span class="text-xs opacity-70">
+                <.local_time
+                  datetime={mailbox.inserted_at}
+                  format="date"
+                  timezone={@timezone}
+                  time_format={@time_format}
+                />
+              </span>
+              <div class="flex gap-1">
+                <%= if mailbox.orphaned do %>
+                  <form
+                    method="post"
+                    action={~p"/pripyat/mailboxes/#{mailbox.id}"}
+                    class="inline"
+                  >
+                    <input type="hidden" name="_method" value="delete" />
+                    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+                    <button
+                      type="submit"
+                      class="btn btn-secondary btn-xs"
+                      data-confirm={
+                        gettext("Delete orphaned mailbox %{email}?", email: mailbox.email)
+                      }
+                      title={gettext("Delete orphaned mailbox")}
+                    >
+                      <.icon name="hero-trash" class="h-3 w-3" />
+                    </button>
+                  </form>
+                <% else %>
+                  <span class="text-xs text-base-content/50 px-2 py-1">
+                    {gettext("Protected")}
+                  </span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+      
+<!-- No mailboxes fallback -->
+      <%= if length(@mailboxes) == 0 do %>
+        <div class="text-center py-8">
+          <.icon name="hero-inbox" class="w-12 h-12 text-base-content/30 mx-auto mb-4" />
+          <h3 class="text-lg font-medium mb-2">{gettext("No mailboxes found")}</h3>
+          <p class="text-base-content/60">
+            <%= if assigns[:search_query] && @search_query != "" do %>
+              {gettext("No mailboxes match your search criteria.")}
+            <% else %>
+              {gettext("No mailboxes have been created yet.")}
+            <% end %>
+          </p>
+        </div>
+      <% end %>
+      
+<!-- Pagination -->
+      <%= if @total_pages > 1 do %>
+        <div class="mt-6 pt-4 border-t border-base-300">
+          <!-- Mobile: Compact pagination -->
+          <div class="sm:hidden flex flex-col space-y-3">
+            <div class="text-center text-sm text-base-content/70">
+              {gettext("Page %{current} of %{total}", current: @current_page, total: @total_pages)}
+            </div>
+            <div class="flex justify-center items-center gap-2">
+              <%= if @current_page > 1 do %>
+                <.link
+                  href={~p"/pripyat/mailboxes?page=#{@current_page - 1}&search=#{@search_query}"}
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-chevron-left" class="h-4 w-4" />
+                </.link>
+              <% end %>
+
+              <span class="px-3 py-2 text-sm">
+                {@current_page} / {@total_pages}
+              </span>
+
+              <%= if @current_page < @total_pages do %>
+                <.link
+                  href={~p"/pripyat/mailboxes?page=#{@current_page + 1}&search=#{@search_query}"}
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-chevron-right" class="h-4 w-4" />
+                </.link>
+              <% end %>
+            </div>
+            <div class="text-center text-xs text-base-content/60">
+              {gettext("%{total} total mailboxes", total: @total_count)}
+            </div>
+          </div>
+          
+<!-- Desktop: Full pagination -->
+          <div class="hidden sm:flex justify-between items-center">
+            <div class="text-sm text-base-content/70">
+              {gettext("Showing %{start}-%{end} of %{total} mailboxes",
+                start: (@current_page - 1) * 20 + 1,
+                end: min(@current_page * 20, @total_count),
+                total: @total_count
+              )}
+            </div>
+
+            <div class="join">
+              <%= if @current_page > 1 do %>
+                <.link
+                  href={~p"/pripyat/mailboxes?page=#{@current_page - 1}&search=#{@search_query}"}
+                  class="join-item btn btn-sm"
+                >
+                  <.icon name="hero-chevron-left" class="h-4 w-4" />
+                </.link>
+              <% end %>
+
+              <%= for page_num <- @page_range do %>
+                <%= if page_num == @current_page do %>
+                  <button class="join-item btn btn-sm btn-active">{page_num}</button>
+                <% else %>
+                  <.link
+                    href={~p"/pripyat/mailboxes?page=#{page_num}&search=#{@search_query}"}
+                    class="join-item btn btn-sm"
+                  >
+                    {page_num}
+                  </.link>
+                <% end %>
+              <% end %>
+
+              <%= if @current_page < @total_pages do %>
+                <.link
+                  href={~p"/pripyat/mailboxes?page=#{@current_page + 1}&search=#{@search_query}"}
+                  class="join-item btn btn-sm"
+                >
+                  <.icon name="hero-chevron-right" class="h-4 w-4" />
+                </.link>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

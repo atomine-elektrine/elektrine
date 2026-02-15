@@ -1,0 +1,501 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-4 sm:mb-6">
+    <h1 class="text-xl sm:text-2xl font-bold">Recent Messages</h1>
+    <p class="opacity-70 mt-2 text-sm sm:text-base">
+      Overview of recent email messages in the system.
+    </p>
+  </div>
+  
+<!-- Search Form -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <form method="get" action={~p"/pripyat/messages"} class="flex gap-4 items-end">
+        <div class="flex-1">
+          <label class="label">
+            <span>Search messages</span>
+          </label>
+          <div class="join w-full">
+            <input
+              type="text"
+              name="search"
+              value={assigns[:search_query] || ""}
+              placeholder="Search by subject, sender, or username..."
+              class="input flex-1 join-item w-full"
+            />
+            <button type="submit" class="btn btn-primary join-item">
+              <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
+            </button>
+          </div>
+        </div>
+        <%= if assigns[:search_query] && @search_query != "" do %>
+          <.link href={~p"/pripyat/messages"} class="btn btn-ghost">
+            <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
+          </.link>
+        <% end %>
+      </form>
+
+      <%= if assigns[:search_query] && @search_query != "" do %>
+        <div class="mt-4">
+          <div class="alert alert-info">
+            <.icon name="hero-information-circle" class="stroke-current shrink-0 w-6 h-6" />
+            <span>
+              Showing results for "<strong><%= @search_query %></strong>"
+              ({length(@messages)} message{if length(@messages) != 1, do: "s"} found)
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Recipient Domains Statistics -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <h3 class="card-title text-lg mb-4">
+        <.icon name="hero-globe-alt" class="w-5 h-5 mr-2" /> Unique Recipient Domains
+      </h3>
+      <p class="text-sm opacity-70 mb-4">
+        External domains that users have sent emails to (top 20 by message count)
+      </p>
+
+      <%= if @recipient_domains && length(elem(@recipient_domains, 0)) > 0 do %>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <%= for domain <- elem(@recipient_domains, 0) do %>
+            <div class="bg-base-200 rounded-lg p-3 text-center">
+              <div class="font-medium text-sm truncate" title={domain.domain}>
+                {domain.domain}
+              </div>
+              <div class="text-xs opacity-60 mt-1">
+                {domain.count} message{if domain.count != 1, do: "s"}
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <%= if elem(@recipient_domains, 1) > 20 do %>
+          <div class="text-center mt-4">
+            <div class="text-xs opacity-60">
+              Showing top 20 of {elem(@recipient_domains, 1)} unique external domains
+            </div>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="text-center py-6">
+          <.icon name="hero-inbox" class="w-8 h-8 text-base-content/30 mx-auto mb-2" />
+          <div class="text-sm text-base-content/60">No outbound messages found</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Separate tables for received and sent messages -->
+  <% received_messages = Enum.filter(@messages, &(&1.status == "received")) %>
+  <% sent_messages = Enum.filter(@messages, &(&1.status == "sent")) %>
+  
+<!-- Received Messages -->
+  <%= if length(received_messages) > 0 do %>
+    <div class="card glass-card shadow-xl mb-6">
+      <div class="card-body">
+        <h3 class="card-title text-lg mb-4">
+          <.icon name="hero-arrow-down-tray" class="w-5 h-5 mr-2" />
+          Received Messages ({length(received_messages)})
+        </h3>
+        <!-- Desktop Table View -->
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>Subject & From</th>
+                <th>Recipient</th>
+                <th>User</th>
+                <th>Received</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for message <- received_messages do %>
+                <tr>
+                  <td>
+                    <div
+                      class="font-medium truncate max-w-xs"
+                      title={decode_email_subject(message.subject)}
+                    >
+                      {decode_email_subject(message.subject)}
+                    </div>
+                    <div class="text-sm opacity-70 truncate max-w-xs" title={message.from}>
+                      From: {message.from}
+                    </div>
+                    <div class="text-xs opacity-50">ID: {message.id}</div>
+                  </td>
+                  <td>
+                    <div class="font-medium text-sm truncate max-w-xs" title={message.to}>
+                      {message.to}
+                    </div>
+                    <div class="text-xs opacity-50">
+                      → {message.mailbox && message.mailbox.email}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-medium">
+                      {message.mailbox && message.mailbox.user && message.mailbox.user.username}
+                    </div>
+                  </td>
+                  <td class="text-sm opacity-70">
+                    <.local_time
+                      datetime={message.inserted_at}
+                      format="datetime"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+                  <td>
+                    <div class="flex gap-1">
+                      <.link
+                        href={~p"/pripyat/messages/#{message.id}/view"}
+                        class="btn btn-sm btn-ghost"
+                        title="View message"
+                      >
+                        <.icon name="hero-eye" class="w-4 h-4" />
+                      </.link>
+                      <.link
+                        href={~p"/pripyat/messages/#{message.id}/raw"}
+                        class="btn btn-sm btn-ghost"
+                        target="_blank"
+                        title="View raw email"
+                      >
+                        <.icon name="hero-code-bracket" class="w-4 h-4" />
+                      </.link>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+<!-- Mobile Card View -->
+        <div class="lg:hidden space-y-3">
+          <%= for message <- received_messages do %>
+            <div class="bg-base-200 rounded-lg p-4 border border-base-300">
+              <div class="flex justify-between items-start mb-2">
+                <div class="flex-1 min-w-0">
+                  <h4
+                    class="font-medium text-sm truncate"
+                    title={decode_email_subject(message.subject)}
+                  >
+                    {decode_email_subject(message.subject)}
+                  </h4>
+                  <p class="text-xs opacity-70 mt-1 truncate" title={message.from}>
+                    From: {message.from}
+                  </p>
+                </div>
+                <div class="flex gap-1 ml-2 flex-shrink-0">
+                  <.link
+                    href={~p"/pripyat/messages/#{message.id}/view"}
+                    class="btn btn-xs btn-ghost"
+                    title="View message"
+                  >
+                    <.icon name="hero-eye" class="w-3 h-3" />
+                  </.link>
+                  <.link
+                    href={~p"/pripyat/messages/#{message.id}/raw"}
+                    class="btn btn-xs btn-ghost"
+                    target="_blank"
+                    title="View raw email"
+                  >
+                    <.icon name="hero-code-bracket" class="w-3 h-3" />
+                  </.link>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span class="opacity-60">To:</span>
+                  <div class="font-medium truncate" title={message.to}>{message.to}</div>
+                </div>
+                <div>
+                  <span class="opacity-60">User:</span>
+                  <div class="font-medium">
+                    {message.mailbox && message.mailbox.user && message.mailbox.user.username}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-2 flex justify-between items-center text-xs">
+                <span class="opacity-50">→ {message.mailbox && message.mailbox.email}</span>
+                <span class="opacity-70">
+                  <.local_time
+                    datetime={message.inserted_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </span>
+              </div>
+
+              <div class="text-xs opacity-40 mt-1">ID: {message.id}</div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Sent Messages -->
+  <%= if length(sent_messages) > 0 do %>
+    <div class="card glass-card shadow-xl">
+      <div class="card-body">
+        <h3 class="card-title text-lg mb-4">
+          <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" />
+          Sent Messages ({length(sent_messages)})
+        </h3>
+        <!-- Desktop Table View -->
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>Subject & To</th>
+                <th>From</th>
+                <th>User</th>
+                <th>Sent</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for message <- sent_messages do %>
+                <tr>
+                  <td>
+                    <div
+                      class="font-medium truncate max-w-xs"
+                      title={decode_email_subject(message.subject)}
+                    >
+                      {decode_email_subject(message.subject)}
+                    </div>
+                    <div class="text-sm opacity-70 truncate max-w-xs" title={message.to}>
+                      To: {message.to}
+                    </div>
+                    <div class="text-xs opacity-50">ID: {message.id}</div>
+                  </td>
+                  <td>
+                    <div class="font-medium text-sm truncate max-w-xs" title={message.from}>
+                      {message.from}
+                    </div>
+                    <div class="text-xs opacity-50">
+                      ← {message.mailbox && message.mailbox.email}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-medium">
+                      {message.mailbox && message.mailbox.user && message.mailbox.user.username}
+                    </div>
+                  </td>
+                  <td class="text-sm opacity-70">
+                    <.local_time
+                      datetime={message.inserted_at}
+                      format="datetime"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+                  <td>
+                    <div class="flex gap-1">
+                      <.link
+                        href={~p"/pripyat/messages/#{message.id}/view"}
+                        class="btn btn-sm btn-ghost"
+                        title="View message"
+                      >
+                        <.icon name="hero-eye" class="w-4 h-4" />
+                      </.link>
+                      <.link
+                        href={~p"/pripyat/messages/#{message.id}/raw"}
+                        class="btn btn-sm btn-ghost"
+                        target="_blank"
+                        title="View raw email"
+                      >
+                        <.icon name="hero-code-bracket" class="w-4 h-4" />
+                      </.link>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+<!-- Mobile Card View -->
+        <div class="lg:hidden space-y-3">
+          <%= for message <- sent_messages do %>
+            <div class="bg-base-200 rounded-lg p-4 border border-base-300">
+              <div class="flex justify-between items-start mb-2">
+                <div class="flex-1 min-w-0">
+                  <h4
+                    class="font-medium text-sm truncate"
+                    title={decode_email_subject(message.subject)}
+                  >
+                    {decode_email_subject(message.subject)}
+                  </h4>
+                  <p class="text-xs opacity-70 mt-1 truncate" title={message.to}>
+                    To: {message.to}
+                  </p>
+                </div>
+                <div class="flex gap-1 ml-2 flex-shrink-0">
+                  <.link
+                    href={~p"/pripyat/messages/#{message.id}/view"}
+                    class="btn btn-xs btn-ghost"
+                    title="View message"
+                  >
+                    <.icon name="hero-eye" class="w-3 h-3" />
+                  </.link>
+                  <.link
+                    href={~p"/pripyat/messages/#{message.id}/raw"}
+                    class="btn btn-xs btn-ghost"
+                    target="_blank"
+                    title="View raw email"
+                  >
+                    <.icon name="hero-code-bracket" class="w-3 h-3" />
+                  </.link>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span class="opacity-60">From:</span>
+                  <div class="font-medium truncate" title={message.from}>{message.from}</div>
+                </div>
+                <div>
+                  <span class="opacity-60">User:</span>
+                  <div class="font-medium">
+                    {message.mailbox && message.mailbox.user && message.mailbox.user.username}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-2 flex justify-between items-center text-xs">
+                <span class="opacity-50">← {message.mailbox && message.mailbox.email}</span>
+                <span class="opacity-70">
+                  <.local_time
+                    datetime={message.inserted_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </span>
+              </div>
+
+              <div class="text-xs opacity-40 mt-1">ID: {message.id}</div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- No messages fallback -->
+  <%= if length(received_messages) == 0 and length(sent_messages) == 0 do %>
+    <div class="card glass-card shadow-xl">
+      <div class="card-body">
+        <div class="text-center py-8">
+          <.icon name="hero-inbox" class="w-12 h-12 text-base-content/30 mx-auto mb-4" />
+          <h3 class="text-lg font-medium mb-2">No messages found</h3>
+          <p class="text-base-content/60">
+            <%= if assigns[:search_query] && @search_query != "" do %>
+              No messages match your search criteria.
+            <% else %>
+              No messages have been processed yet.
+            <% end %>
+          </p>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Pagination -->
+  <%= if @total_pages > 1 do %>
+    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mt-6">
+      <!-- Mobile: Compact pagination -->
+      <div class="sm:hidden flex items-center gap-2">
+        <%= if @current_page > 1 do %>
+          <.link
+            href={
+              if @search_query != "",
+                do: ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page - 1}",
+                else: ~p"/pripyat/messages?page=#{@current_page - 1}"
+            }
+            class="btn btn-sm"
+          >
+            <.icon name="hero-chevron-left" class="w-4 h-4" />
+          </.link>
+        <% end %>
+
+        <span class="px-3 py-2 text-sm">
+          {@current_page} / {@total_pages}
+        </span>
+
+        <%= if @current_page < @total_pages do %>
+          <.link
+            href={
+              if @search_query != "",
+                do: ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page + 1}",
+                else: ~p"/pripyat/messages?page=#{@current_page + 1}"
+            }
+            class="btn btn-sm"
+          >
+            <.icon name="hero-chevron-right" class="w-4 h-4" />
+          </.link>
+        <% end %>
+      </div>
+      
+<!-- Desktop: Full pagination -->
+      <div class="hidden sm:flex">
+        <div class="join">
+          <%= if @current_page > 1 do %>
+            <.link
+              href={
+                if @search_query != "",
+                  do: ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page - 1}",
+                  else: ~p"/pripyat/messages?page=#{@current_page - 1}"
+              }
+              class="join-item btn"
+            >
+              «
+            </.link>
+          <% end %>
+
+          <%= for page_num <- @page_range do %>
+            <.link
+              href={
+                if @search_query != "",
+                  do: ~p"/pripyat/messages?search=#{@search_query}&page=#{page_num}",
+                  else: ~p"/pripyat/messages?page=#{page_num}"
+              }
+              class={
+                if page_num == @current_page,
+                  do: "join-item btn btn-primary",
+                  else: "join-item btn btn-ghost"
+              }
+            >
+              {page_num}
+            </.link>
+          <% end %>
+
+          <%= if @current_page < @total_pages do %>
+            <.link
+              href={
+                if @search_query != "",
+                  do: ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page + 1}",
+                  else: ~p"/pripyat/messages?page=#{@current_page + 1}"
+              }
+              class="join-item btn"
+            >
+              »
+            </.link>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4 text-sm opacity-70">
+      {@total_count} total message{if @total_count != 1, do: "s"}
+    </div>
+  <% end %>
+</div>

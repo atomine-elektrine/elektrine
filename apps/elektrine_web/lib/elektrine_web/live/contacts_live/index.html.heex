@@ -1,0 +1,589 @@
+<div class="flex h-[calc(100vh-4rem)] bg-base-200">
+  <!-- Sidebar -->
+  <div class="w-64 bg-base-100 border-r border-base-300 flex flex-col">
+    <!-- Header -->
+    <div class="p-4 border-b border-base-300">
+      <h1 class="text-xl font-bold text-base-content">{gettext("Contacts")}</h1>
+    </div>
+    
+<!-- Search -->
+    <div class="p-3">
+      <div class="relative">
+        <.icon
+          name="hero-magnifying-glass"
+          class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/50"
+        />
+        <input
+          type="text"
+          placeholder={gettext("Search contacts...")}
+          value={@search_query}
+          phx-keyup="search"
+          phx-debounce="300"
+          name="query"
+          class="input input-bordered input-sm w-full pl-9"
+        />
+      </div>
+    </div>
+    
+<!-- Groups -->
+    <div class="flex-1 overflow-y-auto">
+      <div class="px-3 py-2">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-base-content/60 uppercase tracking-wider">
+            {gettext("Groups")}
+          </span>
+          <button phx-click="new_group" class="btn btn-ghost btn-xs">
+            <.icon name="hero-plus" class="w-4 h-4" />
+          </button>
+        </div>
+
+        <ul class="menu menu-sm bg-base-200 rounded-lg p-0">
+          <li>
+            <button
+              phx-click="select_group"
+              phx-value-group="all"
+              class={"flex items-center gap-2 #{if @selected_group == nil, do: "active", else: ""}"}
+            >
+              <.icon name="hero-users" class="w-4 h-4" />
+              <span>{gettext("All Contacts")}</span>
+              <span class="badge badge-sm badge-ghost ml-auto">{length(@contacts)}</span>
+            </button>
+          </li>
+          <li>
+            <button
+              phx-click="select_group"
+              phx-value-group="favorites"
+              class={"flex items-center gap-2 #{if @selected_group == "favorites", do: "active", else: ""}"}
+            >
+              <.icon name="hero-star" class="w-4 h-4 text-yellow-500" />
+              <span>{gettext("Favorites")}</span>
+              <span class="badge badge-sm badge-ghost ml-auto">
+                {Enum.count(@contacts, & &1.favorite)}
+              </span>
+            </button>
+          </li>
+          <%= for group <- @groups do %>
+            <li>
+              <button
+                phx-click="select_group"
+                phx-value-group={group.id}
+                class={"flex items-center gap-2 group #{if @selected_group == group.id, do: "active", else: ""}"}
+              >
+                <div class="w-3 h-3 rounded-full" style={"background-color: #{group.color}"}>
+                </div>
+                <span class="flex-1 truncate">{group.name}</span>
+                <span class="badge badge-sm badge-ghost">
+                  {Enum.count(@contacts, &(&1.group_id == group.id))}
+                </span>
+                <button
+                  id={"edit-group-#{group.id}"}
+                  phx-click="edit_group"
+                  phx-value-id={group.id}
+                  class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100"
+                  phx-hook="StopPropagation"
+                >
+                  <.icon name="hero-pencil-square" class="w-3 h-3" />
+                </button>
+              </button>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+    
+<!-- Add Contact Button -->
+    <div class="p-3 border-t border-base-300">
+      <button phx-click="new_contact" class="btn btn-primary btn-sm w-full gap-2">
+        <.icon name="hero-plus" class="w-4 h-4" />
+        {gettext("Add Contact")}
+      </button>
+    </div>
+  </div>
+  
+<!-- Main Content -->
+  <div class="flex-1 flex">
+    <!-- Contact List -->
+    <div class={"flex-1 overflow-y-auto #{if @selected_contact, do: "hidden lg:block lg:max-w-md", else: ""}"}>
+      <%= if Enum.empty?(@filtered_contacts) do %>
+        <div class="flex flex-col items-center justify-center h-full text-base-content/50">
+          <.icon name="hero-user-group" class="w-16 h-16 mb-4" />
+          <p class="text-lg font-medium">{gettext("No contacts found")}</p>
+          <p class="text-sm">{gettext("Add a contact to get started")}</p>
+        </div>
+      <% else %>
+        <div class="divide-y divide-base-300">
+          <%= for contact <- @filtered_contacts do %>
+            <button
+              phx-click="select_contact"
+              phx-value-id={contact.id}
+              class={"w-full text-left p-4 hover:bg-base-200 transition-colors flex items-center gap-3 #{if @selected_contact && @selected_contact.id == contact.id, do: "bg-primary/10", else: ""}"}
+            >
+              <!-- Avatar -->
+              <div class="avatar placeholder">
+                <div class={"w-10 h-10 rounded-full #{if contact.photo_data, do: "", else: "bg-primary/20 text-primary"}"}>
+                  <%= if contact.photo_data do %>
+                    <img
+                      src={"data:#{contact.photo_content_type || "image/jpeg"};base64,#{Base.encode64(contact.photo_data)}"}
+                      alt={contact.name}
+                    />
+                  <% else %>
+                    <span class="text-sm font-semibold">
+                      {String.first(contact.name || "?") |> String.upcase()}
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+              
+<!-- Info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium truncate">{contact.name}</span>
+                  <%= if contact.favorite do %>
+                    <.icon name="hero-star-solid" class="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                  <% end %>
+                </div>
+                <p class="text-sm text-base-content/60 truncate">{contact.email}</p>
+                <%= if contact.organization do %>
+                  <p class="text-xs text-base-content/50 truncate">{contact.organization}</p>
+                <% end %>
+              </div>
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    
+<!-- Contact Detail -->
+    <%= if @selected_contact do %>
+      <div class="flex-1 bg-base-100 border-l border-base-300 overflow-y-auto">
+        <div class="p-6">
+          <!-- Header -->
+          <div class="flex items-start justify-between mb-6">
+            <div class="flex items-center gap-4">
+              <!-- Avatar -->
+              <div class="avatar placeholder">
+                <div class={"w-20 h-20 rounded-full #{if @selected_contact.photo_data, do: "", else: "bg-primary/20 text-primary"}"}>
+                  <%= if @selected_contact.photo_data do %>
+                    <img
+                      src={"data:#{@selected_contact.photo_content_type || "image/jpeg"};base64,#{Base.encode64(@selected_contact.photo_data)}"}
+                      alt={@selected_contact.name}
+                    />
+                  <% else %>
+                    <span class="text-2xl font-bold">
+                      {String.first(@selected_contact.name || "?") |> String.upcase()}
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold">{@selected_contact.name}</h2>
+                <%= if @selected_contact.title || @selected_contact.organization do %>
+                  <p class="text-base-content/60">
+                    {[@selected_contact.title, @selected_contact.organization]
+                    |> Enum.filter(& &1)
+                    |> Enum.join(" at ")}
+                  </p>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                phx-click="toggle_favorite"
+                phx-value-id={@selected_contact.id}
+                class="btn btn-ghost btn-sm"
+              >
+                <%= if @selected_contact.favorite do %>
+                  <.icon name="hero-star-solid" class="w-5 h-5 text-yellow-500" />
+                <% else %>
+                  <.icon name="hero-star" class="w-5 h-5" />
+                <% end %>
+              </button>
+              <button
+                phx-click="edit_contact"
+                phx-value-id={@selected_contact.id}
+                class="btn btn-ghost btn-sm"
+              >
+                <.icon name="hero-pencil-square" class="w-5 h-5" />
+              </button>
+              <button
+                phx-click="delete_contact"
+                phx-value-id={@selected_contact.id}
+                data-confirm={gettext("Are you sure you want to delete this contact?")}
+                class="btn btn-ghost btn-sm text-error"
+              >
+                <.icon name="hero-trash" class="w-5 h-5" />
+              </button>
+              <button phx-click="close_contact_detail" class="btn btn-ghost btn-sm lg:hidden">
+                <.icon name="hero-x-mark" class="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          
+<!-- Contact Info Cards -->
+          <div class="space-y-4">
+            <!-- Email -->
+            <%= if @selected_contact.email do %>
+              <div class="card bg-base-200">
+                <div class="card-body p-4">
+                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
+                    {gettext("Email")}
+                  </h3>
+                  <a
+                    href={"mailto:#{@selected_contact.email}"}
+                    class="flex items-center gap-2 text-primary hover:underline"
+                  >
+                    <.icon name="hero-envelope" class="w-4 h-4" />
+                    {@selected_contact.email}
+                  </a>
+                  <%= if @selected_contact.emails && length(@selected_contact.emails) > 0 do %>
+                    <%= for email_entry <- @selected_contact.emails do %>
+                      <a
+                        href={"mailto:#{email_entry["email"]}"}
+                        class="flex items-center gap-2 text-primary hover:underline mt-1"
+                      >
+                        <.icon name="hero-envelope" class="w-4 h-4" />
+                        {email_entry["email"]}
+                        <%= if email_entry["type"] do %>
+                          <span class="badge badge-xs badge-ghost">{email_entry["type"]}</span>
+                        <% end %>
+                      </a>
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            
+<!-- Phone -->
+            <%= if @selected_contact.phone || (@selected_contact.phones && length(@selected_contact.phones) > 0) do %>
+              <div class="card bg-base-200">
+                <div class="card-body p-4">
+                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
+                    {gettext("Phone")}
+                  </h3>
+                  <%= if @selected_contact.phone do %>
+                    <a
+                      href={"tel:#{@selected_contact.phone}"}
+                      class="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <.icon name="hero-phone" class="w-4 h-4" />
+                      {@selected_contact.phone}
+                    </a>
+                  <% end %>
+                  <%= if @selected_contact.phones do %>
+                    <%= for phone_entry <- @selected_contact.phones do %>
+                      <a
+                        href={"tel:#{phone_entry["number"]}"}
+                        class="flex items-center gap-2 text-primary hover:underline mt-1"
+                      >
+                        <.icon name="hero-phone" class="w-4 h-4" />
+                        {phone_entry["number"]}
+                        <%= if phone_entry["type"] do %>
+                          <span class="badge badge-xs badge-ghost">{phone_entry["type"]}</span>
+                        <% end %>
+                      </a>
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            
+<!-- Address -->
+            <%= if @selected_contact.addresses && length(@selected_contact.addresses) > 0 do %>
+              <div class="card bg-base-200">
+                <div class="card-body p-4">
+                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
+                    {gettext("Address")}
+                  </h3>
+                  <%= for addr <- @selected_contact.addresses do %>
+                    <div class="flex items-start gap-2 mt-1">
+                      <.icon name="hero-map-pin" class="w-4 h-4 mt-0.5" />
+                      <div>
+                        <%= if addr["street"] do %>
+                          <div>{addr["street"]}</div>
+                        <% end %>
+                        <%= if addr["city"] || addr["state"] || addr["postal_code"] do %>
+                          <div>
+                            {[addr["city"], addr["state"], addr["postal_code"]]
+                            |> Enum.filter(& &1)
+                            |> Enum.join(", ")}
+                          </div>
+                        <% end %>
+                        <%= if addr["country"] do %>
+                          <div>{addr["country"]}</div>
+                        <% end %>
+                        <%= if addr["type"] do %>
+                          <span class="badge badge-xs badge-ghost mt-1">{addr["type"]}</span>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            
+<!-- Birthday / Anniversary -->
+            <%= if @selected_contact.birthday || @selected_contact.anniversary do %>
+              <div class="card bg-base-200">
+                <div class="card-body p-4">
+                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
+                    {gettext("Important Dates")}
+                  </h3>
+                  <%= if @selected_contact.birthday do %>
+                    <div class="flex items-center gap-2">
+                      <.icon name="hero-cake" class="w-4 h-4" />
+                      <span>
+                        {gettext("Birthday")}: {Calendar.strftime(
+                          @selected_contact.birthday,
+                          "%B %d, %Y"
+                        )}
+                      </span>
+                    </div>
+                  <% end %>
+                  <%= if @selected_contact.anniversary do %>
+                    <div class="flex items-center gap-2 mt-1">
+                      <.icon name="hero-heart" class="w-4 h-4" />
+                      <span>
+                        {gettext("Anniversary")}: {Calendar.strftime(
+                          @selected_contact.anniversary,
+                          "%B %d, %Y"
+                        )}
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            
+<!-- Notes -->
+            <%= if @selected_contact.notes do %>
+              <div class="card bg-base-200">
+                <div class="card-body p-4">
+                  <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-2">
+                    {gettext("Notes")}
+                  </h3>
+                  <p class="whitespace-pre-wrap">{@selected_contact.notes}</p>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Contact Modal -->
+<%= if @show_contact_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-lg">
+      <h3 class="font-bold text-lg mb-4">
+        {if @editing_contact, do: gettext("Edit Contact"), else: gettext("New Contact")}
+      </h3>
+
+      <.form
+        for={@contact_changeset}
+        phx-submit="save_contact"
+        phx-change="validate_contact"
+        class="space-y-4"
+      >
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-control col-span-2">
+            <label class="label"><span class="label-text">{gettext("Name")} *</span></label>
+            <input
+              type="text"
+              name="contact[name]"
+              value={
+                @contact_changeset.changes[:name] || (@editing_contact && @editing_contact.name) ||
+                  ""
+              }
+              class="input input-bordered"
+              required
+            />
+          </div>
+
+          <div class="form-control col-span-2">
+            <label class="label"><span class="label-text">{gettext("Email")} *</span></label>
+            <input
+              type="email"
+              name="contact[email]"
+              value={
+                @contact_changeset.changes[:email] || (@editing_contact && @editing_contact.email) ||
+                  ""
+              }
+              class="input input-bordered"
+              required
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Phone")}</span></label>
+            <input
+              type="tel"
+              name="contact[phone]"
+              value={
+                @contact_changeset.changes[:phone] || (@editing_contact && @editing_contact.phone) ||
+                  ""
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Organization")}</span></label>
+            <input
+              type="text"
+              name="contact[organization]"
+              value={
+                @contact_changeset.changes[:organization] ||
+                  (@editing_contact && @editing_contact.organization) || ""
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Job Title")}</span></label>
+            <input
+              type="text"
+              name="contact[title]"
+              value={
+                @contact_changeset.changes[:title] || (@editing_contact && @editing_contact.title) ||
+                  ""
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Group")}</span></label>
+            <select name="contact[group_id]" class="select select-bordered">
+              <option value="">{gettext("No group")}</option>
+              <%= for group <- @groups do %>
+                <option
+                  value={group.id}
+                  selected={
+                    (@contact_changeset.changes[:group_id] ||
+                       (@editing_contact && @editing_contact.group_id)) == group.id
+                  }
+                >
+                  {group.name}
+                </option>
+              <% end %>
+            </select>
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Birthday")}</span></label>
+            <input
+              type="date"
+              name="contact[birthday]"
+              value={
+                @contact_changeset.changes[:birthday] ||
+                  (@editing_contact && @editing_contact.birthday) || ""
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Anniversary")}</span></label>
+            <input
+              type="date"
+              name="contact[anniversary]"
+              value={
+                @contact_changeset.changes[:anniversary] ||
+                  (@editing_contact && @editing_contact.anniversary) || ""
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control col-span-2">
+            <label class="label"><span class="label-text">{gettext("Notes")}</span></label>
+            <textarea
+              name="contact[notes]"
+              rows="3"
+              class="textarea textarea-bordered"
+            >{@contact_changeset.changes[:notes] || (@editing_contact && @editing_contact.notes) || ""}</textarea>
+          </div>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="cancel_contact_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Save")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_contact_modal"></div>
+  </div>
+<% end %>
+
+<!-- Group Modal -->
+<%= if @show_group_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-sm">
+      <h3 class="font-bold text-lg mb-4">
+        {if @editing_group, do: gettext("Edit Group"), else: gettext("New Group")}
+      </h3>
+
+      <.form
+        for={@group_changeset}
+        phx-submit="save_group"
+        phx-change="validate_group"
+        class="space-y-4"
+      >
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Name")} *</span></label>
+          <input
+            type="text"
+            name="contact_group[name]"
+            value={
+              @group_changeset.changes[:name] || (@editing_group && @editing_group.name) || ""
+            }
+            class="input input-bordered"
+            required
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Color")}</span></label>
+          <input
+            type="color"
+            name="contact_group[color]"
+            value={
+              @group_changeset.changes[:color] || (@editing_group && @editing_group.color) ||
+                "#3b82f6"
+            }
+            class="w-full h-10 rounded cursor-pointer"
+          />
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="cancel_group_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <%= if @editing_group do %>
+            <button
+              type="button"
+              phx-click="delete_group"
+              phx-value-id={@editing_group.id}
+              data-confirm={gettext("Are you sure you want to delete this group?")}
+              class="btn btn-error btn-outline"
+            >
+              {gettext("Delete")}
+            </button>
+          <% end %>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Save")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_group_modal"></div>
+  </div>
+<% end %>

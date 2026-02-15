@@ -1,0 +1,339 @@
+<div
+  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+  id="email-show-container"
+  phx-hook="EmailShowKeyboardShortcuts"
+>
+  <!-- Elektrine Platform Navigation -->
+  <.elektrine_nav active_tab="email" />
+
+  <div class="flex flex-col lg:flex-row gap-6">
+    <.sidebar
+      mailbox={@mailbox}
+      storage_info={@storage_info}
+      unread_count={@unread_count}
+      current_page="view"
+      current_user={@current_user}
+    />
+    
+<!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-hidden">
+      <div id="show-email-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
+        <div class="card-body p-6">
+          <!-- Header -->
+          <div class="mb-6">
+            <div class="flex items-start gap-4 mb-4">
+              <div class="p-3 bg-primary/10 rounded-lg flex-shrink-0">
+                <.icon name="hero-envelope-open" class="h-7 w-7 text-primary" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <h2 class="text-3xl font-bold break-words mb-2">
+                  <%= if @message.subject && String.trim(@message.subject) != "" do %>
+                    {decode_subject(@message.subject)}
+                  <% else %>
+                    <span class="text-base-content/50 italic">{gettext("(No Subject)")}</span>
+                  <% end %>
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  <.local_time
+                    datetime={@message.inserted_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </p>
+              </div>
+            </div>
+            
+<!-- Action buttons -->
+            <div class="flex flex-wrap gap-3 pt-4 border-t border-base-300">
+              <.link navigate={get_return_url(assigns)} class="btn btn-ghost btn-sm">
+                <.icon name="hero-arrow-left" class="h-4 w-4 mr-1" /> {get_back_button_text(
+                  assigns
+                )}
+              </.link>
+
+              <button phx-click="reply" class="btn btn-sm btn-primary">
+                <.icon name="hero-arrow-uturn-left" class="h-4 w-4 mr-1" /> {gettext("Reply")}
+              </button>
+              <%= if has_additional_recipients?(@message) do %>
+                <button phx-click="reply_all" class="btn btn-sm btn-ghost">
+                  <.icon name="hero-users" class="h-4 w-4 mr-1" /> {gettext("Reply All")}
+                </button>
+              <% end %>
+
+              <.link
+                href={~p"/email/#{@message.id}/print"}
+                target="_blank"
+                class="btn btn-sm btn-ghost"
+              >
+                <.icon name="hero-printer" class="h-4 w-4 mr-1" /> {gettext("Print")}
+              </.link>
+
+              <.link
+                navigate={~p"/email/#{@message.hash || @message.id}/raw"}
+                class="btn btn-sm btn-ghost"
+              >
+                <.icon name="hero-code-bracket" class="h-4 w-4 mr-1" /> {gettext("Raw")}
+              </.link>
+
+              <%= if @message.deleted do %>
+                <button
+                  phx-click="recover"
+                  phx-value-id={@message.id}
+                  class="btn btn-sm btn-ghost btn-success"
+                >
+                  <.icon name="hero-arrow-uturn-left" class="h-4 w-4 mr-1" /> {gettext("Recover")}
+                </button>
+                <button
+                  phx-click="delete"
+                  phx-value-id={@message.id}
+                  class="btn btn-sm btn-ghost btn-secondary"
+                  data-confirm={
+                    gettext(
+                      "Are you sure you want to permanently delete this message? This cannot be undone."
+                    )
+                  }
+                >
+                  <.icon name="hero-trash" class="h-4 w-4 mr-1" /> {gettext("Delete Permanently")}
+                </button>
+              <% else %>
+                <button
+                  phx-click="delete"
+                  phx-value-id={@message.id}
+                  class="btn btn-sm btn-ghost btn-secondary"
+                  data-confirm={gettext("Are you sure you want to delete this message?")}
+                >
+                  <.icon name="hero-trash" class="h-4 w-4 mr-1" /> {gettext("Delete")}
+                </button>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Email metadata -->
+          <div class="bg-base-200/50 rounded-lg p-4 mb-6 border border-base-300">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                  <.icon name="hero-user" class="h-4 w-4 text-base-content/60" />
+                  <span class="text-sm font-semibold">{gettext("From:")}</span>
+                </div>
+                <p class="text-sm font-medium bg-base-200 p-2 rounded border border-base-300 break-all">
+                  {format_email_display(@message.from)}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                  <.icon name="hero-at-symbol" class="h-4 w-4 text-base-content/60" />
+                  <span class="text-sm font-semibold">{gettext("To:")}</span>
+                </div>
+                <p class="text-sm font-medium bg-base-200 p-2 rounded border border-base-300 break-all">
+                  {format_email_display(@message.to)}
+                </p>
+              </div>
+
+              <%= if @message.cc && String.trim(@message.cc) != "" do %>
+                <div class="space-y-2 md:col-span-2">
+                  <div class="flex items-center space-x-2">
+                    <.icon name="hero-users" class="h-4 w-4 text-base-content/60" />
+                    <span class="text-sm font-semibold">{gettext("CC:")}</span>
+                  </div>
+                  <p class="text-sm font-medium bg-base-200 p-2 rounded border border-base-300 break-all">
+                    {format_email_display(@message.cc)}
+                  </p>
+                </div>
+              <% end %>
+
+              <%= if @message.bcc && String.trim(@message.bcc) != "" do %>
+                <div class="space-y-2 md:col-span-2">
+                  <div class="flex items-center space-x-2">
+                    <.icon name="hero-eye-slash" class="h-4 w-4 text-base-content/60" />
+                    <span class="text-sm font-semibold">{gettext("BCC:")}</span>
+                  </div>
+                  <p class="text-sm font-medium bg-base-200 p-2 rounded border border-base-300 break-all">
+                    {format_email_display(@message.bcc)}
+                  </p>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Boomerang Info -->
+          <%= if @message.reply_later_at do %>
+            <div class={[
+              "alert mb-6",
+              case reply_later_urgency_class(@message.reply_later_at) do
+                "badge-error" -> "alert-error"
+                "badge-warning" -> "alert-warning"
+                _ -> "alert-info"
+              end
+            ]}>
+              <.icon name="hero-arrow-uturn-left" class="w-5 h-5" />
+              <div class="flex-1">
+                <div class="font-semibold flex items-center gap-2">
+                  {gettext("Scheduled to return to inbox")}
+                  <div class={[
+                    "badge badge-sm font-semibold",
+                    reply_later_urgency_class(@message.reply_later_at)
+                  ]}>
+                    {format_reply_later_relative(@message.reply_later_at)}
+                  </div>
+                </div>
+                <div class="text-sm mt-1">
+                  <.local_time
+                    datetime={@message.reply_later_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </div>
+              </div>
+              <button
+                phx-click="clear_reply_later"
+                phx-value-id={@message.id}
+                class="btn btn-sm btn-ghost"
+                title={gettext("Cancel scheduled return")}
+              >
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+                {gettext("Cancel")}
+              </button>
+            </div>
+          <% end %>
+          
+<!-- Attachments -->
+          <%= if @message.has_attachments and map_size(@message.attachments || %{}) > 0 do %>
+            <div class="bg-base-200/30 rounded-lg p-4 mb-6 border border-base-300">
+              <div class="flex items-center space-x-2 mb-3">
+                <.icon name="hero-paper-clip" class="h-5 w-5 text-base-content/60" />
+                <span class="text-sm font-semibold">
+                  {gettext("Attachments (%{count})", count: map_size(@message.attachments))}
+                </span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <%= for {attachment_id, attachment} <- @message.attachments do %>
+                  <div class="bg-base-200 rounded-lg p-3 border border-base-300 hover:bg-base-200/50 transition-colors">
+                    <div class="flex items-start space-x-3">
+                      <div class="flex-shrink-0">
+                        <.icon
+                          name={get_file_icon(attachment["content_type"])}
+                          class="h-6 w-6 text-primary"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium truncate">{attachment["filename"]}</p>
+                        <p class="text-xs text-base-content/60">
+                          {format_file_size(attachment["size"] || 0)} • {attachment[
+                            "content_type"
+                          ]}
+                        </p>
+                        <a
+                          href={
+                            ~p"/email/message/#{@message.id}/attachment/#{attachment_id}/download"
+                          }
+                          download={attachment["filename"]}
+                          class="text-xs text-primary hover:text-primary-focus mt-1 inline-flex items-center font-medium"
+                        >
+                          <.icon name="hero-arrow-down-tray" class="h-3 w-3 mr-1" /> {gettext(
+                            "Download"
+                          )}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+          
+<!-- Message content -->
+          <div class="bg-white rounded-lg p-0 border border-base-300 overflow-hidden">
+            <iframe
+              id={"email-iframe-#{@message.id}"}
+              phx-hook="EmailIframeResize"
+              src={~p"/email/#{@message.id}/iframe_content"}
+              class="email-content-iframe w-full border-0 rounded-lg"
+              style="height: 600px;"
+              sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+              title="Email content"
+            >
+            </iframe>
+          </div>
+          
+<!-- Footer actions -->
+          <div class="flex flex-wrap gap-2 pt-6 border-t border-base-300 mt-6">
+            <button phx-click="reply" class="btn btn-primary">
+              <.icon name="hero-arrow-uturn-left" class="h-4 w-4 mr-2" /> {gettext("Reply")}
+            </button>
+            <%= if has_additional_recipients?(@message) do %>
+              <button phx-click="reply_all" class="btn btn-ghost">
+                <.icon name="hero-users" class="h-4 w-4 mr-2" /> {gettext("Reply All")}
+              </button>
+            <% end %>
+
+            <button phx-click="forward" class="btn btn-ghost">
+              <.icon name="hero-arrow-right" class="h-4 w-4 mr-2" /> {gettext("Forward")}
+            </button>
+
+            <button phx-click="save_message" class="btn btn-ghost">
+              <.icon name="hero-archive-box-arrow-down" class="h-4 w-4 mr-2" /> {gettext(
+                "Set Aside"
+              )}
+            </button>
+
+            <button phx-click="show_reply_later_modal" class="btn btn-ghost">
+              <.icon name="hero-clock" class="h-4 w-4 mr-2" /> {gettext("Reply Later")}
+            </button>
+
+            <button phx-click="mark_unread" class="btn btn-ghost">
+              <.icon name="hero-eye-slash" class="h-4 w-4 mr-2" /> {gettext("Mark as Unread")}
+            </button>
+
+            <.link
+              href={~p"/email/#{@message.id}/download_eml"}
+              class="btn btn-ghost"
+            >
+              <.icon name="hero-arrow-down-tray" class="h-4 w-4 mr-2" /> {gettext("Download EML")}
+            </.link>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reply Later Modal -->
+<%= if @show_reply_later_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-4">{gettext("Schedule Reply Later")}</h3>
+
+      <div class="mb-4 p-4 bg-base-200 rounded-lg">
+        <p class="text-sm text-base-content/70 mb-1">{gettext("From:")}{" "}{@message.from}</p>
+        <p class="font-semibold">{decode_subject(@message.subject)}</p>
+      </div>
+
+      <p class="text-base-content/70 mb-6">
+        {gettext("When would you like to be reminded to reply to this message?")}
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <button phx-click="schedule_reply_later" phx-value-days="1" class="btn btn-ghost">
+          <.icon name="hero-clock" class="h-4 w-4 mr-2" /> {gettext("Tomorrow")}
+        </button>
+        <button phx-click="schedule_reply_later" phx-value-days="3" class="btn btn-ghost">
+          <.icon name="hero-clock" class="h-4 w-4 mr-2" /> {gettext("In 3 Days")}
+        </button>
+        <button phx-click="schedule_reply_later" phx-value-days="7" class="btn btn-ghost">
+          <.icon name="hero-clock" class="h-4 w-4 mr-2" /> {gettext("Next Week")}
+        </button>
+        <button phx-click="schedule_reply_later" phx-value-days="30" class="btn btn-ghost">
+          <.icon name="hero-clock" class="h-4 w-4 mr-2" /> {gettext("Next Month")}
+        </button>
+      </div>
+
+      <div class="modal-action">
+        <button phx-click="close_reply_later_modal" class="btn">{gettext("Cancel")}</button>
+      </div>
+    </div>
+  </div>
+<% end %>

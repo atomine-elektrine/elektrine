@@ -1,0 +1,46 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold">Create New User</h1>
+    <p class="opacity-70 mt-2">Add a new user to the system.</p>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <.simple_form :let={f} for={@changeset} action={~p"/pripyat/users"}>
+        <.error :if={@changeset.action}>
+          Oops, something went wrong! Please check the errors below.
+        </.error>
+
+        <.input field={f[:username]} type="text" label="Username" required />
+        <.input field={f[:password]} type="password" label="Password" required />
+        <.input
+          field={f[:password_confirmation]}
+          type="password"
+          label="Confirm Password"
+          required
+        />
+
+        <div>
+          <label class="label cursor-pointer">
+            <span>Admin privileges</span>
+            <.input field={f[:is_admin]} type="checkbox" class="checkbox checkbox-primary" />
+          </label>
+          <div class="label">
+            <span class="opacity-70">
+              Grant admin privileges to this user
+            </span>
+          </div>
+        </div>
+
+        <div class="card-actions justify-end mt-6">
+          <.link href={~p"/pripyat/users"} class="btn btn-ghost">
+            <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Cancel
+          </.link>
+          <.button type="submit" class="btn btn-primary">
+            <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create User
+          </.button>
+        </div>
+      </.simple_form>
+    </div>
+  </div>
+</div>

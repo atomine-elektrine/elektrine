@@ -1,0 +1,42 @@
+<div class="card glass-card shadow-xl max-w-md mx-auto">
+  <div class="card-body text-center">
+    <div class="flex justify-center mb-4">
+      <div class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
+        <.icon name="hero-check-circle" class="w-10 h-10 text-success" />
+      </div>
+    </div>
+
+    <%= if @was_restricted do %>
+      <h1 class="text-2xl font-bold mb-2">Email Sending Restored</h1>
+
+      <p class="opacity-70 mb-6">
+        Your recovery email has been verified and your email sending privileges have been restored.
+      </p>
+
+      <div class="alert alert-success mb-6">
+        <.icon name="hero-shield-check" class="w-5 h-5" />
+        <span>You can now send emails again.</span>
+      </div>
+    <% else %>
+      <h1 class="text-2xl font-bold mb-2">Recovery Email Verified</h1>
+
+      <p class="opacity-70 mb-6">
+        Your recovery email has been verified successfully. You can now use it for password resets and account recovery.
+      </p>
+
+      <div class="alert alert-success mb-6">
+        <.icon name="hero-shield-check" class="w-5 h-5" />
+        <span>Your account recovery options are now set up.</span>
+      </div>
+    <% end %>
+
+    <div class="space-y-2">
+      <.link href={~p"/"} class="btn btn-primary w-full">
+        Go to Home
+      </.link>
+      <.link href={~p"/account?tab=security"} class="btn btn-ghost w-full">
+        Account Settings
+      </.link>
+    </div>
+  </div>
+</div>

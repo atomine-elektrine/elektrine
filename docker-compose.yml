@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: elektrine_db
+    environment:
+      POSTGRES_USER: elektrine
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: elektrine_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elektrine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elektrine_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      PHX_HOST: ${PHX_HOST:-elektrine.com}
+      PHX_SERVER: "true"
+      MIX_ENV: prod
+      LETS_ENCRYPT_ENABLED: ${LETS_ENCRYPT_ENABLED:-false}
+      LETS_ENCRYPT_CERT_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/fullchain.pem
+      LETS_ENCRYPT_KEY_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/privkey.pem
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - uploads:/app/uploads
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  letsencrypt:
+  uploads:
+
+networks:
+  elektrine_network:
+    driver: bridge

@@ -1,0 +1,2931 @@
+<div
+  id="settings-container"
+  phx-hook="GlassCardContainer"
+  class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+>
+  <div class="mb-6 sm:mb-8">
+    <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
+      {gettext("Account Settings")}
+    </h1>
+    <p class="text-base-content/70 mt-2">
+      {gettext("Manage your account preferences and security settings")}
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+    <!-- Sidebar Navigation -->
+    <div class="lg:col-span-1">
+      <div class="sticky top-24 self-start">
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-4">
+            <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
+            <ul class="menu menu-compact w-full p-0 space-y-1">
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="profile"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "profile", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-user" class="w-4 h-4" /> {gettext("Profile")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="security"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "security", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("Security")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="password-manager"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "password-manager", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-lock-closed" class="w-4 h-4" /> {gettext("Password Manager")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="privacy"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "privacy", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-lock-closed" class="w-4 h-4" /> {gettext("Privacy")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="preferences"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "preferences", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Preferences")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="notifications"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "notifications", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-bell" class="w-4 h-4" /> {gettext("Notifications")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="timeline"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "timeline", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Timeline")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="email"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "email", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-envelope" class="w-4 h-4" /> {gettext("Email")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="custom-domain"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "custom-domain", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Custom Domain")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="developer"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "developer", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-code-bracket" class="w-4 h-4" /> {gettext("Developer")}
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="danger"
+                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "danger", do: "bg-error text-error-content", else: "hover:bg-base-200 text-error"}"}
+                >
+                  <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
+                    "Danger Zone"
+                  )}
+                </a>
+              </li>
+            </ul>
+
+            <div class="divider my-4"></div>
+
+            <div class="space-y-2">
+              <.link
+                href={~p"/account/profile/edit"}
+                class="btn btn-ghost btn-sm w-full justify-start"
+              >
+                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Z Profile")}
+              </.link>
+              <.link href={~p"/account/storage"} class="btn btn-ghost btn-sm w-full justify-start">
+                <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
+              </.link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Main Content -->
+    <div class="lg:col-span-3">
+      <!-- Profile Tab -->
+      <%= if @selected_tab == "profile" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
+              <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
+            </h2>
+
+            <.form
+              for={@changeset}
+              id="profile-form"
+              phx-submit="save"
+              phx-change="validate"
+              class="space-y-4 sm:space-y-6"
+            >
+              <%= if @changeset.action && !@changeset.valid? do %>
+                <div class="alert alert-error">
+                  <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                  <div>
+                    <div class="font-semibold">{gettext("Please fix the following errors:")}</div>
+                    <ul class="list-disc list-inside mt-2 text-sm">
+                      <%= for {field, {message, opts}} <- @changeset.errors do %>
+                        <li>
+                          <strong>{String.capitalize(to_string(field))}:</strong>
+                          <%= if String.contains?(message, "%{count}") do %>
+                            {String.replace(
+                              message,
+                              "%{count}",
+                              to_string(opts[:count] || opts[:max] || "?")
+                            )}
+                          <% else %>
+                            {message}
+                          <% end %>
+                        </li>
+                      <% end %>
+                    </ul>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Avatar Section -->
+              <div>
+                <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                  <div class="avatar flex-shrink-0">
+                    <div class="w-16 sm:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                      <.user_avatar
+                        user={@user}
+                        size="xl"
+                        class="w-16 sm:w-20 h-16 sm:h-20 rounded-full"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex-1 w-full">
+                    <.live_file_input
+                      upload={@uploads.avatar}
+                      class="file-input file-input-primary w-full text-sm"
+                    />
+                    <div class="text-xs sm:text-sm text-base-content/60 mt-2">
+                      {gettext(
+                        "Upload a new avatar image (max 5MB) - Will be automatically cropped to square"
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="divider text-sm">{gettext("Public Profile")}</div>
+              
+<!-- Username Section (read-only) -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Username")}</span>
+                  <span class="label-text-alt text-xs text-base-content/50">
+                    {gettext("Cannot be changed")}
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={@user.username}
+                  class="input input-bordered w-full bg-base-200 text-base-content/70 cursor-not-allowed"
+                  disabled
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60 block">
+                    {gettext("Your permanent account identifier. Used for login.")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Handle Section -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Handle")}</span>
+                  <%= if @user.handle_changed_at do %>
+                    <span class="label-text-alt text-xs text-warning">
+                      {gettext("Can change in %{days} days",
+                        days: days_until_can_change_handle(@user)
+                      )}
+                    </span>
+                  <% end %>
+                </label>
+                <input
+                  type="text"
+                  name="user[handle]"
+                  value={@user.handle}
+                  placeholder="yourhandle"
+                  class="input input-bordered w-full"
+                  disabled={@user.handle_changed_at && days_until_can_change_handle(@user) > 0}
+                  pattern="[a-zA-Z0-9_]{1,20}"
+                  maxlength="20"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60 block">
+                    {gettext("Profile URL:")} z.org/{@user.handle}<br />
+                    {gettext("Mentions:")} @{@user.handle}<br />
+                    {gettext("1-20 chars, alphanumeric + underscore")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Display Name Section -->
+              <div>
+                <.input
+                  field={{@changeset, :display_name}}
+                  name="user[display_name]"
+                  value={Ecto.Changeset.get_field(@changeset, :display_name)}
+                  type="text"
+                  label={gettext("Display Name")}
+                  placeholder="John Doe"
+                  maxlength="100"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60 break-words">
+                    {gettext("Your public display name. Can be changed anytime.")}
+                  </span>
+                </div>
+              </div>
+
+              <div class="divider text-sm">{gettext("Account Recovery")}</div>
+              
+<!-- Recovery Email Section -->
+              <div>
+                <div class="flex items-end gap-2">
+                  <div class="flex-1">
+                    <.input
+                      field={{@changeset, :recovery_email}}
+                      name="user[recovery_email]"
+                      value={Ecto.Changeset.get_field(@changeset, :recovery_email)}
+                      type="email"
+                      label={gettext("Recovery Email")}
+                      placeholder="your-external-email@example.com"
+                    />
+                  </div>
+                  <%= if @user.recovery_email && @user.recovery_email != "" do %>
+                    <%= if @user.recovery_email_verified do %>
+                      <div class="badge badge-success gap-1 mb-3">
+                        <.icon name="hero-check-circle-mini" class="w-3 h-3" />
+                        {gettext("Verified")}
+                      </div>
+                    <% else %>
+                      <div class="badge badge-warning gap-1 mb-3">
+                        <.icon name="hero-exclamation-circle-mini" class="w-3 h-3" />
+                        {gettext("Unverified")}
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+                <div class="label">
+                  <span class="text-xs text-base-content/60 break-words">
+                    {gettext("Used for password reset. Must be an external email address.")}
+                  </span>
+                </div>
+                <%= if @user.recovery_email && @user.recovery_email != "" && !@user.recovery_email_verified do %>
+                  <div class="mt-2">
+                    <button
+                      type="button"
+                      phx-click="send_recovery_verification"
+                      class="btn btn-sm btn-outline btn-primary"
+                    >
+                      <.icon name="hero-envelope" class="w-4 h-4" />
+                      {gettext("Send Verification Email")}
+                    </button>
+                    <p class="text-xs text-base-content/60 mt-1">
+                      {gettext(
+                        "You must verify your recovery email before it can be used for password resets."
+                      )}
+                    </p>
+                  </div>
+                <% end %>
+              </div>
+
+              <div class="card-actions justify-end mt-4 sm:mt-6">
+                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Security Tab -->
+      <%= if @selected_tab == "security" do %>
+        <div class="space-y-4 sm:space-y-6">
+          <!-- Password Section -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-key" class="w-5 h-5" /> {gettext("Password")}
+              </h3>
+              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                {gettext("Keep your account secure with a strong password.")}
+              </p>
+              <div class="card-actions">
+                <.link
+                  href={~p"/account/password"}
+                  class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                >
+                  {gettext("Change Password")}
+                </.link>
+              </div>
+            </div>
+          </div>
+          
+<!-- Two-Factor Authentication Section -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext(
+                  "Two-Factor Authentication"
+                )}
+              </h3>
+
+              <%= if @user.two_factor_enabled do %>
+                <div class="flex items-center gap-2 mb-3">
+                  <.icon name="hero-shield-check" class="w-5 h-5 text-success" />
+                  <span class="text-success font-medium text-sm">{gettext("Enabled")}</span>
+                </div>
+                <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                  {gettext("Your account is protected with 2FA.")}
+                </p>
+                <div class="card-actions">
+                  <.link
+                    href={~p"/account/two_factor"}
+                    class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                  >
+                    {gettext("Manage 2FA")}
+                  </.link>
+                </div>
+              <% else %>
+                <div class="flex items-center gap-2 mb-3">
+                  <.icon name="hero-shield-exclamation" class="w-5 h-5 text-warning" />
+                  <span class="text-warning font-medium text-sm">{gettext("Disabled")}</span>
+                </div>
+                <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                  {gettext("Add an extra layer of security to your account.")}
+                </p>
+                <div class="card-actions">
+                  <.link
+                    href={~p"/account/two_factor/setup"}
+                    class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
+                  >
+                    {gettext("Enable 2FA")}
+                  </.link>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Passkeys Section -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-finger-print" class="w-5 h-5" />
+                {gettext("Passkeys")}
+              </h3>
+
+              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                {gettext(
+                  "Sign in without a password using your device's biometrics or a security key."
+                )}
+              </p>
+              <div class="card-actions">
+                <.link
+                  href={~p"/account/passkeys"}
+                  class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                >
+                  {gettext("Manage Passkeys")}
+                </.link>
+              </div>
+            </div>
+          </div>
+          
+<!-- Email Sending Status Section -->
+          <%= if @loading_security do %>
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <div class="animate-pulse space-y-4">
+                  <div class="h-4 bg-base-300 rounded w-1/3"></div>
+                  <div class="h-3 bg-base-300 rounded w-2/3"></div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+          <%= if !@loading_security && @email_restriction_status.restricted do %>
+            <div class="card glass-card shadow-lg border-2 border-warning">
+              <div class="card-body p-4 sm:p-6">
+                <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                  <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
+                  Email Sending Restricted
+                </h3>
+
+                <div class="alert alert-warning mb-4">
+                  <.icon name="hero-shield-exclamation" class="w-5 h-5" />
+                  <div>
+                    <div class="font-semibold">
+                      Your email sending has been temporarily restricted
+                    </div>
+                    <div class="text-sm opacity-80">{@email_restriction_status.reason}</div>
+                  </div>
+                </div>
+
+                <div class="bg-base-200 rounded-lg p-4 mb-4">
+                  <h4 class="font-semibold mb-2 text-sm">To restore email sending:</h4>
+                  <ol class="list-decimal list-inside space-y-1 text-sm opacity-80">
+                    <li>Make sure you have a recovery email set in your profile</li>
+                    <li>Click the button below to receive a verification email</li>
+                    <li>Click the verification link in that email</li>
+                  </ol>
+                </div>
+
+                <%= if @email_restriction_status.recovery_email do %>
+                  <div class="mb-4">
+                    <div class="text-sm opacity-70 mb-1">Recovery Email</div>
+                    <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
+                      <span>{@email_restriction_status.recovery_email}</span>
+                      <%= if @email_restriction_status.recovery_email_verified do %>
+                        <span class="badge badge-success badge-sm">Verified</span>
+                      <% else %>
+                        <span class="badge badge-warning badge-sm">Not Verified</span>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    phx-click="send_recovery_verification"
+                    class="btn btn-warning w-full"
+                  >
+                    <.icon name="hero-envelope" class="w-5 h-5 mr-2" /> Send Verification Email
+                  </button>
+                <% else %>
+                  <div class="alert alert-info">
+                    <.icon name="hero-information-circle" class="w-5 h-5" />
+                    <span>Please add a recovery email address in the Profile tab first.</span>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+          
+<!-- App Passwords Section -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
+              </h3>
+              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                {gettext("Access your email from POP3/IMAP clients without 2FA.")}
+              </p>
+              <div class="card-actions">
+                <.link
+                  href={~p"/account/app-passwords"}
+                  class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                >
+                  {gettext("Manage App Passwords")}
+                </.link>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Password Manager")}
+              </h3>
+              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                {gettext("Store and reveal credentials from an encrypted vault.")}
+              </p>
+              <div class="card-actions">
+                <button
+                  type="button"
+                  phx-click="change_tab"
+                  phx-value-tab="password-manager"
+                  class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
+                >
+                  {gettext("Open Password Manager Tab")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Password Manager Tab -->
+      <%= if @selected_tab == "password-manager" do %>
+        <div class="space-y-4 sm:space-y-6">
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
+                    <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Password Manager")}
+                  </h2>
+                  <p class="text-xs sm:text-sm text-base-content/70 mt-1">
+                    {gettext(
+                      "Store credentials in your encrypted vault and reveal them only when needed."
+                    )}
+                  </p>
+                </div>
+                <div class="badge badge-outline">
+                  {gettext("Entries: %{count}", count: length(@password_manager_entries))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h3 class="card-title text-base sm:text-lg mb-4">
+                  {gettext("Add Vault Entry")}
+                </h3>
+                <p class="text-xs sm:text-sm text-base-content/70 mb-4">
+                  {gettext("Group related fields and save one credential set per service.")}
+                </p>
+
+                <.simple_form
+                  id="password-manager-entry-form"
+                  for={@password_manager_form}
+                  bare={true}
+                  phx-change="password_manager_validate"
+                  phx-submit="password_manager_create"
+                >
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="rounded-lg border border-base-300 bg-base-200/50 p-4 h-full space-y-4">
+                      <p class="text-sm font-semibold text-base-content/80">
+                        {gettext("Account Details")}
+                      </p>
+                      <.input
+                        field={@password_manager_form[:title]}
+                        label={gettext("Title")}
+                        placeholder="GitHub"
+                        required
+                      />
+                      <.input
+                        field={@password_manager_form[:website]}
+                        label={gettext("Website")}
+                        type="url"
+                        placeholder="https://example.com"
+                      />
+                    </div>
+
+                    <div class="rounded-lg border border-base-300 bg-base-200/50 p-4 h-full space-y-4">
+                      <p class="text-sm font-semibold text-base-content/80">
+                        {gettext("Credentials")}
+                      </p>
+                      <.input
+                        field={@password_manager_form[:login_username]}
+                        label={gettext("Username or Email")}
+                        placeholder="you@example.com"
+                      />
+                      <div class="form-control w-full">
+                        <div class="label py-0 mb-1">
+                          <span class="label-text">{gettext("Password")}</span>
+                          <button
+                            type="button"
+                            phx-click="password_manager_generate_password"
+                            class="btn btn-xs btn-outline"
+                          >
+                            {gettext("Generate")}
+                          </button>
+                        </div>
+                        <input
+                          type="password"
+                          id={@password_manager_form[:password].id}
+                          name={@password_manager_form[:password].name}
+                          value={
+                            Phoenix.HTML.Form.normalize_value(
+                              "password",
+                              @password_manager_form[:password].value
+                            )
+                          }
+                          class={[
+                            "input input-bordered w-full",
+                            @password_manager_form[:password].errors != [] && "input-error"
+                          ]}
+                          required
+                        />
+                        <.error :for={error <- @password_manager_form[:password].errors}>
+                          {translate_error(error)}
+                        </.error>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+                    <p class="text-sm font-semibold text-base-content/80 mb-3">
+                      {gettext("Notes")}
+                    </p>
+                    <textarea
+                      id={@password_manager_form[:notes].id}
+                      name={@password_manager_form[:notes].name}
+                      class={[
+                        "textarea textarea-bordered w-full min-h-[6rem]",
+                        @password_manager_form[:notes].errors != [] && "textarea-error"
+                      ]}
+                      placeholder={gettext("Optional notes, recovery links, backup codes, etc.")}
+                    >{Phoenix.HTML.Form.normalize_value("textarea", @password_manager_form[:notes].value)}</textarea>
+                    <.error :for={error <- @password_manager_form[:notes].errors}>
+                      {translate_error(error)}
+                    </.error>
+                  </div>
+
+                  <:actions>
+                    <div class="w-full flex justify-end">
+                      <.button class="btn btn-primary w-full sm:w-auto">
+                        {gettext("Save Entry")}
+                      </.button>
+                    </div>
+                  </:actions>
+                </.simple_form>
+              </div>
+            </div>
+
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h3 class="card-title text-base sm:text-lg mb-4">
+                  {gettext("Vault Security")}
+                </h3>
+                <ul class="space-y-3 text-sm text-base-content/70 list-disc pl-5">
+                  <li>{gettext("Vault data is encrypted with your account-specific key.")}</li>
+                  <li>{gettext("Reveal passwords only when needed, then hide them.")}</li>
+                  <li>{gettext("Use unique passwords for each account.")}</li>
+                  <li>{gettext("Delete credentials you no longer need.")}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg mb-4">{gettext("Saved Entries")}</h3>
+
+              <%= if @loading_password_manager do %>
+                <div class="animate-pulse space-y-3">
+                  <div class="h-4 bg-base-300 rounded w-1/3"></div>
+                  <div class="h-4 bg-base-300 rounded w-full"></div>
+                  <div class="h-4 bg-base-300 rounded w-full"></div>
+                </div>
+              <% else %>
+                <%= if @password_manager_entries == [] do %>
+                  <div class="text-center py-10">
+                    <.icon
+                      name="hero-lock-closed"
+                      class="w-10 h-10 mx-auto text-base-content/25 mb-3"
+                    />
+                    <p class="text-sm text-base-content/60">{gettext("No entries yet")}</p>
+                  </div>
+                <% else %>
+                  <div class="overflow-x-auto">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>{gettext("Title")}</th>
+                          <th class="hidden md:table-cell">{gettext("Login")}</th>
+                          <th class="hidden lg:table-cell">{gettext("Website")}</th>
+                          <th class="hidden sm:table-cell">{gettext("Created")}</th>
+                          <th>{gettext("Actions")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <%= for entry <- @password_manager_entries do %>
+                          <tr id={"password-manager-entry-#{entry.id}"}>
+                            <td class="font-medium">{entry.title}</td>
+                            <td class="hidden md:table-cell text-sm text-base-content/70">
+                              {entry.login_username || "-"}
+                            </td>
+                            <td class="hidden lg:table-cell text-sm">
+                              <%= if entry.website do %>
+                                <a
+                                  href={entry.website}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="link link-hover"
+                                >
+                                  {entry.website}
+                                </a>
+                              <% else %>
+                                <span class="text-base-content/50">-</span>
+                              <% end %>
+                            </td>
+                            <td class="hidden sm:table-cell text-sm text-base-content/70">
+                              <.local_time datetime={entry.inserted_at} format="date" />
+                            </td>
+                            <td>
+                              <div class="flex gap-2">
+                                <%= if Map.has_key?(@password_manager_revealed_entries, entry.id) do %>
+                                  <button
+                                    type="button"
+                                    phx-click="password_manager_hide"
+                                    phx-value-id={entry.id}
+                                    class="btn btn-xs btn-outline"
+                                  >
+                                    {gettext("Hide")}
+                                  </button>
+                                <% else %>
+                                  <button
+                                    type="button"
+                                    phx-click="password_manager_reveal"
+                                    phx-value-id={entry.id}
+                                    class="btn btn-xs btn-primary"
+                                  >
+                                    {gettext("Reveal")}
+                                  </button>
+                                <% end %>
+
+                                <button
+                                  type="button"
+                                  phx-click="password_manager_delete"
+                                  phx-value-id={entry.id}
+                                  data-confirm={gettext("Delete this vault entry?")}
+                                  class="btn btn-xs btn-error btn-outline"
+                                >
+                                  {gettext("Delete")}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          <tr
+                            :if={Map.has_key?(@password_manager_revealed_entries, entry.id)}
+                            id={"password-manager-secret-#{entry.id}"}
+                          >
+                            <td colspan="5">
+                              <% revealed = @password_manager_revealed_entries[entry.id] %>
+                              <div class="bg-base-200 rounded-lg p-4 space-y-3">
+                                <div>
+                                  <p class="text-xs uppercase tracking-wide text-base-content/60 mb-1">
+                                    {gettext("Password")}
+                                  </p>
+                                  <code
+                                    id={"password-manager-password-#{entry.id}"}
+                                    class="font-mono text-sm break-all"
+                                  >
+                                    {revealed.password}
+                                  </code>
+                                </div>
+
+                                <%= if revealed.notes do %>
+                                  <div>
+                                    <p class="text-xs uppercase tracking-wide text-base-content/60 mb-1">
+                                      {gettext("Notes")}
+                                    </p>
+                                    <pre
+                                      id={"password-manager-notes-#{entry.id}"}
+                                      class="text-sm whitespace-pre-wrap font-sans"
+                                    >{revealed.notes}</pre>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Privacy Tab -->
+      <%= if @selected_tab == "privacy" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
+              <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Privacy Settings")}
+            </h2>
+
+            <.form
+              for={@changeset}
+              id="privacy-form"
+              phx-submit="save"
+              phx-change="validate"
+              class="space-y-4 sm:space-y-6"
+            >
+              <!-- Group/Channel Add Permissions -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">
+                    {gettext("Who can add you to groups/channels")}
+                  </span>
+                </label>
+                <select
+                  name="user[allow_group_adds_from]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="everyone"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "everyone"
+                    }
+                  >
+                    {gettext("Everyone")}
+                  </option>
+                  <option
+                    value="friends"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "friends"
+                    }
+                  >
+                    {gettext("Friends only")}
+                  </option>
+                  <option
+                    value="following"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "following"
+                    }
+                  >
+                    {gettext("People I follow")}
+                  </option>
+                  <option
+                    value="followers"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "followers"
+                    }
+                  >
+                    {gettext("My followers")}
+                  </option>
+                  <option
+                    value="mutual"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "mutual"
+                    }
+                  >
+                    {gettext("Mutual follows only")}
+                  </option>
+                  <option
+                    value="nobody"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "nobody"
+                    }
+                  >
+                    {gettext("Nobody")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Control who can add you to group conversations and channels")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Direct Message Permissions -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">
+                    {gettext("Who can send you direct messages")}
+                  </span>
+                </label>
+                <select
+                  name="user[allow_direct_messages_from]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="everyone"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                        "everyone"
+                    }
+                  >
+                    {gettext("Everyone")}
+                  </option>
+                  <option
+                    value="friends"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                        "friends"
+                    }
+                  >
+                    {gettext("Friends only")}
+                  </option>
+                  <option
+                    value="following"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                        "following"
+                    }
+                  >
+                    {gettext("People I follow")}
+                  </option>
+                  <option
+                    value="followers"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                        "followers"
+                    }
+                  >
+                    {gettext("My followers")}
+                  </option>
+                  <option
+                    value="mutual"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                        "mutual"
+                    }
+                  >
+                    {gettext("Mutual follows only")}
+                  </option>
+                  <option
+                    value="nobody"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                        "nobody"
+                    }
+                  >
+                    {gettext("Nobody")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Control who can start direct message conversations with you")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Call Permissions -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Who can call you")}</span>
+                </label>
+                <select
+                  name="user[allow_calls_from]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="everyone"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "everyone"
+                    }
+                  >
+                    {gettext("Everyone")}
+                  </option>
+                  <option
+                    value="friends"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "friends"
+                    }
+                  >
+                    {gettext("Friends only")}
+                  </option>
+                  <option
+                    value="nobody"
+                    selected={Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "nobody"}
+                  >
+                    {gettext("Nobody")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Control who can initiate audio and video calls with you")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Friend Request Permissions -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">
+                    {gettext("Who can send you friend requests")}
+                  </span>
+                </label>
+                <select
+                  name="user[allow_friend_requests_from]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="everyone"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
+                        "everyone"
+                    }
+                  >
+                    {gettext("Everyone")}
+                  </option>
+                  <option
+                    value="followers"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
+                        "followers"
+                    }
+                  >
+                    {gettext("Followers only")}
+                  </option>
+                  <option
+                    value="nobody"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
+                        "nobody"
+                    }
+                  >
+                    {gettext("Nobody")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Control who can send you friend requests")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Mention Permissions -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Who can mention you")}</span>
+                </label>
+                <select
+                  name="user[allow_mentions_from]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="everyone"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "everyone"
+                    }
+                  >
+                    {gettext("Everyone")}
+                  </option>
+                  <option
+                    value="friends"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "friends"
+                    }
+                  >
+                    {gettext("Friends only")}
+                  </option>
+                  <option
+                    value="following"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "following"
+                    }
+                  >
+                    {gettext("People I follow")}
+                  </option>
+                  <option
+                    value="followers"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "followers"
+                    }
+                  >
+                    {gettext("My followers")}
+                  </option>
+                  <option
+                    value="mutual"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "mutual"
+                    }
+                  >
+                    {gettext("Mutual follows only")}
+                  </option>
+                  <option
+                    value="nobody"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "nobody"
+                    }
+                  >
+                    {gettext("Nobody")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Control who can @mention you in posts and messages")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Default Post Visibility -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Default post visibility")}</span>
+                </label>
+                <select
+                  name="user[default_post_visibility]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="public"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "public"
+                    }
+                  >
+                    {gettext("Public")}
+                  </option>
+                  <option
+                    value="followers"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) ==
+                        "followers"
+                    }
+                  >
+                    {gettext("Followers only")}
+                  </option>
+                  <option
+                    value="friends"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "friends"
+                    }
+                  >
+                    {gettext("Friends only")}
+                  </option>
+                  <option
+                    value="private"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "private"
+                    }
+                  >
+                    {gettext("Private")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext(
+                      "Default visibility for your timeline posts (can be changed per post)"
+                    )}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Profile Visibility -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Profile visibility")}</span>
+                </label>
+                <select
+                  name="user[profile_visibility]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="public"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :profile_visibility) == "public"
+                    }
+                  >
+                    {gettext("Public")}
+                  </option>
+                  <option
+                    value="followers"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :profile_visibility) == "followers"
+                    }
+                  >
+                    {gettext("Followers only")}
+                  </option>
+                  <option
+                    value="private"
+                    selected={
+                      Ecto.Changeset.get_field(@changeset, :profile_visibility) == "private"
+                    }
+                  >
+                    {gettext("Private")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Control who can view your profile page")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Federation Follower Approval -->
+              <div class="form-control">
+                <label class="label cursor-pointer justify-start gap-4">
+                  <input
+                    type="hidden"
+                    name="user[activitypub_manually_approve_followers]"
+                    value="false"
+                  />
+                  <input
+                    type="checkbox"
+                    name="user[activitypub_manually_approve_followers]"
+                    class="checkbox checkbox-primary"
+                    checked={
+                      Ecto.Changeset.get_field(
+                        @changeset,
+                        :activitypub_manually_approve_followers
+                      )
+                    }
+                  />
+                  <div>
+                    <span class="label-text font-medium">
+                      {gettext("Manually approve followers from the fediverse")}
+                    </span>
+                    <p class="text-xs text-base-content/60 mt-1">
+                      {gettext(
+                        "When enabled, you must approve follow requests from Mastodon and other ActivityPub instances"
+                      )}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div class="card-actions justify-end mt-4 sm:mt-6">
+                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Preferences Tab -->
+      <%= if @selected_tab == "preferences" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
+              <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Preferences")}
+            </h2>
+
+            <.form
+              for={@changeset}
+              id="preferences-form"
+              phx-submit="save"
+              phx-change="validate"
+              class="space-y-4 sm:space-y-6"
+            >
+              <!-- Language/Locale -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Language")}</span>
+                </label>
+                <select
+                  name="user[locale]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="en"
+                    selected={Ecto.Changeset.get_field(@changeset, :locale) == "en"}
+                  >
+                    English
+                  </option>
+                  <option
+                    value="zh"
+                    selected={Ecto.Changeset.get_field(@changeset, :locale) == "zh"}
+                  >
+                    中文 (Chinese)
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Choose your preferred language for the interface")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Timezone -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Timezone")}</span>
+                </label>
+                <select
+                  name="user[timezone]"
+                  class="select select-bordered w-full"
+                  phx-update="ignore"
+                  id="timezone-select"
+                >
+                  <option value="">{gettext("Auto-detect (browser timezone)")}</option>
+                  <optgroup label={gettext("Common Timezones")}>
+                    <option
+                      value="America/New_York"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/New_York"
+                      }
+                    >
+                      {gettext("Eastern Time (US & Canada)")}
+                    </option>
+                    <option
+                      value="America/Chicago"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/Chicago"
+                      }
+                    >
+                      {gettext("Central Time (US & Canada)")}
+                    </option>
+                    <option
+                      value="America/Denver"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/Denver"
+                      }
+                    >
+                      {gettext("Mountain Time (US & Canada)")}
+                    </option>
+                    <option
+                      value="America/Los_Angeles"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/Los_Angeles"
+                      }
+                    >
+                      {gettext("Pacific Time (US & Canada)")}
+                    </option>
+                    <option
+                      value="Europe/London"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/London"
+                      }
+                    >
+                      {gettext("London")}
+                    </option>
+                    <option
+                      value="Europe/Paris"
+                      selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Paris"}
+                    >
+                      {gettext("Paris")}
+                    </option>
+                    <option
+                      value="Europe/Berlin"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Berlin"
+                      }
+                    >
+                      {gettext("Berlin")}
+                    </option>
+                    <option
+                      value="Asia/Tokyo"
+                      selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Tokyo"}
+                    >
+                      {gettext("Tokyo")}
+                    </option>
+                    <option
+                      value="Asia/Shanghai"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Shanghai"
+                      }
+                    >
+                      {gettext("Shanghai")}
+                    </option>
+                    <option
+                      value="Asia/Hong_Kong"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Hong_Kong"
+                      }
+                    >
+                      {gettext("Hong Kong")}
+                    </option>
+                    <option
+                      value="Australia/Sydney"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :timezone) == "Australia/Sydney"
+                      }
+                    >
+                      {gettext("Sydney")}
+                    </option>
+                  </optgroup>
+                  <optgroup label="UTC">
+                    <option
+                      value="Etc/UTC"
+                      selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Etc/UTC"}
+                    >
+                      UTC
+                    </option>
+                  </optgroup>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("All times will be displayed in your selected timezone")}
+                  </span>
+                </div>
+              </div>
+              
+<!-- Time Format -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">{gettext("Time Format")}</span>
+                </label>
+                <select
+                  name="user[time_format]"
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    value="12"
+                    selected={Ecto.Changeset.get_field(@changeset, :time_format) == "12"}
+                  >
+                    {gettext("12-hour (3:45 PM)")}
+                  </option>
+                  <option
+                    value="24"
+                    selected={Ecto.Changeset.get_field(@changeset, :time_format) == "24"}
+                  >
+                    {gettext("24-hour (15:45)")}
+                  </option>
+                </select>
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Choose how times are displayed")}
+                  </span>
+                </div>
+              </div>
+
+              <div class="card-actions justify-end mt-4 sm:mt-6">
+                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Notifications Tab -->
+      <%= if @selected_tab == "notifications" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
+              <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Notifications")}
+            </h2>
+
+            <.form
+              for={@changeset}
+              id="notifications-form"
+              phx-submit="save"
+              phx-change="validate"
+              class="space-y-4 sm:space-y-6"
+            >
+              <!-- Notification Settings -->
+              <div class="space-y-3">
+                <div class="text-sm text-base-content/60 mb-2">
+                  {gettext("Choose which events you want to be notified about")}
+                </div>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_new_follower"
+                    name="user[notify_on_new_follower]"
+                    value="true"
+                    checked={
+                      Ecto.Changeset.get_field(@changeset, :notify_on_new_follower) == true
+                    }
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">{gettext("Notify me when someone follows me")}</span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_direct_message"
+                    name="user[notify_on_direct_message]"
+                    value="true"
+                    checked={
+                      Ecto.Changeset.get_field(@changeset, :notify_on_direct_message) == true
+                    }
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">{gettext("Notify me for new direct messages")}</span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_mention"
+                    name="user[notify_on_mention]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :notify_on_mention) == true}
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">{gettext("Notify me when I'm mentioned")}</span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_reply"
+                    name="user[notify_on_reply]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :notify_on_reply) == true}
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    {gettext("Notify me when someone replies to my message")}
+                  </span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_like"
+                    name="user[notify_on_like]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :notify_on_like) == true}
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    {gettext("Notify me when someone likes my post")}
+                  </span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_email_received"
+                    name="user[notify_on_email_received]"
+                    value="true"
+                    checked={
+                      Ecto.Changeset.get_field(@changeset, :notify_on_email_received) == true
+                    }
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">{gettext("Notify me when I receive an email")}</span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_discussion_reply"
+                    name="user[notify_on_discussion_reply]"
+                    value="true"
+                    checked={
+                      Ecto.Changeset.get_field(@changeset, :notify_on_discussion_reply) == true
+                    }
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    {gettext("Notify me when someone replies to my discussion post")}
+                  </span>
+                </label>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="user_notify_on_comment"
+                    name="user[notify_on_comment]"
+                    value="true"
+                    checked={Ecto.Changeset.get_field(@changeset, :notify_on_comment) == true}
+                    class="checkbox checkbox-primary"
+                  />
+                  <span class="label-text">
+                    {gettext("Notify me when someone comments on my timeline post")}
+                  </span>
+                </label>
+              </div>
+
+              <div class="card-actions justify-end mt-4 sm:mt-6">
+                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Timeline Tab -->
+      <%= if @selected_tab == "timeline" do %>
+        <div class="space-y-4 sm:space-y-6">
+          <!-- RSS Feeds Card -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-2">
+                <.icon name="hero-rss" class="w-5 h-5" /> {gettext("RSS Feeds")}
+              </h3>
+              <p class="text-sm text-base-content/70 mb-4">
+                {gettext("Subscribe to RSS feeds to see articles in your timeline.")}
+              </p>
+
+              <%= if @loading_timeline do %>
+                <div class="animate-pulse space-y-4">
+                  <div class="h-10 bg-base-300 rounded"></div>
+                  <div class="h-4 bg-base-300 rounded w-1/4"></div>
+                  <div class="h-16 bg-base-300 rounded"></div>
+                  <div class="h-16 bg-base-300 rounded"></div>
+                </div>
+              <% else %>
+                
+<!-- Add Feed Form -->
+                <form phx-submit="add_rss_feed" class="mb-6">
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text font-medium">{gettext("Add a new feed")}</span>
+                    </label>
+                    <div class="flex gap-2">
+                      <input
+                        type="url"
+                        name="url"
+                        value={@new_feed_url}
+                        phx-change="update_feed_url"
+                        placeholder="https://example.com/feed.xml"
+                        class={[
+                          "input input-bordered flex-1",
+                          @rss_error && "input-error"
+                        ]}
+                        disabled={@adding_feed}
+                      />
+                      <button
+                        type="submit"
+                        class="btn btn-secondary"
+                        disabled={@adding_feed}
+                      >
+                        <%= if @adding_feed do %>
+                          <.spinner size="sm" />
+                          {gettext("Adding...")}
+                        <% else %>
+                          {gettext("Add Feed")}
+                        <% end %>
+                      </button>
+                    </div>
+                    <%= if @rss_error do %>
+                      <label class="label">
+                        <span class="label-text-alt text-error">{@rss_error}</span>
+                      </label>
+                    <% end %>
+                  </div>
+                </form>
+                
+<!-- Subscriptions List -->
+                <div class="space-y-4">
+                  <h4 class="font-semibold text-sm">{gettext("Your Subscriptions")}</h4>
+
+                  <%= if Enum.empty?(@rss_subscriptions) do %>
+                    <div class="text-center py-6 text-base-content/60">
+                      <.icon name="hero-rss" class="w-10 h-10 mx-auto mb-3 opacity-40" />
+                      <p class="text-sm">{gettext("No feeds subscribed yet")}</p>
+                      <p class="text-xs mt-1">{gettext("Add a feed URL above to get started")}</p>
+                    </div>
+                  <% else %>
+                    <div class="space-y-2">
+                      <%= for subscription <- @rss_subscriptions do %>
+                        <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg">
+                          <div class="flex-shrink-0">
+                            <%= if subscription.feed && subscription.feed.favicon_url do %>
+                              <img
+                                src={subscription.feed.favicon_url}
+                                alt=""
+                                class="w-6 h-6 rounded"
+                                onerror="this.style.display='none'"
+                              />
+                            <% else %>
+                              <div class="w-6 h-6 rounded bg-base-300 flex items-center justify-center">
+                                <.icon name="hero-rss" class="w-3 h-3" />
+                              </div>
+                            <% end %>
+                          </div>
+
+                          <div class="flex-1 min-w-0">
+                            <div class="font-medium text-sm truncate">
+                              {subscription.display_name ||
+                                (subscription.feed && subscription.feed.title) ||
+                                "Untitled Feed"}
+                            </div>
+                            <div class="text-xs text-base-content/60 truncate">
+                              {subscription.feed && subscription.feed.url}
+                            </div>
+                            <%= if subscription.feed && subscription.feed.last_error do %>
+                              <div class="text-xs text-error mt-1">
+                                {gettext("Error:")} {subscription.feed.last_error}
+                              </div>
+                            <% end %>
+                          </div>
+
+                          <div class="flex items-center gap-2 flex-shrink-0">
+                            <!-- Show in Timeline Toggle -->
+                            <label class="label cursor-pointer gap-1 p-0">
+                              <span class="label-text text-xs hidden sm:inline">
+                                {gettext("Timeline")}
+                              </span>
+                              <input
+                                type="checkbox"
+                                class="toggle toggle-xs toggle-secondary"
+                                checked={subscription.show_in_timeline}
+                                phx-click="toggle_rss_timeline"
+                                phx-value-subscription_id={subscription.id}
+                              />
+                            </label>
+                            
+<!-- Remove Button -->
+                            <button
+                              phx-click="remove_rss_feed"
+                              phx-value-feed_id={subscription.feed_id}
+                              class="btn btn-ghost btn-xs text-error"
+                              title={gettext("Unsubscribe")}
+                            >
+                              <.icon name="hero-trash" class="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Email Tab -->
+      <%= if @selected_tab == "email" do %>
+        <div class="space-y-4 sm:space-y-6">
+          <!-- Email Settings Card -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-envelope" class="w-5 h-5" /> {gettext("Email Settings")}
+              </h3>
+
+              <.form
+                for={@changeset}
+                id="email-form"
+                phx-submit="save"
+                phx-change="validate"
+                class="space-y-4"
+              >
+                <!-- Account Identity Info -->
+                <div class="bg-base-200 rounded-lg p-4 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium">{gettext("Username")}</span>
+                    <span class="text-sm font-medium">{@user.username}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium">{gettext("Unique ID")}</span>
+                    <span class="text-sm font-medium text-base-content/70">
+                      {@user.unique_id}
+                    </span>
+                  </div>
+                  <div class="text-xs text-base-content/60 mt-2">
+                    {gettext(
+                      "Username is for login only. Your handle (%{handle}) is your public identity.",
+                      handle: @user.handle
+                    )}
+                  </div>
+                </div>
+                
+<!-- Email Addresses -->
+                <div class="bg-base-200 rounded-lg p-4 space-y-2">
+                  <%= if @mailboxes && @mailboxes != [] do %>
+                    <%= for mailbox <- @mailboxes do %>
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">{gettext("Primary Email")}</span>
+                        <span class="text-sm font-medium">{mailbox.email}</span>
+                      </div>
+                    <% end %>
+                  <% end %>
+
+                  <%= if @aliases && @aliases != [] do %>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium">{gettext("Email Aliases")}</span>
+                      <span class="text-sm">
+                        {gettext("%{count} configured", count: length(@aliases))}
+                      </span>
+                    </div>
+                  <% else %>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium">{gettext("Email Aliases")}</span>
+                      <span class="text-sm text-base-content/70">
+                        {gettext("None configured")}
+                      </span>
+                    </div>
+                  <% end %>
+
+                  <div class="text-xs text-base-content/60 mt-2">
+                    {gettext("Manage email addresses and aliases in the")}
+                    <.link href={~p"/email"} class="link link-primary">
+                      {gettext("Email section")}
+                    </.link>
+                  </div>
+                </div>
+
+                <div class="divider text-sm my-4">{gettext("Default Email Domain")}</div>
+                
+<!-- Preferred Email Domain -->
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text font-medium">{gettext("Compose From")}</span>
+                  </label>
+                  <select
+                    name="user[preferred_email_domain]"
+                    class="select select-bordered w-full"
+                  >
+                    <option value="z.org" selected={@user.preferred_email_domain == "z.org"}>
+                      {@user.username}@z.org
+                    </option>
+                    <option
+                      value="elektrine.com"
+                      selected={@user.preferred_email_domain == "elektrine.com"}
+                    >
+                      {@user.username}@elektrine.com
+                    </option>
+                  </select>
+                  <label class="label">
+                    <span class="label-text-alt">
+                      {gettext("Default 'From' address when composing new emails")}
+                    </span>
+                  </label>
+                </div>
+
+                <div class="divider text-sm my-4">{gettext("Email Signature")}</div>
+                
+<!-- Email Signature Section -->
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">{gettext("Signature")}</span>
+                    <span class="label-text-alt text-xs">{gettext("Max 500 characters")}</span>
+                  </label>
+                  <textarea
+                    name="user[email_signature]"
+                    rows="4"
+                    class="textarea textarea-bordered w-full text-sm"
+                    maxlength="500"
+                    placeholder={
+                      gettext(
+                        "Your signature will be automatically appended to outgoing emails.\n\nExample:\nBest regards,\nYour Name\nYour Title"
+                      )
+                    }
+                  ><%= Ecto.Changeset.get_field(@changeset, :email_signature) %></textarea>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      {gettext(
+                        "Automatically appended to all outgoing emails with '-- ' separator"
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="card-actions justify-end">
+                  <.button class="btn-primary btn-sm w-full sm:w-auto text-xs sm:text-sm">
+                    {gettext("Save Settings")}
+                  </.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+          
+<!-- PGP Encryption -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("PGP Encryption")}
+              </h3>
+              <p class="text-xs sm:text-sm text-base-content/70 mb-4">
+                {gettext(
+                  "Upload your PGP public key to enable encrypted email. Recipients can discover your key via WKD."
+                )}
+              </p>
+
+              <%= if @user.pgp_public_key do %>
+                <!-- Current Key Info -->
+                <div class="bg-base-200 rounded-lg p-4 space-y-3 mb-4">
+                  <div class="flex items-center gap-2">
+                    <.icon name="hero-key" class="w-5 h-5 text-success" />
+                    <span class="font-medium text-success text-sm">
+                      {gettext("PGP Key Active")}
+                    </span>
+                  </div>
+
+                  <%= if @user.pgp_fingerprint do %>
+                    <div>
+                      <div class="text-xs text-base-content/60 mb-1">
+                        {gettext("Fingerprint")}
+                      </div>
+                      <code class="text-xs font-mono bg-base-300 px-2 py-1 rounded block break-all">
+                        {format_fingerprint(@user.pgp_fingerprint)}
+                      </code>
+                    </div>
+                  <% end %>
+
+                  <%= if @user.pgp_key_id do %>
+                    <div>
+                      <div class="text-xs text-base-content/60 mb-1">{gettext("Key ID")}</div>
+                      <code class="text-xs font-mono bg-base-300 px-2 py-1 rounded">
+                        {@user.pgp_key_id}
+                      </code>
+                    </div>
+                  <% end %>
+
+                  <%= if @user.pgp_key_uploaded_at do %>
+                    <div>
+                      <div class="text-xs text-base-content/60 mb-1">{gettext("Uploaded")}</div>
+                      <span class="text-xs">
+                        {Calendar.strftime(@user.pgp_key_uploaded_at, "%Y-%m-%d %H:%M UTC")}
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+                
+<!-- WKD Discovery URL -->
+                <div class="bg-base-200 rounded-lg p-4 mb-4">
+                  <div class="text-xs text-base-content/60 mb-1">
+                    {gettext("WKD Discovery URL")}
+                  </div>
+                  <code class="text-xs font-mono break-all">
+                    https://z.org/.well-known/openpgpkey/hu/{wkd_hash(@user.username)}
+                  </code>
+                  <div class="text-xs text-base-content/50 mt-2">
+                    {gettext("Email clients can automatically discover your key at this URL.")}
+                  </div>
+                </div>
+                
+<!-- Delete Key -->
+                <div class="card-actions">
+                  <button
+                    type="button"
+                    phx-click="delete_pgp_key"
+                    data-confirm={
+                      gettext(
+                        "Are you sure you want to remove your PGP key? This will disable encrypted email."
+                      )
+                    }
+                    class="btn btn-error btn-sm w-full"
+                  >
+                    <.icon name="hero-trash" class="w-4 h-4" />
+                    {gettext("Remove PGP Key")}
+                  </button>
+                </div>
+              <% else %>
+                <!-- Upload Form -->
+                <.form
+                  for={%{}}
+                  id="pgp-key-form"
+                  phx-submit="upload_pgp_key"
+                  class="space-y-4"
+                >
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">{gettext("Public Key")}</span>
+                    </label>
+                    <textarea
+                      name="pgp_public_key"
+                      rows="8"
+                      class="textarea textarea-bordered w-full font-mono text-xs"
+                      placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----\n\n...\n\n-----END PGP PUBLIC KEY BLOCK-----"
+                      required
+                    ></textarea>
+                    <div class="label">
+                      <span class="text-xs text-base-content/60">
+                        {gettext("Paste your ASCII-armored PGP public key.")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="card-actions">
+                    <.button class="btn-primary btn-sm w-full">
+                      <.icon name="hero-arrow-up-tray" class="w-4 h-4" />
+                      {gettext("Upload Public Key")}
+                    </.button>
+                  </div>
+                </.form>
+                
+<!-- Info about PGP -->
+                <div class="alert alert-info mt-4">
+                  <.icon name="hero-information-circle" class="w-5 h-5" />
+                  <div class="text-xs">
+                    <div class="font-medium mb-1">{gettext("How it works")}</div>
+                    <ul class="list-disc list-inside space-y-1">
+                      <li>
+                        {gettext(
+                          "When you send an email, we check if the recipient has a PGP key"
+                        )}
+                      </li>
+                      <li>
+                        {gettext(
+                          "Keys are discovered via WKD (Web Key Directory) or your contacts"
+                        )}
+                      </li>
+                      <li>
+                        {gettext("If a key is found, the email body is encrypted automatically")}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Email Subscription Preferences -->
+          <%= if @loading_email do %>
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
+                  <.icon name="hero-bell" class="w-5 h-5" /> {gettext(
+                    "Email Subscription Preferences"
+                  )}
+                </h3>
+                <div class="animate-pulse space-y-3">
+                  <div class="h-4 bg-base-300 rounded w-2/3"></div>
+                  <div class="h-12 bg-base-300 rounded"></div>
+                  <div class="h-12 bg-base-300 rounded"></div>
+                  <div class="h-12 bg-base-300 rounded"></div>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <%= if !Enum.empty?(@user_emails) do %>
+              <div class="card glass-card shadow-lg">
+                <div class="card-body p-4 sm:p-6">
+                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
+                    <.icon name="hero-bell" class="w-5 h-5" /> {gettext(
+                      "Email Subscription Preferences"
+                    )}
+                  </h3>
+
+                  <p class="text-xs sm:text-sm text-base-content/70 mb-4">
+                    {gettext(
+                      "Manage subscription preferences for all your email addresses. Transactional emails cannot be unsubscribed."
+                    )}
+                  </p>
+
+                  <div class="space-y-2">
+                    <%= for list <- @lists do %>
+                      <div class="bg-base-200 rounded-lg p-3">
+                        <div class="flex items-center justify-between gap-3">
+                          <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="font-medium text-sm">{list.name}</span>
+                              <div class={"badge badge-xs #{type_badge_class(list.type)}"}>
+                                {format_type(list.type)}
+                              </div>
+                            </div>
+                            <p class="text-xs text-base-content/60">{list.description}</p>
+                          </div>
+                          <%= if list.can_unsubscribe do %>
+                            <% any_subscribed =
+                              Enum.any?(@user_emails, fn email ->
+                                !get_in(@unsubscribe_status, [email, list.id])
+                              end) %>
+                            <button
+                              phx-click="toggle_subscription"
+                              phx-value-list_id={list.id}
+                              class={"btn btn-sm #{if any_subscribed, do: "btn-primary", else: "btn-ghost"}"}
+                            >
+                              <%= if any_subscribed do %>
+                                <.icon name="hero-bell" class="w-4 h-4" />
+                                <span class="ml-1">{gettext("Subscribed")}</span>
+                              <% else %>
+                                <.icon name="hero-bell-slash" class="w-4 h-4" />
+                                <span class="ml-1">{gettext("Unsubscribed")}</span>
+                              <% end %>
+                            </button>
+                          <% else %>
+                            <span class="badge badge-ghost">{gettext("Required")}</span>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% else %>
+              <div class="card glass-card shadow-lg">
+                <div class="card-body p-4 sm:p-6">
+                  <div class="alert alert-warning">
+                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                    <span class="text-sm">
+                      {gettext("No email addresses found for your account.")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Custom Domain Tab -->
+      <%= if @selected_tab == "custom-domain" do %>
+        <div class="space-y-6">
+          <div class="card glass-card shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-globe-alt" class="w-5 h-5" /> {gettext("Custom Domain")}
+              </h3>
+              <p class="text-base-content/70">
+                {gettext(
+                  "Use your own domain (e.g., yourname.com) instead of yourname.z.org for your profile page."
+                )}
+              </p>
+            </div>
+          </div>
+
+          <%= if @loading_custom_domain do %>
+            <div class="card glass-card shadow-xl">
+              <div class="card-body">
+                <div class="animate-pulse space-y-4">
+                  <div class="h-6 bg-base-300 rounded w-1/3"></div>
+                  <div class="h-10 bg-base-300 rounded"></div>
+                  <div class="h-10 bg-base-300 rounded w-1/4"></div>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <%= if @custom_domains == [] do %>
+              <%= if @has_custom_domain_access do %>
+                <!-- No domain configured - show add form -->
+                <div class="card glass-card shadow-xl">
+                  <div class="card-body">
+                    <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
+                      <.icon name="hero-plus-circle" class="w-5 h-5" /> {gettext(
+                        "Add Custom Domain"
+                      )}
+                    </h3>
+
+                    <.form
+                      for={@domain_form}
+                      id="add-domain-form"
+                      phx-submit="add_domain"
+                      class="space-y-4"
+                    >
+                      <div class="form-control">
+                        <label class="label">
+                          <span class="label-text">{gettext("Domain")}</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="domain[domain]"
+                          placeholder="example.com"
+                          class="input input-bordered w-full"
+                          disabled={@adding_domain}
+                        />
+                        <label class="label">
+                          <span class="label-text-alt text-base-content/60">
+                            {gettext("Enter your domain without http:// or www")}
+                          </span>
+                        </label>
+                      </div>
+
+                      <button type="submit" class="btn btn-primary" disabled={@adding_domain}>
+                        <%= if @adding_domain do %>
+                          <.spinner size="sm" /> {gettext("Adding...")}
+                        <% else %>
+                          {gettext("Add Domain")}
+                        <% end %>
+                      </button>
+                    </.form>
+                  </div>
+                </div>
+              <% else %>
+                <!-- Subscription required -->
+                <div class="card glass-card shadow-xl">
+                  <div class="card-body text-center">
+                    <div class="w-16 h-16 rounded-full bg-warning/20 flex items-center justify-center mx-auto mb-4">
+                      <.icon name="hero-lock-closed" class="w-8 h-8 text-warning" />
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">{gettext("Subscription Required")}</h3>
+                    <p class="text-base-content/70 mb-6">
+                      {gettext("Custom domains are available with an active subscription.")}
+                    </p>
+                    <.link href={~p"/subscribe/custom-domains"} class="btn btn-primary">
+                      <.icon name="hero-credit-card" class="w-5 h-5 mr-2" />
+                      {gettext("View Plans")}
+                    </.link>
+                  </div>
+                </div>
+              <% end %>
+            <% else %>
+              <!-- Domain configured - show status and instructions -->
+              <%= for domain <- @custom_domains do %>
+                <div class="card glass-card shadow-xl">
+                  <div class="card-body">
+                    <div class="flex justify-between items-start">
+                      <div>
+                        <h3 class="text-xl font-bold">{domain.domain}</h3>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                          {render_domain_status_badge(assigns, domain.status)}
+                          <%= if domain.ssl_status != "pending" do %>
+                            {render_domain_ssl_badge(assigns, domain.ssl_status)}
+                          <% end %>
+                        </div>
+                      </div>
+                      <button
+                        phx-click="delete_domain"
+                        phx-value-id={domain.id}
+                        class="btn btn-ghost btn-sm text-error"
+                        data-confirm={gettext("Are you sure you want to remove this domain?")}
+                      >
+                        {gettext("Remove")}
+                      </button>
+                    </div>
+
+                    <%= case domain.status do %>
+                      <% "pending_verification" -> %>
+                        {render_domain_verification_instructions(assigns, domain)}
+                      <% "verified" -> %>
+                        <div class="alert alert-success mt-4">
+                          <.icon name="hero-check-circle" class="w-6 h-6" />
+                          <span>
+                            {gettext("Domain verified! SSL certificate is being provisioned...")}
+                          </span>
+                        </div>
+                        <button
+                          phx-click="provision_ssl"
+                          phx-value-id={domain.id}
+                          class="btn btn-primary mt-4"
+                        >
+                          {gettext("Start SSL Provisioning")}
+                        </button>
+                      <% "provisioning_ssl" -> %>
+                        <div class="alert alert-info mt-4">
+                          <.spinner size="sm" />
+                          <span>
+                            {gettext(
+                              "SSL certificate is being provisioned. This may take a few minutes..."
+                            )}
+                          </span>
+                        </div>
+                      <% "active" -> %>
+                        <div class="alert alert-success mt-4">
+                          <.icon name="hero-check-circle" class="w-6 h-6" />
+                          <div>
+                            <p class="font-semibold">{gettext("Your domain is active!")}</p>
+                            <p>
+                              {gettext("Visit")}
+                              <a
+                                href={"https://#{domain.domain}"}
+                                target="_blank"
+                                class="link"
+                              >
+                                https://{domain.domain}
+                              </a>
+                            </p>
+                            <%= if domain.certificate_expires_at do %>
+                              <p class="text-sm opacity-70">
+                                {gettext("Certificate expires:")} {Calendar.strftime(
+                                  domain.certificate_expires_at,
+                                  "%B %d, %Y"
+                                )}
+                              </p>
+                            <% end %>
+                          </div>
+                        </div>
+                        
+<!-- Email Settings Section -->
+                        {render_domain_email_settings(assigns, domain)}
+                      <% "ssl_failed" -> %>
+                        <div class="alert alert-error mt-4">
+                          <.icon name="hero-x-circle" class="w-6 h-6" />
+                          <div>
+                            <p class="font-semibold">{gettext("SSL provisioning failed")}</p>
+                            <%= if domain.last_error do %>
+                              <p class="text-sm">{domain.last_error}</p>
+                            <% end %>
+                          </div>
+                        </div>
+                        <button
+                          phx-click="retry_ssl"
+                          phx-value-id={domain.id}
+                          class="btn btn-warning mt-4"
+                        >
+                          {gettext("Retry SSL Provisioning")}
+                        </button>
+                      <% "verification_failed" -> %>
+                        <div class="alert alert-error mt-4">
+                          <span>{gettext("Verification failed:")} {domain.last_error}</span>
+                        </div>
+                        {render_domain_verification_instructions(assigns, domain)}
+                      <% _ -> %>
+                        <div class="alert alert-warning mt-4">
+                          <span>{gettext("Status:")} {domain.status}</span>
+                        </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Developer Tab -->
+      <%= if @selected_tab == "developer" do %>
+        <div class="space-y-6">
+          <%= if @loading_developer do %>
+            <!-- Loading skeleton for API Tokens -->
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
+                    <.icon name="hero-key" class="w-5 h-5" />
+                    {gettext("API Tokens")}
+                  </h2>
+                </div>
+                <div class="animate-pulse space-y-3">
+                  <div class="h-4 bg-base-300 rounded w-2/3"></div>
+                  <div class="h-16 bg-base-300 rounded"></div>
+                  <div class="h-16 bg-base-300 rounded"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Loading skeleton for Data Export -->
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
+                  <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
+                  {gettext("Data Export")}
+                </h2>
+                <div class="animate-pulse space-y-3">
+                  <div class="h-4 bg-base-300 rounded w-1/2"></div>
+                  <div class="h-10 bg-base-300 rounded w-1/3"></div>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <!-- API Tokens Section -->
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
+                    <.icon name="hero-key" class="w-5 h-5" />
+                    {gettext("API Tokens")}
+                  </h2>
+                  <button
+                    phx-click="show_create_token_modal"
+                    class="btn btn-primary btn-sm"
+                    disabled={length(@api_tokens) >= 20}
+                  >
+                    <.icon name="hero-plus" class="w-4 h-4" />
+                    {gettext("Create Token")}
+                  </button>
+                </div>
+
+                <p class="text-sm text-base-content/70 mb-4">
+                  {gettext(
+                    "Personal access tokens allow you to authenticate with the API. Tokens are shown only once when created."
+                  )}
+                </p>
+
+                <%= if Enum.empty?(@api_tokens) do %>
+                  <div class="text-center py-8 text-base-content/50">
+                    <.icon name="hero-key" class="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>{gettext("No API tokens yet")}</p>
+                    <p class="text-sm mt-1">
+                      {gettext("Create a token to start using the API")}
+                    </p>
+                  </div>
+                <% else %>
+                  <div class="space-y-3">
+                    <%= for token <- @api_tokens do %>
+                      <div class="border border-base-300 rounded-lg p-4 hover:bg-base-200/50 transition-colors">
+                        <div class="flex items-start justify-between gap-4">
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                              <span class="font-semibold">{token.name}</span>
+                              <code class="text-xs bg-base-300 px-2 py-0.5 rounded font-mono">
+                                {token.token_prefix}...
+                              </code>
+                            </div>
+                            <div class="text-xs text-base-content/60 mt-1">
+                              <span>
+                                {gettext("Created")} {Calendar.strftime(
+                                  token.inserted_at,
+                                  "%b %d, %Y"
+                                )}
+                              </span>
+                              <%= if token.last_used_at do %>
+                                <span class="mx-1">·</span>
+                                <span>
+                                  {gettext("Last used")} {Calendar.strftime(
+                                    token.last_used_at,
+                                    "%b %d, %Y"
+                                  )}
+                                </span>
+                              <% else %>
+                                <span class="mx-1">·</span>
+                                <span class="text-warning">{gettext("Never used")}</span>
+                              <% end %>
+                              <%= if token.expires_at do %>
+                                <span class="mx-1">·</span>
+                                <%= if DateTime.compare(token.expires_at, DateTime.utc_now()) == :lt do %>
+                                  <span class="text-error">{gettext("Expired")}</span>
+                                <% else %>
+                                  <span>
+                                    {gettext("Expires")} {Calendar.strftime(
+                                      token.expires_at,
+                                      "%b %d, %Y"
+                                    )}
+                                  </span>
+                                <% end %>
+                              <% else %>
+                                <span class="mx-1">·</span>
+                                <span>{gettext("Never expires")}</span>
+                              <% end %>
+                            </div>
+                            <div class="flex flex-wrap gap-1 mt-2">
+                              <%= for scope <- token.scopes do %>
+                                <span class="badge badge-xs badge-ghost">{scope}</span>
+                              <% end %>
+                            </div>
+                          </div>
+                          <button
+                            phx-click="revoke_token"
+                            phx-value-id={token.id}
+                            data-confirm={
+                              gettext(
+                                "Are you sure you want to revoke this token? This cannot be undone."
+                              )
+                            }
+                            class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <div class="divider"></div>
+
+                <div class="text-sm text-base-content/60">
+                  <p class="font-semibold mb-2">{gettext("API Documentation")}</p>
+                  <p class="mb-2">
+                    {gettext("Use your token in the Authorization header:")}
+                  </p>
+                  <code class="block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
+                    curl -H "Authorization: Bearer ekt_xxxxx" \<br />
+                    &nbsp;&nbsp;https://elektrine.com/api/emails
+                  </code>
+                </div>
+              </div>
+            </div>
+            
+<!-- Data Export Section -->
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
+                  <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
+                  {gettext("Data Export")}
+                </h2>
+
+                <p class="text-sm text-base-content/70 mb-4">
+                  {gettext(
+                    "Export your data in developer-friendly formats. Exports are processed in the background and available for download for 7 days."
+                  )}
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    phx-click="export_data"
+                    phx-value-type="email"
+                    class="btn btn-outline btn-sm"
+                  >
+                    <.icon name="hero-envelope" class="w-4 h-4" />
+                    {gettext("Export Emails (JSON)")}
+                  </button>
+                  <button
+                    phx-click="export_data"
+                    phx-value-type="social"
+                    class="btn btn-outline btn-sm"
+                  >
+                    <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+                    {gettext("Export Posts (JSON)")}
+                  </button>
+                  <button
+                    phx-click="export_data"
+                    phx-value-type="chat"
+                    class="btn btn-outline btn-sm"
+                  >
+                    <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
+                    {gettext("Export Chat (JSON)")}
+                  </button>
+                  <button
+                    phx-click="export_data"
+                    phx-value-type="account"
+                    class="btn btn-outline btn-sm"
+                  >
+                    <.icon name="hero-user" class="w-4 h-4" />
+                    {gettext("Export Account (JSON)")}
+                  </button>
+                </div>
+
+                <%= if @pending_exports && length(@pending_exports) > 0 do %>
+                  <div class="divider">{gettext("Recent Exports")}</div>
+                  <div class="space-y-2">
+                    <%= for export <- @pending_exports do %>
+                      <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
+                        <div>
+                          <span class="font-medium capitalize">{export.export_type}</span>
+                          <span class="text-xs text-base-content/60 ml-2">
+                            {export.format}
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <%= case export.status do %>
+                            <% "pending" -> %>
+                              <span class="badge badge-warning badge-sm">
+                                {gettext("Pending")}
+                              </span>
+                            <% "processing" -> %>
+                              <span class="badge badge-info badge-sm">
+                                <span class="loading loading-spinner loading-xs mr-1"></span>
+                                {gettext("Processing")}
+                              </span>
+                            <% "completed" -> %>
+                              <a
+                                href={
+                                  ~p"/api/export/#{export.id}/download?token=#{export.download_token}"
+                                }
+                                class="btn btn-success btn-xs"
+                              >
+                                <.icon name="hero-arrow-down-tray" class="w-3 h-3" />
+                                {gettext("Download")}
+                              </a>
+                            <% "failed" -> %>
+                              <span class="badge badge-error badge-sm">{gettext("Failed")}</span>
+                            <% _ -> %>
+                              <span class="badge badge-ghost badge-sm">{export.status}</span>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            
+<!-- Webhooks Section -->
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
+                    <.icon name="hero-bell-alert" class="w-5 h-5" />
+                    {gettext("Webhooks")}
+                  </h2>
+                  <button phx-click="show_create_webhook_modal" class="btn btn-primary btn-sm">
+                    <.icon name="hero-plus" class="w-4 h-4" />
+                    {gettext("Add Webhook")}
+                  </button>
+                </div>
+
+                <p class="text-sm text-base-content/70 mb-4">
+                  {gettext(
+                    "Receive HTTP notifications when events occur. Webhooks are signed with HMAC-SHA256 for verification."
+                  )}
+                </p>
+
+                <%= if Enum.empty?(@webhooks) do %>
+                  <div class="text-center py-8 text-base-content/50">
+                    <.icon name="hero-bell-slash" class="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>{gettext("No webhooks configured")}</p>
+                    <p class="text-sm mt-1">
+                      {gettext("Add a webhook to receive event notifications")}
+                    </p>
+                  </div>
+                <% else %>
+                  <div class="space-y-3">
+                    <%= for webhook <- @webhooks do %>
+                      <div class="border border-base-300 rounded-lg p-4">
+                        <div class="flex items-start justify-between gap-4">
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                              <span class="font-semibold">{webhook.name}</span>
+                              <%= if webhook.enabled do %>
+                                <span class="badge badge-success badge-xs">
+                                  {gettext("Active")}
+                                </span>
+                              <% else %>
+                                <span class="badge badge-ghost badge-xs">
+                                  {gettext("Disabled")}
+                                </span>
+                              <% end %>
+                            </div>
+                            <code class="text-xs text-base-content/60 break-all">
+                              {webhook.url}
+                            </code>
+                            <div class="flex flex-wrap gap-1 mt-2">
+                              <%= for event <- webhook.events do %>
+                                <span class="badge badge-xs badge-outline">{event}</span>
+                              <% end %>
+                            </div>
+                          </div>
+                          <div class="flex gap-1">
+                            <button
+                              phx-click="test_webhook"
+                              phx-value-id={webhook.id}
+                              class="btn btn-ghost btn-sm"
+                              title={gettext("Test webhook")}
+                            >
+                              <.icon name="hero-play" class="w-4 h-4" />
+                            </button>
+                            <button
+                              phx-click="delete_webhook"
+                              phx-value-id={webhook.id}
+                              data-confirm={gettext("Delete this webhook?")}
+                              class="btn btn-ghost btn-sm text-error"
+                            >
+                              <.icon name="hero-trash" class="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            
+<!-- API Info Section -->
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
+                  <.icon name="hero-document-text" class="w-5 h-5" />
+                  {gettext("API Reference")}
+                </h2>
+
+                <div class="prose prose-sm max-w-none">
+                  <p class="text-base-content/70">
+                    {gettext("Available API endpoints:")}
+                  </p>
+                  <div class="overflow-x-auto">
+                    <table class="table table-xs">
+                      <thead>
+                        <tr>
+                          <th>{gettext("Endpoint")}</th>
+                          <th>{gettext("Scope Required")}</th>
+                          <th>{gettext("Description")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><code>GET /api/emails</code></td>
+                          <td><code>read:email</code></td>
+                          <td>{gettext("List emails")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>POST /api/emails</code></td>
+                          <td><code>write:email</code></td>
+                          <td>{gettext("Send email")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/social/timeline</code></td>
+                          <td><code>read:social</code></td>
+                          <td>{gettext("Get timeline posts")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>POST /api/social/posts</code></td>
+                          <td><code>write:social</code></td>
+                          <td>{gettext("Create post")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/conversations</code></td>
+                          <td><code>read:chat</code></td>
+                          <td>{gettext("List conversations")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>POST /api/export</code></td>
+                          <td><code>export</code></td>
+                          <td>{gettext("Trigger data export")}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Danger Zone Tab -->
+      <%= if @selected_tab == "danger" do %>
+        <div class="card bg-error/10 shadow-lg">
+          <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl text-error flex items-center gap-2">
+              <.icon name="hero-exclamation-triangle" class="w-5 h-5" /> {gettext("Danger Zone")}
+            </h2>
+
+            <%= if @loading_danger do %>
+              <div class="animate-pulse space-y-4 mt-4">
+                <div class="h-4 bg-base-300 rounded w-2/3"></div>
+                <div class="h-10 bg-base-300 rounded w-1/3"></div>
+              </div>
+            <% else %>
+              <%= if @pending_deletion do %>
+                <div class="alert alert-warning text-sm mt-4">
+                  <.icon name="hero-clock" class="w-5 h-5" />
+                  <div>
+                    <div class="font-semibold">{gettext("Account deletion pending")}</div>
+                    <div class="text-xs mt-1">
+                      {gettext("Requested:")} {Calendar.strftime(
+                        @pending_deletion.requested_at,
+                        "%Y-%m-%d at %H:%M UTC"
+                      )}
+                    </div>
+                    <%= if @pending_deletion.reason && String.trim(@pending_deletion.reason) != "" do %>
+                      <div class="text-xs mt-1">
+                        <strong>{gettext("Reason:")}</strong> {@pending_deletion.reason}
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <p class="text-sm text-base-content/70 mb-4 mt-4">
+                  {gettext("Once deleted, your account cannot be recovered.")}
+                </p>
+                <div class="card-actions">
+                  <.link
+                    href={~p"/account/delete"}
+                    class="btn btn-ghost btn-secondary btn-sm w-full"
+                  >
+                    {gettext("Request Deletion")}
+                  </.link>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Create Token Modal -->
+<%= if @show_create_token_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-md">
+      <h3 class="font-bold text-lg mb-4">{gettext("Create API Token")}</h3>
+
+      <%= if @new_token do %>
+        <!-- Token Created Successfully -->
+        <div class="alert alert-warning mb-4">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+          <span>{gettext("Copy this token now. It will only be shown once!")}</span>
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">{gettext("Your new token")}</span>
+          </label>
+          <div class="join w-full">
+            <input
+              type="text"
+              value={@new_token}
+              readonly
+              class="input input-bordered join-item flex-1 font-mono text-sm"
+              id="new-token-input"
+            />
+            <button
+              type="button"
+              class="btn btn-primary join-item"
+              phx-hook="CopyToClipboard"
+              id="copy-token-btn"
+              data-copy-target="new-token-input"
+            >
+              <.icon name="hero-clipboard-document" class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-action">
+          <button phx-click="close_token_modal" class="btn btn-primary">{gettext("Done")}</button>
+        </div>
+      <% else %>
+        <!-- Token Creation Form -->
+        <.form for={@token_form} phx-submit="create_token" class="space-y-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Token Name")}</span></label>
+            <input
+              type="text"
+              name="token[name]"
+              value={@token_form[:name].value}
+              placeholder={gettext("e.g., My CLI Tool")}
+              class="input input-bordered w-full"
+              required
+              maxlength="100"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Expiration")}</span></label>
+            <select name="token[expires_in]" class="select select-bordered w-full">
+              <option value="">{gettext("Never")}</option>
+              <option value="30">{gettext("30 days")}</option>
+              <option value="90">{gettext("90 days")}</option>
+              <option value="365">{gettext("1 year")}</option>
+            </select>
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Scopes")}</span></label>
+            <div class="max-h-52 overflow-y-auto border border-base-300 rounded-lg p-3 space-y-3">
+              <%= for {category, scopes} <- Elektrine.Developer.ApiToken.scopes_by_category() do %>
+                <div>
+                  <div class="font-medium text-sm text-base-content/70 mb-2">{category}</div>
+                  <div class="space-y-1">
+                    <%= for {scope, description} <- scopes do %>
+                      <label class="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="token[scopes][]"
+                          value={scope}
+                          class="checkbox checkbox-sm checkbox-primary"
+                        />
+                        <span class="text-sm font-mono">{scope}</span>
+                        <span class="text-sm text-base-content/50 hidden sm:inline">
+                          - {description}
+                        </span>
+                      </label>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="modal-action">
+            <button type="button" phx-click="close_token_modal" class="btn btn-ghost">
+              {gettext("Cancel")}
+            </button>
+            <button type="submit" class="btn btn-primary">
+              {gettext("Create Token")}
+            </button>
+          </div>
+        </.form>
+      <% end %>
+    </div>
+    <div class="modal-backdrop" phx-click="close_token_modal"></div>
+  </div>
+<% end %>
+
+<!-- Create Webhook Modal -->
+<%= if @show_create_webhook_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-md">
+      <h3 class="font-bold text-lg mb-4">{gettext("Add Webhook")}</h3>
+
+      <.form for={@webhook_form} phx-submit="create_webhook" class="space-y-4">
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Name")}</span></label>
+          <input
+            type="text"
+            name="webhook[name]"
+            value={@webhook_form[:name].value}
+            placeholder={gettext("e.g., My Server")}
+            class="input input-bordered w-full"
+            required
+            maxlength="100"
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("URL")}</span></label>
+          <input
+            type="url"
+            name="webhook[url]"
+            value={@webhook_form[:url].value}
+            placeholder="https://example.com/webhook"
+            class="input input-bordered w-full font-mono text-sm"
+            required
+          />
+          <label class="label">
+            <span class="label-text-alt text-base-content/60">{gettext("Must be HTTPS")}</span>
+          </label>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Events")}</span></label>
+          <div class="grid grid-cols-2 gap-2">
+            <%= for event <- Elektrine.Developer.Webhook.valid_events() do %>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="webhook[events][]"
+                  value={event}
+                  class="checkbox checkbox-sm checkbox-primary"
+                />
+                <span class="text-sm font-mono">{event}</span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="close_webhook_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Add Webhook")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="close_webhook_modal"></div>
+  </div>
+<% end %>

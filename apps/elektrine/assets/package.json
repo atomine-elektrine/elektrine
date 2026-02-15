@@ -1,0 +1,20 @@
+{
+  "name": "elektrine",
+  "version": "1.0.0",
+  "description": "Elektrine Phoenix application",
+  "main": "js/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "cd .. && mix assets.deploy && rm -f _build/esbuild*"
+  },
+  "dependencies": {
+    "@iconify-json/simple-icons": "^1.2.68",
+    "@iconify-json/svg-spinners": "^1.2.4",
+    "daisyui": "^5.5.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.18",
+    "@tailwindcss/forms": "0.5.11",
+    "tailwindcss": "4.1.18"
+  }
+}

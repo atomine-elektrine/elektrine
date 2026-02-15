@@ -1,0 +1,114 @@
+<div
+  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+  id="email-raw-container"
+  phx-hook="EmailShowKeyboardShortcuts"
+>
+  <!-- Elektrine Platform Navigation -->
+  <.elektrine_nav active_tab="email" />
+
+  <div class="flex flex-col lg:flex-row gap-6">
+    <.sidebar
+      mailbox={@mailbox}
+      storage_info={@storage_info}
+      unread_count={@unread_count}
+      current_page="view"
+      current_user={@current_user}
+    />
+    
+<!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-hidden">
+      <div id="raw-email-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
+        <div class="card-body p-6">
+          <!-- Header -->
+          <div class="mb-6">
+            <div class="flex items-start gap-4 mb-4">
+              <div class="p-3 bg-orange-500/10 rounded-lg flex-shrink-0">
+                <.icon name="hero-code-bracket" class="h-7 w-7 text-orange-600" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <h2 class="text-3xl font-bold break-words mb-2">
+                  {gettext("Raw Message")}
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  {gettext("Original email data and metadata")}
+                </p>
+              </div>
+            </div>
+            
+<!-- Action buttons -->
+            <div class="flex flex-wrap gap-3 pt-4 border-t border-base-300">
+              <.link
+                navigate={~p"/email/view/#{@message.hash || @message.id}"}
+                class="btn btn-ghost btn-sm"
+              >
+                <.icon name="hero-arrow-left" class="h-4 w-4 mr-1" /> {gettext("Back to Email")}
+              </.link>
+            </div>
+          </div>
+          
+<!-- Metadata Section -->
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <.icon name="hero-information-circle" class="h-5 w-5 text-purple-600" />
+              {gettext("Message Metadata")}
+            </h3>
+            <div class="bg-base-200 rounded-lg p-4">
+              <div class="space-y-3">
+                <%= if @message.message_id do %>
+                  <div class="flex flex-col sm:flex-row sm:items-start gap-2">
+                    <span class="font-semibold text-sm w-32 flex-shrink-0">
+                      {gettext("Message ID:")}
+                    </span>
+                    <span class="font-medium text-sm break-all text-base-content/80">
+                      {@message.message_id}
+                    </span>
+                  </div>
+                <% end %>
+                <div class="flex flex-col sm:flex-row sm:items-start gap-2">
+                  <span class="font-semibold text-sm w-32 flex-shrink-0">
+                    {gettext("Created at:")}
+                  </span>
+                  <span class="text-sm text-base-content/80">
+                    <.local_time
+                      datetime={@message.inserted_at}
+                      format="datetime"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </span>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-start gap-2">
+                  <span class="font-semibold text-sm w-32 flex-shrink-0">{gettext("From:")}</span>
+                  <span class="text-sm break-all text-base-content/80">{@message.from}</span>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-start gap-2">
+                  <span class="font-semibold text-sm w-32 flex-shrink-0">{gettext("To:")}</span>
+                  <span class="text-sm break-all text-base-content/80">{@message.to}</span>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-start gap-2">
+                  <span class="font-semibold text-sm w-32 flex-shrink-0">
+                    {gettext("Subject:")}
+                  </span>
+                  <span class="text-sm text-base-content/80">
+                    {decode_email_subject(@message.subject)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+<!-- Raw Content Section -->
+          <div>
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <.icon name="hero-document-text" class="h-5 w-5 text-purple-600" />
+              {gettext("Raw Email Data")}
+            </h3>
+            <div class="bg-base-200 rounded-lg p-4 overflow-x-auto">
+              <pre class="text-xs font-medium whitespace-pre-wrap break-all"><%= ElektrineWeb.CoreComponents.safe_message_to_json(@message) %></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

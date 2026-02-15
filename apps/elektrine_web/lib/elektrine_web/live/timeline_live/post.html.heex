@@ -1,0 +1,870 @@
+<div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Z Platform Navigation -->
+  <.z_nav active_tab="timeline" />
+  
+<!-- Back Button -->
+  <div class="mb-4">
+    <.link href={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
+      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
+    </.link>
+  </div>
+  
+<!-- Trending Hashtags Marquee -->
+  <%= if assigns[:trending_hashtags] && @trending_hashtags && length(@trending_hashtags) > 0 do %>
+    <div
+      id="trending-hashtags-marquee"
+      phx-update="ignore"
+      class="hidden overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
+    >
+      <div class="flex items-center gap-2">
+        <.icon name="hero-fire" class="w-4 h-4 text-orange-500 flex-shrink-0" />
+        <span class="text-xs font-semibold opacity-70 flex-shrink-0">POPULAR:</span>
+        <div class="overflow-hidden flex-1">
+          <div class="marquee-container group">
+            <%= for _i <- 1..4 do %>
+              <div class="marquee-content" aria-hidden="true">
+                <%= for hashtag <- @trending_hashtags do %>
+                  <.link
+                    href={~p"/hashtag/#{hashtag.normalized_name}"}
+                    class="inline-flex items-center px-3 py-1 bg-base-200 border border-base-300 rounded-full hover:border-error hover:bg-error/5 transition-colors flex-shrink-0 text-xs font-medium whitespace-nowrap"
+                    tabindex="-1"
+                  >
+                    #{hashtag.name} <span class="opacity-60 ml-1">({hashtag.use_count})</span>
+                  </.link>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="w-full">
+    <!-- Left Sidebar (Hidden on mobile) -->
+    <div class="hidden">
+      <div class="p-4">
+        <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start mb-6">
+          <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
+        </.link>
+
+        <h3 class="font-semibold mb-3">About This Post</h3>
+        <div class="space-y-3 text-sm">
+          <div class="flex items-center gap-2">
+            <.icon name="hero-user" class="w-4 h-4 text-primary" />
+            <%= if @post.sender do %>
+              <.link
+                href={~p"/#{@post.sender.handle || @post.sender.username}"}
+                class="hover:underline"
+              >
+                @{@post.sender.handle || @post.sender.username}
+              </.link>
+            <% else %>
+              <%= if Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
+                <span>@{@post.remote_actor.username}@{@post.remote_actor.domain}</span>
+              <% else %>
+                <span>@unknown</span>
+              <% end %>
+            <% end %>
+          </div>
+          <div class="flex items-center gap-2">
+            <.icon name="hero-heart" class="w-4 h-4 text-red-500" />
+            <span>{@post.like_count} likes</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
+            <span>{@total_reply_count} replies</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <.icon name="hero-clock" class="w-4 h-4" />
+            <span>
+              <.local_time
+                datetime={@post.inserted_at}
+                format="relative"
+                timezone={@timezone}
+                time_format={@time_format}
+              />
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Main Content -->
+    <div class="w-full min-w-0">
+      <div>
+        <!-- Main Post -->
+        <div class="card border border-base-300 rounded-lg mb-6">
+          <div class="card-body p-6">
+            <!-- Post Header -->
+            <div class="flex items-center gap-3 mb-4">
+              <%= if @post.sender do %>
+                <.link
+                  href={~p"/#{@post.sender.handle || @post.sender.username}"}
+                  class="w-12 h-12"
+                >
+                  <.user_avatar user={@post.sender} size="lg" />
+                </.link>
+                <div class="flex-1">
+                  <.link
+                    href={~p"/#{@post.sender.handle || @post.sender.username}"}
+                    class="font-semibold text-lg hover:underline"
+                  >
+                    <.username_with_effects
+                      user={@post.sender}
+                      display_name={true}
+                      verified_size="md"
+                    />
+                  </.link>
+                  <div class="text-sm opacity-70 flex items-center gap-2">
+                    <span>
+                      @{@post.sender.handle || @post.sender.username}@z.org ·
+                      <.local_time
+                        datetime={@post.inserted_at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </span>
+                    <%= case @post.visibility do %>
+                      <% "public" -> %>
+                        <span class="badge badge-xs badge-ghost" title="Public - Everyone can see">
+                          <.icon name="hero-globe-alt" class="w-3 h-3" />
+                        </span>
+                      <% "followers" -> %>
+                        <span class="badge badge-xs badge-info" title="Followers Only">
+                          <.icon name="hero-user-group" class="w-3 h-3" />
+                        </span>
+                      <% "friends" -> %>
+                        <span class="badge badge-xs badge-success" title="Friends Only">
+                          <.icon name="hero-heart" class="w-3 h-3" />
+                        </span>
+                      <% "private" -> %>
+                        <span
+                          class="badge badge-xs badge-warning"
+                          title="Private - Only you can see"
+                        >
+                          <.icon name="hero-lock-closed" class="w-3 h-3" />
+                        </span>
+                      <% _ -> %>
+                    <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <%!-- Federated post --%>
+                <%= if Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
+                  <%= if @post.remote_actor.avatar_url do %>
+                    <img
+                      src={@post.remote_actor.avatar_url}
+                      alt={@post.remote_actor.username}
+                      class="w-12 h-12 rounded-full"
+                    />
+                  <% else %>
+                    <div class="w-12 h-12 rounded-full bg-base-300 flex items-center justify-center">
+                      <.icon name="hero-user" class="w-8 h-8" />
+                    </div>
+                  <% end %>
+                  <div class="flex-1">
+                    <div class="font-semibold text-lg">
+                      {raw(
+                        render_display_name_with_emojis(
+                          @post.remote_actor.display_name || @post.remote_actor.username,
+                          @post.remote_actor.domain
+                        )
+                      )}
+                    </div>
+                    <div class="text-sm opacity-70 flex items-center gap-2">
+                      <span>
+                        @{@post.remote_actor.username}@{@post.remote_actor.domain} ·
+                        <.local_time
+                          datetime={@post.inserted_at}
+                          format="relative"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </span>
+                      <%= case @post.visibility do %>
+                        <% "public" -> %>
+                          <span
+                            class="badge badge-xs badge-ghost"
+                            title="Public - Everyone can see"
+                          >
+                            <.icon name="hero-globe-alt" class="w-3 h-3" />
+                          </span>
+                        <% "followers" -> %>
+                          <span class="badge badge-xs badge-info" title="Followers Only">
+                            <.icon name="hero-user-group" class="w-3 h-3" />
+                          </span>
+                        <% "friends" -> %>
+                          <span class="badge badge-xs badge-success" title="Friends Only">
+                            <.icon name="hero-heart" class="w-3 h-3" />
+                          </span>
+                        <% "private" -> %>
+                          <span
+                            class="badge badge-xs badge-warning"
+                            title="Private - Only you can see"
+                          >
+                            <.icon name="hero-lock-closed" class="w-3 h-3" />
+                          </span>
+                        <% _ -> %>
+                      <% end %>
+                    </div>
+                  </div>
+                <% else %>
+                  <%!-- Remote actor not loaded --%>
+                  <div class="w-12 h-12 rounded-full bg-base-300 flex items-center justify-center">
+                    <.icon name="hero-user" class="w-8 h-8" />
+                  </div>
+                  <div class="flex-1">
+                    <div class="font-semibold text-lg">Unknown User</div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+            
+<!-- Post Title (if exists) -->
+            <%= if @post.title do %>
+              <h1 class="text-2xl font-bold mb-4 break-words leading-tight">
+                {@post.title}
+                <%= if @post.auto_title do %>
+                  <span class="text-sm opacity-50 ml-2">(auto)</span>
+                <% end %>
+              </h1>
+            <% end %>
+            
+<!-- Content Journey Trail -->
+            <.content_journey message={@post} context="timeline" class="mb-4" />
+            
+<!-- Replying To (if this is a reply) -->
+            <%= if @post.reply_to_id && @post.reply_to do %>
+              <.link
+                href={~p"/timeline/post/#{@post.reply_to_id}"}
+                class="block mb-4 border-l-4 border-error/40 pl-4 py-2 bg-error/5 rounded-r-lg hover:bg-error/10 hover:border-error transition-all cursor-pointer"
+              >
+                <div class="flex items-center gap-2 mb-2 text-sm opacity-70">
+                  <.icon name="hero-arrow-uturn-left" class="w-4 h-4" />
+                  <span>
+                    Replying to
+                    <%= if @post.reply_to.sender do %>
+                      <.username_with_effects
+                        user={@post.reply_to.sender}
+                        show_at={true}
+                        verified_size="xs"
+                      />
+                    <% else %>
+                      <%= if Ecto.assoc_loaded?(@post.reply_to.remote_actor) && @post.reply_to.remote_actor do %>
+                        <span class="font-medium">
+                          @{@post.reply_to.remote_actor.username}@{@post.reply_to.remote_actor.domain}
+                        </span>
+                      <% else %>
+                        <span class="font-medium opacity-50">a remote user</span>
+                      <% end %>
+                    <% end %>
+                  </span>
+                  <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3 ml-auto opacity-50" />
+                </div>
+                <div class="text-sm opacity-80 line-clamp-3">
+                  {@post.reply_to.content}
+                </div>
+              </.link>
+            <% end %>
+            
+<!-- Content Warning -->
+            <%= if @post.content_warning && String.trim(@post.content_warning) != "" do %>
+              <details class="mb-4" open>
+                <summary class="cursor-pointer bg-warning/10 border border-warning/30 rounded-lg p-4 hover:bg-warning/20 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <.icon
+                      name="hero-exclamation-triangle"
+                      class="w-5 h-5 text-warning flex-shrink-0"
+                    />
+                    <span class="font-medium">{@post.content_warning}</span>
+                    <span class="text-sm opacity-70 ml-auto">(click to hide)</span>
+                  </div>
+                </summary>
+                <div class="mt-4 p-4 border border-base-300 rounded-lg bg-base-50">
+                  <!-- Content shown inside details -->
+                  <%= if @post.shared_message_id && @post.shared_message do %>
+                    <%= if @post.content && String.trim(@post.content) != "" do %>
+                      <div class="mb-4">
+                        <div class="text-lg break-words">
+                          {raw(
+                            @post.content
+                            |> String.trim()
+                            |> make_content_safe_with_links()
+                            |> render_custom_emojis()
+                            |> preserve_line_breaks()
+                          )}
+                        </div>
+                      </div>
+                    <% end %>
+                    <div class="mb-4">
+                      <.embedded_post
+                        message={@post}
+                        shared_message={@post.shared_message}
+                        class="cursor-pointer"
+                      />
+                    </div>
+                  <% else %>
+                    <%= if @post.content && String.trim(@post.content) != "" do %>
+                      <div class="mb-4">
+                        <div class="text-lg break-words">
+                          {raw(
+                            @post.content
+                            |> String.trim()
+                            |> make_content_safe_with_links()
+                            |> render_custom_emojis()
+                            |> preserve_line_breaks()
+                          )}
+                        </div>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+              </details>
+            <% end %>
+            
+<!-- Post Content (only show directly if no content warning) -->
+            <%= if !@post.content_warning || String.trim(@post.content_warning) == "" do %>
+              <%= if @post.shared_message_id && @post.shared_message do %>
+                <!-- User's comment on the shared post -->
+                <%= if @post.content && String.trim(@post.content) != "" do %>
+                  <div class="mb-4">
+                    <div class="text-lg break-words">
+                      {raw(
+                        @post.content
+                        |> String.trim()
+                        |> make_content_safe_with_links()
+                        |> render_custom_emojis()
+                        |> preserve_line_breaks()
+                      )}
+                    </div>
+                  </div>
+                <% end %>
+                
+<!-- Embedded shared post -->
+                <div class="mb-4">
+                  <.embedded_post
+                    message={@post}
+                    shared_message={@post.shared_message}
+                    class="cursor-pointer"
+                  />
+                </div>
+              <% else %>
+                <!-- Regular post content -->
+                <%= if @post.content && String.trim(@post.content) != "" do %>
+                  <div class="mb-4">
+                    <div class="text-lg break-words">
+                      {raw(
+                        @post.content
+                        |> String.trim()
+                        |> make_content_safe_with_links()
+                        |> render_custom_emojis()
+                        |> preserve_line_breaks()
+                      )}
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            <% end %>
+            
+<!-- Media attachments -->
+            <% full_media_urls =
+              (@post.media_urls || [])
+              |> Enum.flat_map(fn media_url ->
+                case Elektrine.Uploads.attachment_url(media_url) do
+                  url when is_binary(url) and url != "" -> [url]
+                  _ -> []
+                end
+              end) %>
+            <%= if full_media_urls != [] do %>
+              <div class="mt-4 grid grid-cols-1 gap-2">
+                <%= for {full_url, idx} <- Enum.with_index(full_media_urls) do %>
+                  <% is_video = String.match?(full_url, ~r/\.(mp4|webm|ogv|mov|avi|mkv)(\?.*)?$/i) %>
+                  <% is_audio = String.match?(full_url, ~r/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i) %>
+                  <%= cond do %>
+                    <% is_video -> %>
+                      <video
+                        src={full_url}
+                        controls
+                        preload="metadata"
+                        class="rounded-lg w-full max-h-[80vh]"
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    <% is_audio -> %>
+                      <div class="p-4 bg-base-200 rounded-lg flex flex-col items-center">
+                        <.icon name="hero-musical-note" class="w-12 h-12 opacity-30 mb-3" />
+                        <audio src={full_url} controls preload="metadata" class="w-full max-w-lg">
+                          Your browser does not support the audio tag.
+                        </audio>
+                      </div>
+                    <% true -> %>
+                      <button
+                        type="button"
+                        phx-click="open_image_modal"
+                        phx-value-url={full_url}
+                        phx-value-images={Jason.encode!(full_media_urls)}
+                        phx-value-index={idx}
+                        phx-value-post_id={@post.id}
+                        class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+                      >
+                        <img src={full_url} alt="" class="rounded-lg w-full object-contain" />
+                      </button>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
+            
+<!-- Direct Image URLs from content -->
+            <% image_urls = Elektrine.Messaging.Message.extract_image_urls(@post.content || "") %>
+            <%= if image_urls != [] do %>
+              <div class="mt-4 grid grid-cols-1 gap-2">
+                <%= for {image_url, idx} <- Enum.with_index(image_urls) do %>
+                  <button
+                    type="button"
+                    phx-click="open_image_modal"
+                    phx-value-url={image_url}
+                    phx-value-images={Jason.encode!(image_urls)}
+                    phx-value-index={idx}
+                    phx-value-post_id={@post.id}
+                    class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+                  >
+                    <img
+                      src={image_url}
+                      alt="Image preview"
+                      class="rounded-lg w-full object-contain"
+                      loading="lazy"
+                      onerror="this.style.display='none'"
+                    />
+                  </button>
+                <% end %>
+              </div>
+            <% end %>
+            
+<!-- Link Preview -->
+            <%= if match?(%Elektrine.Social.LinkPreview{}, @post.link_preview) && @post.link_preview.status == "success" do %>
+              <div class="mt-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
+                <a
+                  href={@post.link_preview.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block"
+                >
+                  <%= if @post.link_preview.image_url do %>
+                    <div class="aspect-video bg-base-200">
+                      <img
+                        src={@post.link_preview.image_url}
+                        alt={@post.link_preview.title || ""}
+                        class="w-full h-full object-cover"
+                      />
+                    </div>
+                  <% end %>
+                  <div class="p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                      <%= if @post.link_preview.favicon_url do %>
+                        <img src={@post.link_preview.favicon_url} alt="" class="w-4 h-4" />
+                      <% end %>
+                      <span class="text-xs text-base-content/60">
+                        {@post.link_preview.site_name || URI.parse(@post.link_preview.url).host}
+                      </span>
+                    </div>
+                    <%= if @post.link_preview.title do %>
+                      <h4 class="font-medium mb-1">{@post.link_preview.title}</h4>
+                    <% end %>
+                    <%= if @post.link_preview.description do %>
+                      <p class="text-sm text-base-content/70">{@post.link_preview.description}</p>
+                    <% end %>
+                  </div>
+                </a>
+              </div>
+            <% end %>
+            
+<!-- Post Actions + Emoji Reactions -->
+            <div class="flex flex-wrap items-center gap-2 pt-4 mt-4 border-t border-base-200">
+              <%= if @current_user do %>
+                <!-- Like Button -->
+                <button
+                  phx-click="like_post"
+                  class={[
+                    "btn btn-ghost btn-sm",
+                    @liked_by_user && "text-red-500"
+                  ]}
+                >
+                  <.icon
+                    name={if @liked_by_user, do: "hero-heart-solid", else: "hero-heart"}
+                    class="w-5 h-5 mr-2"
+                  />
+                  {@post.like_count}
+                </button>
+                
+<!-- Reply Button -->
+                <button
+                  phx-click="toggle_reply_form"
+                  class="btn btn-ghost btn-sm"
+                >
+                  <.icon name="hero-chat-bubble-left" class="w-5 h-5 mr-2" />
+                  {@total_reply_count}
+                </button>
+                
+<!-- Continue in Chat (for others' posts - local only) -->
+                <%= if @post.sender && @post.sender.id != @current_user.id do %>
+                  <button
+                    phx-click="discuss_privately"
+                    phx-value-message_id={@post.id}
+                    phx-value-target_user_id={@post.sender.id}
+                    class="btn btn-ghost btn-sm"
+                    title="Start a private conversation about this post"
+                  >
+                    <.icon name="hero-chat-bubble-left-right" class="w-5 h-5 mr-2" /> Chat
+                  </button>
+                <% end %>
+                
+<!-- Quote Button -->
+                <button
+                  phx-click="quote_post"
+                  phx-value-message_id={@post.id}
+                  class="btn btn-ghost btn-sm"
+                  title="Quote this post"
+                >
+                  <.icon name="hero-chat-bubble-bottom-center-text" class="w-5 h-5 mr-2" /> Quote
+                </button>
+              <% else %>
+                <!-- Show stats for unauthenticated users -->
+                <div class="flex items-center gap-4">
+                  <div class="flex items-center gap-2 opacity-70">
+                    <.icon name="hero-heart" class="w-5 h-5" />
+                    <span>{@post.like_count}</span>
+                  </div>
+                  <div class="flex items-center gap-2 opacity-70">
+                    <.icon name="hero-chat-bubble-left" class="w-5 h-5" />
+                    <span>{@total_reply_count}</span>
+                  </div>
+                </div>
+                <.link href={~p"/login"} class="btn btn-secondary btn-sm ml-auto">
+                  Sign in to interact
+                </.link>
+              <% end %>
+              
+<!-- Share Button (available to everyone) -->
+              <button class="btn btn-ghost btn-sm" phx-click="copy_post_link">
+                <.icon name="hero-share" class="w-5 h-5 mr-2" /> Share
+              </button>
+              
+<!-- Emoji Reactions inline -->
+              <.post_reactions
+                post_id={@post.id}
+                reactions={Map.get(@post_reactions, @post.id, [])}
+                current_user={@current_user}
+                size={:sm}
+              />
+            </div>
+          </div>
+        </div>
+        
+<!-- Reply Form -->
+        <%= if @show_reply_form && @current_user do %>
+          <div class="card border border-base-300 rounded-lg mb-6">
+            <div class="card-body p-4">
+              <div class="flex items-start gap-3 mb-3">
+                <div class="w-10 h-10">
+                  <.user_avatar user={@current_user} size="sm" />
+                </div>
+                <div class="text-sm opacity-70">
+                  <%= if @post.sender do %>
+                    Replying to
+                    <span class="font-medium">
+                      <.username_with_effects
+                        user={@post.sender}
+                        show_at={true}
+                        verified_size="xs"
+                      />
+                    </span>
+                  <% else %>
+                    Replying to
+                    <span class="font-medium">
+                      @{@post.remote_actor.username}@{@post.remote_actor.domain}
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+              
+<!-- Recent Replies Preview -->
+              <%= if length(@replies) > 0 do %>
+                <div class="mb-4 border-l-2 border-cyan-500/60 pl-4 space-y-3">
+                  <div class="text-xs font-semibold opacity-60 mb-2">Recent Replies:</div>
+                  <%= for reply <- Enum.take(@replies, 3) do %>
+                    <div class="text-sm">
+                      <div class="flex items-center gap-2 mb-1">
+                        <%= if reply.sender do %>
+                          <.username_with_effects
+                            user={reply.sender}
+                            display_name={false}
+                            verified_size="xs"
+                          />
+                        <% else %>
+                          <%!-- Federated reply --%>
+                          <%= if Ecto.assoc_loaded?(reply.remote_actor) && reply.remote_actor do %>
+                            <span class="font-medium">
+                              @{reply.remote_actor.username}@{reply.remote_actor.domain}
+                            </span>
+                          <% else %>
+                            <span class="font-medium opacity-50">Remote user</span>
+                          <% end %>
+                        <% end %>
+                        <%= if reply.like_count && reply.like_count > 0 do %>
+                          <span class="text-xs text-secondary">+{reply.like_count}</span>
+                        <% end %>
+                        <span class="text-xs opacity-50">
+                          ·
+                          <.local_time
+                            datetime={reply.inserted_at}
+                            format="relative"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </span>
+                      </div>
+                      <div class="text-xs opacity-70 line-clamp-2">
+                        {String.slice(reply.content, 0, 150)}{if String.length(reply.content) >
+                                                                   150,
+                                                                 do: "..."}
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <.form for={%{}} phx-submit="create_reply" class="space-y-4">
+                <textarea
+                  name="content"
+                  placeholder="Post your reply..."
+                  class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+                  style="min-height: 4rem; max-height: 15rem;"
+                  rows="4"
+                  phx-change="update_reply_content"
+                  phx-hook="AutoExpandTextarea"
+                  phx-update="ignore"
+                  id="timeline-post-reply-textarea"
+                  required
+                ><%= @reply_content %></textarea>
+
+                <div class="flex gap-2 justify-end items-center">
+                  <span class={[
+                    "text-xs",
+                    String.length(@reply_content || "") < 3 && "text-error",
+                    String.length(@reply_content || "") >= 3 && "text-success"
+                  ]}>
+                    {String.length(@reply_content || "")}/3 min
+                  </span>
+                  <button type="button" phx-click="toggle_reply_form" class="btn btn-ghost btn-sm">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-secondary btn-sm"
+                    disabled={String.length(@reply_content || "") < 3}
+                  >
+                    <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Reply
+                  </button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        <% end %>
+        
+<!-- Replies -->
+        <%= if length(@replies) > 0 do %>
+          <div class="space-y-4">
+            <h3 class="text-xl font-semibold">{@total_reply_count} Replies</h3>
+
+            <%= for reply <- @replies do %>
+              <.render_reply
+                reply={reply}
+                post={@post}
+                current_user={@current_user}
+                reply_to_reply_id={@reply_to_reply_id}
+                reply_content={@reply_content}
+                depth={0}
+                liked_replies={@liked_replies}
+                timezone={@timezone}
+                time_format={@time_format}
+              />
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-8">
+            <.icon name="hero-chat-bubble-left" class="w-12 h-12 mx-auto mb-4 opacity-40" />
+            <p class="opacity-70">No replies yet</p>
+            <p class="text-sm opacity-50">
+              <%= if @current_user do %>
+                Be the first to reply to this post
+              <% else %>
+                Sign in to be the first to reply
+              <% end %>
+            </p>
+            <%= if @current_user do %>
+              <button phx-click="toggle_reply_form" class="btn btn-secondary btn-sm mt-4">
+                <.icon name="hero-chat-bubble-left" class="w-4 h-4 mr-1" /> Reply
+              </button>
+            <% else %>
+              <.link href={~p"/login"} class="btn btn-secondary btn-sm mt-4">
+                Sign in to Reply
+              </.link>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+      <!-- End scrollable container -->
+    </div>
+    <!-- End Main Content -->
+
+    <!-- Right Sidebar (Hidden on mobile) -->
+    <div class="hidden">
+      <h3 class="font-semibold mb-4">Actions</h3>
+
+      <%= if @current_user do %>
+        <div class="space-y-2 mb-6">
+          <button phx-click="toggle_reply_form" class="btn btn-secondary btn-sm w-full">
+            <.icon name="hero-chat-bubble-left" class="w-4 h-4 mr-2" /> Reply to Post
+          </button>
+          <button phx-click="copy_post_link" class="btn btn-ghost btn-sm w-full">
+            <.icon name="hero-share" class="w-4 h-4 mr-2" /> Copy Link
+          </button>
+        </div>
+
+        <div class="divider my-4"></div>
+
+        <h3 class="font-semibold mb-3">Related</h3>
+        <div class="space-y-2">
+          <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start">
+            <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> View Timeline
+          </.link>
+          <%= if @post.sender do %>
+            <.link
+              href={~p"/#{@post.sender.handle || @post.sender.username}"}
+              class="btn btn-ghost btn-sm w-full justify-start"
+            >
+              <.icon name="hero-user" class="w-4 h-4 mr-2" /> View Profile
+            </.link>
+          <% end %>
+        </div>
+      <% else %>
+        <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full mb-4">
+          <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In to Interact
+        </.link>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Full-size Image Modal -->
+  <% # Use @post directly since it gets updated on like/unlike
+  modal_is_liked = assigns[:liked_by_user] || false
+  modal_like_count = (@post && @post.like_count) || 0 %>
+  <.image_modal
+    show={@show_image_modal}
+    image_url={@modal_image_url}
+    images={@modal_images}
+    image_index={@modal_image_index}
+    post={@post}
+    timezone={@timezone}
+    time_format={@time_format}
+    user_statuses={assigns[:user_statuses] || %{}}
+    current_user={@current_user}
+    is_liked={modal_is_liked}
+    like_count={modal_like_count}
+  />
+  
+<!-- Quote Modal -->
+  <%= if @show_quote_modal && @quote_target_post do %>
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      phx-click="close_quote_modal"
+    >
+      <div
+        class="bg-base-100 rounded-lg shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        phx-click="stop_propagation"
+        phx-window-keydown="close_quote_modal"
+        phx-key="Escape"
+      >
+        <div class="p-4 border-b border-base-300 flex items-center justify-between">
+          <h3 class="text-lg font-semibold">Quote Post</h3>
+          <button phx-click="close_quote_modal" class="btn btn-ghost btn-sm btn-circle">
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="p-4">
+          <!-- Quote input -->
+          <.form for={%{}} phx-submit="submit_quote" class="space-y-4">
+            <div>
+              <textarea
+                name="content"
+                placeholder="Add your thoughts..."
+                class="textarea textarea-bordered w-full min-h-[100px] resize-y"
+                phx-change="update_quote_content"
+                phx-debounce="200"
+              ><%= @quote_content %></textarea>
+              <div class="text-xs text-right mt-1 opacity-60">
+                {String.length(@quote_content)} characters
+              </div>
+            </div>
+            
+<!-- Preview of quoted post -->
+            <div class="border border-base-300 rounded-lg p-3 bg-base-200/50">
+              <div class="flex items-center gap-2 mb-2">
+                <%= if @quote_target_post.sender do %>
+                  <.user_avatar user={@quote_target_post.sender} size="xs" />
+                  <span class="font-medium text-sm">{@quote_target_post.sender.username}</span>
+                  <span class="text-xs opacity-60">@{@quote_target_post.sender.username}</span>
+                <% else %>
+                  <%= if Ecto.assoc_loaded?(@quote_target_post.remote_actor) && @quote_target_post.remote_actor do %>
+                    <%= if @quote_target_post.remote_actor.avatar_url do %>
+                      <img
+                        src={@quote_target_post.remote_actor.avatar_url}
+                        alt=""
+                        class="w-6 h-6 rounded-full"
+                      />
+                    <% else %>
+                      <.placeholder_avatar size="xs" />
+                    <% end %>
+                    <span class="font-medium text-sm">
+                      {@quote_target_post.remote_actor.display_name ||
+                        @quote_target_post.remote_actor.username}
+                    </span>
+                    <span class="text-xs opacity-60">
+                      @{@quote_target_post.remote_actor.username}@{@quote_target_post.remote_actor.domain}
+                    </span>
+                  <% end %>
+                <% end %>
+              </div>
+              <div class="text-sm line-clamp-4 opacity-80">
+                {@quote_target_post.content}
+              </div>
+              <%= if @quote_target_post.media_urls && length(@quote_target_post.media_urls) > 0 do %>
+                <div class="mt-2 flex gap-1">
+                  <%= for url <- Enum.take(@quote_target_post.media_urls, 4) do %>
+                    <img src={url} alt="" class="w-12 h-12 rounded object-cover" />
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="flex justify-end gap-2">
+              <button type="button" phx-click="close_quote_modal" class="btn btn-ghost">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="btn btn-secondary"
+                disabled={String.trim(@quote_content) == ""}
+              >
+                <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" /> Quote
+              </button>
+            </div>
+          </.form>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

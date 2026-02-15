@@ -1,0 +1,333 @@
+<div class="p-4 sm:p-6">
+  <!-- Back Link -->
+  <div class="mb-6">
+    <.link href={~p"/pripyat/communities"} class="btn btn-ghost btn-sm gap-2">
+      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Communities
+    </.link>
+  </div>
+  
+<!-- Community Details -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+        <div class="flex-1">
+          <h1 class="text-2xl font-bold">{@community.name}</h1>
+          <p class="opacity-70 mt-2">{@community.description}</p>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+            <div class="stat bg-base-200 rounded-lg">
+              <div class="stat-title text-xs">Creator</div>
+              <div class="stat-value text-sm">
+                <%= if @community.creator do %>
+                  <.link
+                    href={~p"/pripyat/users/#{@community.creator.id}/edit"}
+                    class="link link-primary"
+                  >
+                    @{@community.creator.username}
+                  </.link>
+                <% else %>
+                  <span class="text-base-content/50">System</span>
+                <% end %>
+              </div>
+            </div>
+            <div class="stat bg-base-200 rounded-lg">
+              <div class="stat-title text-xs">Members</div>
+              <div class="stat-value text-primary">{@stats.total_members}</div>
+            </div>
+            <div class="stat bg-base-200 rounded-lg">
+              <div class="stat-title text-xs">Total Posts</div>
+              <div class="stat-value text-secondary">{@stats.total_posts}</div>
+              <div class="stat-desc text-xs">
+                {@stats.posts_7d} this week • {@stats.posts_30d} this month
+              </div>
+            </div>
+            <div class="stat bg-base-200 rounded-lg">
+              <div class="stat-title text-xs">Status</div>
+              <div class="stat-value text-sm">
+                <%= if @community.is_public do %>
+                  <span class="badge badge-success">Public</span>
+                <% else %>
+                  <span class="badge badge-ghost">Private</span>
+                <% end %>
+              </div>
+              <div class="stat-desc text-xs">
+                Created
+                <.local_time
+                  datetime={@community.inserted_at}
+                  format="date"
+                  timezone={@timezone}
+                  time_format={@time_format}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <.link
+            href={~p"/discussions/#{@community.name}"}
+            target="_blank"
+            class="btn btn-ghost btn-sm gap-2"
+          >
+            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> Visit Community
+          </.link>
+          <.form for={%{}} action={~p"/pripyat/communities/#{@community.id}/toggle"} method="post">
+            <.button class={"btn btn-sm w-full #{if @community.is_public, do: "btn-warning", else: "btn-success"}"}>
+              <%= if @community.is_public do %>
+                <.icon name="hero-lock-closed" class="w-4 h-4" /> Make Private
+              <% else %>
+                <.icon name="hero-lock-open" class="w-4 h-4" /> Make Public
+              <% end %>
+            </.button>
+          </.form>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/communities/#{@community.id}"}
+            method="delete"
+          >
+            <.button
+              class="btn btn-secondary btn-sm w-full gap-2"
+              data-confirm={"Delete '#{@community.name}'?\n\nThis will permanently delete:\n• The community\n• All #{@community.member_count || 0} members\n• All posts and discussions\n• All replies and comments\n\nThis CANNOT be undone!"}
+            >
+              <.icon name="hero-trash" class="w-4 h-4" /> Delete Community
+            </.button>
+          </.form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Members Section -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-4">
+        <.icon name="hero-users" class="w-5 h-5" /> Members ({@stats.total_members})
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="table table-zebra">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for member <- @members do %>
+              <tr>
+                <td>
+                  <.link
+                    href={~p"/pripyat/users/#{member.user_id}/edit"}
+                    class="link link-primary font-medium"
+                  >
+                    @{member.handle}
+                  </.link>
+                </td>
+                <td>
+                  <%= case member.role do %>
+                    <% "owner" -> %>
+                      <span class="badge badge-primary badge-sm">Owner</span>
+                    <% "admin" -> %>
+                      <span class="badge badge-error badge-sm">Admin</span>
+                    <% "moderator" -> %>
+                      <span class="badge badge-secondary badge-sm">Moderator</span>
+                    <% _ -> %>
+                      <span class="badge badge-ghost badge-sm">Member</span>
+                  <% end %>
+                </td>
+                <td class="text-sm text-base-content/70">
+                  <.local_time
+                    datetime={member.joined_at}
+                    format="date"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </td>
+                <td>
+                  <%= if member.role != "owner" do %>
+                    <.form
+                      for={%{}}
+                      action={~p"/pripyat/communities/#{@community.id}/remove-member"}
+                      method="post"
+                    >
+                      <input type="hidden" name="user_id" value={member.user_id} />
+                      <.button
+                        class="btn btn-secondary btn-xs"
+                        data-confirm={"Remove @#{member.handle} from '#{@community.name}'?"}
+                      >
+                        <.icon name="hero-x-mark" class="w-3 h-3" /> Remove
+                      </.button>
+                    </.form>
+                  <% else %>
+                    <span class="text-xs text-base-content/50">Owner</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+<!-- Members Pagination -->
+      <%= if @members_total_pages > 1 do %>
+        <div class="flex justify-center mt-4 gap-2">
+          <%= if @members_page > 1 do %>
+            <a
+              href={~p"/pripyat/communities/#{@community.id}?members_page=#{@members_page - 1}"}
+              class="btn btn-sm"
+            >
+              «
+            </a>
+          <% end %>
+
+          <div class="join">
+            <%= for page_num <- @members_page_range do %>
+              <a
+                href={~p"/pripyat/communities/#{@community.id}?members_page=#{page_num}"}
+                class={"join-item btn btn-sm " <> if(page_num == @members_page, do: "btn-active", else: "")}
+              >
+                {page_num}
+              </a>
+            <% end %>
+          </div>
+
+          <%= if @members_page < @members_total_pages do %>
+            <a
+              href={~p"/pripyat/communities/#{@community.id}?members_page=#{@members_page + 1}"}
+              class="btn btn-sm"
+            >
+              »
+            </a>
+          <% end %>
+        </div>
+
+        <div class="text-center text-sm text-base-content/70 mt-2">
+          Page {@members_page} of {@members_total_pages} • {@stats.total_members} members
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Recent Posts Section -->
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="card-title">
+          <.icon name="hero-document-text" class="w-5 h-5" /> Posts ({@stats.total_posts})
+        </h2>
+        <.link
+          href={~p"/pripyat/content-moderation?type=discussions"}
+          class="btn btn-ghost btn-sm"
+        >
+          View All Posts
+        </.link>
+      </div>
+
+      <%= if Enum.empty?(@recent_posts) do %>
+        <div class="text-center py-8 text-base-content/50">
+          <.icon name="hero-document-text" class="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>No posts in this community yet</p>
+        </div>
+      <% else %>
+        <div class="space-y-3">
+          <%= for post <- @recent_posts do %>
+            <div class="p-4 bg-base-200 rounded-lg hover:bg-base-300 transition-colors">
+              <div class="flex justify-between items-start gap-4">
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold mb-1">{post.title || "Untitled"}</div>
+                  <div class="text-sm text-base-content/70 mb-2">
+                    {truncate_content(post.content)}
+                  </div>
+                  <div class="flex items-center gap-3 text-xs text-base-content/60">
+                    <span>
+                      By
+                      <.link
+                        href={~p"/pripyat/users/#{post.sender_id}/edit"}
+                        class="link link-primary"
+                      >
+                        @{post.handle}
+                      </.link>
+                    </span>
+                    <span>•</span>
+                    <span>
+                      <.local_time
+                        datetime={post.inserted_at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </span>
+                    <span>•</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-success flex items-center gap-0.5">
+                        <.icon name="hero-arrow-up" class="w-3 h-3" />
+                        {post.upvotes || 0}
+                      </span>
+                      <span class="text-error flex items-center gap-0.5">
+                        <.icon name="hero-arrow-down" class="w-3 h-3" />
+                        {post.downvotes || 0}
+                      </span>
+                      <%= if post.reply_count && post.reply_count > 0 do %>
+                        <span class="flex items-center gap-0.5">
+                          <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                          {post.reply_count}
+                        </span>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                <.link
+                  href={~p"/discussions/#{@community.name}/post/#{post.id}"}
+                  class="btn btn-ghost btn-xs flex-shrink-0"
+                  target="_blank"
+                >
+                  <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+                </.link>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        
+<!-- Posts Pagination -->
+        <%= if @posts_total_pages > 1 do %>
+          <div class="flex justify-center mt-4 gap-2">
+            <%= if @posts_page > 1 do %>
+              <a
+                href={~p"/pripyat/communities/#{@community.id}?posts_page=#{@posts_page - 1}"}
+                class="btn btn-sm"
+              >
+                «
+              </a>
+            <% end %>
+
+            <div class="join">
+              <%= for page_num <- @posts_page_range do %>
+                <a
+                  href={~p"/pripyat/communities/#{@community.id}?posts_page=#{page_num}"}
+                  class={"join-item btn btn-sm " <> if(page_num == @posts_page, do: "btn-active", else: "")}
+                >
+                  {page_num}
+                </a>
+              <% end %>
+            </div>
+
+            <%= if @posts_page < @posts_total_pages do %>
+              <a
+                href={~p"/pripyat/communities/#{@community.id}?posts_page=#{@posts_page + 1}"}
+                class="btn btn-sm"
+              >
+                »
+              </a>
+            <% end %>
+          </div>
+
+          <div class="text-center text-sm text-base-content/70 mt-2">
+            Page {@posts_page} of {@posts_total_pages} • {@stats.total_posts} posts
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

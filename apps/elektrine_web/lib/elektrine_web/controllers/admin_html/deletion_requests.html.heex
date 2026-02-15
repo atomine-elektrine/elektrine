@@ -1,0 +1,99 @@
+<div class="p-4 sm:p-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">Account Deletion Requests</h1>
+  </div>
+
+  <%= if Enum.empty?(@requests) do %>
+    <div class="alert alert-info">
+      <.icon name="hero-information-circle" class="h-6 w-6" />
+      <span>No account deletion requests found.</span>
+    </div>
+  <% else %>
+    <div class="overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>Requested At</th>
+            <th>Reviewed By</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for request <- @requests do %>
+            <tr>
+              <td>
+                <div class="font-semibold">{request.user.username}</div>
+                <div class="text-sm opacity-70">ID: {request.user.id}</div>
+              </td>
+              <td>
+                <%= if request.reason && String.trim(request.reason) != "" do %>
+                  <div class="max-w-xs truncate" title={request.reason}>
+                    {request.reason}
+                  </div>
+                <% else %>
+                  <span class="text-gray-500">No reason provided</span>
+                <% end %>
+              </td>
+              <td>
+                <span class={[
+                  "badge",
+                  case request.status do
+                    "pending" -> "badge-warning"
+                    "approved" -> "badge-success"
+                    "denied" -> "badge-error"
+                    _ -> "badge-neutral"
+                  end
+                ]}>
+                  {String.capitalize(request.status)}
+                </span>
+              </td>
+              <td>
+                <div class="text-sm">
+                  {Calendar.strftime(request.requested_at, "%Y-%m-%d")}
+                </div>
+                <div class="text-xs opacity-70">
+                  {Calendar.strftime(request.requested_at, "%H:%M UTC")}
+                </div>
+              </td>
+              <td>
+                <%= if request.reviewed_by do %>
+                  <div class="text-sm">
+                    {request.reviewed_by.username}
+                  </div>
+                  <%= if request.reviewed_at do %>
+                    <div class="text-xs opacity-70">
+                      {Calendar.strftime(request.reviewed_at, "%Y-%m-%d %H:%M")}
+                    </div>
+                  <% end %>
+                <% else %>
+                  <span class="text-gray-500">-</span>
+                <% end %>
+              </td>
+              <td>
+                <div class="flex gap-2">
+                  <.link
+                    href={~p"/pripyat/deletion-requests/#{request.id}"}
+                    class="btn btn-sm btn-ghost"
+                  >
+                    View
+                  </.link>
+                  <%= if request.status == "pending" do %>
+                    <.link
+                      href={~p"/pripyat/deletion-requests/#{request.id}"}
+                      class="btn btn-sm btn-primary"
+                    >
+                      Review
+                    </.link>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

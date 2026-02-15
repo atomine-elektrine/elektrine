@@ -1,0 +1,70 @@
+defmodule ElektrineWeb.SettingsLive.DeleteAccount do
+  use ElektrineWeb, :live_view
+
+  on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
+
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, page_title: "Delete Account")}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div
+      id="delete-account-card"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
+    >
+      <div class="card-body">
+        <h1 class="text-2xl font-bold mb-6 text-error">Delete Account</h1>
+
+        <div class="alert alert-error mb-6">
+          <.icon name="hero-exclamation-triangle" class="h-6 w-6" />
+          <div>
+            <h3 class="font-bold">Warning!</h3>
+            <div class="text-sm">
+              This action cannot be undone. This will permanently delete your account and all associated data including:
+            </div>
+            <ul class="text-sm mt-2 list-disc list-inside">
+              <li>All your mailboxes and email addresses</li>
+              <li>All stored messages</li>
+              <li>Email aliases and forwarding settings</li>
+              <li>Account settings and preferences</li>
+            </ul>
+          </div>
+        </div>
+
+        <.simple_form :let={_f} for={%{}} action={~p"/account"} method="delete" bare={true}>
+          <p class="mb-4 text-sm">
+            To confirm deletion, please type your username
+            <strong class="text-primary">{@current_user.username}</strong>
+            in the field below:
+          </p>
+
+          <.input
+            name="reason"
+            type="textarea"
+            label="Reason for deletion (optional)"
+            placeholder="Please explain why you want to delete your account"
+            value=""
+          />
+
+          <.input
+            name="confirmation"
+            type="text"
+            label="Confirm username"
+            placeholder="Enter your username"
+            autocomplete="off"
+            value=""
+            required
+          />
+
+          <:actions>
+            <.link href={~p"/account"} class="btn btn-ghost">Cancel</.link>
+            <.button class="btn-secondary">Submit Deletion Request</.button>
+          </:actions>
+        </.simple_form>
+      </div>
+    </div>
+    """
+  end
+end

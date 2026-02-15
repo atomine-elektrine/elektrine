@@ -1,0 +1,3094 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Login Banner for Unauthenticated Users -->
+  <%= if !@current_user do %>
+    <div class="alert alert-info mb-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div class="flex-1">
+          <h3 class="font-semibold text-lg mb-1">Join the conversation!</h3>
+          <p class="text-sm opacity-90">
+            Sign in to post, vote, and reply to discussions in this community.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <.link href={~p"/login"} class="btn btn-secondary btn-sm">
+            <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-1" /> Sign In
+          </.link>
+          <.link href={~p"/register"} class="btn btn-ghost btn-sm">
+            <.icon name="hero-user-plus" class="w-4 h-4 mr-1" /> Sign Up
+          </.link>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Breadcrumb Navigation -->
+  <nav class="text-sm mb-4" aria-label="Breadcrumb">
+    <ol class="flex items-center gap-1.5 text-base-content/60">
+      <li>
+        <.link navigate={~p"/communities"} class="hover:text-primary transition-colors">
+          Communities
+        </.link>
+      </li>
+      <li class="flex items-center gap-1.5">
+        <.icon name="hero-chevron-right" class="w-3 h-3" />
+        <span class="text-base-content font-medium">{@community.name}</span>
+      </li>
+    </ol>
+  </nav>
+  
+<!-- Z Platform Navigation -->
+  <.z_nav active_tab="discussions" />
+  
+<!-- Community Header -->
+  <div class="card glass-card shadow-lg border border-base-300 mb-6">
+    <div class="card-body p-4 sm:p-6">
+      <% community_rules = String.trim(@community.community_rules || "") %>
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+        <div class="flex items-center gap-3 flex-1">
+          <div class="w-12 h-12 sm:w-16 sm:h-16 bg-error/10 rounded-lg flex items-center justify-center flex-shrink-0">
+            <.icon name="hero-users" class="w-6 h-6 sm:w-8 sm:h-8 text-error" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mb-1">
+              Community Timeline
+            </div>
+            <h1 class="text-xl sm:text-2xl font-bold">{@community.name}</h1>
+            <div class="flex items-center gap-2 mt-1">
+              <code class="text-sm opacity-70 bg-base-200 px-2 py-0.5 rounded">
+                !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
+              </code>
+              <button
+                type="button"
+                phx-click="copy_community_handle"
+                class="btn btn-ghost btn-xs"
+                title="Copy community handle"
+              >
+                <.icon name="hero-clipboard" class="w-3 h-3" />
+              </button>
+            </div>
+            <p class="text-sm sm:text-base text-base-content/70 mt-2 line-clamp-3">
+              {@community.description}
+            </p>
+          </div>
+        </div>
+        <div class="flex gap-2 w-full sm:w-auto">
+          <.link href={~p"/communities"} class="btn btn-ghost btn-xs sm:btn-sm">
+            <.icon name="hero-arrow-left" class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+            <span class="hidden sm:inline">Back</span>
+          </.link>
+          <%= if @is_owner do %>
+            <.link
+              href={~p"/communities/#{@community.name}/settings"}
+              class="btn btn-ghost btn-xs sm:btn-sm"
+            >
+              <.icon name="hero-cog-6-tooth" class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+              <span class="hidden sm:inline">Settings</span>
+            </.link>
+          <% end %>
+          <%= if @current_user do %>
+            <%= if !@is_member do %>
+              <button phx-click="join_community" class="btn btn-success btn-xs sm:btn-sm">
+                <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                <span class="hidden sm:inline">Join</span>
+              </button>
+            <% else %>
+              <%= if !@is_owner do %>
+                <button
+                  phx-click="leave_community"
+                  class="btn btn-ghost btn-secondary btn-xs sm:btn-sm"
+                >
+                  <.icon
+                    name="hero-arrow-right-on-rectangle"
+                    class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2"
+                  />
+                  <span class="hidden sm:inline">Leave</span>
+                </button>
+              <% end %>
+            <% end %>
+            <button
+              phx-click="toggle_new_post"
+              class="btn btn-secondary btn-xs sm:btn-sm flex-1 sm:flex-initial"
+            >
+              <.icon name="hero-plus" class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" /> New Post
+            </button>
+          <% else %>
+            <.link
+              href={~p"/login"}
+              class="btn btn-secondary btn-xs sm:btn-sm flex-1 sm:flex-initial"
+            >
+              <.icon name="hero-lock-closed" class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              Sign in to Post
+            </.link>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Purpose
+          </div>
+          <div class="text-sm mt-1 line-clamp-2">
+            {if String.trim(@community.description || "") == "",
+              do: "General discussion for community members.",
+              else: String.trim(@community.description)}
+          </div>
+        </div>
+        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Rules
+          </div>
+          <div class="text-sm mt-1 line-clamp-2">
+            {if community_rules == "",
+              do: "No rules published yet.",
+              else: community_rules}
+          </div>
+        </div>
+        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Members
+          </div>
+          <div class="text-sm mt-1">
+            {@community.member_count} members
+            <span class="ml-2 badge badge-outline badge-xs sm:badge-sm">
+              {String.capitalize(@community.community_category || "general")}
+            </span>
+          </div>
+        </div>
+        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Posting Cadence
+          </div>
+          <div class="text-sm mt-1">{@posting_cadence}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- View Tabs -->
+  <div class="tabs tabs-boxed mb-4">
+    <button
+      phx-click="switch_view"
+      phx-value-view="posts"
+      class={[
+        "tab",
+        if(@current_view == "posts", do: "tab-active")
+      ]}
+    >
+      <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-2" /> Posts
+    </button>
+    <button
+      phx-click="switch_view"
+      phx-value-view="members"
+      class={[
+        "tab",
+        if(@current_view == "members", do: "tab-active")
+      ]}
+    >
+      <.icon name="hero-users" class="w-4 h-4 mr-2" /> Members ({length(@members)})
+    </button>
+    <%= if @is_moderator || (@current_user && @current_user.is_admin) do %>
+      <button
+        phx-click="switch_view"
+        phx-value-view="flairs"
+        class={[
+          "tab",
+          if(@current_view == "flairs", do: "tab-active")
+        ]}
+      >
+        <.icon name="hero-tag" class="w-4 h-4 mr-2" /> Flairs
+      </button>
+      <button
+        phx-click="switch_view"
+        phx-value-view="queue"
+        class={[
+          "tab",
+          if(@current_view == "queue", do: "tab-active")
+        ]}
+      >
+        <.icon name="hero-queue-list" class="w-4 h-4 mr-2" /> Queue ({length(@pending_posts)})
+      </button>
+      <button
+        phx-click="switch_view"
+        phx-value-view="bans"
+        class={[
+          "tab",
+          if(@current_view == "bans", do: "tab-active")
+        ]}
+      >
+        <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Bans ({length(@banned_users)})
+      </button>
+      <button
+        phx-click="switch_view"
+        phx-value-view="log"
+        class={[
+          "tab",
+          if(@current_view == "log", do: "tab-active")
+        ]}
+      >
+        <.icon name="hero-clipboard-document-list" class="w-4 h-4 mr-2" /> Log
+      </button>
+      <button
+        phx-click="switch_view"
+        phx-value-view="automod"
+        class={[
+          "tab",
+          if(@current_view == "automod", do: "tab-active")
+        ]}
+      >
+        <.icon name="hero-shield-check" class="w-4 h-4 mr-2" /> Auto-Mod
+      </button>
+    <% end %>
+  </div>
+
+  <div class="flex flex-col lg:flex-row gap-4 lg:gap-6">
+    <!-- Main Content -->
+    <div class="flex-1 min-w-0 order-2 lg:order-1">
+      <!-- New Post Composer -->
+      <%= if @show_new_post && @current_user do %>
+        <div class="card glass-card shadow-lg border border-base-300 mb-6">
+          <div class="card-body p-4">
+            <h3 class="font-semibold mb-4">Create Post</h3>
+            
+<!-- Post Type Selector -->
+            <div class="tabs tabs-boxed mb-4">
+              <button
+                type="button"
+                phx-click="select_post_type"
+                phx-value-type="text"
+                class={["tab", if(@post_type == "text", do: "tab-active")]}
+              >
+                <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Text
+              </button>
+              <button
+                type="button"
+                phx-click="select_post_type"
+                phx-value-type="link"
+                class={["tab", if(@post_type == "link", do: "tab-active")]}
+              >
+                <.icon name="hero-link" class="w-4 h-4 mr-1" /> Link
+              </button>
+              <button
+                type="button"
+                phx-click="select_post_type"
+                phx-value-type="image"
+                class={["tab", if(@post_type == "image", do: "tab-active")]}
+              >
+                <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
+              </button>
+              <button
+                type="button"
+                phx-click="select_post_type"
+                phx-value-type="poll"
+                class={["tab", if(@post_type == "poll", do: "tab-active")]}
+              >
+                <.icon name="hero-chart-bar" class="w-4 h-4 mr-1" /> Poll
+              </button>
+            </div>
+
+            <.form
+              for={%{}}
+              id="new-post-form"
+              phx-submit="create_discussion_post"
+              phx-change="update_post_form"
+              class="space-y-4"
+            >
+              <!-- Title (common to all types) -->
+              <div>
+                <input
+                  type="text"
+                  name="title"
+                  placeholder="Post title"
+                  class="input input-bordered w-full"
+                  value={@new_post_title}
+                  phx-keyup="update_post_title"
+                  phx-debounce="100"
+                  required
+                />
+                <div class="flex justify-end mt-1">
+                  <span class={[
+                    "text-xs",
+                    cond do
+                      String.length(@new_post_title || "") < 3 -> "text-error"
+                      String.length(@new_post_title || "") > 280 -> "text-warning"
+                      true -> "text-base-content/50"
+                    end
+                  ]}>
+                    {String.length(@new_post_title || "")}/3 min
+                  </span>
+                </div>
+              </div>
+              
+<!-- Text Post Fields -->
+              <%= if @post_type == "text" do %>
+                <div class="relative">
+                  <textarea
+                    name="content"
+                    placeholder="Write your discussion content..."
+                    class="textarea textarea-bordered w-full"
+                    rows="6"
+                    maxlength="10000"
+                    phx-debounce="100"
+                    required
+                  >{@new_post_content}</textarea>
+                  <div class="flex justify-end mt-1">
+                    <span class={[
+                      "text-xs",
+                      cond do
+                        String.length(@new_post_content) > 9500 -> "text-error"
+                        String.length(@new_post_content) > 8000 -> "text-warning"
+                        true -> "text-base-content/50"
+                      end
+                    ]}>
+                      {String.length(@new_post_content)} / 10,000
+                    </span>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Link Post Fields -->
+              <%= if @post_type == "link" do %>
+                <input
+                  type="url"
+                  name="link_url"
+                  placeholder="https://example.com/article"
+                  class="input input-bordered w-full"
+                  phx-debounce="500"
+                  value={@link_url || ""}
+                  required
+                />
+                <div class="relative">
+                  <textarea
+                    name="content"
+                    placeholder="Optional description or commentary..."
+                    class="textarea textarea-bordered w-full"
+                    rows="3"
+                    maxlength="5000"
+                    phx-debounce="100"
+                  >{@new_post_content}</textarea>
+                  <div class="flex justify-end mt-1">
+                    <span class={[
+                      "text-xs",
+                      cond do
+                        String.length(@new_post_content) > 4500 -> "text-error"
+                        String.length(@new_post_content) > 4000 -> "text-warning"
+                        true -> "text-base-content/50"
+                      end
+                    ]}>
+                      {String.length(@new_post_content)} / 5,000
+                    </span>
+                  </div>
+                </div>
+                <div class="text-xs opacity-70">
+                  <.icon name="hero-information-circle" class="w-4 h-4 inline mr-1" />
+                  Link previews will be automatically generated
+                </div>
+              <% end %>
+              
+<!-- Media Post Fields -->
+              <%= if @post_type == "image" do %>
+                <button
+                  type="button"
+                  phx-click="open_image_upload"
+                  class="btn btn-secondary btn-sm w-full mb-3"
+                >
+                  <.icon name="hero-photo" class="w-4 h-4 mr-2" />
+                  {if Enum.empty?(@pending_media_urls), do: "Upload Media", else: "Change Media"}
+                </button>
+
+                <%= if !Enum.empty?(@pending_media_urls) do %>
+                  <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg mb-3">
+                    <.icon name="hero-photo" class="w-4 h-4 text-secondary" />
+                    <span class="text-sm">{length(@pending_media_urls)} file(s) attached</span>
+                    <button
+                      type="button"
+                      phx-click="clear_pending_images"
+                      class="btn btn-ghost btn-xs ml-auto"
+                    >
+                      <.icon name="hero-x-mark" class="w-3 h-3" />
+                    </button>
+                  </div>
+                <% end %>
+
+                <div class="relative">
+                  <textarea
+                    name="content"
+                    placeholder="Optional caption..."
+                    class="textarea textarea-bordered w-full"
+                    rows="3"
+                    maxlength="2000"
+                    phx-debounce="100"
+                  >{@new_post_content}</textarea>
+                  <div class="flex justify-end mt-1">
+                    <span class={[
+                      "text-xs",
+                      cond do
+                        String.length(@new_post_content) > 1800 -> "text-error"
+                        String.length(@new_post_content) > 1500 -> "text-warning"
+                        true -> "text-base-content/50"
+                      end
+                    ]}>
+                      {String.length(@new_post_content)} / 2,000
+                    </span>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Poll Post Fields -->
+              <%= if @post_type == "poll" do %>
+                <input
+                  type="text"
+                  name="poll_question"
+                  placeholder="What's your poll question?"
+                  class="input input-bordered w-full"
+                  required
+                />
+
+                <div class="space-y-2">
+                  <label class="label">
+                    <span class="label-text">Poll Options</span>
+                  </label>
+                  <%= for {_option, index} <- Enum.with_index(@poll_options) do %>
+                    <div class="flex gap-2">
+                      <input
+                        type="text"
+                        name={"poll_option_#{index}"}
+                        placeholder={"Option #{index + 1}"}
+                        class="input input-bordered flex-1"
+                        required={index < 2}
+                      />
+                      <%= if index >= 2 do %>
+                        <button
+                          type="button"
+                          phx-click="remove_poll_option"
+                          phx-value-index={index}
+                          class="btn btn-ghost btn-sm"
+                        >
+                          <.icon name="hero-x-mark" class="w-4 h-4" />
+                        </button>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  <%= if length(@poll_options) < 10 do %>
+                    <button
+                      type="button"
+                      phx-click="add_poll_option"
+                      class="btn btn-ghost btn-sm w-full"
+                    >
+                      <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Option
+                    </button>
+                  <% end %>
+                </div>
+
+                <div class="flex gap-4">
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">Poll Duration</span>
+                    </label>
+                    <select name="poll_duration_days" class="select select-bordered select-sm">
+                      <option value="1">1 Day</option>
+                      <option value="3">3 Days</option>
+                      <option value="7" selected>7 Days</option>
+                      <option value="14">14 Days</option>
+                      <option value="30">30 Days</option>
+                      <option value="0">Never</option>
+                    </select>
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label cursor-pointer gap-2">
+                      <span class="label-text">Multiple choice</span>
+                      <input
+                        type="checkbox"
+                        name="poll_allow_multiple"
+                        class="checkbox checkbox-error checkbox-sm"
+                      />
+                    </label>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Flair Selection (common to all types) -->
+              <%= if @flairs && length(@flairs) > 0 do %>
+                <select name="flair_id" class="select select-bordered w-full max-w-xs">
+                  <option value="">Select flair (optional)</option>
+                  <%= for flair <- @flairs do %>
+                    <%= if !flair.is_mod_only || @is_moderator do %>
+                      <option value={flair.id}>
+                        {flair.name}
+                      </option>
+                    <% end %>
+                  <% end %>
+                </select>
+              <% end %>
+
+              <div class="flex gap-2 items-center justify-end">
+                <button type="button" phx-click="toggle_new_post" class="btn btn-ghost btn-sm">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class="btn btn-secondary btn-sm"
+                  disabled={String.length(@new_post_title || "") < 3}
+                >
+                  <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" />
+                  <%= case @post_type do %>
+                    <% "link" -> %>
+                      Post Link
+                    <% "image" -> %>
+                      Post Image
+                    <% "poll" -> %>
+                      Create Poll
+                    <% _ -> %>
+                      Create Post
+                  <% end %>
+                </button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Posts View -->
+      <%= if @current_view == "posts" do %>
+        <%= if @loading_community do %>
+          <!-- Loading skeleton for discussion posts -->
+          <div class="space-y-4">
+            <%= for _i <- 1..3 do %>
+              <div class="card bg-base-200 shadow-sm animate-pulse">
+                <div class="card-body p-4">
+                  <div class="flex gap-4">
+                    <div class="flex flex-col items-center gap-2">
+                      <div class="w-6 h-6 bg-base-300 rounded"></div>
+                      <div class="w-4 h-4 bg-base-300 rounded"></div>
+                      <div class="w-6 h-6 bg-base-300 rounded"></div>
+                    </div>
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 mb-3">
+                        <div class="w-8 h-8 bg-base-300 rounded-full"></div>
+                        <div class="h-4 bg-base-300 rounded w-24"></div>
+                      </div>
+                      <div class="h-5 bg-base-300 rounded w-3/4 mb-2"></div>
+                      <div class="space-y-2">
+                        <div class="h-3 bg-base-300 rounded w-full"></div>
+                        <div class="h-3 bg-base-300 rounded w-5/6"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <!-- Sort Options -->
+          <div class="mb-4 rounded-xl border border-base-300 bg-base-100/70 p-2 sm:p-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mb-2">
+              Browse by intent
+            </div>
+            <div
+              class="grid grid-cols-2 sm:grid-cols-4 gap-2"
+              role="tablist"
+              aria-label="Sort posts"
+            >
+              <button
+                phx-click="set_sort"
+                phx-value-sort="hot"
+                class={[
+                  "btn btn-sm min-h-10",
+                  if(@sort_by == "hot", do: "btn-secondary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@sort_by == "hot"}
+              >
+                Hot
+              </button>
+              <button
+                phx-click="set_sort"
+                phx-value-sort="new"
+                class={[
+                  "btn btn-sm min-h-10",
+                  if(@sort_by == "new", do: "btn-secondary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@sort_by == "new"}
+              >
+                New
+              </button>
+              <button
+                phx-click="set_sort"
+                phx-value-sort="top"
+                class={[
+                  "btn btn-sm min-h-10",
+                  if(@sort_by == "top", do: "btn-secondary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@sort_by == "top"}
+              >
+                Top
+              </button>
+              <button
+                phx-click="set_sort"
+                phx-value-sort="unanswered"
+                class={[
+                  "btn btn-sm min-h-10",
+                  if(@sort_by == "unanswered", do: "btn-secondary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@sort_by == "unanswered"}
+              >
+                Unanswered
+              </button>
+            </div>
+          </div>
+
+          <% has_start_here = Enum.any?(@pinned_posts || [], &(pin_role(&1) == "start_here")) %>
+          <% has_recurring = Enum.any?(@pinned_posts || [], &(pin_role(&1) == "recurring")) %>
+          <%= if (@is_moderator || (@current_user && @current_user.is_admin)) &&
+                (!has_start_here || !has_recurring) do %>
+            <div class="alert alert-warning mb-4">
+              <.icon name="hero-light-bulb" class="w-5 h-5" />
+              <div class="text-sm">
+                <span class="font-semibold">Community setup reminder:</span>
+                <span class="ml-1">
+                  <%= if !has_start_here do %>
+                    pin one <strong>Start Here</strong> thread.
+                  <% end %>
+                  <%= if !has_recurring do %>
+                    pin one <strong>Recurring</strong> thread.
+                  <% end %>
+                </span>
+              </div>
+            </div>
+          <% end %>
+          <!-- Pinned Posts -->
+          <%= if @pinned_posts && length(@pinned_posts) > 0 do %>
+            <div class="mb-6">
+              <h3 class="text-sm font-semibold opacity-70 mb-3 flex items-center gap-2">
+                <.icon name="hero-map-pin-solid" class="w-4 h-4" /> Pinned Posts
+              </h3>
+              <div class="space-y-4">
+                <%= for post <- @pinned_posts do %>
+                  <div class="card bg-base-200 border border-base-200 shadow-sm group relative">
+                    <div class="absolute top-2 right-2 flex flex-col items-end gap-1">
+                      <div class="badge badge-error badge-sm gap-1">
+                        <.icon name="hero-map-pin-solid" class="w-3 h-3" /> Pinned
+                      </div>
+                      <%= if pin_role(post) == "start_here" do %>
+                        <div class="badge badge-secondary badge-sm gap-1">
+                          <.icon name="hero-book-open" class="w-3 h-3" /> Start Here
+                        </div>
+                      <% end %>
+                      <%= if pin_role(post) == "recurring" do %>
+                        <div class="badge badge-info badge-sm gap-1">
+                          <.icon name="hero-arrow-path" class="w-3 h-3" /> Recurring
+                        </div>
+                      <% end %>
+                    </div>
+                    <div class="card-body p-4">
+                      <div class="flex gap-4">
+                        <!-- Voting Column -->
+                        <.vote_buttons
+                          post_id={post.id}
+                          current_user={@current_user}
+                          is_upvoted={Map.get(@user_votes, post.id) == "up"}
+                          is_downvoted={Map.get(@user_votes, post.id) == "down"}
+                          score={(post.upvotes || 0) - (post.downvotes || 0)}
+                          size={:sm}
+                        />
+                        
+<!-- Post Content -->
+                        <div class="flex-1 min-w-0">
+                          <!-- Post Header (simplified for pinned posts) -->
+                          <div class="flex flex-wrap items-center gap-2 mb-3">
+                            <div class="flex-shrink-0">
+                              <.link
+                                href={~p"/#{post.sender.handle || post.sender.username}"}
+                                class="w-6 h-6 sm:w-8 sm:h-8 block"
+                                phx-click="stop_propagation"
+                              >
+                                <.user_avatar user={post.sender} size="xs" />
+                              </.link>
+                            </div>
+                            <.link
+                              href={~p"/#{post.sender.handle || post.sender.username}"}
+                              class="font-medium hover:underline hover:text-error text-sm sm:text-base transition-colors"
+                              phx-click="stop_propagation"
+                            >
+                              <.username_with_effects
+                                user={post.sender}
+                                display_name={true}
+                                verified_size="sm"
+                              />
+                            </.link>
+                            <div class="text-xs sm:text-sm opacity-70">
+                              @{post.sender.handle || post.sender.username} ·
+                              <.local_time
+                                datetime={post.inserted_at}
+                                format="relative"
+                                timezone={@timezone}
+                                time_format={@time_format}
+                              />
+                            </div>
+                            
+<!-- Post Flair -->
+                            <%= if post.flair && is_struct(post.flair, Elektrine.Messaging.CommunityFlair) do %>
+                              <span
+                                class="badge badge-sm"
+                                style={"background-color: #{post.flair.background_color}; color: #{post.flair.text_color}"}
+                              >
+                                {post.flair.name}
+                              </span>
+                            <% end %>
+                            
+<!-- Auto-Mod Flagged Indicator (Moderators only) -->
+                            <%= if (@is_moderator || (@current_user && @current_user.is_admin)) && post.media_metadata && Map.has_key?(post.media_metadata, "automod_flagged") do %>
+                              <span
+                                class="badge badge-warning badge-sm gap-1"
+                                title={"Flagged by rule: #{get_in(post.media_metadata, ["automod_flagged", "rule_name"])}"}
+                              >
+                                <.icon name="hero-flag" class="w-3 h-3" /> Auto-Flagged
+                              </span>
+                            <% end %>
+                          </div>
+                          
+<!-- Post Title & Content -->
+                          <div
+                            id={"pinned-post-content-#{post.id}"}
+                            class="cursor-pointer hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
+                            phx-hook="PostClick"
+                            data-click-event="navigate_to_post"
+                            data-id={post.id}
+                          >
+                            <%= if post.title do %>
+                              <h3 class="font-semibold text-base sm:text-lg mb-2 break-words leading-tight">
+                                {post.title}
+                                <%= if post.auto_title do %>
+                                  <span class="text-xs opacity-50 ml-2">(auto)</span>
+                                <% end %>
+                                <!-- Post type badges -->
+                                <%= cond do %>
+                                  <% post.post_type == "link" -> %>
+                                    <span class="badge badge-info badge-xs ml-2">Link</span>
+                                  <% post.post_type == "poll" -> %>
+                                    <span class="badge badge-success badge-xs ml-2">Poll</span>
+                                  <% post.message_type == "image" -> %>
+                                    <span class="badge badge-warning badge-xs ml-2">Image</span>
+                                  <% true -> %>
+                                    <% nil %>
+                                <% end %>
+                              </h3>
+                            <% end %>
+
+                            <%= if post.shared_message_id && post.shared_message do %>
+                              <!-- Cross-posted: Show comment + embedded post -->
+                              <%= if post.content && post.content != "" do %>
+                                <div class="break-words text-sm sm:text-base mb-3 post-content line-clamp-3 overflow-hidden">
+                                  {raw(
+                                    make_links_clickable(
+                                      String.trim(String.slice(post.content, 0, 200))
+                                    )
+                                  )}{if String.length(post.content) > 200, do: "..."}
+                                </div>
+                              <% end %>
+                              <.embedded_post
+                                message={post}
+                                shared_message={post.shared_message}
+                                class="mt-2"
+                              />
+                            <% else %>
+                              <!-- Different rendering based on post type -->
+                              <%= cond do %>
+                                <% post.post_type == "poll" && post.poll -> %>
+                                  <!-- Poll Post -->
+                                  <% poll_results =
+                                    Elektrine.Social.get_poll_results(post.poll.id) %>
+                                  <% user_votes =
+                                    if @current_user,
+                                      do:
+                                        Elektrine.Social.get_user_poll_votes(
+                                          post.poll.id,
+                                          @current_user.id
+                                        ),
+                                      else: [] %>
+                                  <div phx-click="stop_propagation">
+                                    <.poll_display
+                                      poll={poll_results}
+                                      current_user={@current_user}
+                                      user_votes={user_votes}
+                                    />
+                                  </div>
+                                <% post.post_type == "link" && post.primary_url -> %>
+                                  <!-- Link Post with Rich Preview -->
+                                  <%= if match?(%Elektrine.Social.LinkPreview{}, post.link_preview) && post.link_preview.status == "success" do %>
+                                    <% youtube_id = extract_youtube_id(post.link_preview.url) %>
+                                    <%= if youtube_id do %>
+                                      <!-- YouTube Embed -->
+                                      <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
+                                        <div class="aspect-video bg-base-200">
+                                          <iframe
+                                            src={"https://www.youtube.com/embed/#{youtube_id}"}
+                                            title={post.link_preview.title || "YouTube video"}
+                                            frameborder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowfullscreen
+                                            class="w-full h-full"
+                                          >
+                                          </iframe>
+                                        </div>
+                                        <%= if post.link_preview.title do %>
+                                          <div class="p-3 border-t border-base-200">
+                                            <h4 class="font-medium text-sm">
+                                              {post.link_preview.title}
+                                            </h4>
+                                          </div>
+                                        <% end %>
+                                      </div>
+                                    <% else %>
+                                      <!-- Regular Link Preview -->
+                                      <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
+                                        <%= if post.link_preview.image_url do %>
+                                          <div class="aspect-video bg-base-200">
+                                            <img
+                                              src={ensure_https(post.link_preview.image_url)}
+                                              alt={post.link_preview.title || ""}
+                                              class="w-full h-full object-cover"
+                                            />
+                                          </div>
+                                        <% end %>
+                                        <div class="p-3">
+                                          <%= if post.link_preview.title do %>
+                                            <h4 class="font-medium text-sm">
+                                              {post.link_preview.title}
+                                            </h4>
+                                          <% end %>
+                                          <%= if post.link_preview.description do %>
+                                            <p class="text-xs opacity-70 mt-1 line-clamp-2">
+                                              {post.link_preview.description}
+                                            </p>
+                                          <% end %>
+                                          <a
+                                            href={post.link_preview.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="text-xs text-primary hover:underline mt-2 inline-block"
+                                            phx-click="stop_propagation"
+                                          >
+                                            Visit link →
+                                          </a>
+                                        </div>
+                                      </div>
+                                    <% end %>
+                                  <% else %>
+                                    <!-- Fallback: Simple link display -->
+                                    <div class="block border border-base-300 rounded-lg overflow-hidden my-3">
+                                      <div class="bg-base-200/50 p-4 flex items-center gap-3">
+                                        <.icon
+                                          name="hero-arrow-top-right-on-square"
+                                          class="w-5 h-5 flex-shrink-0"
+                                        />
+                                        <div class="flex-1 min-w-0">
+                                          <div class="font-medium text-sm truncate">
+                                            {URI.parse(post.primary_url).host}
+                                          </div>
+                                          <a
+                                            href={post.primary_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="text-xs opacity-70 truncate hover:text-primary"
+                                            phx-click="stop_propagation"
+                                          >
+                                            {post.primary_url}
+                                          </a>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  <% end %>
+                                  <%= if post.content && String.trim(post.content) != "" && String.trim(post.content) != post.primary_url do %>
+                                    <div class="break-words text-sm sm:text-base post-content mt-2 line-clamp-3 overflow-hidden">
+                                      {raw(
+                                        make_links_clickable(
+                                          String.trim(String.slice(post.content, 0, 200))
+                                        )
+                                      )}{if String.length(post.content) > 200, do: "..."}
+                                    </div>
+                                  <% end %>
+                                <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
+                                  <!-- Image Post -->
+                                  <% full_urls =
+                                    Enum.map(post.media_urls, &Elektrine.Uploads.attachment_url/1) %>
+                                  <div class={[
+                                    "grid gap-2 my-3",
+                                    if(length(post.media_urls) > 1,
+                                      do: "grid-cols-2",
+                                      else: "grid-cols-1"
+                                    )
+                                  ]}>
+                                    <%= for {media_url, idx} <- Enum.with_index(Enum.take(post.media_urls, 4)) do %>
+                                      <button
+                                        type="button"
+                                        phx-click="open_image_modal"
+                                        phx-value-images={Jason.encode!(full_urls)}
+                                        phx-value-index={idx}
+                                        phx-value-post_id={post.id}
+                                        class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200 bg-base-200 aspect-video"
+                                      >
+                                        <img
+                                          src={Elektrine.Uploads.attachment_url(media_url)}
+                                          alt={post.title || ""}
+                                          class="w-full h-full object-cover"
+                                        />
+                                      </button>
+                                    <% end %>
+                                  </div>
+                                  <%= if post.content && String.trim(post.content) != "" do %>
+                                    <div class="break-words text-sm post-content line-clamp-3 overflow-hidden">
+                                      {raw(
+                                        make_links_clickable(
+                                          String.trim(String.slice(post.content, 0, 200))
+                                        )
+                                      )}
+                                    </div>
+                                  <% end %>
+                                <% true -> %>
+                                  <!-- Regular text post -->
+                                  <%= if post.content && String.trim(post.content) != "" do %>
+                                    <p class="text-sm sm:text-base opacity-80 line-clamp-3">
+                                      {String.slice(post.content, 0, 200)}{if String.length(
+                                                                                post.content
+                                                                              ) > 200, do: "..."}
+                                    </p>
+                                  <% end %>
+                              <% end %>
+                            <% end %>
+                          </div>
+                          
+<!-- Post Footer -->
+                          <div class="hidden sm:flex items-center gap-2 sm:gap-4 mt-3 text-xs sm:text-sm opacity-70">
+                            <.link
+                              href={generate_discussion_url(@community, post)}
+                              class="hover:text-primary hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                              {post.reply_count || 0} {if post.reply_count == 1,
+                                do: "reply",
+                                else: "replies"}
+                            </.link>
+                          </div>
+
+                          <%= if @is_moderator || (@current_user && @current_user.is_admin) do %>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                              <button
+                                phx-click="set_pin_role"
+                                phx-value-message_id={post.id}
+                                phx-value-role="start_here"
+                                class={[
+                                  "btn btn-xs",
+                                  if(pin_role(post) == "start_here",
+                                    do: "btn-secondary",
+                                    else: "btn-ghost"
+                                  )
+                                ]}
+                              >
+                                Start Here
+                              </button>
+                              <button
+                                phx-click="set_pin_role"
+                                phx-value-message_id={post.id}
+                                phx-value-role="recurring"
+                                class={[
+                                  "btn btn-xs",
+                                  if(pin_role(post) == "recurring",
+                                    do: "btn-info",
+                                    else: "btn-ghost"
+                                  )
+                                ]}
+                              >
+                                Recurring
+                              </button>
+                              <button
+                                phx-click="set_pin_role"
+                                phx-value-message_id={post.id}
+                                phx-value-role="none"
+                                class="btn btn-ghost btn-xs"
+                              >
+                                Clear Tag
+                              </button>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+
+          <%= if @discussion_posts && length(@discussion_posts) > 0 do %>
+            <div class="space-y-4">
+              <%= for post <- @discussion_posts do %>
+                <div class="card bg-base-200 border border-base-200 shadow-sm group">
+                  <div class="card-body p-4">
+                    <div class="flex gap-4">
+                      <!-- Voting Column -->
+                      <.vote_buttons
+                        post_id={post.id}
+                        current_user={@current_user}
+                        is_upvoted={Map.get(@user_votes, post.id) == "up"}
+                        is_downvoted={Map.get(@user_votes, post.id) == "down"}
+                        score={(post.upvotes || 0) - (post.downvotes || 0)}
+                        size={:sm}
+                      />
+                      
+<!-- Post Content -->
+                      <div class="flex-1 min-w-0">
+                        <!-- Post Header -->
+                        <div class="flex flex-wrap items-center gap-2 mb-3">
+                          <div class="flex-shrink-0">
+                            <.link
+                              href={~p"/#{post.sender.handle || post.sender.username}"}
+                              class="w-6 h-6 sm:w-8 sm:h-8 block"
+                            >
+                              <.user_avatar user={post.sender} size="xs" />
+                            </.link>
+                          </div>
+                          <div class="flex flex-wrap items-start gap-2">
+                            <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+                              <.link
+                                href={~p"/#{post.sender.handle || post.sender.username}"}
+                                class="font-medium hover:underline text-sm sm:text-base leading-tight"
+                              >
+                                <.username_with_effects
+                                  user={post.sender}
+                                  display_name={true}
+                                  verified_size="sm"
+                                />
+                              </.link>
+                              <div class="text-xs opacity-70 leading-tight">
+                                @{post.sender.handle || post.sender.username} ·
+                                <.local_time
+                                  datetime={post.inserted_at}
+                                  format="relative"
+                                  timezone={@timezone}
+                                  time_format={@time_format}
+                                />
+                              </div>
+                            </div>
+                            <%= if @current_user && post.sender.id != @current_user.id do %>
+                              <button
+                                phx-click="toggle_follow"
+                                phx-value-user_id={post.sender.id}
+                                class={[
+                                  "btn btn-xs h-7 min-h-0 px-2 flex-shrink-0",
+                                  if(Map.get(@user_follows, post.sender.id, false),
+                                    do: "btn-ghost",
+                                    else: "btn-secondary"
+                                  )
+                                ]}
+                              >
+                                <%= if Map.get(@user_follows, post.sender.id, false) do %>
+                                  <.icon name="hero-user-minus" class="w-3 h-3 mr-1" />
+                                  <span class="text-xs">Unfollow</span>
+                                <% else %>
+                                  <.icon name="hero-user-plus" class="w-3 h-3 mr-1" />
+                                  <span class="text-xs">Follow</span>
+                                <% end %>
+                              </button>
+                            <% end %>
+                          </div>
+                          
+<!-- Post Flair -->
+                          <%= if post.flair && is_struct(post.flair, Elektrine.Messaging.CommunityFlair) do %>
+                            <span
+                              class="badge badge-sm"
+                              style={"background-color: #{post.flair.background_color}; color: #{post.flair.text_color}"}
+                            >
+                              {post.flair.name}
+                            </span>
+                          <% end %>
+                          
+<!-- Auto-Mod Flagged Indicator (Moderators only) -->
+                          <%= if (@is_moderator || (@current_user && @current_user.is_admin)) && post.media_metadata && Map.has_key?(post.media_metadata, "automod_flagged") do %>
+                            <span
+                              class="badge badge-warning badge-sm gap-1"
+                              title={"Flagged by rule: #{get_in(post.media_metadata, ["automod_flagged", "rule_name"])}"}
+                            >
+                              <.icon name="hero-flag" class="w-3 h-3" /> Auto-Flagged
+                            </span>
+                          <% end %>
+                          
+<!-- Content Journey Trail -->
+                          <.content_journey message={post} context="discussion" />
+                          
+<!-- Post Actions Dropdown -->
+                          <%= if @current_user do %>
+                            <div
+                              class="dropdown dropdown-end ml-auto"
+                              phx-click="noop"
+                              phx-click-away="close_dropdown"
+                            >
+                              <label tabindex="0" class="btn btn-ghost btn-xs">
+                                <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
+                              </label>
+                              <ul
+                                tabindex="0"
+                                class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-52 z-30"
+                              >
+                                <!-- Regular User Actions -->
+                                <%= if post.activitypub_id do %>
+                                  <li>
+                                    <a
+                                      href={post.activitypub_id}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <.icon
+                                        name="hero-arrow-top-right-on-square"
+                                        class="w-4 h-4"
+                                      /> Open on Remote Instance
+                                    </a>
+                                  </li>
+                                <% end %>
+                                <li>
+                                  <button
+                                    phx-click="view_discussion"
+                                    phx-value-message_id={post.id}
+                                    type="button"
+                                    phx-click="close_dropdown"
+                                  >
+                                    <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+                                    View Post
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    phx-click="copy_discussion_link"
+                                    phx-value-message_id={post.id}
+                                    type="button"
+                                    phx-click="close_dropdown"
+                                  >
+                                    <.icon name="hero-link" class="w-4 h-4" /> Copy Link
+                                  </button>
+                                </li>
+
+                                <%= if post.sender.id == @current_user.id do %>
+                                  <div class="divider my-1"></div>
+                                  <li>
+                                    <button
+                                      phx-click="delete_discussion"
+                                      phx-value-message_id={post.id}
+                                      class="text-error"
+                                      data-confirm="Are you sure you want to delete this discussion?"
+                                      type="button"
+                                    >
+                                      <.icon name="hero-trash" class="w-4 h-4" /> Delete Post
+                                    </button>
+                                  </li>
+                                <% else %>
+                                  <div class="divider my-1"></div>
+                                  <li>
+                                    <button
+                                      phx-click="report_discussion"
+                                      phx-value-message_id={post.id}
+                                      type="button"
+                                    >
+                                      <.icon name="hero-flag" class="w-4 h-4" /> Report Post
+                                    </button>
+                                  </li>
+                                <% end %>
+                                
+<!-- Moderator Actions -->
+                                <%= if @is_moderator || @current_user.is_admin do %>
+                                  <div class="divider my-1"></div>
+                                  <li class="menu-title text-xs">
+                                    <span class="text-info">
+                                      {if @current_user.is_admin && !@is_moderator,
+                                        do: "Admin ",
+                                        else: ""}Moderator Actions
+                                    </span>
+                                  </li>
+                                  <%= if !Map.get(post, :is_pinned, false) do %>
+                                    <li>
+                                      <button
+                                        phx-click="pin_post"
+                                        phx-value-message_id={post.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-map-pin" class="w-4 h-4" /> Pin Post
+                                      </button>
+                                    </li>
+                                  <% else %>
+                                    <li>
+                                      <button
+                                        phx-click="unpin_post"
+                                        phx-value-message_id={post.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-x-mark" class="w-4 h-4" /> Unpin Post
+                                      </button>
+                                    </li>
+                                  <% end %>
+                                  <%= if !Map.get(post, :locked_at) do %>
+                                    <li>
+                                      <button
+                                        phx-click="lock_thread"
+                                        phx-value-message_id={post.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-lock-closed" class="w-4 h-4" />
+                                        Lock Thread
+                                      </button>
+                                    </li>
+                                  <% else %>
+                                    <li>
+                                      <button
+                                        phx-click="unlock_thread"
+                                        phx-value-message_id={post.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-lock-open" class="w-4 h-4" />
+                                        Unlock Thread
+                                      </button>
+                                    </li>
+                                  <% end %>
+                                  <%= if post.sender.id != @current_user.id do %>
+                                    <li>
+                                      <button
+                                        phx-click="delete_post_mod"
+                                        phx-value-message_id={post.id}
+                                        class="text-error"
+                                        data-confirm="Are you sure you want to delete this post?"
+                                        type="button"
+                                      >
+                                        <.icon name="hero-trash" class="w-4 h-4" /> Delete Post
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
+                                        phx-click="show_user_mod_status"
+                                        phx-value-user_id={post.sender.id}
+                                        type="button"
+                                        class="font-semibold"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-user-circle" class="w-4 h-4" />
+                                        View User Status
+                                      </button>
+                                    </li>
+                                    <div class="divider my-1"></div>
+                                    <li>
+                                      <button
+                                        phx-click="show_note_modal"
+                                        phx-value-user_id={post.sender.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-document-text" class="w-4 h-4" />
+                                        Add Note
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
+                                        phx-click="show_timeout_modal"
+                                        phx-value-user_id={post.sender.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-clock" class="w-4 h-4" /> Timeout User
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
+                                        phx-click="show_warning_modal"
+                                        phx-value-user_id={post.sender.id}
+                                        phx-value-message_id={post.id}
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
+                                        Warn User
+                                      </button>
+                                    </li>
+                                    <li>
+                                      <button
+                                        phx-click="show_ban_modal"
+                                        phx-value-user_id={post.sender.id}
+                                        class="text-error"
+                                        type="button"
+                                        phx-click="close_dropdown"
+                                      >
+                                        <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
+                                      </button>
+                                    </li>
+                                  <% end %>
+                                  
+<!-- Admin force delete (more powerful than regular delete) -->
+                                  <%= if @current_user.is_admin do %>
+                                    <li>
+                                      <button
+                                        phx-click="delete_discussion_admin"
+                                        phx-value-message_id={post.id}
+                                        class="text-warning"
+                                        data-confirm="Are you sure you want to delete this discussion?"
+                                        type="button"
+                                      >
+                                        <.icon name="hero-shield-exclamation" class="w-4 h-4" />
+                                        Admin Force Delete
+                                      </button>
+                                    </li>
+                                  <% end %>
+                                <% end %>
+                              </ul>
+                            </div>
+                          <% end %>
+                        </div>
+                        
+<!-- Post Content -->
+                        <div
+                          id={"discussion-post-content-#{post.id}"}
+                          class="mb-3 cursor-pointer hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
+                          phx-hook="PostClick"
+                          data-click-event="navigate_to_post"
+                          data-id={post.id}
+                        >
+                          <%= if post.title do %>
+                            <h3 class="font-semibold text-base sm:text-lg mb-2 break-words leading-tight">
+                              {post.title}
+                              <%= if post.auto_title do %>
+                                <span class="text-xs opacity-50 ml-2">(auto)</span>
+                              <% end %>
+                              <!-- Post type badges -->
+                              <%= cond do %>
+                                <% post.post_type == "link" -> %>
+                                  <span class="badge badge-info badge-xs ml-2">Link</span>
+                                <% post.post_type == "poll" -> %>
+                                  <span class="badge badge-success badge-xs ml-2">Poll</span>
+                                <% post.message_type == "image" -> %>
+                                  <span class="badge badge-warning badge-xs ml-2">Image</span>
+                                <% true -> %>
+                                  <% nil %>
+                              <% end %>
+                            </h3>
+                          <% end %>
+
+                          <%= if post.shared_message_id && post.shared_message do %>
+                            <!-- Cross-posted: Show comment + embedded post -->
+                            <%= if post.content && post.content != "" do %>
+                              <div class="break-words text-sm sm:text-base mb-3 post-content line-clamp-3 overflow-hidden">
+                                {raw(
+                                  make_links_clickable(
+                                    String.trim(String.slice(post.content, 0, 200))
+                                  )
+                                )}{if String.length(post.content) > 200, do: "..."}
+                              </div>
+                            <% end %>
+                            <.embedded_post
+                              message={post}
+                              shared_message={post.shared_message}
+                              class="mt-2"
+                            />
+                          <% else %>
+                            <!-- Different rendering based on post type -->
+                            <%= cond do %>
+                              <% post.post_type == "link" && post.primary_url -> %>
+                                <!-- Link Post: Show as large clickable preview -->
+                                <a
+                                  href={post.primary_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="block border border-base-300 rounded-lg overflow-hidden hover:border-error transition-colors my-3"
+                                  phx-click="stop_propagation"
+                                >
+                                  <div class="bg-base-200/50 p-4 flex items-center gap-3">
+                                    <.icon
+                                      name="hero-arrow-top-right-on-square"
+                                      class="w-5 h-5 flex-shrink-0"
+                                    />
+                                    <div class="flex-1 min-w-0">
+                                      <div class="font-medium text-sm truncate">
+                                        {URI.parse(post.primary_url).host}
+                                      </div>
+                                      <div class="text-xs opacity-70 truncate">
+                                        {post.primary_url}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </a>
+                                <%= if post.content && String.trim(post.content) != post.primary_url do %>
+                                  <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
+                                    {raw(
+                                      make_links_clickable(
+                                        String.trim(String.slice(post.content, 0, 300))
+                                      )
+                                    )}
+                                  </div>
+                                <% end %>
+                              <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
+                                <!-- Image Post: Show images -->
+                                <% full_urls =
+                                  Enum.map(post.media_urls, &Elektrine.Uploads.attachment_url/1) %>
+                                <div class={[
+                                  "grid gap-2 my-3",
+                                  if(length(post.media_urls) > 1,
+                                    do: "grid-cols-2",
+                                    else: "grid-cols-1"
+                                  )
+                                ]}>
+                                  <%= for {media_url, idx} <- Enum.with_index(Enum.take(post.media_urls, 4)) do %>
+                                    <button
+                                      type="button"
+                                      phx-click="open_image_modal"
+                                      phx-value-images={Jason.encode!(full_urls)}
+                                      phx-value-index={idx}
+                                      phx-value-post_id={post.id}
+                                      class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200 bg-base-200 aspect-video"
+                                    >
+                                      <img
+                                        src={Elektrine.Uploads.attachment_url(media_url)}
+                                        alt={post.title || ""}
+                                        class="w-full h-full object-cover"
+                                      />
+                                    </button>
+                                  <% end %>
+                                </div>
+                                <%= if post.content && String.trim(post.content) != "" do %>
+                                  <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
+                                    {raw(
+                                      make_links_clickable(
+                                        String.trim(String.slice(post.content, 0, 300))
+                                      )
+                                    )}
+                                  </div>
+                                <% end %>
+                              <% post.post_type == "poll" -> %>
+                                <!-- Poll Post: Show poll preview (click to see full) -->
+                                <div
+                                  class="text-sm opacity-70 flex items-center gap-2 my-2"
+                                  phx-click="stop_propagation"
+                                >
+                                  <.icon name="hero-chart-bar" class="w-4 h-4" />
+                                  <span>Click to vote in this poll</span>
+                                </div>
+                              <% true -> %>
+                                <!-- Regular text post: Show content -->
+                                <% content =
+                                  Elektrine.Messaging.Message.display_content(post) || "" %>
+                                <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
+                                  {raw(
+                                    make_links_clickable(
+                                      String.trim(String.slice(content, 0, 300))
+                                    )
+                                  )}{if String.length(content) > 300, do: "..."}
+                                </div>
+                                <%= if String.length(content) > 300 do %>
+                                  <span class="text-primary text-sm mt-2 inline-block group-hover:underline">
+                                    Read more →
+                                  </span>
+                                <% end %>
+                            <% end %>
+                          <% end %>
+                          
+<!-- YouTube Embed or Link Preview -->
+                          <%= if match?(%Elektrine.Social.LinkPreview{}, post.link_preview) && post.link_preview.status == "success" do %>
+                            <% youtube_id = extract_youtube_id(post.link_preview.url) %>
+                            <%= if youtube_id do %>
+                              <!-- YouTube Embed -->
+                              <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
+                                <div class="aspect-video bg-base-200">
+                                  <iframe
+                                    src={"https://www.youtube.com/embed/#{youtube_id}"}
+                                    title={post.link_preview.title || "YouTube video"}
+                                    frameborder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowfullscreen
+                                    class="w-full h-full"
+                                  >
+                                  </iframe>
+                                </div>
+                                <%= if post.link_preview.title do %>
+                                  <div class="p-3 border-t border-base-200">
+                                    <h4 class="font-medium text-sm">{post.link_preview.title}</h4>
+                                  </div>
+                                <% end %>
+                              </div>
+                            <% else %>
+                              <!-- Regular Link Preview -->
+                              <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
+                                <a
+                                  href={post.link_preview.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="block"
+                                >
+                                  <%= if post.link_preview.image_url do %>
+                                    <div class="aspect-video bg-base-200">
+                                      <img
+                                        src={ensure_https(post.link_preview.image_url)}
+                                        alt={post.link_preview.title || ""}
+                                        class="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  <% end %>
+                                  <div class="p-3">
+                                    <%= if post.link_preview.title do %>
+                                      <h4 class="font-medium text-sm">
+                                        {post.link_preview.title}
+                                      </h4>
+                                    <% end %>
+                                    <%= if post.link_preview.description do %>
+                                      <p class="text-xs opacity-70 mt-1">
+                                        {post.link_preview.description}
+                                      </p>
+                                    <% end %>
+                                  </div>
+                                </a>
+                              </div>
+                            <% end %>
+                          <% end %>
+                          
+<!-- Hashtags -->
+                          <%= if post.hashtags && length(post.hashtags) > 0 do %>
+                            <div class="flex flex-wrap gap-1 mt-3">
+                              <%= for hashtag <- post.hashtags do %>
+                                <button
+                                  phx-click="filter_by_hashtag"
+                                  phx-value-hashtag={hashtag.name}
+                                  class="badge badge-outline badge-sm text-error hover:bg-error hover:text-error-content transition-colors"
+                                >
+                                  #{hashtag.name}
+                                </button>
+                              <% end %>
+                            </div>
+                          <% end %>
+                        </div>
+                        
+<!-- Post Actions -->
+                        <div class="flex items-center justify-between pt-2 border-t border-base-200 gap-1 sm:gap-2">
+                          <!-- Stats -->
+                          <div class="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm opacity-70">
+                            <.link
+                              href={generate_discussion_url(@community, post)}
+                              class="hover:text-primary hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                              {post.reply_count || 0} {if post.reply_count == 1,
+                                do: "reply",
+                                else: "replies"}
+                            </.link>
+                          </div>
+                          
+<!-- Action Buttons -->
+                          <div class="flex items-center gap-1 sm:gap-2 flex-wrap">
+                            <%= if @current_user do %>
+                              <button
+                                phx-click="show_reply_form"
+                                phx-value-message_id={post.id}
+                                class="btn btn-ghost btn-xs sm:btn-sm"
+                              >
+                                <.icon
+                                  name="hero-chat-bubble-left"
+                                  class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1"
+                                />
+                                <span class="hidden sm:inline">Reply</span>
+                              </button>
+                            <% else %>
+                              <div class="btn btn-ghost btn-xs sm:btn-sm opacity-50 cursor-not-allowed">
+                                <.icon
+                                  name="hero-chat-bubble-left"
+                                  class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1"
+                                />
+                                <span class="hidden sm:inline">Reply</span>
+                              </div>
+                            <% end %>
+
+                            <button
+                              phx-click="copy_link"
+                              phx-value-message_id={post.id}
+                              class="btn btn-ghost btn-xs sm:btn-sm"
+                              title="Copy link to this discussion"
+                            >
+                              <.icon name="hero-share" class="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                              <span class="hidden sm:inline">Share</span>
+                            </button>
+                          </div>
+                        </div>
+                        
+<!-- Reply Form -->
+                        <%= if @current_user && @reply_to_post && @reply_to_post.id == post.id do %>
+                          <div
+                            class="mt-4 pt-4 border-t border-base-200"
+                            phx-click="stop_propagation"
+                          >
+                            <div class="flex items-start gap-3 mb-3">
+                              <div class="w-6 h-6 flex-shrink-0">
+                                <.user_avatar user={@current_user} size="xs" />
+                              </div>
+                              <div class="text-sm opacity-70">
+                                Replying to
+                                <span class="font-medium">
+                                  <.username_with_effects
+                                    user={@reply_to_post.sender}
+                                    show_at={true}
+                                    verified_size="xs"
+                                  />
+                                </span>
+                              </div>
+                            </div>
+
+                            <.form for={%{}} phx-submit="create_reply" class="space-y-3">
+                              <textarea
+                                name="content"
+                                placeholder="Write your reply..."
+                                class="textarea textarea-bordered w-full"
+                                rows="3"
+                                value={@reply_content}
+                                phx-change="update_reply_content"
+                                phx-click="stop_propagation"
+                                required
+                              ></textarea>
+
+                              <div class="flex gap-2 justify-end items-center">
+                                <span class={[
+                                  "text-xs",
+                                  String.length(@reply_content || "") < 3 && "text-error",
+                                  String.length(@reply_content || "") >= 3 && "text-success"
+                                ]}>
+                                  {String.length(@reply_content || "")}/3 min
+                                </span>
+                                <button
+                                  type="button"
+                                  phx-click="cancel_reply"
+                                  class="btn btn-ghost btn-sm"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  class="btn btn-secondary btn-sm"
+                                  disabled={String.length(@reply_content || "") < 3}
+                                >
+                                  <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Reply
+                                </button>
+                              </div>
+                            </.form>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+
+          <%= if (!@discussion_posts || length(@discussion_posts) == 0) && (!@pinned_posts || length(@pinned_posts) == 0) do %>
+            <div class="text-center py-12">
+              <.icon
+                name="hero-chat-bubble-bottom-center-text"
+                class="w-16 h-16 mx-auto mb-4 opacity-40"
+              />
+              <h3 class="text-lg font-semibold mb-2">No posts yet</h3>
+              <p class="text-base-content/70 mb-6">
+                <%= if @current_user do %>
+                  Be the first to start a thread in this community.
+                <% else %>
+                  Sign in to start the first thread.
+                <% end %>
+              </p>
+              <%= if @current_user do %>
+                <button phx-click="toggle_new_post" class="btn btn-secondary btn-sm sm:btn-md">
+                  <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Start a Thread
+                </button>
+              <% else %>
+                <.link href={~p"/login"} class="btn btn-secondary btn-sm sm:btn-md">
+                  Sign In to Post
+                </.link>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+      <% end %>
+      
+<!-- Members View -->
+      <%= if @current_view == "members" do %>
+        <!-- Member Search -->
+        <div class="mb-4">
+          <input
+            type="text"
+            phx-keyup="search_members"
+            phx-debounce="300"
+            placeholder="Search members..."
+            value={@member_search}
+            class="input input-bordered w-full max-w-xs"
+          />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <%= for member <- @filtered_members do %>
+            <.link href={~p"/#{Map.get(member, :handle) || member.username}"} class="block">
+              <div class="card bg-base-200 border border-base-200 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow cursor-pointer">
+                <div class="card-body p-4 min-h-[120px]">
+                  <div class="flex items-start gap-3">
+                    <.user_avatar user={member} size="md" />
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold hover:underline">
+                        <.username_with_effects
+                          user={member}
+                          display_name={true}
+                          verified_size="sm"
+                        />
+                      </div>
+                      <p class="text-xs opacity-50">
+                        @{Map.get(member, :handle) || member.username}
+                      </p>
+                      <div class="mt-1 min-h-[20px]">
+                        <%= if member.role == "owner" do %>
+                          <span class="badge badge-primary badge-xs">Owner</span>
+                        <% else %>
+                          <%= if member.role == "admin" do %>
+                            <span class="badge badge-error badge-xs">Admin</span>
+                          <% else %>
+                            <%= if member.role == "moderator" do %>
+                              <span class="badge badge-secondary badge-xs">Mod</span>
+                            <% else %>
+                              <span class="badge badge-ghost badge-xs">Member</span>
+                            <% end %>
+                          <% end %>
+                        <% end %>
+                      </div>
+                      <p class="text-xs opacity-50 mt-2">
+                        Joined
+                        <.local_time
+                          datetime={member.joined_at}
+                          format="date"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </.link>
+          <% end %>
+        </div>
+
+        <%= if length(@members) == 0 do %>
+          <div class="text-center py-12">
+            <.icon name="hero-users" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+            <h3 class="text-lg font-semibold mb-2">No members yet</h3>
+            <p class="text-base-content/70">Be the first to join this community!</p>
+          </div>
+        <% end %>
+      <% end %>
+      
+<!-- Flairs View -->
+      <%= if @current_view == "flairs" && (@is_moderator || @current_user.is_admin) do %>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Community Flairs</h3>
+            <button phx-click="new_flair" class="btn btn-secondary btn-sm">
+              <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Flair
+            </button>
+          </div>
+
+          <%= if @flairs && length(@flairs) > 0 do %>
+            <div class="grid gap-2">
+              <%= for flair <- @flairs do %>
+                <div class="card bg-base-200 border border-base-200 p-4">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <span
+                        class="badge"
+                        style={"background-color: #{flair.background_color}; color: #{flair.text_color}"}
+                      >
+                        {flair.name}
+                      </span>
+                      <%= if flair.is_mod_only do %>
+                        <span class="badge badge-warning badge-xs">Mod Only</span>
+                      <% end %>
+                      <%= if !flair.is_enabled do %>
+                        <span class="badge badge-ghost badge-xs">Disabled</span>
+                      <% end %>
+                    </div>
+                    <div class="flex gap-2">
+                      <button
+                        phx-click="edit_flair"
+                        phx-value-flair_id={flair.id}
+                        class="btn btn-ghost btn-xs"
+                      >
+                        <.icon name="hero-pencil" class="w-4 h-4" />
+                      </button>
+                      <button
+                        phx-click="delete_flair"
+                        phx-value-flair_id={flair.id}
+                        class="btn btn-ghost btn-xs text-error"
+                        data-confirm="Delete this flair?"
+                      >
+                        <.icon name="hero-trash" class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-8 opacity-50">
+              <.icon name="hero-tag" class="w-12 h-12 mx-auto mb-2" />
+              <p>No flairs created yet</p>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Queue View -->
+      <%= if @current_view == "queue" && (@is_moderator || @current_user.is_admin) do %>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Moderation Queue</h3>
+            <div class="text-sm opacity-70">
+              <.icon name="hero-information-circle" class="w-4 h-4 inline mr-1" />
+              Posts awaiting approval
+            </div>
+          </div>
+
+          <%= if @pending_posts && length(@pending_posts) > 0 do %>
+            <div class="space-y-4">
+              <%= for post <- @pending_posts do %>
+                <div class="card glass-card border border-warning/30 shadow-sm">
+                  <div class="card-body p-4">
+                    <div class="flex items-start gap-3">
+                      <.link
+                        href={~p"/#{post.sender.handle || post.sender.username}"}
+                        class="flex-shrink-0"
+                      >
+                        <.user_avatar user={post.sender} size="md" />
+                      </.link>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-2">
+                          <.link
+                            href={~p"/#{post.sender.handle || post.sender.username}"}
+                            class="font-medium hover:underline"
+                          >
+                            <.username_with_effects
+                              user={post.sender}
+                              display_name={true}
+                              verified_size="sm"
+                            />
+                          </.link>
+                          <div class="badge badge-warning badge-sm">Pending Approval</div>
+                        </div>
+
+                        <%= if post.title do %>
+                          <h4 class="font-semibold mb-2">{post.title}</h4>
+                        <% end %>
+
+                        <div class="text-sm break-words line-clamp-4">
+                          {post.content || ""}
+                        </div>
+
+                        <div class="flex items-center gap-2 mt-3 text-xs opacity-70">
+                          <.icon name="hero-clock" class="w-3 h-3" />
+                          <.local_time
+                            datetime={post.inserted_at}
+                            format="relative"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </div>
+                      </div>
+                      <div class="flex flex-col gap-2 flex-shrink-0">
+                        <button
+                          phx-click="approve_post"
+                          phx-value-message_id={post.id}
+                          class="btn btn-success btn-sm"
+                        >
+                          <.icon name="hero-check" class="w-4 h-4 mr-1" /> Approve
+                        </button>
+                        <button
+                          phx-click="reject_post"
+                          phx-value-message_id={post.id}
+                          class="btn btn-secondary btn-sm"
+                          data-confirm="Reject this post?"
+                        >
+                          <.icon name="hero-x-mark" class="w-4 h-4 mr-1" /> Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-12">
+              <.icon name="hero-check-circle" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+              <h3 class="text-lg font-semibold mb-2">Queue is empty</h3>
+              <p class="text-base-content/70">No posts pending approval</p>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Bans View -->
+      <%= if @current_view == "bans" && (@is_moderator || @current_user.is_admin) do %>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Banned Users</h3>
+            <div class="text-sm opacity-70">
+              <.icon name="hero-information-circle" class="w-4 h-4 inline mr-1" />
+              Showing active bans
+            </div>
+          </div>
+
+          <%= if @banned_users && length(@banned_users) > 0 do %>
+            <div class="grid gap-3">
+              <%= for ban <- @banned_users do %>
+                <div class="card glass-card border border-error/30 shadow-sm">
+                  <div class="card-body p-4">
+                    <div class="flex items-start gap-3">
+                      <.link
+                        href={~p"/#{ban.user.handle || ban.user.username}"}
+                        class="flex-shrink-0"
+                      >
+                        <.user_avatar user={ban.user} size="md" />
+                      </.link>
+                      <div class="flex-1 min-w-0">
+                        <.link
+                          href={~p"/#{ban.user.handle || ban.user.username}"}
+                          class="font-medium hover:underline"
+                        >
+                          <.username_with_effects
+                            user={ban.user}
+                            display_name={true}
+                            verified_size="sm"
+                          />
+                        </.link>
+                        <p class="text-xs opacity-70 mt-1">
+                          @{ban.user.handle || ban.user.username}
+                        </p>
+
+                        <div class="mt-3 space-y-2">
+                          <div class="text-sm">
+                            <span class="opacity-70">Reason:</span>
+                            <span class="ml-2">{ban.reason || "No reason provided"}</span>
+                          </div>
+                          <div class="text-sm">
+                            <span class="opacity-70">Banned by:</span>
+                            <span class="ml-2">
+                              @{ban.banned_by.handle || ban.banned_by.username}
+                            </span>
+                          </div>
+                          <div class="text-sm">
+                            <span class="opacity-70">Banned:</span>
+                            <span class="ml-2">
+                              <.local_time
+                                datetime={ban.inserted_at}
+                                format="relative"
+                                timezone={@timezone}
+                                time_format={@time_format}
+                              />
+                            </span>
+                          </div>
+                          <%= if ban.expires_at do %>
+                            <div class="text-sm">
+                              <span class="opacity-70">Expires:</span>
+                              <span class="ml-2">
+                                <.local_time
+                                  datetime={ban.expires_at}
+                                  format="relative"
+                                  timezone={@timezone}
+                                  time_format={@time_format}
+                                />
+                              </span>
+                            </div>
+                          <% else %>
+                            <div class="text-sm">
+                              <span class="badge badge-error badge-xs">Permanent</span>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                      <div class="flex-shrink-0">
+                        <button
+                          phx-click="unban_user"
+                          phx-value-user_id={ban.user_id}
+                          class="btn btn-success btn-sm"
+                          data-confirm="Unban this user?"
+                        >
+                          <.icon name="hero-check" class="w-4 h-4 mr-1" /> Unban
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-12">
+              <.icon name="hero-shield-check" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+              <h3 class="text-lg font-semibold mb-2">No banned users</h3>
+              <p class="text-base-content/70">This community has no active bans</p>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Auto-Mod Rules View -->
+      <%= if @current_view == "automod" && (@is_moderator || @current_user.is_admin) do %>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Auto-Moderation Rules</h3>
+            <button phx-click="new_automod_rule" class="btn btn-secondary btn-sm">
+              <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Add Rule
+            </button>
+          </div>
+
+          <%= if @auto_mod_rules && length(@auto_mod_rules) > 0 do %>
+            <div class="grid gap-3">
+              <%= for rule <- @auto_mod_rules do %>
+                <div class="card bg-base-200 border border-base-200 shadow-sm">
+                  <div class="card-body p-4">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                          <h4 class="font-semibold">{rule.name}</h4>
+                          <div class={"badge badge-sm #{if rule.enabled, do: "badge-success", else: "badge-ghost"}"}>
+                            {if rule.enabled, do: "Active", else: "Disabled"}
+                          </div>
+                        </div>
+                        <div class="text-sm space-y-1">
+                          <div>
+                            <span class="opacity-70">Type:</span> {String.capitalize(
+                              rule.rule_type
+                            )}
+                          </div>
+                          <div>
+                            <span class="opacity-70">Pattern:</span>
+                            <code class="bg-base-200 px-2 py-1 rounded">{rule.pattern}</code>
+                          </div>
+                          <div>
+                            <span class="opacity-70">Action:</span> {String.capitalize(
+                              String.replace(rule.action, "_", " ")
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex flex-col gap-2">
+                        <button
+                          phx-click="toggle_automod_rule"
+                          phx-value-rule_id={rule.id}
+                          class="btn btn-ghost btn-xs"
+                        >
+                          {if rule.enabled, do: "Disable", else: "Enable"}
+                        </button>
+                        <button
+                          phx-click="delete_automod_rule"
+                          phx-value-rule_id={rule.id}
+                          class="btn btn-ghost btn-xs text-error"
+                          data-confirm="Delete this rule?"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-12">
+              <.icon name="hero-shield-check" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+              <h3 class="text-lg font-semibold mb-2">No auto-mod rules</h3>
+              <p class="text-base-content/70">Add rules to automatically filter content</p>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Moderation Log View -->
+      <%= if @current_view == "log" && (@is_moderator || @current_user.is_admin) do %>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Moderation Log</h3>
+            <div class="text-sm opacity-70">Last 50 actions</div>
+          </div>
+
+          <%= if @mod_log && length(@mod_log) > 0 do %>
+            <div class="space-y-2">
+              <%= for action <- @mod_log do %>
+                <div class="card bg-base-200 border border-base-200 shadow-sm">
+                  <div class="card-body p-3">
+                    <div class="flex items-start gap-3">
+                      <div class={"badge badge-sm #{action_badge_color(action.action_type)}"}>
+                        {String.upcase(action.action_type)}
+                      </div>
+                      <div class="flex-1 text-sm">
+                        <span class="font-medium">
+                          @{action.moderator.handle || action.moderator.username}
+                        </span>
+                        <span class="opacity-70 mx-1">{action_verb(action.action_type)}</span>
+                        <%= if action.target_user do %>
+                          <span class="font-medium">
+                            @{action.target_user.handle || action.target_user.username}
+                          </span>
+                        <% end %>
+                        <%= if action.reason do %>
+                          <div class="mt-1 opacity-70 text-xs">
+                            Reason: {action.reason}
+                          </div>
+                        <% end %>
+                      </div>
+                      <div class="text-xs opacity-70 flex-shrink-0">
+                        <.local_time
+                          datetime={action.inserted_at}
+                          format="relative"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-12">
+              <.icon
+                name="hero-clipboard-document-list"
+                class="w-16 h-16 mx-auto mb-4 opacity-40"
+              />
+              <h3 class="text-lg font-semibold mb-2">No moderation actions yet</h3>
+              <p class="text-base-content/70">All moderation actions will be logged here</p>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    
+<!-- Right Sidebar - Community Info (Shows on top on mobile, right side on desktop) -->
+    <div class="w-full lg:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 p-4 order-1 lg:order-2">
+      <h3 class="font-semibold mb-2">Community Info</h3>
+      <code class="text-xs opacity-70 bg-base-200 px-2 py-1 rounded mb-4 block">
+        !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
+      </code>
+
+      <div class="space-y-3">
+        <div>
+          <h4 class="font-medium text-sm mb-1">Description</h4>
+          <p class="text-sm opacity-70">{@community.description || "No description available"}</p>
+        </div>
+
+        <div class="flex justify-between text-sm">
+          <span class="opacity-70">Members</span>
+          <span class="font-medium">{@community.member_count}</span>
+        </div>
+
+        <div class="flex justify-between text-sm">
+          <span class="opacity-70">Posts</span>
+          <span class="font-medium">{length(@discussion_posts)}</span>
+        </div>
+
+        <div class="flex justify-between text-sm">
+          <span class="opacity-70">Category</span>
+          <span class="badge badge-outline badge-xs">
+            {String.capitalize(@community.community_category || "general")}
+          </span>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-base-200">
+        <h4 class="font-semibold mb-2 text-sm">Community Rules</h4>
+        <div class="text-xs opacity-70">
+          <%= if @community.community_rules && @community.community_rules != "" do %>
+            <div class="whitespace-pre-line">{@community.community_rules}</div>
+          <% else %>
+            <div class="space-y-1">
+              <div>• Be respectful and constructive</div>
+              <div>• Stay on topic</div>
+              <div>• No spam or self-promotion</div>
+              <div>• Use upvotes for quality content</div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Report Modal -->
+  <%= if @show_report_modal do %>
+    <.live_component
+      module={ElektrineWeb.Components.ReportModal}
+      id="report-modal"
+      reporter_id={@current_user.id}
+      reportable_type={@report_type}
+      reportable_id={@report_id}
+      additional_metadata={@report_metadata}
+    />
+  <% end %>
+  
+<!-- Flair Modal -->
+  <%= if @show_flair_modal && @is_moderator do %>
+    <div class="modal modal-open">
+      <div class="modal-box">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-lg">
+            {if @editing_flair, do: "Edit Flair", else: "Add New Flair"}
+          </h3>
+          <button type="button" phx-click="cancel_flair" class="btn btn-ghost btn-sm btn-circle">
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <.form for={%{}} phx-submit={if @editing_flair, do: "update_flair", else: "create_flair"}>
+          <%= if @editing_flair do %>
+            <input type="hidden" name="flair_id" value={@editing_flair.id} />
+          <% end %>
+
+          <div class="form-control mb-4">
+            <label class="label">
+              <span class="label-text">Flair Name</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={if @editing_flair, do: @editing_flair.name, else: ""}
+              class="input input-bordered"
+              placeholder="e.g., Discussion, Question, News"
+              maxlength="30"
+              required
+            />
+          </div>
+
+          <div class="form-control mb-4">
+            <label class="label cursor-pointer">
+              <span class="label-text">Moderator Only</span>
+              <input
+                type="checkbox"
+                name="is_mod_only"
+                checked={if @editing_flair, do: @editing_flair.is_mod_only, else: false}
+                class="checkbox checkbox-error"
+              />
+            </label>
+          </div>
+
+          <div class="form-control mb-4">
+            <label class="label cursor-pointer">
+              <span class="label-text">Enabled</span>
+              <input
+                type="checkbox"
+                name="is_enabled"
+                checked={if @editing_flair, do: @editing_flair.is_enabled, else: true}
+                class="checkbox checkbox-error"
+              />
+            </label>
+          </div>
+
+          <div class="modal-action">
+            <button type="button" phx-click="cancel_flair" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-secondary">
+              {if @editing_flair, do: "Update", else: "Create"}
+            </button>
+          </div>
+        </.form>
+      </div>
+      <div class="modal-backdrop" phx-click="cancel_flair"></div>
+    </div>
+  <% end %>
+  
+<!-- Voters Modal -->
+  <%= if @show_voters_modal do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-2xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-lg">Votes</h3>
+          <button
+            type="button"
+            phx-click="close_voters_modal"
+            class="btn btn-ghost btn-sm btn-circle"
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="tabs tabs-boxed mb-4">
+          <button
+            class={["tab", if(@voters_tab == "upvotes", do: "tab-active")]}
+            phx-click="switch_voters_tab"
+            phx-value-tab="upvotes"
+          >
+            <.icon name="hero-arrow-up" class="w-4 h-4 mr-1" />
+            Upvotes ({length(@upvoters || [])})
+          </button>
+          <button
+            class={["tab", if(@voters_tab == "downvotes", do: "tab-active")]}
+            phx-click="switch_voters_tab"
+            phx-value-tab="downvotes"
+          >
+            <.icon name="hero-arrow-down" class="w-4 h-4 mr-1" />
+            Downvotes ({length(@downvoters || [])})
+          </button>
+        </div>
+
+        <div class="space-y-2 max-h-96 overflow-y-auto">
+          <%= if @voters_tab == "upvotes" do %>
+            <%= if @upvoters && length(@upvoters) > 0 do %>
+              <%= for voter <- @upvoters do %>
+                <.link
+                  href={~p"/#{voter.handle || voter.username}"}
+                  class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                >
+                  <.user_avatar user={voter} size="sm" />
+                  <div>
+                    <div class="font-medium">
+                      <.username_with_effects user={voter} display_name={true} verified_size="sm" />
+                    </div>
+                    <div class="text-sm opacity-70">@{voter.handle || voter.username}</div>
+                  </div>
+                </.link>
+              <% end %>
+            <% else %>
+              <p class="text-center py-4 opacity-50">No upvotes yet</p>
+            <% end %>
+          <% else %>
+            <%= if @downvoters && length(@downvoters) > 0 do %>
+              <%= for voter <- @downvoters do %>
+                <.link
+                  href={~p"/#{voter.handle || voter.username}"}
+                  class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                >
+                  <.user_avatar user={voter} size="sm" />
+                  <div>
+                    <div class="font-medium">
+                      <.username_with_effects user={voter} display_name={true} verified_size="sm" />
+                    </div>
+                    <div class="text-sm opacity-70">@{voter.handle || voter.username}</div>
+                  </div>
+                </.link>
+              <% end %>
+            <% else %>
+              <p class="text-center py-4 opacity-50">No downvotes yet</p>
+            <% end %>
+          <% end %>
+        </div>
+
+        <div class="modal-action">
+          <button phx-click="close_voters" class="btn btn-ghost">Close</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" phx-click="close_voters"></div>
+    </div>
+  <% end %>
+  
+<!-- User Moderation Status Modal -->
+  <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-3xl">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="font-bold text-lg">User Moderation Status</h3>
+          <button
+            type="button"
+            phx-click="close_user_mod_status"
+            class="btn btn-ghost btn-sm btn-circle"
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+          <.user_avatar user={@mod_status_target_user} size="lg" />
+          <div class="text-center">
+            <div class="font-medium text-base">
+              <.username_with_effects
+                user={@mod_status_target_user}
+                display_name={true}
+                verified_size="sm"
+              />
+            </div>
+            <div class="text-sm opacity-70">
+              @{@mod_status_target_user.handle || @mod_status_target_user.username}
+            </div>
+          </div>
+        </div>
+
+        <% mod_data = Map.get(@user_mod_data, @mod_status_target_user.id, %{}) %>
+        
+<!-- Current Restrictions -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <!-- Ban Status -->
+          <div class={[
+            "card glass-card border-2",
+            if(mod_data[:ban], do: "border-error", else: "border-base-300")
+          ]}>
+            <div class="card-body p-4">
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="font-semibold flex items-center gap-2">
+                  <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban Status
+                </h4>
+                <%= if mod_data[:ban] do %>
+                  <div class="badge badge-error">Banned</div>
+                <% else %>
+                  <div class="badge badge-ghost">Not Banned</div>
+                <% end %>
+              </div>
+              <%= if mod_data[:ban] do %>
+                <div class="text-sm space-y-1 mb-3">
+                  <div class="opacity-70">Reason: {mod_data[:ban].reason}</div>
+                  <%= if mod_data[:ban].expires_at do %>
+                    <div class="opacity-70">
+                      Expires:
+                      <.local_time
+                        datetime={mod_data[:ban].expires_at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </div>
+                  <% else %>
+                    <div class="opacity-70">Permanent ban</div>
+                  <% end %>
+                </div>
+                <button
+                  phx-click="unban_from_status"
+                  phx-value-user_id={@mod_status_target_user.id}
+                  class="btn btn-success btn-sm w-full"
+                >
+                  <.icon name="hero-check" class="w-4 h-4 mr-1" /> Unban User
+                </button>
+              <% else %>
+                <p class="text-sm opacity-50">No active ban</p>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Timeout Status -->
+          <div class={[
+            "card glass-card border-2",
+            if(mod_data[:timeout], do: "border-warning", else: "border-base-300")
+          ]}>
+            <div class="card-body p-4">
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="font-semibold flex items-center gap-2">
+                  <.icon name="hero-clock" class="w-4 h-4" /> Timeout Status
+                </h4>
+                <%= if mod_data[:timeout] do %>
+                  <div class="badge badge-warning">Timed Out</div>
+                <% else %>
+                  <div class="badge badge-ghost">Not Timed Out</div>
+                <% end %>
+              </div>
+              <%= if mod_data[:timeout] do %>
+                <div class="text-sm space-y-1 mb-3">
+                  <div class="opacity-70">Reason: {mod_data[:timeout].reason}</div>
+                  <div class="opacity-70">
+                    Expires:
+                    <.local_time
+                      datetime={mod_data[:timeout].timeout_until}
+                      format="relative"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </div>
+                </div>
+                <button
+                  phx-click="remove_timeout_from_status"
+                  phx-value-user_id={@mod_status_target_user.id}
+                  class="btn btn-success btn-sm w-full"
+                >
+                  <.icon name="hero-check" class="w-4 h-4 mr-1" /> Remove Timeout
+                </button>
+              <% else %>
+                <p class="text-sm opacity-50">No active timeout</p>
+              <% end %>
+            </div>
+          </div>
+        </div>
+        
+<!-- Warnings -->
+        <div class={[
+          "card glass-card border-2 mb-4",
+          if(mod_data[:warning_count] && mod_data[:warning_count] > 0,
+            do: "border-info",
+            else: "border-base-300"
+          )
+        ]}>
+          <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="font-semibold flex items-center gap-2">
+                <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> Warnings
+              </h4>
+              <div class={[
+                "badge",
+                if(mod_data[:warning_count] && mod_data[:warning_count] >= 3,
+                  do: "badge-error",
+                  else: "badge-info"
+                )
+              ]}>
+                {mod_data[:warning_count] || 0} Warning{if mod_data[:warning_count] != 1, do: "s"}
+              </div>
+            </div>
+            <%= if mod_data[:warnings] && length(mod_data[:warnings]) > 0 do %>
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                <%= for warning <- Enum.take(mod_data[:warnings], 5) do %>
+                  <div class="bg-base-200 p-3 rounded-lg text-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                      <% severity_class =
+                        case warning.severity do
+                          "high" -> "badge-error"
+                          "medium" -> "badge-warning"
+                          _ -> "badge-info"
+                        end %>
+                      <div class={["badge badge-xs", severity_class]}>
+                        {String.upcase(warning.severity)}
+                      </div>
+                      <span class="opacity-70">
+                        <.local_time
+                          datetime={warning.inserted_at}
+                          format="relative"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </span>
+                    </div>
+                    <p>{warning.reason}</p>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-sm opacity-50">No warnings</p>
+            <% end %>
+          </div>
+        </div>
+        
+<!-- Moderator Notes Preview -->
+        <div class="card glass-card border-2 border-base-300 mb-4">
+          <div class="card-body p-4">
+            <h4 class="font-semibold flex items-center gap-2 mb-3">
+              <.icon name="hero-document-text" class="w-4 h-4" />
+              Moderator Notes ({length(mod_data[:notes] || [])})
+            </h4>
+            <%= if mod_data[:notes] && length(mod_data[:notes]) > 0 do %>
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                <%= for note <- Enum.take(mod_data[:notes], 3) do %>
+                  <div class={[
+                    "bg-base-200 p-3 rounded-lg text-sm",
+                    if(note.is_important, do: "border-l-4 border-warning")
+                  ]}>
+                    <%= if note.is_important do %>
+                      <div class="badge badge-warning badge-xs mb-1">Important</div>
+                    <% end %>
+                    <p class="mb-1">{note.note}</p>
+                    <div class="opacity-60 text-xs">
+                      By @{note.created_by.handle || note.created_by.username}
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+              <%= if length(mod_data[:notes]) > 3 do %>
+                <div class="text-xs opacity-50 mt-2">
+                  And {length(mod_data[:notes]) - 3} more...
+                </div>
+              <% end %>
+            <% else %>
+              <p class="text-sm opacity-50">No moderator notes</p>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="modal-action justify-center">
+          <button phx-click="close_user_mod_status" class="btn btn-ghost">Close</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" phx-click="close_user_mod_status"></div>
+    </div>
+  <% end %>
+  
+<!-- Moderator Note Modal -->
+  <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-2xl">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="font-bold text-lg">Moderator Notes</h3>
+          <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm btn-circle">
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="flex items-center justify-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+          <.user_avatar user={@note_target_user} size="md" />
+          <div class="text-center">
+            <div class="font-medium">
+              <.username_with_effects
+                user={@note_target_user}
+                display_name={true}
+                verified_size="sm"
+              />
+            </div>
+            <div class="text-sm opacity-70">
+              @{@note_target_user.handle || @note_target_user.username}
+            </div>
+          </div>
+        </div>
+
+        <div class="divider my-6">Add New Note</div>
+
+        <.form for={%{}} phx-submit="add_moderator_note" class="mb-6">
+          <input type="hidden" name="user_id" value={@note_target_user.id} />
+
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Note Text</span>
+            </label>
+            <textarea
+              name="note"
+              placeholder="Add a private note about this user (visible only to moderators)..."
+              class="textarea textarea-bordered w-full"
+              rows="3"
+              required
+            ></textarea>
+          </div>
+
+          <div class="form-control w-full mb-4">
+            <label class="label cursor-pointer justify-center gap-2">
+              <input
+                type="checkbox"
+                name="is_important"
+                class="checkbox checkbox-warning checkbox-sm"
+              />
+              <span class="label-text">Mark as important</span>
+            </label>
+          </div>
+
+          <div class="flex justify-center">
+            <button type="submit" class="btn btn-secondary">
+              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Note
+            </button>
+          </div>
+        </.form>
+
+        <div class="divider my-6">Existing Notes</div>
+
+        <div class="space-y-3 max-h-64 overflow-y-auto">
+          <%= if Map.get(@user_notes, @note_target_user.id, []) != [] do %>
+            <%= for note <- Map.get(@user_notes, @note_target_user.id, []) do %>
+              <div class={"card glass-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
+                <%= if note.is_important do %>
+                  <div class="badge badge-warning badge-sm mb-3">Important</div>
+                <% end %>
+                <p class="text-sm mb-3 leading-relaxed">{note.note}</p>
+                <div class="flex justify-between items-center text-xs opacity-60">
+                  <span>@{note.created_by.handle || note.created_by.username}</span>
+                  <span>
+                    <.local_time
+                      datetime={note.inserted_at}
+                      format="relative"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </span>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-center py-8 opacity-50 text-sm">No notes yet</p>
+          <% end %>
+        </div>
+
+        <div class="modal-action justify-center">
+          <button phx-click="cancel_note" class="btn btn-ghost">Close</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" phx-click="cancel_note"></div>
+    </div>
+  <% end %>
+  
+<!-- Timeout Modal -->
+  <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-md">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="font-bold text-lg">Timeout User</h3>
+          <button type="button" phx-click="cancel_timeout" class="btn btn-ghost btn-sm btn-circle">
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+          <.user_avatar user={@timeout_target_user} size="lg" />
+          <div class="text-center">
+            <div class="font-medium text-base">
+              <.username_with_effects
+                user={@timeout_target_user}
+                display_name={true}
+                verified_size="sm"
+              />
+            </div>
+            <div class="text-sm opacity-70">
+              @{@timeout_target_user.handle || @timeout_target_user.username}
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info mb-6">
+          <.icon name="hero-information-circle" class="w-5 h-5" />
+          <span class="text-sm">User will be unable to post but can still view content</span>
+        </div>
+
+        <.form for={%{}} phx-submit="timeout_user">
+          <input type="hidden" name="user_id" value={@timeout_target_user.id} />
+
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Duration</span>
+            </label>
+            <select name="duration_minutes" class="select select-bordered w-full">
+              <option value="5">5 Minutes</option>
+              <option value="30">30 Minutes</option>
+              <option value="60">1 Hour</option>
+              <option value="360">6 Hours</option>
+              <option value="720">12 Hours</option>
+              <option value="1440">1 Day</option>
+              <option value="4320">3 Days</option>
+              <option value="10080">7 Days</option>
+            </select>
+          </div>
+
+          <div class="form-control w-full mb-6">
+            <label class="label">
+              <span class="label-text font-medium">Reason</span>
+            </label>
+            <textarea
+              name="reason"
+              placeholder="Explain why this timeout is being issued..."
+              class="textarea textarea-bordered w-full"
+              rows="3"
+              required
+            ></textarea>
+          </div>
+
+          <div class="modal-action justify-center gap-3">
+            <button type="button" phx-click="cancel_timeout" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-warning">
+              <.icon name="hero-clock" class="w-4 h-4 mr-2" /> Timeout User
+            </button>
+          </div>
+        </.form>
+      </div>
+      <div class="modal-backdrop" phx-click="cancel_timeout"></div>
+    </div>
+  <% end %>
+  
+<!-- Warning Modal -->
+  <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
+
+        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+          <.user_avatar user={@warning_target_user} size="lg" />
+          <div class="text-center">
+            <div class="font-medium text-base">
+              <.username_with_effects
+                user={@warning_target_user}
+                display_name={true}
+                verified_size="sm"
+              />
+            </div>
+            <div class="text-sm opacity-70">
+              @{@warning_target_user.handle || @warning_target_user.username}
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info mb-6">
+          <.icon name="hero-information-circle" class="w-5 h-5" />
+          <span class="text-sm">3 warnings will result in automatic 7-day ban</span>
+        </div>
+
+        <.form for={%{}} phx-submit="warn_user">
+          <input type="hidden" name="user_id" value={@warning_target_user.id} />
+          <%= if @warning_message_id do %>
+            <input type="hidden" name="message_id" value={@warning_message_id} />
+          <% end %>
+
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Warning Severity</span>
+            </label>
+            <select name="severity" class="select select-bordered w-full">
+              <option value="low" selected>Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div class="form-control w-full mb-6">
+            <label class="label">
+              <span class="label-text font-medium">Warning Reason</span>
+            </label>
+            <textarea
+              name="reason"
+              placeholder="Explain why this warning is being issued..."
+              class="textarea textarea-bordered w-full"
+              rows="3"
+              required
+            ></textarea>
+          </div>
+
+          <div class="modal-action justify-center gap-3">
+            <button type="button" phx-click="cancel_warning" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-warning">
+              <.icon name="hero-exclamation-triangle" class="w-4 h-4 mr-2" /> Issue Warning
+            </button>
+          </div>
+        </.form>
+      </div>
+      <div class="modal-backdrop" phx-click="cancel_warning"></div>
+    </div>
+  <% end %>
+  
+<!-- Auto-Mod Rule Modal -->
+  <%= if @show_rule_modal && (@is_moderator || @current_user.is_admin) do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg mb-6 text-center">Add Auto-Mod Rule</h3>
+
+        <.form for={%{}} phx-submit="create_automod_rule">
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Rule Name</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              placeholder="Spam Filter"
+              class="input input-bordered w-full"
+              required
+            />
+          </div>
+
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Rule Type</span>
+            </label>
+            <select name="rule_type" class="select select-bordered w-full" required>
+              <option value="keyword">Keyword Match</option>
+              <option value="link_domain">Link Domain</option>
+            </select>
+          </div>
+
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Pattern</span>
+            </label>
+            <input
+              type="text"
+              name="pattern"
+              placeholder="spam, scam, phishing"
+              class="input input-bordered w-full"
+              required
+            />
+            <label class="label">
+              <span class="label-text-alt opacity-70">Comma-separated for keywords/domains</span>
+            </label>
+          </div>
+
+          <div class="form-control w-full mb-6">
+            <label class="label">
+              <span class="label-text font-medium">Action</span>
+            </label>
+            <select name="action" class="select select-bordered w-full" required>
+              <option value="flag">Flag for Review</option>
+              <option value="hold_for_review">Hold for Approval</option>
+              <option value="remove">Auto-Remove</option>
+            </select>
+          </div>
+
+          <div class="modal-action justify-center gap-3">
+            <button type="button" phx-click="cancel_automod_rule" class="btn btn-ghost">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-secondary">
+              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Rule
+            </button>
+          </div>
+        </.form>
+      </div>
+      <div class="modal-backdrop" phx-click="cancel_automod_rule"></div>
+    </div>
+  <% end %>
+  
+<!-- Ban User Modal -->
+  <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-md">
+        <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
+
+        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+          <.user_avatar user={@ban_target_user} size="lg" />
+          <div class="text-center">
+            <div class="font-medium text-base">
+              <.username_with_effects
+                user={@ban_target_user}
+                display_name={true}
+                verified_size="sm"
+              />
+            </div>
+            <div class="text-sm opacity-70">
+              @{@ban_target_user.handle || @ban_target_user.username}
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning mb-6">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+          <span class="text-sm">
+            This will prevent the user from viewing or participating in this community.
+          </span>
+        </div>
+
+        <.form for={%{}} phx-submit="ban_user">
+          <input type="hidden" name="user_id" value={@ban_target_user.id} />
+
+          <div class="form-control w-full mb-4">
+            <label class="label">
+              <span class="label-text font-medium">Ban Reason</span>
+            </label>
+            <textarea
+              name="reason"
+              placeholder="Explain why this user is being banned..."
+              class="textarea textarea-bordered w-full"
+              rows="3"
+              required
+            ></textarea>
+          </div>
+
+          <div class="form-control w-full mb-6">
+            <label class="label">
+              <span class="label-text font-medium">Ban Duration</span>
+            </label>
+            <select name="duration_days" class="select select-bordered w-full">
+              <option value="1">1 Day</option>
+              <option value="3">3 Days</option>
+              <option value="7">7 Days</option>
+              <option value="14">14 Days</option>
+              <option value="30">30 Days</option>
+              <option value="0" selected>Permanent</option>
+            </select>
+          </div>
+
+          <div class="modal-action justify-center gap-3">
+            <button type="button" phx-click="cancel_ban" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-secondary">
+              <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Ban User
+            </button>
+          </div>
+        </.form>
+      </div>
+      <div class="modal-backdrop" phx-click="cancel_ban"></div>
+    </div>
+  <% end %>
+  
+<!-- Media Upload Modal -->
+  <%= if @show_image_upload_modal && @current_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-2xl">
+        <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
+
+        <.form
+          for={%{}}
+          phx-submit="upload_discussion_images"
+          phx-change="validate_discussion_upload"
+        >
+          <!-- Media Upload Area -->
+          <div class="form-control w-full mb-4">
+            <label
+              for={@uploads.discussion_attachments.ref}
+              class="block border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors"
+            >
+              <.live_file_input upload={@uploads.discussion_attachments} class="hidden" />
+              <%= if Enum.empty?(@uploads.discussion_attachments.entries) do %>
+                <.icon name="hero-photo" class="w-12 h-12 mx-auto opacity-30 mb-2" />
+                <p class="text-sm opacity-70">Click to upload or drag and drop</p>
+                <p class="text-xs opacity-50 mt-1">Images: JPG, PNG, GIF, WEBP</p>
+                <p class="text-xs opacity-50">Videos: MP4, WEBM, OGV, MOV | Audio: MP3, WAV</p>
+                <p class="text-xs opacity-50 mt-1">Up to 4 files, 50MB each</p>
+              <% else %>
+                <div class="space-y-4">
+                  <%= for {entry, idx} <- Enum.with_index(@uploads.discussion_attachments.entries) do %>
+                    <div class="border border-base-300 rounded-lg p-3">
+                      <div class="flex gap-3">
+                        <.live_img_preview
+                          entry={entry}
+                          class="rounded-lg w-24 h-24 object-cover flex-shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                          <div class="text-sm font-medium mb-2 truncate">{entry.client_name}</div>
+                          <input
+                            type="text"
+                            name={"alt_text_#{idx}"}
+                            placeholder="Add description (optional)"
+                            class="input input-bordered input-sm w-full"
+                            maxlength="1000"
+                          />
+                          <div class="text-xs opacity-60 mt-1">
+                            Helps visually impaired users understand the content
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </label>
+            <%= for entry <- @uploads.discussion_attachments.entries do %>
+              <%= for err <- upload_errors(@uploads.discussion_attachments, entry) do %>
+                <div class="alert alert-error mt-2">
+                  <span class="text-sm">{error_to_string(err)}</span>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+
+          <div class="modal-action">
+            <button type="button" class="btn" phx-click="close_image_upload">Cancel</button>
+            <button
+              type="submit"
+              class="btn btn-secondary"
+              disabled={Enum.empty?(@uploads.discussion_attachments.entries)}
+            >
+              <.icon name="hero-check" class="w-4 h-4 mr-1" /> Add Media
+            </button>
+          </div>
+        </.form>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Image Modal -->
+  <.image_modal
+    show={@show_image_modal}
+    image_url={@modal_image_url}
+    images={@modal_images}
+    image_index={@modal_image_index}
+    post={@modal_post}
+    timezone={@timezone}
+    time_format={@time_format}
+    current_user={@current_user}
+    is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
+    like_count={(@modal_post && @modal_post.like_count) || 0}
+  />
+  
+<!-- Scroll to Top Button -->
+  <button
+    id="scroll-to-top"
+    phx-hook="ScrollToTop"
+    class="fixed bottom-6 right-6 z-50 btn btn-circle btn-primary shadow-lg opacity-0 pointer-events-none transition-all duration-300"
+    aria-label="Scroll to top"
+  >
+    <.icon name="hero-chevron-up" class="w-5 h-5" />
+  </button>
+</div>

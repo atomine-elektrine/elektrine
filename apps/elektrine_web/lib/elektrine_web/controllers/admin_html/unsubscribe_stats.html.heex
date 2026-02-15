@@ -1,0 +1,104 @@
+<div class="p-4 sm:p-6">
+  <h1 class="text-3xl font-bold mb-6">Email Unsubscribe Statistics</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <div class="card bg-base-300">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Total Unsubscribes</h2>
+        <p class="text-3xl font-bold">{@stats.total}</p>
+      </div>
+    </div>
+
+    <div class="card bg-base-300">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Last 7 Days</h2>
+        <p class="text-3xl font-bold">{@stats.last_7_days}</p>
+      </div>
+    </div>
+
+    <div class="card bg-base-300">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Unique Lists</h2>
+        <p class="text-3xl font-bold">{length(@list_counts)}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-xl mb-4">Unsubscribes by List</h2>
+
+      <div class="overflow-x-auto">
+        <table class="table table-zebra">
+          <thead>
+            <tr>
+              <th>Mailing List</th>
+              <th>List ID</th>
+              <th>Total Unsubscribes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for list <- @list_counts do %>
+              <tr>
+                <td class="font-semibold">{list.list_name}</td>
+                <td class="font-medium text-sm opacity-70">{list.list_id}</td>
+                <td>{list.count}</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-xl mb-4">Recent Unsubscribes</h2>
+
+      <div class="overflow-x-auto">
+        <table class="table table-zebra">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>List</th>
+              <th>Unsubscribed At</th>
+              <th>IP Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for unsub <- @unsubscribes do %>
+              <tr>
+                <td class="font-medium text-sm">{unsub.email}</td>
+                <td>
+                  {Elektrine.Email.ListTypes.get_name(unsub.list_id || "elektrine-general")}
+                </td>
+                <td>{Calendar.strftime(unsub.unsubscribed_at, "%Y-%m-%d %H:%M UTC")}</td>
+                <td class="font-medium text-sm opacity-70">{unsub.ip_address || "N/A"}</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <%= if @total_pages > 1 do %>
+        <div class="flex justify-center gap-2 mt-6">
+          <%= if @page > 1 do %>
+            <.link href={~p"/pripyat/unsubscribe-stats?page=#{@page - 1}"} class="btn btn-sm">
+              Previous
+            </.link>
+          <% end %>
+
+          <span class="btn btn-sm btn-ghost">
+            Page {@page} of {@total_pages}
+          </span>
+
+          <%= if @page < @total_pages do %>
+            <.link href={~p"/pripyat/unsubscribe-stats?page=#{@page + 1}"} class="btn btn-sm">
+              Next
+            </.link>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

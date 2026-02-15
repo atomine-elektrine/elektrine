@@ -1,0 +1,60 @@
+defmodule ElektrineWeb.UnsubscribeLive.Confirmed do
+  use ElektrineWeb, :live_view
+
+  on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
+
+  def mount(_params, session, socket) do
+    email = session["unsubscribed_email"] || "your email"
+
+    {:ok,
+     assign(socket,
+       page_title: "Unsubscribed Successfully",
+       email: email
+     )}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div
+      id="unsubscribe-confirmed-card"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
+    >
+      <div class="card-body">
+        <div class="text-center mb-4">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-16 w-16 mx-auto text-success"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+
+        <h1 class="text-center text-3xl font-bold mb-4">Unsubscribed Successfully</h1>
+
+        <p class="text-center opacity-70 mb-6">
+          You have been unsubscribed from our mailing list. You will no longer receive emails at <strong>{@email}</strong>.
+        </p>
+
+        <p class="text-center text-sm opacity-60 mb-6">
+          Changed your mind? You can resubscribe at any time.
+        </p>
+
+        <div class="flex flex-col gap-4 w-full">
+          <.link href={~p"/"} class="btn btn-primary w-full">
+            Return to Home
+          </.link>
+        </div>
+      </div>
+    </div>
+    """
+  end
+end

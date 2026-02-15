@@ -1,0 +1,372 @@
+<div class="p-4 sm:p-6">
+  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-2">
+    <h1 class="text-2xl sm:text-3xl font-bold">{gettext("Admin Dashboard")}</h1>
+    <div class="text-sm opacity-70">
+      {gettext("Welcome back, %{username}", username: @current_user.username)}
+    </div>
+  </div>
+  
+<!-- Quick Search -->
+  <div class="card glass-card shadow-xl mb-8">
+    <div class="card-body">
+      <h2 class="card-title">{gettext("Quick Search")}</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <form method="get" action={~p"/pripyat/users"}>
+          <div class="join">
+            <input
+              type="text"
+              name="search"
+              placeholder={gettext("Search users...")}
+              class="input flex-1 join-item"
+            />
+            <button type="submit" class="btn btn-primary join-item">
+              <.icon name="hero-users" class="w-4 h-4" />
+            </button>
+          </div>
+        </form>
+
+        <form method="get" action={~p"/pripyat/mailboxes"}>
+          <div class="join">
+            <input
+              type="text"
+              name="search"
+              placeholder={gettext("Search mailboxes...")}
+              class="input flex-1 join-item"
+            />
+            <button type="submit" class="btn btn-success join-item">
+              <.icon name="hero-envelope" class="w-4 h-4" />
+            </button>
+          </div>
+        </form>
+
+        <form method="get" action={~p"/pripyat/messages"}>
+          <div class="join">
+            <input
+              type="text"
+              name="search"
+              placeholder={gettext("Search messages...")}
+              class="input flex-1 join-item"
+            />
+            <button type="submit" class="btn btn-warning join-item">
+              <.icon name="hero-chat-bubble-left-ellipsis" class="w-4 h-4" />
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+<!-- Stats Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-primary hidden sm:block">
+        <.icon name="hero-users" class="w-6 h-6 sm:w-8 sm:h-8" />
+      </div>
+      <div class="stat-title text-xs sm:text-sm">{gettext("Total Users")}</div>
+      <div class="stat-value text-lg sm:text-xl lg:text-2xl text-primary">
+        {@stats.total_users}
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-success hidden sm:block">
+        <.icon name="hero-envelope" class="w-6 h-6 sm:w-8 sm:h-8" />
+      </div>
+      <div class="stat-title text-xs sm:text-sm">{gettext("Mailboxes")}</div>
+      <div class="stat-value text-lg sm:text-xl lg:text-2xl text-success">
+        {@stats.total_mailboxes}
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-warning hidden sm:block">
+        <.icon name="hero-chat-bubble-left-ellipsis" class="w-6 h-6 sm:w-8 sm:h-8" />
+      </div>
+      <div class="stat-title text-xs sm:text-sm">{gettext("Messages")}</div>
+      <div class="stat-value text-lg sm:text-xl lg:text-2xl text-warning">
+        {@stats.total_messages}
+      </div>
+      <div class="stat-desc text-xs">
+        {@stats.email_storage.total_content_mb} MB • Avg: {@stats.email_storage.avg_message_size_kb} KB
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-purple-500 hidden sm:block">
+        <.icon name="hero-at-symbol" class="w-6 h-6 sm:w-8 sm:h-8" />
+      </div>
+      <div class="stat-title text-xs sm:text-sm">{gettext("Aliases")}</div>
+      <div class="stat-value text-lg sm:text-xl lg:text-2xl text-purple-500">
+        {@stats.total_aliases}
+      </div>
+    </div>
+  </div>
+  
+<!-- Active Users Card -->
+  <div class="card glass-card shadow-xl mb-8">
+    <div class="card-body">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="card-title">{gettext("Active Users")}</h2>
+        <.link
+          navigate={~p"/pripyat/active-users"}
+          class="btn btn-primary btn-sm"
+        >
+          {gettext("View All")}
+        </.link>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">{gettext("Last 24 Hours")}</div>
+          <div class="stat-value text-lg text-green-600">{@stats.active_users.last_24_hours}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">{gettext("Last 7 Days")}</div>
+          <div class="stat-value text-lg text-blue-600">{@stats.active_users.last_7_days}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">{gettext("Last 30 Days")}</div>
+          <div class="stat-value text-lg text-purple-600">{@stats.active_users.last_30_days}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">{gettext("Never Logged In")}</div>
+          <div class="stat-value text-lg text-gray-500">
+            {@stats.active_users.never_logged_in}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Email Integrity Card -->
+  <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mb-8"></div>
+  
+<!-- Deletion Requests Section -->
+  <%= if @stats.pending_deletions > 0 do %>
+    <div class="alert alert-warning mb-8">
+      <.icon name="hero-exclamation-triangle" class="h-6 w-6" />
+      <div>
+        <h3 class="font-bold">{gettext("Pending Account Deletion Requests")}</h3>
+        <div class="text-sm">
+          There {if @stats.pending_deletions == 1, do: "is", else: "are"}
+          <strong>{@stats.pending_deletions}</strong>
+          pending account deletion {if @stats.pending_deletions == 1,
+            do: "request",
+            else: "requests"} that need your review.
+        </div>
+      </div>
+      <div>
+        <.link href={~p"/pripyat/deletion-requests"} class="btn btn-sm btn-warning">
+          <.icon name="hero-trash" class="w-4 h-4" /> Review Requests
+        </.link>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Additional Stats Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-8">
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-warning">
+        <.icon name="hero-flag" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">Pending Reports</div>
+      <div class="stat-value text-warning">{Map.get(@stats, :pending_reports, 0)}</div>
+      <div class="stat-desc">
+        <.link navigate={~p"/pripyat/reports"} class="link link-warning">
+          Review →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-error">
+        <.icon name="hero-trash" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">Pending Deletions</div>
+      <div class="stat-value text-error">{@stats.pending_deletions}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/deletion-requests"} class="link link-error">
+          Review →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-info">
+        <.icon name="hero-ticket" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">Invite Codes</div>
+      <div class="stat-value text-info">{Map.get(@stats, :invite_codes_active, 0)}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/invite-codes"} class="link link-info">
+          Manage →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-secondary">
+        <.icon name="hero-megaphone" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">Announcements</div>
+      <div class="stat-value text-secondary">{Map.get(@stats, :active_announcements, 0)}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/announcements"} class="link link-secondary">
+          Manage →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-accent">
+        <.icon name="hero-shield-check" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">2FA Users</div>
+      <div class="stat-value text-accent">{@stats.two_factor_users}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/2fa-status"} class="link link-accent">
+          Manage →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-primary">
+        <.icon name="hero-inbox-stack" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">IMAP Users</div>
+      <div class="stat-value text-primary">{@stats.imap_users}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/imap-users"} class="link link-primary">
+          View List →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-success">
+        <.icon name="hero-inbox-arrow-down" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">POP3 Users</div>
+      <div class="stat-value text-success">{@stats.pop3_users}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/pop3-users"} class="link link-success">
+          View List →
+        </.link>
+      </div>
+    </div>
+
+    <div class="stat bg-base-200 shadow rounded-lg">
+      <div class="stat-figure text-cyan-500">
+        <.icon name="hero-credit-card" class="w-8 h-8" />
+      </div>
+      <div class="stat-title">Active Subscriptions</div>
+      <div class="stat-value text-cyan-500">{@stats.subscriptions.active_subscriptions}</div>
+      <div class="stat-desc">
+        <.link href={~p"/pripyat/subscriptions"} class="link">
+          {@stats.subscriptions.active_products} products →
+        </.link>
+      </div>
+    </div>
+  </div>
+  
+<!-- Federation Stats -->
+  <div class="card glass-card shadow-xl mb-8">
+    <div class="card-body">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="card-title">
+          <.icon name="hero-globe-alt" class="w-5 h-5" /> Federation
+        </h2>
+        <div class="flex gap-2">
+          <.link navigate={~p"/pripyat/relays"} class="btn btn-ghost btn-sm">
+            <.icon name="hero-signal" class="w-4 h-4" /> Relays
+          </.link>
+          <.link navigate={~p"/pripyat/federation"} class="btn btn-primary btn-sm">
+            Manage
+          </.link>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">Remote Actors</div>
+          <div class="stat-value text-lg text-info">{@stats.federation.remote_actors}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">Unique Domains</div>
+          <div class="stat-value text-lg text-primary">{@stats.federation.unique_domains}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">Blocked Instances</div>
+          <div class="stat-value text-lg text-error">{@stats.federation.blocked_instances}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">Active Relays</div>
+          <div class="stat-value text-lg text-success">{@stats.federation.active_relays}</div>
+        </div>
+        <div class="stat bg-base-200 rounded p-3">
+          <div class="stat-title text-xs">Pending Relays</div>
+          <div class="stat-value text-lg text-warning">{@stats.federation.pending_relays}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Recent Users -->
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title">Recent Users</h2>
+      <p class="opacity-70">Latest registered users on the platform.</p>
+
+      <div class="overflow-x-auto mt-4">
+        <table class="table table-zebra w-full">
+          <tbody>
+            <%= for user <- @stats.recent_users do %>
+              <tr>
+                <td>
+                  <div class="flex items-center gap-3">
+                    <div class="avatar">
+                      <div class="bg-orange-500 text-white rounded-lg w-8 h-8">
+                        <span class="text-sm font-bold flex items-center justify-center h-full">
+                          {String.first(user.username) |> String.upcase()}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="font-bold">{user.username}</div>
+                      <div class="text-sm opacity-50">
+                        Joined
+                        <.local_time
+                          datetime={user.inserted_at}
+                          format="date"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="flex gap-1">
+                    <%= cond do %>
+                      <% user.banned -> %>
+                        <div class="badge badge-error">Banned</div>
+                      <% user.is_admin -> %>
+                        <div class="badge badge-secondary">Admin</div>
+                      <% true -> %>
+                        <div class="badge badge-success">Active</div>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-actions justify-end mt-4">
+        <.link href={~p"/pripyat/users"} class="btn btn-primary btn-sm">
+          View all users →
+        </.link>
+      </div>
+    </div>
+  </div>
+</div>

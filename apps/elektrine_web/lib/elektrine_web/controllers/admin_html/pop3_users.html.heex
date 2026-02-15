@@ -1,0 +1,139 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-4 sm:mb-6">
+    <h1 class="text-xl sm:text-2xl font-bold">POP3 Users</h1>
+    <p class="opacity-70 mt-2 text-sm sm:text-base">
+      Users who have accessed email via POP3 protocol • Total: {@total_count} users
+    </p>
+  </div>
+  
+<!-- POP3 Users Table -->
+  <div class="card glass-card shadow-xl">
+    <div class="card-body p-3 sm:p-6">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th class="text-xs sm:text-sm">User</th>
+              <th class="text-xs sm:text-sm">Last POP3 Access</th>
+              <th class="text-xs sm:text-sm hidden md:table-cell">Last Web Login</th>
+              <th class="text-xs sm:text-sm">Status</th>
+              <th class="text-xs sm:text-sm">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for user <- @users do %>
+              <tr>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <div class="avatar">
+                      <%= if user.avatar do %>
+                        <div class="w-8 h-8 rounded-lg">
+                          <img
+                            src={Elektrine.Uploads.avatar_url(user.avatar)}
+                            alt={user.username}
+                          />
+                        </div>
+                      <% else %>
+                        <div class="bg-success text-white rounded-lg w-8 h-8">
+                          <span class="text-sm font-bold flex items-center justify-center h-full">
+                            {String.first(user.username) |> String.upcase()}
+                          </span>
+                        </div>
+                      <% end %>
+                    </div>
+                    <div>
+                      <div class="font-bold">{user.username}</div>
+                      <%= if user.is_admin do %>
+                        <div class="badge badge-secondary badge-xs">Admin</div>
+                      <% end %>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <%= if user.last_pop3_access do %>
+                    <div class="text-sm">
+                      {Calendar.strftime(user.last_pop3_access, "%Y-%m-%d %H:%M")}
+                    </div>
+                    <div class="text-xs opacity-50">
+                      {time_ago_in_words(user.last_pop3_access)} ago
+                    </div>
+                  <% else %>
+                    <span class="opacity-50">Never</span>
+                  <% end %>
+                </td>
+                <td class="hidden md:table-cell">
+                  <%= if user.last_login_at do %>
+                    <div class="text-sm">
+                      {Calendar.strftime(user.last_login_at, "%Y-%m-%d %H:%M")}
+                    </div>
+                  <% else %>
+                    <span class="opacity-50">Never</span>
+                  <% end %>
+                </td>
+                <td>
+                  <div class="flex flex-wrap gap-1">
+                    <%= if user.banned do %>
+                      <div class="badge badge-error badge-sm">Banned</div>
+                    <% else %>
+                      <div class="badge badge-success badge-sm">Active</div>
+                    <% end %>
+                    <%= if user.last_pop3_access && DateTime.diff(DateTime.utc_now(), user.last_pop3_access, :hour) < 24 do %>
+                      <div class="badge badge-info badge-sm">Recent</div>
+                    <% end %>
+                  </div>
+                </td>
+                <td>
+                  <.link
+                    navigate={~p"/pripyat/users/#{user.id}/edit"}
+                    class="btn btn-ghost btn-xs"
+                  >
+                    <.icon name="hero-pencil" class="w-3 h-3" /> View
+                  </.link>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+<!-- Pagination -->
+  <%= if @total_pages > 1 do %>
+    <div class="flex items-center justify-between mt-6">
+      <div class="text-sm opacity-70">
+        Page {@page} of {@total_pages}
+      </div>
+
+      <div class="join">
+        <%= if @page > 1 do %>
+          <.link navigate={~p"/pripyat/pop3-users?page=#{@page - 1}"} class="join-item btn btn-sm">
+            «
+          </.link>
+        <% end %>
+
+        <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+          <.link
+            navigate={~p"/pripyat/pop3-users?page=#{page_num}"}
+            class={["join-item btn btn-sm", if(@page == page_num, do: "btn-active", else: "")]}
+          >
+            {page_num}
+          </.link>
+        <% end %>
+
+        <%= if @page < @total_pages do %>
+          <.link navigate={~p"/pripyat/pop3-users?page=#{@page + 1}"} class="join-item btn btn-sm">
+            »
+          </.link>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Back to Dashboard -->
+  <div class="mt-6">
+    <.link navigate={~p"/pripyat"} class="btn btn-ghost">
+      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Dashboard
+    </.link>
+  </div>
+</div>

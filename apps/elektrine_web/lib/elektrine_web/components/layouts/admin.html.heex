@@ -1,0 +1,374 @@
+<%= if (assigns[:conn] && Plug.Conn.get_session(@conn, :impersonating_admin_id)) || (assigns[:is_impersonating] && @is_impersonating) do %>
+  <div class="bg-warning text-warning-content p-2">
+    <div class="max-w-7xl mx-auto px-4 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+        <span class="font-semibold">
+          Admin Mode: You are impersonating {@current_user.username}
+        </span>
+      </div>
+      <form action={~p"/pripyat/stop-impersonation"} method="post" class="inline">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <button type="submit" class="btn btn-sm btn-secondary">
+          <.icon name="hero-stop" class="w-4 h-4" /> Stop Impersonation
+        </button>
+      </form>
+    </div>
+  </div>
+<% end %>
+
+<div class="navbar bg-base-200/80 backdrop-blur-sm shadow-md sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto w-full flex items-center px-4 sm:px-6 lg:px-8">
+    <div class="navbar-start">
+      <div class="dropdown">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-square lg:hidden">
+          <.icon name="hero-bars-3" class="h-6 w-6" />
+        </div>
+        <ul
+          tabindex="0"
+          class="menu dropdown-content mt-3 z-[1] p-3 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-xl w-64 border border-base-300/50 space-y-1 max-h-[80vh] overflow-y-auto"
+        >
+          <li class="menu-title px-3 pt-2 pb-1">
+            <span class="text-xs uppercase tracking-wider opacity-60">Main</span>
+          </li>
+          <li>
+            <.link href={~p"/pripyat"} class="rounded-lg py-3">
+              <.icon name="hero-squares-2x2" class="w-5 h-5" /> Dashboard
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/dashboard"} class="rounded-lg py-3">
+              <.icon name="hero-computer-desktop" class="w-5 h-5" /> System Dashboard
+            </.link>
+          </li>
+
+          <div class="divider my-1 h-px"></div>
+          <li class="menu-title px-3 pt-2 pb-1">
+            <span class="text-xs uppercase tracking-wider opacity-60">User Management</span>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/users"} class="rounded-lg py-3">
+              <.icon name="hero-users" class="w-5 h-5" /> Users
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/multi-accounts"} class="rounded-lg py-3">
+              <.icon name="hero-user-circle" class="w-5 h-5" /> Multi-Accounts
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/account-lookup"} class="rounded-lg py-3">
+              <.icon name="hero-magnifying-glass" class="w-5 h-5" /> Account Lookup
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/invite-codes"} class="rounded-lg py-3">
+              <.icon name="hero-ticket" class="w-5 h-5" /> Invite Codes
+            </.link>
+          </li>
+          <li>
+            <.link navigate={~p"/pripyat/badges"} class="rounded-lg py-3">
+              <.icon name="hero-star" class="w-5 h-5" /> Badges
+            </.link>
+          </li>
+
+          <div class="divider my-1 h-px"></div>
+          <li class="menu-title px-3 pt-2 pb-1">
+            <span class="text-xs uppercase tracking-wider opacity-60">Email & Services</span>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/vpn"} class="rounded-lg py-3">
+              <.icon name="hero-shield-check" class="w-5 h-5" /> VPN
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/mailboxes"} class="rounded-lg py-3">
+              <.icon name="hero-envelope" class="w-5 h-5" /> Mailboxes
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/aliases"} class="rounded-lg py-3">
+              <.icon name="hero-at-symbol" class="w-5 h-5" /> Aliases
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/forwarded-messages"} class="rounded-lg py-3">
+              <.icon name="hero-arrow-right-circle" class="w-5 h-5" /> Forwarded Messages
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/messages"} class="rounded-lg py-3">
+              <.icon name="hero-chat-bubble-left-ellipsis" class="w-5 h-5" /> Messages
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/mailbox-integrity"} class="rounded-lg py-3">
+              <.icon name="hero-exclamation-triangle" class="w-5 h-5" /> Mailbox Issues
+            </.link>
+          </li>
+
+          <div class="divider my-1 h-px"></div>
+          <li class="menu-title px-3 pt-2 pb-1">
+            <span class="text-xs uppercase tracking-wider opacity-60">Content & Community</span>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/content-moderation"} class="rounded-lg py-3">
+              <.icon name="hero-shield-exclamation" class="w-5 h-5" /> Content Moderation
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/communities"} class="rounded-lg py-3">
+              <.icon name="hero-user-group" class="w-5 h-5" /> Communities
+            </.link>
+          </li>
+          <li>
+            <.link navigate={~p"/pripyat/reports"} class="rounded-lg py-3">
+              <.icon name="hero-flag" class="w-5 h-5" /> Reports
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/deletion-requests"} class="rounded-lg py-3">
+              <.icon name="hero-trash" class="w-5 h-5" /> Deletion Requests
+            </.link>
+          </li>
+
+          <div class="divider my-1 h-px"></div>
+          <li class="menu-title px-3 pt-2 pb-1">
+            <span class="text-xs uppercase tracking-wider opacity-60">System</span>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/audit-logs"} class="rounded-lg py-3">
+              <.icon name="hero-clipboard-document-list" class="w-5 h-5" /> Audit Log
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/announcements"} class="rounded-lg py-3">
+              <.icon name="hero-megaphone" class="w-5 h-5" /> Announcements
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/updates"} class="rounded-lg py-3">
+              <.icon name="hero-newspaper" class="w-5 h-5" /> Platform Updates
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/pripyat/subscriptions"} class="rounded-lg py-3">
+              <.icon name="hero-credit-card" class="w-5 h-5" /> Subscriptions
+            </.link>
+          </li>
+          <li>
+            <.link navigate={~p"/pripyat/federation"} class="rounded-lg py-3">
+              <.icon name="hero-globe-alt" class="w-5 h-5" /> Federation
+            </.link>
+          </li>
+          <li>
+            <.link navigate={~p"/pripyat/relays"} class="rounded-lg py-3">
+              <.icon name="hero-signal" class="w-5 h-5" /> Relays
+            </.link>
+          </li>
+
+          <div class="divider my-1 h-px"></div>
+          <li>
+            <.link href={~p"/email"} class="rounded-lg py-3 text-primary">
+              <.icon name="hero-arrow-left" class="w-5 h-5" /> Exit Admin
+            </.link>
+          </li>
+        </ul>
+      </div>
+      <.link
+        href={~p"/pripyat"}
+        class="btn btn-ghost text-sm sm:text-xl px-1 sm:px-4 font-serif-accent"
+      >
+        <img src="/images/logo.svg" alt="Elektrine" class="h-6 w-auto" />
+        <span class="badge badge-sm badge-primary ml-2">Admin</span>
+      </.link>
+    </div>
+
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1 gap-1">
+        <li class="dropdown">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-sm rounded-lg">
+            Main <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
+          </div>
+          <ul
+            tabindex="0"
+            class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
+          >
+            <li><.link href={~p"/pripyat"}>Dashboard</.link></li>
+            <li><.link href={~p"/pripyat/dashboard"}>System Dashboard</.link></li>
+          </ul>
+        </li>
+
+        <li class="dropdown">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-sm rounded-lg">
+            Users <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
+          </div>
+          <ul
+            tabindex="0"
+            class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
+          >
+            <li><.link href={~p"/pripyat/users"}>User Management</.link></li>
+            <li><.link href={~p"/pripyat/multi-accounts"}>Multi-Accounts</.link></li>
+            <li><.link href={~p"/pripyat/account-lookup"}>Account Lookup</.link></li>
+            <li><.link href={~p"/pripyat/invite-codes"}>Invite Codes</.link></li>
+            <li><.link navigate={~p"/pripyat/badges"}>Badges</.link></li>
+          </ul>
+        </li>
+
+        <li class="dropdown">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-sm rounded-lg">
+            Email <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
+          </div>
+          <ul
+            tabindex="0"
+            class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
+          >
+            <li><.link href={~p"/pripyat/vpn"}>VPN</.link></li>
+            <li><.link href={~p"/pripyat/mailboxes"}>Mailboxes</.link></li>
+            <li><.link href={~p"/pripyat/aliases"}>Aliases</.link></li>
+            <li><.link href={~p"/pripyat/forwarded-messages"}>Forwarded Messages</.link></li>
+            <li><.link href={~p"/pripyat/messages"}>Messages</.link></li>
+            <li><.link href={~p"/pripyat/mailbox-integrity"}>Mailbox Issues</.link></li>
+          </ul>
+        </li>
+
+        <li class="dropdown">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-sm rounded-lg">
+            Content <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
+          </div>
+          <ul
+            tabindex="0"
+            class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
+          >
+            <li><.link href={~p"/pripyat/content-moderation"}>Content Moderation</.link></li>
+            <li><.link href={~p"/pripyat/communities"}>Communities</.link></li>
+            <li><.link navigate={~p"/pripyat/reports"}>Reports</.link></li>
+            <li><.link href={~p"/pripyat/deletion-requests"}>Deletion Requests</.link></li>
+          </ul>
+        </li>
+
+        <li class="dropdown">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-sm rounded-lg">
+            System <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
+          </div>
+          <ul
+            tabindex="0"
+            class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
+          >
+            <li><.link href={~p"/pripyat/audit-logs"}>Audit Log</.link></li>
+            <li><.link href={~p"/pripyat/announcements"}>Announcements</.link></li>
+            <li><.link href={~p"/pripyat/updates"}>Platform Updates</.link></li>
+            <li><.link href={~p"/pripyat/subscriptions"}>Subscriptions</.link></li>
+            <li class="divider my-1"></li>
+            <li><.link navigate={~p"/pripyat/federation"}>Federation</.link></li>
+            <li><.link navigate={~p"/pripyat/relays"}>Relays</.link></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="navbar-end">
+      <%= if @current_user do %>
+        <!-- Notification Bell -->
+        <.link
+          href="/notifications"
+          class="indicator mr-2 flex items-center no-glow"
+          title="Notifications"
+        >
+          <%= if assigns[:notification_count] && @notification_count > 0 do %>
+            <span class="indicator-item indicator-top indicator-end flex h-4 w-4 pointer-events-none -translate-x-0.5 translate-y-0.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75">
+              </span>
+              <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-error text-white text-[9px] font-medium">
+                {if @notification_count > 99, do: "99+", else: @notification_count}
+              </span>
+            </span>
+          <% end %>
+          <div class="btn btn-ghost btn-circle btn-sm flex items-center justify-center">
+            <%= if assigns[:notification_count] && @notification_count > 0 do %>
+              <.icon name="hero-bell-alert" class="w-5 h-5" />
+            <% else %>
+              <.icon name="hero-bell" class="w-5 h-5" />
+            <% end %>
+          </div>
+        </.link>
+        
+<!-- Exit Admin Button -->
+        <.link href={~p"/email"} class="btn btn-ghost btn-sm mr-2 hidden sm:flex">
+          <.icon name="hero-arrow-left" class="w-4 h-4" /> Exit Admin
+        </.link>
+        
+<!-- User Avatar Dropdown -->
+        <div class="dropdown dropdown-end">
+          <div
+            tabindex="0"
+            role="button"
+            class="cursor-pointer rounded-full rainbow-glow-hover p-0 leading-none flex"
+          >
+            <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
+          </div>
+          <ul
+            tabindex="0"
+            class="menu menu-sm dropdown-content mt-3 z-[100] p-2 shadow-lg bg-base-200/90 backdrop-blur-sm rounded-box w-56 border border-base-300/50"
+          >
+            <li class="menu-title px-3 py-2">
+              <.link
+                navigate={~p"/#{@current_user.handle || @current_user.username}"}
+                class="flex items-center gap-3 hover:bg-primary/20 hover:text-white transition-all duration-200 rounded-md px-2 py-2 -mx-2 -my-2"
+              >
+                <.user_avatar user={@current_user} size="sm" />
+                <div>
+                  <div class="font-semibold text-sm">
+                    {@current_user.display_name || @current_user.username}
+                  </div>
+                  <div class="text-xs opacity-60">
+                    @{@current_user.handle || @current_user.username}
+                  </div>
+                </div>
+              </.link>
+            </li>
+
+            <div class="divider my-1"></div>
+
+            <li>
+              <.link navigate={~p"/email"} class="gap-3">
+                <.icon name="hero-envelope" class="w-4 h-4" /> Email
+              </.link>
+            </li>
+            <li>
+              <.link navigate={~p"/timeline"} class="gap-3">
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Social
+              </.link>
+            </li>
+
+            <div class="divider my-1"></div>
+
+            <li>
+              <.link navigate={~p"/account"} class="gap-3">
+                <.icon name="hero-user-circle" class="w-4 h-4" /> Account Settings
+              </.link>
+            </li>
+            <li>
+              <.link href={~p"/logout"} method="delete" class="gap-3 text-error">
+                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" /> Log out
+              </.link>
+            </li>
+          </ul>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%!-- Flash messages for JavaScript to process --%>
+<div
+  id="flash-messages"
+  class="hidden"
+  data-info={Phoenix.Flash.get(@flash, :info)}
+  data-error={Phoenix.Flash.get(@flash, :error)}
+>
+</div>
+
+<main class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 min-h-[100vh] overflow-x-hidden">
+  {@inner_content}
+</main>

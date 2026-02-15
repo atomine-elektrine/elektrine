@@ -1,0 +1,2106 @@
+<%= cond do %>
+  <% assigns[:not_found] -> %>
+    <!-- Not Found Error Page (invalid handle format) -->
+    <div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
+      <div class="max-w-md w-full">
+        <div class="bg-base-200 rounded-lg shadow-2xl p-8 border border-base-300">
+          <div class="text-center">
+            <div class="w-20 h-20 mx-auto mb-6 bg-error/10 rounded-full flex items-center justify-center">
+              <.icon name="hero-user-minus" class="w-10 h-10 text-error" />
+            </div>
+
+            <h1 class="text-2xl font-bold mb-3">User Not Found</h1>
+
+            <p class="text-base-content/70 mb-6">
+              The user you're looking for doesn't exist or the URL is invalid.
+            </p>
+
+            <.link href={profile_url(@base_url, ~p"/")} class="btn btn-primary w-full">
+              <.icon name="hero-home" class="w-5 h-5 mr-2" /> Go to Homepage
+            </.link>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% assigns[:is_private] -> %>
+    <!-- Private Profile Error Page -->
+    <div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
+      <div class="max-w-md w-full">
+        <div class="bg-base-200 rounded-lg shadow-2xl p-8 border border-base-300">
+          <div class="text-center">
+            <div class="w-20 h-20 mx-auto mb-6 bg-warning/10 rounded-full flex items-center justify-center">
+              <.icon name="hero-lock-closed" class="w-10 h-10 text-warning" />
+            </div>
+
+            <h1 class="text-2xl font-bold mb-3">Private Profile</h1>
+
+            <p class="text-base-content/70 mb-6">
+              This profile is private.
+              <%= if @current_user do %>
+                You don't have permission to view it.
+              <% else %>
+                Sign in to see if you have access.
+              <% end %>
+            </p>
+
+            <%= if @current_user do %>
+              <.link href={profile_url(@base_url, ~p"/")} class="btn btn-primary w-full">
+                <.icon name="hero-home" class="w-5 h-5 mr-2" /> Go to Homepage
+              </.link>
+            <% else %>
+              <div class="space-y-2">
+                <.link href={profile_url(@base_url, ~p"/login")} class="btn btn-secondary w-full">
+                  <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5 mr-2" /> Sign In
+                </.link>
+                <.link href={profile_url(@base_url, ~p"/")} class="btn btn-ghost w-full">
+                  <.icon name="hero-home" class="w-5 h-5 mr-2" /> Go to Homepage
+                </.link>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% true -> %>
+    <% # Define CSS custom properties for dynamic colors
+    accent_color = (@profile && @profile.accent_color) || "#22d3ee"
+    text_color = (@profile && @profile.text_color) || "#ffffff"
+    background_color = (@profile && @profile.background_color) || "#000000"
+    icon_color = (@profile && @profile.icon_color) || accent_color %>
+    <style>
+      #profile-container {
+        --profile-accent: <%= accent_color %>;
+        --profile-text: <%= text_color %>;
+        --profile-bg: <%= background_color %>;
+        --profile-icon: <%= icon_color %>;
+      }
+    </style>
+    <div
+      id="profile-container"
+      data-profile-static={if @profile_static, do: "true", else: "false"}
+      data-profile-handle={@user.handle || @user.username}
+      data-profile-user-id={@user.id}
+      data-current-user-id={@current_user && @current_user.id}
+      data-profile-accent={(@profile && @profile.accent_color) || "#22d3ee"}
+      phx-hook={
+        if @profile && @profile.typewriter_title && @profile.page_title,
+          do: "TabTitleTypewriter",
+          else: nil
+      }
+      data-text={
+        if @profile && @profile.typewriter_title && @profile.page_title,
+          do: @profile.page_title,
+          else: nil
+      }
+      data-speed={
+        if @profile && @profile.typewriter_title && @profile.page_title,
+          do: @profile.typewriter_speed || "normal",
+          else: nil
+      }
+      class="min-h-screen flex items-start justify-center p-0 sm:px-4 relative overflow-hidden"
+      style={
+        background_style =
+          cond do
+            # Video background
+            @profile && @profile.background_url && @profile.background_type == "video" ->
+              "background-color: #{@profile.background_color || "#000000"};"
+
+            # Image background
+            @profile && @profile.background_url && @profile.background_type == "image" ->
+              "background-image: url(#{Elektrine.Uploads.background_url(@profile.background_url)}); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed;"
+
+            # Solid color background
+            @profile && @profile.background_type == "solid" && @profile.background_color ->
+              "background-color: #{@profile.background_color};"
+
+            # Gradient (default)
+            @profile && @profile.background_type == "gradient" ->
+              "background: linear-gradient(135deg, #080808 0%, #151515 25%, #1a1a1a 50%, #1f1f1f 75%, #0d0d0d 100%);"
+
+            # Fallback for profiles without background_type set
+            @profile && @profile.background_color ->
+              "background-color: #{@profile.background_color};"
+
+            # Default gradient
+            true ->
+              "background: linear-gradient(135deg, #080808 0%, #151515 25%, #1a1a1a 50%, #1f1f1f 75%, #0d0d0d 100%);"
+          end
+
+        font_style =
+          if @profile && @profile.font_family,
+            do: "font-family: '#{@profile.font_family}', sans-serif;",
+            else: ""
+
+        cursor_style =
+          if @profile && @profile.cursor_style && @profile.cursor_style != "default",
+            do: "cursor: #{@profile.cursor_style};",
+            else: ""
+
+        "#{background_style} #{font_style} #{cursor_style}"
+      }
+    >
+      <!-- Video Background (if set) -->
+      <%= if @profile && @profile.background_url && @profile.background_type == "video" do %>
+        <video
+          id="profile-video-bg"
+          phx-hook="VideoBackground"
+          autoplay
+          loop
+          muted
+          playsinline
+          preload="auto"
+          class="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none"
+          src={Elektrine.Uploads.background_url(@profile.background_url)}
+        >
+        </video>
+      <% end %>
+      <div
+        class="w-full max-w-full sm:max-w-[580px] relative overflow-visible rounded-none sm:rounded-t-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)]"
+        style={
+          if @profile do
+            opacity = @profile.profile_opacity || 1.0
+            blur = @profile.profile_blur || 0
+            container_color = @profile.container_background_color || "#000000"
+            container_opacity = @profile.container_opacity || 0.4
+
+            # Build container background - always apply it
+            # If pattern is set, reduce opacity slightly to let pattern show through
+            adjusted_opacity =
+              if @profile.container_pattern && @profile.container_pattern != "none" do
+                # Reduce opacity when pattern is active
+                container_opacity * 0.7
+              else
+                container_opacity
+              end
+
+            # Convert hex to rgba with opacity
+            {r, g, b} = hex_to_rgb(container_color)
+            container_bg = "background-color: rgba(#{r}, #{g}, #{b}, #{adjusted_opacity});"
+
+            "opacity: #{opacity}; z-index: 10; position: relative; #{container_bg} #{if blur > 0, do: "backdrop-filter: blur(#{blur}px); -webkit-backdrop-filter: blur(#{blur}px);", else: ""}"
+          else
+            "z-index: 10; position: relative;"
+          end
+        }
+      >
+        <!-- Timeline Blade - slides out from right edge -->
+        <%= if not (@profile && @profile.hide_timeline) do %>
+          <% show_community_posts = @user_discussion_posts && length(@user_discussion_posts) > 0
+          container_color = (@profile && @profile.container_background_color) || "#000000"
+          container_opacity = (@profile && @profile.container_opacity) || 0.4
+          {cr, cg, cb} = hex_to_rgb(container_color) %>
+          <!-- Desktop: Slide-out blade -->
+          <div
+            id="timeline-blade"
+            data-role="timeline-drawer"
+            data-closed-class="translate-x-0 pointer-events-none opacity-0"
+            data-open-class="translate-x-[100%]"
+            class={"hidden sm:block absolute top-0 right-0 h-full w-[320px] sm:rounded-tl-2xl rounded-r-2xl #{if @show_timeline_drawer, do: "translate-x-[100%]", else: "translate-x-0 pointer-events-none opacity-0"}"}
+            style={"z-index: 5; background-color: rgba(#{cr}, #{cg}, #{cb}, #{container_opacity});"}
+          >
+            <div class="h-full overflow-y-auto">
+              <!-- Blade Header -->
+              <div class="px-4 py-4 border-b border-white/10">
+                <div class="flex items-center gap-2">
+                  <.icon name="hero-rectangle-stack" class="w-5 h-5 text-[var(--profile-accent)]" />
+                  <h2 class="text-lg font-bold text-[var(--profile-text)]">Timeline</h2>
+                  <span class="text-sm text-[var(--profile-text)] opacity-60 ml-auto">
+                    <%= cond do %>
+                      <% is_nil(@user_timeline_posts) -> %>
+                      <% @user_timeline_posts == [] -> %>
+                        0 posts
+                      <% true -> %>
+                        {length(@user_timeline_posts)} posts
+                    <% end %>
+                  </span>
+                </div>
+              </div>
+              
+<!-- Blade Content -->
+              <div class="px-4 py-4 space-y-4">
+                <%= if @loading_profile do %>
+                  <!-- Loading skeleton for posts -->
+                  <div class="space-y-3 animate-pulse">
+                    <%= for _i <- 1..3 do %>
+                      <div class="p-3 rounded-lg bg-white/5 border border-white/10">
+                        <div class="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
+                        <div class="h-3 bg-white/10 rounded w-full"></div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <!-- Pinned Posts -->
+                  <%= if @pinned_posts && length(@pinned_posts) > 0 do %>
+                    <div class="space-y-2">
+                      <div class="flex items-center gap-2 text-sm text-[var(--profile-text)] opacity-60">
+                        <.icon name="hero-map-pin" class="w-4 h-4" />
+                        <span class="font-medium">Pinned</span>
+                      </div>
+                      <%= for post <- @pinned_posts do %>
+                        <.link
+                          href={profile_url(@base_url, ~p"/timeline/post/#{post.id}")}
+                          class="block group"
+                        >
+                          <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                            <%= if post.title do %>
+                              <h3 class="font-semibold text-sm line-clamp-1 text-[var(--profile-text)]">
+                                {post.title}
+                              </h3>
+                            <% end %>
+                            <%= if post.content && post.content != "" do %>
+                              <p class="text-sm line-clamp-2 mt-1 text-[var(--profile-text)] opacity-70">
+                                {String.slice(post.content, 0..80)}
+                              </p>
+                            <% end %>
+                          </div>
+                        </.link>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  
+<!-- Timeline Posts -->
+                  <%= if @user_timeline_posts && length(@user_timeline_posts) > 0 do %>
+                    <div class="space-y-2">
+                      <div class="flex items-center gap-2 text-sm text-[var(--profile-text)] opacity-60">
+                        <.icon name="hero-clock" class="w-4 h-4" />
+                        <span class="font-medium">Recent</span>
+                      </div>
+                      <%= for post <- Enum.take(@user_timeline_posts, 6) do %>
+                        <% # Check if this is a boost/share (has shared_message_id)
+                        is_boost =
+                          post.shared_message_id != nil && Ecto.assoc_loaded?(post.shared_message) &&
+                            post.shared_message != nil
+
+                        # Get the actual content source - use shared_message for boosts
+                        content_source = if is_boost, do: post.shared_message, else: post
+
+                        display_content =
+                          if content_source.content && String.trim(content_source.content) != "",
+                            do: content_source.content,
+                            else: ""
+
+                        # Check for media on the content source
+                        has_media =
+                          content_source.media_urls && !Enum.empty?(content_source.media_urls)
+
+                        has_poll =
+                          Map.get(content_source, :post_type) == "poll" &&
+                            Ecto.assoc_loaded?(Map.get(content_source, :poll)) &&
+                            Map.get(content_source, :poll)
+
+                        has_quote =
+                          Map.get(content_source, :quoted_message_id) &&
+                            Ecto.assoc_loaded?(Map.get(content_source, :quoted_message)) &&
+                            Map.get(content_source, :quoted_message)
+
+                        # Get original author for boosts
+                        original_author =
+                          if is_boost do
+                            cond do
+                              Ecto.assoc_loaded?(post.shared_message.remote_actor) &&
+                                  post.shared_message.remote_actor ->
+                                "@#{post.shared_message.remote_actor.username}@#{post.shared_message.remote_actor.domain}"
+
+                              Ecto.assoc_loaded?(post.shared_message.sender) &&
+                                  post.shared_message.sender ->
+                                "@#{post.shared_message.sender.handle || post.shared_message.sender.username}"
+
+                              true ->
+                                nil
+                            end
+                          else
+                            nil
+                          end
+
+                        # Link to the original post for boosts
+                        post_link =
+                          if is_boost,
+                            do:
+                              profile_url(@base_url, ~p"/timeline/post/#{post.shared_message_id}"),
+                            else: profile_url(@base_url, ~p"/timeline/post/#{post.id}") %>
+                        <.link href={post_link} class="block group">
+                          <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                            <!-- Boost indicator -->
+                            <%= if is_boost do %>
+                              <div class="flex items-center gap-1 mb-1 text-xs text-[var(--profile-accent)] opacity-70">
+                                <.icon name="hero-arrow-path" class="w-3 h-3" />
+                                <span>Boosted</span>
+                                <%= if original_author do %>
+                                  <span class="opacity-60">from {original_author}</span>
+                                <% end %>
+                              </div>
+                            <% end %>
+
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="text-xs text-[var(--profile-accent)] opacity-70">
+                                {Elektrine.Social.time_ago_in_words(post.inserted_at)}
+                              </span>
+                              <%= if has_media do %>
+                                <span class="text-xs text-[var(--profile-text)] opacity-50">
+                                  <.icon name="hero-photo" class="w-3 h-3 inline" />
+                                </span>
+                              <% end %>
+                            </div>
+
+                            <%= if content_source.content_warning && String.trim(content_source.content_warning) != "" do %>
+                              <p class="text-sm line-clamp-2 text-[var(--profile-text)] opacity-50">
+                                [CW: {content_source.content_warning}]
+                              </p>
+                            <% else %>
+                              <%= if display_content != "" do %>
+                                <p class="text-sm line-clamp-2 text-[var(--profile-text)] opacity-90">
+                                  {display_content}
+                                </p>
+                              <% end %>
+                            <% end %>
+
+                            <%= if has_poll do %>
+                              <% poll = content_source.poll %>
+                              <div class="mt-2 p-2 rounded border border-white/15 bg-white/5">
+                                <div class="text-xs font-medium text-[var(--profile-accent)] mb-1">
+                                  <.icon name="hero-chart-bar" class="w-3 h-3 inline" /> Poll
+                                </div>
+                                <div class="text-sm text-[var(--profile-text)] line-clamp-1">
+                                  {poll.question}
+                                </div>
+                                <div class="text-xs text-[var(--profile-text)] opacity-60 mt-1">
+                                  {length(poll.options || [])} options · {poll.voters_count ||
+                                    poll.total_votes || 0} votes
+                                </div>
+                              </div>
+                            <% end %>
+
+                            <%= if has_quote do %>
+                              <% quoted = content_source.quoted_message
+
+                              quote_author =
+                                cond do
+                                  Ecto.assoc_loaded?(quoted.remote_actor) && quoted.remote_actor ->
+                                    "@#{quoted.remote_actor.username}@#{quoted.remote_actor.domain}"
+
+                                  Ecto.assoc_loaded?(quoted.sender) && quoted.sender ->
+                                    "@#{quoted.sender.handle || quoted.sender.username}"
+
+                                  true ->
+                                    "Quoted post"
+                                end %>
+                              <div class="mt-2 p-2 rounded border border-white/15 bg-black/20">
+                                <div class="text-xs text-[var(--profile-accent)] opacity-80 mb-1">
+                                  <.icon
+                                    name="hero-chat-bubble-oval-left-ellipsis"
+                                    class="w-3 h-3 inline"
+                                  />
+                                  {quote_author}
+                                </div>
+                                <%= if quoted.content && quoted.content != "" do %>
+                                  <p class="text-xs line-clamp-2 text-[var(--profile-text)] opacity-80">
+                                    {quoted.content}
+                                  </p>
+                                <% else %>
+                                  <p class="text-xs text-[var(--profile-text)] opacity-60">
+                                    Quoted post content
+                                  </p>
+                                <% end %>
+                              </div>
+                            <% end %>
+                            
+<!-- Media preview -->
+                            <%= if has_media do %>
+                              <% first_media = List.first(content_source.media_urls)
+                              full_url = Elektrine.Uploads.attachment_url(first_media)
+
+                              is_video =
+                                String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+
+                              is_audio =
+                                String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+
+                              media_count = length(content_source.media_urls) %>
+                              <div class="mt-2 relative">
+                                <%= if is_video do %>
+                                  <div class="w-full h-20 rounded bg-black/30 flex items-center justify-center">
+                                    <.icon name="hero-play-circle" class="w-8 h-8 text-white/70" />
+                                  </div>
+                                <% else %>
+                                  <%= if is_audio do %>
+                                    <div class="w-full h-12 rounded bg-black/30 flex items-center justify-center gap-2">
+                                      <.icon
+                                        name="hero-musical-note"
+                                        class="w-5 h-5 text-white/70"
+                                      />
+                                      <span class="text-xs text-white/70">Audio</span>
+                                    </div>
+                                  <% else %>
+                                    <img
+                                      src={full_url}
+                                      alt=""
+                                      class="w-full h-20 object-cover rounded"
+                                    />
+                                  <% end %>
+                                <% end %>
+                                <%= if media_count > 1 do %>
+                                  <div class="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                                    +{media_count - 1}
+                                  </div>
+                                <% end %>
+                              </div>
+                            <% end %>
+
+                            <div class="flex items-center gap-3 mt-2 text-xs text-[var(--profile-text)] opacity-50">
+                              <span class="flex items-center gap-1">
+                                <.icon name="hero-heart" class="w-3 h-3" />
+                                {content_source.like_count}
+                              </span>
+                              <span class="flex items-center gap-1">
+                                <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                                {content_source.reply_count}
+                              </span>
+                            </div>
+                          </div>
+                        </.link>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="py-8 text-center">
+                      <.icon
+                        name="hero-rectangle-stack"
+                        class="w-10 h-10 mx-auto mb-2 text-[var(--profile-text)] opacity-20"
+                      />
+                      <p class="text-sm text-[var(--profile-text)] opacity-50">No posts yet</p>
+                    </div>
+                  <% end %>
+                  
+<!-- Community Posts -->
+                  <%= if show_community_posts && not (@profile && @profile.hide_community_posts) do %>
+                    <div class="pt-4 border-t border-white/10 space-y-2">
+                      <div class="flex items-center gap-2 text-sm text-[var(--profile-text)] opacity-60">
+                        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
+                        <span class="font-medium">Communities</span>
+                      </div>
+                      <%= for post <- Enum.take(@user_discussion_posts, 3) do %>
+                        <% community_name = post.conversation.name
+
+                        discussion_url =
+                          profile_url(
+                            @base_url,
+                            Elektrine.Messaging.discussion_post_path(
+                              community_name,
+                              post.id,
+                              post.title || post.content
+                            )
+                          ) %>
+                        <.link href={discussion_url} class="block group">
+                          <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                            <div class="text-xs mb-1 font-medium text-[var(--profile-accent)]">
+                              {community_name}
+                            </div>
+                            <%= if post.title do %>
+                              <p class="text-sm font-medium line-clamp-1 text-[var(--profile-text)]">
+                                {post.title}
+                              </p>
+                            <% else %>
+                              <p class="text-sm line-clamp-1 text-[var(--profile-text)] opacity-80">
+                                {post.content}
+                              </p>
+                            <% end %>
+                          </div>
+                        </.link>
+                      <% end %>
+                    </div>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+        
+<!-- Container Pattern -->
+        <%= if @profile && @profile.container_pattern && @profile.container_pattern != "none" do %>
+          <.container_pattern
+            pattern={@profile.container_pattern}
+            color={@profile.pattern_color || "#ffffff"}
+            id={"container-pattern-#{@user.id}"}
+            animated={@profile.pattern_animated || false}
+            speed={@profile.pattern_animation_speed || "normal"}
+            opacity={@profile.pattern_opacity || 0.2}
+          />
+        <% end %>
+        
+<!-- Top Right Buttons -->
+        <div class="absolute top-4 right-4 z-[3] flex gap-2">
+          <%= if not (@profile && @profile.hide_timeline) do %>
+            <!-- Desktop only - toggle blade -->
+            <button
+              phx-click="toggle_timeline_drawer"
+              data-action="toggle-timeline-drawer"
+              class={"hidden sm:flex w-10 h-10 rounded-full backdrop-blur-sm border border-white/20 hover:bg-white/20 items-center justify-center cursor-pointer #{if @show_timeline_drawer, do: "bg-white/30", else: "bg-white/10"}"}
+              title="View Timeline"
+            >
+              <.icon name="hero-rectangle-stack" class="w-5 h-5 text-[var(--profile-text)]" />
+            </button>
+          <% end %>
+          <%= if not (@profile && @profile.hide_share_button) do %>
+            <button
+              phx-click="show_share_modal"
+              data-action="show-share-modal"
+              class="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 flex items-center justify-center cursor-pointer"
+              title="Share profile"
+            >
+              <.icon name="hero-share" class="w-5 h-5 text-[var(--profile-text)]" />
+            </button>
+          <% end %>
+        </div>
+        
+<!-- Avatar and Name -->
+        <div class="relative z-[2] mt-16 sm:mt-20">
+          <div class="text-center mb-8">
+            <%= if not (@profile && @profile.hide_avatar) do %>
+              <div class="relative inline-block mb-4 avatar-effect-wrapper">
+                <% avatar_effect_class =
+                  if @profile && @profile.avatar_effect && @profile.avatar_effect != "none" do
+                    "avatar-effect-#{String.replace(@profile.avatar_effect, "_", "-")}"
+                  else
+                    ""
+                  end
+
+                # CSS custom properties for avatar effects
+                accent_color = (@profile && @profile.accent_color) || "#22d3ee"
+                {ar, ag, ab} = hex_to_rgb(accent_color)
+                accent_light = lighten_color(accent_color, 0.2) %>
+                <%= cond do %>
+                  <% @profile && @profile.use_discord_avatar && @discord_data && @discord_data.avatar -> %>
+                    <img
+                      src={@discord_data.avatar}
+                      alt={@user.handle || @user.username}
+                      class={"w-24 h-24 rounded-full border-4 shadow-2xl mx-auto #{avatar_effect_class}"}
+                      style={"border-color: #{accent_color}50; --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light}; --avatar-accent-rgb: #{ar}, #{ag}, #{ab};"}
+                    />
+                  <% @user.avatar -> %>
+                    <div
+                      class={"w-24 h-24 mx-auto rounded-full #{avatar_effect_class}"}
+                      style={"--avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light}; --avatar-accent-rgb: #{ar}, #{ag}, #{ab};"}
+                    >
+                      <.user_avatar
+                        user={@user}
+                        size="2xl"
+                        class="w-24 h-24 border-4 shadow-2xl rounded-full"
+                        style={"border-color: #{accent_color}50;"}
+                      />
+                    </div>
+                  <% true -> %>
+                    <!-- Default placeholder avatar -->
+                    <.placeholder_avatar
+                      size="3xl"
+                      class={"border-4 shadow-2xl mx-auto #{avatar_effect_class}"}
+                      style={"border-color: #{accent_color}50; background: #{accent_color}; --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light}; --avatar-accent-rgb: #{ar}, #{ag}, #{ab};"}
+                    />
+                <% end %>
+              </div>
+
+              <% # Get username effect classes and styles
+              effect_class =
+                case @profile && @profile.username_effect do
+                  "glow" -> "username-effect-glow"
+                  "rainbow" -> "username-effect-rainbow"
+                  "neon" -> "username-effect-neon"
+                  "shadow" -> "username-effect-shadow"
+                  "gradient" -> "username-effect-gradient"
+                  "glitch" -> "username-effect-glitch"
+                  "fire" -> "username-effect-fire"
+                  "ice" -> "username-effect-ice"
+                  "chrome" -> "username-effect-chrome"
+                  "holographic" -> "username-effect-holographic"
+                  "outline" -> "username-effect-outline"
+                  "double" -> "username-effect-double"
+                  "retro" -> "username-effect-retro"
+                  "pixelated" -> "username-effect-pixelated"
+                  _ -> ""
+                end
+
+              animated_effects = ["rainbow", "glitch", "neon", "fire", "ice", "holographic"]
+
+              animation_class =
+                if @profile && @profile.username_effect in animated_effects do
+                  case @profile.username_animation_speed do
+                    "slow" -> "username-animation-slow"
+                    "fast" -> "username-animation-fast"
+                    _ -> "username-animation-normal"
+                  end
+                else
+                  ""
+                end
+
+              effect_styles =
+                if @profile do
+                  case @profile.username_effect do
+                    effect when effect in ["glow", "neon", "outline", "pixelated"] ->
+                      glow_color = @profile.username_glow_color || "#8b5cf6"
+                      intensity = @profile.username_glow_intensity || 10
+                      "--glow-color: #{glow_color}; --glow-intensity: #{intensity}px"
+
+                    effect when effect in ["shadow", "double"] ->
+                      shadow_color = @profile.username_shadow_color || "#000000"
+                      "--shadow-color: #{shadow_color}"
+
+                    "gradient" ->
+                      gradient_from = @profile.username_gradient_from || "#8b5cf6"
+                      gradient_to = @profile.username_gradient_to || "#ec4899"
+                      "--gradient-from: #{gradient_from}; --gradient-to: #{gradient_to}"
+
+                    _ ->
+                      ""
+                  end
+                else
+                  ""
+                end %>
+              <h1 class={"text-2xl sm:text-3xl font-bold mb-2 text-center #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-lg", else: ""} text-[var(--profile-text)]"}>
+                <span class="relative inline-flex items-start">
+                  <%= if @profile && @profile.typewriter_title do %>
+                    <span
+                      id="profile-title-typewriter"
+                      phx-hook="TypewriterHook"
+                      data-text={
+                        (@profile && @profile.display_name) || @user.handle || @user.username
+                      }
+                      data-speed={@profile.typewriter_speed || "normal"}
+                      data-effect-class={"#{effect_class} #{animation_class}"}
+                      data-effect-style={effect_styles}
+                      data-data-text={
+                        (@profile && @profile.display_name) || @user.handle || @user.username
+                      }
+                      class="inline-block"
+                    >
+                    </span>
+                  <% else %>
+                    <.username_with_effects
+                      user={@user}
+                      display_name={true}
+                      verified_size="lg"
+                      show_verified={false}
+                      show_trust_level={false}
+                    />
+                  <% end %>
+                  <%= if @user.verified do %>
+                    <span class="ml-1.5 flex-shrink-0">
+                      <.verification_badge
+                        size="lg"
+                        color={(@profile && @profile.tick_color) || "#1d9bf0"}
+                        tooltip="Verified Account"
+                      />
+                    </span>
+                  <% end %>
+                </span>
+              </h1>
+            <% end %>
+            <p class={"mb-1 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""} text-[var(--profile-accent)]"}>
+              <span class="font-medium">@{@user.handle || @user.username}@z.org</span>
+            </p>
+            
+<!-- User Badges -->
+            <%= if @user_badges && length(@user_badges) > 0 do %>
+              <div class="flex items-center justify-center gap-1.5 mt-2 flex-wrap px-2">
+                <%= for badge <- @user_badges do %>
+                  <% # Get profile theme colors
+                  profile_accent = (@profile && @profile.accent_color) || "#22d3ee"
+                  _profile_text = (@profile && @profile.text_color) || "#ffffff"
+                  _profile_bg = (@profile && @profile.background_color) || "#000000"
+
+                  # Badge background: use badge color if set, otherwise blend with profile accent
+                  base_badge_color = badge.badge_color || profile_accent
+
+                  # Parse badge color to get darker gradient shades (like trending/discover)
+                  {r, g, b} = hex_to_rgb(base_badge_color)
+
+                  # Create darker gradient colors - from very dark (50%) to darker (65%)
+                  from_r = max(0, round(r * 0.5))
+                  from_g = max(0, round(g * 0.5))
+                  from_b = max(0, round(b * 0.5))
+
+                  to_r = max(0, round(r * 0.65))
+                  to_g = max(0, round(g * 0.65))
+                  to_b = max(0, round(b * 0.65))
+
+                  from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
+                  to_color = "rgb(#{to_r}, #{to_g}, #{to_b})"
+
+                  # Always use white text for readability
+                  text_color = "#ffffff"
+
+                  # Border with accent color hint
+                  {ar, ag, ab} = hex_to_rgb(profile_accent)
+                  border_color = "rgba(#{ar}, #{ag}, #{ab}, 0.3)"
+
+                  # Shadow color from accent with low opacity
+                  shadow_color = "rgba(#{ar}, #{ag}, #{ab}, 0.2)" %>
+                  <span
+                    class={"inline-flex items-center gap-1 px-2.5 py-1 rounded font-semibold text-xs transition-all duration-200 hover:opacity-95 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-lg", else: ""}"}
+                    style={"background: linear-gradient(to right, #{from_color}, #{to_color}); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #{text_color}; border: 1px solid #{border_color}; box-shadow: 0 2px 4px #{shadow_color};"}
+                    title={badge.tooltip}
+                  >
+                    <span class="tracking-wide">{badge.badge_text || badge.badge_type}</span>
+                  </span>
+                <% end %>
+              </div>
+            <% end %>
+            
+<!-- Follow Stats -->
+            <%= if not (@profile && @profile.hide_followers) do %>
+              <div class={"flex items-center justify-center gap-4 mt-3 mb-3 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""}"}>
+                <button
+                  phx-click="show_followers"
+                  data-action="show-followers"
+                  class="hover:underline transition-all text-[var(--profile-text)]"
+                  title="View followers"
+                >
+                  <span class="font-bold">{@follower_count || 0}</span>
+                  <span class="text-sm ml-1">followers</span>
+                </button>
+                <span class="text-[var(--profile-text)] opacity-50">•</span>
+                <button
+                  phx-click="show_following"
+                  data-action="show-following"
+                  class="hover:underline transition-all text-[var(--profile-text)]"
+                  title="View following"
+                >
+                  <span class="font-bold">{@following_count || 0}</span>
+                  <span class="text-sm ml-1">following</span>
+                </button>
+              </div>
+            <% end %>
+            
+<!-- Friend & Follow Buttons -->
+            <%= if @current_user && @current_user.id != @user.id do %>
+              <% # Determine button text color based on accent color luminance
+              btn_accent = (@profile && @profile.accent_color) || "#22d3ee"
+              btn_text_color = if is_light_color(btn_accent), do: "#000000", else: "#ffffff" %>
+              <div class="mb-4 flex gap-2 justify-center flex-wrap">
+                <!-- Friend Button -->
+                <%= cond do %>
+                  <% Map.get(@friend_status, :are_friends) -> %>
+                    <button
+                      phx-click="unfriend_user"
+                      phx-value-user_id={@user.id}
+                      data-action="unfriend"
+                      class="btn btn-outline btn-sm sm:btn-md"
+                      style="border-color: var(--profile-accent); color: var(--profile-accent);"
+                      title="Remove friend"
+                    >
+                      <.icon name="hero-check" class="w-4 h-4" /> Friends
+                    </button>
+                  <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.recipient_id == @current_user.id -> %>
+                    <button
+                      phx-click="accept_friend_request"
+                      phx-value-user_id={@user.id}
+                      data-action="accept-friend-request"
+                      class="btn btn-sm sm:btn-md"
+                      style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
+                      title="Accept friend request"
+                    >
+                      <.icon name="hero-user-plus" class="w-4 h-4" /> Accept Request
+                    </button>
+                  <% Map.get(@friend_status, :pending_request) && @friend_status.pending_request.requester_id == @current_user.id -> %>
+                    <button
+                      phx-click="cancel_friend_request"
+                      phx-value-user_id={@user.id}
+                      data-action="cancel-friend-request"
+                      class="btn btn-ghost btn-sm sm:btn-md opacity-60"
+                      title="Cancel friend request"
+                    >
+                      <.icon name="hero-clock" class="w-4 h-4" /> Pending
+                    </button>
+                  <% true -> %>
+                    <button
+                      phx-click="send_friend_request"
+                      phx-value-user_id={@user.id}
+                      data-action="send-friend-request"
+                      class="btn btn-sm sm:btn-md"
+                      style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
+                      title="Send friend request"
+                    >
+                      Add Friend
+                    </button>
+                <% end %>
+                
+<!-- Follow Button -->
+                <button
+                  phx-click="toggle_follow"
+                  data-action="toggle-follow"
+                  data-following={@is_following}
+                  class={"btn btn-sm sm:btn-md #{if @is_following, do: "btn-outline", else: ""}"}
+                  style={
+                    if @is_following,
+                      do: "border-color: var(--profile-accent); color: var(--profile-accent);",
+                      else: "background-color: var(--profile-accent); color: #{btn_text_color};"
+                  }
+                >
+                  {if @is_following, do: "Following", else: "Follow"}
+                </button>
+                
+<!-- Report Button -->
+                <%= if !@profile_static do %>
+                  <button
+                    phx-click="show_report_modal"
+                    phx-value-type="user"
+                    phx-value-id={@user.id}
+                    class="btn btn-ghost btn-sm sm:btn-md text-error hover:bg-error/10"
+                    title="Report this user"
+                  >
+                    <.icon name="hero-flag" class="w-4 h-4" />
+                  </button>
+                <% end %>
+              </div>
+            <% end %>
+            <%= if @profile && @profile.description do %>
+              <div class={
+                if @profile.text_background,
+                  do:
+                    "bg-white/5 backdrop-blur-sm border border-white/10 shadow-lg rounded-lg p-3 sm:p-4 mt-4",
+                  else: ""
+              }>
+                <%= if @profile.typewriter_effect do %>
+                  <div
+                    id="profile-description-typewriter"
+                    phx-hook="TypewriterHook"
+                    data-text={Elektrine.Markdown.to_text(@profile.description)}
+                    data-speed={@profile.typewriter_speed || "normal"}
+                    class={"text-sm leading-relaxed #{if not @profile.text_background, do: "px-2 sm:px-0", else: ""} #{if @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""}"}
+                    style={"color: #{(@profile && @profile.text_color) || "#d1d5db"}; min-height: 1.25rem;"}
+                  >
+                    &nbsp;
+                  </div>
+                <% else %>
+                  <div
+                    class={"text-sm leading-relaxed prose prose-sm prose-invert max-w-none #{if not @profile.text_background, do: "px-2 sm:px-0", else: ""} #{if @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""}"}
+                    style={"color: #{(@profile && @profile.text_color) || "#d1d5db"}"}
+                  >
+                    {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@profile.description))}
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+            <%= if @profile && @profile.location do %>
+              <div class={
+                if @profile.text_background,
+                  do:
+                    "bg-white/5 backdrop-blur-sm border border-white/10 shadow-lg rounded-lg p-2 sm:p-3 mt-2 inline-flex items-center justify-center",
+                  else: "flex items-center justify-center mt-2"
+              }>
+                <svg
+                  class="w-4 h-4 mr-2 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                <p class="text-gray-400 text-sm">{@profile.location}</p>
+              </div>
+            <% end %>
+          </div>
+          
+<!-- Social Links (Mixed Styles) -->
+          <%= if @links && length(@links) > 0 do %>
+            <div class="mb-8 w-full">
+              <% # Get default style from profile
+              default_style = (@profile && @profile.link_display_style) || "circular"
+
+              # Group links by their individual display style (or use default)
+              {circular_links, full_width_links} =
+                Enum.split_with(@links, fn link ->
+                  (Map.get(link, :display_style) || default_style) == "circular"
+                end)
+
+              # Group full-width links by section
+              full_width_by_section =
+                Enum.group_by(full_width_links, &Map.get(&1, :section))
+                |> Enum.sort_by(fn {_section, section_links} ->
+                  section_links |> Enum.map(&Map.get(&1, :position, 0)) |> Enum.min(fn -> 0 end)
+                end)
+
+              # Sort circular links by position (all in one row, no sections)
+              circular_links = Enum.sort_by(circular_links, &Map.get(&1, :position, 0)) %>
+              
+<!-- Circular Icon Links -->
+              <%= if length(circular_links) > 0 do %>
+                <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-6">
+                  <%= for link <- circular_links do %>
+                    <% # Get link highlight effect (per-link or fallback to profile default)
+                    effect =
+                      Map.get(link, :highlight_effect) ||
+                        (@profile && @profile.link_highlight_effect) || "none"
+
+                    highlight_class =
+                      case effect do
+                        "glow" -> "link-effect-glow"
+                        "pulse" -> "link-effect-pulse"
+                        "border" -> "link-effect-border"
+                        "shine" -> "link-effect-shine"
+                        _ -> ""
+                      end %>
+                    <a
+                      href={if Map.get(link, :id), do: ~p"/l/#{link.id}", else: link.url}
+                      target={
+                        if String.starts_with?(link.url, "mailto:"), do: "_self", else: "_blank"
+                      }
+                      rel={
+                        if String.starts_with?(link.url, "http"),
+                          do: "noopener noreferrer",
+                          else: nil
+                      }
+                      class="group relative flex items-center justify-center"
+                      title={link.title}
+                    >
+                      <div
+                        class={"flex items-center justify-center w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all duration-300 #{highlight_class}"}
+                        style={"border-color: #{(@profile && @profile.accent_color) || "#fb923c"}50; --link-accent: #{(@profile && @profile.accent_color) || "#fb923c"};"}
+                      >
+                        <div
+                          class="group-hover:text-white transition-colors"
+                          style={"color: #{(@profile && @profile.icon_color) || (@profile && @profile.accent_color) || "#fb923c"}"}
+                        >
+                          {Phoenix.HTML.raw(
+                            Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
+                          )}
+                        </div>
+                      </div>
+                      
+<!-- Tooltip -->
+                      <div class="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-3 py-1.5 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                        {link.title}
+                        <%= if link.description do %>
+                          <br /><span class="text-xs text-gray-300">{link.description}</span>
+                        <% end %>
+                      </div>
+                    </a>
+                  <% end %>
+                </div>
+              <% end %>
+              
+<!-- Full Width Links -->
+              <%= if length(full_width_links) > 0 do %>
+                <div class="space-y-3 sm:space-y-4 mb-6">
+                  <%= for {section, section_links} <- full_width_by_section do %>
+                    <%= if section do %>
+                      <h3
+                        class="text-center font-bold text-base sm:text-lg mb-2 sm:mb-3"
+                        style={"color: #{(@profile && @profile.text_color) || "white"}"}
+                      >
+                        {section}
+                      </h3>
+                    <% end %>
+
+                    <%= for link <- section_links do %>
+                      <% # Get link highlight effect (per-link or fallback to profile default)
+                      effect =
+                        Map.get(link, :highlight_effect) ||
+                          (@profile && @profile.link_highlight_effect) || "none"
+
+                      highlight_class =
+                        case effect do
+                          "glow" -> "link-effect-glow"
+                          "pulse" -> "link-effect-pulse"
+                          "border" -> "link-effect-border"
+                          "shine" -> "link-effect-shine"
+                          _ -> ""
+                        end %>
+                      <a
+                        href={if Map.get(link, :id), do: ~p"/l/#{link.id}", else: link.url}
+                        target={
+                          if String.starts_with?(link.url, "mailto:"), do: "_self", else: "_blank"
+                        }
+                        rel={
+                          if String.starts_with?(link.url, "http"),
+                            do: "noopener noreferrer",
+                            else: nil
+                        }
+                        class={"group relative flex items-center min-h-14 sm:min-h-16 px-4 sm:px-6 py-3 sm:py-4 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 #{highlight_class}"}
+                        style={"background-color: #{(@profile && @profile.accent_color) || "#ffffff"}; color: #{(@profile && @profile.background_color) || "#000000"}; border: 2px solid #{(@profile && @profile.background_color) || "#000000"}; box-shadow: 2px 3px 0 #{(@profile && @profile.background_color) || "#000000"}; --link-accent: #{(@profile && @profile.accent_color) || "#ffffff"};"}
+                      >
+                        <%= if Map.get(link, :thumbnail_url) do %>
+                          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg mr-3 sm:mr-4 flex-shrink-0 overflow-hidden">
+                            <img
+                              src={Map.get(link, :thumbnail_url)}
+                              alt={link.title}
+                              class="w-full h-full object-cover"
+                            />
+                          </div>
+                        <% end %>
+                        <span class="text-sm sm:text-base font-medium truncate flex-1 text-left">
+                          {link.title}
+                        </span>
+                      </a>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Discord Status -->
+          <%= if @profile && @profile.show_discord_presence && @profile.discord_user_id do %>
+            <div class="mb-6">
+              <%= if @discord_data do %>
+                <!-- Real Discord Data -->
+                <div class="flex items-center justify-center space-x-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                  <div class="relative">
+                    <img
+                      src={@discord_data.avatar}
+                      alt="Discord avatar"
+                      class="w-10 h-10 rounded-full"
+                    />
+                    <div class={"absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white #{
+                case @discord_data.status do
+                  "online" -> "bg-green-500"
+                  "idle" -> "bg-yellow-500"
+                  "dnd" -> "bg-red-800"
+                  _ -> "bg-gray-500"
+                end
+              }"}>
+                    </div>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-white font-medium text-sm">{@discord_data.username}</p>
+                    <p class="text-gray-300 text-xs">
+                      {Elektrine.Discord.format_status(@discord_data)}
+                    </p>
+                    
+<!-- Discord ID (click to copy) -->
+                    <button
+                      data-copy-to-clipboard={@profile.discord_user_id}
+                      class="text-gray-500 text-xs hover:text-gray-300 transition-colors mt-1 group cursor-pointer"
+                      title="Click to copy Discord ID"
+                    >
+                      <span>ID: {@profile.discord_user_id}</span>
+                      <span class="hidden group-hover:inline">Click to copy</span>
+                    </button>
+                    
+<!-- Custom Status -->
+                    <%= if @discord_data.custom_status do %>
+                      <p class="text-gray-400 text-xs italic mt-1">
+                        "{@discord_data.custom_status}"
+                      </p>
+                    <% end %>
+                    
+<!-- Current Activity -->
+                    <%= if @discord_data.activities != [] do %>
+                      <%= for activity <- Enum.take(@discord_data.activities, 1) do %>
+                        <p class="text-purple-300 text-xs mt-1">
+                          <%= case activity.type do %>
+                            <% 0 -> %>
+                              Playing {activity.name}
+                            <% 1 -> %>
+                              Streaming {activity.name}
+                            <% 2 -> %>
+                              Listening to {activity.name}
+                            <% 3 -> %>
+                              Watching {activity.name}
+                            <% _ -> %>
+                              {activity.name}
+                          <% end %>
+                        </p>
+                      <% end %>
+                    <% end %>
+                    
+<!-- Spotify -->
+                    <%= if @discord_data.spotify do %>
+                      <div class="flex items-center justify-center mt-2 text-xs text-green-400">
+                        <.brand_icon name="spotify" class="w-3 h-3 mr-1" />
+                        <span class="truncate max-w-48">
+                          {@discord_data.spotify.song} - {@discord_data.spotify.artist}
+                        </span>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Music Player -->
+          <%= if @profile && @profile.music_url do %>
+            <div class="mb-6">
+              <div class="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
+                <div class="flex items-center mb-3">
+                  <div
+                    class="h-4 w-4 mr-2"
+                    style={"color: #{(@profile && @profile.accent_color) || "#fb923c"}"}
+                  >
+                    <.icon name="hero-musical-note" class="h-4 w-4" />
+                  </div>
+                  <span class="text-white font-semibold text-sm">Now Playing</span>
+                  <%= if @profile.music_title do %>
+                    <span class="text-gray-300 text-sm ml-2">{@profile.music_title}</span>
+                  <% end %>
+                </div>
+                
+<!-- Music Embed -->
+                <div class="rounded-lg overflow-hidden">
+                  <iframe
+                    src={@profile.music_url}
+                    width="100%"
+                    height="152"
+                    frameborder="0"
+                    allowtransparency="true"
+                    allow="encrypted-media"
+                  >
+                  </iframe>
+                </div>
+              </div>
+            </div>
+          <% end %>
+          
+<!-- Profile Widgets -->
+          <%= if @profile && is_list(@profile.widgets) && length(@profile.widgets) > 0 do %>
+            <div class="mb-8 space-y-3 sm:space-y-4 w-full">
+              <%= for widget <- @profile.widgets do %>
+                <div class="card bg-white/5 backdrop-blur-sm border border-white/10 shadow-lg">
+                  <div class="card-body p-3 sm:p-4">
+                    <%= if widget.title do %>
+                      <h3
+                        class="card-title text-base sm:text-lg mb-2 sm:mb-3"
+                        style={"color: #{(@profile && @profile.text_color) || "white"}"}
+                      >
+                        {widget.title}
+                      </h3>
+                    <% end %>
+
+                    <%= case widget.widget_type do %>
+                      <% "text" -> %>
+                        <div
+                          class="prose prose-sm max-w-none"
+                          style={"color: #{(@profile && @profile.text_color) || "#d1d5db"}"}
+                        >
+                          {Phoenix.HTML.raw(
+                            Phoenix.HTML.html_escape(widget.content)
+                            |> Phoenix.HTML.safe_to_string()
+                            |> String.replace("\n", "<br>")
+                          )}
+                        </div>
+                      <% "image" -> %>
+                        <%= if @profile_static do %>
+                          <a
+                            href={widget.content}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-action="open-widget-image"
+                            data-image-url={widget.content}
+                            data-image-alt={widget.title}
+                            class="block w-full rounded-lg overflow-hidden cursor-zoom-in"
+                          >
+                            <img
+                              src={widget.content}
+                              alt={widget.title}
+                              class="w-full rounded-lg"
+                            />
+                          </a>
+                        <% else %>
+                          <button
+                            type="button"
+                            phx-click="open_image_modal"
+                            phx-value-images={Jason.encode!([widget.content])}
+                            phx-value-index="0"
+                            class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+                          >
+                            <img
+                              src={widget.content}
+                              alt={widget.title}
+                              class="w-full rounded-lg"
+                            />
+                          </button>
+                        <% end %>
+                      <% "spotify" -> %>
+                        <div class="w-full">
+                          <iframe
+                            src={widget.content}
+                            width="100%"
+                            height="232"
+                            class="sm:h-[352px]"
+                            frameborder="0"
+                            allowtransparency="true"
+                            allow="encrypted-media"
+                          >
+                          </iframe>
+                        </div>
+                      <% "youtube" -> %>
+                        <div class="aspect-video w-full">
+                          <iframe
+                            src={widget.content}
+                            width="100%"
+                            height="100%"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen
+                            class="rounded-lg"
+                          >
+                          </iframe>
+                        </div>
+                      <% "github_stats" -> %>
+                        <%= if String.match?(widget.content, ~r/^[a-zA-Z0-9\-]{1,39}$/) do %>
+                          <div class="flex flex-col gap-2">
+                            <img
+                              src={"https://github-readme-stats.vercel.app/api?username=#{URI.encode(widget.content)}&show_icons=true&theme=dark&hide_border=true"}
+                              alt="GitHub Stats"
+                              class="w-full h-auto rounded-lg"
+                            />
+                            <img
+                              src={"https://github-readme-streak-stats.herokuapp.com/?user=#{URI.encode(widget.content)}&theme=dark&hide_border=true"}
+                              alt="GitHub Streak"
+                              class="w-full h-auto rounded-lg"
+                            />
+                          </div>
+                        <% else %>
+                          <div class="text-sm text-error">Invalid GitHub username</div>
+                        <% end %>
+                      <% "discord_status" -> %>
+                        <%= if String.match?(widget.content, ~r/^[0-9]{1,20}$/) do %>
+                          <% widget_discord_data =
+                            Elektrine.Discord.get_user_presence(widget.content) %>
+                          <%= if widget_discord_data do %>
+                            <div class="flex items-center space-x-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                              <div class="relative">
+                                <img
+                                  src={widget_discord_data.avatar}
+                                  alt="Discord avatar"
+                                  class="w-12 h-12 rounded-full"
+                                />
+                                <div class={"absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white #{
+                            case widget_discord_data.status do
+                              "online" -> "bg-green-500"
+                              "idle" -> "bg-yellow-500"
+                              "dnd" -> "bg-red-800"
+                              _ -> "bg-gray-500"
+                            end
+                          }"}>
+                                </div>
+                              </div>
+                              <div class="flex-1">
+                                <p class="text-white font-medium text-sm">
+                                  {widget_discord_data.username}
+                                </p>
+                                <p class="text-gray-300 text-xs">
+                                  {Elektrine.Discord.format_status(widget_discord_data)}
+                                </p>
+                                <%= if widget_discord_data.custom_status do %>
+                                  <p class="text-gray-400 text-xs italic mt-1">
+                                    "{widget_discord_data.custom_status}"
+                                  </p>
+                                <% end %>
+                                <%= if widget_discord_data.activities != [] do %>
+                                  <%= for activity <- Enum.take(widget_discord_data.activities, 1) do %>
+                                    <p class="text-purple-300 text-xs mt-1">
+                                      <%= case activity.type do %>
+                                        <% 0 -> %>
+                                          Playing {activity.name}
+                                        <% 1 -> %>
+                                          Streaming {activity.name}
+                                        <% 2 -> %>
+                                          Listening to {activity.name}
+                                        <% 3 -> %>
+                                          Watching {activity.name}
+                                        <% _ -> %>
+                                          {activity.name}
+                                      <% end %>
+                                    </p>
+                                  <% end %>
+                                <% end %>
+                                <%= if widget_discord_data.spotify do %>
+                                  <div class="flex items-center mt-2 text-xs text-green-400">
+                                    <.brand_icon name="spotify" class="w-3 h-3 mr-1" />
+                                    <span class="truncate">
+                                      {widget_discord_data.spotify.song} - {widget_discord_data.spotify.artist}
+                                    </span>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          <% else %>
+                            <div class="text-sm text-error">Could not fetch Discord status</div>
+                          <% end %>
+                        <% else %>
+                          <div class="text-sm text-error">Invalid Discord ID</div>
+                        <% end %>
+                      <% _ -> %>
+                        <div class="text-sm text-error">
+                          Unknown widget type
+                        </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Stats Counter -->
+          <%= if not (@profile && (@profile.hide_view_counter && @profile.hide_uid)) do %>
+            <div class="text-center mb-6">
+              <div class="inline-flex items-center space-x-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2">
+                <%= if not (@profile && @profile.hide_view_counter) do %>
+                  <div class="flex items-center space-x-1">
+                    <div style={"color: #{(@profile && @profile.accent_color) || "#fb923c"}"}>
+                      <.icon name="hero-eye" class="h-4 w-4" />
+                    </div>
+                    <span class="text-white text-sm font-medium">
+                      {if @profile, do: @profile.page_views || 0, else: 0}
+                    </span>
+                    <span class="text-gray-300 text-xs">views</span>
+                  </div>
+                <% end %>
+                <%= if not (@profile && @profile.hide_view_counter) && not (@profile && @profile.hide_uid) do %>
+                  <div class="w-px h-4 bg-white/20"></div>
+                <% end %>
+                <%= if not (@profile && @profile.hide_uid) do %>
+                  <div class="flex items-center space-x-1">
+                    <div style={"color: #{(@profile && @profile.accent_color) || "#fb923c"}"}>
+                      <.icon name="hero-hashtag" class="h-4 w-4" />
+                    </div>
+                    <span class="text-white text-sm font-medium">#{@user_number}</span>
+                    <span class="text-gray-300 text-xs">uid</span>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+<!-- Mobile Timeline Section (below profile) -->
+    <%= if not (@profile && @profile.hide_timeline) do %>
+      <% # Use same styling as middle column
+      mobile_container_color = (@profile && @profile.container_background_color) || "#000000"
+      mobile_container_opacity = (@profile && @profile.container_opacity) || 0.4
+      {mr, mg, mb} = hex_to_rgb(mobile_container_color) %>
+      <div
+        class="sm:hidden w-full max-w-full px-4 pt-4 pb-4"
+        style={"--profile-text: #{(@profile && @profile.text_color) || "white"}; --profile-accent: #{(@profile && @profile.accent_color) || "#22d3ee"}; background-color: rgba(#{mr}, #{mg}, #{mb}, #{mobile_container_opacity});"}
+      >
+        <div>
+          <div class="flex items-center gap-2 mb-4">
+            <.icon name="hero-rectangle-stack" class="w-5 h-5 text-[var(--profile-accent)]" />
+            <h2 class="text-lg font-bold text-[var(--profile-text)]">Timeline</h2>
+            <span class="text-sm text-[var(--profile-text)] opacity-60 ml-auto">
+              <%= cond do %>
+                <% is_nil(@user_timeline_posts) -> %>
+                <% @user_timeline_posts == [] -> %>
+                  0 posts
+                <% true -> %>
+                  {length(@user_timeline_posts)} posts
+              <% end %>
+            </span>
+          </div>
+
+          <%= if @user_timeline_posts && length(@user_timeline_posts) > 0 do %>
+            <div class="space-y-3">
+              <!-- Pinned Posts -->
+              <%= if @pinned_posts && length(@pinned_posts) > 0 do %>
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2 text-sm text-[var(--profile-text)] opacity-60">
+                    <.icon name="hero-map-pin" class="w-4 h-4" />
+                    <span class="font-medium">Pinned</span>
+                  </div>
+                  <%= for post <- @pinned_posts do %>
+                    <.link
+                      href={profile_url(@base_url, ~p"/timeline/post/#{post.id}")}
+                      class="block"
+                    >
+                      <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                        <%= if post.title do %>
+                          <h3 class="font-semibold text-sm line-clamp-1 text-[var(--profile-text)]">
+                            {post.title}
+                          </h3>
+                        <% end %>
+                        <%= if post.content && post.content != "" do %>
+                          <p class="text-sm line-clamp-2 mt-1 text-[var(--profile-text)] opacity-70">
+                            {String.slice(post.content, 0..80)}
+                          </p>
+                        <% end %>
+                      </div>
+                    </.link>
+                  <% end %>
+                </div>
+              <% end %>
+              
+<!-- Recent Posts -->
+              <div class="space-y-2">
+                <div class="flex items-center gap-2 text-sm text-[var(--profile-text)] opacity-60">
+                  <.icon name="hero-clock" class="w-4 h-4" />
+                  <span class="font-medium">Recent</span>
+                </div>
+                <%= for post <- Enum.take(@user_timeline_posts, 6) do %>
+                  <% is_boost =
+                    post.shared_message_id != nil && Ecto.assoc_loaded?(post.shared_message) &&
+                      post.shared_message != nil
+
+                  content_source = if is_boost, do: post.shared_message, else: post
+
+                  display_content =
+                    if content_source.content && String.trim(content_source.content) != "",
+                      do: content_source.content,
+                      else: ""
+
+                  has_media = content_source.media_urls && !Enum.empty?(content_source.media_urls)
+
+                  has_poll =
+                    Map.get(content_source, :post_type) == "poll" &&
+                      Ecto.assoc_loaded?(Map.get(content_source, :poll)) &&
+                      Map.get(content_source, :poll)
+
+                  has_quote =
+                    Map.get(content_source, :quoted_message_id) &&
+                      Ecto.assoc_loaded?(Map.get(content_source, :quoted_message)) &&
+                      Map.get(content_source, :quoted_message)
+
+                  post_link =
+                    if is_boost,
+                      do: profile_url(@base_url, ~p"/timeline/post/#{post.shared_message_id}"),
+                      else: profile_url(@base_url, ~p"/timeline/post/#{post.id}") %>
+                  <.link href={post_link} class="block">
+                    <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                      <%= if is_boost do %>
+                        <div class="flex items-center gap-1 mb-1 text-xs text-[var(--profile-accent)] opacity-70">
+                          <.icon name="hero-arrow-path" class="w-3 h-3" />
+                          <span>Boosted</span>
+                        </div>
+                      <% end %>
+
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs text-[var(--profile-accent)] opacity-70">
+                          {Elektrine.Social.time_ago_in_words(post.inserted_at)}
+                        </span>
+                        <%= if has_media do %>
+                          <span class="text-xs text-[var(--profile-text)] opacity-50">
+                            <.icon name="hero-photo" class="w-3 h-3 inline" />
+                          </span>
+                        <% end %>
+                      </div>
+
+                      <%= if display_content != "" do %>
+                        <p class="text-sm line-clamp-2 text-[var(--profile-text)] opacity-90">
+                          {display_content}
+                        </p>
+                      <% end %>
+
+                      <%= if has_poll do %>
+                        <% poll = content_source.poll %>
+                        <div class="mt-2 p-2 rounded border border-white/15 bg-white/5">
+                          <div class="text-xs font-medium text-[var(--profile-accent)] mb-1">
+                            <.icon name="hero-chart-bar" class="w-3 h-3 inline" /> Poll
+                          </div>
+                          <div class="text-sm text-[var(--profile-text)] line-clamp-1">
+                            {poll.question}
+                          </div>
+                          <div class="text-xs text-[var(--profile-text)] opacity-60 mt-1">
+                            {length(poll.options || [])} options · {poll.voters_count ||
+                              poll.total_votes || 0} votes
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%= if has_quote do %>
+                        <% quoted = content_source.quoted_message
+
+                        quote_author =
+                          cond do
+                            Ecto.assoc_loaded?(quoted.remote_actor) && quoted.remote_actor ->
+                              "@#{quoted.remote_actor.username}@#{quoted.remote_actor.domain}"
+
+                            Ecto.assoc_loaded?(quoted.sender) && quoted.sender ->
+                              "@#{quoted.sender.handle || quoted.sender.username}"
+
+                            true ->
+                              "Quoted post"
+                          end %>
+                        <div class="mt-2 p-2 rounded border border-white/15 bg-black/20">
+                          <div class="text-xs text-[var(--profile-accent)] opacity-80 mb-1">
+                            <.icon
+                              name="hero-chat-bubble-oval-left-ellipsis"
+                              class="w-3 h-3 inline"
+                            />
+                            {quote_author}
+                          </div>
+                          <%= if quoted.content && quoted.content != "" do %>
+                            <p class="text-xs line-clamp-2 text-[var(--profile-text)] opacity-80">
+                              {quoted.content}
+                            </p>
+                          <% else %>
+                            <p class="text-xs text-[var(--profile-text)] opacity-60">
+                              Quoted post content
+                            </p>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <%= if has_media do %>
+                        <% first_media = List.first(content_source.media_urls)
+                        full_url = Elektrine.Uploads.attachment_url(first_media)
+                        is_video = String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+                        is_audio = String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+                        media_count = length(content_source.media_urls) %>
+                        <div class="mt-2 relative">
+                          <%= if is_video do %>
+                            <div class="w-full h-20 rounded bg-black/30 flex items-center justify-center">
+                              <.icon name="hero-play-circle" class="w-8 h-8 text-white/70" />
+                            </div>
+                          <% else %>
+                            <%= if is_audio do %>
+                              <div class="w-full h-12 rounded bg-black/30 flex items-center justify-center gap-2">
+                                <.icon name="hero-musical-note" class="w-5 h-5 text-white/70" />
+                                <span class="text-xs text-white/70">Audio</span>
+                              </div>
+                            <% else %>
+                              <img src={full_url} alt="" class="w-full h-20 object-cover rounded" />
+                            <% end %>
+                          <% end %>
+                          <%= if media_count > 1 do %>
+                            <div class="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                              +{media_count - 1}
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                      <div class="flex items-center gap-3 mt-2 text-xs text-[var(--profile-text)] opacity-50">
+                        <span class="flex items-center gap-1">
+                          <.icon name="hero-heart" class="w-3 h-3" />
+                          {content_source.like_count}
+                        </span>
+                        <span class="flex items-center gap-1">
+                          <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                          {content_source.reply_count}
+                        </span>
+                      </div>
+                    </div>
+                  </.link>
+                <% end %>
+              </div>
+            </div>
+          <% else %>
+            <div class="py-8 text-center">
+              <.icon
+                name="hero-rectangle-stack"
+                class="w-10 h-10 mx-auto mb-2 text-[var(--profile-text)] opacity-20"
+              />
+              <p class="text-sm text-[var(--profile-text)] opacity-50">No posts yet</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    
+<!-- Followers Modal -->
+    <%= if @profile_static do %>
+      <div class="modal" data-modal="followers">
+        <div class="modal-box max-w-md">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Followers</h2>
+            <button data-action="close-modal" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="max-h-72 overflow-y-auto" data-role="followers-list"></div>
+          <p class="text-center text-base-content/60 hidden" data-role="followers-empty">
+            No followers yet
+          </p>
+        </div>
+        <div class="modal-backdrop" data-action="close-modal"></div>
+      </div>
+    <% else %>
+      <%= if @show_followers do %>
+        <div class="modal modal-open">
+          <div class="modal-box max-w-md">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold">Followers</h2>
+              <button phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
+                <.icon name="hero-x-mark" class="w-5 h-5" />
+              </button>
+            </div>
+
+            <div class="max-h-72 overflow-y-auto">
+              <%= if length(@followers_list) > 0 do %>
+                <div class="space-y-2">
+                  <%= for follower <- @followers_list do %>
+                    <%= if follower.type == "remote" do %>
+                      <!-- Remote follower from Mastodon -->
+                      <.link
+                        href={
+                          profile_url(
+                            @base_url,
+                            "/remote/#{follower.remote_actor.username}@#{follower.remote_actor.domain}"
+                          )
+                        }
+                        class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                      >
+                        <%= if follower.remote_actor.avatar_url do %>
+                          <img
+                            src={follower.remote_actor.avatar_url}
+                            class="w-10 h-10 rounded-full object-cover"
+                            alt={follower.remote_actor.username}
+                          />
+                        <% else %>
+                          <.placeholder_avatar size="md" />
+                        <% end %>
+                        <div class="flex-1 min-w-0">
+                          <p class="font-medium truncate">
+                            {raw(
+                              render_display_name_with_emojis(
+                                follower.remote_actor.display_name ||
+                                  follower.remote_actor.username,
+                                follower.remote_actor.domain
+                              )
+                            )}
+                          </p>
+                          <p class="text-xs opacity-70 truncate">
+                            @{follower.remote_actor.username}@{follower.remote_actor.domain}
+                          </p>
+                        </div>
+                      </.link>
+                    <% else %>
+                      <!-- Local follower -->
+                      <.link
+                        href={
+                          profile_url(
+                            @base_url,
+                            ~p"/#{follower.user.handle || follower.user.username}"
+                          )
+                        }
+                        class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                      >
+                        <.user_avatar user={follower.user} size="md" />
+                        <div class="flex-1">
+                          <span class="font-medium">
+                            {raw(
+                              render_display_name_with_emojis(
+                                follower.user.display_name || follower.user.username,
+                                nil
+                              )
+                            )}
+                          </span>
+                          <p class="text-xs opacity-70">
+                            @{follower.user.handle || follower.user.username}@z.org
+                          </p>
+                        </div>
+                      </.link>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% else %>
+                <p class="text-center text-base-content/60">No followers yet</p>
+              <% end %>
+            </div>
+          </div>
+          <div class="modal-backdrop" phx-click="close_modal"></div>
+        </div>
+      <% end %>
+    <% end %>
+    
+<!-- Following Modal -->
+    <%= if @profile_static do %>
+      <div class="modal" data-modal="following">
+        <div class="modal-box max-w-md">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Following</h2>
+            <button data-action="close-modal" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="max-h-72 overflow-y-auto" data-role="following-list"></div>
+          <p class="text-center text-base-content/60 hidden" data-role="following-empty">
+            Not following anyone yet
+          </p>
+        </div>
+        <div class="modal-backdrop" data-action="close-modal"></div>
+      </div>
+    <% else %>
+      <%= if @show_following do %>
+        <div class="modal modal-open">
+          <div class="modal-box max-w-md">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold">Following</h2>
+              <button phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
+                <.icon name="hero-x-mark" class="w-5 h-5" />
+              </button>
+            </div>
+
+            <div class="max-h-72 overflow-y-auto">
+              <%= if length(@following_list) > 0 do %>
+                <div class="space-y-2">
+                  <%= for following <- @following_list do %>
+                    <%= if following.type == "remote" do %>
+                      <!-- Remote user from Mastodon -->
+                      <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
+                        <.link
+                          href={
+                            profile_url(
+                              @base_url,
+                              "/remote/#{following.remote_actor.username}@#{following.remote_actor.domain}"
+                            )
+                          }
+                          class="flex items-center gap-3 flex-1 min-w-0"
+                        >
+                          <%= if following.remote_actor.avatar_url do %>
+                            <img
+                              src={following.remote_actor.avatar_url}
+                              class="w-10 h-10 rounded-full object-cover"
+                              alt={following.remote_actor.username}
+                            />
+                          <% else %>
+                            <.placeholder_avatar size="md" />
+                          <% end %>
+                          <div class="flex-1 min-w-0">
+                            <p class="font-medium truncate">
+                              {raw(
+                                render_display_name_with_emojis(
+                                  following.remote_actor.display_name ||
+                                    following.remote_actor.username,
+                                  following.remote_actor.domain
+                                )
+                              )}
+                            </p>
+                            <p class="text-xs opacity-70 truncate">
+                              @{following.remote_actor.username}@{following.remote_actor.domain}
+                            </p>
+                          </div>
+                        </.link>
+                        <%= if @current_user && @current_user.id == @user.id do %>
+                          <button
+                            phx-click="unfollow_remote"
+                            phx-value-remote-actor-id={following.remote_actor.id}
+                            class="btn btn-ghost btn-sm"
+                          >
+                            Unfollow
+                          </button>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <!-- Local user -->
+                      <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
+                        <.link
+                          href={
+                            profile_url(
+                              @base_url,
+                              ~p"/#{following.user.handle || following.user.username}"
+                            )
+                          }
+                          class="flex items-center gap-3 flex-1"
+                        >
+                          <.user_avatar user={following.user} size="md" />
+                          <div class="flex-1">
+                            <span class="font-medium">
+                              {raw(
+                                render_display_name_with_emojis(
+                                  following.user.display_name || following.user.username,
+                                  nil
+                                )
+                              )}
+                            </span>
+                            <p class="text-xs opacity-70">
+                              @{following.user.handle || following.user.username}@z.org
+                            </p>
+                          </div>
+                        </.link>
+                        <%= if @current_user && @current_user.id == @user.id do %>
+                          <button
+                            phx-click="unfollow_local"
+                            phx-value-followed-id={following.user.id}
+                            class="btn btn-ghost btn-sm"
+                          >
+                            Unfollow
+                          </button>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% else %>
+                <p class="text-center text-base-content/60">Not following anyone yet</p>
+              <% end %>
+            </div>
+          </div>
+          <div class="modal-backdrop" phx-click="close_modal"></div>
+        </div>
+      <% end %>
+    <% end %>
+    
+<!-- Share Modal -->
+    <%= if @profile_static do %>
+      <div class="modal" data-modal="share">
+        <div class="modal-box max-w-md">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">Share Profile</h2>
+            <button data-action="close-share-modal" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+          <div class="mb-6 flex justify-center">
+            <% # Generate QR code for profile URL
+            qr_code =
+              try do
+                @profile_url
+                |> EQRCode.encode()
+                |> EQRCode.svg(
+                  width: 200,
+                  height: 200,
+                  background_color: "#ffffff",
+                  color: "#000000"
+                )
+              rescue
+                _ -> nil
+              end %>
+            <%= if qr_code do %>
+              <div class="inline-block rounded-lg bg-white p-3 border-2 border-base-300 shadow-lg">
+                {Phoenix.HTML.raw(qr_code)}
+              </div>
+            <% end %>
+          </div>
+          <div class="mb-6">
+            <label class="block text-sm font-medium mb-2">Profile URL</label>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                readonly
+                value={@profile_url}
+                id="profile-share-url"
+                class="input input-bordered flex-1 text-sm"
+              />
+              <button
+                data-action="copy-profile-url"
+                class="btn btn-primary btn-square"
+                title="Copy to clipboard"
+              >
+                <.icon name="hero-clipboard-document" class="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-3">Share to</label>
+            <div class="grid grid-cols-4 gap-3">
+              <a
+                href={"https://twitter.com/intent/tweet?url=#{URI.encode(@profile_url)}&text=Check%20out%20#{@user.username}'s%20profile"}
+                target="_blank"
+                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                title="Share on X"
+              >
+                <div class="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white">
+                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("twitter"))}
+                </div>
+                <span class="text-xs">X</span>
+              </a>
+              <a
+                href={"https://www.facebook.com/sharer/sharer.php?u=#{URI.encode(@profile_url)}"}
+                target="_blank"
+                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                title="Share on Facebook"
+              >
+                <div class="w-12 h-12 rounded-full bg-[#1877F2] flex items-center justify-center text-white">
+                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("facebook"))}
+                </div>
+                <span class="text-xs">Facebook</span>
+              </a>
+              <a
+                href={"https://www.linkedin.com/sharing/share-offsite/?url=#{URI.encode(@profile_url)}"}
+                target="_blank"
+                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                title="Share on LinkedIn"
+              >
+                <div class="w-12 h-12 rounded-full bg-[#0A66C2] flex items-center justify-center text-white">
+                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("linkedin"))}
+                </div>
+                <span class="text-xs">LinkedIn</span>
+              </a>
+              <a
+                href={"mailto:?subject=Check%20out%20#{@user.username}'s%20profile&body=#{URI.encode(@profile_url)}"}
+                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                title="Share via Email"
+              >
+                <div class="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center text-white">
+                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("email"))}
+                </div>
+                <span class="text-xs">Email</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="modal-backdrop" data-action="close-share-modal"></div>
+      </div>
+    <% else %>
+      <%= if @show_share_modal do %>
+        <div class="modal modal-open">
+          <div class="modal-box max-w-md">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-xl font-bold">Share Profile</h2>
+              <button phx-click="close_share_modal" class="btn btn-ghost btn-sm btn-circle">
+                <.icon name="hero-x-mark" class="w-5 h-5" />
+              </button>
+            </div>
+            
+<!-- QR Code -->
+            <div class="mb-6 flex justify-center">
+              <% # Generate QR code for profile URL
+              qr_code =
+                try do
+                  @profile_url
+                  |> EQRCode.encode()
+                  |> EQRCode.svg(
+                    width: 200,
+                    height: 200,
+                    background_color: "#ffffff",
+                    color: "#000000"
+                  )
+                rescue
+                  _ -> nil
+                end %>
+              <%= if qr_code do %>
+                <div class="inline-block rounded-lg bg-white p-3 border-2 border-base-300 shadow-lg">
+                  {Phoenix.HTML.raw(qr_code)}
+                </div>
+              <% end %>
+            </div>
+            
+<!-- Copy Link -->
+            <div class="mb-6">
+              <label class="block text-sm font-medium mb-2">Profile URL</label>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  readonly
+                  value={@profile_url}
+                  id="profile-share-url"
+                  class="input input-bordered flex-1 text-sm"
+                />
+                <button
+                  id="copy-profile-url-btn"
+                  phx-click="copy_profile_url"
+                  phx-hook="CopyButton"
+                  class="btn btn-primary btn-square"
+                  title="Copy to clipboard"
+                >
+                  <.icon name="hero-clipboard-document" class="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+<!-- Share to Platforms -->
+            <div>
+              <label class="block text-sm font-medium mb-3">Share to</label>
+              <div class="grid grid-cols-4 gap-3">
+                <!-- Twitter/X -->
+                <a
+                  href={"https://twitter.com/intent/tweet?url=#{URI.encode(@profile_url)}&text=Check%20out%20#{@user.username}'s%20profile"}
+                  target="_blank"
+                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                  title="Share on X"
+                >
+                  <div class="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white">
+                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("twitter"))}
+                  </div>
+                  <span class="text-xs">X</span>
+                </a>
+                
+<!-- Facebook -->
+                <a
+                  href={"https://www.facebook.com/sharer/sharer.php?u=#{URI.encode(@profile_url)}"}
+                  target="_blank"
+                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                  title="Share on Facebook"
+                >
+                  <div class="w-12 h-12 rounded-full bg-[#1877F2] flex items-center justify-center text-white">
+                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("facebook"))}
+                  </div>
+                  <span class="text-xs">Facebook</span>
+                </a>
+                
+<!-- LinkedIn -->
+                <a
+                  href={"https://www.linkedin.com/sharing/share-offsite/?url=#{URI.encode(@profile_url)}"}
+                  target="_blank"
+                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                  title="Share on LinkedIn"
+                >
+                  <div class="w-12 h-12 rounded-full bg-[#0A66C2] flex items-center justify-center text-white">
+                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("linkedin"))}
+                  </div>
+                  <span class="text-xs">LinkedIn</span>
+                </a>
+                
+<!-- Email -->
+                <a
+                  href={"mailto:?subject=Check%20out%20#{@user.username}'s%20profile&body=#{URI.encode(@profile_url)}"}
+                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
+                  title="Share via Email"
+                >
+                  <div class="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center text-white">
+                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("email"))}
+                  </div>
+                  <span class="text-xs">Email</span>
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="modal-backdrop" phx-click="close_share_modal"></div>
+        </div>
+      <% end %>
+    <% end %>
+    
+<!-- Report Modal -->
+    <%= if @show_report_modal && !@profile_static do %>
+      <.live_component
+        module={ElektrineWeb.Components.ReportModal}
+        id="report-modal"
+        reporter_id={@current_user.id}
+        reportable_type={@report_modal_type}
+        reportable_id={@report_modal_id}
+      />
+    <% end %>
+    
+<!-- Image Modal -->
+    <%= if @profile_static do %>
+      <!-- Static Image Modal for widget images -->
+      <div class="modal" data-modal="widget-image">
+        <div class="modal-box max-w-4xl p-2 bg-black/90">
+          <div class="flex justify-end mb-2">
+            <button
+              data-action="close-widget-image"
+              class="btn btn-ghost btn-sm btn-circle text-white"
+            >
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+          <div class="flex items-center justify-center">
+            <img
+              data-role="widget-image-content"
+              src=""
+              alt=""
+              class="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+          </div>
+        </div>
+        <div class="modal-backdrop" data-action="close-widget-image"></div>
+      </div>
+    <% else %>
+      <.image_modal
+        show={@show_image_modal}
+        image_url={@modal_image_url}
+        images={@modal_images}
+        image_index={@modal_image_index}
+        post={@modal_post}
+        timezone={@timezone}
+        time_format={@time_format}
+        current_user={@current_user}
+        is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
+        like_count={(@modal_post && @modal_post.like_count) || 0}
+      />
+    <% end %>
+<% end %>

@@ -1,0 +1,192 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <h1 class="text-xl sm:text-2xl font-bold">Two-Factor Authentication Status</h1>
+    <p class="opacity-70 mt-1 text-sm">
+      Check which users have 2FA enabled and verify their configuration. Click the shield button to disable 2FA for individual users.
+    </p>
+  </div>
+  
+<!-- Stats Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="stat bg-base-200 rounded-lg">
+      <div class="stat-figure text-primary">
+        <.icon name="hero-users" class="w-8 h-8" />
+      </div>
+      <div class="stat-title text-xs">Total 2FA Users</div>
+      <div class="stat-value text-primary text-2xl">{@stats.total_2fa_users}</div>
+    </div>
+
+    <div class="stat bg-base-200 rounded-lg">
+      <div class="stat-figure text-success">
+        <.icon name="hero-shield-check" class="w-8 h-8" />
+      </div>
+      <div class="stat-title text-xs">With Valid Secrets</div>
+      <div class="stat-value text-success text-2xl">{@stats.users_with_secrets}</div>
+    </div>
+
+    <div class="stat bg-base-200 rounded-lg">
+      <div class="stat-figure text-error">
+        <.icon name="hero-shield-exclamation" class="w-8 h-8" />
+      </div>
+      <div class="stat-title text-xs">Missing Secrets</div>
+      <div class="stat-value text-error text-2xl">{@stats.users_without_secrets}</div>
+    </div>
+  </div>
+  
+<!-- Users Table -->
+  <%= if length(@users) > 0 do %>
+    <div class="card glass-card shadow-xl">
+      <div class="card-body p-3 sm:p-6">
+        <h2 class="card-title mb-4">Users with 2FA Enabled</h2>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Secret Status</th>
+                <th>Backup Codes</th>
+                <th>Last Login</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for user <- @users do %>
+                <tr>
+                  <td>
+                    <div class="font-bold">{user.username}</div>
+                    <div class="text-sm opacity-50">ID: {user.id}</div>
+                  </td>
+                  <td>
+                    <%= if user.has_secret do %>
+                      <div class="flex items-center gap-2">
+                        <.icon name="hero-check-circle" class="w-4 h-4 text-success" />
+                        <span class="text-success font-medium">Valid</span>
+                        <%= if user.secret_length do %>
+                          <span class="text-xs opacity-50">({user.secret_length} chars)</span>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <div class="flex items-center gap-2">
+                        <.icon name="hero-x-circle" class="w-4 h-4 text-error" />
+                        <span class="text-error font-medium">Missing</span>
+                      </div>
+                    <% end %>
+                  </td>
+                  <td>
+                    <%= if user.backup_codes_count do %>
+                      <span class="badge badge-accent">{user.backup_codes_count} codes</span>
+                    <% else %>
+                      <span class="text-error text-sm">No codes</span>
+                    <% end %>
+                  </td>
+                  <td class="text-xs">
+                    <%= if user.last_login_at do %>
+                      <.local_time
+                        datetime={user.last_login_at}
+                        format="datetime"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    <% else %>
+                      <span class="opacity-50">Never</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <div class="flex gap-1">
+                      <.link
+                        href={~p"/pripyat/users/#{user.id}/messages"}
+                        class="btn btn-xs btn-ghost"
+                        title="View Messages"
+                      >
+                        <.icon name="hero-envelope" class="w-3 h-3" />
+                      </.link>
+
+                      <.form
+                        for={%{}}
+                        action={~p"/pripyat/users/#{user.id}/reset-2fa"}
+                        method="post"
+                        class="inline"
+                      >
+                        <.button
+                          class={
+                            if user.has_secret,
+                              do: "btn btn-xs btn-secondary btn-ghost",
+                              else: "btn btn-xs btn-warning btn-ghost"
+                          }
+                          title={if user.has_secret, do: "Disable 2FA", else: "Reset broken 2FA"}
+                          data-confirm={
+                            if user.has_secret,
+                              do:
+                                "Disable 2FA for #{user.username}? This will remove their two-factor authentication.",
+                              else:
+                                "Reset broken 2FA for #{user.username}? This will fix their login issues."
+                          }
+                        >
+                          <.icon name="hero-shield-exclamation" class="w-3 h-3" />
+                        </.button>
+                      </.form>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+<!-- Pagination -->
+        <%= if @total_pages > 1 do %>
+          <div class="flex justify-center mt-6">
+            <div class="join">
+              <%= if @current_page > 1 do %>
+                <.link
+                  href={~p"/pripyat/2fa-status?page=#{@current_page - 1}"}
+                  class="join-item btn"
+                >
+                  «
+                </.link>
+              <% end %>
+
+              <%= for page_num <- @page_range do %>
+                <.link
+                  href={~p"/pripyat/2fa-status?page=#{page_num}"}
+                  class={
+                    if page_num == @current_page,
+                      do: "join-item btn btn-primary",
+                      else: "join-item btn btn-ghost"
+                  }
+                >
+                  {page_num}
+                </.link>
+              <% end %>
+
+              <%= if @current_page < @total_pages do %>
+                <.link
+                  href={~p"/pripyat/2fa-status?page=#{@current_page + 1}"}
+                  class="join-item btn"
+                >
+                  »
+                </.link>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="text-center mt-4 text-sm opacity-70">
+            Page {@current_page} of {@total_pages} • {@total_count} total 2FA users
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <.icon name="hero-information-circle" class="w-6 h-6" />
+      <span>No users currently have two-factor authentication enabled.</span>
+    </div>
+  <% end %>
+  
+<!-- Navigation -->
+  <div class="mt-6">
+    <.link href={~p"/pripyat"} class="btn btn-ghost">
+      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Admin Dashboard
+    </.link>
+  </div>
+</div>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{gettext("Print Email")} - {decode_email_subject(@message.subject)}</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 12pt;
+        line-height: 1.4;
+        margin: 0;
+        padding: 20px;
+        color: #000;
+        background: #fff;
+      }
+
+      .print-header {
+        border-bottom: 2px solid #333;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+      }
+
+      .print-header h1 {
+        margin: 0 0 10px 0;
+        font-size: 18pt;
+        font-weight: bold;
+      }
+
+      .email-meta {
+        margin-bottom: 20px;
+      }
+
+      .email-meta-row {
+        margin-bottom: 8px;
+        display: flex;
+        align-items: flex-start;
+      }
+
+      .email-meta-label {
+        font-weight: bold;
+        min-width: 80px;
+        margin-right: 10px;
+        flex-shrink: 0;
+      }
+
+      .email-meta-value {
+        flex: 1;
+        word-break: break-word;
+      }
+
+      .email-content {
+        border-top: 1px solid #ccc;
+        padding-top: 15px;
+        margin-top: 15px;
+      }
+
+      .email-content img {
+        max-width: 100% !important;
+        height: auto !important;
+        display: block !important;
+        margin: 10px auto !important;
+        border-radius: 4px;
+      }
+
+      .email-content table {
+        border-collapse: collapse;
+        width: 100%;
+        max-width: 100% !important;
+      }
+
+      .email-content table td,
+      .email-content table th {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+        word-wrap: break-word;
+      }
+
+      /* Modern email content styling for print */
+      .email-content * {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+
+      /* Preserve email backgrounds in print */
+      .email-content [style*="background"] {
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+
+      .email-content table[bgcolor],
+      .email-content td[bgcolor],
+      .email-content th[bgcolor] {
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+
+      .email-content div[style*="background-color"],
+      .email-content div[style*="background-image"],
+      .email-content table[style*="background-color"],
+      .email-content table[style*="background-image"],
+      .email-content td[style*="background-color"],
+      .email-content td[style*="background-image"] {
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        min-height: 30px !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+
+      /* Text handling */
+      .email-content p,
+      .email-content div,
+      .email-content span {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+      }
+
+      /* Font and color preservation */
+      .email-content font[color] {
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+
+      /* Link styling for print */
+      .email-content a {
+        color: #1a73e8 !important;
+        text-decoration: underline !important;
+      }
+
+      /* Image alignment similar to webmail */
+      .email-content img[align="left"] {
+        float: left !important;
+        margin: 0 10px 10px 0 !important;
+      }
+
+      .email-content img[align="right"] {
+        float: right !important;
+        margin: 0 0 10px 10px !important;
+      }
+
+      .email-content img[align="center"] {
+        display: block !important;
+        margin: 10px auto !important;
+      }
+
+      /* Center tag support */
+      .email-content center {
+        text-align: center !important;
+      }
+
+      .attachments {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid #ccc;
+      }
+
+      .attachments h3 {
+        margin: 0 0 10px 0;
+        font-size: 14pt;
+      }
+
+      .attachment-item {
+        margin-bottom: 5px;
+        font-size: 11pt;
+      }
+
+      .print-footer {
+        margin-top: 30px;
+        padding-top: 15px;
+        border-top: 1px solid #ccc;
+        font-size: 10pt;
+        color: #666;
+      }
+
+      /* Print-specific styles */
+      @media print {
+        body {
+          margin: 0;
+          padding: 15px;
+        }
+        
+        .print-header,
+        .email-content,
+        .attachments,
+        .print-footer {
+          page-break-inside: avoid;
+        }
+        
+        .email-content {
+          page-break-before: avoid;
+          page-break-after: auto;
+        }
+      }
+
+      /* Text email specific styles */
+      .text-content {
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 11pt;
+        background: #f8f8f8;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body data-auto-print="true">
+    <div class="print-header">
+      <h1>{decode_email_subject(@message.subject)}</h1>
+    </div>
+
+    <div class="email-meta">
+      <div class="email-meta-row">
+        <div class="email-meta-label">{gettext("From:")}</div>
+        <div class="email-meta-value">{@message.from}</div>
+      </div>
+
+      <div class="email-meta-row">
+        <div class="email-meta-label">{gettext("To:")}</div>
+        <div class="email-meta-value">{@message.to}</div>
+      </div>
+
+      <%= if @message.cc && @message.cc != "" do %>
+        <div class="email-meta-row">
+          <div class="email-meta-label">{gettext("CC:")}</div>
+          <div class="email-meta-value">{@message.cc}</div>
+        </div>
+      <% end %>
+
+      <%= if @message.bcc && @message.bcc != "" do %>
+        <div class="email-meta-row">
+          <div class="email-meta-label">{gettext("BCC:")}</div>
+          <div class="email-meta-value">{@message.bcc}</div>
+        </div>
+      <% end %>
+
+      <div class="email-meta-row">
+        <div class="email-meta-label">{gettext("Date:")}</div>
+        <div class="email-meta-value">
+          <.local_time
+            datetime={@message.inserted_at}
+            format="datetime"
+            timezone={@timezone}
+            time_format={@time_format}
+          />
+        </div>
+      </div>
+
+      <%= if @message.message_id do %>
+        <div class="email-meta-row">
+          <div class="email-meta-label">{gettext("Message ID:")}</div>
+          <div class="email-meta-value">{@message.message_id}</div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="email-content">
+      <%= if @message.html_body do %>
+        {Phoenix.HTML.raw(
+          ElektrineWeb.CoreComponents.safe_sanitize_email_html(@message.html_body)
+        )}
+      <% else %>
+        <div class="text-content">{@message.text_body}</div>
+      <% end %>
+    </div>
+
+    <%= if @message.has_attachments && @message.attachments && map_size(@message.attachments) > 0 do %>
+      <div class="attachments">
+        <h3>
+          {ngettext(
+            "Attachment (%{count})",
+            "Attachments (%{count})",
+            map_size(@message.attachments),
+            count: map_size(@message.attachments)
+          )}
+        </h3>
+        <%= for {_id, attachment} <- @message.attachments do %>
+          <div class="attachment-item">
+            <strong>{attachment["filename"]}</strong>
+            ({attachment["content_type"]})
+            <%= if attachment["size"] do %>
+              - {ElektrineWeb.EmailLive.EmailHelpers.format_file_size(attachment["size"])}
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="print-footer">
+      <p>
+        {gettext("Printed from Elektrine Email System")} -
+        <.local_time
+          datetime={DateTime.utc_now()}
+          format="datetime"
+          timezone={@timezone}
+          time_format={@time_format}
+        />
+      </p>
+      <p>{gettext("Mailbox:")}{" "}{@mailbox.email}</p>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,278 @@
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold text-base-content">Profile Analytics</h1>
+      <p class="text-base-content/70 mt-2">Insights into who's viewing your profile</p>
+    </div>
+    <.link href={~p"/account/profile/edit"} class="btn btn-ghost btn-sm">
+      <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Settings
+    </.link>
+  </div>
+  
+<!-- Overview Stats -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="card glass-card shadow-lg">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm opacity-70">Total Views</p>
+            <p class="text-3xl font-bold">{@stats.total_views}</p>
+          </div>
+          <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <.icon name="hero-eye" class="w-6 h-6 text-primary" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card glass-card shadow-lg">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm opacity-70">Unique Visitors</p>
+            <p class="text-3xl font-bold">{@stats.unique_viewers}</p>
+          </div>
+          <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
+            <.icon name="hero-users" class="w-6 h-6 text-secondary" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card glass-card shadow-lg">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm opacity-70">Views This Week</p>
+            <p class="text-3xl font-bold">{@stats.views_this_week}</p>
+          </div>
+          <div class="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+            <.icon name="hero-chart-bar" class="w-6 h-6 text-success" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card glass-card shadow-lg">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm opacity-70">Views Today</p>
+            <p class="text-3xl font-bold">{@stats.views_today}</p>
+          </div>
+          <div class="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
+            <.icon name="hero-fire" class="w-6 h-6 text-accent" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Column - Charts and Timeline -->
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Views Over Time Chart -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body">
+          <h2 class="card-title mb-4">
+            <.icon name="hero-chart-bar" class="w-5 h-5 mr-2" /> Views Over Time
+          </h2>
+
+          <%= if @daily_views && length(@daily_views) > 0 do %>
+            <% # Calculate max views for scaling
+            max_views = Enum.max_by(@daily_views, & &1.count).count
+            # Only show days with activity, most recent first
+            display_days = @daily_views |> Enum.filter(&(&1.count > 0)) |> Enum.reverse() %>
+            <div class="space-y-2 max-h-96 overflow-y-auto" style="scrollbar-gutter: stable">
+              <%= for view_data <- display_days do %>
+                <div class="flex items-center gap-3">
+                  <span class="text-sm opacity-70 w-24 flex-shrink-0">
+                    {Calendar.strftime(view_data.date, "%b %d")}
+                  </span>
+                  <div class="flex-1 bg-base-200 rounded-full h-6 relative overflow-hidden">
+                    <% percentage =
+                      if max_views > 0, do: view_data.count / max_views * 100, else: 0 %>
+                    <div
+                      class="bg-primary h-full rounded-full transition-all duration-300"
+                      style={"width: #{percentage}%"}
+                    >
+                    </div>
+                    <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                      {view_data.count} {if view_data.count == 1, do: "view", else: "views"}
+                    </span>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+            
+<!-- Summary Stats -->
+            <div class="mt-4 pt-4 border-t border-base-200">
+              <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p class="opacity-70">Total Views</p>
+                  <p class="text-xl font-bold">{Enum.sum(Enum.map(@daily_views, & &1.count))}</p>
+                </div>
+                <div>
+                  <p class="opacity-70">Daily Average</p>
+                  <p class="text-xl font-bold">
+                    {Float.round(Enum.sum(Enum.map(@daily_views, & &1.count)) / 30, 1)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <div class="text-center py-8 opacity-50">
+              <.icon name="hero-chart-bar" class="w-12 h-12 mx-auto mb-2" />
+              <p>No view data for this period</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Visitor Breakdown -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body">
+          <h2 class="card-title mb-4">
+            <.icon name="hero-user-group" class="w-5 h-5 mr-2" /> Visitor Types
+          </h2>
+
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between mb-2">
+                <span class="text-sm">Authenticated Users</span>
+                <span class="font-medium">{@viewer_breakdown.authenticated}</span>
+              </div>
+              <div class="w-full bg-base-200 rounded-full h-3">
+                <% auth_percentage =
+                  if @viewer_breakdown.total > 0,
+                    do: @viewer_breakdown.authenticated / @viewer_breakdown.total * 100,
+                    else: 0 %>
+                <div class="bg-success h-full rounded-full" style={"width: #{auth_percentage}%"}>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-2">
+                <span class="text-sm">Anonymous Visitors</span>
+                <span class="font-medium">{@viewer_breakdown.anonymous}</span>
+              </div>
+              <div class="w-full bg-base-200 rounded-full h-3">
+                <% anon_percentage =
+                  if @viewer_breakdown.total > 0,
+                    do: @viewer_breakdown.anonymous / @viewer_breakdown.total * 100,
+                    else: 0 %>
+                <div class="bg-info h-full rounded-full" style={"width: #{anon_percentage}%"}>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+<!-- Top Referrers -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body">
+          <h2 class="card-title mb-4">
+            <.icon name="hero-arrow-top-right-on-square" class="w-5 h-5 mr-2" /> Top Referrers
+          </h2>
+
+          <%= if @top_referrers && length(@top_referrers) > 0 do %>
+            <div class="space-y-2">
+              <%= for referrer <- @top_referrers do %>
+                <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium truncate">
+                      {URI.parse(referrer.referer).host || referrer.referer}
+                    </p>
+                    <p class="text-xs opacity-70 truncate">{referrer.referer}</p>
+                  </div>
+                  <div class="badge badge-primary">{referrer.count} views</div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-8 opacity-50">
+              <.icon name="hero-link" class="w-12 h-12 mx-auto mb-2" />
+              <p>No referrer data yet</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+<!-- Right Column - Recent Activity and Link Performance -->
+    <div class="space-y-6">
+      <!-- Most Clicked Links -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body">
+          <h2 class="card-title mb-4">
+            <.icon name="hero-cursor-arrow-rays" class="w-5 h-5 mr-2" /> Link Performance
+          </h2>
+
+          <%= if @top_links && length(@top_links) > 0 do %>
+            <div class="space-y-3">
+              <%= for link <- @top_links do %>
+                <div class="p-3 bg-base-200 rounded-lg">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-medium text-sm">{link.title}</span>
+                    <div class="badge badge-sm badge-primary">{link.clicks}</div>
+                  </div>
+                  <p class="text-xs opacity-70 truncate">{link.url}</p>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-8 opacity-50">
+              <.icon name="hero-link" class="w-12 h-12 mx-auto mb-2" />
+              <p class="text-sm">No link clicks yet</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Recent Viewers -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body">
+          <h2 class="card-title mb-4">
+            <.icon name="hero-clock" class="w-5 h-5 mr-2" /> Recent Visitors
+          </h2>
+
+          <%= if @recent_viewers && length(@recent_viewers) > 0 do %>
+            <div class="space-y-2">
+              <%= for viewer <- Enum.take(@recent_viewers, 10) do %>
+                <.link
+                  href={~p"/#{viewer.handle || viewer.username}"}
+                  class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg transition-colors"
+                >
+                  <.user_avatar
+                    user={%{username: viewer.username, avatar: viewer.avatar, id: viewer.user_id}}
+                    size="sm"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-sm truncate">
+                      {viewer.display_name || viewer.handle || viewer.username}
+                    </p>
+                    <p class="text-xs opacity-70">
+                      <.local_time
+                        datetime={viewer.viewed_at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </p>
+                  </div>
+                </.link>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-8 opacity-50">
+              <.icon name="hero-users" class="w-12 h-12 mx-auto mb-2" />
+              <p class="text-sm">No authenticated viewers yet</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

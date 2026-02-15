@@ -1,0 +1,986 @@
+<div
+  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+  id="compose-container"
+  phx-hook="EmailComposeKeyboardShortcuts"
+>
+  <!-- Elektrine Platform Navigation -->
+  <.elektrine_nav active_tab="email" />
+
+  <div class="flex flex-col lg:flex-row gap-6">
+    <.sidebar
+      mailbox={@mailbox}
+      storage_info={@storage_info}
+      unread_count={@unread_count}
+      current_page="compose"
+      current_user={@current_user}
+    />
+    
+<!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-hidden">
+      <div id="compose-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
+        <div class="card-body p-6">
+          <!-- Header -->
+          <div class="flex items-center space-x-3 mb-6">
+            <div class="p-2 bg-primary/10 rounded-lg">
+              <.icon name="hero-pencil-square" class="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold">{@page_title}</h2>
+              <p class="text-sm text-base-content/70">
+                <%= case @mode do %>
+                  <% "reply" -> %>
+                    {gettext("Reply to this message")}
+                  <% "forward" -> %>
+                    {gettext("Forward this message to someone")}
+                  <% _ -> %>
+                    {gettext("Send an email to someone")}
+                <% end %>
+                <%= if @rate_limit_status.daily.remaining < 100 && @rate_limit_status.daily.remaining > 0 do %>
+                  <span class="text-xs text-warning ml-2">
+                    {gettext("(%{count} emails left today)",
+                      count: @rate_limit_status.daily.remaining
+                    )}
+                  </span>
+                <% end %>
+              </p>
+            </div>
+          </div>
+          
+<!-- Rate Limit Status -->
+          <%= if @rate_limit_status.daily.remaining < 50 do %>
+            <div class={"alert #{if @rate_limit_status.daily.remaining == 0, do: "alert-error", else: "alert-warning"} mb-4"}>
+              <.icon name="hero-exclamation-triangle" class="h-6 w-6" />
+              <div>
+                <%= if @rate_limit_status.daily.remaining == 0 do %>
+                  <span class="font-semibold">{gettext("Daily limit reached!")}</span>
+                  {gettext("You have sent %{count} emails today.",
+                    count: @rate_limit_status.daily.sent
+                  )}
+                <% else %>
+                  <span class="font-semibold">{gettext("Approaching daily limit!")}</span>
+                  {gettext("You have %{count} emails remaining today.",
+                    count: @rate_limit_status.daily.remaining
+                  )}
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+          
+<!-- Template Selector -->
+          <%= if length(@templates) > 0 do %>
+            <div class="mb-4">
+              <.form
+                :let={_f}
+                for={%{}}
+                phx-change="apply_template"
+                class="flex items-center gap-2"
+              >
+                <label class="label">
+                  <span class="label-text font-semibold">{gettext("Template")}</span>
+                </label>
+                <select
+                  name="template_id"
+                  class="select select-bordered select-sm flex-1 max-w-xs"
+                >
+                  <option value="">{gettext("Select a template...")}</option>
+                  <%= for template <- @templates do %>
+                    <option value={template.id}>{template.name}</option>
+                  <% end %>
+                </select>
+              </.form>
+            </div>
+          <% end %>
+
+          <div class="space-y-6">
+            <!-- From Field (outside main form to prevent interference) -->
+            <div>
+              <label class="label">
+                <span class="font-semibold">{gettext("From")}</span>
+              </label>
+              <%= if length(@available_from_addresses) > 1 do %>
+                <.form :let={_f} for={%{}} phx-change="change_from_address" class="w-full">
+                  <select
+                    name="from_address"
+                    class="select select-bordered w-full font-medium text-sm"
+                    value={@from_address}
+                  >
+                    <%= for address <- @available_from_addresses do %>
+                      <option value={address} selected={address == @from_address}>
+                        {address}
+                      </option>
+                    <% end %>
+                  </select>
+                </.form>
+              <% else %>
+                <div class="input input-bordered bg-base-200/50 flex items-center font-medium text-sm overflow-hidden">
+                  <span class="truncate">{@from_address}</span>
+                </div>
+              <% end %>
+            </div>
+            
+<!-- To Field (outside form) -->
+            <div class="relative">
+              <label class="label">
+                <span class="font-semibold">
+                  {gettext("To")} <span class="text-error">*</span>
+                </span>
+              </label>
+              <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @to_input_error, do: "input-error"}"}>
+                <%= for email <- @to_tags do %>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm">
+                    <span>{email}</span>
+                    <button
+                      type="button"
+                      phx-click="remove_tag"
+                      phx-value-field="to"
+                      phx-value-email={email}
+                      class="w-4 h-4 rounded-full hover:bg-error/30 hover:text-error transition-colors flex items-center justify-center text-sm leading-none opacity-60 hover:opacity-100"
+                    >
+                      &times;
+                    </button>
+                  </span>
+                <% end %>
+                <input
+                  type="text"
+                  value={@to_input}
+                  phx-hook="TagInputHook"
+                  data-field="to"
+                  phx-blur="tag_input_blur"
+                  phx-keydown="tag_input_keydown"
+                  phx-value-field="to"
+                  id="to-tag-input"
+                  placeholder={gettext("Add email...")}
+                  class={"flex-1 min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @to_input_error, do: "text-error"}"}
+                />
+              </div>
+              <%= if @to_input_error do %>
+                <p class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
+              <% end %>
+              
+<!-- To: Autocomplete Dropdown -->
+              <%= if assigns[:showing_to_suggestions] && @showing_to_suggestions do %>
+                <div
+                  class="absolute z-50 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                  phx-hook="SuggestionDropdown"
+                  id="to-suggestions-dropdown"
+                >
+                  <%= for suggestion <- assigns[:to_suggestions] || [] do %>
+                    <div
+                      data-suggestion-email={suggestion.email}
+                      data-suggestion-field="to"
+                      class="w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors flex items-center gap-3 cursor-pointer"
+                    >
+                      <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+                        {String.first(String.upcase(suggestion.name || suggestion.email))}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium text-sm truncate">
+                          {suggestion.name || String.split(suggestion.email, "@") |> List.first()}
+                        </div>
+                        <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
+                      </div>
+                      <%= if suggestion.source == "contact" do %>
+                        <div class="badge badge-primary badge-xs">Contact</div>
+                      <% else %>
+                        <div class="badge badge-ghost badge-xs">Recent</div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+            
+<!-- CC/BCC Toggle -->
+            <div class="-mt-2">
+              <button
+                type="button"
+                phx-click="toggle_cc_bcc"
+                class="text-sm text-base-content/60 hover:text-primary transition-colors"
+              >
+                <span class="inline-flex items-center gap-1">
+                  <.icon
+                    name={if @show_cc_bcc, do: "hero-minus", else: "hero-plus"}
+                    class="w-3 h-3"
+                  />
+                  <span class="underline underline-offset-2">
+                    {if @show_cc_bcc, do: gettext("Hide CC/BCC"), else: gettext("Add CC/BCC")}
+                  </span>
+                </span>
+              </button>
+            </div>
+            
+<!-- CC and BCC in a grid (outside form) -->
+            <div class={
+              unless @show_cc_bcc, do: "hidden", else: "grid grid-cols-1 md:grid-cols-2 gap-4"
+            }>
+              <div class="relative">
+                <label class="label">
+                  <span class="font-semibold">CC</span>
+                  <span class="text-xs">{gettext("Carbon copy")}</span>
+                </label>
+                <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @cc_input_error, do: "input-error"}"}>
+                  <%= for email <- @cc_tags do %>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm">
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        phx-click="remove_tag"
+                        phx-value-field="cc"
+                        phx-value-email={email}
+                        class="w-4 h-4 rounded-full hover:bg-error/30 hover:text-error transition-colors flex items-center justify-center text-sm leading-none opacity-60 hover:opacity-100"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  <% end %>
+                  <input
+                    type="text"
+                    value={@cc_input}
+                    phx-hook="TagInputHook"
+                    data-field="cc"
+                    phx-blur="tag_input_blur"
+                    phx-keydown="tag_input_keydown"
+                    phx-value-field="cc"
+                    id="cc-tag-input"
+                    placeholder={gettext("Add email...")}
+                    class={"flex-1 min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @cc_input_error, do: "text-error"}"}
+                  />
+                </div>
+                <%= if @cc_input_error do %>
+                  <p class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
+                <% end %>
+                
+<!-- CC: Autocomplete Dropdown -->
+                <%= if assigns[:showing_cc_suggestions] && @showing_cc_suggestions do %>
+                  <div
+                    class="absolute z-50 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    phx-hook="SuggestionDropdown"
+                    id="cc-suggestions-dropdown"
+                  >
+                    <%= for suggestion <- assigns[:cc_suggestions] || [] do %>
+                      <div
+                        data-suggestion-email={suggestion.email}
+                        data-suggestion-field="cc"
+                        class="w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors flex items-center gap-3 cursor-pointer"
+                      >
+                        <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+                          {String.first(String.upcase(suggestion.name || suggestion.email))}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="font-medium text-sm truncate">
+                            {suggestion.name ||
+                              String.split(suggestion.email, "@") |> List.first()}
+                          </div>
+                          <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
+                        </div>
+                        <%= if suggestion.source == "contact" do %>
+                          <div class="badge badge-primary badge-xs">Contact</div>
+                        <% else %>
+                          <div class="badge badge-ghost badge-xs">Recent</div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+
+              <div class="relative">
+                <label class="label">
+                  <span class="font-semibold">BCC</span>
+                  <span class="text-xs">{gettext("Blind carbon copy")}</span>
+                </label>
+                <div class={"input input-bordered w-full h-auto min-h-10 flex flex-wrap gap-1.5 p-2 items-center #{if @bcc_input_error, do: "input-error"}"}>
+                  <%= for email <- @bcc_tags do %>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-base-300 text-base-content rounded text-sm">
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        phx-click="remove_tag"
+                        phx-value-field="bcc"
+                        phx-value-email={email}
+                        class="w-4 h-4 rounded-full hover:bg-error/30 hover:text-error transition-colors flex items-center justify-center text-sm leading-none opacity-60 hover:opacity-100"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  <% end %>
+                  <input
+                    type="text"
+                    value={@bcc_input}
+                    phx-hook="TagInputHook"
+                    data-field="bcc"
+                    phx-blur="tag_input_blur"
+                    phx-keydown="tag_input_keydown"
+                    phx-value-field="bcc"
+                    id="bcc-tag-input"
+                    placeholder={gettext("Add email...")}
+                    class={"flex-1 min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @bcc_input_error, do: "text-error"}"}
+                  />
+                </div>
+                <%= if @bcc_input_error do %>
+                  <p class="text-error text-xs mt-1">{gettext("Invalid email address")}</p>
+                <% end %>
+                
+<!-- BCC: Autocomplete Dropdown -->
+                <%= if assigns[:showing_bcc_suggestions] && @showing_bcc_suggestions do %>
+                  <div
+                    class="absolute z-50 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    phx-hook="SuggestionDropdown"
+                    id="bcc-suggestions-dropdown"
+                  >
+                    <%= for suggestion <- assigns[:bcc_suggestions] || [] do %>
+                      <div
+                        data-suggestion-email={suggestion.email}
+                        data-suggestion-field="bcc"
+                        class="w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors flex items-center gap-3 cursor-pointer"
+                      >
+                        <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+                          {String.first(String.upcase(suggestion.name || suggestion.email))}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="font-medium text-sm truncate">
+                            {suggestion.name ||
+                              String.split(suggestion.email, "@") |> List.first()}
+                          </div>
+                          <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
+                        </div>
+                        <%= if suggestion.source == "contact" do %>
+                          <div class="badge badge-primary badge-xs">Contact</div>
+                        <% else %>
+                          <div class="badge badge-ghost badge-xs">Recent</div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+
+            <.form
+              for={@form}
+              phx-submit="save"
+              phx-change="validate_and_autosave"
+              phx-debounce="2000"
+              class="space-y-6"
+              id="compose-form"
+              phx-hook="PreserveFocus"
+              multipart
+            >
+              <!-- Hidden inputs for email fields -->
+              <input type="hidden" name="email[to]" value={Enum.join(@to_tags, ", ")} />
+              <input type="hidden" name="email[cc]" value={Enum.join(@cc_tags, ", ")} />
+              <input type="hidden" name="email[bcc]" value={Enum.join(@bcc_tags, ", ")} />
+              
+<!-- Subject Field -->
+              <div>
+                <label class="label">
+                  <span class="font-semibold">
+                    {gettext("Subject")}
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  name="email[subject]"
+                  value={@form[:subject].value}
+                  class="input input-bordered w-full text-sm"
+                  placeholder={gettext("Enter email subject (optional)")}
+                />
+              </div>
+              
+<!-- Message Body -->
+              <div>
+                <label class="label">
+                  <span class="font-semibold">
+                    {gettext("Message")} <span class="text-error">*</span>
+                  </span>
+                  <span class="text-xs text-base-content/60">
+                    {gettext("%{count} words", count: @body_word_count)}
+                  </span>
+                </label>
+
+                <%= if @mode in ["reply", "reply_all", "forward"] do %>
+                  <!-- Enhanced UI for Reply/Forward mode -->
+                  <div class="space-y-3">
+                    <!-- New message area -->
+                    <div class="space-y-3">
+                      <!-- Markdown Editor for Reply/Forward -->
+                      <div class="space-y-1">
+                        <!-- Editor Tabs -->
+                        <div class="tabs tabs-boxed bg-base-200">
+                          <button
+                            type="button"
+                            class="tab tab-active"
+                            data-reply-editor-tab="write"
+                          >
+                            <.icon name="hero-pencil" class="w-4 h-4 mr-1" />
+                            {gettext("Write")}
+                          </button>
+                          <button type="button" class="tab" data-reply-editor-tab="preview">
+                            <.icon name="hero-eye" class="w-4 h-4 mr-1" />
+                            {gettext("Preview")}
+                          </button>
+                          <button type="button" class="tab" data-reply-editor-tab="split">
+                            <.icon name="hero-view-columns" class="w-4 h-4 mr-1" />
+                            {gettext("Split")}
+                          </button>
+                        </div>
+                        
+<!-- Formatting Toolbar -->
+                        <div
+                          class="flex flex-wrap items-center gap-1 p-2 bg-base-200 border border-base-300 rounded-t-lg"
+                          id="reply-formatting-toolbar"
+                        >
+                          <!-- Text Formatting -->
+                          <div class="flex items-center gap-1">
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="bold"
+                              data-target="new-message-area"
+                              data-tip={gettext("Bold (Ctrl+B)")}
+                            >
+                              <strong class="text-sm">B</strong>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="italic"
+                              data-target="new-message-area"
+                              data-tip={gettext("Italic (Ctrl+I)")}
+                            >
+                              <em class="text-sm">I</em>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="code"
+                              data-target="new-message-area"
+                              data-tip={gettext("Code")}
+                            >
+                              <.icon name="hero-code-bracket" class="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div class="divider divider-horizontal h-6 mx-1"></div>
+                          
+<!-- Headers -->
+                          <div class="dropdown dropdown-hover">
+                            <button
+                              type="button"
+                              tabindex="0"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 gap-1"
+                            >
+                              <span class="text-sm font-bold">H</span>
+                              <.icon name="hero-chevron-down" class="w-3 h-3" />
+                            </button>
+                            <ul
+                              tabindex="0"
+                              class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-32 z-50"
+                            >
+                              <li>
+                                <button
+                                  type="button"
+                                  data-markdown-format="h1"
+                                  data-target="new-message-area"
+                                >
+                                  H1
+                                </button>
+                              </li>
+                              <li>
+                                <button
+                                  type="button"
+                                  data-markdown-format="h2"
+                                  data-target="new-message-area"
+                                >
+                                  H2
+                                </button>
+                              </li>
+                              <li>
+                                <button
+                                  type="button"
+                                  data-markdown-format="h3"
+                                  data-target="new-message-area"
+                                >
+                                  H3
+                                </button>
+                              </li>
+                            </ul>
+                          </div>
+                          
+<!-- Lists & Links -->
+                          <div class="flex items-center gap-1">
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="list-bullet"
+                              data-target="new-message-area"
+                              data-tip={gettext("Bullet list")}
+                            >
+                              <.icon name="hero-list-bullet" class="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="list-number"
+                              data-target="new-message-area"
+                              data-tip={gettext("Numbered list")}
+                            >
+                              <span class="text-sm">1.</span>
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="link"
+                              data-target="new-message-area"
+                              data-tip={gettext("Insert link")}
+                            >
+                              <.icon name="hero-link" class="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div class="divider divider-horizontal h-6 mx-1"></div>
+                          
+<!-- Quote & Code Block -->
+                          <div class="flex items-center gap-1">
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="quote"
+                              data-target="new-message-area"
+                              data-tip={gettext("Quote")}
+                            >
+                              <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              data-markdown-format="code-block"
+                              data-target="new-message-area"
+                              data-tip={gettext("Code block")}
+                            >
+                              <span class="text-xs font-medium">[/]</span>
+                            </button>
+                          </div>
+                        </div>
+                        
+<!-- Editor Container -->
+                        <div id="reply-editor-container" class="relative">
+                          <!-- Editor Textarea -->
+                          <div id="reply-editor-write" class="block">
+                            <textarea
+                              id="new-message-area"
+                              name="email[new_message]"
+                              rows="10"
+                              class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-primary"
+                              placeholder="Type your new message here..."
+                              phx-hook="ReplyMarkdownEditor"
+                            ></textarea>
+                          </div>
+                          
+<!-- Preview Panel -->
+                          <div id="reply-editor-preview" class="hidden">
+                            <div class="border-x border-b border-base-300 rounded-b-lg p-4 min-h-[250px] bg-base-100 overflow-auto">
+                              <div id="reply-preview-content" class="prose prose-sm max-w-full">
+                                <p class="text-base-content/50">
+                                  {gettext("Nothing to preview yet...")}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+<!-- Divider -->
+                    <div class="divider text-xs text-base-content/60">
+                      {if @mode in ["reply", "reply_all"],
+                        do: "Original message below",
+                        else: "Forwarded message below"}
+                    </div>
+                    
+<!-- Original message (read-only preview) -->
+                    <div class="relative pt-6">
+                      <div class="absolute top-0 left-0 text-sm font-medium text-base-content/60 flex items-center gap-2">
+                        <.icon name="hero-document-text" class="h-4 w-4" />
+                        {if @mode in ["reply", "reply_all"],
+                          do: "Original message:",
+                          else: "Forwarded message:"}
+                      </div>
+                      <!-- Always show plain text preview since body field contains plain text -->
+                      <div class="textarea textarea-bordered bg-base-200/50 h-32 overflow-auto text-sm text-base-content/70 resize-none break-words">
+                        {@form[:body].value}
+                      </div>
+                    </div>
+                    
+<!-- Show attachments that will be forwarded -->
+                    <%= if @mode == "forward" && @original_message && @original_message.attachments && is_map(@original_message.attachments) && map_size(@original_message.attachments) > 0 do %>
+                      <div class="relative pt-6">
+                        <div class="absolute top-0 left-0 text-sm font-medium text-base-content/60 flex items-center gap-2">
+                          <.icon name="hero-paper-clip" class="h-4 w-4" />
+                          {gettext("Attachments to forward:")}
+                        </div>
+                        <div class="bg-base-200/30 border border-base-300 rounded-lg p-4">
+                          <div class="grid grid-cols-1 gap-2">
+                            <%= for {_attachment_id, attachment} <- @original_message.attachments do %>
+                              <div class="flex items-center justify-between p-2 bg-base-200 rounded border border-base-300">
+                                <div class="flex items-center gap-2">
+                                  <.icon
+                                    name="hero-document"
+                                    class="h-4 w-4 text-base-content/60"
+                                  />
+                                  <div>
+                                    <p class="text-sm font-medium">
+                                      {attachment["filename"] || "Unknown file"}
+                                    </p>
+                                    <p class="text-xs text-base-content/60">
+                                      {format_file_size(Map.get(attachment, "size", 0))} • {attachment[
+                                        "content_type"
+                                      ] || "Unknown type"}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div class="badge badge-success badge-sm">
+                                  {gettext("Will be forwarded")}
+                                </div>
+                              </div>
+                            <% end %>
+                          </div>
+                          <p class="text-xs text-base-content/60 mt-2 italic">
+                            {gettext(
+                              "These attachments from the original message will be included when you send this forwarded email."
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    <% end %>
+                    
+<!-- Hidden field with full message body -->
+                    <input
+                      type="hidden"
+                      name="email[body]"
+                      id="full-message-body"
+                      value={@form[:body].value}
+                    />
+                  </div>
+                <% else %>
+                  <!-- Regular compose mode -->
+                <!-- Markdown Editor -->
+                  <div class="space-y-1">
+                    <!-- Editor Tabs -->
+                    <div class="tabs tabs-boxed bg-base-200">
+                      <button type="button" class="tab tab-active" data-editor-tab="write">
+                        <.icon name="hero-pencil" class="w-4 h-4 mr-1" />
+                        {gettext("Write")}
+                      </button>
+                      <button type="button" class="tab" data-editor-tab="preview">
+                        <.icon name="hero-eye" class="w-4 h-4 mr-1" />
+                        {gettext("Preview")}
+                      </button>
+                      <button type="button" class="tab" data-editor-tab="split">
+                        <.icon name="hero-view-columns" class="w-4 h-4 mr-1" />
+                        {gettext("Split")}
+                      </button>
+                    </div>
+                    
+<!-- Formatting Toolbar -->
+                    <div
+                      class="flex flex-wrap items-center gap-1 p-2 bg-base-200 border border-base-300 rounded-t-lg"
+                      id="formatting-toolbar"
+                    >
+                      <!-- Text Formatting -->
+                      <div class="flex items-center gap-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="bold"
+                          data-target="html-editor"
+                          data-tip={gettext("Bold (Ctrl+B)")}
+                        >
+                          <strong class="text-sm">B</strong>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="italic"
+                          data-target="html-editor"
+                          data-tip={gettext("Italic (Ctrl+I)")}
+                        >
+                          <em class="text-sm">I</em>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="code"
+                          data-target="html-editor"
+                          data-tip={gettext("Code")}
+                        >
+                          <.icon name="hero-code-bracket" class="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div class="divider divider-horizontal h-6 mx-1"></div>
+                      
+<!-- Headers -->
+                      <div class="dropdown dropdown-hover">
+                        <button
+                          type="button"
+                          tabindex="0"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 gap-1"
+                        >
+                          <span class="text-sm font-bold">H</span>
+                          <.icon name="hero-chevron-down" class="w-3 h-3" />
+                        </button>
+                        <ul
+                          tabindex="0"
+                          class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-32 z-50"
+                        >
+                          <li>
+                            <button
+                              type="button"
+                              data-markdown-format="h1"
+                              data-target="html-editor"
+                            >
+                              H1
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              type="button"
+                              data-markdown-format="h2"
+                              data-target="html-editor"
+                            >
+                              H2
+                            </button>
+                          </li>
+                          <li>
+                            <button
+                              type="button"
+                              data-markdown-format="h3"
+                              data-target="html-editor"
+                            >
+                              H3
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                      
+<!-- Lists & Links -->
+                      <div class="flex items-center gap-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="list-bullet"
+                          data-target="html-editor"
+                          data-tip={gettext("Bullet list")}
+                        >
+                          <.icon name="hero-list-bullet" class="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="list-number"
+                          data-target="html-editor"
+                          data-tip={gettext("Numbered list")}
+                        >
+                          <span class="text-sm">1.</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="link"
+                          data-target="html-editor"
+                          data-tip={gettext("Insert link")}
+                        >
+                          <.icon name="hero-link" class="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div class="divider divider-horizontal h-6 mx-1"></div>
+                      
+<!-- Quote & Code Block -->
+                      <div class="flex items-center gap-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="quote"
+                          data-target="html-editor"
+                          data-tip={gettext("Quote")}
+                        >
+                          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          data-markdown-format="code-block"
+                          data-target="html-editor"
+                          data-tip={gettext("Code block")}
+                        >
+                          <span class="text-xs font-medium">[/]</span>
+                        </button>
+                      </div>
+                    </div>
+                    
+<!-- Editor Container -->
+                    <div id="editor-container" class="relative">
+                      <!-- Editor Textarea -->
+                      <div id="editor-write" class="block">
+                        <textarea
+                          id="html-editor"
+                          name="email[body]"
+                          rows="15"
+                          class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-primary"
+                          placeholder="Type your message here..."
+                        ><%= @form[:body].value %></textarea>
+                      </div>
+                      
+<!-- Preview Panel -->
+                      <div id="editor-preview" class="hidden">
+                        <div class="border-x border-b border-base-300 rounded-b-lg p-4 min-h-[350px] bg-base-100 overflow-auto">
+                          <div id="preview-content" class="prose prose-sm max-w-full">
+                            <p class="text-base-content/50">
+                              {gettext("Nothing to preview yet...")}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+              
+<!-- Attachments Section -->
+              <div>
+                <label class="label">
+                  <span class="font-semibold">
+                    <.icon name="hero-paper-clip" class="w-4 h-4 inline" />
+                    {gettext("Attachments")}
+                  </span>
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Max 10MB per file, 5 files, 20 files per hour")}
+                  </span>
+                  <span class="text-xs text-base-content/60">
+                    {gettext("Allowed: Images, PDFs, Office docs, Text, Archives")}
+                  </span>
+                </label>
+
+                <div
+                  class="border-2 border-dashed border-base-300 rounded-lg p-6 hover:border-primary/50 transition-colors"
+                  phx-drop-target={@uploads.attachments.ref}
+                >
+                  <div class="flex flex-col items-center justify-center gap-2">
+                    <.icon name="hero-arrow-up-tray" class="w-8 h-8 text-base-content/40" />
+                    <p class="text-sm text-base-content/70">
+                      {gettext("Drag and drop files here or click to browse")}
+                    </p>
+                    <label
+                      for={@uploads.attachments.ref}
+                      class="btn btn-sm btn-ghost btn-primary cursor-pointer"
+                    >
+                      <.icon name="hero-folder-open" class="w-4 h-4 mr-1" />
+                      {gettext("Choose Files")}
+                    </label>
+                    <.live_file_input upload={@uploads.attachments} class="hidden" />
+                  </div>
+                </div>
+                
+<!-- Show uploaded files -->
+                <%= if @uploads.attachments.entries != [] do %>
+                  <div class="mt-4 space-y-2">
+                    <%= for entry <- @uploads.attachments.entries do %>
+                      <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg border border-base-300">
+                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                          <.icon
+                            name="hero-document"
+                            class="w-5 h-5 text-base-content/60 flex-shrink-0"
+                          />
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium truncate">{entry.client_name}</p>
+                            <p class="text-xs text-base-content/60">
+                              {format_file_size(entry.client_size)}
+                              <%= if entry.progress > 0 && entry.progress < 100 do %>
+                                • {entry.progress}% uploaded
+                              <% end %>
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          phx-click="cancel_upload"
+                          phx-value-ref={entry.ref}
+                          class="btn btn-ghost btn-sm btn-circle"
+                          title={gettext("Remove")}
+                        >
+                          <.icon name="hero-x-mark" class="w-4 h-4" />
+                        </button>
+                      </div>
+                      <!-- Show errors -->
+                      <%= for err <- upload_errors(@uploads.attachments, entry) do %>
+                        <p class="text-error text-xs mt-1">
+                          {error_to_string(err)}
+                        </p>
+                      <% end %>
+                    <% end %>
+                  </div>
+                <% end %>
+                
+<!-- Show general upload errors -->
+                <%= for err <- upload_errors(@uploads.attachments) do %>
+                  <p class="text-error text-sm mt-2">
+                    {error_to_string(err)}
+                  </p>
+                <% end %>
+              </div>
+              
+<!-- Action Buttons -->
+              <div class="flex flex-col sm:flex-row gap-3 pt-4 items-center">
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  disabled={@rate_limit_status.daily.remaining == 0 || @sending}
+                >
+                  <%= if @sending do %>
+                    <.spinner size="md" class="mr-2" /> {gettext("Sending...")}
+                  <% else %>
+                    <.icon name="hero-paper-airplane" class="h-5 w-5 mr-2" /> {gettext(
+                      "Send Message"
+                    )}
+                  <% end %>
+                </button>
+                <.link
+                  navigate={get_return_url(assigns)}
+                  class="btn btn-ghost"
+                >
+                  <.icon name="hero-arrow-left" class="h-5 w-5 mr-2" /> {get_back_button_text(
+                    assigns
+                  )}
+                </.link>
+                
+<!-- Auto-save status indicator -->
+                <div class="flex-1 text-right text-sm text-base-content/60">
+                  <%= case @draft_status do %>
+                    <% :saving -> %>
+                      <span class="flex items-center justify-end gap-1">
+                        <.spinner size="sm" />
+                        {gettext("Saving...")}
+                      </span>
+                    <% :saved -> %>
+                      <span class="flex items-center justify-end gap-1">
+                        <.icon name="hero-check" class="w-4 h-4 text-success" />
+                        {gettext("Draft saved")}
+                      </span>
+                    <% :error -> %>
+                      <span class="flex items-center justify-end gap-1 text-error">
+                        <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
+                        {gettext("Failed to save")}
+                      </span>
+                    <% _ -> %>
+                  <% end %>
+                </div>
+              </div>
+            </.form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

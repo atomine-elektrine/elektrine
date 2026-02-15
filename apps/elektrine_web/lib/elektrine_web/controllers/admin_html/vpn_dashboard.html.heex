@@ -1,0 +1,237 @@
+<div class="p-4 sm:p-6">
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold">VPN Management</h1>
+      <p class="text-base-content/70 mt-2">WireGuard servers and user configurations</p>
+    </div>
+    <a href={~p"/pripyat/vpn/servers/new"} class="btn btn-secondary">
+      <.icon name="hero-plus" class="w-5 h-5" /> Add Server
+    </a>
+  </div>
+  
+<!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="card glass-card shadow-lg">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-base-content/60">Total Servers</p>
+            <p class="text-3xl font-bold">{length(@servers)}</p>
+          </div>
+          <.icon name="hero-server-stack" class="w-12 h-12 text-error/30" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card glass-card shadow-lg">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-base-content/60">Active Users</p>
+            <p class="text-3xl font-bold">{@total_active_configs}</p>
+          </div>
+          <.icon name="hero-shield-check" class="w-12 h-12 text-success/30" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card glass-card shadow-lg">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-base-content/60">Total Bandwidth</p>
+            <p class="text-2xl font-bold">{format_bytes(@total_bandwidth)}</p>
+          </div>
+          <.icon name="hero-arrow-trending-up" class="w-12 h-12 text-purple/30" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card glass-card shadow-lg">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-base-content/60">Quota Usage</p>
+            <p class="text-3xl font-bold">{@quota_usage_percent}%</p>
+          </div>
+          <.icon name="hero-chart-bar" class="w-12 h-12 text-orange/30" />
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Top Bandwidth Users -->
+  <%= if length(@top_users) > 0 do %>
+    <div class="card glass-card shadow-lg border border-base-300 mb-8">
+      <div class="card-body">
+        <h2 class="card-title mb-4">Top Bandwidth Users</h2>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Server</th>
+                <th>Bandwidth Used</th>
+                <th>Quota Usage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for {config, index} <- Enum.with_index(@top_users, 1) do %>
+                <% quota_percent =
+                  if config.bandwidth_quota_bytes > 0,
+                    do: (config.quota_used_bytes / config.bandwidth_quota_bytes * 100) |> round(),
+                    else: 0 %>
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <span class="badge badge-sm">{index}</span>
+                      <span class="font-medium">
+                        {if config.user.handle,
+                          do: "@#{config.user.handle}",
+                          else: config.user.username}
+                      </span>
+                    </div>
+                  </td>
+                  <td>{config.vpn_server.name}</td>
+                  <td class="font-medium">{format_bytes(config.quota_used_bytes)}</td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="bg-base-200 rounded-full h-2 w-24">
+                        <div
+                          class={[
+                            "h-full rounded-full",
+                            cond do
+                              quota_percent >= 90 -> "bg-error"
+                              quota_percent >= 80 -> "bg-warning"
+                              true -> "bg-success"
+                            end
+                          ]}
+                          style={"width: #{min(quota_percent, 100)}%"}
+                        >
+                        </div>
+                      </div>
+                      <span class="text-xs">{quota_percent}%</span>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Servers Table -->
+  <div class="card glass-card shadow-lg">
+    <div class="card-body">
+      <h2 class="card-title mb-4">VPN Servers</h2>
+
+      <%= if length(@servers) > 0 do %>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Location</th>
+                <th>IP Address</th>
+                <th>Port</th>
+                <th>Users</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for server <- @servers do %>
+                <tr>
+                  <td>
+                    <div class="font-semibold">{server.name}</div>
+                    <div class="text-xs text-base-content/60">{server.internal_ip_range}</div>
+                  </td>
+                  <td>
+                    <%= if server.country_code do %>
+                      <span class="mr-1">{render_country_flag(server.country_code)}</span>
+                    <% end %>
+                    {server.location}
+                  </td>
+                  <td class="font-medium text-sm">{server.public_ip}</td>
+                  <td>{server.endpoint_port}</td>
+                  <td>
+                    <div class="flex flex-col gap-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-base-content/60">Active:</span>
+                        <span class="font-semibold">{server.current_users}</span>
+                        <progress
+                          class="progress progress-primary w-16"
+                          value={server.current_users}
+                          max={server.max_users}
+                        >
+                        </progress>
+                      </div>
+                      <div class="text-xs text-base-content/50">
+                        Max: {server.max_users}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class={[
+                      "badge",
+                      case server.status do
+                        "active" -> "badge-success"
+                        "maintenance" -> "badge-warning"
+                        "offline" -> "badge-error"
+                        _ -> "badge-ghost"
+                      end
+                    ]}>
+                      {server.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="flex gap-2">
+                      <a
+                        href={~p"/pripyat/vpn/servers/#{server.id}/edit"}
+                        class="btn btn-ghost btn-sm"
+                      >
+                        <.icon name="hero-pencil" class="w-4 h-4" />
+                      </a>
+                      <.form
+                        for={%{}}
+                        action={~p"/pripyat/vpn/servers/#{server.id}"}
+                        method="delete"
+                        class="inline"
+                      >
+                        <button
+                          type="submit"
+                          class="btn btn-ghost btn-sm text-error"
+                          data-confirm="Are you sure you want to delete this server?"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" />
+                        </button>
+                      </.form>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-12">
+          <.icon name="hero-server-stack" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
+          <p class="text-base-content/60">No VPN servers configured</p>
+          <a href={~p"/pripyat/vpn/servers/new"} class="btn btn-secondary btn-sm mt-4">
+            Add First Server
+          </a>
+        </div>
+      <% end %>
+
+      <div class="divider"></div>
+
+      <div class="flex justify-between items-center">
+        <a href={~p"/pripyat/vpn/users"} class="btn btn-ghost btn-sm">
+          <.icon name="hero-users" class="w-4 h-4" /> View All User Configurations
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,523 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6" id="calendar-container">
+  <!-- Elektrine Platform Navigation -->
+  <.elektrine_nav active_tab="email" />
+
+  <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-[calc(100vh-14rem)] lg:min-h-[calc(100vh-16rem)]">
+    <!-- Email Sidebar - Left side -->
+    <%= if @mailbox do %>
+      <.sidebar
+        mailbox={@mailbox}
+        storage_info={@storage_info}
+        unread_count={@unread_count}
+        current_page="calendar"
+        current_user={@current_user}
+      />
+    <% end %>
+    
+<!-- Calendar Sidebar - Hidden on mobile unless toggled -->
+    <div class={[
+      "w-full lg:w-64 xl:w-72 bg-base-200 rounded-xl shadow-lg border border-base-300 flex-col",
+      if(@selected_event, do: "hidden lg:flex", else: "hidden lg:flex")
+    ]}>
+      <!-- Header -->
+      <div class="p-4 border-b border-base-300">
+        <h1 class="text-xl font-bold text-base-content">{gettext("Calendar")}</h1>
+      </div>
+      
+<!-- Mini Calendar / Date -->
+      <div class="p-4 border-b border-base-300">
+        <div class="text-center">
+          <div class="text-4xl font-bold text-primary">{@current_date.day}</div>
+          <div class="text-sm text-base-content/60">{Calendar.strftime(@current_date, "%A")}</div>
+          <div class="text-sm text-base-content/60">
+            {Calendar.strftime(@current_date, "%B %Y")}
+          </div>
+        </div>
+      </div>
+      
+<!-- Calendars -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-base-content/60 uppercase tracking-wider">
+            {gettext("My Calendars")}
+          </span>
+          <button phx-click="new_calendar" class="btn btn-ghost btn-xs">
+            <.icon name="hero-plus" class="w-4 h-4" />
+          </button>
+        </div>
+
+        <ul class="space-y-1">
+          <%= for calendar <- @calendars do %>
+            <li class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 group">
+              <label class="flex items-center gap-2 flex-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={MapSet.member?(@visible_calendars, calendar.id)}
+                  phx-click="toggle_calendar"
+                  phx-value-id={calendar.id}
+                  class="checkbox checkbox-sm"
+                  style={"--chkbg: #{calendar.color}; --chkfg: white;"}
+                />
+                <span class="flex-1 truncate text-sm">{calendar.name}</span>
+              </label>
+              <button
+                phx-click="edit_calendar"
+                phx-value-id={calendar.id}
+                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100"
+              >
+                <.icon name="hero-pencil-square" class="w-3 h-3" />
+              </button>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+      
+<!-- Add Event Button -->
+      <div class="p-4 border-t border-base-300">
+        <button phx-click="new_event" class="btn btn-primary btn-sm w-full gap-2">
+          <.icon name="hero-plus" class="w-4 h-4" />
+          {gettext("Add Event")}
+        </button>
+      </div>
+    </div>
+    
+<!-- Main Content -->
+    <div class="flex-1 flex flex-col min-w-0 bg-base-200 rounded-xl shadow-lg border border-base-300 overflow-hidden">
+      <!-- Calendar Header -->
+      <div class="border-b border-base-300 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-1 sm:gap-2">
+          <button phx-click="prev_month" class="btn btn-ghost btn-sm btn-square">
+            <.icon name="hero-chevron-left" class="w-5 h-5" />
+          </button>
+          <button phx-click="next_month" class="btn btn-ghost btn-sm btn-square">
+            <.icon name="hero-chevron-right" class="w-5 h-5" />
+          </button>
+          <button phx-click="today" class="btn btn-ghost btn-sm hidden sm:inline-flex">
+            {gettext("Today")}
+          </button>
+        </div>
+
+        <h2 class="text-lg sm:text-xl font-semibold">{month_name(@view_date)}</h2>
+
+        <div class="flex items-center gap-2">
+          <!-- Mobile: Add event button -->
+          <button phx-click="new_event" class="btn btn-primary btn-sm lg:hidden">
+            <.icon name="hero-plus" class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      
+<!-- Calendar Grid -->
+      <div class="flex-1 overflow-auto p-2 sm:p-4">
+        <div class="h-full flex flex-col">
+          <!-- Day Headers -->
+          <div class="grid grid-cols-7 border-b border-base-300 flex-shrink-0">
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Sun")}
+            </div>
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Mon")}
+            </div>
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Tue")}
+            </div>
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Wed")}
+            </div>
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Thu")}
+            </div>
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Fri")}
+            </div>
+            <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+              {gettext("Sat")}
+            </div>
+          </div>
+          
+<!-- Calendar Weeks -->
+          <div class="flex-1 grid grid-rows-6">
+            <%= for week <- get_calendar_weeks(@view_date) do %>
+              <div class="grid grid-cols-7 border-b border-base-300 last:border-b-0 min-h-0">
+                <%= for date <- week do %>
+                  <div
+                    phx-click="select_date"
+                    phx-value-date={Date.to_iso8601(date)}
+                    class={"p-0.5 sm:p-1 border-r border-base-300 last:border-r-0 cursor-pointer hover:bg-base-200 transition-colors overflow-hidden #{if @selected_date == date, do: "bg-primary/10", else: ""}"}
+                  >
+                    <div class="flex items-center justify-between mb-0.5">
+                      <span class={"w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm #{day_class(date, @current_date, @view_date)}"}>
+                        {date.day}
+                      </span>
+                      <%= if date == @selected_date do %>
+                        <button
+                          phx-click="new_event"
+                          phx-value-date={Date.to_iso8601(date)}
+                          class="btn btn-ghost btn-xs hidden sm:flex"
+                        >
+                          <.icon name="hero-plus" class="w-3 h-3" />
+                        </button>
+                      <% end %>
+                    </div>
+                    
+<!-- Events for this day -->
+                    <div class="space-y-0.5 overflow-hidden">
+                      <%= for event <- events_for_date(@events, date, @visible_calendars) |> Enum.take(2) do %>
+                        <button
+                          phx-click="view_event"
+                          phx-value-id={event.id}
+                          class="w-full text-left px-1 py-0.5 text-[10px] sm:text-xs rounded truncate text-white"
+                          style={"background-color: #{event.calendar.color}"}
+                        >
+                          <span class="hidden sm:inline">
+                            <%= if not event.all_day do %>
+                              <span class="opacity-80">{format_time(event.dtstart)}</span>
+                            <% end %>
+                          </span>
+                          <span class="truncate">{event.summary}</span>
+                        </button>
+                      <% end %>
+                      <% more_count =
+                        length(events_for_date(@events, date, @visible_calendars)) - 2 %>
+                      <%= if more_count > 0 do %>
+                        <button
+                          phx-click="select_date"
+                          phx-value-date={Date.to_iso8601(date)}
+                          class="w-full text-left px-1 text-[10px] sm:text-xs text-base-content/60 hover:text-base-content"
+                        >
+                          +{more_count}
+                        </button>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Event Detail Sidebar -->
+    <%= if @selected_event do %>
+      <div class="w-full lg:w-72 xl:w-80 bg-base-200 rounded-xl shadow-lg border border-base-300 overflow-y-auto flex-shrink-0">
+        <div class="p-4">
+          <!-- Header -->
+          <div class="flex items-start justify-between mb-4">
+            <div
+              class="w-4 h-4 rounded-full mt-1"
+              style={"background-color: #{@selected_event.calendar.color}"}
+            >
+            </div>
+            <div class="flex items-center gap-1">
+              <button
+                phx-click="edit_event"
+                phx-value-id={@selected_event.id}
+                class="btn btn-ghost btn-sm"
+              >
+                <.icon name="hero-pencil-square" class="w-4 h-4" />
+              </button>
+              <button
+                phx-click="delete_event"
+                phx-value-id={@selected_event.id}
+                data-confirm={gettext("Are you sure you want to delete this event?")}
+                class="btn btn-ghost btn-sm text-error"
+              >
+                <.icon name="hero-trash" class="w-4 h-4" />
+              </button>
+              <button phx-click="close_event_detail" class="btn btn-ghost btn-sm">
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+<!-- Event Title -->
+          <h3 class="text-xl font-bold mb-4">{@selected_event.summary}</h3>
+          
+<!-- Date & Time -->
+          <div class="flex items-center gap-3 mb-3">
+            <.icon name="hero-clock" class="w-5 h-5 text-base-content/60" />
+            <div>
+              <div>{Calendar.strftime(@selected_event.dtstart, "%A, %B %d, %Y")}</div>
+              <%= if not @selected_event.all_day do %>
+                <div class="text-sm text-base-content/60">
+                  {format_time(@selected_event.dtstart)}
+                  <%= if @selected_event.dtend do %>
+                    - {format_time(@selected_event.dtend)}
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-sm text-base-content/60">{gettext("All day")}</div>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Location -->
+          <%= if @selected_event.location do %>
+            <div class="flex items-center gap-3 mb-3">
+              <.icon name="hero-map-pin" class="w-5 h-5 text-base-content/60" />
+              <div>{@selected_event.location}</div>
+            </div>
+          <% end %>
+          
+<!-- Calendar -->
+          <div class="flex items-center gap-3 mb-3">
+            <.icon name="hero-calendar" class="w-5 h-5 text-base-content/60" />
+            <div>{@selected_event.calendar.name}</div>
+          </div>
+          
+<!-- Description -->
+          <%= if @selected_event.description do %>
+            <div class="mt-4 pt-4 border-t border-base-300">
+              <div class="text-sm text-base-content/60 mb-2">{gettext("Description")}</div>
+              <p class="whitespace-pre-wrap">{@selected_event.description}</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<%= if @show_event_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-lg">
+      <h3 class="font-bold text-lg mb-4">
+        {if @editing_event, do: gettext("Edit Event"), else: gettext("New Event")}
+      </h3>
+
+      <.form
+        for={@event_changeset}
+        phx-submit="save_event"
+        phx-change="validate_event"
+        class="space-y-4"
+      >
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Title")} *</span></label>
+          <input
+            type="text"
+            name="event[summary]"
+            value={
+              @event_changeset.changes[:summary] || (@editing_event && @editing_event.summary) ||
+                ""
+            }
+            class="input input-bordered"
+            placeholder={gettext("Add title")}
+            required
+          />
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Date")} *</span></label>
+            <input
+              type="date"
+              name="event[date]"
+              value={
+                cond do
+                  @event_changeset.changes[:dtstart] ->
+                    Date.to_iso8601(@event_changeset.changes[:dtstart])
+
+                  @editing_event && @editing_event.dtstart ->
+                    Date.to_iso8601(@editing_event.dtstart)
+
+                  true ->
+                    Date.to_iso8601(@current_date)
+                end
+              }
+              class="input input-bordered"
+              required
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Calendar")}</span></label>
+            <select name="event[calendar_id]" class="select select-bordered">
+              <%= for calendar <- @calendars do %>
+                <option
+                  value={calendar.id}
+                  selected={
+                    (@event_changeset.changes[:calendar_id] ||
+                       (@editing_event && @editing_event.calendar_id) || @default_calendar.id) ==
+                      calendar.id
+                  }
+                >
+                  {calendar.name}
+                </option>
+              <% end %>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-2">
+            <input
+              type="checkbox"
+              name="event[all_day]"
+              value="true"
+              checked={
+                @event_changeset.changes[:all_day] || (@editing_event && @editing_event.all_day)
+              }
+              class="checkbox checkbox-primary"
+            />
+            <span class="label-text">{gettext("All day")}</span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Start time")}</span></label>
+            <input
+              type="time"
+              name="event[start_time]"
+              value={
+                cond do
+                  @event_changeset.changes[:dtstart] ->
+                    Calendar.strftime(@event_changeset.changes[:dtstart], "%H:%M")
+
+                  @editing_event && @editing_event.dtstart ->
+                    Calendar.strftime(@editing_event.dtstart, "%H:%M")
+
+                  true ->
+                    "09:00"
+                end
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("End time")}</span></label>
+            <input
+              type="time"
+              name="event[end_time]"
+              value={
+                cond do
+                  @event_changeset.changes[:dtend] ->
+                    Calendar.strftime(@event_changeset.changes[:dtend], "%H:%M")
+
+                  @editing_event && @editing_event.dtend ->
+                    Calendar.strftime(@editing_event.dtend, "%H:%M")
+
+                  true ->
+                    "10:00"
+                end
+              }
+              class="input input-bordered"
+            />
+          </div>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Location")}</span></label>
+          <input
+            type="text"
+            name="event[location]"
+            value={
+              @event_changeset.changes[:location] || (@editing_event && @editing_event.location) ||
+                ""
+            }
+            class="input input-bordered"
+            placeholder={gettext("Add location")}
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Description")}</span></label>
+          <textarea
+            name="event[description]"
+            rows="3"
+            class="textarea textarea-bordered"
+            placeholder={gettext("Add description")}
+          >{@event_changeset.changes[:description] || (@editing_event && @editing_event.description) || ""}</textarea>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="cancel_event_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Save")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_event_modal"></div>
+  </div>
+<% end %>
+
+<!-- Calendar Modal -->
+<%= if @show_calendar_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-sm">
+      <h3 class="font-bold text-lg mb-4">
+        {if @editing_calendar, do: gettext("Edit Calendar"), else: gettext("New Calendar")}
+      </h3>
+
+      <.form
+        for={@calendar_changeset}
+        phx-submit="save_calendar"
+        phx-change="validate_calendar"
+        class="space-y-4"
+      >
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Name")} *</span></label>
+          <input
+            type="text"
+            name="calendar[name]"
+            value={
+              @calendar_changeset.changes[:name] || (@editing_calendar && @editing_calendar.name) ||
+                ""
+            }
+            class="input input-bordered"
+            required
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Color")}</span></label>
+          <input
+            type="color"
+            name="calendar[color]"
+            value={
+              @calendar_changeset.changes[:color] ||
+                (@editing_calendar && @editing_calendar.color) || "#3b82f6"
+            }
+            class="w-full h-10 rounded cursor-pointer"
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Description")}</span></label>
+          <textarea
+            name="calendar[description]"
+            rows="2"
+            class="textarea textarea-bordered"
+          >{@calendar_changeset.changes[:description] || (@editing_calendar && @editing_calendar.description) || ""}</textarea>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="cancel_calendar_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <%= if @editing_calendar && not @editing_calendar.is_default do %>
+            <button
+              type="button"
+              phx-click="delete_calendar"
+              phx-value-id={@editing_calendar.id}
+              data-confirm={gettext("Are you sure? All events in this calendar will be deleted.")}
+              class="btn btn-error btn-outline"
+            >
+              {gettext("Delete")}
+            </button>
+          <% end %>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Save")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_calendar_modal"></div>
+  </div>
+<% end %>

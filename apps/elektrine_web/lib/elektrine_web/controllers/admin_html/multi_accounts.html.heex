@@ -1,0 +1,270 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6 flex justify-between items-start">
+    <div>
+      <h1 class="text-2xl font-bold">Multi-Account Detection</h1>
+      <p class="opacity-70 mt-2">
+        Identify users sharing IP addresses for potential multi-account analysis.
+      </p>
+    </div>
+    <.link href={~p"/pripyat/users"} class="btn btn-ghost">
+      <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Users
+    </.link>
+  </div>
+  
+<!-- Search Form -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <form method="get" action={~p"/pripyat/multi-accounts"} class="flex gap-4 items-end">
+        <div class="flex-1">
+          <label class="label">
+            <span>Search multi-accounts</span>
+          </label>
+          <div class="join w-full">
+            <input
+              type="text"
+              name="search"
+              value={@search_query}
+              placeholder="Search by IP address or username..."
+              class="input flex-1 join-item w-full"
+            />
+            <button type="submit" class="btn btn-primary join-item">
+              <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
+            </button>
+          </div>
+        </div>
+        <%= if @search_query != "" do %>
+          <.link href={~p"/pripyat/multi-accounts"} class="btn btn-ghost">
+            <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
+          </.link>
+        <% end %>
+      </form>
+
+      <%= if @search_query != "" do %>
+        <div class="mt-4">
+          <div class="alert alert-info">
+            <.icon name="hero-information-circle" class="stroke-current shrink-0 w-6 h-6" />
+            <span>
+              Showing results for "<strong><%= @search_query %></strong>"
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Registration IP Groups -->
+  <%= if length(@multi_account_data.registration_ip_groups) > 0 do %>
+    <div class="card glass-card shadow-xl mb-6">
+      <div class="card-header">
+        <div class="card-title">
+          <.icon name="hero-user-plus" class="w-5 h-5 mr-2" /> Registration IP Address Groups
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="text-sm opacity-70 mb-4">
+          Multiple users registered from the same IP address. This could indicate multi-account creation or shared network usage.
+        </p>
+
+        <div class="space-y-4">
+          <%= for group <- @multi_account_data.registration_ip_groups do %>
+            <div class="border border-orange-200 rounded-lg p-4 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800">
+              <div class="flex items-start justify-between mb-3 gap-4">
+                <div class="flex items-start gap-2 min-w-0 flex-1">
+                  <.icon
+                    name="hero-globe-alt"
+                    class="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5"
+                  />
+                  <span class="font-medium text-sm font-semibold break-all">{group.ip}</span>
+                  <div class="badge badge-warning flex-shrink-0">{group.count} users</div>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-ghost flex-shrink-0"
+                  data-ip-lookup={group.ip}
+                  title="Lookup IP geolocation"
+                >
+                  <.icon name="hero-map-pin" class="w-4 h-4" />
+                </button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="table table-sm w-full">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Status</th>
+                      <th>Registered</th>
+                      <th>Last Login</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <%= for user <- group.users do %>
+                      <tr>
+                        <td>
+                          <div class="flex items-center gap-2">
+                            <div class="avatar">
+                              <%= if user.avatar do %>
+                                <div class="w-8 h-8 rounded-lg ring ring-base-300">
+                                  <img
+                                    src={Elektrine.Uploads.avatar_url(user.avatar)}
+                                    alt={user.username}
+                                    class="rounded-lg w-full h-full"
+                                  />
+                                </div>
+                              <% else %>
+                                <div class="bg-orange-500 text-white rounded-lg w-8 h-8">
+                                  <span class="text-xs font-bold flex items-center justify-center h-full">
+                                    {String.first(user.username) |> String.upcase()}
+                                  </span>
+                                </div>
+                              <% end %>
+                            </div>
+                            <div>
+                              <div class="font-semibold">{user.username}</div>
+                              <div class="text-xs opacity-50">ID: {user.id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div class="flex gap-1">
+                            <%= cond do %>
+                              <% user.banned -> %>
+                                <div class="badge badge-error badge-sm">Banned</div>
+                              <% user.is_admin -> %>
+                                <div class="badge badge-secondary badge-sm">Admin</div>
+                              <% true -> %>
+                                <div class="badge badge-success badge-sm">Active</div>
+                            <% end %>
+                          </div>
+                        </td>
+                        <td class="text-sm">
+                          {Calendar.strftime(user.inserted_at, "%m/%d/%y %H:%M")}
+                        </td>
+                        <td class="text-sm">
+                          <%= if user.last_login_at do %>
+                            {Calendar.strftime(user.last_login_at, "%m/%d/%y %H:%M")}
+                            <%= if user.login_count && user.login_count > 0 do %>
+                              <div class="text-xs opacity-60">
+                                ({user.login_count} login{if user.login_count != 1, do: "s"})
+                              </div>
+                            <% end %>
+                          <% else %>
+                            <span class="text-gray-400">Never</span>
+                          <% end %>
+                        </td>
+                        <td>
+                          <.link
+                            href={~p"/pripyat/users/#{user.id}/edit"}
+                            class="btn btn-xs btn-ghost"
+                          >
+                            <.icon name="hero-pencil" class="w-3 h-3" />
+                          </.link>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+<!-- Pagination -->
+  <%= if @total_pages > 1 do %>
+    <div class="flex justify-center mt-6">
+      <div class="join">
+        <%= if @current_page > 1 do %>
+          <.link
+            href={
+              if @search_query != "",
+                do: ~p"/pripyat/multi-accounts?search=#{@search_query}&page=#{@current_page - 1}",
+                else: ~p"/pripyat/multi-accounts?page=#{@current_page - 1}"
+            }
+            class="join-item btn"
+          >
+            «
+          </.link>
+        <% end %>
+
+        <%= for page_num <- @page_range do %>
+          <.link
+            href={
+              if @search_query != "",
+                do: ~p"/pripyat/multi-accounts?search=#{@search_query}&page=#{page_num}",
+                else: ~p"/pripyat/multi-accounts?page=#{page_num}"
+            }
+            class={
+              if page_num == @current_page,
+                do: "join-item btn btn-primary",
+                else: "join-item btn btn-ghost"
+            }
+          >
+            {page_num}
+          </.link>
+        <% end %>
+
+        <%= if @current_page < @total_pages do %>
+          <.link
+            href={
+              if @search_query != "",
+                do: ~p"/pripyat/multi-accounts?search=#{@search_query}&page=#{@current_page + 1}",
+                else: ~p"/pripyat/multi-accounts?page=#{@current_page + 1}"
+            }
+            class="join-item btn"
+          >
+            »
+          </.link>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="text-center mt-4 text-sm opacity-70">
+      Page {@current_page} of {@total_pages} • {@total_count} IP groups with multiple accounts
+    </div>
+  <% end %>
+  
+<!-- No Results -->
+  <%= if length(@multi_account_data.registration_ip_groups) == 0 do %>
+    <div class="card glass-card shadow-xl">
+      <div class="card-body text-center">
+        <%= if @search_query != "" do %>
+          <.icon name="hero-magnifying-glass" class="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 class="text-xl font-semibold mb-2">No Results Found</h2>
+          <p class="opacity-70">
+            No multi-account activity found for "<strong>{@search_query}</strong>".
+          </p>
+        <% else %>
+          <.icon name="hero-check-circle" class="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h2 class="text-xl font-semibold mb-2">No Multi-Account Activity Detected</h2>
+          <p class="opacity-70">
+            All users appear to be using unique IP addresses for registration and login.
+          </p>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<!-- IP Geolocation Modal -->
+<dialog id="ip-lookup-modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-4">IP Geolocation Lookup</h3>
+    <div id="ip-lookup-content">
+      <div class="flex justify-center py-8">
+        <.spinner size="lg" />
+      </div>
+    </div>
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn">Close</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>

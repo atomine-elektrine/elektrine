@@ -1,0 +1,64 @@
+defmodule ElektrineWeb.RecoveryEmailLive.Error do
+  use ElektrineWeb, :live_view
+
+  on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
+
+  def mount(_params, session, socket) do
+    reason = session["error_reason"] || :invalid_token
+
+    {:ok,
+     assign(socket,
+       page_title: "Verification Failed",
+       reason: reason
+     )}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div
+      id="recovery-error-card"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
+    >
+      <div class="card-body text-center">
+        <div class="flex justify-center mb-4">
+          <div class="w-16 h-16 rounded-full bg-error/20 flex items-center justify-center">
+            <.icon name="hero-x-circle" class="w-10 h-10 text-error" />
+          </div>
+        </div>
+
+        <h1 class="text-2xl font-bold mb-2">Verification Failed</h1>
+
+        <%= if @reason == :token_expired do %>
+          <p class="opacity-70 mb-6">
+            This verification link has expired. Verification links are valid for 24 hours.
+          </p>
+
+          <div class="alert alert-warning mb-6">
+            <.icon name="hero-clock" class="w-5 h-5" />
+            <span>Please request a new verification email.</span>
+          </div>
+        <% else %>
+          <p class="opacity-70 mb-6">
+            The verification link is invalid or has already been used.
+          </p>
+
+          <div class="alert alert-error mb-6">
+            <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+            <span>Please request a new verification email.</span>
+          </div>
+        <% end %>
+
+        <div class="space-y-2">
+          <.link href={~p"/account?tab=security"} class="btn btn-primary w-full">
+            Go to Account Settings
+          </.link>
+          <.link href={~p"/login"} class="btn btn-ghost w-full">
+            Back to Login
+          </.link>
+        </div>
+      </div>
+    </div>
+    """
+  end
+end

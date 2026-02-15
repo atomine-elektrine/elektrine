@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose an enhancement for one or more umbrella apps
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: Target app
+      options:
+        - apps/elektrine
+        - apps/elektrine_web
+        - apps/elektrine_email
+        - apps/elektrine_social
+        - apps/elektrine_vpn
+        - apps/elektrine_password_manager
+        - multiple apps
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What pain point are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      description: Performance, security, UX, maintenance, migration notes.

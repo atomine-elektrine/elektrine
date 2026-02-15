@@ -1,0 +1,285 @@
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <.link href={~p"/communities/#{@community.name}"} class="btn btn-ghost btn-sm">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.5"
+          stroke="currentColor"
+          class="w-5 h-5"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+        Back to Community
+      </.link>
+      <h1 class="text-2xl font-bold">Community Settings</h1>
+    </div>
+    <div class="text-sm opacity-70">
+      !{String.downcase(@community.name) |> String.replace(~r/[^a-z0-9]+/, "-")}@{Elektrine.ActivityPub.instance_domain()}
+    </div>
+  </div>
+  
+<!-- Tabs -->
+  <div class="tabs tabs-boxed mb-6">
+    <a
+      class={"tab #{if @active_tab == "general", do: "tab-active"}"}
+      phx-click="switch_tab"
+      phx-value-tab="general"
+    >
+      General
+    </a>
+    <a
+      class={"tab #{if @active_tab == "moderators", do: "tab-active"}"}
+      phx-click="switch_tab"
+      phx-value-tab="moderators"
+    >
+      Moderators
+    </a>
+  </div>
+  
+<!-- Tab Content -->
+  <%= if @active_tab == "general" do %>
+    <div class="card glass-card shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title mb-4">General Settings</h2>
+
+        <.form for={%{}} phx-submit="update_community" class="space-y-6">
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text font-medium">Community Name</span>
+            </label>
+            <input
+              type="text"
+              value={@community.name}
+              class="input input-bordered w-full opacity-50"
+              disabled
+            />
+            <label class="label">
+              <span class="label-text-alt text-xs opacity-70">
+                Community names cannot be changed
+              </span>
+            </label>
+          </div>
+
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text font-medium">Description</span>
+            </label>
+            <textarea
+              name="description"
+              class="textarea textarea-bordered w-full h-24"
+              placeholder="Describe what this community is about..."
+            ><%= @community.description %></textarea>
+            <label class="label">
+              <span class="label-text-alt text-xs opacity-70">
+                A brief description of your community's purpose
+              </span>
+            </label>
+          </div>
+
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text font-medium">Community Rules</span>
+            </label>
+            <textarea
+              name="rules"
+              class="textarea textarea-bordered w-full h-32"
+              placeholder="• Be respectful&#10;• Stay on topic&#10;• No spam"
+            ><%= @community.community_rules %></textarea>
+            <label class="label">
+              <span class="label-text-alt text-xs opacity-70">
+                Use bullet points or numbered lists for clarity
+              </span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text font-medium">Category</span>
+              </label>
+              <select name="category" class="select select-bordered w-full">
+                <option value="general" selected={@community.community_category == "general"}>
+                  General
+                </option>
+                <option value="tech" selected={@community.community_category == "tech"}>
+                  Technology
+                </option>
+                <option value="gaming" selected={@community.community_category == "gaming"}>
+                  Gaming
+                </option>
+                <option value="art" selected={@community.community_category == "art"}>
+                  Art & Design
+                </option>
+                <option value="music" selected={@community.community_category == "music"}>
+                  Music
+                </option>
+                <option value="sports" selected={@community.community_category == "sports"}>
+                  Sports
+                </option>
+                <option value="education" selected={@community.community_category == "education"}>
+                  Education
+                </option>
+                <option
+                  value="entertainment"
+                  selected={@community.community_category == "entertainment"}
+                >
+                  Entertainment
+                </option>
+                <option value="science" selected={@community.community_category == "science"}>
+                  Science
+                </option>
+                <option value="politics" selected={@community.community_category == "politics"}>
+                  Politics
+                </option>
+                <option value="business" selected={@community.community_category == "business"}>
+                  Business
+                </option>
+                <option value="other" selected={@community.community_category == "other"}>
+                  Other
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="card-actions justify-end pt-4">
+            <button type="submit" class="btn btn-secondary">Save Changes</button>
+          </div>
+        </.form>
+      </div>
+    </div>
+  <% end %>
+
+  <%= if @active_tab == "moderators" do %>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Current Moderators -->
+      <div class="card glass-card shadow-xl">
+        <div class="card-body">
+          <h2 class="card-title mb-4">Current Moderators</h2>
+
+          <div class="space-y-3">
+            <%= for member <- @members, member.role in ["moderator", "admin", "owner"] do %>
+              <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                <div class="flex items-center gap-3">
+                  <div class="avatar">
+                    <div class="w-10 h-10 rounded-full bg-primary">
+                      <span class="text-sm text-white flex items-center justify-center h-full">
+                        {String.first(member.username) |> String.upcase()}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="font-medium">{member.username}</div>
+                    <div class="text-xs opacity-70">
+                      {case member.role do
+                        "owner" -> "Owner"
+                        "admin" -> "Administrator"
+                        "moderator" -> "Moderator"
+                        _ -> member.role
+                      end}
+                    </div>
+                  </div>
+                </div>
+                <%= if member.role == "moderator" && member.user_id != @community.creator_id do %>
+                  <button
+                    type="button"
+                    phx-click="demote_moderator"
+                    phx-value-user_id={member.user_id}
+                    class="btn btn-ghost btn-sm text-error"
+                  >
+                    Remove
+                  </button>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+<!-- Add Moderator -->
+      <div class="card glass-card shadow-xl">
+        <div class="card-body">
+          <h2 class="card-title mb-4">Add Moderator</h2>
+
+          <.form for={%{}} phx-submit="promote_moderator" class="space-y-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Select Member</span>
+              </label>
+              <select name="user_id" class="select select-bordered w-full" required>
+                <option value="">Choose a member...</option>
+                <%= for member <- @members, member.role == "member" do %>
+                  <option value={member.user_id}>{member.username}</option>
+                <% end %>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-secondary w-full">
+              Promote to Moderator
+            </button>
+          </.form>
+
+          <div class="divider">Permissions</div>
+
+          <div class="text-sm space-y-2">
+            <div class="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="w-4 h-4 text-success mt-0.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="opacity-70">Delete inappropriate posts</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="w-4 h-4 text-success mt-0.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="opacity-70">Manage community flairs</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="w-4 h-4 text-success mt-0.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="opacity-70">Pin important posts</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="w-4 h-4 text-success mt-0.5"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              <span class="opacity-70">Ban disruptive users</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"
+    />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="theme-color" content="#000000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <.live_title>
+      <%= if assigns[:profile] && @profile && @profile.page_title do %>
+        {@profile.page_title}
+      <% else %>
+        <%= if assigns[:user] && @user do %>
+          {(@profile && @profile.display_name) || @user.username}
+        <% else %>
+          Profile
+        <% end %>
+      <% end %>
+    </.live_title>
+    
+<!-- Custom Favicon -->
+    <%= cond do %>
+      <% assigns[:profile] && @profile && @profile.favicon_url -> %>
+        <link
+          rel="icon"
+          type="image/x-icon"
+          href={Elektrine.Uploads.favicon_url(@profile.favicon_url)}
+        />
+        <link rel="shortcut icon" href={Elektrine.Uploads.favicon_url(@profile.favicon_url)} />
+        <link rel="apple-touch-icon" href={Elektrine.Uploads.favicon_url(@profile.favicon_url)} />
+      <% assigns[:profile] && @profile && @profile.avatar_url -> %>
+        <link
+          rel="icon"
+          type="image/x-icon"
+          href={Elektrine.Uploads.avatar_url(@profile.avatar_url)}
+        />
+        <link rel="shortcut icon" href={Elektrine.Uploads.avatar_url(@profile.avatar_url)} />
+        <link rel="apple-touch-icon" href={Elektrine.Uploads.avatar_url(@profile.avatar_url)} />
+      <% true -> %>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <% end %>
+    
+<!-- SEO Meta Tags -->
+    <meta
+      name="description"
+      content={
+        if assigns[:profile] && @profile && @profile.description do
+          Elektrine.Markdown.to_text(@profile.description)
+        else
+          "User profile and links on Elektrine"
+        end
+      }
+    />
+    <meta
+      name="author"
+      content={
+        if assigns[:user] && @user do
+          (@profile && @profile.display_name) || @user.username
+        else
+          "Z"
+        end
+      }
+    />
+    
+<!-- Open Graph -->
+    <meta property="og:site_name" content="Elektrine" />
+    <meta
+      property="og:title"
+      content={
+        if assigns[:user] && @user do
+          "#{(@profile && @profile.display_name) || @user.handle || @user.username} (@#{@user.handle || @user.username})"
+        else
+          "Profile • Elektrine"
+        end
+      }
+    />
+    <meta
+      property="og:description"
+      content={
+        if assigns[:profile] && @profile && @profile.description do
+          description = Elektrine.Markdown.to_text(@profile.description)
+
+          if String.length(description) > 200 do
+            String.slice(description, 0, 197) <> "..."
+          else
+            description
+          end
+        else
+          if assigns[:user] && @user do
+            "Check out #{(@profile && @profile.display_name) || @user.username}'s profile on Elektrine"
+          else
+            "User profile and links on Elektrine"
+          end
+        end
+      }
+    />
+    <meta property="og:type" content="profile" />
+    <meta
+      property="og:url"
+      content={
+        if assigns[:user] && @user do
+          "https://#{@user.handle || @user.username}.z.org"
+        else
+          "https://z.org"
+        end
+      }
+    />
+    <meta property="og:locale" content="en_US" />
+    <%= if assigns[:profile] && @profile do %>
+      <%= cond do %>
+        <% @profile.banner_url -> %>
+          <meta
+            property="og:image"
+            content={Elektrine.Uploads.background_url(@profile.banner_url)}
+          />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:alt" content={"#{@user.username}'s profile banner"} />
+        <% @profile.avatar_url -> %>
+          <meta property="og:image" content={Elektrine.Uploads.avatar_url(@profile.avatar_url)} />
+          <meta property="og:image:alt" content={"#{@user.username}'s avatar"} />
+        <% assigns[:user] && @user && @user.avatar -> %>
+          <meta property="og:image" content={Elektrine.Uploads.avatar_url(@user.avatar)} />
+          <meta property="og:image:alt" content={"#{@user.username}'s avatar"} />
+        <% @profile.background_url && @profile.background_type == "image" -> %>
+          <meta
+            property="og:image"
+            content={Elektrine.Uploads.background_url(@profile.background_url)}
+          />
+          <meta property="og:image:alt" content={"#{@user.username}'s profile background"} />
+        <% true -> %>
+          <meta property="og:image" content="https://z.org/images/og-default.png" />
+      <% end %>
+    <% else %>
+      <%= if assigns[:user] && @user && @user.avatar do %>
+        <meta property="og:image" content={Elektrine.Uploads.avatar_url(@user.avatar)} />
+        <meta property="og:image:alt" content={"#{@user.username}'s avatar"} />
+      <% else %>
+        <meta property="og:image" content="https://z.org/images/og-default.png" />
+      <% end %>
+    <% end %>
+    
+<!-- Twitter Card -->
+    <meta
+      name="twitter:card"
+      content={
+        cond do
+          assigns[:profile] && @profile && @profile.banner_url ->
+            "summary_large_image"
+
+          assigns[:profile] && @profile && (@profile.avatar_url || @profile.background_url) ->
+            "summary"
+
+          assigns[:user] && @user && @user.avatar ->
+            "summary"
+
+          true ->
+            "summary"
+        end
+      }
+    />
+    <meta name="twitter:site" content="@zorg" />
+    <meta
+      name="twitter:title"
+      content={
+        if assigns[:user] && @user do
+          "#{(@profile && @profile.display_name) || @user.handle || @user.username}"
+        else
+          "Profile • Elektrine"
+        end
+      }
+    />
+    <meta
+      name="twitter:description"
+      content={
+        if assigns[:profile] && @profile && @profile.description do
+          description = Elektrine.Markdown.to_text(@profile.description)
+
+          if String.length(description) > 200 do
+            String.slice(description, 0, 197) <> "..."
+          else
+            description
+          end
+        else
+          if assigns[:user] && @user do
+            "Check out #{(@profile && @profile.display_name) || @user.username}'s profile on Elektrine"
+          else
+            "User profile and links on Elektrine"
+          end
+        end
+      }
+    />
+    <%= if assigns[:profile] && @profile do %>
+      <%= cond do %>
+        <% @profile.banner_url -> %>
+          <meta
+            name="twitter:image"
+            content={Elektrine.Uploads.background_url(@profile.banner_url)}
+          />
+        <% @profile.avatar_url -> %>
+          <meta name="twitter:image" content={Elektrine.Uploads.avatar_url(@profile.avatar_url)} />
+        <% assigns[:user] && @user && @user.avatar -> %>
+          <meta name="twitter:image" content={Elektrine.Uploads.avatar_url(@user.avatar)} />
+        <% @profile.background_url && @profile.background_type == "image" -> %>
+          <meta
+            name="twitter:image"
+            content={Elektrine.Uploads.background_url(@profile.background_url)}
+          />
+        <% true -> %>
+          <meta name="twitter:image" content="https://z.org/images/og-default.png" />
+      <% end %>
+    <% else %>
+      <%= if assigns[:user] && @user && @user.avatar do %>
+        <meta name="twitter:image" content={Elektrine.Uploads.avatar_url(@user.avatar)} />
+      <% else %>
+        <meta name="twitter:image" content="https://z.org/images/og-default.png" />
+      <% end %>
+    <% end %>
+    
+<!-- Preload Inter fonts for better performance (only if using Inter or no custom font) -->
+    <%= if !assigns[:profile] || !@profile || !@profile.font_family || @profile.font_family == "Inter" do %>
+      <link
+        rel="preload"
+        href="/fonts/Inter-Regular.woff2"
+        as="font"
+        type="font/woff2"
+        crossorigin
+      />
+      <link
+        rel="preload"
+        href="/fonts/Inter-Medium.woff2"
+        as="font"
+        type="font/woff2"
+        crossorigin
+      />
+      <link
+        rel="preload"
+        href="/fonts/Inter-SemiBold.woff2"
+        as="font"
+        type="font/woff2"
+        crossorigin
+      />
+    <% end %>
+
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body class="antialiased">
+    <main>
+      {@inner_content}
+    </main>
+  </body>
+</html>

@@ -1,0 +1,223 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Z Platform Navigation -->
+  <.z_nav active_tab="overview" />
+
+  <div class="flex flex-col lg:flex-row gap-6">
+    <!-- Main Feed -->
+    <div class="flex-1 min-w-0">
+      <!-- Dynamic Header -->
+      <div class="mb-4">
+        <h2 class="text-2xl font-bold mb-1">
+          <%= case @filter do %>
+            <% "my_posts" -> %>
+              My Posts
+            <% _ -> %>
+              For You
+          <% end %>
+        </h2>
+        <p class="text-sm opacity-70">
+          <%= case @filter do %>
+            <% "my_posts" -> %>
+              Your recent activity across all platforms
+            <% _ -> %>
+              Personalized content based on your interests
+          <% end %>
+        </p>
+      </div>
+      
+<!-- Filter Pills -->
+      <div class="flex gap-2 overflow-x-auto pb-4">
+        <button
+          phx-click="set_filter"
+          phx-value-filter="all"
+          class={["btn btn-sm", if(@filter == "all", do: "btn-secondary", else: "btn-ghost")]}
+        >
+          <.icon name="hero-sparkles" class="w-4 h-4 mr-1" /> For You
+        </button>
+        <button
+          phx-click="set_filter"
+          phx-value-filter="my_posts"
+          class={["btn btn-sm", if(@filter == "my_posts", do: "btn-secondary", else: "btn-ghost")]}
+        >
+          <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
+        </button>
+      </div>
+      
+<!-- Unified Feed -->
+      <div class="space-y-4">
+        <%= if @loading_feed do %>
+          <!-- Loading skeleton for feed -->
+          <%= for _i <- 1..3 do %>
+            <div class="card glass-card shadow-lg animate-pulse">
+              <div class="card-body">
+                <div class="flex items-start gap-3">
+                  <div class="w-10 h-10 rounded-full bg-base-300"></div>
+                  <div class="flex-1">
+                    <div class="h-4 bg-base-300 rounded w-1/4 mb-2"></div>
+                    <div class="h-3 bg-base-300 rounded w-1/6 mb-4"></div>
+                    <div class="space-y-2">
+                      <div class="h-3 bg-base-300 rounded w-full"></div>
+                      <div class="h-3 bg-base-300 rounded w-5/6"></div>
+                      <div class="h-3 bg-base-300 rounded w-4/6"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        <% else %>
+          <% posts = filtered_posts(@filtered_all_posts, @filter, assigns) %>
+          <%= for post <- posts do %>
+            <.timeline_post
+              post={post}
+              current_user={@current_user}
+              timezone={@timezone}
+              time_format={@time_format}
+              user_likes={@user_likes}
+              user_boosts={@user_boosts}
+              user_follows={@user_follows}
+              pending_follows={@pending_follows}
+              user_statuses={@user_statuses}
+              on_image_click="open_image_modal"
+              source="overview"
+            />
+          <% end %>
+
+          <%= if Enum.empty?(posts) do %>
+            <div class="card glass-card shadow-lg">
+              <div class="card-body text-center py-12">
+                <%= case @filter do %>
+                  <% "my_posts" -> %>
+                    <.icon name="hero-user-circle" class="w-16 h-16 mx-auto opacity-30 mb-4" />
+                    <h3 class="text-lg font-semibold mb-2">No posts yet</h3>
+                    <p class="text-sm opacity-70">
+                      You haven't posted anything yet. Start sharing!
+                    </p>
+                  <% _ -> %>
+                    <.icon name="hero-sparkles" class="w-16 h-16 mx-auto opacity-30 mb-4" />
+                    <h3 class="text-lg font-semibold mb-2">No activity yet</h3>
+                    <p class="text-sm opacity-70">
+                      Your personalized feed is empty. Follow more people to see content here.
+                    </p>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Right Sidebar - Stats -->
+    <div class="hidden lg:block w-72 xl:w-80 flex-shrink-0">
+      <!-- Personal Stats -->
+      <div class="card glass-card shadow-lg border border-base-300 mb-4">
+        <div class="card-body p-4">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <.icon name="hero-chart-bar" class="w-5 h-5" /> Your Activity
+          </h3>
+          <%= if @loading_stats do %>
+            <!-- Loading skeleton for stats -->
+            <div class="space-y-3 animate-pulse">
+              <div class="flex items-center justify-between">
+                <div class="h-4 bg-base-300 rounded w-24"></div>
+                <div class="h-6 bg-base-300 rounded w-8"></div>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center">
+                <%= for _i <- 1..3 do %>
+                  <div>
+                    <div class="w-4 h-4 bg-base-300 rounded mx-auto mb-1"></div>
+                    <div class="h-4 bg-base-300 rounded w-6 mx-auto mb-1"></div>
+                    <div class="h-3 bg-base-300 rounded w-12 mx-auto"></div>
+                  </div>
+                <% end %>
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-base-300">
+                <div class="h-4 bg-base-300 rounded w-20"></div>
+                <div class="h-6 bg-base-300 rounded w-8"></div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="h-4 bg-base-300 rounded w-16"></div>
+                <div class="h-4 bg-base-300 rounded w-6"></div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="h-4 bg-base-300 rounded w-16"></div>
+                <div class="h-4 bg-base-300 rounded w-6"></div>
+              </div>
+            </div>
+          <% else %>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm opacity-70 flex items-center gap-1">
+                  <.icon name="hero-document-text" class="w-4 h-4" /> Total Posts
+                </span>
+                <span class="font-bold text-lg">{@personal_stats.total_posts}</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                <div>
+                  <.icon name="hero-rectangle-stack" class="w-4 h-4 mx-auto mb-1 opacity-60" />
+                  <div class="font-semibold">{@personal_stats.timeline_posts}</div>
+                  <div class="opacity-60">Timeline</div>
+                </div>
+                <div>
+                  <.icon name="hero-photo" class="w-4 h-4 mx-auto mb-1 opacity-60" />
+                  <div class="font-semibold">{@personal_stats.gallery_posts}</div>
+                  <div class="opacity-60">Gallery</div>
+                </div>
+                <div>
+                  <.icon
+                    name="hero-chat-bubble-bottom-center-text"
+                    class="w-4 h-4 mx-auto mb-1 opacity-60"
+                  />
+                  <div class="font-semibold">{@personal_stats.discussion_posts}</div>
+                  <div class="opacity-60">Discuss</div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-base-300">
+                <span class="text-sm opacity-70 flex items-center gap-1">
+                  <.icon name="hero-heart" class="w-4 h-4" /> Total Likes
+                </span>
+                <span class="font-bold text-lg text-error">{@personal_stats.total_likes}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm opacity-70 flex items-center gap-1">
+                  <.icon name="hero-users" class="w-4 h-4" /> Followers
+                </span>
+                <span class="font-semibold">{@personal_stats.followers}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm opacity-70 flex items-center gap-1">
+                  <.icon name="hero-user-plus" class="w-4 h-4" /> Following
+                </span>
+                <span class="font-semibold">{@personal_stats.following}</span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image Modal -->
+<.image_modal
+  show={@show_image_modal}
+  image_url={@modal_image_url}
+  images={@modal_images}
+  image_index={@modal_image_index}
+  post={@modal_post}
+  timezone={@timezone}
+  time_format={@time_format}
+  current_user={@current_user}
+  is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
+  like_count={(@modal_post && @modal_post.like_count) || 0}
+/>
+
+<!-- Scroll to Top Button -->
+<button
+  id="scroll-to-top"
+  phx-hook="ScrollToTop"
+  class="fixed bottom-6 right-6 z-50 btn btn-circle btn-primary shadow-lg opacity-0 pointer-events-none transition-all duration-300"
+  aria-label="Scroll to top"
+>
+  <.icon name="hero-chevron-up" class="w-5 h-5" />
+</button>

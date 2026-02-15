@@ -1,0 +1,272 @@
+<div class="p-4 sm:p-6">
+  <!-- Header -->
+  <div class="mb-6">
+    <h1 class="text-xl sm:text-2xl font-bold">Account Investigation</h1>
+    <p class="opacity-70 mt-1 text-sm">
+      Search for user accounts to help with recovery and support
+    </p>
+  </div>
+  
+<!-- Warning Alert -->
+  <div class="alert alert-warning mb-6">
+    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+    <div>
+      <span class="font-semibold">Admin Tool</span>
+      <p class="text-sm">
+        This tool searches sensitive user data. All searches are logged for security.
+      </p>
+    </div>
+  </div>
+  
+<!-- Search Form -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <.form for={%{}} action={~p"/pripyat/account-lookup"} method="post">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="md:col-span-2">
+            <label class="label">
+              <span class="label-text font-semibold">Search Query</span>
+            </label>
+            <input
+              type="text"
+              name="search[query]"
+              value={@search_query || ""}
+              placeholder='Enter search... (use "quotes" for exact match)'
+              class="input input-bordered w-full"
+              title='Use quotes for exact match, e.g. "user@example.com"'
+              required
+            />
+            <div class="label">
+              <span class="label-text-alt">
+                Search by email, username, or IP • Use "quotes" for exact match
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label class="label">
+              <span class="label-text font-semibold">Search Type</span>
+            </label>
+            <select name="search[type]" class="select select-bordered w-full">
+              <option value="email" selected={(@search_type || "email") == "email"}>
+                Email Address
+              </option>
+              <option value="username" selected={@search_type == "username"}>
+                Username
+              </option>
+              <option value="ip" selected={@search_type == "ip"}>
+                IP Address
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end mt-4">
+          <button type="submit" class="btn btn-warning">
+            <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search Accounts
+          </button>
+        </div>
+      </.form>
+    </div>
+  </div>
+  
+<!-- Search Results -->
+  <%= if @search_results do %>
+    <div class="card glass-card shadow-xl">
+      <div class="card-body p-3 sm:p-6">
+        <h3 class="font-semibold mb-4 flex items-center gap-2">
+          <.icon name="hero-users" class="w-5 h-5" /> Search Results
+          <span class="badge badge-primary">{length(@search_results)}</span>
+          <%= if Map.get(assigns, :is_exact_match, false) do %>
+            <span class="badge badge-success badge-outline">Exact Match</span>
+          <% end %>
+        </h3>
+
+        <%= if length(@search_results) > 0 do %>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra w-full">
+              <thead>
+                <tr>
+                  <th class="text-xs sm:text-sm">Username</th>
+                  <th class="text-xs sm:text-sm hidden md:table-cell">Recovery Email</th>
+                  <th class="text-xs sm:text-sm hidden lg:table-cell">Mailbox Email</th>
+                  <th class="text-xs sm:text-sm">Match Type</th>
+                  <th class="text-xs sm:text-sm hidden lg:table-cell">Last Login</th>
+                  <th class="text-xs sm:text-sm hidden xl:table-cell">Registration IP</th>
+                  <th class="text-xs sm:text-sm">Status</th>
+                  <th class="text-xs sm:text-sm">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <%= for result <- @search_results do %>
+                  <tr class={if result.banned, do: "opacity-60"}>
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium">{result.username}</span>
+                        <%= if result.banned do %>
+                          <div class="badge badge-error badge-xs">Banned</div>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td class="hidden md:table-cell">
+                      <%= if result.recovery_email do %>
+                        <span class="font-medium text-xs">{result.recovery_email}</span>
+                      <% else %>
+                        <span class="text-xs opacity-50">None set</span>
+                      <% end %>
+                    </td>
+                    <td class="hidden lg:table-cell">
+                      <%= if result.mailbox_email do %>
+                        <span class="font-medium text-xs">{result.mailbox_email}</span>
+                      <% else %>
+                        <span class="text-xs opacity-50">No mailbox</span>
+                      <% end %>
+                    </td>
+                    <td>
+                      <div class={[
+                        "badge badge-xs",
+                        case result.match_type do
+                          "recovery_email" -> "badge-success"
+                          "mailbox_email" -> "badge-primary"
+                          "alias" -> "badge-secondary"
+                          "username" -> "badge-info"
+                          "ip_address" -> "badge-warning"
+                          _ -> "badge-ghost"
+                        end
+                      ]}>
+                        {String.replace(result.match_type, "_", " ")}
+                      </div>
+                    </td>
+                    <td class="hidden lg:table-cell">
+                      <%= if result.last_login_at do %>
+                        <span class="text-xs">
+                          <.local_time
+                            datetime={result.last_login_at}
+                            format="datetime"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </span>
+                      <% else %>
+                        <span class="text-xs opacity-50">Never</span>
+                      <% end %>
+                    </td>
+                    <td class="hidden xl:table-cell">
+                      <%= if result.registration_ip do %>
+                        <span class="font-medium text-xs">{result.registration_ip}</span>
+                      <% else %>
+                        <span class="text-xs opacity-50">-</span>
+                      <% end %>
+                    </td>
+                    <td>
+                      <%= if result.banned do %>
+                        <div class="badge badge-error">Banned</div>
+                      <% else %>
+                        <div class="badge badge-success">Active</div>
+                      <% end %>
+                    </td>
+                    <td>
+                      <div class="flex flex-col gap-1">
+                        <!-- Row 1: Primary actions -->
+                        <div class="flex items-center gap-1">
+                          <.link
+                            href={~p"/pripyat/users/#{result.id}/edit"}
+                            class="btn btn-xs sm:btn-sm btn-ghost min-h-[1.5rem] px-2"
+                            title="Edit User"
+                          >
+                            <.icon name="hero-pencil" class="w-3 h-3 sm:w-4 sm:h-4" />
+                          </.link>
+
+                          <.form
+                            for={%{}}
+                            action={~p"/pripyat/users/#{result.id}/reset-password"}
+                            method="post"
+                            class="inline"
+                          >
+                            <button
+                              type="submit"
+                              data-confirm={"Reset password for #{result.username}? This will generate a new temporary password."}
+                              class="btn btn-xs btn-warning min-h-[1.5rem] px-2"
+                              title="Reset password"
+                            >
+                              PWD
+                            </button>
+                          </.form>
+                        </div>
+                        
+<!-- Row 2: Secondary actions -->
+                        <div class="flex items-center gap-1">
+                          <.form
+                            for={%{}}
+                            action={~p"/pripyat/users/#{result.id}/reset-2fa"}
+                            method="post"
+                            class="inline"
+                          >
+                            <button
+                              type="submit"
+                              data-confirm={"Reset 2FA for #{result.username}? This will disable their 2FA and clear all secrets."}
+                              class="btn btn-xs btn-info min-h-[1.5rem] px-2"
+                              title="Reset 2FA"
+                            >
+                              2FA
+                            </button>
+                          </.form>
+                          
+<!-- More actions dropdown -->
+                          <div class="dropdown dropdown-end dropdown-top">
+                            <div
+                              tabindex="0"
+                              role="button"
+                              class="btn btn-xs btn-ghost min-h-[1.5rem] px-1"
+                            >
+                              <.icon name="hero-ellipsis-horizontal" class="h-3 w-3" />
+                            </div>
+                            <ul
+                              tabindex="0"
+                              class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-48"
+                            >
+                              <li>
+                                <.link
+                                  href={~p"/pripyat/users/#{result.id}/messages"}
+                                  class="flex items-center gap-2"
+                                >
+                                  <.icon name="hero-envelope" class="h-4 w-4" /> View Messages
+                                </.link>
+                              </li>
+                              <%= if not result.banned do %>
+                                <li>
+                                  <.link
+                                    href={~p"/pripyat/users/#{result.id}/ban"}
+                                    class="flex items-center gap-2 text-error"
+                                  >
+                                    <.icon name="hero-no-symbol" class="h-4 w-4" /> Ban User
+                                  </.link>
+                                </li>
+                              <% end %>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% else %>
+          <div class="text-center py-8">
+            <div class="p-4 bg-base-200 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <.icon name="hero-magnifying-glass" class="w-10 h-10 text-base-content/40" />
+            </div>
+            <h3 class="text-lg font-medium text-base-content/70 mb-2">
+              No accounts found
+            </h3>
+            <p class="text-base-content/50">
+              Try a different search term or search type.
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

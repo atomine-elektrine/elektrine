@@ -1,0 +1,1172 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Z Platform Navigation -->
+  <.z_nav active_tab="timeline" />
+  
+<!-- Back Buttons -->
+  <div class="mb-4 flex flex-wrap gap-2">
+    <.link navigate={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
+      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
+    </.link>
+    <%= if @community_actor do %>
+      <.link
+        navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+        class="btn btn-ghost btn-sm gap-2"
+      >
+        <.icon name="hero-user-group" class="w-4 h-4" /> !{@community_actor.username}
+      </.link>
+    <% end %>
+    <%= if @remote_actor do %>
+      <.link
+        navigate={"/remote/#{@remote_actor.username}@#{@remote_actor.domain}"}
+        class="btn btn-ghost btn-sm gap-2"
+      >
+        <.icon name="hero-user" class="w-4 h-4" /> @{@remote_actor.username}
+      </.link>
+    <% end %>
+  </div>
+
+  <%= if @loading do %>
+    <!-- Loading State with Skeleton -->
+    <div class="mx-auto max-w-3xl space-y-4">
+      <!-- Post skeleton -->
+      <div class="card border border-base-300 rounded-lg p-6">
+        <!-- Header skeleton -->
+        <div class="flex items-center gap-3 mb-4">
+          <div class="skeleton w-12 h-12 rounded-full"></div>
+          <div class="flex-1">
+            <div class="skeleton h-5 w-40 mb-2"></div>
+            <div class="skeleton h-4 w-32"></div>
+          </div>
+        </div>
+        <!-- Title skeleton -->
+        <div class="skeleton h-8 w-3/4 mb-4"></div>
+        <!-- Content skeleton -->
+        <div class="space-y-2 mb-4">
+          <div class="skeleton h-4 w-full"></div>
+          <div class="skeleton h-4 w-full"></div>
+          <div class="skeleton h-4 w-5/6"></div>
+          <div class="skeleton h-4 w-4/6"></div>
+        </div>
+        <!-- Image placeholder skeleton -->
+        <div class="skeleton h-64 w-full rounded-lg mb-4"></div>
+        <!-- Actions skeleton -->
+        <div class="flex gap-4 pt-4 border-t border-base-300">
+          <div class="skeleton h-8 w-20"></div>
+          <div class="skeleton h-8 w-20"></div>
+          <div class="skeleton h-8 w-20"></div>
+        </div>
+      </div>
+      <!-- Comments section skeleton -->
+      <div class="card border border-base-300 rounded-lg p-4">
+        <div class="skeleton h-6 w-32 mb-4"></div>
+        <div class="space-y-3">
+          <.reply_skeleton />
+          <.reply_skeleton />
+          <.reply_skeleton />
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <%= if @load_error do %>
+      <!-- Error State -->
+      <div class="alert alert-error">
+        <.icon name="hero-exclamation-circle" class="w-6 h-6" />
+        <span>{@load_error}</span>
+      </div>
+    <% else %>
+      <%= if @is_local_post && @local_message do %>
+        <!-- Local Post Display -->
+        <% sender = @local_message.sender %>
+        <div class="mx-auto max-w-3xl">
+          <article class="card border border-base-300 rounded-lg p-6 mb-6">
+            <!-- Post Header -->
+            <div class="flex items-center gap-3 mb-4">
+              <.link navigate={"/users/#{sender.username}"} class="flex-shrink-0 rounded-full">
+                <%= if sender.avatar do %>
+                  <img
+                    src={Elektrine.Uploads.avatar_url(sender.avatar)}
+                    alt={sender.username}
+                    class="w-12 h-12 rounded-full object-cover"
+                  />
+                <% else %>
+                  <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
+                    <.icon name="hero-user" class="w-6 h-6" />
+                  </div>
+                <% end %>
+              </.link>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <.link
+                    navigate={"/users/#{sender.username}"}
+                    class="font-bold transition-colors duration-200"
+                  >
+                    {sender.display_name || sender.username}
+                  </.link>
+                </div>
+                <div class="text-sm opacity-70">
+                  @{sender.username}
+                </div>
+              </div>
+            </div>
+            
+<!-- Title -->
+            <%= if @local_message.title do %>
+              <h1 class="text-2xl font-bold mb-4">{@local_message.title}</h1>
+            <% end %>
+            
+<!-- Content -->
+            <%= if @local_message.content do %>
+              <div class="prose prose-sm max-w-none mb-4 post-content">
+                {raw(
+                  make_content_safe_with_links(@local_message.content)
+                  |> render_custom_emojis()
+                  |> preserve_line_breaks()
+                )}
+              </div>
+            <% end %>
+
+            <%= if @local_message.post_type == "poll" && Ecto.assoc_loaded?(@local_message.poll) && @local_message.poll do %>
+              <div class="mb-4">
+                <ElektrineWeb.Components.Social.PollDisplay.poll_card
+                  poll={@local_message.poll}
+                  message={@local_message}
+                  current_user={@current_user}
+                  user_votes={[]}
+                  interactive={false}
+                />
+              </div>
+            <% end %>
+
+            <%= if @local_message.quoted_message_id && Ecto.assoc_loaded?(@local_message.quoted_message) && @local_message.quoted_message do %>
+              <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                quoted_message={@local_message.quoted_message}
+                variant={:detail}
+                content_mode={:local}
+              />
+            <% end %>
+            
+<!-- Images -->
+            <%= if @local_message.media_urls && length(@local_message.media_urls) > 0 do %>
+              <% all_urls =
+                Enum.map(@local_message.media_urls, &Elektrine.Uploads.attachment_url/1) %>
+              <ElektrineWeb.Components.Social.RemotePostShared.media_gallery
+                urls={all_urls}
+                layout={:auto}
+                wrapper_class="mb-4"
+                button_class="image-zoom-trigger rounded-lg overflow-hidden"
+                image_class="w-full h-auto object-cover max-h-96"
+              />
+            <% end %>
+            
+<!-- Post Stats -->
+            <div class="flex items-center gap-4 text-sm opacity-70 pt-4 border-t border-base-300">
+              <span>{@local_message.like_count || 0} likes</span>
+              <span>{max(length(@replies), @local_message.reply_count || 0)} comments</span>
+              <span>
+                {Calendar.strftime(@local_message.inserted_at, "%B %d, %Y at %I:%M %p")}
+              </span>
+            </div>
+
+            <% local_post_id = to_string(@local_message.id)
+
+            post_state =
+              Map.get(@post_interactions, local_post_id, %{
+                liked: false,
+                boosted: false,
+                like_delta: 0,
+                boost_delta: 0
+              })
+
+            is_liked = Map.get(post_state, :liked, false)
+            is_boosted = Map.get(post_state, :boosted, false)
+            reply_count = max(length(@replies), @local_message.reply_count || 0) %>
+            <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-base-300">
+              <.post_actions
+                post_id={local_post_id}
+                value_name="message_id"
+                current_user={@current_user}
+                is_liked={is_liked}
+                is_boosted={is_boosted}
+                like_count={@local_message.like_count || 0}
+                comment_count={reply_count}
+                boost_count={@local_message.share_count || 0}
+                is_saved={Map.get(@user_saves, local_post_id, false)}
+                on_comment="toggle_reply_form"
+                show_quote={false}
+                size={:sm}
+              />
+
+              <.post_reactions
+                post_id={local_post_id}
+                value_name="message_id"
+                reactions={Map.get(@post_reactions, local_post_id, [])}
+                current_user={@current_user}
+                size={:sm}
+              />
+            </div>
+
+            <%= if @show_reply_form && @current_user do %>
+              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                wrapper_class="mt-4 pt-4 border-t border-base-300"
+                content={@reply_content}
+                textarea_id="remote-post-reply-textarea"
+                textarea_class="textarea textarea-bordered w-full"
+                rows={4}
+                form_class="space-y-3"
+                on_submit="submit_reply"
+                on_cancel="toggle_reply_form"
+                cancel_class="btn btn-ghost btn-sm"
+                submit_class="btn btn-secondary btn-sm"
+                textarea_debounce="300"
+                textarea_hook="AutoExpandTextarea"
+                submit_label="Reply"
+                submit_icon="hero-paper-airplane"
+                submit_icon_class="w-4 h-4 mr-1"
+                submit_disable_with="Posting..."
+              />
+            <% end %>
+
+            <%= if !@current_user do %>
+              <div class="mt-3 pt-3 border-t border-base-300 text-center">
+                <.link navigate={~p"/users/log_in"} class="btn btn-secondary btn-sm">
+                  Sign in to interact
+                </.link>
+              </div>
+            <% end %>
+          </article>
+          
+<!-- Comments Section -->
+          <%= if length(@threaded_replies) > 0 do %>
+            <div class="card border border-base-300 rounded-lg p-4">
+              <h3 class="font-bold mb-4 flex items-center gap-2">
+                Comments ({length(@replies)})
+                <button
+                  phx-click="refresh_comments"
+                  class="btn btn-ghost btn-xs"
+                  title="Refresh comments"
+                  disabled={@replies_loading}
+                >
+                  <.icon
+                    name="hero-arrow-path"
+                    class={["w-4 h-4", @replies_loading && "animate-spin"]}
+                  />
+                </button>
+              </h3>
+              <div class="space-y-2">
+                {render_threaded_comments(assigns, @threaded_replies)}
+              </div>
+            </div>
+          <% else %>
+            <div class="card border border-base-300 rounded-lg p-4">
+              <div class="text-center py-4 text-base-content/60">
+                <%= if @replies_loading do %>
+                  <div class="flex items-center justify-center gap-2">
+                    <span class="loading loading-spinner loading-sm"></span>
+                    <p>Loading comments...</p>
+                  </div>
+                <% else %>
+                  <%= if @replies_loaded do %>
+                    <p>No comments yet</p>
+                  <% else %>
+                    <button
+                      phx-click="load_comments"
+                      class="btn btn-primary btn-sm"
+                    >
+                      <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Load Comments
+                    </button>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <%= if @remote_actor do %>
+          <!-- Post Detail Container -->
+          <div class={
+            if @community_actor, do: "flex flex-col lg:flex-row gap-6", else: "mx-auto max-w-3xl"
+          }>
+            <!-- Main Content -->
+            <div class={if @community_actor, do: "flex-1 min-w-0", else: ""}>
+              <!-- Main Post Card -->
+              <article class="card border border-base-300 rounded-lg p-6 mb-6">
+                <div class={if @community_actor, do: "flex gap-3 sm:gap-4", else: ""}>
+                  <!-- Voting Column (Reddit-style) - Only for community posts -->
+                  <%= if @community_actor do %>
+                    <% lemmy = @lemmy_counts
+                    vote_state = Map.get(@post_interactions, @post["id"], %{})
+                    user_vote = Map.get(vote_state, :vote, nil)
+                    vote_delta = Map.get(vote_state, :vote_delta, 0)
+
+                    base_score =
+                      if lemmy,
+                        do: lemmy.score,
+                        else: get_collection_total_items(@post["likes"]) || 0
+
+                    score = base_score + vote_delta %>
+                    <div class="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
+                      <%= if @current_user do %>
+                        <button
+                          phx-click="vote_post"
+                          phx-value-type="up"
+                          class={[
+                            "btn btn-xs sm:btn-sm p-1 sm:p-2 transition-colors",
+                            if(user_vote == "up",
+                              do: "bg-success/20 text-success hover:bg-success/30",
+                              else: "btn-ghost hover:bg-success/20 hover:text-success"
+                            )
+                          ]}
+                        >
+                          <.icon
+                            name={
+                              if user_vote == "up",
+                                do: "hero-arrow-up-solid",
+                                else: "hero-arrow-up"
+                            }
+                            class="w-4 h-4 sm:w-5 sm:h-5"
+                          />
+                        </button>
+                      <% else %>
+                        <div class="btn btn-ghost btn-xs sm:btn-sm p-1 sm:p-2 opacity-50 cursor-not-allowed">
+                          <.icon name="hero-arrow-up" class="w-4 h-4 sm:w-5 sm:h-5" />
+                        </div>
+                      <% end %>
+                      <span class="text-sm sm:text-lg font-bold">{score}</span>
+                      <%= if @current_user do %>
+                        <button
+                          phx-click="vote_post"
+                          phx-value-type="down"
+                          class={[
+                            "btn btn-xs sm:btn-sm p-1 sm:p-2 transition-colors",
+                            if(user_vote == "down",
+                              do: "bg-error/20 text-error hover:bg-error/30",
+                              else: "btn-ghost hover:bg-error/20 hover:text-error"
+                            )
+                          ]}
+                        >
+                          <.icon
+                            name={
+                              if user_vote == "down",
+                                do: "hero-arrow-down-solid",
+                                else: "hero-arrow-down"
+                            }
+                            class="w-4 h-4 sm:w-5 sm:h-5"
+                          />
+                        </button>
+                      <% else %>
+                        <div class="btn btn-ghost btn-xs sm:btn-sm p-1 sm:p-2 opacity-50 cursor-not-allowed">
+                          <.icon name="hero-arrow-down" class="w-4 h-4 sm:w-5 sm:h-5" />
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                  
+<!-- Post Content Column -->
+                  <div class="flex-1 min-w-0">
+                    <!-- Post Header -->
+                    <div class="flex items-center gap-3 mb-4">
+                      <.link
+                        navigate={"/remote/#{@remote_actor.username}@#{@remote_actor.domain}"}
+                        class="flex-shrink-0 rounded-full"
+                      >
+                        <%= if @remote_actor.avatar_url do %>
+                          <img
+                            src={@remote_actor.avatar_url}
+                            alt={@remote_actor.username}
+                            class={
+                              if @community_actor,
+                                do: "w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover",
+                                else: "w-12 h-12 rounded-full object-cover"
+                            }
+                          />
+                        <% else %>
+                          <div class={[
+                            "rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center",
+                            if(@community_actor, do: "w-8 h-8 sm:w-10 sm:h-10", else: "w-12 h-12")
+                          ]}>
+                            <.icon
+                              name="hero-user"
+                              class={
+                                if @community_actor, do: "w-4 h-4 sm:w-5 sm:h-5", else: "w-6 h-6"
+                              }
+                            />
+                          </div>
+                        <% end %>
+                      </.link>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <.link
+                            navigate={"/remote/#{@remote_actor.username}@#{@remote_actor.domain}"}
+                            class="font-bold transition-colors duration-200 text-sm sm:text-base"
+                          >
+                            {raw(
+                              render_display_name_with_emojis(
+                                @remote_actor.display_name || @remote_actor.username,
+                                @remote_actor.domain
+                              )
+                            )}
+                          </.link>
+                          <%= if @community_actor do %>
+                            <span class="text-xs opacity-50">in</span>
+                            <.link
+                              navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                              class="text-secondary font-medium text-sm hover:underline"
+                            >
+                              !{@community_actor.username}
+                            </.link>
+                          <% end %>
+                        </div>
+                        <div class="text-xs sm:text-sm opacity-70">
+                          @{@remote_actor.username}@{@remote_actor.domain}
+                          <%= if @post["published"] do %>
+                            <span class="mx-1">·</span>
+                            <span>{format_activitypub_date(@post["published"])}</span>
+                          <% end %>
+                        </div>
+                      </div>
+                    </div>
+                    
+<!-- Content Warning -->
+                    <%= if @post["sensitive"] && @post["summary"] do %>
+                      <div class="mb-3 p-3 bg-warning/5 border-l-4 border-warning rounded">
+                        <div class="flex items-center gap-2 text-warning">
+                          <.icon name="hero-exclamation-triangle" class="w-4 h-4 flex-shrink-0" />
+                          <span class="font-medium text-sm">{@post["summary"]}</span>
+                        </div>
+                      </div>
+                    <% end %>
+                    
+<!-- Post Content -->
+                    <% # Check for external link - Lemmy stores these in attachment with type "Link"
+                    # First check attachment array for Link type
+                    link_attachment =
+                      case @post["attachment"] do
+                        attachments when is_list(attachments) ->
+                          Enum.find(attachments, fn att -> att["type"] == "Link" end)
+
+                        _ ->
+                          nil
+                      end
+
+                    # Get the external URL from attachment href, or fall back to url field
+                    external_url =
+                      cond do
+                        link_attachment && is_binary(link_attachment["href"]) ->
+                          link_attachment["href"]
+
+                        is_binary(@post["url"]) ->
+                          @post["url"]
+
+                        true ->
+                          nil
+                      end
+
+                    # Parse the URL to get the host
+                    url_host =
+                      case external_url && URI.parse(external_url) do
+                        %URI{host: host} when is_binary(host) -> host
+                        _ -> nil
+                      end
+
+                    # It's an external link if the URL host is different from the remote actor's domain
+                    is_external_link = url_host && url_host != @remote_actor.domain
+                    link_domain = url_host %>
+                    <div class={
+                      if @post["sensitive"],
+                        do: "blur-sm hover:blur-none transition-all",
+                        else: ""
+                    }>
+                      <%= if @post["name"] do %>
+                        <%= if is_external_link do %>
+                          <a
+                            href={external_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="group"
+                          >
+                            <h1 class="font-bold text-xl mb-1 group-hover:text-primary transition-colors flex items-center gap-2">
+                              {@post["name"]}
+                              <.icon
+                                name="hero-arrow-top-right-on-square"
+                                class="w-4 h-4 opacity-50 group-hover:opacity-100"
+                              />
+                            </h1>
+                            <div class="text-sm text-primary/70 mb-3">{link_domain}</div>
+                          </a>
+                        <% else %>
+                          <h1 class="font-bold text-xl mb-3">{@post["name"]}</h1>
+                        <% end %>
+                      <% end %>
+
+                      <%= if @post["content"] do %>
+                        <div class="text-base leading-relaxed mb-4 post-content">
+                          {raw(render_remote_post_content(@post["content"], @remote_actor.domain))}
+                        </div>
+                      <% end %>
+
+                      <% quote_url =
+                        @post["quoteUrl"] || @post["_misskey_quote"] ||
+                          get_in(@post, ["pleroma", "quote_uri"])
+
+                      local_quote =
+                        if @local_message && @local_message.quoted_message_id &&
+                             Ecto.assoc_loaded?(@local_message.quoted_message) do
+                          @local_message.quoted_message
+                        else
+                          nil
+                        end %>
+
+                      <%= if local_quote do %>
+                        <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                          quoted_message={local_quote}
+                          variant={:detail}
+                          content_mode={:remote_post}
+                          domain={@remote_actor.domain}
+                        />
+                      <% else %>
+                        <%= if is_binary(quote_url) do %>
+                          <a
+                            href={quote_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mb-4 p-3 rounded-lg border border-base-300 bg-base-200/40 inline-flex items-center gap-2 text-sm hover:border-primary transition-colors"
+                          >
+                            <.icon name="hero-chat-bubble-oval-left-ellipsis" class="w-4 h-4" />
+                            Quoted post
+                            <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                          </a>
+                        <% end %>
+                      <% end %>
+                      
+<!-- Poll Display for Question type posts -->
+                      <%= if @post["type"] == "Question" || @post["oneOf"] || @post["anyOf"] do %>
+                        <div class="mb-4">
+                          <ElektrineWeb.Components.Social.PollDisplay.poll_card
+                            post={@post}
+                            remote_actor={@remote_actor}
+                            current_user={@current_user}
+                          />
+                        </div>
+                      <% end %>
+                      
+<!-- Media Attachments -->
+                      <%= if @post["attachment"] && is_list(@post["attachment"]) do %>
+                        <% all_media_urls =
+                          Enum.map(@post["attachment"], fn attachment ->
+                            cond do
+                              is_binary(attachment["url"]) -> attachment["url"]
+                              is_map(attachment["url"]) -> attachment["url"]["href"]
+                              true -> nil
+                            end
+                          end)
+                          |> Enum.filter(& &1) %>
+                        <div class="grid grid-cols-1 gap-3 mb-4">
+                          <%= for {attachment, idx} <- Enum.with_index(@post["attachment"]) do %>
+                            <% url =
+                              cond do
+                                is_binary(attachment["url"]) -> attachment["url"]
+                                is_map(attachment["url"]) -> attachment["url"]["href"]
+                                true -> nil
+                              end
+
+                            media_type = attachment["mediaType"] || ""
+                            attachment_type = attachment["type"] || ""
+
+                            # Check if it's an image by mediaType, attachment type, or URL extension
+                            is_image =
+                              String.starts_with?(media_type, "image/") ||
+                                attachment_type == "Image" ||
+                                String.match?(
+                                  url || "",
+                                  ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
+                                )
+
+                            is_video =
+                              String.starts_with?(media_type, "video/") ||
+                                attachment_type == "Video" ||
+                                String.match?(url || "", ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+
+                            is_audio =
+                              String.starts_with?(media_type, "audio/") ||
+                                attachment_type == "Audio" ||
+                                String.match?(url || "", ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i) %>
+                            <%= if url do %>
+                              <%= cond do %>
+                                <% is_image -> %>
+                                  <button
+                                    type="button"
+                                    phx-click="open_image_modal"
+                                    phx-value-url={url}
+                                    phx-value-images={Jason.encode!(all_media_urls)}
+                                    phx-value-index={idx}
+                                    class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={attachment["name"] || ""}
+                                      class="rounded-lg w-full border border-base-300"
+                                      loading="lazy"
+                                    />
+                                  </button>
+                                <% is_video -> %>
+                                  <video
+                                    src={url}
+                                    controls
+                                    preload="metadata"
+                                    class="rounded-lg w-full border border-base-300"
+                                  >
+                                    Your browser does not support the video tag.
+                                  </video>
+                                <% is_audio -> %>
+                                  <audio src={url} controls preload="metadata" class="w-full">
+                                    Your browser does not support the audio tag.
+                                  </audio>
+                                <% true -> %>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-sm text-purple-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <.icon name="hero-paper-clip" class="w-3 h-3" />
+                                    {attachment["name"] || "Attachment"}
+                                  </a>
+                              <% end %>
+                            <% end %>
+                          <% end %>
+                        </div>
+                      <% end %>
+                      
+<!-- Link Preview (from local message if available) -->
+                      <%= if @local_message && match?(%Elektrine.Social.LinkPreview{}, @local_message.link_preview) && @local_message.link_preview.status == "success" do %>
+                        <div class="mt-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
+                          <a
+                            href={@local_message.link_preview.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="block"
+                            phx-click="stop_propagation"
+                          >
+                            <%= if @local_message.link_preview.image_url do %>
+                              <div class="aspect-video bg-base-200">
+                                <img
+                                  src={@local_message.link_preview.image_url}
+                                  alt={@local_message.link_preview.title || ""}
+                                  class="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                            <% end %>
+                            <div class="p-3">
+                              <%= if @local_message.link_preview.title do %>
+                                <h4 class="font-medium text-sm line-clamp-2 mb-1">
+                                  {@local_message.link_preview.title}
+                                </h4>
+                              <% end %>
+                              <%= if @local_message.link_preview.description do %>
+                                <p class="text-xs opacity-70 line-clamp-2 mb-2">
+                                  {@local_message.link_preview.description}
+                                </p>
+                              <% end %>
+                              <div class="text-xs opacity-50 flex items-center gap-1">
+                                <.icon name="hero-link" class="w-3 h-3" />
+                                {URI.parse(@local_message.link_preview.url).host}
+                              </div>
+                            </div>
+                          </a>
+                        </div>
+                      <% end %>
+                    </div>
+                    
+<!-- Post Metadata -->
+                    <% # Use the post ID (ActivityPub URI) for "View on instance" link
+                    # since @post["url"] may be an external link for Lemmy link posts
+                    instance_url = @post["id"] %>
+                    <div class="flex items-center gap-4 text-sm opacity-70 mb-4 pt-3 border-t border-base-300">
+                      <%= if !@community_actor do %>
+                        <!-- Only show timestamp here for non-community posts (already shown in header for community posts) -->
+                        <div>
+                          {if @post["published"], do: format_activitypub_date(@post["published"])}
+                        </div>
+                      <% end %>
+                      <%= if instance_url do %>
+                        <a
+                          href={instance_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-purple-600 hover:underline flex items-center gap-1"
+                        >
+                          View on {@remote_actor.domain}
+                          <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                        </a>
+                      <% end %>
+                    </div>
+                    
+<!-- Post Actions -->
+                    <% post_state =
+                      Map.get(@post_interactions, @post["id"], %{
+                        liked: false,
+                        boosted: false,
+                        like_delta: 0,
+                        boost_delta: 0
+                      })
+
+                    is_liked = Map.get(post_state, :liked, false)
+                    is_boosted = Map.get(post_state, :boosted, false)
+                    like_delta = Map.get(post_state, :like_delta, 0)
+                    boost_delta = Map.get(post_state, :boost_delta, 0)
+
+                    # Check for Mastodon API embedded data first
+                    mastodon = @post["_mastodon"]
+                    # Also check for fresh Mastodon API counts
+                    mastodon_api = assigns[:mastodon_counts]
+
+                    # Use Lemmy API counts if available, then Mastodon API, then ActivityPub data
+                    lemmy = @lemmy_counts
+
+                    like_count =
+                      cond do
+                        lemmy ->
+                          lemmy.score + like_delta
+
+                        # Fresh Mastodon API counts (most accurate)
+                        mastodon_api && is_integer(mastodon_api[:favourites_count]) ->
+                          mastodon_api[:favourites_count] + like_delta
+
+                        mastodon && is_integer(mastodon["favourites_count"]) ->
+                          mastodon["favourites_count"] + like_delta
+
+                        # Use local message count directly (no delta - it's already up to date from database)
+                        @local_message ->
+                          @local_message.like_count || 0
+
+                        true ->
+                          max(
+                            get_collection_total_items(@post["likes"]),
+                            get_collection_total_items(@post["likesCount"])
+                          ) + like_delta
+                      end
+
+                    boost_count =
+                      cond do
+                        # Fresh Mastodon API counts (most accurate)
+                        mastodon_api && is_integer(mastodon_api[:reblogs_count]) ->
+                          mastodon_api[:reblogs_count] + boost_delta
+
+                        mastodon && is_integer(mastodon["reblogs_count"]) ->
+                          mastodon["reblogs_count"] + boost_delta
+
+                        # Use local message count directly (no delta - it's already up to date from database)
+                        @local_message ->
+                          @local_message.share_count || 0
+
+                        true ->
+                          max(
+                            max(
+                              get_collection_total_items(@post["shares"]),
+                              get_collection_total_items(@post["sharesCount"])
+                            ),
+                            get_collection_total_items(@post["announcesCount"])
+                          ) +
+                            boost_delta
+                      end
+
+                    reply_count =
+                      cond do
+                        lemmy ->
+                          lemmy.comments
+
+                        # Fresh Mastodon API counts (most accurate)
+                        mastodon_api && is_integer(mastodon_api[:replies_count]) ->
+                          mastodon_api[:replies_count]
+
+                        mastodon && is_integer(mastodon["replies_count"]) ->
+                          mastodon["replies_count"]
+
+                        # Use local message count directly (no delta - it's already up to date from database)
+                        @local_message ->
+                          @local_message.reply_count || 0
+
+                        true ->
+                          max(
+                            max(
+                              get_collection_total_items(@post["repliesCount"]),
+                              get_collection_total_items(@post["replies"])
+                            ),
+                            get_collection_total_items(@post["comments"])
+                          )
+                      end
+
+                    loaded_reply_count = max(reply_count, length(@replies)) %>
+                    <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-base-300">
+                      <.post_actions
+                        post_id={@post["id"]}
+                        current_user={@current_user}
+                        is_liked={is_liked}
+                        is_boosted={is_boosted}
+                        like_count={like_count}
+                        comment_count={loaded_reply_count}
+                        boost_count={boost_count}
+                        show_quote={false}
+                        on_comment="toggle_reply_form"
+                        size={:sm}
+                      />
+                      
+<!-- Emoji Reactions inline with actions -->
+                      <.post_reactions
+                        post_id={@post["id"]}
+                        reactions={Map.get(@post_reactions, @post["id"], [])}
+                        current_user={@current_user}
+                        size={:sm}
+                      />
+                    </div>
+                    
+<!-- Sign in prompt for non-logged in users -->
+                    <%= if !@current_user do %>
+                      <div class="mt-3 pt-3 border-t border-base-300 text-center">
+                        <.link navigate={~p"/users/log_in"} class="btn btn-secondary btn-sm">
+                          Sign in to interact
+                        </.link>
+                      </div>
+                    <% end %>
+                    
+<!-- Reply Form -->
+                    <%= if @show_reply_form do %>
+                      <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                        wrapper_class="mt-4 pt-4 border-t border-base-300"
+                        content={@reply_content}
+                        textarea_id="remote-post-reply-textarea"
+                        textarea_class="textarea textarea-bordered w-full"
+                        rows={4}
+                        form_class="space-y-3"
+                        on_submit="submit_reply"
+                        on_cancel="toggle_reply_form"
+                        cancel_class="btn btn-ghost btn-sm"
+                        submit_class="btn btn-secondary btn-sm"
+                        textarea_debounce="300"
+                        textarea_hook="AutoExpandTextarea"
+                        submit_label="Reply"
+                        submit_icon="hero-paper-airplane"
+                        submit_icon_class="w-4 h-4 mr-1"
+                        submit_disable_with="Posting..."
+                      />
+                    <% end %>
+                  </div>
+                </div>
+              </article>
+              
+<!-- Threaded Comments Section -->
+              <% reported_reply_count =
+                cond do
+                  @community_actor && @lemmy_counts ->
+                    @lemmy_counts.comments || 0
+
+                  @mastodon_counts && is_integer(@mastodon_counts[:replies_count]) ->
+                    @mastodon_counts[:replies_count]
+
+                  is_map(@post) ->
+                    max(
+                      max(
+                        get_collection_total_items(@post["repliesCount"]),
+                        get_collection_total_items(@post["replies"])
+                      ),
+                      get_collection_total_items(@post["comments"])
+                    )
+
+                  true ->
+                    0
+                end
+
+              missing_remote_replies = max(reported_reply_count - length(@replies), 0) %>
+              <%= if length(@replies) > 0 do %>
+                <div class="mb-6">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                      <%= if @community_actor do %>
+                        Comments ({length(@replies)})
+                      <% else %>
+                        Conversation ({length(@replies)})
+                      <% end %>
+                      <button
+                        phx-click="refresh_comments"
+                        class="btn btn-ghost btn-xs"
+                        title="Refresh comments"
+                        disabled={@replies_loading}
+                      >
+                        <.icon
+                          name={
+                            if @replies_loading, do: "hero-arrow-path", else: "hero-arrow-path"
+                          }
+                          class={["w-4 h-4", @replies_loading && "animate-spin"]}
+                        />
+                      </button>
+                    </h2>
+                    <div class="dropdown dropdown-end">
+                      <label tabindex="0" class="btn btn-ghost btn-sm gap-1">
+                        <.icon name="hero-bars-arrow-down" class="w-4 h-4" />
+                        <%= case @comment_sort do %>
+                          <% "hot" -> %>
+                            Hot
+                          <% "top" -> %>
+                            Top
+                          <% "new" -> %>
+                            New
+                          <% "old" -> %>
+                            Old
+                          <% _ -> %>
+                            Hot
+                        <% end %>
+                        <.icon name="hero-chevron-down" class="w-3 h-3" />
+                      </label>
+                      <ul
+                        tabindex="0"
+                        class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-32 border border-base-300"
+                      >
+                        <li>
+                          <button
+                            phx-click="sort_comments"
+                            phx-value-sort="hot"
+                            class={if @comment_sort == "hot", do: "active"}
+                          >
+                            Hot
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="sort_comments"
+                            phx-value-sort="top"
+                            class={if @comment_sort == "top", do: "active"}
+                          >
+                            Top
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="sort_comments"
+                            phx-value-sort="new"
+                            class={if @comment_sort == "new", do: "active"}
+                          >
+                            New
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="sort_comments"
+                            phx-value-sort="old"
+                            class={if @comment_sort == "old", do: "active"}
+                          >
+                            Old
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <%= if !@community_actor do %>
+                    <p class="text-xs text-base-content/60 mb-3">
+                      Timeline mode shows a cleaner conversation view (one nested level inline).
+                    </p>
+                  <% end %>
+                  <%= if !@community_actor && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
+                    <div class="alert alert-info py-2 mb-3">
+                      <.icon name="hero-information-circle" class="w-4 h-4" />
+                      <span class="text-sm">
+                        {missing_remote_replies} deeper {if missing_remote_replies == 1,
+                          do: "reply is",
+                          else: "replies are"} available on the origin thread.
+                      </span>
+                      <a
+                        href={@post["id"]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-sm font-medium underline inline-flex items-center gap-1"
+                      >
+                        Open full thread
+                        <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                      </a>
+                    </div>
+                  <% end %>
+                  <div class="space-y-2">
+                    {render_threaded_comments(assigns, @threaded_replies)}
+                  </div>
+                </div>
+              <% else %>
+                <div class="text-center py-8 text-base-content/60">
+                  <.icon name="hero-chat-bubble-left" class="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <%= if @replies_loading do %>
+                    <div class="flex items-center justify-center gap-2">
+                      <span class="loading loading-spinner loading-sm"></span>
+                      <p>Loading comments...</p>
+                    </div>
+                  <% else %>
+                    <%= if @replies_loaded do %>
+                      <p>No comments yet. Be the first to comment!</p>
+                    <% else %>
+                      <p class="mb-4">Comments not loaded yet</p>
+                      <button
+                        phx-click="load_comments"
+                        class="btn btn-primary btn-sm"
+                      >
+                        <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Load Comments
+                      </button>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+            
+<!-- Community Sidebar -->
+            <%= if @community_actor do %>
+              <div class="w-full lg:w-80 flex-shrink-0 space-y-4">
+                <!-- About Community -->
+                <div class="card border border-base-300 rounded-lg overflow-hidden">
+                  <div class="px-4 py-3 border-b border-base-300">
+                    <h3 class="font-semibold">About Community</h3>
+                  </div>
+                  <div class="p-4 space-y-4">
+                    <!-- Community Header -->
+                    <div class="flex items-center gap-3">
+                      <.link
+                        navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                        class="flex-shrink-0"
+                      >
+                        <%= if @community_actor.avatar_url do %>
+                          <img
+                            src={@community_actor.avatar_url}
+                            alt={@community_actor.username}
+                            class="w-12 h-12 rounded-lg object-cover"
+                          />
+                        <% else %>
+                          <div class="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center">
+                            <.icon name="hero-user-group" class="w-6 h-6 text-secondary" />
+                          </div>
+                        <% end %>
+                      </.link>
+                      <div class="min-w-0">
+                        <.link
+                          navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                          class="font-bold hover:underline"
+                        >
+                          {@community_actor.display_name || @community_actor.username}
+                        </.link>
+                        <div class="text-xs opacity-70">
+                          !{@community_actor.username}@{@community_actor.domain}
+                        </div>
+                      </div>
+                    </div>
+                    
+<!-- Description -->
+                    <%= if @community_actor.summary do %>
+                      <div class="text-sm leading-relaxed">
+                        {raw(render_remote_bio(@community_actor.summary, @community_actor.domain))}
+                      </div>
+                    <% end %>
+                    
+<!-- Stats -->
+                    <div class="grid grid-cols-2 gap-4 py-3 border-y border-base-300">
+                      <div class="text-center">
+                        <div class="text-lg font-bold">
+                          {get_follower_count(@community_actor.metadata)}
+                        </div>
+                        <div class="text-xs opacity-70">Members</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-lg font-bold">
+                          {@community_actor.metadata["statuses_count"] ||
+                            @community_actor.metadata["statusesCount"] || 0}
+                        </div>
+                        <div class="text-xs opacity-70">Posts</div>
+                      </div>
+                    </div>
+                    
+<!-- Created -->
+                    <%= if @community_actor.published_at do %>
+                      <div class="text-sm">
+                        <span class="opacity-70">Created:</span>
+                        <span class="font-medium">
+                          {format_join_date(@community_actor.published_at)}
+                        </span>
+                      </div>
+                    <% end %>
+                    
+<!-- Join Button -->
+                    <%= if @current_user do %>
+                      <button
+                        phx-click="toggle_follow_community"
+                        class={[
+                          "btn btn-sm w-full",
+                          cond do
+                            @is_following_community -> "btn-ghost"
+                            @is_pending_community -> "btn-ghost btn-disabled"
+                            true -> "btn-secondary"
+                          end
+                        ]}
+                      >
+                        <%= cond do %>
+                          <% @is_following_community -> %>
+                            Leave Community
+                          <% @is_pending_community -> %>
+                            <.spinner size="sm" class="mr-1" /> Pending...
+                          <% true -> %>
+                            Join Community
+                        <% end %>
+                      </button>
+                    <% end %>
+                    
+<!-- View Community Link -->
+                    <.link
+                      navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                      class="btn btn-ghost btn-sm w-full"
+                    >
+                      <.icon name="hero-arrow-right" class="w-4 h-4" /> View All Posts
+                    </.link>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="mx-auto max-w-3xl">
+            <div class="alert alert-error">
+              <.icon name="hero-exclamation-circle" class="w-6 h-6" />
+              <span>Post could not be loaded. Try opening it from timeline again.</span>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<!-- Full-size Image Modal -->
+<% # Get like state for the post in the modal
+modal_post_id = @post && @post["id"]
+modal_interaction = @post_interactions[modal_post_id] || %{liked: false, like_delta: 0}
+modal_is_liked = Map.get(modal_interaction, :liked, false)
+modal_like_delta = Map.get(modal_interaction, :like_delta, 0)
+# Get base like count from Lemmy or ActivityPub - use Map.get for struct access
+base_like_count =
+  cond do
+    @lemmy_counts && Map.get(@lemmy_counts, :score) ->
+      Map.get(@lemmy_counts, :score)
+
+    @post && @post["_mastodon"] && @post["_mastodon"]["favourites_count"] ->
+      @post["_mastodon"]["favourites_count"]
+
+    @post && @post["likes"] ->
+      Elektrine.ActivityPub.Helpers.get_collection_total(@post["likes"]) || 0
+
+    true ->
+      0
+  end
+
+modal_like_count = base_like_count + modal_like_delta %>
+<.image_modal
+  show={@show_image_modal}
+  image_url={@modal_image_url}
+  images={@modal_images}
+  image_index={@modal_image_index}
+  post={@modal_post}
+  current_user={@current_user}
+  is_liked={modal_is_liked}
+  like_count={modal_like_count}
+/>

@@ -1,0 +1,244 @@
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="mb-6 sm:mb-8">
+    <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
+      {gettext("Account Settings")}
+    </h1>
+    <p class="text-base-content/70 mt-2">
+      {gettext("Manage your account preferences and security settings")}
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+    <!-- Profile Section -->
+    <div class="lg:col-span-2">
+      <div class="card glass-card shadow-lg">
+        <div class="card-body p-4 sm:p-6">
+          <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
+            <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
+          </h2>
+
+          <.simple_form :let={f} for={@changeset} action={~p"/account"} method="put" multipart>
+            <.error :if={@changeset.action}>
+              {gettext("Oops, something went wrong! Please check the errors below.")}
+            </.error>
+
+            <div class="space-y-4 sm:space-y-6">
+              <!-- Avatar Section -->
+              <div>
+                <div>
+                  <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                    <div class="avatar flex-shrink-0">
+                      <div class="w-16 sm:w-20 rounded-lg ring ring-primary ring-offset-base-100 ring-offset-2">
+                        <%= if @user.avatar do %>
+                          <img
+                            src={Elektrine.Uploads.avatar_url(@user.avatar)}
+                            alt={gettext("Current avatar")}
+                            class="rounded-lg w-full h-full object-cover"
+                          />
+                        <% else %>
+                          <div class="bg-primary text-primary-content flex items-center justify-center w-full h-full rounded-lg">
+                            <span class="text-lg font-medium">
+                              {String.first(@user.username)}
+                            </span>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                    <div class="flex-1 w-full">
+                      <input
+                        type="file"
+                        name="user[avatar]"
+                        accept="image/*"
+                        class="file-input file-input-primary w-full text-sm"
+                      />
+                      <div class="label">
+                        <span class="text-xs sm:text-sm">
+                          Upload a new avatar image (max 5MB, will be automatically cropped to square)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Display Name Section -->
+              <div>
+                <.input
+                  field={f[:display_name]}
+                  type="text"
+                  label="Display Name"
+                  placeholder="Optional display name for emails"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60 break-words">
+                    Shows as sender name in emails. Optional.
+                  </span>
+                </div>
+              </div>
+              
+<!-- Recovery Email Section -->
+              <div>
+                <.input
+                  field={f[:recovery_email]}
+                  type="email"
+                  label="Recovery Email"
+                  placeholder="your-external-email@example.com"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60 break-words">
+                    Used for password reset. Must be an external email address.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-actions justify-end mt-4 sm:mt-6">
+              <.button class="btn-primary w-full sm:w-auto">Save Changes</.button>
+            </div>
+          </.simple_form>
+        </div>
+      </div>
+    </div>
+    
+<!-- Security & Actions Sidebar -->
+    <div class="space-y-4 sm:space-y-6">
+      <!-- Password Section -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body p-4 sm:p-6">
+          <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+            <.icon name="hero-key" class="w-5 h-5" /> Password
+          </h3>
+          <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+            Keep your account secure with a strong password.
+          </p>
+          <div class="card-actions">
+            <.link
+              href={~p"/account/password"}
+              class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+            >
+              Change Password
+            </.link>
+          </div>
+        </div>
+      </div>
+      
+<!-- Two-Factor Authentication Section -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body p-4 sm:p-6">
+          <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+            <.icon name="hero-shield-check" class="w-5 h-5" /> Two-Factor Authentication
+          </h3>
+
+          <%= if @user.two_factor_enabled do %>
+            <div class="flex items-center gap-2 mb-3">
+              <.icon name="hero-shield-check" class="w-5 h-5 text-success" />
+              <span class="text-success font-medium text-sm">Enabled</span>
+            </div>
+            <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+              Your account is protected with 2FA.
+            </p>
+            <div class="card-actions">
+              <.link
+                href={~p"/account/two_factor"}
+                class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+              >
+                Manage 2FA
+              </.link>
+            </div>
+          <% else %>
+            <div class="flex items-center gap-2 mb-3">
+              <.icon name="hero-shield-exclamation" class="w-5 h-5 text-warning" />
+              <span class="text-warning font-medium text-sm">Disabled</span>
+            </div>
+            <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+              Add an extra layer of security to your account.
+            </p>
+            <div class="card-actions">
+              <.link
+                href={~p"/account/two_factor/setup"}
+                class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
+              >
+                Enable 2FA
+              </.link>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Profile Page Section -->
+      <div class="card glass-card shadow-lg">
+        <div class="card-body">
+          <h3 class="card-title text-lg flex items-center gap-2">
+            <.icon name="hero-user-circle" class="w-5 h-5" /> Profile Page
+          </h3>
+
+          <p class="text-sm text-base-content/70 mb-4">
+            Create your personal link-in-bio page at
+            <strong>z.org/{@user.handle || @user.username}</strong>
+          </p>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
+              <div>
+                <p class="font-medium text-sm">Your Profile URL</p>
+                <p class="text-xs text-base-content/60">z.org/{@user.handle || @user.username}</p>
+              </div>
+              <div class="flex gap-2">
+                <.link
+                  href={"https://#{@user.handle || @user.username}.z.org"}
+                  target="_blank"
+                  class="btn btn-ghost btn-sm"
+                >
+                  <.icon name="hero-eye" class="w-4 h-4" /> View
+                </.link>
+                <.link href={~p"/account/profile/edit"} class="btn btn-primary btn-sm">
+                  <.icon name="hero-pencil" class="w-4 h-4" /> Customize
+                </.link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+<!-- Danger Zone -->
+      <div class="card bg-error/10 shadow-lg">
+        <div class="card-body">
+          <h3 class="card-title text-lg text-error flex items-center gap-2">
+            <.icon name="hero-exclamation-triangle" class="w-5 h-5" /> Danger Zone
+          </h3>
+
+          <%= if @pending_deletion do %>
+            <div class="alert alert-warning text-sm">
+              <.icon name="hero-clock" class="w-5 h-5" />
+              <div>
+                <div class="font-semibold">Account deletion pending</div>
+                <div class="text-xs mt-1">
+                  Requested:
+                  <.local_time
+                    datetime={@pending_deletion.requested_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </div>
+                <%= if @pending_deletion.reason && String.trim(@pending_deletion.reason) != "" do %>
+                  <div class="text-xs mt-1">
+                    <strong>Reason:</strong> {@pending_deletion.reason}
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% else %>
+            <p class="text-sm text-base-content/70 mb-4">
+              Once deleted, your account cannot be recovered.
+            </p>
+            <div class="card-actions">
+              <.link href={~p"/account/delete"} class="btn btn-ghost btn-secondary btn-sm w-full">
+                Request Deletion
+              </.link>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

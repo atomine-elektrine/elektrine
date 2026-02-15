@@ -1,0 +1,405 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+  <!-- Elektrine Platform Navigation -->
+  <.elektrine_nav active_tab="vpn" />
+
+  <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
+    <!-- Sidebar -->
+    <div class="w-full lg:w-72 xl:w-80 flex-shrink-0">
+      <div id="vpn-info-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
+        <div class="card-body p-6">
+          <div class="flex-1 min-w-0">
+            <h2 class="font-bold text-lg">{gettext("VPN Service")}</h2>
+            <p class="text-sm text-base-content/70 mt-2">
+              Connect to WireGuard servers worldwide
+            </p>
+            <div class="mt-4">
+              <.link
+                href={~p"/vpn/policy"}
+                class="link link-primary text-xs flex items-center gap-1"
+              >
+                <.icon name="hero-document-text" class="w-3 h-3" />
+                {gettext("View Service Policy & Details")}
+              </.link>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+<!-- Available Servers Card -->
+      <div
+        id="vpn-servers-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box mt-3"
+      >
+        <div class="card-body p-3">
+          <h3 class="font-semibold text-sm mb-3">
+            <.icon name="hero-server" class="w-4 h-4 inline text-primary" />
+            {gettext("Available Servers")}
+          </h3>
+
+          <%= if length(@available_servers) > 0 do %>
+            <div class="space-y-2">
+              <%= for server <- @available_servers do %>
+                <% has_config = Enum.any?(@user_configs, fn c -> c.vpn_server_id == server.id end) %>
+
+                <div class="p-2 rounded-lg hover:bg-base-200/50 transition-colors">
+                  <div class="flex items-center gap-2 mb-2">
+                    <%= if server.country_code do %>
+                      <span class="text-base flex-shrink-0">
+                        {country_flag(server.country_code)}
+                      </span>
+                    <% end %>
+                    <div class="flex-1 min-w-0">
+                      <h4 class="font-medium text-xs truncate">{server.name}</h4>
+                      <p class="text-xs text-base-content/60 truncate">
+                        {server.location}
+                      </p>
+                    </div>
+                  </div>
+                  
+<!-- Active Connections Bar -->
+                  <div class="mb-2">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs text-base-content/60">Active</span>
+                      <span class="text-xs font-semibold">
+                        {server.current_users} / {server.max_users}
+                      </span>
+                    </div>
+                    <div class="bg-base-300 rounded-full h-1.5 overflow-hidden">
+                      <% usage_percent =
+                        if server.max_users > 0,
+                          do: (server.current_users / server.max_users * 100) |> round(),
+                          else: 0 %>
+                      <div
+                        class={[
+                          "h-full transition-all",
+                          cond do
+                            usage_percent >= 90 -> "bg-error"
+                            usage_percent >= 70 -> "bg-warning"
+                            true -> "bg-success"
+                          end
+                        ]}
+                        style={"width: #{usage_percent}%"}
+                      >
+                      </div>
+                    </div>
+                  </div>
+
+                  <%= if has_config do %>
+                    <button class="btn btn-ghost btn-xs w-full" disabled>
+                      <.icon name="hero-check" class="w-3 h-3" />
+                      {gettext("Created")}
+                    </button>
+                  <% else %>
+                    <button
+                      phx-click="create_config"
+                      phx-value-server_id={server.id}
+                      class="btn btn-primary btn-xs w-full"
+                    >
+                      <.icon name="hero-plus" class="w-3 h-3" />
+                      {gettext("Create Config")}
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-6">
+              <p class="text-xs text-base-content/60">
+                {gettext("No servers available")}
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+<!-- Main Content -->
+    <div class="flex-1 min-w-0">
+      <div
+        id="vpn-configs-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box"
+      >
+        <div class="card-body p-3 sm:p-6">
+          <!-- Header -->
+          <div class="flex items-center justify-between mb-4 sm:mb-6">
+            <div class="flex items-center space-x-2 sm:space-x-3">
+              <div class="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
+                <.icon name="hero-shield-check" class="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              </div>
+              <div>
+                <h1 class="text-xl sm:text-2xl font-bold">{gettext("VPN Configurations")}</h1>
+                <p class="text-xs sm:text-sm text-base-content/70">
+                  Create configs for any server, download or scan QR code to connect
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <%= if length(@user_configs) > 0 do %>
+            <!-- Total Bandwidth Quota Summary -->
+            <% total_quota_used = Enum.sum(Enum.map(@user_configs, & &1.quota_used_bytes)) %>
+            <% total_quota = Enum.sum(Enum.map(@user_configs, & &1.bandwidth_quota_bytes)) %>
+            <% quota_percent_raw =
+              if total_quota > 0, do: total_quota_used / total_quota * 100, else: 0 %>
+            <% quota_percent_display =
+              cond do
+                quota_percent_raw >= 1 -> "#{round(quota_percent_raw)}%"
+                quota_percent_raw > 0 -> "#{Float.round(quota_percent_raw, 2)}%"
+                true -> "0%"
+              end %>
+            <% quota_percent = round(quota_percent_raw) %>
+
+            <div class="bg-gradient-to-br from-base-200 to-base-300 rounded-lg p-4 mb-4">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold">Bandwidth Quota Usage</h3>
+                <span class={[
+                  "badge badge-sm",
+                  cond do
+                    quota_percent >= 100 -> "badge-error"
+                    quota_percent >= 80 -> "badge-warning"
+                    true -> "badge-success"
+                  end
+                ]}>
+                  {quota_percent_display}
+                </span>
+              </div>
+              <div class="mb-2">
+                <div class="flex items-baseline justify-between gap-2 mb-1">
+                  <span class="text-xs text-base-content/60">Used</span>
+                  <span class="text-lg font-bold">
+                    {format_bytes(total_quota_used)} / {format_bytes(total_quota)}
+                  </span>
+                </div>
+                <div class="bg-base-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    class={[
+                      "h-full transition-all",
+                      cond do
+                        quota_percent >= 100 -> "bg-error"
+                        quota_percent >= 80 -> "bg-warning"
+                        true -> "bg-success"
+                      end
+                    ]}
+                    style={"width: #{quota_percent}%"}
+                  >
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-base-content/60">Quota resets monthly per configuration</p>
+            </div>
+
+            <div class="space-y-3">
+              <%= for config <- @user_configs do %>
+                <div class="border border-base-300 rounded-lg p-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-2">
+                        <h3 class="font-semibold text-base">
+                          {config.vpn_server.name}
+                        </h3>
+                        <%= if config.last_handshake_at && DateTime.diff(DateTime.utc_now(), config.last_handshake_at, :minute) < 5 do %>
+                          <span class="badge badge-sm badge-success">
+                            {gettext("Connected")}
+                          </span>
+                        <% end %>
+                      </div>
+
+                      <div class="text-sm text-base-content/70 space-y-1">
+                        <p>{config.vpn_server.location}</p>
+                        <p class="font-medium text-xs">{config.allocated_ip}</p>
+                      </div>
+
+                      <%= if config.last_handshake_at do %>
+                        <div class="mt-3 text-xs text-base-content/60">
+                          {gettext("Last connected")}:
+                          <.local_time
+                            datetime={config.last_handshake_at}
+                            format="datetime"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </div>
+                      <% end %>
+
+                      <div class="mt-3">
+                        <% config_quota_percent_raw =
+                          if config.bandwidth_quota_bytes > 0,
+                            do: config.quota_used_bytes / config.bandwidth_quota_bytes * 100,
+                            else: 0 %>
+                        <% config_quota_percent_display =
+                          cond do
+                            config.status == "suspended" ->
+                              "Suspended"
+
+                            config_quota_percent_raw >= 1 ->
+                              "#{round(config_quota_percent_raw)}%"
+
+                            config_quota_percent_raw > 0 ->
+                              "#{Float.round(config_quota_percent_raw, 2)}%"
+
+                            true ->
+                              "0%"
+                          end %>
+                        <% config_quota_percent = round(config_quota_percent_raw) |> min(100) %>
+                        <div class="flex items-center justify-between mb-2">
+                          <span class="text-xs text-base-content/60">Quota Usage</span>
+                          <span class={[
+                            "badge badge-xs",
+                            cond do
+                              config.status == "suspended" -> "badge-error"
+                              config_quota_percent >= 80 -> "badge-warning"
+                              true -> "badge-success"
+                            end
+                          ]}>
+                            {config_quota_percent_display}
+                          </span>
+                        </div>
+                        <div class="bg-base-200 rounded-full h-4 overflow-hidden mb-1">
+                          <div
+                            class={[
+                              "h-full transition-all",
+                              cond do
+                                config_quota_percent >= 100 -> "bg-error"
+                                config_quota_percent >= 80 -> "bg-warning"
+                                true -> "bg-success"
+                              end
+                            ]}
+                            style={"width: #{config_quota_percent}%"}
+                          >
+                          </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                          <span class="text-base-content/60">
+                            {format_bytes(config.quota_used_bytes)} / {format_bytes(
+                              config.bandwidth_quota_bytes
+                            )}
+                          </span>
+                          <span class="text-base-content/50">
+                            ↑ {format_bytes(config.bytes_sent)} · ↓ {format_bytes(
+                              config.bytes_received
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2 flex-shrink-0">
+                      <button
+                        phx-click="download_config"
+                        phx-value-config_id={config.id}
+                        class="btn btn-primary btn-sm"
+                      >
+                        <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+                        {gettext("Download")}
+                      </button>
+                      <button
+                        phx-click="show_qr_code"
+                        phx-value-config_id={config.id}
+                        class="btn btn-ghost btn-sm"
+                      >
+                        <.icon name="hero-qr-code" class="w-4 h-4" />
+                        {gettext("QR Code")}
+                      </button>
+                      <button
+                        phx-click="delete_config"
+                        phx-value-config_id={config.id}
+                        data-confirm="Are you sure you want to delete this VPN configuration?"
+                        class="btn btn-ghost btn-sm text-error"
+                      >
+                        <.icon name="hero-trash" class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-12">
+              <.icon name="hero-shield-exclamation" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+              <h3 class="text-lg font-semibold mb-2">{gettext("No VPN Configurations")}</h3>
+              <p class="text-sm text-base-content/70">
+                {gettext("Select a server from the sidebar to create a configuration")}
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- How to Use Section -->
+      <div
+        id="vpn-instructions-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box mt-6"
+      >
+        <div class="card-body p-4">
+          <h3 class="font-semibold text-sm mb-3">{gettext("Setup Instructions")}</h3>
+
+          <div class="text-sm text-base-content/70 space-y-3">
+            <div>
+              <p class="font-medium text-base-content mb-1">{gettext("Install WireGuard")}</p>
+              <p class="text-xs">
+                <a
+                  href="https://www.wireguard.com/install/"
+                  target="_blank"
+                  class="link link-primary"
+                >
+                  wireguard.com/install
+                </a>
+              </p>
+            </div>
+
+            <div>
+              <p class="font-medium text-base-content mb-1">{gettext("Import Config")}</p>
+              <p class="text-xs">{gettext("Desktop: Download .conf file")}</p>
+              <p class="text-xs">{gettext("Mobile: Scan QR code")}</p>
+            </div>
+
+            <div>
+              <p class="font-medium text-base-content mb-1">{gettext("Connect")}</p>
+              <p class="text-xs">{gettext("Activate the tunnel in WireGuard")}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QR Code Modal -->
+<%= if @show_qr_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-4">
+        {gettext("QR Code - %{name}", name: @qr_config_name)}
+      </h3>
+
+      <p class="text-sm text-base-content/70 mb-4">
+        {gettext("Scan this code with the WireGuard mobile app")}
+      </p>
+
+      <div class="flex justify-center bg-white p-6 rounded-lg mb-4">
+        {Phoenix.HTML.raw(@qr_code_svg)}
+      </div>
+
+      <div class="text-sm text-base-content/70">
+        <p class="font-medium mb-1">{gettext("Instructions")}:</p>
+        <ol class="list-decimal list-inside text-sm space-y-1">
+          <li>{gettext("Open WireGuard app")}</li>
+          <li>{gettext("Tap '+' and select 'Create from QR code'")}</li>
+          <li>{gettext("Scan this code")}</li>
+        </ol>
+      </div>
+
+      <div class="modal-action">
+        <button phx-click="close_qr_modal" class="btn">
+          {gettext("Close")}
+        </button>
+      </div>
+    </div>
+    <div class="modal-backdrop" phx-click="close_qr_modal"></div>
+  </div>
+<% end %>
+
+<div id="vpn-download-handler" phx-hook="VPNDownload"></div>

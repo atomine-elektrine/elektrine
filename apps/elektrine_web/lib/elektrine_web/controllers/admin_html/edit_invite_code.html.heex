@@ -1,0 +1,115 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <div class="flex items-center mb-2">
+      <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost btn-sm mr-4">
+        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
+      </.link>
+      <h1 class="text-2xl font-bold">Edit Invite Code</h1>
+    </div>
+    <p class="opacity-70">Modify invite code settings and usage limits.</p>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <.simple_form
+        :let={f}
+        for={@changeset}
+        action={~p"/pripyat/invite-codes/#{@invite_code.id}"}
+        method="put"
+      >
+        <.error :if={@changeset.action}>
+          Oops, something went wrong! Please check the errors below.
+        </.error>
+
+        <div>
+          <label class="label">
+            <span>Code</span>
+          </label>
+          <input type="text" value={@invite_code.code} class="input" disabled />
+          <div class="label">
+            <span class="text-xs opacity-70">
+              Code cannot be changed after creation
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label class="label">
+            <span>Current Usage</span>
+          </label>
+          <div class="stats bg-base-200 shadow">
+            <div class="stat">
+              <div class="stat-title">Uses</div>
+              <div class="stat-value text-primary">
+                {@invite_code.uses_count} / {@invite_code.max_uses}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <.input
+            field={f[:max_uses]}
+            type="number"
+            label="Maximum Uses"
+            min={@invite_code.uses_count}
+            required
+          />
+          <div class="label">
+            <span class="text-xs opacity-70">
+              Cannot be less than current uses ({@invite_code.uses_count})
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <.input
+            field={f[:expires_at]}
+            type="datetime-local"
+            label="Expires At (Optional)"
+            value={
+              if @invite_code.expires_at,
+                do: Calendar.strftime(@invite_code.expires_at, "%Y-%m-%dT%H:%M")
+            }
+          />
+          <div class="label">
+            <span class="text-xs opacity-70">
+              Leave blank for no expiration
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <.input
+            field={f[:note]}
+            type="textarea"
+            label="Note (Optional)"
+            placeholder="Add a note about this invite code..."
+            rows="3"
+          />
+        </div>
+
+        <div>
+          <label class="cursor-pointer label justify-start">
+            <.input field={f[:is_active]} type="checkbox" />
+            <span class="ml-2">Active</span>
+          </label>
+          <div class="label">
+            <span class="text-xs opacity-70">
+              Inactive codes cannot be used for registration
+            </span>
+          </div>
+        </div>
+
+        <:actions>
+          <div class="flex gap-2">
+            <.button class="btn-primary">Update Invite Code</.button>
+            <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost">
+              Cancel
+            </.link>
+          </div>
+        </:actions>
+      </.simple_form>
+    </div>
+  </div>
+</div>

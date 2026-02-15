@@ -1,0 +1,93 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6 flex justify-between items-start">
+    <div>
+      <h1 class="text-2xl font-bold">Message Details</h1>
+      <%= if @user do %>
+        <p class="opacity-70 mt-2">From @{@user.username}'s mailbox</p>
+      <% else %>
+        <p class="opacity-70 mt-2">System message</p>
+      <% end %>
+    </div>
+    <div class="flex gap-2">
+      <.link href={~p"/pripyat/messages/#{@message.id}/raw"} class="btn btn-ghost" target="_blank">
+        <.icon name="hero-code-bracket" class="w-4 h-4 mr-2" /> View Raw
+      </.link>
+      <.link href={~p"/pripyat/messages"} class="btn btn-ghost">
+        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Messages
+      </.link>
+    </div>
+  </div>
+  
+<!-- Message Header -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <h2 class="text-lg font-semibold mb-4">Message Info</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div>
+          <p><strong>Subject:</strong> {decode_email_subject(@message.subject)}</p>
+          <p><strong>From:</strong> <span class="font-medium">{@message.from}</span></p>
+          <p><strong>To:</strong> <span class="font-medium">{@message.to}</span></p>
+          <%= if @message.cc do %>
+            <p><strong>CC:</strong> <span class="font-medium">{@message.cc}</span></p>
+          <% end %>
+        </div>
+        <div>
+          <p>
+            <strong>Date:</strong>
+            <.local_time
+              datetime={@message.inserted_at}
+              format="datetime"
+              timezone={@timezone}
+              time_format={@time_format}
+            />
+          </p>
+          <p>
+            <strong>Message ID:</strong>
+            <span class="font-medium text-xs">{@message.message_id}</span>
+          </p>
+          <%= if @user do %>
+            <p>
+              <strong>Owner:</strong>
+              <.link href={~p"/pripyat/users/#{@user.id}/messages"} class="link link-primary">
+                @{@user.username}
+              </.link>
+            </p>
+          <% end %>
+          <p><strong>Category:</strong> {String.capitalize(@message.category || "inbox")}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Message Content -->
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <h2 class="text-lg font-semibold mb-4">Message Content</h2>
+
+      <div class="bg-base-50 rounded-lg border border-base-300 min-h-[20rem] overflow-hidden">
+        <%= cond do %>
+          <% @message.html_body && String.trim(@message.html_body) != "" -> %>
+            <iframe
+              src={~p"/pripyat/messages/#{@message.id}/iframe"}
+              class="w-full min-h-[400px] h-[600px] border-0"
+              sandbox="allow-same-origin"
+              loading="lazy"
+            >
+            </iframe>
+          <% @message.text_body && String.trim(@message.text_body) != "" -> %>
+            <div class="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-auto p-6">
+              {@message.text_body}
+            </div>
+          <% true -> %>
+            <div class="flex items-center justify-center h-[20rem] text-base-content/50">
+              <div class="text-center">
+                <.icon name="hero-envelope-open" class="w-12 h-12 mx-auto mb-3" />
+                <p class="text-lg mb-2">No content available</p>
+                <p class="text-sm">This message has no readable content</p>
+              </div>
+            </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

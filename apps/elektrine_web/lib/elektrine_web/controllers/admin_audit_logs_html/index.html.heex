@@ -1,0 +1,129 @@
+<div class="p-6">
+  <div class="mb-6 flex justify-between items-start">
+    <div>
+      <h1 class="text-2xl font-bold">Audit Log</h1>
+      <p class="opacity-70 mt-2">
+        Complete log of all administrative actions performed in the system.
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <.link href={~p"/pripyat"} class="btn btn-ghost">
+        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Dashboard
+      </.link>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th>Date & Time</th>
+              <th>Admin</th>
+              <th>Action</th>
+              <th>Target</th>
+              <th>Details</th>
+              <th>IP Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for log <- @audit_logs do %>
+              <tr>
+                <td class="text-sm font-medium">
+                  {Calendar.strftime(log.inserted_at, "%Y-%m-%d %H:%M:%S")}
+                </td>
+                <td>
+                  <%= if log.admin do %>
+                    <div class="font-medium">{log.admin.username}</div>
+                    <div class="text-xs opacity-50">ID: {log.admin.id}</div>
+                  <% else %>
+                    <span class="opacity-50">Deleted Admin</span>
+                  <% end %>
+                </td>
+                <td>
+                  <div class={[
+                    "badge badge-sm",
+                    case log.action do
+                      "create" -> "badge-success"
+                      "delete" -> "badge-error"
+                      "ban" -> "badge-warning"
+                      "unban" -> "badge-info"
+                      _ -> "badge-ghost"
+                    end
+                  ]}>
+                    {String.upcase(log.action)}
+                  </div>
+                </td>
+                <td>
+                  <div class="text-sm">
+                    <div class="font-medium">{String.upcase(log.resource_type)}</div>
+                    <%= if log.target_user do %>
+                      <div class="text-xs opacity-70">{log.target_user.username}</div>
+                    <% else %>
+                      <%= if log.details["username"] do %>
+                        <div class="text-xs opacity-70">{log.details["username"]}</div>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </td>
+                <td>
+                  <div class="text-xs">
+                    <%= for {key, value} <- log.details do %>
+                      <div><strong>{key}:</strong> {inspect(value)}</div>
+                    <% end %>
+                  </div>
+                </td>
+                <td class="font-medium text-xs">
+                  {log.ip_address || "N/A"}
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+<!-- Pagination -->
+      <%= if @total_pages > 1 do %>
+        <div class="flex justify-center mt-6">
+          <div class="join">
+            <%= if @current_page > 1 do %>
+              <.link
+                href={~p"/pripyat/audit-logs?page=#{@current_page - 1}"}
+                class="join-item btn"
+              >
+                «
+              </.link>
+            <% end %>
+
+            <%= for page_num <- @page_range do %>
+              <.link
+                href={~p"/pripyat/audit-logs?page=#{page_num}"}
+                class={
+                  if page_num == @current_page,
+                    do: "join-item btn btn-primary",
+                    else: "join-item btn btn-ghost"
+                }
+              >
+                {page_num}
+              </.link>
+            <% end %>
+
+            <%= if @current_page < @total_pages do %>
+              <.link
+                href={~p"/pripyat/audit-logs?page=#{@current_page + 1}"}
+                class="join-item btn"
+              >
+                »
+              </.link>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="text-center mt-4 text-sm opacity-70">
+          Page {@current_page} of {@total_pages} • {@total_count} total audit entries
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

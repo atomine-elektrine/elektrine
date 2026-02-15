@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible defect in any umbrella app
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please include enough detail to reproduce.
+
+  - type: dropdown
+    id: app
+    attributes:
+      label: Affected app
+      options:
+        - apps/elektrine
+        - apps/elektrine_web
+        - apps/elektrine_email
+        - apps/elektrine_social
+        - apps/elektrine_vpn
+        - apps/elektrine_password_manager
+        - multiple apps
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack traces
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit SHA or branch
+      placeholder: e.g. main @ abc1234

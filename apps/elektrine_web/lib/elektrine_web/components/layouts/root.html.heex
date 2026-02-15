@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    
+<!-- SEO Meta Tags -->
+    <meta name="description" content={build_meta_description(assigns)} />
+    <meta name="keywords" content={build_meta_keywords(assigns)} />
+    <meta name="author" content="Elektrine" />
+    <meta name="robots" content="index, follow" />
+    
+<!-- Canonical URL -->
+    <%= if current_url(assigns) do %>
+      <link rel="canonical" href={current_url(assigns)} />
+    <% end %>
+    
+<!-- Open Graph -->
+    <meta property="og:site_name" content="Elektrine" />
+    <meta property="og:title" content={build_page_title(assigns)} />
+    <meta property="og:description" content={build_meta_description(assigns)} />
+    <meta property="og:type" content="website" />
+    <%= if current_url(assigns) do %>
+      <meta property="og:url" content={current_url(assigns)} />
+    <% end %>
+    <meta property="og:image" content={og_image_url(assigns)} />
+    <meta property="og:image:alt" content="Elektrine - Email, VPN, and Social Platform" />
+    
+<!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={build_page_title(assigns)} />
+    <meta name="twitter:description" content={build_meta_description(assigns)} />
+    <meta name="twitter:image" content={og_image_url(assigns)} />
+    <meta name="twitter:site" content="@elektrine" />
+
+    <.live_title suffix=" · Elektrine">
+      {build_page_title(assigns)}
+    </.live_title>
+
+    <link rel="icon" type="image/x-icon" href={~p"/images/favicon.ico"} />
+    <link rel="icon" type="image/png" sizes="16x16" href={~p"/images/favicon-16x16.png"} />
+    <link rel="icon" type="image/png" sizes="32x32" href={~p"/images/favicon-32x32.png"} />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href={~p"/images/android-chrome-192x192.png"}
+    />
+
+    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer>
+    </script>
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
+    </script>
+  </head>
+  <body
+    class="bg-base-100 min-h-screen flex flex-col overflow-x-hidden"
+    data-grid={grid_color(assigns)}
+  >
+    <div id="timezone-detector" phx-hook="TimezoneDetector" class="hidden"></div>
+    {@inner_content}
+  </body>
+</html>

@@ -1,0 +1,191 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+      <div class="flex-1">
+        <h1 class="text-xl sm:text-2xl font-bold">Email Aliases Management</h1>
+        <p class="opacity-70 mt-1 text-sm">Search and manage all email aliases in the system.</p>
+      </div>
+    </div>
+  </div>
+  
+<!-- Search Form -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <form method="get" action={~p"/pripyat/aliases"} class="flex gap-4 items-end">
+        <div class="flex-1">
+          <label class="label">
+            <span>Search aliases</span>
+          </label>
+          <div class="join w-full">
+            <input
+              type="text"
+              name="search"
+              value={@search_query}
+              placeholder='Search alias or email... (use "quotes" for exact match)'
+              class="input flex-1 join-item w-full"
+              title='Use quotes for exact match, e.g. "admin@elektrine.com"'
+            />
+            <button type="submit" class="btn btn-primary join-item">
+              <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
+            </button>
+          </div>
+        </div>
+        <%= if @search_query != "" do %>
+          <.link href={~p"/pripyat/aliases"} class="btn btn-ghost">
+            <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
+          </.link>
+        <% end %>
+      </form>
+
+      <%= if @search_query != "" do %>
+        <div class="mt-4">
+          <div class="alert alert-info">
+            <.icon name="hero-information-circle" class="stroke-current shrink-0 w-6 h-6" />
+            <span>
+              Showing results for "<strong><%= @search_query %></strong>"
+              ({@total_count} alias{if @total_count != 1, do: "es"} found)
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Results -->
+  <div class="card glass-card shadow-xl">
+    <div class="card-body p-3 sm:p-6">
+      <%= if @total_count > 0 do %>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th class="text-xs sm:text-sm">Alias Address</th>
+                <th class="text-xs sm:text-sm">Forward To</th>
+                <th class="text-xs sm:text-sm hidden md:table-cell">Mailbox Owner</th>
+                <th class="text-xs sm:text-sm">Status</th>
+                <th class="text-xs sm:text-sm hidden lg:table-cell">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for alias <- @aliases do %>
+                <tr>
+                  <td>
+                    <span class="font-medium text-xs sm:text-sm">{alias.alias_address}</span>
+                  </td>
+                  <td>
+                    <span class="font-medium text-xs sm:text-sm">{alias.forward_to}</span>
+                  </td>
+                  <td class="hidden md:table-cell">
+                    <%= if alias.username do %>
+                      <.link
+                        href={~p"/pripyat/users/#{alias.user_id}/edit"}
+                        class="font-medium text-primary hover:underline"
+                      >
+                        {alias.username}
+                      </.link>
+                      <span class="text-xs opacity-60 ml-1">
+                        ({alias.mailbox_email})
+                      </span>
+                    <% else %>
+                      <span class="opacity-60">
+                        {alias.mailbox_email}
+                        <span class="text-xs">(no user)</span>
+                      </span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <%= if alias.enabled do %>
+                      <span class="badge badge-success badge-sm">Enabled</span>
+                    <% else %>
+                      <span class="badge badge-error badge-sm">Disabled</span>
+                    <% end %>
+                  </td>
+                  <td class="text-xs sm:text-sm opacity-70 hidden lg:table-cell">
+                    <.local_time
+                      datetime={alias.created_at}
+                      format="date"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+<!-- Pagination -->
+        <%= if @total_pages > 1 do %>
+          <div class="flex justify-center mt-6">
+            <div class="join">
+              <%= if @current_page > 1 do %>
+                <.link
+                  href={
+                    if @search_query != "",
+                      do: ~p"/pripyat/aliases?search=#{@search_query}&page=#{@current_page - 1}",
+                      else: ~p"/pripyat/aliases?page=#{@current_page - 1}"
+                  }
+                  class="join-item btn"
+                >
+                  «
+                </.link>
+              <% end %>
+
+              <%= for page_num <- @page_range do %>
+                <.link
+                  href={
+                    if @search_query != "",
+                      do: ~p"/pripyat/aliases?search=#{@search_query}&page=#{page_num}",
+                      else: ~p"/pripyat/aliases?page=#{page_num}"
+                  }
+                  class={
+                    if page_num == @current_page,
+                      do: "join-item btn btn-primary",
+                      else: "join-item btn btn-ghost"
+                  }
+                >
+                  {page_num}
+                </.link>
+              <% end %>
+
+              <%= if @current_page < @total_pages do %>
+                <.link
+                  href={
+                    if @search_query != "",
+                      do: ~p"/pripyat/aliases?search=#{@search_query}&page=#{@current_page + 1}",
+                      else: ~p"/pripyat/aliases?page=#{@current_page + 1}"
+                  }
+                  class="join-item btn"
+                >
+                  »
+                </.link>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="text-center mt-4 text-sm opacity-70">
+            Page {@current_page} of {@total_pages} • {@total_count} total aliases
+          </div>
+        <% end %>
+      <% else %>
+        <div class="text-center py-12">
+          <.icon name="hero-at-symbol" class="w-12 h-12 mx-auto opacity-30 mb-4" />
+          <p class="text-lg font-medium opacity-70 mb-2">
+            <%= if @search_query != "" do %>
+              No aliases found
+            <% else %>
+              No aliases yet
+            <% end %>
+          </p>
+          <p class="text-sm opacity-50">
+            <%= if @search_query != "" do %>
+              Try adjusting your search terms or remove quotes for partial matches
+            <% else %>
+              Email aliases will appear here when users create them
+            <% end %>
+          </p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

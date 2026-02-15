@@ -1,0 +1,170 @@
+<div class="p-4 sm:p-6">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">Account Deletion Request</h1>
+    <.link href={~p"/pripyat/deletion-requests"} class="btn btn-ghost">
+      ← Back to Requests
+    </.link>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Request Details -->
+        <div>
+          <h2 class="text-xl font-semibold mb-4">Request Details</h2>
+
+          <div class="space-y-3">
+            <div>
+              <label class="label font-semibold">User</label>
+              <div class="text-lg">{@request.user.username} (ID: {@request.user.id})</div>
+            </div>
+
+            <div>
+              <label class="label font-semibold">Status</label>
+              <span class={[
+                "badge badge-lg",
+                case @request.status do
+                  "pending" -> "badge-warning"
+                  "approved" -> "badge-success"
+                  "denied" -> "badge-error"
+                  _ -> "badge-neutral"
+                end
+              ]}>
+                {String.capitalize(@request.status)}
+              </span>
+            </div>
+
+            <div>
+              <label class="label font-semibold">Requested At</label>
+              <div>
+                <.local_time
+                  datetime={@request.requested_at}
+                  format="datetime"
+                  timezone={@timezone}
+                  time_format={@time_format}
+                />
+              </div>
+            </div>
+
+            <%= if @request.reason && String.trim(@request.reason) != "" do %>
+              <div>
+                <label class="label font-semibold">Reason</label>
+                <div class="bg-base-200 p-3 rounded-lg">
+                  {@request.reason}
+                </div>
+              </div>
+            <% else %>
+              <div>
+                <label class="label font-semibold">Reason</label>
+                <div class="text-gray-500 italic">No reason provided</div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        
+<!-- Review Information -->
+        <div>
+          <h2 class="text-xl font-semibold mb-4">Review Information</h2>
+
+          <%= if @request.reviewed_by do %>
+            <div class="space-y-3">
+              <div>
+                <label class="label font-semibold">Reviewed By</label>
+                <div>{@request.reviewed_by.username}</div>
+              </div>
+
+              <div>
+                <label class="label font-semibold">Reviewed At</label>
+                <div>
+                  <.local_time
+                    datetime={@request.reviewed_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </div>
+              </div>
+
+              <%= if @request.admin_notes && String.trim(@request.admin_notes) != "" do %>
+                <div>
+                  <label class="label font-semibold">Admin Notes</label>
+                  <div class="bg-base-200 p-3 rounded-lg">
+                    {@request.admin_notes}
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-gray-500 italic">Not yet reviewed</div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Actions -->
+      <%= if @request.status == "pending" do %>
+        <div class="divider"></div>
+        <div>
+          <h2 class="text-xl font-semibold mb-4">Review Actions</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Approve -->
+            <div class="card bg-success/10 border border-success/30">
+              <div class="card-body">
+                <h3 class="card-title text-success">Approve Request</h3>
+                <p class="text-sm">
+                  This will permanently delete the user's account and all associated data.
+                </p>
+
+                <.simple_form
+                  :let={_f}
+                  for={%{}}
+                  action={~p"/pripyat/deletion-requests/#{@request.id}/approve"}
+                  method="post"
+                >
+                  <.input
+                    name="admin_notes"
+                    type="textarea"
+                    label="Admin Notes (optional)"
+                    placeholder="Add any notes about this approval..."
+                    value=""
+                  />
+                  <:actions>
+                    <.button class="btn-success w-full">Approve & Delete Account</.button>
+                  </:actions>
+                </.simple_form>
+              </div>
+            </div>
+            
+<!-- Deny -->
+            <div class="card bg-error/10 border border-error/30">
+              <div class="card-body">
+                <h3 class="card-title text-error">Deny Request</h3>
+                <p class="text-sm">
+                  This will deny the deletion request. The user's account will remain active.
+                </p>
+
+                <.simple_form
+                  :let={_f}
+                  for={%{}}
+                  action={~p"/pripyat/deletion-requests/#{@request.id}/deny"}
+                  method="post"
+                >
+                  <.input
+                    name="admin_notes"
+                    type="textarea"
+                    label="Admin Notes (optional)"
+                    placeholder="Explain why this request was denied..."
+                    value=""
+                  />
+                  <:actions>
+                    <.button class="btn-secondary w-full">Deny Request</.button>
+                  </:actions>
+                </.simple_form>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

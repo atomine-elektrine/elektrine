@@ -1,0 +1,1108 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  
+<!-- Z Platform Navigation -->
+  <.z_nav active_tab="discussions" />
+  
+<!-- Mobile Navigation Bar -->
+  <div class="sm:hidden mb-4 space-y-3">
+    <!-- Top action button -->
+    <%= if @current_user do %>
+      <button
+        phx-click="toggle_create_community"
+        class="btn btn-secondary w-full min-h-[2.75rem]"
+        aria-label={gettext("Create new community")}
+      >
+        <.icon name="hero-plus" class="w-5 h-5 mr-2" />
+        {gettext("New Community")}
+      </button>
+    <% end %>
+    
+<!-- View tabs with better touch targets -->
+    <div class="flex gap-2" role="tablist" aria-label="Community views">
+      <button
+        phx-click="set_view"
+        phx-value-view="communities"
+        role="tab"
+        aria-selected={@current_view == "communities"}
+        class={[
+          "flex-1 flex flex-col items-center justify-center py-3 px-3 rounded-xl text-sm font-medium transition-all min-h-[3rem]",
+          if(@current_view == "communities",
+            do: "bg-secondary text-secondary-content shadow-lg",
+            else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+          )
+        ]}
+      >
+        <.icon name="hero-users" class="w-5 h-5 mb-1" />
+        <span>{gettext("Communities")}</span>
+      </button>
+      <%= if @current_user do %>
+        <%= if length(@followed_community_posts) > 0 do %>
+          <button
+            phx-click="set_view"
+            phx-value-view="feed"
+            role="tab"
+            aria-selected={@current_view == "feed"}
+            class={[
+              "flex-1 flex flex-col items-center justify-center py-3 px-3 rounded-xl text-sm font-medium transition-all min-h-[3rem] relative",
+              if(@current_view == "feed",
+                do: "bg-secondary text-secondary-content shadow-lg",
+                else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+              )
+            ]}
+          >
+            <.icon name="hero-rss" class="w-5 h-5 mb-1" />
+            <span>Feed</span>
+            <span class="badge badge-xs badge-primary absolute top-1 right-1">
+              {length(@followed_community_posts)}
+            </span>
+          </button>
+        <% end %>
+        <button
+          phx-click="set_view"
+          phx-value-view="my_activity"
+          role="tab"
+          aria-selected={@current_view == "my_activity"}
+          class={[
+            "flex-1 flex flex-col items-center justify-center py-3 px-3 rounded-xl text-sm font-medium transition-all min-h-[3rem]",
+            if(@current_view == "my_activity",
+              do: "bg-secondary text-secondary-content shadow-lg",
+              else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+            )
+          ]}
+        >
+          <.icon name="hero-document-text" class="w-5 h-5 mb-1" />
+          <span>My Activity</span>
+        </button>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="flex flex-col sm:flex-row gap-0 sm:gap-2 lg:gap-6">
+    <!-- Left Sidebar - Community Navigation (Hidden on mobile) -->
+    <div class="hidden sm:block w-32 md:w-48 lg:w-56 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
+      <div class="card glass-card shadow-lg border border-base-300 flex flex-col h-full">
+        <div class="p-4 border-b border-base-300 flex-shrink-0">
+          <h2 class="text-lg font-semibold mb-4">Communities</h2>
+          
+<!-- Create Community Button -->
+          <%= if @current_user do %>
+            <button
+              phx-click="toggle_create_community"
+              class="btn btn-secondary btn-sm w-full mb-4"
+            >
+              <.icon name="hero-plus" class="w-4 h-4 mr-2" />
+              {gettext("New Community")}
+            </button>
+          <% else %>
+            <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full mb-4">
+              <.icon name="hero-user" class="w-4 h-4 mr-2" /> Sign in to Create
+            </.link>
+          <% end %>
+          
+<!-- Community Views -->
+          <div class="space-y-2">
+            <button
+              phx-click="set_view"
+              phx-value-view="communities"
+              class={[
+                "btn btn-sm w-full justify-start",
+                if(@current_view == "communities", do: "btn-secondary", else: "btn-ghost")
+              ]}
+            >
+              <.icon name="hero-users" class="w-4 h-4 mr-2" />
+              {gettext("My Communities")}
+            </button>
+            <%= if @current_user && length(@followed_community_posts) > 0 do %>
+              <button
+                phx-click="set_view"
+                phx-value-view="feed"
+                class={[
+                  "btn btn-sm w-full justify-start",
+                  if(@current_view == "feed", do: "btn-secondary", else: "btn-ghost")
+                ]}
+              >
+                <.icon name="hero-rss" class="w-4 h-4 mr-2" /> Community Feed
+                <span class="badge badge-xs badge-primary ml-auto">
+                  {length(@followed_community_posts)}
+                </span>
+              </button>
+            <% end %>
+            <%= if @current_user do %>
+              <button
+                phx-click="set_view"
+                phx-value-view="my_activity"
+                class={[
+                  "btn btn-sm w-full justify-start",
+                  if(@current_view == "my_activity", do: "btn-secondary", else: "btn-ghost")
+                ]}
+              >
+                <.icon name="hero-document-text" class="w-4 h-4 mr-2" /> My Activity
+                <%= if length(@my_community_posts) > 0 do %>
+                  <span class="badge badge-xs badge-primary ml-auto">
+                    {length(@my_community_posts)}
+                  </span>
+                <% end %>
+              </button>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Main Content Area -->
+    <div class="flex-1 min-w-0 max-w-full sm:max-w-full card glass-card shadow-lg border border-base-300">
+      <!-- Create Community Modal -->
+      <%= if @show_create_community do %>
+        <div class="p-4 border-b border-base-300 bg-base-50">
+          <.form for={%{}} phx-submit="create_community" class="space-y-4">
+            <div>
+              <label class="label">
+                <span class="label-text">Community Name</span>
+                <span class="label-text-alt text-xs opacity-70">Letters and numbers only</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                placeholder="e.g., ElixirDevelopers"
+                class="input input-bordered w-full"
+                value={@new_community_name}
+                pattern="[a-zA-Z0-9]{2,30}"
+                title="2-30 characters, letters and numbers only (no spaces)"
+                required
+              />
+              <label class="label">
+                <span class="label-text-alt text-xs">
+                  No spaces or special characters allowed
+                </span>
+              </label>
+            </div>
+
+            <div>
+              <label class="label">Description</label>
+              <textarea
+                name="description"
+                placeholder="What is this community about?"
+                class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+                style="min-height: 3rem; max-height: 15rem;"
+                rows="3"
+                phx-hook="AutoExpandTextarea"
+                phx-update="ignore"
+                id="community-description-textarea"
+              ><%= @new_community_description %></textarea>
+            </div>
+
+            <div>
+              <label class="label">Category</label>
+              <select name="category" class="select select-bordered w-full">
+                <optgroup label="Technology & Science">
+                  <option value="tech" selected={@new_community_category == "tech"}>
+                    Technology
+                  </option>
+                  <option value="programming" selected={@new_community_category == "programming"}>
+                    Programming
+                  </option>
+                  <option value="science" selected={@new_community_category == "science"}>
+                    Science
+                  </option>
+                  <option value="space" selected={@new_community_category == "space"}>
+                    Space & Astronomy
+                  </option>
+                  <option value="crypto" selected={@new_community_category == "crypto"}>
+                    Cryptocurrency
+                  </option>
+                </optgroup>
+
+                <optgroup label="Entertainment">
+                  <option value="gaming" selected={@new_community_category == "gaming"}>
+                    Gaming
+                  </option>
+                  <option value="movies" selected={@new_community_category == "movies"}>
+                    Movies
+                  </option>
+                  <option value="tv" selected={@new_community_category == "tv"}>TV Shows</option>
+                  <option value="anime" selected={@new_community_category == "anime"}>
+                    Anime & Manga
+                  </option>
+                  <option value="comics" selected={@new_community_category == "comics"}>
+                    Comics
+                  </option>
+                  <option value="music" selected={@new_community_category == "music"}>
+                    Music
+                  </option>
+                  <option value="books" selected={@new_community_category == "books"}>
+                    Books & Literature
+                  </option>
+                  <option value="comedy" selected={@new_community_category == "comedy"}>
+                    Comedy
+                  </option>
+                  <option value="memes" selected={@new_community_category == "memes"}>
+                    Memes
+                  </option>
+                </optgroup>
+
+                <optgroup label="Creative">
+                  <option value="art" selected={@new_community_category == "art"}>
+                    Art & Illustration
+                  </option>
+                  <option value="design" selected={@new_community_category == "design"}>
+                    Design
+                  </option>
+                  <option value="photography" selected={@new_community_category == "photography"}>
+                    Photography
+                  </option>
+                  <option value="writing" selected={@new_community_category == "writing"}>
+                    Writing
+                  </option>
+                  <option value="diy" selected={@new_community_category == "diy"}>
+                    DIY & How-To
+                  </option>
+                  <option value="crafts" selected={@new_community_category == "crafts"}>
+                    Crafts
+                  </option>
+                  <option value="fashion" selected={@new_community_category == "fashion"}>
+                    Fashion & Style
+                  </option>
+                </optgroup>
+
+                <optgroup label="Lifestyle">
+                  <option value="food" selected={@new_community_category == "food"}>
+                    Food & Cooking
+                  </option>
+                  <option value="fitness" selected={@new_community_category == "fitness"}>
+                    Fitness & Exercise
+                  </option>
+                  <option value="health" selected={@new_community_category == "health"}>
+                    Health & Wellness
+                  </option>
+                  <option value="travel" selected={@new_community_category == "travel"}>
+                    Travel
+                  </option>
+                  <option value="pets" selected={@new_community_category == "pets"}>
+                    Pets & Animals
+                  </option>
+                  <option value="nature" selected={@new_community_category == "nature"}>
+                    Nature & Outdoors
+                  </option>
+                  <option value="automotive" selected={@new_community_category == "automotive"}>
+                    Cars & Automotive
+                  </option>
+                  <option value="sports" selected={@new_community_category == "sports"}>
+                    Sports
+                  </option>
+                </optgroup>
+
+                <optgroup label="Learning">
+                  <option value="education" selected={@new_community_category == "education"}>
+                    Education
+                  </option>
+                  <option value="history" selected={@new_community_category == "history"}>
+                    History
+                  </option>
+                  <option value="philosophy" selected={@new_community_category == "philosophy"}>
+                    Philosophy
+                  </option>
+                  <option value="psychology" selected={@new_community_category == "psychology"}>
+                    Psychology
+                  </option>
+                  <option value="medicine" selected={@new_community_category == "medicine"}>
+                    Medicine
+                  </option>
+                  <option value="law" selected={@new_community_category == "law"}>
+                    Law & Legal
+                  </option>
+                </optgroup>
+
+                <optgroup label="Business & Finance">
+                  <option value="business" selected={@new_community_category == "business"}>
+                    Business
+                  </option>
+                  <option value="finance" selected={@new_community_category == "finance"}>
+                    Finance & Investment
+                  </option>
+                  <option value="stocks" selected={@new_community_category == "stocks"}>
+                    Stocks & Trading
+                  </option>
+                  <option value="realestate" selected={@new_community_category == "realestate"}>
+                    Real Estate
+                  </option>
+                  <option value="marketing" selected={@new_community_category == "marketing"}>
+                    Marketing
+                  </option>
+                  <option value="career" selected={@new_community_category == "career"}>
+                    Career & Jobs
+                  </option>
+                </optgroup>
+
+                <optgroup label="Society">
+                  <option value="news" selected={@new_community_category == "news"}>
+                    News & Current Events
+                  </option>
+                  <option value="politics" selected={@new_community_category == "politics"}>
+                    Politics
+                  </option>
+                  <option value="environment" selected={@new_community_category == "environment"}>
+                    Environment
+                  </option>
+                  <option value="energy" selected={@new_community_category == "energy"}>
+                    Energy & Sustainability
+                  </option>
+                  <option
+                    value="relationships"
+                    selected={@new_community_category == "relationships"}
+                  >
+                    Relationships
+                  </option>
+                  <option value="parenting" selected={@new_community_category == "parenting"}>
+                    Parenting & Family
+                  </option>
+                  <option value="religion" selected={@new_community_category == "religion"}>
+                    Religion
+                  </option>
+                  <option
+                    value="spirituality"
+                    selected={@new_community_category == "spirituality"}
+                  >
+                    Spirituality
+                  </option>
+                  <option value="conspiracy" selected={@new_community_category == "conspiracy"}>
+                    Conspiracy Theories
+                  </option>
+                  <option value="paranormal" selected={@new_community_category == "paranormal"}>
+                    Paranormal
+                  </option>
+                </optgroup>
+
+                <optgroup label="Other">
+                  <option value="general" selected={@new_community_category == "general"}>
+                    General Discussion
+                  </option>
+                </optgroup>
+              </select>
+            </div>
+
+            <div class="flex gap-2">
+              <button
+                type="button"
+                phx-click="toggle_create_community"
+                class="btn btn-ghost btn-sm"
+              >
+                {gettext("Cancel")}
+              </button>
+              <button type="submit" class="btn btn-secondary btn-sm">
+                <.icon name="hero-plus" class="w-4 h-4 mr-1" />
+                {gettext("Create Community")}
+              </button>
+            </div>
+          </.form>
+        </div>
+      <% end %>
+      
+<!-- Category Filter Indicator -->
+      <%= if @selected_category != "all" do %>
+        <div class="px-4 pt-4">
+          <div class="alert alert-info">
+            <.icon name="hero-funnel" class="w-5 h-5" />
+            <span>
+              Filtering by: <strong class="capitalize">{@selected_category}</strong>
+            </span>
+            <button
+              phx-click="filter_by_category"
+              phx-value-category="all"
+              class="btn btn-sm btn-ghost ml-auto"
+            >
+              Clear Filter
+            </button>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Content Based on Current View -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <%= if @loading_communities && @has_community_data do %>
+          <!-- Loading skeleton - only when user has communities to load -->
+          <div class="space-y-4 animate-pulse">
+            <div class="flex items-center gap-2 mb-4">
+              <div class="w-5 h-5 bg-base-300 rounded"></div>
+              <div class="h-5 bg-base-300 rounded w-32"></div>
+            </div>
+            <%= for _i <- 1..4 do %>
+              <div class="card bg-base-200 border border-base-300">
+                <div class="card-body p-4">
+                  <div class="flex items-start gap-3">
+                    <div class="w-12 h-12 bg-base-300 rounded-xl"></div>
+                    <div class="flex-1">
+                      <div class="h-4 bg-base-300 rounded w-32 mb-2"></div>
+                      <div class="h-3 bg-base-300 rounded w-48 mb-2"></div>
+                      <div class="h-3 bg-base-300 rounded w-24"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <%= case @current_view do %>
+            <% "communities" -> %>
+              <!-- My Communities -->
+              <%= if @current_user do %>
+                <%= if @filtered_communities && length(@filtered_communities) > 0 do %>
+                  <div class="space-y-3">
+                    <div class="flex items-center gap-2 mb-4">
+                      <.icon name="hero-users" class="w-5 h-5 text-purple-400" />
+                      <h3 class="text-base font-semibold">My Communities</h3>
+                    </div>
+                    <div class="grid gap-3">
+                      <%= for community <- @filtered_communities do %>
+                        <.link
+                          href={~p"/communities/#{community.name}"}
+                          class="card glass-card border border-base-300 hover:border-purple-500/30 transition-all group"
+                        >
+                          <div class="card-body p-4">
+                            <div class="flex items-start gap-3">
+                              <!-- Community Avatar -->
+                              <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0 group-hover:from-purple-500/30 group-hover:to-cyan-500/30 transition-colors">
+                                <span class="text-lg font-bold text-purple-400">
+                                  {String.first(community.name) |> String.upcase()}
+                                </span>
+                              </div>
+                              <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                  <h3 class="font-semibold text-sm group-hover:text-purple-400 transition-colors truncate">
+                                    {community.name}
+                                  </h3>
+                                  <span class="badge badge-xs bg-purple-500/10 text-purple-400 border-purple-500/20">
+                                    {String.capitalize(community.community_category || "general")}
+                                  </span>
+                                </div>
+                                <%= if community.is_federated_mirror && community.remote_group_actor do %>
+                                  <div class="text-xs text-base-content/50 mt-0.5">
+                                    !{community.remote_group_actor.username}@{community.remote_group_actor.domain}
+                                  </div>
+                                <% else %>
+                                  <div class="text-xs text-base-content/50 mt-0.5">
+                                    !{String.downcase(community.name)
+                                    |> String.replace(~r/[^a-z0-9]+/, "-")}@z.org
+                                  </div>
+                                <% end %>
+                                <%= if community.description do %>
+                                  <p class="text-xs text-base-content/60 line-clamp-1 mt-1.5">
+                                    {community.description}
+                                  </p>
+                                <% end %>
+                                <div class="flex items-center gap-3 mt-2 text-xs text-base-content/50">
+                                  <span class="flex items-center gap-1">
+                                    <.icon name="hero-users" class="w-3.5 h-3.5" />
+                                    {community.member_count} members
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                id={"leave-community-#{community.id}"}
+                                phx-click="leave_community"
+                                phx-value-community_id={community.id}
+                                class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                phx-hook="StopPropagation"
+                              >
+                                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </.link>
+                      <% end %>
+                    </div>
+                    
+<!-- Followed Remote Communities -->
+                    <%= if length(@filtered_remote_communities) > 0 do %>
+                      <div class="mt-6">
+                        <div class="flex items-center gap-2 mb-4">
+                          <.icon name="hero-globe-alt" class="w-5 h-5 text-cyan-400" />
+                          <h3 class="text-base font-semibold">Federated Communities</h3>
+                        </div>
+                        <div class="grid gap-3">
+                          <%= for community <- @filtered_remote_communities do %>
+                            <.link
+                              navigate={"/remote/!#{community.username}@#{community.domain}"}
+                              class="card glass-card border border-base-300 hover:border-cyan-500/30 transition-all group"
+                            >
+                              <div class="card-body p-4">
+                                <div class="flex items-start gap-3">
+                                  <!-- Community Avatar -->
+                                  <%= if community.avatar_url do %>
+                                    <img
+                                      src={community.avatar_url}
+                                      class="w-12 h-12 rounded-xl object-cover flex-shrink-0"
+                                      alt={community.username}
+                                    />
+                                  <% else %>
+                                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:from-cyan-500/30 group-hover:to-purple-500/30 transition-colors">
+                                      <.icon name="hero-globe-alt" class="w-6 h-6 text-cyan-400" />
+                                    </div>
+                                  <% end %>
+                                  <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                      <h3 class="font-semibold text-sm group-hover:text-cyan-400 transition-colors truncate">
+                                        {community.display_name || community.username}
+                                      </h3>
+                                      <span class="badge badge-xs bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
+                                        federated
+                                      </span>
+                                    </div>
+                                    <div class="text-xs text-base-content/50 mt-0.5">
+                                      !{community.username}@{community.domain}
+                                    </div>
+                                    <%= if community.summary do %>
+                                      <p class="text-xs text-base-content/60 line-clamp-1 mt-1.5">
+                                        {HtmlSanitizeEx.strip_tags(community.summary)
+                                        |> String.slice(0, 100)}
+                                      </p>
+                                    <% end %>
+                                  </div>
+                                  <button
+                                    id={"unfollow-remote-#{community.id}"}
+                                    phx-click="unfollow_remote_community"
+                                    phx-value-actor_id={community.id}
+                                    class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                    phx-hook="StopPropagation"
+                                  >
+                                    <.icon name="hero-user-minus" class="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </.link>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <!-- No local communities yet -->
+                  <%= if length(@filtered_remote_communities) > 0 do %>
+                    <!-- Show only remote communities if no local ones -->
+                    <div class="space-y-3">
+                      <div class="flex items-center gap-2 mb-4">
+                        <.icon name="hero-globe-alt" class="w-5 h-5 text-cyan-400" />
+                        <h3 class="text-base font-semibold">Followed Communities</h3>
+                      </div>
+                      <div class="grid gap-3">
+                        <%= for community <- @filtered_remote_communities do %>
+                          <.link
+                            navigate={"/remote/!#{community.username}@#{community.domain}"}
+                            class="card glass-card border border-base-300 hover:border-cyan-500/30 transition-all group"
+                          >
+                            <div class="card-body p-4">
+                              <div class="flex items-start gap-3">
+                                <%= if community.avatar_url do %>
+                                  <img
+                                    src={community.avatar_url}
+                                    class="w-12 h-12 rounded-xl object-cover flex-shrink-0"
+                                    alt={community.username}
+                                  />
+                                <% else %>
+                                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 group-hover:from-cyan-500/30 group-hover:to-purple-500/30 transition-colors">
+                                    <.icon name="hero-globe-alt" class="w-6 h-6 text-cyan-400" />
+                                  </div>
+                                <% end %>
+                                <div class="flex-1 min-w-0">
+                                  <div class="flex items-center gap-2">
+                                    <h3 class="font-semibold text-sm group-hover:text-cyan-400 transition-colors truncate">
+                                      {community.display_name || community.username}
+                                    </h3>
+                                    <span class="badge badge-xs bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
+                                      federated
+                                    </span>
+                                  </div>
+                                  <div class="text-xs text-base-content/50 mt-0.5">
+                                    !{community.username}@{community.domain}
+                                  </div>
+                                  <%= if community.summary do %>
+                                    <p class="text-xs text-base-content/60 line-clamp-1 mt-1.5">
+                                      {HtmlSanitizeEx.strip_tags(community.summary)
+                                      |> String.slice(0, 100)}
+                                    </p>
+                                  <% end %>
+                                </div>
+                                <button
+                                  id={"unfollow-search-remote-#{community.id}"}
+                                  phx-click="unfollow_remote_community"
+                                  phx-value-actor_id={community.id}
+                                  class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                  phx-hook="StopPropagation"
+                                >
+                                  <.icon name="hero-user-minus" class="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </.link>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% else %>
+                    <div class="text-center py-12">
+                      <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500/10 to-cyan-500/10 flex items-center justify-center mx-auto mb-4">
+                        <.icon name="hero-users" class="w-10 h-10 text-purple-400/60" />
+                      </div>
+                      <h3 class="text-lg font-semibold mb-2">No Communities Yet</h3>
+                      <p class="text-base-content/60 mb-6 max-w-sm mx-auto">
+                        Join or create communities to start meaningful discussions
+                      </p>
+                      <button phx-click="toggle_create_community" class="btn btn-secondary">
+                        <.icon name="hero-plus" class="w-4 h-4 mr-2" />
+                        {gettext("Create Community")}
+                      </button>
+                    </div>
+                  <% end %>
+                <% end %>
+              <% else %>
+                <!-- Unauthenticated view for My Communities -->
+                <div class="text-center py-12">
+                  <.icon name="hero-lock-closed" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+                  <h3 class="text-lg font-semibold mb-2">Sign in to see your communities</h3>
+                  <p class="text-base-content/70 mb-6">
+                    Create an account or sign in to join communities and start discussions
+                  </p>
+                  <.link href={~p"/login"} class="btn btn-secondary">
+                    <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" />
+                    {gettext("Sign In")}
+                  </.link>
+                </div>
+              <% end %>
+            <% "feed" -> %>
+              <!-- Community Feed - Posts from followed communities -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2 mb-4">
+                  <div class="flex items-center gap-2">
+                    <.icon name="hero-rss" class="w-5 h-5 text-purple-500" />
+                    <h3 class="text-lg font-semibold">Community Feed</h3>
+                  </div>
+                </div>
+                
+<!-- Sort and Filter Options -->
+                <div class="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b border-base-300">
+                  <span class="text-xs font-medium opacity-70">Sort:</span>
+                  <button
+                    phx-click="set_feed_sort"
+                    phx-value-sort="hot"
+                    class={[
+                      "btn btn-xs",
+                      if(@feed_sort == "hot", do: "btn-secondary", else: "btn-ghost")
+                    ]}
+                  >
+                    Hot
+                  </button>
+                  <button
+                    phx-click="set_feed_sort"
+                    phx-value-sort="new"
+                    class={[
+                      "btn btn-xs",
+                      if(@feed_sort == "new", do: "btn-secondary", else: "btn-ghost")
+                    ]}
+                  >
+                    New
+                  </button>
+                  <button
+                    phx-click="set_feed_sort"
+                    phx-value-sort="top"
+                    class={[
+                      "btn btn-xs",
+                      if(@feed_sort == "top", do: "btn-secondary", else: "btn-ghost")
+                    ]}
+                  >
+                    Top
+                  </button>
+                  <button
+                    phx-click="set_feed_sort"
+                    phx-value-sort="comments"
+                    class={[
+                      "btn btn-xs",
+                      if(@feed_sort == "comments", do: "btn-secondary", else: "btn-ghost")
+                    ]}
+                  >
+                    Active
+                  </button>
+                </div>
+
+                <%= if length(@filtered_community_posts) > 0 do %>
+                  <%= for post <- @filtered_community_posts do %>
+                    <.lemmy_post
+                      post={post}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      post_interactions={@post_interactions}
+                      user_likes={%{}}
+                      lemmy_counts={Map.get(@lemmy_counts, post.activitypub_id)}
+                      replies={Map.get(@post_replies, post.activitypub_id, [])}
+                      reactions={Map.get(@post_reactions, post.id, [])}
+                    />
+                  <% end %>
+                <% else %>
+                  <div class="text-center py-12">
+                    <.icon name="hero-inbox" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+                    <h3 class="text-lg font-semibold mb-2">No posts yet</h3>
+                    <p class="text-base-content/70">
+                      Posts from communities you follow will appear here
+                    </p>
+                  </div>
+                <% end %>
+              </div>
+            <% "my_activity" -> %>
+              <!-- My Activity - User's own posts and comments in communities -->
+              <div class="space-y-4">
+                <div class="flex items-center gap-2 mb-6">
+                  <.icon name="hero-document-text" class="w-6 h-6 text-purple-500" />
+                  <h3 class="text-lg font-semibold">My Community Activity</h3>
+                </div>
+
+                <%= if length(@my_community_posts) > 0 do %>
+                  <%= for post <- @my_community_posts do %>
+                    <% # Determine if this is a local or remote community post
+                    is_local = post.conversation && post.conversation.type == "community"
+
+                    remote_community_uri =
+                      get_in(post.media_metadata || %{}, ["community_actor_uri"])
+
+                    # Parse remote community name from URI (e.g., "https://lemmy.world/c/technology" -> "technology@lemmy.world")
+                    remote_community_display =
+                      if remote_community_uri do
+                        uri = URI.parse(remote_community_uri)
+                        path_parts = String.split(uri.path || "", "/") |> Enum.filter(&(&1 != ""))
+                        community_name = List.last(path_parts) || "community"
+                        "#{community_name}@#{uri.host}"
+                      else
+                        nil
+                      end %>
+                    <div class="card shadow-sm border bg-base-200 border-base-200 hover:border-base-300 transition-colors">
+                      <div class="card-body p-4">
+                        <div class="flex items-start gap-3">
+                          <!-- Post type indicator -->
+                          <div class={"w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 " <> if(post.reply_to_id, do: "bg-secondary/10", else: "bg-primary/10")}>
+                            <%= if post.reply_to_id do %>
+                              <.icon name="hero-chat-bubble-left" class="w-5 h-5 text-secondary" />
+                            <% else %>
+                              <.icon name="hero-document-text" class="w-5 h-5 text-primary" />
+                            <% end %>
+                          </div>
+
+                          <div class="flex-1 min-w-0">
+                            <!-- Community name -->
+                            <div class="flex items-center gap-2 mb-1">
+                              <%= if is_local do %>
+                                <.link
+                                  href={~p"/communities/#{post.conversation.name}"}
+                                  class="text-xs font-medium opacity-70 hover:opacity-100 hover:underline"
+                                >
+                                  !{post.conversation.name}
+                                </.link>
+                              <% else %>
+                                <.link
+                                  href={"/remote/post/#{post.id}"}
+                                  class="text-xs font-medium opacity-70 hover:opacity-100 hover:underline flex items-center gap-1"
+                                >
+                                  <.icon name="hero-globe-alt" class="w-3 h-3" />
+                                  !{remote_community_display}
+                                </.link>
+                              <% end %>
+                              <span class="text-xs opacity-50">
+                                {Elektrine.Social.time_ago_in_words(post.inserted_at)}
+                              </span>
+                            </div>
+                            
+<!-- Post title or reply indicator -->
+                            <%= if post.title do %>
+                              <%= if is_local do %>
+                                <% slug =
+                                  Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title) %>
+                                <.link
+                                  href={~p"/communities/#{post.conversation.name}/post/#{slug}"}
+                                  class="block"
+                                >
+                                  <h4 class="font-semibold text-sm sm:text-base hover:underline line-clamp-2">
+                                    {post.title}
+                                  </h4>
+                                </.link>
+                              <% else %>
+                                <.link href={"/remote/post/#{post.id}"} class="block">
+                                  <h4 class="font-semibold text-sm sm:text-base hover:underline line-clamp-2">
+                                    {post.title}
+                                  </h4>
+                                </.link>
+                              <% end %>
+                            <% else %>
+                              <%= if post.reply_to_id do %>
+                                <% parent_title =
+                                  if post.reply_to,
+                                    do: post.reply_to.title || "a post",
+                                    else: "a post" %>
+                                <.link
+                                  href={"/remote/post/#{post.id}"}
+                                  class="text-xs opacity-60 mb-1 hover:underline"
+                                >
+                                  Reply to {parent_title}
+                                </.link>
+                              <% end %>
+                            <% end %>
+                            
+<!-- Content preview -->
+                            <p class="text-sm opacity-70 line-clamp-2 mt-1">
+                              {post.content}
+                            </p>
+                            
+<!-- Stats -->
+                            <div class="flex items-center gap-4 mt-2 text-xs opacity-60">
+                              <%= if post.like_count && post.like_count > 0 do %>
+                                <span class="flex items-center gap-1">
+                                  <.icon name="hero-arrow-up" class="w-3 h-3" />
+                                  {post.like_count}
+                                </span>
+                              <% end %>
+                              <%= if post.reply_count && post.reply_count > 0 do %>
+                                <span class="flex items-center gap-1">
+                                  <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+                                  {post.reply_count}
+                                </span>
+                              <% end %>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <div class="text-center py-12">
+                    <.icon name="hero-document-text" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+                    <h3 class="text-lg font-semibold mb-2">No activity yet</h3>
+                    <p class="text-base-content/70">
+                      Your posts and comments in communities will appear here
+                    </p>
+                  </div>
+                <% end %>
+              </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Right Sidebar - Cross-Context Integration & Suggestions (Hidden on mobile) -->
+    <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
+      <div class="space-y-4">
+        
+<!-- Quick Post Creator or Login Prompt -->
+        <%= if @current_user do %>
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4">
+              <h3 class="font-semibold mb-3">Quick Post</h3>
+
+              <%= if @show_quick_post do %>
+                <.form for={%{}} phx-submit="create_quick_discussion" class="space-y-3">
+                  <select
+                    name="community_id"
+                    class="select select-bordered select-sm w-full"
+                    required
+                  >
+                    <option value="">Select community...</option>
+                    <%= if !Enum.empty?(@communities) do %>
+                      <optgroup label="Local Communities">
+                        <%= for community <- @communities do %>
+                          <% slug =
+                            String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-") %>
+                          <option value={"local:#{community.id}"}>!{slug}</option>
+                        <% end %>
+                      </optgroup>
+                    <% end %>
+                    <%= if !Enum.empty?(@followed_remote_communities) do %>
+                      <optgroup label="Remote Communities">
+                        <%= for actor <- @followed_remote_communities do %>
+                          <option value={"remote:#{actor.id}"}>
+                            !{actor.username}@{actor.domain}
+                          </option>
+                        <% end %>
+                      </optgroup>
+                    <% end %>
+                  </select>
+
+                  <input
+                    type="text"
+                    name="title"
+                    placeholder="Post title..."
+                    class="input input-bordered input-sm w-full"
+                    value={@quick_post_title}
+                    required
+                  />
+
+                  <textarea
+                    name="content"
+                    placeholder="What's on your mind?"
+                    class="textarea textarea-bordered textarea-sm w-full resize-y overflow-y-auto leading-tight"
+                    style="min-height: 3rem; max-height: 15rem;"
+                    rows="3"
+                    phx-hook="AutoExpandTextarea"
+                    phx-update="ignore"
+                    id="quick-post-textarea"
+                  ><%= @quick_post_content %></textarea>
+                  
+<!-- Media Preview -->
+                  <%= if !Enum.empty?(@pending_media_urls) do %>
+                    <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg">
+                      <.icon name="hero-photo" class="w-4 h-4 text-secondary" />
+                      <span class="text-xs">{length(@pending_media_urls)} file(s)</span>
+                      <button
+                        type="button"
+                        phx-click="clear_pending_images"
+                        class="btn btn-ghost btn-xs ml-auto"
+                      >
+                        <.icon name="hero-x-mark" class="w-3 h-3" />
+                      </button>
+                    </div>
+                  <% end %>
+
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      phx-click="open_image_upload"
+                      class="btn btn-ghost btn-xs"
+                      title="Add media"
+                    >
+                      <.icon name="hero-photo" class="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      phx-click="hide_quick_post"
+                      class="btn btn-ghost btn-xs flex-1"
+                    >
+                      {gettext("Cancel")}
+                    </button>
+                    <button type="submit" class="btn btn-secondary btn-xs flex-1">
+                      Post
+                    </button>
+                  </div>
+                </.form>
+              <% else %>
+                <p class="text-sm opacity-70 mb-3">Start a discussion in any community</p>
+                <button phx-click="show_quick_post" class="btn btn-secondary btn-sm w-full">
+                  <.icon name="hero-pencil-square" class="w-4 h-4 mr-1" /> Quick Post
+                </button>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Follow Fediverse Section -->
+          <.fediverse_follow
+            loading={@remote_user_loading}
+            preview={@remote_user_preview}
+          />
+        <% else %>
+          <!-- Login prompt for Quick Discussion -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4">
+              <h3 class="font-semibold mb-3">Join the Community</h3>
+              <p class="text-sm opacity-70 mb-3">
+                Sign in to create posts and engage with communities
+              </p>
+              <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
+                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-1" />
+                {gettext("Sign In")}
+              </.link>
+              <div class="divider text-xs">OR</div>
+              <.link href={~p"/register"} class="btn btn-ghost btn-sm w-full">
+                <.icon name="hero-user-plus" class="w-4 h-4 mr-1" /> Create Account
+              </.link>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  
+<!-- Media Upload Modal -->
+  <%= if @show_image_upload_modal && @current_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box max-w-2xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-bold text-lg">Add Media to Post</h3>
+          <button
+            type="button"
+            phx-click="close_image_upload"
+            class="btn btn-ghost btn-sm btn-circle"
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        <.form
+          for={%{}}
+          phx-submit="upload_discussion_images"
+          phx-change="validate_discussion_upload"
+        >
+          <!-- Media Upload Area -->
+          <div class="form-control w-full mb-4">
+            <label
+              for={@uploads.discussion_attachments.ref}
+              class="block border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors"
+            >
+              <.live_file_input upload={@uploads.discussion_attachments} class="hidden" />
+              <%= if Enum.empty?(@uploads.discussion_attachments.entries) do %>
+                <.icon name="hero-photo" class="w-12 h-12 mx-auto opacity-30 mb-2" />
+                <p class="text-sm opacity-70">Click to upload or drag and drop</p>
+                <p class="text-xs opacity-50 mt-1">Images: JPG, PNG, GIF, WEBP</p>
+                <p class="text-xs opacity-50">Videos: MP4, WEBM, OGV, MOV | Audio: MP3, WAV</p>
+                <p class="text-xs opacity-50 mt-1">Up to 4 files, 50MB each</p>
+              <% else %>
+                <div class="space-y-4">
+                  <%= for {entry, idx} <- Enum.with_index(@uploads.discussion_attachments.entries) do %>
+                    <div class="border border-base-300 rounded-lg p-3">
+                      <div class="flex gap-3">
+                        <.live_img_preview
+                          entry={entry}
+                          class="rounded-lg w-24 h-24 object-cover flex-shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                          <div class="text-sm font-medium mb-2 truncate">{entry.client_name}</div>
+                          <input
+                            type="text"
+                            name={"alt_text_#{idx}"}
+                            placeholder="Add description (optional)"
+                            class="input input-bordered input-sm w-full"
+                            maxlength="1000"
+                          />
+                          <div class="text-xs opacity-60 mt-1">Helps visually impaired users</div>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </label>
+            <%= for entry <- @uploads.discussion_attachments.entries do %>
+              <%= for err <- upload_errors(@uploads.discussion_attachments, entry) do %>
+                <div class="alert alert-error mt-2">
+                  <span class="text-sm">{error_to_string(err)}</span>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+
+          <div class="modal-action">
+            <button type="button" class="btn" phx-click="close_image_upload">Cancel</button>
+            <button
+              type="submit"
+              class="btn btn-secondary"
+              disabled={Enum.empty?(@uploads.discussion_attachments.entries)}
+            >
+              <.icon name="hero-check" class="w-4 h-4 mr-1" /> Add Media
+            </button>
+          </div>
+        </.form>
+      </div>
+      <div class="modal-backdrop" phx-click="close_image_upload"></div>
+    </div>
+  <% end %>
+  
+<!-- Scroll to Top Button -->
+  <button
+    id="scroll-to-top"
+    phx-hook="ScrollToTop"
+    class="fixed bottom-6 right-6 z-50 btn btn-circle btn-primary shadow-lg opacity-0 pointer-events-none transition-all duration-300"
+    aria-label="Scroll to top"
+  >
+    <.icon name="hero-chevron-up" class="w-5 h-5" />
+  </button>
+</div>

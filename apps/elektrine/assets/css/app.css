@@ -1,0 +1,26 @@
+/* ==========================================================================
+   ELEKTRINE - Main Stylesheet
+   ==========================================================================
+
+   Structure:
+   - base.css      : Reset, fonts, theme variables, grid backgrounds
+   - components.css: Buttons, inputs, cards, navbar, dropdowns, etc.
+   - animations.css: All @keyframes and animation classes
+   - email.css     : Email content styling
+   - effects.css   : Username, avatar, link, and visual effects
+   - utilities.css : Helpers, touch targets, typography, chat, misc
+
+   ========================================================================== */
+
+/* Tailwind & DaisyUI */
+@import "tailwindcss";
+@plugin "daisyui";
+@config "../tailwind.config.mjs";
+
+/* App styles */
+@import "./base.css";
+@import "./components.css";
+@import "./animations.css";
+@import "./email.css";
+@import "./effects.css";
+@import "./utilities.css";

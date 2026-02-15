@@ -1,0 +1,165 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <div class="flex items-center mb-2">
+      <.link href={~p"/pripyat/subscriptions"} class="btn btn-ghost btn-sm mr-4">
+        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
+      </.link>
+      <h1 class="text-2xl font-bold">Edit Product: {@product.name}</h1>
+    </div>
+    <p class="opacity-70">Update product details and Stripe pricing.</p>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <.simple_form
+        :let={f}
+        for={@changeset}
+        action={~p"/pripyat/subscriptions/#{@product.id}"}
+        method="put"
+      >
+        <.error :if={@changeset.action}>
+          Oops, something went wrong! Please check the errors below.
+        </.error>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <.input field={f[:name]} type="text" label="Name" placeholder="e.g., VPN" required />
+          </div>
+          <div>
+            <.input
+              field={f[:slug]}
+              type="text"
+              label="Slug"
+              placeholder="e.g., vpn"
+              pattern="[a-z0-9-]+"
+              required
+            />
+            <div class="label">
+              <span class="text-xs opacity-70">
+                Lowercase letters, numbers, and hyphens only. Used in URLs.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <.input
+            field={f[:description]}
+            type="textarea"
+            label="Description"
+            placeholder="Brief description of the product..."
+            rows="3"
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Features</span>
+            <span class="label-text-alt">One per line</span>
+          </label>
+          <textarea
+            name="product[features]"
+            placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
+            class="textarea textarea-bordered w-full h-32 font-mono text-sm"
+          >{Enum.join(@product.features || [], "\n")}</textarea>
+        </div>
+
+        <div class="divider">Pricing</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <.input
+              field={f[:monthly_price_cents]}
+              type="number"
+              label="Monthly Price (cents)"
+              placeholder="1900"
+              min="0"
+            />
+            <div class="label">
+              <span class="text-xs opacity-70">e.g., 1900 = $19.00</span>
+            </div>
+          </div>
+          <div>
+            <.input
+              field={f[:yearly_price_cents]}
+              type="number"
+              label="Yearly Price (cents)"
+              placeholder="19000"
+              min="0"
+            />
+            <div class="label">
+              <span class="text-xs opacity-70">e.g., 19000 = $190.00</span>
+            </div>
+          </div>
+          <div>
+            <.input
+              field={f[:currency]}
+              type="select"
+              label="Currency"
+              options={[{"USD ($)", "usd"}, {"EUR", "eur"}, {"GBP", "gbp"}]}
+            />
+          </div>
+        </div>
+
+        <div class="divider">Stripe Configuration</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <.input
+              field={f[:stripe_monthly_price_id]}
+              type="text"
+              label="Stripe Monthly Price ID"
+              placeholder="price_xxx"
+            />
+            <div class="label">
+              <span class="text-xs opacity-70">From Stripe Dashboard</span>
+            </div>
+          </div>
+          <div>
+            <.input
+              field={f[:stripe_yearly_price_id]}
+              type="text"
+              label="Stripe Yearly Price ID"
+              placeholder="price_xxx"
+            />
+          </div>
+        </div>
+
+        <div class="divider">Settings</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="cursor-pointer label justify-start">
+              <input
+                type="checkbox"
+                name="product[active]"
+                value="true"
+                checked={@product.active}
+                class="checkbox checkbox-primary"
+              />
+              <span class="ml-3">Active (visible to users)</span>
+            </label>
+          </div>
+          <div>
+            <.input
+              field={f[:sort_order]}
+              type="number"
+              label="Sort Order"
+            />
+          </div>
+        </div>
+
+        <:actions>
+          <div class="flex gap-2">
+            <.button class="btn-primary">
+              <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update Product
+            </.button>
+            <.link href={~p"/pripyat/subscriptions"} class="btn btn-ghost">
+              Cancel
+            </.link>
+          </div>
+        </:actions>
+      </.simple_form>
+    </div>
+  </div>
+</div>

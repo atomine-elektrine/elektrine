@@ -1,0 +1,684 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Z Platform Navigation -->
+  <.z_nav active_tab="friends" />
+  
+<!-- Mobile Tab Buttons - Improved touch targets -->
+  <div class="sm:hidden mb-4 space-y-3">
+    <div class="grid grid-cols-3 gap-2" role="tablist" aria-label="Friends tabs">
+      <button
+        phx-click="change_tab"
+        phx-value-tab="friends"
+        role="tab"
+        aria-selected={@current_tab == "friends"}
+        class={[
+          "flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all min-h-[3.5rem]",
+          if(@current_tab == "friends",
+            do: "bg-secondary text-secondary-content shadow-lg",
+            else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+          )
+        ]}
+      >
+        <.icon name="hero-user-group" class="w-5 h-5 mb-1" />
+        <span>Friends</span>
+      </button>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="requests"
+        role="tab"
+        aria-selected={@current_tab == "requests"}
+        class={[
+          "flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all min-h-[3.5rem] relative",
+          if(@current_tab == "requests",
+            do: "bg-secondary text-secondary-content shadow-lg",
+            else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+          )
+        ]}
+      >
+        <.icon name="hero-inbox" class="w-5 h-5 mb-1" />
+        <span>Requests</span>
+        <%= if length(@pending_requests) > 0 do %>
+          <span class="badge badge-error badge-xs absolute top-1 right-1">
+            {length(@pending_requests)}
+          </span>
+        <% end %>
+      </button>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="suggestions"
+        role="tab"
+        aria-selected={@current_tab == "suggestions"}
+        class={[
+          "flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all min-h-[3.5rem]",
+          if(@current_tab == "suggestions",
+            do: "bg-secondary text-secondary-content shadow-lg",
+            else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+          )
+        ]}
+      >
+        <.icon name="hero-sparkles" class="w-5 h-5 mb-1" />
+        <span>Discover</span>
+      </button>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <button
+        phx-click="change_tab"
+        phx-value-tab="sent"
+        role="tab"
+        aria-selected={@current_tab == "sent"}
+        class={[
+          "flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all min-h-[2.75rem]",
+          if(@current_tab == "sent",
+            do: "bg-secondary text-secondary-content shadow-lg",
+            else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+          )
+        ]}
+      >
+        <.icon name="hero-paper-airplane" class="w-4 h-4" />
+        <span>Sent</span>
+      </button>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="blocked"
+        role="tab"
+        aria-selected={@current_tab == "blocked"}
+        class={[
+          "flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all min-h-[2.75rem]",
+          if(@current_tab == "blocked",
+            do: "bg-secondary text-secondary-content shadow-lg",
+            else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+          )
+        ]}
+      >
+        <.icon name="hero-no-symbol" class="w-4 h-4" />
+        <span>Blocked</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-lg">
+    <div class="card-body p-4 sm:p-6">
+      <!-- Desktop Tabs -->
+      <div class="tabs tabs-bordered mb-6 hidden sm:flex">
+        <button
+          phx-click="change_tab"
+          phx-value-tab="friends"
+          class={["tab", if(@current_tab == "friends", do: "tab-active", else: "")]}
+        >
+          <.icon name="hero-user-group" class="w-4 h-4 mr-2" /> Friends ({length(@friends)})
+        </button>
+        <button
+          phx-click="change_tab"
+          phx-value-tab="requests"
+          class={["tab", if(@current_tab == "requests", do: "tab-active", else: "")]}
+        >
+          <.icon name="hero-inbox" class="w-4 h-4 mr-2" /> Requests
+          <%= if length(@pending_requests) > 0 do %>
+            <span class="badge badge-error badge-sm ml-2">{length(@pending_requests)}</span>
+          <% end %>
+        </button>
+        <button
+          phx-click="change_tab"
+          phx-value-tab="sent"
+          class={["tab", if(@current_tab == "sent", do: "tab-active", else: "")]}
+        >
+          <.icon name="hero-paper-airplane" class="w-4 h-4 mr-2" />
+          Sent ({length(@sent_requests)})
+        </button>
+        <button
+          phx-click="change_tab"
+          phx-value-tab="suggestions"
+          class={["tab", if(@current_tab == "suggestions", do: "tab-active", else: "")]}
+        >
+          <.icon name="hero-sparkles" class="w-4 h-4 mr-2" /> Suggestions
+        </button>
+        <button
+          phx-click="change_tab"
+          phx-value-tab="blocked"
+          class={["tab", if(@current_tab == "blocked", do: "tab-active", else: "")]}
+        >
+          <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Blocked ({length(@blocked_users)})
+        </button>
+      </div>
+      
+<!-- Search bar (visible on friends and suggestions tabs) -->
+      <%= if @current_tab in ["friends", "suggestions"] do %>
+        <div class="relative mb-4">
+          <.icon
+            name="hero-magnifying-glass"
+            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40"
+          />
+          <input
+            type="text"
+            placeholder={
+              if @current_tab == "friends", do: "Search friends...", else: "Search users..."
+            }
+            value={@search_query}
+            phx-change="search"
+            phx-debounce="300"
+            name="query"
+            class="input input-bordered w-full pl-10 pr-10"
+            aria-label="Search"
+          />
+          <%= if @search_query != "" do %>
+            <button
+              phx-click="clear_search"
+              class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
+              aria-label="Clear search"
+            >
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+      
+<!-- Friends Tab -->
+      <%= if @current_tab == "friends" do %>
+        <%= if @loading_friends do %>
+          <!-- Loading skeleton for friends list -->
+          <div class="space-y-2 animate-pulse">
+            <%= for _i <- 1..4 do %>
+              <div class="card bg-base-200 border border-base-300">
+                <div class="card-body p-3 sm:p-4">
+                  <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-base-300 rounded-full"></div>
+                    <div class="flex-1">
+                      <div class="h-4 bg-base-300 rounded w-32 mb-2"></div>
+                      <div class="h-3 bg-base-300 rounded w-24"></div>
+                    </div>
+                    <div class="flex gap-2">
+                      <div class="w-8 h-8 bg-base-300 rounded"></div>
+                      <div class="w-8 h-8 bg-base-300 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <% # Filter friends by search query
+          filtered_friends =
+            if @search_query == "" do
+              @friends
+            else
+              query = String.downcase(@search_query)
+
+              Enum.filter(@friends, fn friend ->
+                String.contains?(String.downcase(friend.username || ""), query) ||
+                  String.contains?(String.downcase(friend.display_name || ""), query) ||
+                  String.contains?(String.downcase(friend.handle || ""), query)
+              end)
+            end %>
+          <%= if length(filtered_friends) > 0 do %>
+            <div class="space-y-2">
+              <%= for friend <- filtered_friends do %>
+                <% user_status_data =
+                  Map.get(@user_statuses, to_string(friend.id), %{status: nil}) %>
+                <% friend_status = user_status_data.status %>
+                <div class="card bg-base-200 border border-base-300 hover:bg-base-200/50 transition-colors">
+                  <div class="card-body p-3 sm:p-4 overflow-visible">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                      <!-- Avatar and Info -->
+                      <div class="flex items-center gap-3 flex-1 min-w-0 w-full sm:w-auto">
+                        <.link
+                          href={~p"/#{friend.handle || friend.username}"}
+                          class="flex-shrink-0"
+                        >
+                          <.user_avatar user={friend} size="lg" user_statuses={@user_statuses} />
+                        </.link>
+                        
+<!-- Profile Info -->
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <.link
+                              href={~p"/#{friend.handle || friend.username}"}
+                              class="font-semibold hover:underline"
+                            >
+                              {friend.display_name || friend.username}
+                            </.link>
+                            <%= case friend_status do %>
+                              <% "online" -> %>
+                                <span class="badge badge-success badge-xs">Online</span>
+                              <% "away" -> %>
+                                <span class="badge badge-warning badge-xs">Away</span>
+                              <% "dnd" -> %>
+                                <span class="badge badge-error badge-xs">DND</span>
+                              <% _ -> %>
+                                <span class="badge badge-ghost badge-xs opacity-50">Offline</span>
+                            <% end %>
+                          </div>
+                          <p class="text-xs opacity-50 truncate">
+                            @{friend.handle || friend.username}
+                            <%= if friend_status == "offline" && user_status_data.last_seen_at do %>
+                              · {status_text("offline", user_status_data.last_seen_at)}
+                            <% end %>
+                          </p>
+
+                          <%!-- Follow status --%>
+                          <% status = Map.get(@friend_follow_status, friend.id, %{}) %>
+                          <%= if status[:mutual_follow] do %>
+                            <span class="badge badge-xs badge-ghost mt-1">Mutual Follow</span>
+                          <% end %>
+                        </div>
+                      </div>
+                      
+<!-- Actions -->
+                      <div class="flex gap-2 w-full sm:w-auto sm:flex-shrink-0">
+                        <button
+                          phx-click="start_dm"
+                          phx-value-user_id={friend.id}
+                          class="btn btn-sm btn-secondary flex-1 sm:flex-none"
+                          title="Message"
+                        >
+                          <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
+                          <span class="sm:hidden">Message</span>
+                        </button>
+                        <button
+                          phx-click="initiate_call"
+                          phx-value-user_id={friend.id}
+                          phx-value-call_type="audio"
+                          class="btn btn-sm btn-ghost flex-1 sm:flex-none"
+                          title="Call"
+                        >
+                          <.icon name="hero-phone" class="w-4 h-4" />
+                          <span class="sm:hidden">Call</span>
+                        </button>
+                        <div class="dropdown dropdown-end">
+                          <div tabindex="0" role="button" class="btn btn-sm btn-ghost">
+                            <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
+                          </div>
+                          <ul
+                            tabindex="0"
+                            class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-40"
+                          >
+                            <li>
+                              <button
+                                phx-click="show_unfriend_modal"
+                                phx-value-user_id={friend.id}
+                                class="text-error"
+                              >
+                                <.icon name="hero-user-minus" class="w-4 h-4" /> Unfriend
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-12">
+              <.icon name="hero-user-group" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+              <%= if @search_query != "" do %>
+                <h3 class="text-lg font-semibold mb-2">No friends match "{@search_query}"</h3>
+                <p class="text-base-content/70 mb-4">Try a different search term</p>
+                <button phx-click="clear_search" class="btn btn-ghost btn-sm">
+                  Clear Search
+                </button>
+              <% else %>
+                <h3 class="text-lg font-semibold mb-2">No friends yet</h3>
+                <p class="text-base-content/70 mb-4">
+                  Send friend requests to connect with people
+                </p>
+                <button
+                  phx-click="change_tab"
+                  phx-value-tab="suggestions"
+                  class="btn btn-secondary btn-sm"
+                >
+                  View Suggestions
+                </button>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+      <% end %>
+      
+<!-- Pending Requests Tab -->
+      <%= if @current_tab == "requests" do %>
+        <!-- Pending Federated Follow Requests -->
+        <%= if length(@pending_follow_requests) > 0 do %>
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+              <.icon name="hero-globe-americas" class="w-4 h-4 text-purple-500" />
+              Pending Follow Requests from Fediverse
+            </h3>
+            <div class="space-y-3">
+              <%= for request <- @pending_follow_requests do %>
+                <div class="card glass-card border border-purple-300 shadow-sm hover:shadow-md transition-shadow">
+                  <div class="card-body p-3 sm:p-4">
+                    <div class="flex items-start gap-3">
+                      <.link
+                        navigate={"/remote/#{request.remote_actor.username}@#{request.remote_actor.domain}"}
+                        class="flex-shrink-0"
+                      >
+                        <%= if request.remote_actor.avatar_url do %>
+                          <img
+                            src={request.remote_actor.avatar_url}
+                            class="w-10 h-10 rounded-full"
+                            alt={request.remote_actor.username}
+                          />
+                        <% else %>
+                          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                            {String.first(request.remote_actor.username) |> String.upcase()}
+                          </div>
+                        <% end %>
+                      </.link>
+                      <div class="flex-1 min-w-0">
+                        <.link
+                          navigate={"/remote/#{request.remote_actor.username}@#{request.remote_actor.domain}"}
+                          class="font-semibold hover:underline block truncate"
+                        >
+                          {request.remote_actor.display_name || request.remote_actor.username}
+                        </.link>
+                        <p class="text-xs opacity-70 truncate">
+                          @{request.remote_actor.username}@{request.remote_actor.domain}
+                        </p>
+
+                        <%= if request.remote_actor.summary do %>
+                          <p class="text-xs mt-2 opacity-80 line-clamp-2">
+                            {HtmlSanitizeEx.strip_tags(request.remote_actor.summary)}
+                          </p>
+                        <% end %>
+
+                        <div class="flex gap-2 mt-3">
+                          <button
+                            phx-click="accept_follow_request"
+                            phx-value-follow-id={request.id}
+                            class="btn btn-xs sm:btn-sm btn-success flex-1"
+                          >
+                            <.icon name="hero-check" class="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span class="text-xs sm:text-sm">Accept</span>
+                          </button>
+                          <button
+                            phx-click="reject_follow_request"
+                            phx-value-follow-id={request.id}
+                            class="btn btn-xs sm:btn-sm btn-ghost flex-1"
+                          >
+                            <.icon name="hero-x-mark" class="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span class="text-xs sm:text-sm">Decline</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+        
+<!-- Friend Requests -->
+        <%= if length(@pending_requests) > 0 do %>
+          <div class="space-y-4">
+            <%= for request <- @pending_requests do %>
+              <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow">
+                <div class="card-body p-3 sm:p-4 overflow-visible">
+                  <div class="flex items-start gap-3">
+                    <.link
+                      href={~p"/#{request.requester.handle || request.requester.username}"}
+                      class="flex-shrink-0 block"
+                    >
+                      <.user_avatar
+                        user={request.requester}
+                        size="md"
+                        user_statuses={@user_statuses}
+                      />
+                    </.link>
+                    <div class="flex-1 min-w-0">
+                      <.link
+                        href={~p"/#{request.requester.handle || request.requester.username}"}
+                        class="font-semibold hover:underline block truncate"
+                      >
+                        {request.requester.display_name || request.requester.username}
+                      </.link>
+                      <p class="text-xs opacity-50 truncate">
+                        @{request.requester.handle || request.requester.username}
+                      </p>
+
+                      <%!-- Follow status --%>
+                      <div class="flex gap-1 mt-2 min-h-[20px] flex-wrap">
+                        <%= if Elektrine.Profiles.following?(request.requester.id, @current_user.id) do %>
+                          <span class="badge badge-xs badge-info">Follows you</span>
+                        <% end %>
+                        <%= if Elektrine.Profiles.following?(@current_user.id, request.requester.id) do %>
+                          <span class="badge badge-xs badge-ghost">You follow</span>
+                        <% end %>
+                      </div>
+
+                      <%= if request.message do %>
+                        <div class="mt-2 p-2 sm:p-3 bg-base-200 rounded-lg border-l-4 border-error">
+                          <p class="text-xs sm:text-sm break-words">{request.message}</p>
+                        </div>
+                      <% end %>
+
+                      <div class="flex gap-2 mt-3">
+                        <button
+                          phx-click="accept_request"
+                          phx-value-request_id={request.id}
+                          class="btn btn-xs sm:btn-sm btn-success flex-1"
+                        >
+                          <.icon name="hero-check" class="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span class="text-xs sm:text-sm">Accept</span>
+                        </button>
+                        <button
+                          phx-click="reject_request"
+                          phx-value-request_id={request.id}
+                          class="btn btn-xs sm:btn-sm btn-ghost flex-1"
+                        >
+                          <.icon name="hero-x-mark" class="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span class="text-xs sm:text-sm">Decline</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <%= if length(@pending_follow_requests) == 0 do %>
+            <div class="text-center py-12">
+              <.icon name="hero-inbox" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+              <h3 class="text-lg font-semibold mb-2">No pending requests</h3>
+              <p class="text-base-content/70">You'll see friend and follow requests here</p>
+            </div>
+          <% end %>
+        <% end %>
+      <% end %>
+      
+<!-- Sent Requests Tab -->
+      <%= if @current_tab == "sent" do %>
+        <%= if length(@sent_requests) > 0 do %>
+          <div class="space-y-4">
+            <%= for request <- @sent_requests do %>
+              <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow">
+                <div class="card-body p-3 sm:p-4 overflow-visible">
+                  <div class="flex items-start gap-3">
+                    <.link
+                      href={~p"/#{request.recipient.handle || request.recipient.username}"}
+                      class="flex-shrink-0 block"
+                    >
+                      <.user_avatar
+                        user={request.recipient}
+                        size="md"
+                        user_statuses={@user_statuses}
+                      />
+                    </.link>
+                    <div class="flex-1 min-w-0">
+                      <.link
+                        href={~p"/#{request.recipient.handle || request.recipient.username}"}
+                        class="font-semibold hover:underline block truncate"
+                      >
+                        {request.recipient.display_name || request.recipient.username}
+                      </.link>
+                      <p class="text-xs opacity-50 truncate">
+                        @{request.recipient.handle || request.recipient.username}
+                      </p>
+
+                      <div class="mt-2">
+                        <span class="badge badge-xs badge-warning">Pending</span>
+                      </div>
+
+                      <button
+                        phx-click="cancel_request"
+                        phx-value-request_id={request.id}
+                        class="btn btn-xs sm:btn-sm btn-ghost w-full mt-3"
+                      >
+                        <.icon name="hero-x-mark" class="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span class="text-xs sm:text-sm">Cancel Request</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-12">
+            <.icon name="hero-paper-airplane" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+            <h3 class="text-lg font-semibold mb-2">No sent requests</h3>
+            <p class="text-base-content/70">Requests you send will appear here</p>
+          </div>
+        <% end %>
+      <% end %>
+      
+<!-- Suggestions Tab -->
+      <%= if @current_tab == "suggestions" do %>
+        <%= if length(@suggested_friends) > 0 do %>
+          <div class="alert alert-info mb-4">
+            <.icon name="hero-information-circle" class="w-5 h-5" />
+            <span>These are people you follow who also follow you back</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <%= for user <- @suggested_friends do %>
+              <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow">
+                <div class="card-body p-3 sm:p-4 overflow-visible">
+                  <div class="flex items-start gap-3">
+                    <.link href={~p"/#{user.handle || user.username}"} class="block flex-shrink-0">
+                      <.user_avatar user={user} size="md" user_statuses={@user_statuses} />
+                    </.link>
+                    <div class="flex-1 min-w-0">
+                      <.link
+                        href={~p"/#{user.handle || user.username}"}
+                        class="font-semibold hover:underline block truncate"
+                      >
+                        {user.display_name || user.username}
+                      </.link>
+                      <p class="text-xs opacity-50 truncate">@{user.handle || user.username}</p>
+
+                      <%!-- Mutual follow indicator --%>
+                      <div class="mt-2">
+                        <span class="badge badge-xs badge-success">Mutual Follow</span>
+                      </div>
+
+                      <button
+                        phx-click="send_friend_request"
+                        phx-value-user_id={user.id}
+                        class="btn btn-xs sm:btn-sm btn-secondary w-full mt-3"
+                      >
+                        <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span class="text-xs sm:text-sm">Add Friend</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-12">
+            <.icon name="hero-users" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+            <h3 class="text-lg font-semibold mb-2">No suggestions</h3>
+            <p class="text-base-content/70">
+              Start following people who follow you back to see suggestions
+            </p>
+          </div>
+        <% end %>
+      <% end %>
+      
+<!-- Blocked Tab -->
+      <%= if @current_tab == "blocked" do %>
+        <%= if length(@blocked_users) > 0 do %>
+          <div class="space-y-2">
+            <%= for user <- @blocked_users do %>
+              <div class="card glass-card border border-error/30 hover:bg-base-200/50 transition-colors">
+                <div class="card-body p-3 sm:p-4 overflow-visible">
+                  <div class="flex items-center gap-3 sm:gap-4">
+                    <!-- Avatar -->
+                    <div class="opacity-50 flex-shrink-0">
+                      <.user_avatar user={user} size="lg" user_statuses={@user_statuses} />
+                    </div>
+                    
+<!-- Profile Info -->
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold opacity-70 truncate">
+                          {user.display_name || user.username}
+                        </span>
+                        <span class="badge badge-error badge-xs">Blocked</span>
+                      </div>
+                      <p class="text-xs opacity-50 truncate">
+                        @{user.handle || user.username}
+                      </p>
+                    </div>
+                    
+<!-- Actions -->
+                    <div class="flex gap-2 flex-shrink-0">
+                      <button
+                        phx-click="unblock_user"
+                        phx-value-user_id={user.id}
+                        class="btn btn-xs sm:btn-sm btn-ghost"
+                        title="Unblock"
+                      >
+                        <.icon name="hero-lock-open" class="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span class="hidden sm:inline">Unblock</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-12">
+            <.icon name="hero-no-symbol" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+            <h3 class="text-lg font-semibold mb-2">No blocked users</h3>
+            <p class="text-base-content/70">You haven't blocked anyone</p>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <%!-- Unfriend Confirmation Modal --%>
+  <%= if @show_unfriend_modal && @unfriend_user do %>
+    <div class="modal modal-open">
+      <div class="modal-box">
+        <h3 class="font-bold text-lg">Remove Friend?</h3>
+        <p class="py-4">
+          Are you sure you want to remove <strong>{@unfriend_user.username}</strong>
+          from your friends?
+        </p>
+        <p class="text-sm opacity-70">
+          You can send them another friend request later if you change your mind.
+        </p>
+        <div class="modal-action">
+          <button
+            phx-click="cancel_unfriend"
+            class="btn btn-ghost"
+          >
+            Cancel
+          </button>
+          <button
+            phx-click="confirm_unfriend"
+            class="btn btn-secondary"
+          >
+            Remove Friend
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

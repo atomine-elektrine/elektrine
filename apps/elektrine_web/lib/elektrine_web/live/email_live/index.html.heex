@@ -1,0 +1,1729 @@
+<!-- Mobile-friendly styles -->
+<style>
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+</style>
+
+<div
+  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+  id="email-container"
+  phx-hook="KeyboardShortcuts"
+>
+  <!-- Elektrine Platform Navigation -->
+  <.elektrine_nav active_tab="email" />
+
+  <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
+    <.sidebar
+      mailbox={@mailbox}
+      storage_info={@storage_info}
+      unread_count={@unread_count}
+      current_page={@current_tab}
+      current_user={@current_user}
+      custom_folders={@custom_folders}
+      current_folder_id={
+        assigns[:current_folder_id] && String.to_integer(assigns[:current_folder_id])
+      }
+    />
+    
+<!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-visible">
+      <div id="email-main-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
+        <div class="card-body p-3 sm:p-6">
+          <!-- Header with tab content -->
+          <%= if @current_tab == "search" do %>
+            <!-- Search Header -->
+            <div class="flex items-center justify-between mb-4 sm:mb-6">
+              <div class="flex items-center space-x-2 sm:space-x-3">
+                <div class="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
+                  <.icon name="hero-magnifying-glass" class="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                </div>
+                <div>
+                  <h1 class="text-xl sm:text-2xl font-bold">{gettext("Search Email")}</h1>
+                  <p class="text-xs sm:text-sm text-base-content/70">
+                    {gettext("Search through your messages")}
+                  </p>
+                </div>
+              </div>
+              
+<!-- Action buttons for search -->
+              <%= if length(@selected_messages) > 0 do %>
+                <div class="flex items-center gap-2">
+                  <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button" class="btn btn-sm btn-ghost">
+                      <span class="hidden sm:inline">{gettext("Actions")}</span>
+                      <span class="sm:hidden">
+                        <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
+                      </span>
+                      ({length(@selected_messages)})
+                      <.icon name="hero-chevron-down" class="h-4 w-4" />
+                    </div>
+                    <ul
+                      tabindex="0"
+                      class="dropdown-content z-30 menu p-2 shadow bg-black/80 backdrop-blur-md rounded-box w-52"
+                    >
+                      <li>
+                        <button phx-click="bulk_action" phx-value-action="mark_read">
+                          <.icon name="hero-envelope-open" class="h-4 w-4" />
+                          {gettext("Mark as Read")}
+                        </button>
+                      </li>
+                      <li>
+                        <button phx-click="bulk_action" phx-value-action="mark_unread">
+                          <.icon name="hero-envelope" class="h-4 w-4" />
+                          {gettext("Mark as Unread")}
+                        </button>
+                      </li>
+                      <li>
+                        <button phx-click="bulk_action" phx-value-action="archive">
+                          <.icon name="hero-archive-box" class="h-4 w-4" />
+                          {gettext("Archive")}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          phx-click="bulk_action"
+                          phx-value-action="mark_spam"
+                          class="text-warning"
+                        >
+                          <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
+                          {gettext("Mark as Spam")}
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          phx-click="bulk_action"
+                          phx-value-action="delete"
+                          class="text-error"
+                        >
+                          <.icon name="hero-trash" class="h-4 w-4" />
+                          {gettext("Delete")}
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+            
+<!-- Search Form (moved after header) -->
+            <div class="mb-6">
+              <.form for={%{}} as={:search} phx-submit="search" class="flex gap-2">
+                <input
+                  type="text"
+                  name="search[query]"
+                  value={@search_query}
+                  placeholder={gettext("Search messages...")}
+                  class="input input-bordered flex-1"
+                  autocomplete="off"
+                />
+                <button type="submit" class="btn btn-primary">
+                  <.icon name="hero-magnifying-glass" class="h-5 w-5" />
+                  {gettext("Search")}
+                </button>
+              </.form>
+            </div>
+            
+<!-- Search Results -->
+            <%= if @search_query != "" && @search_results.total_count > 0 do %>
+              <div class="mb-4">
+                <p class="text-sm text-base-content/70">
+                  {ngettext(
+                    "Found %{count} result for \"%{query}\"",
+                    "Found %{count} results for \"%{query}\"",
+                    @search_results.total_count,
+                    count: @search_results.total_count,
+                    query: @search_query
+                  )}
+                </p>
+              </div>
+            <% end %>
+          <% else %>
+            <!-- Regular Tab Header -->
+            <div class="flex items-center justify-between mb-4 sm:mb-6">
+              <div class="flex items-center space-x-2 sm:space-x-3">
+                <div class="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
+                  <.icon
+                    name={get_tab_icon(@current_tab)}
+                    class="h-5 w-5 sm:h-6 sm:w-6 text-primary"
+                  />
+                </div>
+                <div class="flex-1">
+                  <h1 class="text-xl sm:text-2xl font-bold">{get_tab_title(@current_tab)}</h1>
+                  <p class="text-xs sm:text-sm text-base-content/70">
+                    {get_tab_description(@current_tab)}
+                  </p>
+                  <%= if @current_tab == "boomerang" && length(@messages) > 0 do %>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                      <%= for {label, count, class} <- get_boomerang_urgency_summary(@messages) do %>
+                        <%= if count > 0 do %>
+                          <div class={["badge badge-sm gap-1", class]}>
+                            {label}: {count}
+                          </div>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+              
+<!-- Action buttons -->
+              <%= if length(@selected_messages) > 0 do %>
+                <div class="flex items-center gap-2">
+                  <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button" class="btn btn-sm btn-ghost">
+                      <span class="hidden sm:inline">{gettext("Actions")}</span>
+                      <span class="sm:hidden">
+                        <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
+                      </span>
+                      ({length(@selected_messages)})
+                      <.icon name="hero-chevron-down" class="h-4 w-4" />
+                    </div>
+                    <ul
+                      tabindex="0"
+                      class="dropdown-content z-30 menu p-2 shadow bg-black/80 backdrop-blur-md rounded-box w-52"
+                    >
+                      <li>
+                        <button phx-click="bulk_action" phx-value-action="mark_read">
+                          <.icon name="hero-check-circle" class="h-4 w-4" />
+                          {gettext("Mark as Read")}
+                        </button>
+                      </li>
+                      <li>
+                        <button phx-click="bulk_action" phx-value-action="mark_unread">
+                          <.icon name="hero-envelope" class="h-4 w-4" />
+                          {gettext("Mark as Unread")}
+                        </button>
+                      </li>
+                      <li class="divider my-1"></li>
+                      <%= if @current_tab != "archive" do %>
+                        <li>
+                          <button phx-click="bulk_action" phx-value-action="archive">
+                            <.icon name="hero-archive-box" class="h-4 w-4" />
+                            {gettext("Archive")}
+                          </button>
+                        </li>
+                      <% end %>
+                      <%= if @current_tab == "inbox" do %>
+                        <%= if @current_filter == "stack" do %>
+                          <li>
+                            <button phx-click="bulk_action" phx-value-action="clear_stack">
+                              <.icon name="hero-arrow-up-tray" class="h-4 w-4" />
+                              {gettext("Remove from Pile")}
+                            </button>
+                          </li>
+                        <% else %>
+                          <li>
+                            <button phx-click="bulk_action" phx-value-action="stack">
+                              <.icon name="hero-archive-box" class="h-4 w-4" />
+                              {gettext("Set Aside")}
+                            </button>
+                          </li>
+                        <% end %>
+                      <% end %>
+                      <%= if @current_tab == "spam" do %>
+                        <li>
+                          <button phx-click="bulk_action" phx-value-action="mark_not_spam">
+                            <.icon name="hero-check-circle" class="h-4 w-4" />
+                            {gettext("Not Spam")}
+                          </button>
+                        </li>
+                      <% else %>
+                        <li>
+                          <button phx-click="bulk_action" phx-value-action="mark_spam">
+                            <.icon name="hero-exclamation-triangle" class="h-4 w-4" />
+                            {gettext("Mark as Spam")}
+                          </button>
+                        </li>
+                      <% end %>
+                      <%= if @current_tab == "trash" do %>
+                        <li>
+                          <button
+                            phx-click="bulk_action"
+                            phx-value-action="recover"
+                            class="text-success"
+                          >
+                            <.icon name="hero-arrow-uturn-left" class="h-4 w-4" />
+                            {gettext("Recover")}
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            phx-click="bulk_action"
+                            phx-value-action="delete_permanently"
+                            class="text-error"
+                          >
+                            <.icon name="hero-trash" class="h-4 w-4" />
+                            {gettext("Delete Permanently")}
+                          </button>
+                        </li>
+                      <% else %>
+                        <li>
+                          <button
+                            phx-click="bulk_action"
+                            phx-value-action="delete"
+                            class="text-error"
+                          >
+                            <.icon name="hero-trash" class="h-4 w-4" />
+                            {gettext("Delete")}
+                          </button>
+                        </li>
+                      <% end %>
+                    </ul>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+            
+<!-- Filter buttons for inbox -->
+            <%= if @current_tab == "inbox" do %>
+              <div class="top-[7rem] z-30 bg-black/40 backdrop-blur-md -mx-6 px-6 py-3 border-b border-base-300 mb-4 rounded-lg">
+                <div class="flex flex-wrap gap-2">
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=inbox"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "inbox",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-inbox" class="h-4 w-4" />
+                    {gettext("Inbox")}
+                    <%= if assigns[:inbox_unread_count] && @inbox_unread_count > 0 do %>
+                      <div class="badge badge-secondary badge-xs ml-1">{@inbox_unread_count}</div>
+                    <% end %>
+                  </.link>
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=unread"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "unread",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-envelope" class="h-4 w-4" />
+                    {gettext("Unread")}
+                  </.link>
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=read"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "read",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-envelope-open" class="h-4 w-4" />
+                    {gettext("Read")}
+                  </.link>
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=digest"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "digest",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-inbox-stack" class="h-4 w-4" />
+                    {gettext("Digest")}
+                    <%= if assigns[:digest_count] && @digest_count > 0 do %>
+                      <div class="badge badge-secondary badge-xs ml-1">{@digest_count}</div>
+                    <% end %>
+                  </.link>
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=ledger"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "ledger",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-document-text" class="h-4 w-4" />
+                    {gettext("Ledger")}
+                    <%= if assigns[:ledger_count] && @ledger_count > 0 do %>
+                      <div class="badge badge-secondary badge-xs ml-1">{@ledger_count}</div>
+                    <% end %>
+                  </.link>
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=stack"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "stack",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-archive-box" class="h-4 w-4" />
+                    {gettext("Stack")}
+                    <%= if assigns[:stack_unread_count] && @stack_unread_count > 0 do %>
+                      <div class="badge badge-secondary badge-xs ml-1">{@stack_unread_count}</div>
+                    <% end %>
+                  </.link>
+                  <.link
+                    patch={~p"/email?tab=inbox&filter=boomerang"}
+                    class={[
+                      "btn btn-sm btn-ghost whitespace-nowrap",
+                      if(@current_filter == "boomerang",
+                        do: "bg-orange-500/20 text-orange-500 font-semibold",
+                        else: "text-base-content hover:bg-orange-500/10 hover:text-orange-500"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-arrow-uturn-left" class="h-4 w-4" />
+                    {gettext("Boomerang")}
+                    <%= if assigns[:boomerang_unread_count] && @boomerang_unread_count > 0 do %>
+                      <div class="badge badge-secondary badge-xs ml-1">
+                        {@boomerang_unread_count}
+                      </div>
+                    <% end %>
+                  </.link>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+          
+<!-- Contacts Tab View -->
+          <%= if @current_tab == "contacts" do %>
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-4">
+                <input
+                  type="text"
+                  placeholder="Search contacts..."
+                  value={assigns[:contact_search_query] || ""}
+                  phx-keyup="contact_search"
+                  phx-debounce="300"
+                  class="input input-bordered w-full max-w-md"
+                />
+                <div class="flex gap-2">
+                  <button phx-click="new_group" class="btn btn-ghost btn-sm">
+                    <.icon name="hero-folder-plus" class="w-4 h-4 mr-1" />Group
+                  </button>
+                  <button phx-click="new_contact" class="btn btn-primary btn-sm">
+                    <.icon name="hero-user-plus" class="w-4 h-4 mr-1" />Contact
+                  </button>
+                </div>
+              </div>
+              <%= if assigns[:groups] && length(assigns[:groups] || []) > 0 do %>
+                <div class="flex flex-wrap gap-2 mb-4">
+                  <button
+                    phx-click="filter_by_group"
+                    phx-value-group_id=""
+                    class={[
+                      "badge badge-lg",
+                      if(!assigns[:filter_group_id], do: "badge-primary", else: "badge-ghost")
+                    ]}
+                  >
+                    All
+                  </button>
+                  <%= for group <- assigns[:groups] || [] do %>
+                    <button
+                      phx-click="filter_by_group"
+                      phx-value-group_id={group.id}
+                      class="badge badge-lg"
+                      style={"background-color: #{group.color}; color: white"}
+                    >
+                      {group.name}
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+              <%= if assigns[:contacts] && length(assigns[:contacts] || []) > 0 do %>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <%= for contact <- assigns[:contacts] || [] do %>
+                    <div class="card border border-base-300 shadow-sm">
+                      <div class="card-body p-4">
+                        <div class="flex items-start justify-between mb-2">
+                          <div class="flex-1 min-w-0">
+                            <h3 class="font-semibold truncate">{contact.name}</h3>
+                            <p class="text-sm opacity-70 truncate">{contact.email}</p>
+                          </div>
+                          <button
+                            phx-click="toggle_favorite"
+                            phx-value-id={contact.id}
+                            class="btn btn-ghost btn-xs btn-circle"
+                          >
+                            <.icon
+                              name={if contact.favorite, do: "hero-star-solid", else: "hero-star"}
+                              class={"w-4 h-4 #{if contact.favorite, do: "text-warning"}"}
+                            />
+                          </button>
+                        </div>
+                        <%= if contact.group_id && Ecto.assoc_loaded?(contact.group) do %>
+                          <div
+                            class="badge badge-sm mb-2"
+                            style={"background-color: #{contact.group.color}; color: white"}
+                          >
+                            {contact.group.name}
+                          </div>
+                        <% end %>
+                        <div class="flex gap-2 mt-2">
+                          <.link
+                            href={~p"/email/compose?to=#{contact.email}"}
+                            class="btn btn-primary btn-xs flex-1"
+                          >
+                            <.icon name="hero-envelope" class="w-3 h-3 mr-1" />Email
+                          </.link>
+                          <button
+                            phx-click="edit_contact"
+                            phx-value-id={contact.id}
+                            class="btn btn-ghost btn-xs"
+                          >
+                            <.icon name="hero-pencil" class="w-3 h-3" />
+                          </button>
+                          <button
+                            phx-click="delete_contact"
+                            phx-value-id={contact.id}
+                            class="btn btn-ghost btn-xs text-error"
+                            data-confirm="Delete?"
+                          >
+                            <.icon name="hero-trash" class="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-center py-12">
+                  <.icon name="hero-users" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+                  <h3 class="text-lg font-semibold mb-2">No contacts yet</h3>
+                  <button phx-click="new_contact" class="btn btn-primary mt-4">
+                    <.icon name="hero-user-plus" class="w-4 h-4 mr-2" />Add Contact
+                  </button>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Calendar Tab View -->
+          <%= if @current_tab == "calendar" do %>
+            <div class="flex flex-col xl:flex-row gap-4 mb-6 min-h-[calc(100vh-20rem)]">
+              <div class={[
+                "w-full xl:w-72 bg-base-200 rounded-xl shadow-lg border border-base-300 flex-col",
+                if(@selected_event, do: "hidden xl:flex", else: "hidden xl:flex")
+              ]}>
+                <div class="p-4 border-b border-base-300">
+                  <h2 class="text-lg font-bold text-base-content">{gettext("Calendar")}</h2>
+                </div>
+
+                <div class="p-4 border-b border-base-300">
+                  <div class="text-center">
+                    <div class="text-4xl font-bold text-primary">{@current_date.day}</div>
+                    <div class="text-sm text-base-content/60">
+                      {Calendar.strftime(@current_date, "%A")}
+                    </div>
+                    <div class="text-sm text-base-content/60">
+                      {Calendar.strftime(@current_date, "%B %Y")}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold text-base-content/60 uppercase tracking-wider">
+                      {gettext("My Calendars")}
+                    </span>
+                    <button phx-click="new_calendar" class="btn btn-ghost btn-xs">
+                      <.icon name="hero-plus" class="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <ul class="space-y-1">
+                    <%= for calendar <- @calendars do %>
+                      <li class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-200 group">
+                        <label class="flex items-center gap-2 flex-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={MapSet.member?(@visible_calendars, calendar.id)}
+                            phx-click="toggle_calendar"
+                            phx-value-id={calendar.id}
+                            class="checkbox checkbox-sm"
+                            style={"--chkbg: #{calendar.color}; --chkfg: white;"}
+                          />
+                          <span class="flex-1 truncate text-sm">{calendar.name}</span>
+                        </label>
+                        <button
+                          phx-click="edit_calendar"
+                          phx-value-id={calendar.id}
+                          class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100"
+                        >
+                          <.icon name="hero-pencil-square" class="w-3 h-3" />
+                        </button>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+
+                <div class="p-4 border-t border-base-300">
+                  <button phx-click="new_event" class="btn btn-primary btn-sm w-full gap-2">
+                    <.icon name="hero-plus" class="w-4 h-4" />
+                    {gettext("Add Event")}
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex-1 flex flex-col min-w-0 bg-base-200 rounded-xl shadow-lg border border-base-300 overflow-hidden">
+                <div class="border-b border-base-300 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
+                  <div class="flex items-center gap-1 sm:gap-2">
+                    <button phx-click="prev_month" class="btn btn-ghost btn-sm btn-square">
+                      <.icon name="hero-chevron-left" class="w-5 h-5" />
+                    </button>
+                    <button phx-click="next_month" class="btn btn-ghost btn-sm btn-square">
+                      <.icon name="hero-chevron-right" class="w-5 h-5" />
+                    </button>
+                    <button phx-click="today" class="btn btn-ghost btn-sm hidden sm:inline-flex">
+                      {gettext("Today")}
+                    </button>
+                  </div>
+
+                  <h2 class="text-lg sm:text-xl font-semibold">{month_name(@view_date)}</h2>
+
+                  <div class="flex items-center gap-2">
+                    <button phx-click="new_event" class="btn btn-primary btn-sm xl:hidden">
+                      <.icon name="hero-plus" class="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex-1 overflow-auto p-2 sm:p-4">
+                  <div class="h-full flex flex-col">
+                    <div class="grid grid-cols-7 border-b border-base-300 flex-shrink-0">
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Sun")}
+                      </div>
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Mon")}
+                      </div>
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Tue")}
+                      </div>
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Wed")}
+                      </div>
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Thu")}
+                      </div>
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Fri")}
+                      </div>
+                      <div class="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-base-content/60">
+                        {gettext("Sat")}
+                      </div>
+                    </div>
+
+                    <div class="flex-1 grid grid-rows-6">
+                      <%= for week <- get_calendar_weeks(@view_date) do %>
+                        <div class="grid grid-cols-7 border-b border-base-300 last:border-b-0 min-h-0">
+                          <%= for date <- week do %>
+                            <div
+                              phx-click="select_date"
+                              phx-value-date={Date.to_iso8601(date)}
+                              class={"p-0.5 sm:p-1 border-r border-base-300 last:border-r-0 cursor-pointer hover:bg-base-200 transition-colors overflow-hidden #{if @selected_date == date, do: "bg-primary/10", else: ""}"}
+                            >
+                              <div class="flex items-center justify-between mb-0.5">
+                                <span class={"w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center rounded-full text-xs sm:text-sm #{day_class(date, @current_date, @view_date)}"}>
+                                  {date.day}
+                                </span>
+                                <%= if date == @selected_date do %>
+                                  <button
+                                    phx-click="new_event"
+                                    phx-value-date={Date.to_iso8601(date)}
+                                    class="btn btn-ghost btn-xs hidden sm:flex"
+                                  >
+                                    <.icon name="hero-plus" class="w-3 h-3" />
+                                  </button>
+                                <% end %>
+                              </div>
+
+                              <div class="space-y-0.5 overflow-hidden">
+                                <%= for event <- events_for_date(@events, date, @visible_calendars) |> Enum.take(2) do %>
+                                  <button
+                                    phx-click="view_event"
+                                    phx-value-id={event.id}
+                                    class="w-full text-left px-1 py-0.5 text-[10px] sm:text-xs rounded truncate text-white"
+                                    style={"background-color: #{event.calendar.color}"}
+                                  >
+                                    <span class="hidden sm:inline">
+                                      <%= if not event.all_day do %>
+                                        <span class="opacity-80">
+                                          {format_time(event.dtstart)}
+                                        </span>
+                                      <% end %>
+                                    </span>
+                                    <span class="truncate">{event.summary}</span>
+                                  </button>
+                                <% end %>
+                                <% more_count =
+                                  length(events_for_date(@events, date, @visible_calendars)) - 2 %>
+                                <%= if more_count > 0 do %>
+                                  <button
+                                    phx-click="select_date"
+                                    phx-value-date={Date.to_iso8601(date)}
+                                    class="w-full text-left px-1 text-[10px] sm:text-xs text-base-content/60 hover:text-base-content"
+                                  >
+                                    +{more_count}
+                                  </button>
+                                <% end %>
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <%= if @selected_event do %>
+                <div class="w-full xl:w-80 bg-base-200 rounded-xl shadow-lg border border-base-300 overflow-y-auto flex-shrink-0">
+                  <div class="p-4">
+                    <div class="flex items-start justify-between mb-4">
+                      <div
+                        class="w-4 h-4 rounded-full mt-1"
+                        style={"background-color: #{@selected_event.calendar.color}"}
+                      >
+                      </div>
+                      <div class="flex items-center gap-1">
+                        <button
+                          phx-click="edit_event"
+                          phx-value-id={@selected_event.id}
+                          class="btn btn-ghost btn-sm"
+                        >
+                          <.icon name="hero-pencil-square" class="w-4 h-4" />
+                        </button>
+                        <button
+                          phx-click="delete_event"
+                          phx-value-id={@selected_event.id}
+                          data-confirm={gettext("Are you sure you want to delete this event?")}
+                          class="btn btn-ghost btn-sm text-error"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" />
+                        </button>
+                        <button phx-click="close_event_detail" class="btn btn-ghost btn-sm">
+                          <.icon name="hero-x-mark" class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 class="text-xl font-bold mb-4">{@selected_event.summary}</h3>
+
+                    <div class="flex items-center gap-3 mb-3">
+                      <.icon name="hero-clock" class="w-5 h-5 text-base-content/60" />
+                      <div>
+                        <div>{Calendar.strftime(@selected_event.dtstart, "%A, %B %d, %Y")}</div>
+                        <%= if not @selected_event.all_day do %>
+                          <div class="text-sm text-base-content/60">
+                            {format_time(@selected_event.dtstart)}
+                            <%= if @selected_event.dtend do %>
+                              - {format_time(@selected_event.dtend)}
+                            <% end %>
+                          </div>
+                        <% else %>
+                          <div class="text-sm text-base-content/60">{gettext("All day")}</div>
+                        <% end %>
+                      </div>
+                    </div>
+
+                    <%= if @selected_event.location do %>
+                      <div class="flex items-center gap-3 mb-3">
+                        <.icon name="hero-map-pin" class="w-5 h-5 text-base-content/60" />
+                        <div>{@selected_event.location}</div>
+                      </div>
+                    <% end %>
+
+                    <div class="flex items-center gap-3 mb-3">
+                      <.icon name="hero-calendar" class="w-5 h-5 text-base-content/60" />
+                      <div>{@selected_event.calendar.name}</div>
+                    </div>
+
+                    <%= if @selected_event.description do %>
+                      <div class="mt-4 pt-4 border-t border-base-300">
+                        <div class="text-sm text-base-content/60 mb-2">
+                          {gettext("Description")}
+                        </div>
+                        <p class="whitespace-pre-wrap">{@selected_event.description}</p>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Message List (all tabs except contacts) -->
+          <%= if @current_tab not in ["contacts", "calendar"] do %>
+            <!-- Message List -->
+            <%= if length(@messages) > 0 do %>
+              <!-- Select All -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-base-200/50 rounded-lg">
+                <label class="label cursor-pointer gap-3 justify-start p-0">
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-sm"
+                    checked={@select_all}
+                    phx-click="select_all_messages"
+                  />
+                  <span class="label-text font-medium text-sm sm:text-base">
+                    <%= if @select_all do %>
+                      {gettext("Deselect all messages")}
+                    <% else %>
+                      {gettext("Select all messages")}
+                    <% end %>
+                  </span>
+                </label>
+
+                <%= if @pagination.total_count > 0 do %>
+                  <div class="text-xs sm:text-sm text-base-content/70 text-right">
+                    <div>
+                      {ngettext("1 result", "%{count} results", @pagination.total_count,
+                        count: @pagination.total_count
+                      )}
+                    </div>
+                    <%= if @pagination.total_pages > 1 do %>
+                      <div class="text-base-content/50 text-xs">
+                        Page {@pagination.page} of {@pagination.total_pages}
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+              
+<!-- Messages -->
+              <div class="space-y-2" id="message-list">
+                <%= for message <- @messages do %>
+                  <div
+                    id={"message-#{message.id}"}
+                    class={[
+                      "message-card p-3 sm:p-4 border rounded-lg transition-all duration-200 hover:shadow-md",
+                      get_message_classes(message, @current_tab),
+                      message.reply_later_at && is_overdue?(message.reply_later_at) &&
+                        "border-l-4 border-l-error bg-error/5"
+                    ]}
+                    phx-click="toggle_message_selection_on_shift"
+                    phx-value-message_id={message.id}
+                  >
+                    <div class="flex items-start gap-3">
+                      <!-- Checkbox -->
+                      <input
+                        type="checkbox"
+                        id={"message-checkbox-#{message.id}"}
+                        class="checkbox checkbox-sm mt-1 flex-shrink-0"
+                        phx-click="toggle_message_selection"
+                        phx-value-message_id={message.id}
+                        checked={message.id in @selected_messages}
+                      />
+                      
+<!-- Message Content -->
+                      <div class="flex-1 min-w-0">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 mb-1">
+                          <div class="flex items-center gap-2 min-w-0 flex-1">
+                            <!-- From/To -->
+                            <span class={[
+                              "text-sm truncate",
+                              if(message.status == "received" and !message.read,
+                                do: "font-bold",
+                                else: "font-medium"
+                              )
+                            ]}>
+                              <%= if @current_tab == "sent" do %>
+                                {gettext("To")}: {message.to}
+                              <% else %>
+                                {message.from}
+                              <% end %>
+                            </span>
+                            
+<!-- Indicators -->
+                            <div class="flex items-center gap-2">
+                              <%= if message.has_attachments do %>
+                                <div
+                                  class="flex items-center gap-1 text-base-content/60"
+                                  title={gettext("Has attachments")}
+                                >
+                                  <.icon name="hero-paper-clip" class="w-4 h-4" />
+                                  <%= if message.attachments && map_size(message.attachments) > 0 do %>
+                                    <span class="text-xs font-medium">
+                                      {map_size(message.attachments)}
+                                    </span>
+                                  <% end %>
+                                </div>
+                              <% end %>
+                              <%= if message.status == "received" and !message.read do %>
+                                <div class="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
+                              <% end %>
+                            </div>
+                          </div>
+                          
+<!-- Date / Reply Later Badge -->
+                          <%= if message.reply_later_at do %>
+                            <div class="flex flex-col items-end gap-1">
+                              <div class={[
+                                "badge badge-sm font-semibold gap-1",
+                                reply_later_urgency_class(message.reply_later_at)
+                              ]}>
+                                <%= if is_overdue?(message.reply_later_at) do %>
+                                  <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
+                                <% else %>
+                                  <.icon name="hero-arrow-uturn-left" class="w-3 h-3" />
+                                <% end %>
+                                {format_reply_later_relative(message.reply_later_at)}
+                              </div>
+                              <span class="text-xs text-base-content/50">
+                                <.local_time
+                                  datetime={message.reply_later_at}
+                                  format="datetime"
+                                  timezone={@timezone}
+                                  time_format={@time_format}
+                                />
+                              </span>
+                            </div>
+                          <% else %>
+                            <span class="text-xs sm:text-sm text-base-content/60 whitespace-nowrap">
+                              <.local_time
+                                datetime={message.inserted_at}
+                                format="datetime"
+                                timezone={@timezone}
+                                time_format={@time_format}
+                              />
+                            </span>
+                          <% end %>
+                        </div>
+                        
+<!-- Subject -->
+                        <h3 class={[
+                          "text-sm mb-1 line-clamp-1 sm:line-clamp-none",
+                          if(message.status == "received" and !message.read,
+                            do: "font-semibold",
+                            else: "font-medium"
+                          )
+                        ]}>
+                          {decode_subject(message.subject)}
+                        </h3>
+                        
+<!-- Labels -->
+                        <%= if Ecto.assoc_loaded?(message.labels) && length(message.labels) > 0 do %>
+                          <div class="flex flex-wrap gap-1 mb-1">
+                            <%= for label <- message.labels do %>
+                              <span
+                                class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+                                style={"background-color: #{label.color}20; color: #{label.color}"}
+                              >
+                                {label.name}
+                              </span>
+                            <% end %>
+                          </div>
+                        <% end %>
+                        
+<!-- Preview -->
+                        <p class="text-xs sm:text-sm text-base-content/60 line-clamp-2 mb-3">
+                          {email_preview(message)}
+                        </p>
+                        
+<!-- Quick Actions -->
+                        <div class="flex flex-wrap items-center gap-2">
+                          <!-- Primary action - always visible -->
+                          <%= if message.status == "draft" do %>
+                            <.link
+                              navigate={
+                                ~p"/email/compose?mode=draft&draft_id=#{message.id}&return_to=drafts"
+                              }
+                              class="btn btn-xs btn-primary min-h-[2rem]"
+                            >
+                              {gettext("Edit")}
+                            </.link>
+                          <% else %>
+                            <.link
+                              navigate={
+                                ~p"/email/view/#{message.hash || message.id}?return_to=#{@current_tab}&filter=#{@current_filter}"
+                              }
+                              class="btn btn-xs btn-primary min-h-[2rem]"
+                            >
+                              {gettext("View")}
+                            </.link>
+                          <% end %>
+                          
+<!-- Mobile: Quick Reply (most common action) -->
+                          <%= if @current_tab != "sent" do %>
+                            <.link
+                              navigate={
+                                ~p"/email/compose?mode=reply&message_id=#{message.id}&return_to=#{@current_tab}&filter=#{@current_filter}"
+                              }
+                              class="btn btn-xs btn-ghost min-h-[2rem] sm:flex"
+                            >
+                              <.icon name="hero-arrow-uturn-left" class="h-3 w-3" />
+                              <span class="hidden sm:inline">{gettext("Reply")}</span>
+                            </.link>
+                          <% end %>
+                          
+<!-- More actions dropdown -->
+                          <details
+                            class="dropdown dropdown-end dropdown-top"
+                            phx-click="stop_propagation"
+                          >
+                            <summary class="btn btn-xs btn-ghost min-h-[2rem]">
+                              <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
+                            </summary>
+                            <ul class="dropdown-content z-50 menu p-2 shadow bg-black/80 backdrop-blur-md rounded-box w-52">
+                              <li>
+                                <.link
+                                  navigate={
+                                    ~p"/email/compose?mode=forward&message_id=#{message.id}&return_to=#{@current_tab}&filter=#{@current_filter}"
+                                  }
+                                  class="flex items-center gap-2"
+                                >
+                                  <.icon name="hero-arrow-right" class="h-4 w-4" />
+                                  {gettext("Forward")}
+                                </.link>
+                              </li>
+                              <%= if @current_tab in ["inbox"] do %>
+                                <%= if message.stack_at do %>
+                                  <li>
+                                    <button
+                                      phx-click="clear_stack"
+                                      phx-value-id={message.id}
+                                      class="flex items-center gap-2"
+                                    >
+                                      <.icon name="hero-arrow-up-tray" class="h-4 w-4" />
+                                      {gettext("Remove from Pile")}
+                                    </button>
+                                  </li>
+                                <% else %>
+                                  <li>
+                                    <button
+                                      phx-click="stack"
+                                      phx-value-id={message.id}
+                                      class="flex items-center gap-2"
+                                    >
+                                      <.icon name="hero-archive-box" class="h-4 w-4" />
+                                      {gettext("Set Aside")}
+                                    </button>
+                                  </li>
+                                <% end %>
+
+                                <%= if message.reply_later_at do %>
+                                  <li>
+                                    <button
+                                      phx-click="clear_reply_later"
+                                      phx-value-id={message.id}
+                                      class="flex items-center gap-2"
+                                    >
+                                      <.icon name="hero-x-mark" class="h-4 w-4" />
+                                      {gettext("Clear Boomerang")}
+                                    </button>
+                                  </li>
+                                <% else %>
+                                  <li>
+                                    <button
+                                      phx-click="show_reply_later_modal"
+                                      phx-value-id={message.id}
+                                      class="flex items-center gap-2"
+                                    >
+                                      <.icon name="hero-arrow-uturn-left" class="h-4 w-4" />
+                                      {gettext("Boomerang")}
+                                    </button>
+                                  </li>
+                                <% end %>
+                                
+<!-- Mark as unread option -->
+                                <li>
+                                  <button
+                                    phx-click="mark_as_unread"
+                                    phx-value-id={message.id}
+                                    class="flex items-center gap-2"
+                                  >
+                                    <.icon name="hero-envelope" class="h-4 w-4" />
+                                    {gettext("Mark as Unread")}
+                                  </button>
+                                </li>
+                              <% end %>
+                              
+<!-- Labels submenu -->
+                              <%= if length(@user_labels) > 0 do %>
+                                <li class="menu-title pt-2">
+                                  <span class="text-xs">{gettext("Labels")}</span>
+                                </li>
+                                <%= for label <- @user_labels do %>
+                                  <li>
+                                    <button
+                                      phx-click="add_label"
+                                      phx-value-message_id={message.id}
+                                      phx-value-label_id={label.id}
+                                      class="flex items-center gap-2"
+                                    >
+                                      <span
+                                        class="w-2 h-2 rounded-full"
+                                        style={"background-color: #{label.color}"}
+                                      >
+                                      </span>
+                                      {label.name}
+                                    </button>
+                                  </li>
+                                <% end %>
+                              <% end %>
+                              
+<!-- Move to folder submenu -->
+                              <%= if length(@custom_folders) > 0 do %>
+                                <li class="menu-title pt-2">
+                                  <span class="text-xs">{gettext("Move to Folder")}</span>
+                                </li>
+                                <li>
+                                  <button
+                                    phx-click="move_to_folder"
+                                    phx-value-message_id={message.id}
+                                    phx-value-folder_id=""
+                                    class="flex items-center gap-2"
+                                  >
+                                    <.icon name="hero-inbox" class="h-4 w-4" />
+                                    {gettext("Inbox")}
+                                  </button>
+                                </li>
+                                <%= for folder <- @custom_folders do %>
+                                  <li>
+                                    <button
+                                      phx-click="move_to_folder"
+                                      phx-value-message_id={message.id}
+                                      phx-value-folder_id={folder.id}
+                                      class="flex items-center gap-2"
+                                    >
+                                      <span
+                                        class="w-2 h-2 rounded-full"
+                                        style={"background-color: #{folder.color || "#3b82f6"}"}
+                                      >
+                                      </span>
+                                      {folder.name}
+                                    </button>
+                                  </li>
+                                <% end %>
+                              <% end %>
+                              
+<!-- Block sender option -->
+                              <%= if @current_tab not in ["sent", "drafts"] do %>
+                                <li class="menu-title pt-2">
+                                  <span class="text-xs">{gettext("Sender")}</span>
+                                </li>
+                                <li>
+                                  <button
+                                    phx-click="block_sender_from_message"
+                                    phx-value-message_id={message.id}
+                                    class="flex items-center gap-2 text-error"
+                                    data-confirm={
+                                      gettext(
+                                        "Block this sender? You won't receive emails from them anymore."
+                                      )
+                                    }
+                                  >
+                                    <.icon name="hero-no-symbol" class="h-4 w-4" />
+                                    {gettext("Block Sender")}
+                                  </button>
+                                </li>
+                              <% end %>
+                            </ul>
+                          </details>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+              
+<!-- Pagination Controls -->
+              <%= if @pagination.total_pages > 1 do %>
+                <div class="mt-6 p-3 sm:p-4 bg-base-200/50 rounded-lg">
+                  <!-- Mobile: Simple prev/next -->
+                  <div class="flex sm:hidden items-center justify-between gap-4">
+                    <button
+                      phx-click="prev_page"
+                      disabled={!@pagination.has_prev}
+                      class="btn btn-sm btn-ghost"
+                      title={gettext("Previous page")}
+                    >
+                      <.icon name="hero-chevron-left" class="h-4 w-4" />
+                      {gettext("Prev")}
+                    </button>
+
+                    <div class="text-center">
+                      <div class="text-sm font-medium">
+                        {@pagination.page} / {@pagination.total_pages}
+                      </div>
+                      <div class="text-xs text-base-content/60">
+                        {ngettext("1 message", "%{count} messages", @pagination.total_count,
+                          count: @pagination.total_count
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      phx-click="next_page"
+                      disabled={!@pagination.has_next}
+                      class="btn btn-sm btn-ghost"
+                      title={gettext("Next page")}
+                    >
+                      {gettext("Next")}
+                      <.icon name="hero-chevron-right" class="h-4 w-4" />
+                    </button>
+                  </div>
+                  
+<!-- Desktop: Full pagination -->
+                  <div class="hidden sm:flex items-center justify-center gap-2">
+                    <button
+                      phx-click="prev_page"
+                      disabled={!@pagination.has_prev}
+                      class="btn btn-sm btn-ghost"
+                      title={gettext("Previous page")}
+                    >
+                      <.icon name="hero-chevron-left" class="h-4 w-4" />
+                      {gettext("Previous")}
+                    </button>
+
+                    <div class="flex items-center gap-1">
+                      <%= for page_num <- pagination_range(@pagination.page, @pagination.total_pages) do %>
+                        <%= if page_num == @pagination.page do %>
+                          <button class="btn btn-sm btn-primary">
+                            {page_num}
+                          </button>
+                        <% else %>
+                          <button
+                            phx-click="goto_page"
+                            phx-value-page={page_num}
+                            class="btn btn-sm btn-ghost"
+                          >
+                            {page_num}
+                          </button>
+                        <% end %>
+                      <% end %>
+                    </div>
+
+                    <button
+                      phx-click="next_page"
+                      disabled={!@pagination.has_next}
+                      class="btn btn-sm btn-ghost"
+                      title={gettext("Next page")}
+                    >
+                      {gettext("Next")}
+                      <.icon name="hero-chevron-right" class="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              <% end %>
+            <% else %>
+              <!-- Empty state -->
+              <div class="text-center py-12">
+                <div class="mx-auto w-24 h-24 bg-base-200 rounded-full flex items-center justify-center mb-4">
+                  <.icon name={get_tab_icon(@current_tab)} class="h-12 w-12 text-base-content/40" />
+                </div>
+                <h3 class="text-lg font-medium text-base-content/70 mb-2">
+                  {get_empty_message(@current_tab)}
+                </h3>
+                <p class="text-sm text-base-content/50">
+                  {get_empty_description(@current_tab)}
+                </p>
+
+                <%= if @current_tab == "inbox" do %>
+                  <.link
+                    navigate={
+                      ~p"/email/compose?return_to=#{@current_tab}&filter=#{@current_filter}"
+                    }
+                    class="btn btn-primary mt-4"
+                  >
+                    <.icon name="hero-pencil-square" class="h-5 w-5" />
+                    {gettext("Compose Email")}
+                  </.link>
+                <% end %>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<%= if @show_event_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-lg">
+      <h3 class="font-bold text-lg mb-4">
+        {if @editing_event, do: gettext("Edit Event"), else: gettext("New Event")}
+      </h3>
+
+      <.form
+        for={@event_changeset}
+        phx-submit="save_event"
+        phx-change="validate_event"
+        class="space-y-4"
+      >
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Title")} *</span></label>
+          <input
+            type="text"
+            name="event[summary]"
+            value={
+              @event_changeset.changes[:summary] || (@editing_event && @editing_event.summary) ||
+                ""
+            }
+            class="input input-bordered"
+            placeholder={gettext("Add title")}
+            required
+          />
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Date")} *</span></label>
+            <input
+              type="date"
+              name="event[date]"
+              value={
+                cond do
+                  @event_changeset.changes[:dtstart] ->
+                    Date.to_iso8601(@event_changeset.changes[:dtstart])
+
+                  @editing_event && @editing_event.dtstart ->
+                    Date.to_iso8601(@editing_event.dtstart)
+
+                  true ->
+                    Date.to_iso8601(@current_date)
+                end
+              }
+              class="input input-bordered"
+              required
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Calendar")}</span></label>
+            <select name="event[calendar_id]" class="select select-bordered">
+              <%= for calendar <- @calendars do %>
+                <option
+                  value={calendar.id}
+                  selected={
+                    (@event_changeset.changes[:calendar_id] ||
+                       (@editing_event && @editing_event.calendar_id) || @default_calendar.id) ==
+                      calendar.id
+                  }
+                >
+                  {calendar.name}
+                </option>
+              <% end %>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-2">
+            <input
+              type="checkbox"
+              name="event[all_day]"
+              value="true"
+              checked={
+                @event_changeset.changes[:all_day] || (@editing_event && @editing_event.all_day)
+              }
+              class="checkbox checkbox-primary"
+            />
+            <span class="label-text">{gettext("All day")}</span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("Start time")}</span></label>
+            <input
+              type="time"
+              name="event[start_time]"
+              value={
+                cond do
+                  @event_changeset.changes[:dtstart] ->
+                    Calendar.strftime(@event_changeset.changes[:dtstart], "%H:%M")
+
+                  @editing_event && @editing_event.dtstart ->
+                    Calendar.strftime(@editing_event.dtstart, "%H:%M")
+
+                  true ->
+                    "09:00"
+                end
+              }
+              class="input input-bordered"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">{gettext("End time")}</span></label>
+            <input
+              type="time"
+              name="event[end_time]"
+              value={
+                cond do
+                  @event_changeset.changes[:dtend] ->
+                    Calendar.strftime(@event_changeset.changes[:dtend], "%H:%M")
+
+                  @editing_event && @editing_event.dtend ->
+                    Calendar.strftime(@editing_event.dtend, "%H:%M")
+
+                  true ->
+                    "10:00"
+                end
+              }
+              class="input input-bordered"
+            />
+          </div>
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Location")}</span></label>
+          <input
+            type="text"
+            name="event[location]"
+            value={
+              @event_changeset.changes[:location] || (@editing_event && @editing_event.location) ||
+                ""
+            }
+            class="input input-bordered"
+            placeholder={gettext("Add location")}
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Description")}</span></label>
+          <textarea
+            name="event[description]"
+            rows="3"
+            class="textarea textarea-bordered"
+            placeholder={gettext("Add description")}
+          >{@event_changeset.changes[:description] || (@editing_event && @editing_event.description) || ""}</textarea>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="cancel_event_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Save")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_event_modal"></div>
+  </div>
+<% end %>
+
+<!-- Calendar Modal -->
+<%= if @show_calendar_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-sm">
+      <h3 class="font-bold text-lg mb-4">
+        {if @editing_calendar, do: gettext("Edit Calendar"), else: gettext("New Calendar")}
+      </h3>
+
+      <.form
+        for={@calendar_changeset}
+        phx-submit="save_calendar"
+        phx-change="validate_calendar"
+        class="space-y-4"
+      >
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Name")} *</span></label>
+          <input
+            type="text"
+            name="calendar[name]"
+            value={
+              @calendar_changeset.changes[:name] || (@editing_calendar && @editing_calendar.name) ||
+                ""
+            }
+            class="input input-bordered"
+            required
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Color")}</span></label>
+          <input
+            type="color"
+            name="calendar[color]"
+            value={
+              @calendar_changeset.changes[:color] ||
+                (@editing_calendar && @editing_calendar.color) || "#3b82f6"
+            }
+            class="w-full h-10 rounded cursor-pointer"
+          />
+        </div>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">{gettext("Description")}</span></label>
+          <textarea
+            name="calendar[description]"
+            rows="2"
+            class="textarea textarea-bordered"
+          >{@calendar_changeset.changes[:description] || (@editing_calendar && @editing_calendar.description) || ""}</textarea>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" phx-click="cancel_calendar_modal" class="btn btn-ghost">
+            {gettext("Cancel")}
+          </button>
+          <%= if @editing_calendar && not @editing_calendar.is_default do %>
+            <button
+              type="button"
+              phx-click="delete_calendar"
+              phx-value-id={@editing_calendar.id}
+              data-confirm={gettext("Are you sure? All events in this calendar will be deleted.")}
+              class="btn btn-error btn-outline"
+            >
+              {gettext("Delete")}
+            </button>
+          <% end %>
+          <button type="submit" class="btn btn-primary">
+            {gettext("Save")}
+          </button>
+        </div>
+      </.form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_calendar_modal"></div>
+  </div>
+<% end %>
+
+<!-- Boomerang Reply Later Modal -->
+<%= if assigns[:show_reply_later_modal] && @show_reply_later_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-md" phx-click-away="cancel_reply_later">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold flex items-center gap-2">
+          <.icon name="hero-arrow-uturn-left" class="h-5 w-5 text-primary" />
+          {gettext("Boomerang")}
+        </h3>
+        <button
+          phx-click="close_reply_later_modal"
+          class="btn btn-sm btn-circle btn-ghost"
+        >
+          <.icon name="hero-x-mark" class="h-4 w-4" />
+        </button>
+      </div>
+
+      <%= if assigns[:reply_later_message] && @reply_later_message do %>
+        <div class="mb-4">
+          <p class="text-sm text-base-content/70 mb-2">
+            {gettext("Schedule a reminder to reply to this message:")}
+          </p>
+          <div class="bg-base-200/50 rounded-lg p-3">
+            <p class="font-medium text-sm">{decode_subject(@reply_later_message.subject)}</p>
+            <p class="text-xs text-base-content/60 mt-1">
+              {gettext("From")}: {@reply_later_message.from}
+            </p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <p class="text-sm font-medium">{gettext("Remind me to reply in:")}</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              phx-click="schedule_reply_later"
+              phx-value-id={@reply_later_message.id}
+              phx-value-days="1"
+              class="btn btn-sm btn-outline"
+            >
+              {gettext("1 day")}
+            </button>
+            <button
+              phx-click="schedule_reply_later"
+              phx-value-id={@reply_later_message.id}
+              phx-value-days="3"
+              class="btn btn-sm btn-outline"
+            >
+              {gettext("3 days")}
+            </button>
+            <button
+              phx-click="schedule_reply_later"
+              phx-value-id={@reply_later_message.id}
+              phx-value-days="7"
+              class="btn btn-sm btn-outline"
+            >
+              {gettext("1 week")}
+            </button>
+            <button
+              phx-click="schedule_reply_later"
+              phx-value-id={@reply_later_message.id}
+              phx-value-days="14"
+              class="btn btn-sm btn-outline"
+            >
+              {gettext("2 weeks")}
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-action">
+          <button
+            phx-click="close_reply_later_modal"
+            class="btn btn-ghost"
+          >
+            {gettext("Cancel")}
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+<!-- Contact Modal -->
+<%= if assigns[:show_contact_modal] && @show_contact_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-md">
+      <h3 class="font-bold text-lg mb-6 text-center">
+        {if assigns[:editing_contact] && @editing_contact, do: "Edit Contact", else: "Add Contact"}
+      </h3>
+      <form phx-submit="save_contact">
+        <div class="form-control w-full mb-4">
+          <label class="label"><span class="label-text font-medium">Name</span></label>
+          <input
+            type="text"
+            name="name"
+            value={
+              if assigns[:editing_contact] && @editing_contact,
+                do: @editing_contact.name,
+                else: ""
+            }
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+        <div class="form-control w-full mb-4">
+          <label class="label"><span class="label-text font-medium">Email</span></label>
+          <input
+            type="email"
+            name="email"
+            value={
+              if assigns[:editing_contact] && @editing_contact,
+                do: @editing_contact.email,
+                else: ""
+            }
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+        <div class="form-control w-full mb-4">
+          <label class="label">
+            <span class="label-text font-medium">Phone (Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="phone"
+            value={
+              if assigns[:editing_contact] && @editing_contact,
+                do: @editing_contact.phone,
+                else: ""
+            }
+            class="input input-bordered w-full"
+          />
+        </div>
+        <div class="form-control w-full mb-4">
+          <label class="label">
+            <span class="label-text font-medium">Organization (Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="organization"
+            value={
+              if assigns[:editing_contact] && @editing_contact,
+                do: @editing_contact.organization,
+                else: ""
+            }
+            class="input input-bordered w-full"
+          />
+        </div>
+        <div class="form-control w-full mb-4">
+          <label class="label">
+            <span class="label-text font-medium">Group (Optional)</span>
+          </label>
+          <select name="group_id" class="select select-bordered w-full">
+            <option value="">No Group</option>
+            <%= for group <- assigns[:groups] || [] do %>
+              <option
+                value={group.id}
+                selected={
+                  assigns[:editing_contact] && @editing_contact &&
+                    @editing_contact.group_id == group.id
+                }
+              >
+                {group.name}
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <div class="form-control w-full mb-6">
+          <label class="label cursor-pointer justify-center gap-2">
+            <input
+              type="checkbox"
+              name="favorite"
+              class="checkbox checkbox-sm"
+              checked={assigns[:editing_contact] && @editing_contact && @editing_contact.favorite}
+            />
+            <span class="label-text">Mark as favorite</span>
+          </label>
+        </div>
+        <div class="modal-action justify-center gap-3">
+          <button type="button" phx-click="cancel_contact" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            {if assigns[:editing_contact] && @editing_contact, do: "Update", else: "Add"} Contact
+          </button>
+        </div>
+      </form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_contact"></div>
+  </div>
+<% end %>
+
+<!-- Group Modal -->
+<%= if assigns[:show_group_modal] && @show_group_modal do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-md">
+      <h3 class="font-bold text-lg mb-6 text-center">
+        {if assigns[:editing_group] && @editing_group, do: "Edit Group", else: "New Group"}
+      </h3>
+      <form phx-submit="save_group">
+        <div class="form-control w-full mb-4">
+          <label class="label"><span class="label-text font-medium">Group Name</span></label>
+          <input
+            type="text"
+            name="name"
+            value={
+              if assigns[:editing_group] && @editing_group, do: @editing_group.name, else: ""
+            }
+            class="input input-bordered w-full"
+            placeholder="Friends, Work..."
+            required
+          />
+        </div>
+        <div class="form-control w-full mb-6">
+          <label class="label"><span class="label-text font-medium">Color</span></label>
+          <input
+            type="color"
+            name="color"
+            value={
+              if assigns[:editing_group] && @editing_group,
+                do: @editing_group.color,
+                else: "#3b82f6"
+            }
+            class="input input-bordered w-full h-12"
+          />
+        </div>
+        <div class="modal-action justify-center gap-3">
+          <button type="button" phx-click="cancel_group" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            {if assigns[:editing_group] && @editing_group, do: "Update", else: "Create"} Group
+          </button>
+        </div>
+      </form>
+    </div>
+    <div class="modal-backdrop" phx-click="cancel_group"></div>
+  </div>
+<% end %>

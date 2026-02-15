@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page Not Found - Elektrine</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body class="h-full bg-base-100">
+    <div
+      id="blinkenlights-container"
+      class="fixed inset-0 w-screen h-screen pointer-events-none z-0"
+    >
+    </div>
+
+    <div class="relative z-10 min-h-full flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-md w-full space-y-8 px-4">
+        <div class="text-center">
+          <div class="mx-auto w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+            <.icon name="hero-signal-slash" class="w-12 h-12 text-primary" />
+          </div>
+          <h1 class="text-4xl font-bold text-base-content mb-2">404</h1>
+          <h2 class="text-2xl font-semibold text-base-content/80 mb-4">Page Not Found</h2>
+          <p class="text-base-content/60 mb-8">
+            The page you're looking for doesn't exist or has been moved.
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <button type="button" data-action="go-back" class="btn btn-primary w-full">
+            <.icon name="hero-arrow-left" class="w-5 h-5" /> Go Back
+          </button>
+          <a href="/" class="btn btn-ghost w-full">
+            <.icon name="hero-home" class="w-5 h-5" /> Go Home
+          </a>
+        </div>
+
+        <div class="text-center text-xs text-base-content/40 mt-8">
+          <p>
+            Request ID:
+            <span class="font-mono bg-base-200 px-2 py-1 rounded">
+              {Plug.Conn.get_resp_header(@conn, "x-request-id") |> List.first() ||
+                "ERR-#{System.system_time(:millisecond)}"}
+            </span>
+          </p>
+          <p class="mt-2">{DateTime.utc_now() |> Calendar.strftime("%Y-%m-%d %H:%M:%S")} UTC</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/error_page.js">
+    </script>
+  </body>
+</html>

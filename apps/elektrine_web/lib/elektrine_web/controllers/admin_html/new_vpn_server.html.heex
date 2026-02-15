@@ -1,0 +1,279 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold">Add VPN Server</h1>
+    <p class="text-base-content/70 mt-2">Set up a new WireGuard server</p>
+  </div>
+
+  <div class="alert alert-info mb-6">
+    <.icon name="hero-information-circle" class="w-5 h-5" />
+    <div>
+      <h3 class="font-bold">Quick Setup (3 Steps)</h3>
+      <div class="text-sm mt-1">
+        <p>1. Fill in details below and enter "AUTO" for public key</p>
+        <p>2. Copy the API key shown after creation</p>
+        <p>3. Deploy VPN server with API key - public key auto-registers!</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-lg">
+    <div class="card-body">
+      <.form :let={f} for={@changeset} action={~p"/pripyat/vpn/servers"} method="post">
+        <div class="space-y-4">
+          <!-- Basic Information -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Server Name</span>
+              </label>
+              <input
+                type="text"
+                name="server[name]"
+                value={Phoenix.HTML.Form.input_value(f, :name)}
+                placeholder="US East 1"
+                class="input input-bordered"
+                required
+              />
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Location</span>
+              </label>
+              <input
+                type="text"
+                name="server[location]"
+                value={Phoenix.HTML.Form.input_value(f, :location)}
+                placeholder="US - New York"
+                class="input input-bordered"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Country Code</span>
+              </label>
+              <input
+                type="text"
+                name="server[country_code]"
+                value={Phoenix.HTML.Form.input_value(f, :country_code)}
+                placeholder="US"
+                maxlength="2"
+                class="input input-bordered"
+              />
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">City</span>
+              </label>
+              <input
+                type="text"
+                name="server[city]"
+                value={Phoenix.HTML.Form.input_value(f, :city)}
+                placeholder="New York"
+                class="input input-bordered"
+              />
+            </div>
+          </div>
+          
+<!-- Network Configuration -->
+          <div class="divider">Network Configuration</div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Public IP</span>
+              </label>
+              <input
+                type="text"
+                name="server[public_ip]"
+                value={Phoenix.HTML.Form.input_value(f, :public_ip)}
+                placeholder="192.0.2.1"
+                class="input input-bordered font-medium"
+                required
+              />
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Port</span>
+              </label>
+              <input
+                type="number"
+                name="server[endpoint_port]"
+                value={Phoenix.HTML.Form.input_value(f, :endpoint_port) || 51820}
+                placeholder="51820"
+                class="input input-bordered"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Internal IP Range</span>
+              </label>
+              <input
+                type="text"
+                name="server[internal_ip_range]"
+                value={Phoenix.HTML.Form.input_value(f, :internal_ip_range)}
+                placeholder="10.8.0.0/24"
+                class="input input-bordered font-medium"
+                required
+              />
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">DNS Servers</span>
+              </label>
+              <input
+                type="text"
+                name="server[dns_servers]"
+                value={Phoenix.HTML.Form.input_value(f, :dns_servers) || "1.1.1.1, 1.0.0.1"}
+                placeholder="1.1.1.1, 1.0.0.1"
+                class="input input-bordered font-medium"
+              />
+            </div>
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Server Public Key (WireGuard)</span>
+              <span class="label-text-alt">Enter "AUTO" for auto-registration</span>
+            </label>
+            <input
+              type="text"
+              name="server[public_key]"
+              value={Phoenix.HTML.Form.input_value(f, :public_key)}
+              placeholder="AUTO"
+              class="input input-bordered font-medium"
+              required
+            />
+            <label class="label">
+              <span class="label-text-alt text-success">
+                Recommended: Enter "AUTO" and the VPN server will register its public key automatically
+              </span>
+            </label>
+          </div>
+          
+<!-- Server Limits -->
+          <div class="divider">Capacity & Status</div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Max Users</span>
+              </label>
+              <input
+                type="number"
+                name="server[max_users]"
+                value={Phoenix.HTML.Form.input_value(f, :max_users) || 100}
+                placeholder="100"
+                class="input input-bordered"
+                required
+              />
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Status</span>
+              </label>
+              <select name="server[status]" class="select select-bordered">
+                <option
+                  value="active"
+                  selected={Phoenix.HTML.Form.input_value(f, :status) == "active"}
+                >
+                  Active
+                </option>
+                <option
+                  value="maintenance"
+                  selected={Phoenix.HTML.Form.input_value(f, :status) == "maintenance"}
+                >
+                  Maintenance
+                </option>
+                <option
+                  value="offline"
+                  selected={Phoenix.HTML.Form.input_value(f, :status) == "offline"}
+                >
+                  Offline
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Minimum Trust Level Required</span>
+              <span class="label-text-alt">
+                Users must have this trust level or higher to access this server
+              </span>
+            </label>
+            <select name="server[minimum_trust_level]" class="select select-bordered">
+              <option
+                value="0"
+                selected={Phoenix.HTML.Form.input_value(f, :minimum_trust_level) == 0}
+              >
+                TL0 - New (All Users)
+              </option>
+              <option
+                value="1"
+                selected={Phoenix.HTML.Form.input_value(f, :minimum_trust_level) == 1}
+              >
+                TL1 - Basic
+              </option>
+              <option
+                value="2"
+                selected={Phoenix.HTML.Form.input_value(f, :minimum_trust_level) == 2}
+              >
+                TL2 - Member
+              </option>
+              <option
+                value="3"
+                selected={Phoenix.HTML.Form.input_value(f, :minimum_trust_level) == 3}
+              >
+                TL3 - Regular
+              </option>
+              <option
+                value="4"
+                selected={Phoenix.HTML.Form.input_value(f, :minimum_trust_level) == 4}
+              >
+                TL4 - Leader
+              </option>
+            </select>
+          </div>
+          
+<!-- API Configuration -->
+          <div class="divider">API Configuration (Optional)</div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">API Endpoint</span>
+              <span class="label-text-alt">URL for server management API</span>
+            </label>
+            <input
+              type="text"
+              name="server[api_endpoint]"
+              value={Phoenix.HTML.Form.input_value(f, :api_endpoint)}
+              placeholder="https://vpn-server.example.com/api"
+              class="input input-bordered font-medium"
+            />
+          </div>
+          
+<!-- Actions -->
+          <div class="flex gap-2 justify-end mt-6">
+            <a href={~p"/pripyat/vpn"} class="btn btn-ghost">Cancel</a>
+            <button type="submit" class="btn btn-secondary">
+              <.icon name="hero-plus" class="w-5 h-5" /> Create Server
+            </button>
+          </div>
+        </div>
+      </.form>
+    </div>
+  </div>
+</div>

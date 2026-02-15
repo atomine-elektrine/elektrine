@@ -1,0 +1,32 @@
+<div class="card glass-card shadow-xl max-w-md mx-auto">
+  <div class="card-body">
+    <div class="text-center mb-4">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-16 w-16 mx-auto text-success"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+        />
+      </svg>
+    </div>
+
+    <h1 class="text-center text-3xl font-bold mb-4">Resubscribed Successfully</h1>
+
+    <p class="text-center opacity-70 mb-6">
+      Welcome back! You have been resubscribed and will continue receiving emails at <strong><%= @email %></strong>.
+    </p>
+
+    <div class="flex flex-col gap-4 w-full">
+      <.link href={~p"/"} class="btn btn-primary w-full">
+        Return to Home
+      </.link>
+    </div>
+  </div>
+</div>

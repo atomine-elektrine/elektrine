@@ -1,0 +1,76 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <div class="flex items-center mb-2">
+      <.link href={~p"/pripyat/announcements"} class="btn btn-ghost btn-sm mr-4">
+        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
+      </.link>
+      <h1 class="text-2xl font-bold">Edit Announcement</h1>
+    </div>
+    <p class="opacity-70">Modify the announcement details and scheduling.</p>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <.simple_form
+        :let={f}
+        for={@changeset}
+        action={~p"/pripyat/announcements/#{@announcement.id}"}
+        method="put"
+      >
+        <.error :if={@changeset.action}>
+          Oops, something went wrong! Please check the errors below.
+        </.error>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <.input
+            field={f[:title]}
+            type="text"
+            label="Title"
+            placeholder="Enter announcement title..."
+            required
+          />
+
+          <.input
+            field={f[:type]}
+            type="select"
+            label="Type"
+            options={[
+              {"Information", "info"},
+              {"Warning", "warning"},
+              {"Maintenance", "maintenance"},
+              {"New Feature", "feature"},
+              {"Urgent", "urgent"}
+            ]}
+            required
+          />
+        </div>
+
+        <.input
+          field={f[:content]}
+          type="textarea"
+          label="Content"
+          placeholder="Enter announcement content..."
+          rows="6"
+          required
+        />
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <.input field={f[:starts_at]} type="datetime-local" label="Start Date/Time (Optional)" />
+
+          <.input field={f[:ends_at]} type="datetime-local" label="End Date/Time (Optional)" />
+        </div>
+
+        <.input field={f[:active]} type="checkbox" label="Active" />
+
+        <div class="flex gap-2 pt-4">
+          <.button type="submit" class="btn-primary">
+            <.icon name="hero-check" class="h-4 w-4 mr-2" /> Update Announcement
+          </.button>
+
+          <.link href={~p"/pripyat/announcements"} class="btn btn-ghost">
+            Cancel
+          </.link>
+        </div>
+      </.simple_form>
+    </div>
+  </div>
+</div>

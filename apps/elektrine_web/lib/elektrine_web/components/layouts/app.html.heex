@@ -1,0 +1,605 @@
+<!-- Presence hooks for auto-away and device detection -->
+<%= if @current_user do %>
+  <div id="activity-tracker" phx-hook="ActivityTracker" class="hidden"></div>
+  <div id="device-detector" phx-hook="DeviceDetector" class="hidden"></div>
+<% end %>
+<%= if (assigns[:conn] && Plug.Conn.get_session(@conn, :impersonating_admin_id)) || (assigns[:is_impersonating] && @is_impersonating) do %>
+  <div class="bg-warning text-warning-content p-2">
+    <div class="max-w-7xl mx-auto px-4 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+        <span class="font-semibold">
+          Admin Mode: You are impersonating {@current_user.username}
+        </span>
+      </div>
+      <.form for={%{}} action={~p"/pripyat/stop-impersonation"} method="post" class="inline">
+        <button type="submit" class="btn btn-sm btn-secondary">
+          <.icon name="hero-stop" class="w-4 h-4" /> Stop Impersonation
+        </button>
+      </.form>
+    </div>
+  </div>
+<% end %>
+
+<div class="navbar bg-base-200/80 backdrop-blur-sm shadow-md sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto w-full flex items-center px-4 sm:px-6 lg:px-8">
+    <div class="navbar-start">
+      <div class="dropdown">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-square lg:hidden">
+          <.icon name="hero-bars-3" class="h-6 w-6" />
+        </div>
+        <ul
+          tabindex="0"
+          class="menu dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-xl w-52 border border-base-300/50"
+        >
+          <li>
+            <a href="/" class="rounded-lg">
+              <.icon name="hero-home" class="w-5 h-5" />
+              {gettext("Home")}
+            </a>
+          </li>
+          <%= if @current_user do %>
+            <li>
+              <.link href={~p"/email"} class="rounded-lg text-primary">
+                <.icon name="hero-envelope" class="w-5 h-5" />
+                {gettext("Email")}
+              </.link>
+            </li>
+            <li>
+              <.link href={~p"/timeline"} class="rounded-lg text-secondary">
+                <.icon name="hero-chat-bubble-left-right" class="w-5 h-5" />
+                {gettext("Social")}
+              </.link>
+            </li>
+            <div class="divider my-1"></div>
+            <li>
+              <a href={~p"/account"} class="rounded-lg">
+                <.icon name="hero-user-circle" class="w-5 h-5" />
+                {gettext("Account")}
+              </a>
+            </li>
+            <%= if @current_user.is_admin do %>
+              <li>
+                <.link href={~p"/pripyat"} class="rounded-lg">
+                  <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> Admin
+                </.link>
+              </li>
+            <% end %>
+            <li>
+              <.link href={~p"/logout"} method="delete" class="rounded-lg text-error">
+                <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" />
+                {gettext("Log out")}
+              </.link>
+            </li>
+          <% else %>
+            <div class="divider my-1"></div>
+            <li>
+              <.link href={~p"/login"} class="rounded-lg">
+                <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" />
+                {gettext("Sign in")}
+              </.link>
+            </li>
+            <li>
+              <.link href={~p"/register"} class="rounded-lg text-primary">
+                <.icon name="hero-user-plus" class="w-5 h-5" />
+                {gettext("Sign up")}
+              </.link>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+      <a href="/" class="btn btn-ghost px-1 sm:px-2">
+        <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
+      </a>
+    </div>
+    <div class="navbar-center hidden lg:flex">
+      <div class="form-control mr-4">
+        <form action="/search" method="get">
+          <div class="join">
+            <input
+              type="text"
+              name="q"
+              placeholder={gettext("Search...")}
+              class="input input-bordered input-sm join-item w-64"
+              id="global-search"
+            />
+            <button type="submit" class="btn btn-square btn-sm join-item">
+              <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+            </button>
+          </div>
+        </form>
+      </div>
+      <ul class="menu menu-horizontal px-1 gap-1">
+        <li>
+          <a
+            href="/"
+            class={[
+              "rounded-lg",
+              if(assigns[:conn] && @conn.request_path == "/",
+                do: "bg-primary/15 text-primary font-semibold",
+                else: "hover:bg-base-300"
+              )
+            ]}
+          >
+            {gettext("Home")}
+          </a>
+        </li>
+        <li>
+          <.link
+            href={~p"/email"}
+            class={[
+              "font-semibold rounded-lg",
+              if(
+                @current_user &&
+                  ((assigns[:conn] &&
+                      (String.starts_with?(@conn.request_path, "/email") ||
+                         String.starts_with?(@conn.request_path, "/vpn"))) ||
+                     (assigns[:socket] && assigns[:socket].view &&
+                        (String.contains?(to_string(assigns[:socket].view), "EmailLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "VPNLive")))),
+                do: "bg-primary/15 text-primary",
+                else: "text-primary hover:bg-primary/10"
+              )
+            ]}
+          >
+            Email
+          </.link>
+        </li>
+        <li>
+          <.link
+            href={~p"/timeline"}
+            class={[
+              "font-semibold rounded-lg",
+              if(
+                @current_user &&
+                  ((assigns[:conn] &&
+                      (String.starts_with?(@conn.request_path, "/chat") ||
+                         String.starts_with?(@conn.request_path, "/timeline") ||
+                         String.starts_with?(@conn.request_path, "/remote") ||
+                         String.starts_with?(@conn.request_path, "/gallery") ||
+                         String.starts_with?(@conn.request_path, "/overview") ||
+                         String.starts_with?(@conn.request_path, "/communities") ||
+                         String.starts_with?(@conn.request_path, "/friends") ||
+                         String.starts_with?(@conn.request_path, "/lists"))) ||
+                     (assigns[:socket] && assigns[:socket].view &&
+                        (String.contains?(to_string(assigns[:socket].view), "ChatLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "TimelineLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "RemoteUserLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "RemotePostLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "GalleryLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "OverviewLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "DiscussionsLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "FriendsLive") ||
+                           String.contains?(to_string(assigns[:socket].view), "ListLive")))),
+                do: "bg-secondary/15 text-secondary",
+                else: "text-secondary hover:bg-secondary/10"
+              )
+            ]}
+          >
+            Social
+          </.link>
+        </li>
+      </ul>
+    </div>
+    <div class="navbar-end">
+      <%= if @current_user do %>
+        <!-- Status Selector (desktop only) -->
+        <div
+          class="dropdown dropdown-end hidden lg:flex"
+          id="status-selector-desktop"
+          phx-hook="StatusSelector"
+        >
+          <div tabindex="0" role="button" class="btn btn-ghost btn-sm">
+            <span class={[
+              "w-3 h-3 rounded-full inline-block status-indicator",
+              status_indicator_class(@current_user.status || "online")
+            ]}>
+            </span>
+            <.icon name="hero-chevron-down" class="w-3 h-3 ml-1" />
+          </div>
+          <div
+            tabindex="0"
+            class="dropdown-content z-[1] p-3 shadow bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
+          >
+            <div class="flex flex-col gap-2">
+              <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
+                <input type="hidden" name="status" value="online" />
+                <button
+                  type="submit"
+                  class={[
+                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    if(@current_user.status == "online",
+                      do: "bg-success/10 text-success border border-success/30",
+                      else: "border border-base-300"
+                    )
+                  ]}
+                >
+                  <span class="w-3 h-3 bg-success rounded-full inline-block"></span>
+                  <span class="text-sm">Online</span>
+                </button>
+              </.form>
+              <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
+                <input type="hidden" name="status" value="away" />
+                <button
+                  type="submit"
+                  class={[
+                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    if(@current_user.status == "away",
+                      do: "bg-warning/10 text-warning border border-warning/30",
+                      else: "border border-base-300"
+                    )
+                  ]}
+                >
+                  <span class="w-3 h-3 bg-warning rounded-full inline-block"></span>
+                  <span class="text-sm">Away</span>
+                </button>
+              </.form>
+              <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
+                <input type="hidden" name="status" value="dnd" />
+                <button
+                  type="submit"
+                  class={[
+                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    if(@current_user.status == "dnd",
+                      do: "bg-error/10 text-error border border-error/30",
+                      else: "border border-base-300"
+                    )
+                  ]}
+                >
+                  <span class="w-3 h-3 bg-error rounded-full inline-block"></span>
+                  <span class="text-sm">Do Not Disturb</span>
+                </button>
+              </.form>
+              <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
+                <input type="hidden" name="status" value="offline" />
+                <button
+                  type="submit"
+                  class={[
+                    "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
+                    if(@current_user.status == "offline",
+                      do: "bg-base-300/20 border border-base-300",
+                      else: "border border-base-300"
+                    )
+                  ]}
+                >
+                  <span class="w-3 h-3 bg-base-300 rounded-full inline-block"></span>
+                  <span class="text-sm">Appear Offline</span>
+                </button>
+              </.form>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Language Switcher (desktop only) -->
+      <div class="dropdown dropdown-end hidden lg:flex">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm">
+          <%= if (@current_user && @current_user.locale == "zh") || (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "zh") do %>
+            <span class="text-sm font-medium">中</span>
+          <% else %>
+            <span class="text-sm font-medium">EN</span>
+          <% end %>
+          <.icon name="hero-chevron-down" class="w-3 h-3 ml-1" />
+        </div>
+        <ul
+          tabindex="0"
+          class="dropdown-content z-[1] menu p-2 shadow bg-base-100/90 backdrop-blur-sm rounded-box w-40 border border-base-300/50"
+        >
+          <li>
+            <a
+              href="/locale/switch?locale=en"
+              class={
+                if (@current_user && @current_user.locale == "en") ||
+                     (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "en"),
+                   do: "bg-primary/10 text-primary font-semibold",
+                   else: ""
+              }
+            >
+              <span class="font-medium">EN</span> English
+            </a>
+          </li>
+          <li>
+            <a
+              href="/locale/switch?locale=zh"
+              class={
+                if (@current_user && @current_user.locale == "zh") ||
+                     (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "zh"),
+                   do: "bg-primary/10 text-primary font-semibold",
+                   else: ""
+              }
+            >
+              <span class="font-medium">中</span> 中文
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <%= if @current_user do %>
+        <!-- Notification Bell -->
+        <.link
+          href="/notifications"
+          class="indicator mr-4 flex items-center no-glow"
+          title={gettext("Notifications")}
+        >
+          <%= if assigns[:notification_count] && @notification_count > 0 do %>
+            <span class="indicator-item indicator-top indicator-end flex h-4 w-4 pointer-events-none -translate-x-0.5 translate-y-0.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75">
+              </span>
+              <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-error text-white text-[9px] font-medium">
+                {if @notification_count > 99, do: "99+", else: @notification_count}
+              </span>
+            </span>
+          <% end %>
+          <div class="btn btn-ghost btn-circle btn-sm flex items-center justify-center">
+            <%= if assigns[:notification_count] && @notification_count > 0 do %>
+              <.icon name="hero-bell-alert" class="w-5 h-5" />
+            <% else %>
+              <.icon name="hero-bell" class="w-5 h-5" />
+            <% end %>
+          </div>
+        </.link>
+
+        <div class="dropdown dropdown-end" data-test="user-menu">
+          <div
+            tabindex="0"
+            role="button"
+            class="cursor-pointer rounded-full rainbow-glow-hover p-0 leading-none flex"
+          >
+            <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
+          </div>
+          <ul
+            tabindex="0"
+            class="menu menu-sm dropdown-content mt-3 z-[100] p-2 shadow-lg bg-base-200/90 backdrop-blur-sm rounded-box w-56 border border-base-300/50"
+          >
+            <!-- User Info Header -->
+            <li class="menu-title px-3 py-2">
+              <.link
+                navigate={~p"/#{@current_user.handle || @current_user.username}"}
+                class="flex items-center gap-3 hover:bg-primary/20 hover:text-white transition-all duration-200 rounded-md px-2 py-2 -mx-2 -my-2"
+              >
+                <.user_avatar user={@current_user} size="sm" />
+                <div>
+                  <div class="font-semibold text-sm">
+                    {@current_user.display_name || @current_user.username}
+                  </div>
+                  <div class="text-xs opacity-60">
+                    @{@current_user.handle || @current_user.username}
+                  </div>
+                </div>
+              </.link>
+            </li>
+
+            <div class="divider my-1"></div>
+
+            <li>
+              <.link
+                navigate={~p"/email"}
+                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-inbox" class="w-4 h-4" /> {gettext("Email")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/timeline"}
+                class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Social")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/vpn"}
+                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("VPN")}
+              </.link>
+            </li>
+
+            <%= if @current_user.is_admin do %>
+              <div class="divider my-1"></div>
+              <li class="menu-title">
+                <span class="text-xs opacity-75">{gettext("Administration")}</span>
+              </li>
+              <li>
+                <.link
+                  navigate={~p"/pripyat"}
+                  class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Admin Panel")}
+                </.link>
+              </li>
+            <% end %>
+
+            <div class="divider my-1"></div>
+            
+<!-- Account & Support -->
+            <li>
+              <.link
+                navigate={~p"/account"}
+                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Account Settings")}
+              </.link>
+            </li>
+            <li>
+              <a
+                href="mailto:maxfield@elektrine.com?subject=Issue Report - Elektrine Beta"
+                class="gap-3 text-warning hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
+                  "Report Issue"
+                )}
+              </a>
+            </li>
+            <li>
+              <.link
+                href={~p"/logout"}
+                method="delete"
+                class="gap-3 text-error hover:bg-error/20 hover:text-error hover:border-l-4 hover:border-error transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" /> {gettext("Log out")}
+              </.link>
+            </li>
+          </ul>
+        </div>
+      <% else %>
+        <a href={~p"/login"} class="btn btn-ghost">Log in</a>
+        <a href={~p"/register"} class="btn btn-primary ml-2">Register</a>
+      <% end %>
+    </div>
+  </div>
+</div>
+<%!-- Flash messages for JavaScript to process --%>
+<div
+  id="flash-messages"
+  class="hidden"
+  data-info={Phoenix.Flash.get(@flash, :info)}
+  data-error={Phoenix.Flash.get(@flash, :error)}
+>
+</div>
+
+<%!-- System Announcements --%>
+<%= if assigns[:active_announcements] && @active_announcements != [] do %>
+  <div class="container mx-auto px-4 pt-4">
+    <.announcements announcements={@active_announcements} dismissible />
+  </div>
+<% end %>
+
+<main
+  class="container mx-auto px-4 pt-8 flex-1"
+  id="app-notification-handler"
+  phx-hook="NotificationHandler"
+>
+  {@inner_content}
+</main>
+
+<footer class="relative mt-auto min-h-[360px] flex items-center overflow-x-clip">
+  <!-- Footer background image with 3D tilt effect -->
+  <div class="absolute bottom-4 right-4 h-[340px]">
+    <img
+      id="footer-art"
+      src="/images/e1.png"
+      alt=""
+      class="h-full w-auto object-contain opacity-20 tilt-3d mix-blend-screen"
+      phx-hook="Tilt3D"
+    />
+  </div>
+
+  <div class="container mx-auto px-4 py-8 max-w-6xl relative z-10">
+    <!-- Main Footer Content -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8 text-center md:text-left">
+      <!-- Company -->
+      <div>
+        <h3 class="font-semibold mb-3 text-sm">Company</h3>
+        <ul class="space-y-2 text-xs">
+          <li><a href="/about" class="link link-hover opacity-70 hover:opacity-100">About</a></li>
+          <li>
+            <a href="/contact" class="link link-hover opacity-70 hover:opacity-100">Contact</a>
+          </li>
+          <li><a href="/faq" class="link link-hover opacity-70 hover:opacity-100">FAQ</a></li>
+        </ul>
+      </div>
+      
+<!-- Legal -->
+      <div>
+        <h3 class="font-semibold mb-3 text-sm">Legal</h3>
+        <ul class="space-y-2 text-xs">
+          <li>
+            <a href="/terms" class="link link-hover opacity-70 hover:opacity-100">
+              Terms of Service
+            </a>
+          </li>
+          <li>
+            <a href="/privacy" class="link link-hover opacity-70 hover:opacity-100">
+              Privacy Policy
+            </a>
+          </li>
+          <li>
+            <a href="/vpn/policy" class="link link-hover opacity-70 hover:opacity-100">
+              VPN Policy
+            </a>
+          </li>
+        </ul>
+      </div>
+      
+<!-- Email Settings -->
+      <div class="col-span-2 md:col-span-1">
+        <h3 class="font-semibold mb-3 text-sm">Email Settings</h3>
+        <div class="text-xs opacity-70 space-y-1">
+          <p><span class="font-semibold">IMAP:</span> <span class="font-mono">993</span></p>
+          <p><span class="font-semibold">POP3:</span> <span class="font-mono">995</span></p>
+          <p><span class="font-semibold">SMTP:</span> <span class="font-mono">465</span></p>
+          <p class="pt-1 opacity-70">Server: <span class="font-mono">elektrine.com</span></p>
+        </div>
+        <p class="text-xs opacity-50 mt-2">SSL/TLS required</p>
+      </div>
+      
+<!-- Support -->
+      <div>
+        <h3 class="font-semibold mb-3 text-sm">Support</h3>
+        <ul class="space-y-2 text-xs">
+          <li>
+            <a
+              href="mailto:support@elektrine.com"
+              class="link link-hover opacity-70 hover:opacity-100"
+            >
+              support@elektrine.com
+            </a>
+          </li>
+          <li>
+            <a
+              href="mailto:security@elektrine.com"
+              class="link link-hover opacity-70 hover:opacity-100"
+            >
+              Report Security Issue
+            </a>
+          </li>
+        </ul>
+      </div>
+      
+<!-- Connect -->
+      <div>
+        <h3 class="font-semibold mb-3 text-sm">Connect</h3>
+        <div class="flex items-center gap-3 justify-center md:justify-start">
+          <a
+            href="https://github.com/businessfunk"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="opacity-60 hover:opacity-100 transition-opacity"
+            title="GitHub"
+          >
+            <.brand_icon name="github" class="w-5 h-5" />
+          </a>
+
+          <a
+            href="https://t.me/elektrine"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="opacity-60 hover:opacity-100 transition-opacity"
+            title="Telegram"
+          >
+            <.brand_icon name="telegram" class="w-5 h-5" />
+          </a>
+        </div>
+        <div class="mt-3">
+          <p class="text-xs opacity-70 mb-1">Tor Hidden Service</p>
+          <code class="text-xs opacity-60 break-all select-all">
+            mwomjji374vtw3al3lx42eriacwa5ayzkzyvfxgilcfjtijgtqelm5yd.onion
+          </code>
+        </div>
+      </div>
+    </div>
+    
+<!-- Bottom Bar -->
+    <div class="border-t border-base-300 pt-4">
+      <div class="flex flex-wrap justify-center items-center gap-4 text-xs opacity-60">
+        <span class="font-serif-accent">© 2026 Elektrine. All rights reserved.</span>
+        <span class="hidden sm:inline">•</span>
+        <span data-live-clock>
+          Server: {DateTime.utc_now() |> Calendar.strftime("%H:%M:%S UTC")}
+        </span>
+      </div>
+    </div>
+  </div>
+</footer>

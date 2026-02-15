@@ -1,0 +1,144 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-4 sm:mb-6">
+    <h1 class="text-xl sm:text-2xl font-bold">Active Users - {@title}</h1>
+    <p class="opacity-70 mt-2 text-sm sm:text-base">Total: {@total_count} users</p>
+  </div>
+  
+<!-- Timeframe Filter -->
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <div class="tabs tabs-bordered">
+        <%= for {value, label} <- [
+          {"1h", "Last Hour"},
+          {"24h", "Last 24 Hours"},
+          {"7d", "Last 7 Days"},
+          {"30d", "Last 30 Days"},
+          {"never", "Never Logged In"}
+        ] do %>
+          <.link
+            navigate={~p"/pripyat/active-users?timeframe=#{value}"}
+            class={["tab", if(@timeframe == value, do: "tab-active", else: "")]}
+          >
+            {label}
+          </.link>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  
+<!-- Active Users Table -->
+  <div class="card glass-card shadow-xl">
+    <div class="card-body p-3 sm:p-6">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th class="text-xs sm:text-sm">User</th>
+              <th class="text-xs sm:text-sm">Last Login</th>
+              <th class="text-xs sm:text-sm hidden lg:table-cell">IP Address</th>
+              <th class="text-xs sm:text-sm hidden md:table-cell">Login Count</th>
+              <th class="text-xs sm:text-sm">Status</th>
+              <th class="text-xs sm:text-sm">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for user <- @active_users do %>
+              <tr>
+                <td>
+                  <div>
+                    <div class="font-bold">{user.username}</div>
+                    <%= if user.is_admin do %>
+                      <div class="badge badge-error badge-xs">Admin</div>
+                    <% end %>
+                    <div class="text-xs opacity-50">
+                      Registered: {Calendar.strftime(user.inserted_at, "%Y-%m-%d")}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <%= if user.last_login_at do %>
+                    <div class="text-sm">
+                      {Calendar.strftime(user.last_login_at, "%Y-%m-%d %H:%M")}
+                    </div>
+                    <div class="text-xs opacity-50">
+                      {time_ago_in_words(user.last_login_at)} ago
+                    </div>
+                  <% else %>
+                    <span class="opacity-50">Never</span>
+                  <% end %>
+                </td>
+                <td class="hidden lg:table-cell">
+                  <span class="font-medium text-xs break-all max-w-xs">
+                    {user.last_login_ip || "-"}
+                  </span>
+                </td>
+                <td class="hidden md:table-cell">
+                  <span class="font-medium text-sm">{user.login_count || 0}</span>
+                </td>
+                <td>
+                  <div class="flex flex-wrap gap-1">
+                    <%= if user.two_factor_enabled do %>
+                      <div class="badge badge-success badge-sm">2FA</div>
+                    <% end %>
+                    <%= if user.last_login_at && DateTime.diff(DateTime.utc_now(), user.last_login_at, :hour) < 1 do %>
+                      <div class="badge badge-success badge-sm">Online</div>
+                    <% end %>
+                  </div>
+                </td>
+                <td>
+                  <.link
+                    navigate={~p"/pripyat/users/#{user.id}/edit"}
+                    class="btn btn-ghost btn-xs"
+                  >
+                    <.icon name="hero-pencil" class="w-3 h-3" /> View
+                  </.link>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+<!-- Pagination -->
+  <%= if @total_pages > 1 do %>
+    <div class="flex items-center justify-between mt-6">
+      <div class="text-sm opacity-70">
+        Page {@page} of {@total_pages}
+      </div>
+      <div class="join">
+        <%= if @page > 1 do %>
+          <.link
+            navigate={~p"/pripyat/active-users?page=#{@page - 1}&timeframe=#{@timeframe}"}
+            class="join-item btn btn-sm"
+          >
+            <.icon name="hero-chevron-left" class="w-4 h-4" />
+          </.link>
+        <% end %>
+
+        <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+          <%= if page_num == @page do %>
+            <button class="join-item btn btn-sm btn-active">{page_num}</button>
+          <% else %>
+            <.link
+              navigate={~p"/pripyat/active-users?page=#{page_num}&timeframe=#{@timeframe}"}
+              class="join-item btn btn-sm"
+            >
+              {page_num}
+            </.link>
+          <% end %>
+        <% end %>
+
+        <%= if @page < @total_pages do %>
+          <.link
+            navigate={~p"/pripyat/active-users?page=#{@page + 1}&timeframe=#{@timeframe}"}
+            class="join-item btn btn-sm"
+          >
+            <.icon name="hero-chevron-right" class="w-4 h-4" />
+          </.link>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,4 @@
+HiddenServiceDir /data/tor/elektrine/
+HiddenServicePort 80 127.0.0.1:8080
+DataDirectory /data/tor/data
+Log notice stdout

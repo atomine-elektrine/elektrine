@@ -1,0 +1,426 @@
+/* ==========================================================================
+   BASE - Reset, Fonts, Theme Variables
+   ========================================================================== */
+
+/* Dark mode only */
+:root {
+  color-scheme: dark;
+}
+
+html {
+  color-scheme: dark;
+  overflow-x: hidden;
+}
+
+body {
+  color: #d1d5db;
+}
+
+/* Selection highlight */
+::selection {
+  background: rgba(168, 85, 247, 0.3);
+  color: #ffffff;
+}
+
+/* Custom scrollbar - subtle dark theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.25) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(168, 85, 247, 0.25);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(168, 85, 247, 0.4);
+}
+
+/* Clickable elements cursor */
+[phx-click],
+[phx-submit],
+button:not(:disabled),
+a[href],
+.btn,
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   FONT SYSTEM - Self-hosted Inter
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Inter-Light.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Inter-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Inter-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Inter-Bold.woff2') format('woff2');
+}
+
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+  }
+}
+
+/* ==========================================================================
+   THEME - DaisyUI Dark Theme Overrides (EVA palette)
+   ========================================================================== */
+
+html[data-theme="dark"],
+:root[data-theme="dark"],
+[data-theme="dark"],
+[data-theme=dark] {
+  --color-primary: oklch(55% 0.28 295) !important;
+  --color-primary-content: #ffffff !important;
+  --color-secondary: oklch(55% 0.25 15) !important;
+  --color-secondary-content: #ffffff !important;
+  --color-accent: oklch(60% 0.26 310) !important;
+  --color-accent-content: #ffffff !important;
+  --color-neutral: #171717 !important;
+  --color-neutral-content: #e5e5e5 !important;
+  --color-base-100: #000000 !important;
+  --color-base-200: #0a0a0a !important;
+  --color-base-300: #141414 !important;
+  --color-base-content: #e5e5e5 !important;
+  --color-info: oklch(60% 0.22 285) !important;
+  --color-info-content: #ffffff !important;
+  --color-success: oklch(65% 0.20 145) !important;
+  --color-success-content: #000000 !important;
+  --color-warning: oklch(68% 0.22 35) !important;
+  --color-warning-content: #000000 !important;
+  --color-error: oklch(58% 0.26 20) !important;
+  --color-error-content: #ffffff !important;
+}
+
+/* ==========================================================================
+   GRID BACKGROUNDS WITH SUBTLE CURSOR GLOW
+   ========================================================================== */
+
+:root {
+  --grid-color: rgba(168, 85, 247, 0.12);
+  --grid-x-color: rgba(168, 85, 247, 0.06);
+}
+
+/* Grid glow overlay - only brightens grid lines near cursor */
+#cursor-glow-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  contain: strict;
+  background-size: 40px 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(168,85,247,0.12)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(168,85,247,0.08)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(168,85,247,0.08)' stroke-width='1'/%3E%3C/svg%3E");
+  mask-image: radial-gradient(
+    350px circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
+    rgba(0,0,0,0.5) 0%,
+    rgba(0,0,0,0.2) 40%,
+    transparent 70%
+  );
+  -webkit-mask-image: radial-gradient(
+    350px circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
+    rgba(0,0,0,0.5) 0%,
+    rgba(0,0,0,0.2) 40%,
+    transparent 70%
+  );
+}
+
+body.bg-base-100 {
+  background-color: oklch(var(--b1));
+  background-size: 40px 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(168,85,247,0.12)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(168,85,247,0.06)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(168,85,247,0.06)' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* Grid color variants */
+body[data-grid="purple"], body.grid-purple {
+  --grid-color: rgba(168, 85, 247, 0.06);
+}
+
+body[data-grid="cyan"], body.grid-cyan {
+  --grid-color: rgba(6, 182, 212, 0.06);
+}
+
+body[data-grid="red"], body.grid-red {
+  --grid-color: rgba(239, 68, 68, 0.06);
+}
+
+body[data-grid="green"], body.grid-green {
+  --grid-color: rgba(34, 197, 94, 0.06);
+}
+
+body[data-grid="orange"], body.grid-orange {
+  --grid-color: rgba(249, 115, 22, 0.06);
+}
+
+/* Apple-like glass card effect */
+.glass-card {
+  --mouse-x: -1000px;
+  --mouse-y: -1000px;
+  position: relative;
+  isolation: isolate;
+  background: oklch(var(--b2) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--bc) / 0.1);
+  border-radius: 1rem;
+  /* GPU acceleration for smooth glow animation */
+  transform: translateZ(0);
+}
+
+/* Sticky glass-cards need different containment to work properly */
+.glass-card.sticky {
+  contain: none;
+}
+
+/* Inner glow that follows cursor */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    400px circle at var(--mouse-x) var(--mouse-y),
+    rgba(168, 85, 247, 0.15),
+    transparent 40%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.glass-card:hover::before {
+  opacity: 1;
+}
+
+/* Border glow that follows cursor */
+.glass-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    600px circle at var(--mouse-x) var(--mouse-y),
+    rgba(168, 85, 247, 0.5),
+    rgba(6, 182, 212, 0.3) 30%,
+    transparent 50%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.glass-card:hover::after {
+  opacity: 1;
+}
+
+/* Ensure card content is above the glow effects */
+.glass-card > .card-body {
+  position: relative;
+  z-index: 1;
+}
+
+/* Logo glow effect - purple variant */
+.logo-glow-purple {
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.25)) drop-shadow(0 0 20px rgba(168, 85, 247, 0.12));
+}
+
+/* Logo glow effect - red variant */
+.logo-glow-red {
+  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.25)) drop-shadow(0 0 20px rgba(239, 68, 68, 0.12));
+}
+
+/* Glass pill button - floating notification style */
+.glass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: oklch(var(--bc));
+  background: oklch(var(--b2) / 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--bc) / 0.15);
+  border-radius: 9999px;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1),
+    inset 0 1px 0 0 oklch(var(--b3) / 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.glass-pill:hover {
+  background: oklch(var(--b2) / 0.95);
+  border-color: oklch(var(--p) / 0.4);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1),
+    0 0 20px -5px oklch(var(--p) / 0.3),
+    inset 0 1px 0 0 oklch(var(--b3) / 0.5);
+  transform: translateY(-1px);
+}
+
+.glass-pill:active {
+  transform: translateY(0);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+body[data-grid="blue"], body.grid-blue {
+  --grid-color: rgba(59, 130, 246, 0.06);
+}
+
+body[data-grid="pink"], body.grid-pink {
+  --grid-color: rgba(236, 72, 153, 0.06);
+}
+
+.bg-grid {
+  background-size: 40px 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(168,85,247,0.08)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(168,85,247,0.05)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(168,85,247,0.05)' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+.network-grid {
+  background-size: 50px 50px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect width='50' height='50' fill='none' stroke='rgba(168,85,247,0.05)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='50' y2='50' stroke='rgba(168,85,247,0.03)' stroke-width='1'/%3E%3Cline x1='50' y1='0' x2='0' y2='50' stroke='rgba(168,85,247,0.03)' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* ==========================================================================
+   BLINKENLIGHTS - Retro mainframe-style blinking lights grid
+   ========================================================================== */
+
+/* Hide regular grid when blinkenlights are active */
+body.has-blinkenlights {
+  background-image: none !important;
+}
+
+body.has-blinkenlights #cursor-glow-overlay {
+  display: none;
+}
+
+#blinkenlights-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: calc(100vh + 100px);
+  height: calc(100dvh + 100px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+
+
+.blinkenlight {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: rgba(150, 150, 150, 0.5);
+  transition: opacity 0.15s;
+}
+
+.blinkenlight.active {
+  animation: blinken-mono var(--blinken-duration, 6s) var(--blinken-delay, 0s) infinite ease-in-out;
+}
+
+.blinkenlight.finding {
+  background-color: rgba(255, 255, 255, 1) !important;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+
+.blinkenlight.action {
+  background-color: rgba(220, 220, 220, 1) !important;
+  box-shadow: 0 0 4px rgba(220, 220, 220, 0.6);
+}
+
+@keyframes blinken-mono {
+  0%, 75%, 100% {
+    background-color: rgba(150, 150, 150, 0.5);
+  }
+  80%, 95% {
+    background-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* ==========================================================================
+   3D TILT EFFECT - Mouse-responsive for transparent images
+   ========================================================================== */
+
+.tilt-3d {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+  transform-style: preserve-3d;
+  transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  will-change: transform, filter;
+}
+
+.tilt-3d:hover {
+  opacity: 0.8 !important;
+  filter:
+    brightness(1.5)
+    drop-shadow(0 0 20px rgba(168, 85, 247, 0.5))
+    drop-shadow(0 0 40px rgba(168, 85, 247, 0.3))
+    drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
+}
+
+

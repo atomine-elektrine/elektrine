@@ -1,0 +1,193 @@
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-base-content">Badge Management</h1>
+    <p class="text-base-content/70 mt-2">Grant and manage user badges</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- User Search -->
+    <div class="card glass-card shadow-lg">
+      <div class="card-body">
+        <h2 class="card-title mb-4">
+          <.icon name="hero-magnifying-glass" class="w-5 h-5" /> Search User
+        </h2>
+
+        <.form for={%{}} phx-submit="search_user" phx-change="search_user" class="space-y-4">
+          <div>
+            <input
+              type="text"
+              name="query"
+              value={@search_query}
+              placeholder="Search by username or handle..."
+              class="input input-bordered w-full"
+              autocomplete="off"
+            />
+          </div>
+        </.form>
+
+        <%= if length(@search_results) > 0 do %>
+          <div class="mt-4 space-y-2">
+            <%= for user <- @search_results do %>
+              <button
+                phx-click="select_user"
+                phx-value-user_id={user.id}
+                class="w-full p-3 bg-base-200 hover:bg-base-300 rounded-lg flex items-center gap-3 transition-colors"
+              >
+                <div class="avatar placeholder">
+                  <div class="w-10 h-10 rounded-full bg-primary text-primary-content">
+                    <span>{String.upcase(String.first(user.username))}</span>
+                  </div>
+                </div>
+                <div class="text-left">
+                  <p class="font-medium">{user.username}</p>
+                  <%= if user.handle do %>
+                    <p class="text-sm text-base-content/60">@{user.handle}</p>
+                  <% end %>
+                </div>
+              </button>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Selected User Badges -->
+    <div class="card glass-card shadow-lg">
+      <div class="card-body">
+        <h2 class="card-title mb-4">
+          <.icon name="hero-star" class="w-5 h-5" /> User Badges
+        </h2>
+
+        <%= if @selected_user do %>
+          <div class="mb-6 p-4 bg-base-200 rounded-lg">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="avatar placeholder">
+                <div class="w-12 h-12 rounded-full bg-primary text-primary-content">
+                  <span>{String.upcase(String.first(@selected_user.username))}</span>
+                </div>
+              </div>
+              <div>
+                <p class="font-bold">{@selected_user.username}</p>
+                <%= if @selected_user.handle do %>
+                  <p class="text-sm text-base-content/60">@{@selected_user.handle}</p>
+                <% end %>
+              </div>
+            </div>
+            
+<!-- Grant Badge -->
+            <div class="divider text-sm">Grant Badge</div>
+            <div class="grid grid-cols-2 gap-2">
+              <%= for badge_type <- ["staff", "verified", "supporter", "developer", "admin", "moderator", "contributor", "beta_tester"] do %>
+                <button
+                  phx-click="grant_badge"
+                  phx-value-user_id={@selected_user.id}
+                  phx-value-badge_type={badge_type}
+                  class="btn btn-sm btn-ghost"
+                >
+                  {String.capitalize(String.replace(badge_type, "_", " "))}
+                </button>
+              <% end %>
+            </div>
+          </div>
+          
+<!-- Current Badges -->
+          <%= if length(@user_badges) > 0 do %>
+            <div class="space-y-3">
+              <h3 class="font-semibold text-sm">Current Badges:</h3>
+              <%= for badge <- @user_badges do %>
+                <% # Create darker gradient colors (50% to 65%)
+                {r, g, b} = hex_to_rgb(badge.badge_color)
+                from_r = max(0, round(r * 0.5))
+                from_g = max(0, round(g * 0.5))
+                from_b = max(0, round(b * 0.5))
+                to_r = max(0, round(r * 0.65))
+                to_g = max(0, round(g * 0.65))
+                to_b = max(0, round(b * 0.65))
+                from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
+                to_color = "rgb(#{to_r}, #{to_g}, #{to_b})" %>
+                <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="badge text-white font-medium"
+                      style={"background: linear-gradient(to right, #{from_color}, #{to_color});"}
+                    >
+                      <%= if badge.badge_icon do %>
+                        <span class="mr-1">{badge.badge_icon}</span>
+                      <% end %>
+                      {badge.badge_text}
+                    </span>
+                    <%= if badge.tooltip do %>
+                      <span class="text-xs text-base-content/60">{badge.tooltip}</span>
+                    <% end %>
+                  </div>
+                  <button
+                    phx-click="revoke_badge"
+                    phx-value-badge_id={badge.id}
+                    class="btn btn-ghost btn-xs text-error"
+                    data-confirm="Revoke this badge?"
+                  >
+                    <.icon name="hero-trash" class="w-4 h-4" />
+                  </button>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-8">
+              <.icon name="hero-star" class="w-12 h-12 text-base-content/30 mx-auto mb-3" />
+              <p class="text-base-content/60">No badges yet</p>
+              <p class="text-sm text-base-content/40">Grant a badge above</p>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="text-center py-12">
+            <.icon name="hero-user" class="w-16 h-16 text-base-content/30 mx-auto mb-4" />
+            <p class="text-base-content/60">Search for a user to manage their badges</p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  
+<!-- Badge Reference -->
+  <div class="card glass-card shadow-lg mt-6">
+    <div class="card-body">
+      <h2 class="card-title mb-4">
+        <.icon name="hero-information-circle" class="w-5 h-5" /> Available Badges
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="flex items-center gap-2">
+          <span class="badge bg-purple-500 text-white">Staff</span>
+          <span class="text-xs text-base-content/60">Staff member</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-green-600 text-white">Verified</span>
+          <span class="text-xs text-base-content/60">Verified account</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-amber-500 text-white">Supporter</span>
+          <span class="text-xs text-base-content/60">Platform supporter</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-blue-600 text-white">Developer</span>
+          <span class="text-xs text-base-content/60">Developer</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-red-900 text-white">Admin</span>
+          <span class="text-xs text-base-content/60">Administrator</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-purple-600 text-white">Moderator</span>
+          <span class="text-xs text-base-content/60">Moderator</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-purple-600 text-white">Contributor</span>
+          <span class="text-xs text-base-content/60">Active contributor</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-pink-600 text-white">Beta Tester</span>
+          <span class="text-xs text-base-content/60">Beta tester</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

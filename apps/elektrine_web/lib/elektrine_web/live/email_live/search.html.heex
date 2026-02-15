@@ -1,0 +1,266 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+  <div class="flex flex-col lg:flex-row gap-6">
+    <.sidebar
+      mailbox={@mailbox}
+      storage_info={@storage_info}
+      unread_count={@unread_count}
+      current_page="search"
+      current_user={@current_user}
+    />
+    
+<!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-hidden">
+      <div
+        id="search-email-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box"
+      >
+        <div class="card-body p-6">
+          <!-- Header -->
+          <div class="flex items-center space-x-3 mb-6">
+            <div class="p-2 bg-primary/10 rounded-lg">
+              <.icon name="hero-magnifying-glass" class="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold">{gettext("Search")}</h2>
+              <p class="text-sm text-base-content/70">
+                {gettext("Find emails by sender, subject, or content")}
+              </p>
+            </div>
+          </div>
+          
+<!-- Search Form -->
+          <div class="mb-6">
+            <.form for={%{}} as={:search} phx-submit="search" class="flex gap-3">
+              <div class="flex-1 relative">
+                <input
+                  type="text"
+                  name="search[query]"
+                  value={@search_query}
+                  placeholder={gettext("Search your emails...")}
+                  class="input w-full pl-12 pr-12"
+                  autocomplete="off"
+                />
+                <.icon
+                  name="hero-magnifying-glass"
+                  class="h-5 w-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/60"
+                />
+                <%= if @search_query != "" do %>
+                  <button
+                    type="button"
+                    phx-click="clear_search"
+                    class="absolute right-4 top-1/2 transform -translate-y-1/2 text-base-content/60 hover:text-base-content"
+                  >
+                    <.icon name="hero-x-mark" class="h-5 w-5" />
+                  </button>
+                <% end %>
+              </div>
+              <button type="submit" class="btn btn-primary" disabled={@searching}>
+                <%= if @searching do %>
+                  <.spinner size="sm" /> {gettext("Searching...")}
+                <% else %>
+                  <.icon name="hero-magnifying-glass" class="h-5 w-5 mr-2" /> {gettext("Search")}
+                <% end %>
+              </button>
+            </.form>
+            
+<!-- Search Tips -->
+            <div class="mt-2 text-sm text-base-content/60">
+              <strong>{gettext("Search tips:")}</strong>
+              {gettext(
+                "Use multiple words to narrow results • Search works across sender, subject, and message content"
+              )}
+            </div>
+          </div>
+          
+<!-- Search Results -->
+          <%= if @search_results do %>
+            <div class="space-y-4">
+              <!-- Results Header -->
+              <div class="flex items-center justify-between">
+                <div class="text-sm text-base-content/70">
+                  <%= if @search_results.total_count == 0 do %>
+                    {gettext("No results found for \"%{query}\"", query: @search_results.query)}
+                    <div class="mt-2 text-xs text-base-content/50">
+                      {gettext("Try searching for:")}
+                      <span class="font-medium bg-base-200 px-1 rounded">test</span>
+                      • <span class="font-medium bg-base-200 px-1 rounded">hello</span>
+                      • <span class="font-medium bg-base-200 px-1 rounded">@domain.com</span>
+                    </div>
+                  <% else %>
+                    {ngettext("%{count} result", "%{count} results", @search_results.total_count,
+                      count: @search_results.total_count
+                    )} {gettext("for \"%{query}\"", query: @search_results.query)}
+                    <%= if @search_results.total_pages > 1 do %>
+                      ({gettext("Page %{current} of %{total}",
+                        current: @search_results.page,
+                        total: @search_results.total_pages
+                      )})
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+
+              <%= if @search_results.total_count > 0 do %>
+                <!-- Messages List -->
+                <div id="search-messages-list" class="space-y-2" phx-hook="KeyboardShortcuts">
+                  <%= for message <- @search_results.messages do %>
+                    <div
+                      id={"message-#{message.id}"}
+                      class={"card glass-card border hover:shadow-md transition-shadow #{if message.read, do: "border-base-300", else: "border-primary/30 bg-primary/5"}"}
+                    >
+                      <div class="card-body p-4">
+                        <div class="flex items-center justify-between">
+                          <!-- Message Info -->
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-3">
+                              <!-- Avatar -->
+                              <div class="avatar">
+                                <div class="bg-primary text-primary-content rounded-lg w-10 h-10">
+                                  <div class="w-full h-full flex items-center justify-center">
+                                    <span class="text-sm font-semibold">
+                                      {get_sender_initials(message.from)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+<!-- Message Details -->
+                              <div class="flex-1 min-w-0">
+                                <div class="flex items-center space-x-2">
+                                  <span class={"font-semibold #{if message.read, do: "text-base-content", else: "text-primary"}"}>
+                                    {get_sender_name(message.from)}
+                                  </span>
+                                  <span class="text-sm text-base-content/60">
+                                    <.local_time
+                                      datetime={message.inserted_at}
+                                      format="datetime"
+                                      timezone={@timezone}
+                                      time_format={@time_format}
+                                    />
+                                  </span>
+                                  <%= if message.has_attachments do %>
+                                    <div
+                                      class="flex items-center gap-1 text-base-content/60"
+                                      title={gettext("Has attachments")}
+                                    >
+                                      <.icon name="hero-paper-clip" class="h-4 w-4" />
+                                      <%= if message.attachments && map_size(message.attachments) > 0 do %>
+                                        <span class="text-xs font-medium">
+                                          {map_size(message.attachments)}
+                                        </span>
+                                      <% end %>
+                                    </div>
+                                  <% end %>
+                                </div>
+                                <.link
+                                  navigate={~p"/email/view/#{message.hash || message.id}"}
+                                  class="block hover:underline"
+                                >
+                                  <div class={"text-sm #{if message.read, do: "text-base-content/80", else: "text-primary font-medium"}"}>
+                                    {truncate_subject(message.subject, 80)}
+                                  </div>
+                                  <div class="text-xs text-base-content/60 mt-1 line-clamp-2">
+                                    <%= if message.text_body do %>
+                                      {String.slice(message.text_body, 0, 150)}{if String.length(
+                                                                                     message.text_body
+                                                                                   ) > 150,
+                                                                                   do: "..."}
+                                    <% end %>
+                                  </div>
+                                </.link>
+                              </div>
+                            </div>
+                          </div>
+                          
+<!-- Quick Actions -->
+                          <div class="flex items-center space-x-1 ml-4">
+                            <div class="tooltip" data-tip={gettext("Archive")}>
+                              <button
+                                phx-click="quick_action"
+                                phx-value-action="archive"
+                                phx-value-message_id={message.id}
+                                class="btn btn-ghost btn-sm"
+                              >
+                                <.icon name="hero-archive-box" class="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div class="tooltip" data-tip={gettext("Reply")}>
+                              <button
+                                phx-click="quick_action"
+                                phx-value-action="reply"
+                                phx-value-message_id={message.id}
+                                class="btn btn-ghost btn-sm"
+                              >
+                                <.icon name="hero-arrow-uturn-left" class="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div class="tooltip" data-tip={gettext("Forward")}>
+                              <button
+                                phx-click="quick_action"
+                                phx-value-action="forward"
+                                phx-value-message_id={message.id}
+                                class="btn btn-ghost btn-sm"
+                              >
+                                <.icon name="hero-arrow-uturn-right" class="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+                
+<!-- Pagination -->
+                <%= if @search_results.total_pages > 1 do %>
+                  <div class="flex justify-center mt-6">
+                    <div class="join">
+                      <%= if @search_results.has_prev do %>
+                        <.link
+                          patch={
+                            ~p"/email/search?q=#{URI.encode(@search_results.query)}&page=#{@search_results.page - 1}"
+                          }
+                          class="join-item btn btn-ghost"
+                        >
+                          {gettext("« Previous")}
+                        </.link>
+                      <% end %>
+
+                      <div class="join-item btn btn-ghost btn-active">
+                        {gettext("Page %{current} of %{total}",
+                          current: @search_results.page,
+                          total: @search_results.total_pages
+                        )}
+                      </div>
+
+                      <%= if @search_results.has_next do %>
+                        <.link
+                          patch={
+                            ~p"/email/search?q=#{URI.encode(@search_results.query)}&page=#{@search_results.page + 1}"
+                          }
+                          class="join-item btn btn-ghost"
+                        >
+                          {gettext("Next »")}
+                        </.link>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          <% else %>
+            <!-- Search Placeholder -->
+            <div class="text-center py-12 bg-base-200 rounded-lg">
+              <.icon name="hero-magnifying-glass" class="h-12 w-12 mx-auto text-base-content/40" />
+              <p class="mt-4 text-lg">{gettext("Search your emails")}</p>
+              <p class="text-sm text-base-content/60 mt-2">
+                {gettext("Enter keywords to find messages by sender, subject, or content.")}
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

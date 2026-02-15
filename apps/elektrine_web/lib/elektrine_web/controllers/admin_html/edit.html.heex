@@ -1,0 +1,706 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold">Edit User</h1>
+    <p class="opacity-70 mt-2">Update user information.</p>
+  </div>
+  
+<!-- Quick Action Buttons -->
+  <%= if @user.id != @current_user.id do %>
+    <div class="mb-6">
+      <div class="divider mb-4">Quick Actions</div>
+      <div class="flex flex-wrap gap-2">
+        <%= if !@user.is_admin && !@user.banned do %>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/users/#{@user.id}/impersonate"}
+            method="post"
+            class="inline"
+          >
+            <button
+              type="submit"
+              data-confirm={"Are you sure you want to impersonate #{@user.username}? This action will be logged."}
+              class="btn btn-info btn-sm"
+            >
+              <.icon name="hero-user-circle" class="w-4 h-4" /> Impersonate User
+            </button>
+          </.form>
+        <% end %>
+        <%= if @user.banned do %>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/users/#{@user.id}/unban"}
+            method="post"
+            class="inline"
+          >
+            <button
+              type="submit"
+              data-confirm="Are you sure?"
+              class="btn btn-success btn-sm"
+            >
+              <.icon name="hero-check-circle" class="w-4 h-4" /> Unban User
+            </button>
+          </.form>
+        <% else %>
+          <%= if !@user.is_admin do %>
+            <.link
+              href={~p"/pripyat/users/#{@user.id}/ban"}
+              class="btn btn-secondary btn-sm"
+            >
+              <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban User
+            </.link>
+          <% end %>
+        <% end %>
+
+        <%= if @user.suspended do %>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/users/#{@user.id}/unsuspend"}
+            method="post"
+            class="inline"
+          >
+            <button
+              type="submit"
+              data-confirm="Are you sure?"
+              class="btn btn-success btn-sm"
+            >
+              <.icon name="hero-play" class="w-4 h-4" /> Unsuspend User
+            </button>
+          </.form>
+        <% else %>
+          <%= if !@user.is_admin do %>
+            <.form
+              for={%{}}
+              action={~p"/pripyat/users/#{@user.id}/suspend"}
+              method="post"
+              class="inline"
+            >
+              <input type="hidden" name="suspension_reason" value="Suspended by administrator" />
+              <button
+                type="submit"
+                data-confirm="Are you sure?"
+                class="btn btn-warning btn-sm"
+              >
+                <.icon name="hero-pause" class="w-4 h-4" /> Suspend User
+              </button>
+            </.form>
+          <% end %>
+        <% end %>
+
+        <.form
+          for={%{}}
+          action={~p"/pripyat/users/#{@user.id}/reset-password"}
+          method="post"
+          class="inline"
+        >
+          <button
+            type="submit"
+            data-confirm={"Reset password for #{@user.username}? A temporary password will be generated and displayed."}
+            class="btn btn-outline btn-sm"
+          >
+            <.icon name="hero-key" class="w-4 h-4" /> Reset Password
+          </button>
+        </.form>
+
+        <%= if @user.two_factor_enabled do %>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/users/#{@user.id}/reset-2fa"}
+            method="post"
+            class="inline"
+          >
+            <button
+              type="submit"
+              data-confirm={"Disable 2FA for #{@user.username}? They will need to set it up again."}
+              class="btn btn-outline btn-warning btn-sm"
+            >
+              <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Disable 2FA
+            </button>
+          </.form>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <.form for={@changeset} action={~p"/pripyat/users/#{@user.id}"} method="put">
+        <div>
+          <label class="label">
+            <span>Username</span>
+          </label>
+          <input
+            type="text"
+            name="user[username]"
+            value={@user.username}
+            class="input w-full"
+            required
+          />
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Handle</span>
+            <span class="opacity-50">Social username</span>
+          </label>
+          <input
+            type="text"
+            name="user[handle]"
+            value={@user.handle}
+            class="input w-full"
+            placeholder="username"
+          />
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Display Name</span>
+            <span class="opacity-50">Optional</span>
+          </label>
+          <input
+            type="text"
+            name="user[display_name]"
+            value={@user.display_name}
+            class="input w-full"
+            placeholder="John Smith"
+          />
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Recovery Email</span>
+            <span class="opacity-50">For password resets</span>
+          </label>
+          <input
+            type="email"
+            name="user[recovery_email]"
+            value={@user.recovery_email}
+            class="input w-full"
+            placeholder="user@example.com"
+          />
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Locale</span>
+            <span class="opacity-50">User interface language</span>
+          </label>
+          <select name="user[locale]" class="select select-bordered w-full">
+            <option value="en" selected={(@user.locale || "en") == "en"}>English</option>
+            <option value="zh" selected={@user.locale == "zh"}>中文</option>
+          </select>
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Timezone</span>
+            <span class="opacity-50">Display times in user's timezone</span>
+          </label>
+          <select name="user[timezone]" class="select select-bordered w-full">
+            <option value="" selected={is_nil(@user.timezone)}>Auto-detect</option>
+            <optgroup label="US Timezones">
+              <option value="America/New_York" selected={@user.timezone == "America/New_York"}>
+                Eastern Time
+              </option>
+              <option value="America/Chicago" selected={@user.timezone == "America/Chicago"}>
+                Central Time
+              </option>
+              <option value="America/Denver" selected={@user.timezone == "America/Denver"}>
+                Mountain Time
+              </option>
+              <option
+                value="America/Los_Angeles"
+                selected={@user.timezone == "America/Los_Angeles"}
+              >
+                Pacific Time
+              </option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option value="Europe/London" selected={@user.timezone == "Europe/London"}>
+                London
+              </option>
+              <option value="Europe/Paris" selected={@user.timezone == "Europe/Paris"}>
+                Paris
+              </option>
+              <option value="Europe/Berlin" selected={@user.timezone == "Europe/Berlin"}>
+                Berlin
+              </option>
+            </optgroup>
+            <optgroup label="Asia">
+              <option value="Asia/Tokyo" selected={@user.timezone == "Asia/Tokyo"}>Tokyo</option>
+              <option value="Asia/Shanghai" selected={@user.timezone == "Asia/Shanghai"}>
+                Shanghai
+              </option>
+              <option value="Asia/Hong_Kong" selected={@user.timezone == "Asia/Hong_Kong"}>
+                Hong Kong
+              </option>
+            </optgroup>
+            <optgroup label="Other">
+              <option value="Australia/Sydney" selected={@user.timezone == "Australia/Sydney"}>
+                Sydney
+              </option>
+              <option value="Etc/UTC" selected={@user.timezone == "Etc/UTC"}>UTC</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Time Format</span>
+            <span class="opacity-50">12-hour or 24-hour clock</span>
+          </label>
+          <select name="user[time_format]" class="select select-bordered w-full">
+            <option value="12" selected={(@user.time_format || "12") == "12"}>
+              12-hour (3:45 PM)
+            </option>
+            <option value="24" selected={@user.time_format == "24"}>24-hour (15:45)</option>
+          </select>
+        </div>
+
+        <div class="mt-4">
+          <label class="label">
+            <span>Avatar URL</span>
+            <span class="opacity-50">Optional</span>
+          </label>
+          <input
+            type="url"
+            name="user[avatar]"
+            value={@user.avatar}
+            class="input w-full"
+            placeholder="https://example.com/avatar.jpg"
+          />
+        </div>
+        
+<!-- Admin Controls -->
+        <div class="divider mt-6 mb-4">Account Status</div>
+
+        <div class="form-control mt-4">
+          <label class="label cursor-pointer">
+            <span class="label-text">Verified Account</span>
+            <input
+              type="hidden"
+              name="user[verified]"
+              value="false"
+            />
+            <input
+              type="checkbox"
+              name="user[verified]"
+              value="true"
+              checked={@user.verified}
+              class="toggle toggle-success"
+            />
+          </label>
+          <div class="label">
+            <span class="label-text-alt text-success">Shows verified checkmark on profile</span>
+          </div>
+        </div>
+        
+<!-- Trust Level Controls -->
+        <div class="form-control mt-4">
+          <label class="label">
+            <span class="label-text font-semibold">Trust Level</span>
+            <span class="label-text-alt">Discourse-style reputation system</span>
+          </label>
+          <select name="user[trust_level]" class="select select-bordered">
+            <option value="0" selected={@user.trust_level == 0}>TL0 - New (Default)</option>
+            <option value="1" selected={@user.trust_level == 1}>TL1 - Basic (Blue)</option>
+            <option value="2" selected={@user.trust_level == 2}>TL2 - Member (Green)</option>
+            <option value="3" selected={@user.trust_level == 3}>TL3 - Regular (Purple)</option>
+            <option value="4" selected={@user.trust_level == 4}>TL4 - Leader (Red)</option>
+          </select>
+        </div>
+
+        <div class="form-control mt-4">
+          <label class="label cursor-pointer">
+            <span class="label-text">Lock Trust Level</span>
+            <input
+              type="hidden"
+              name="user[trust_level_locked]"
+              value="false"
+            />
+            <input
+              type="checkbox"
+              name="user[trust_level_locked]"
+              value="true"
+              checked={@user.trust_level_locked}
+              class="toggle toggle-warning"
+            />
+          </label>
+          <div class="label">
+            <span class="label-text-alt text-warning">Prevents automatic promotion/demotion</span>
+          </div>
+        </div>
+
+        <div class="form-control mt-4">
+          <label class="label cursor-pointer">
+            <span class="label-text">Account banned</span>
+            <input
+              type="checkbox"
+              name="user[banned]"
+              checked={@user.banned}
+              class="toggle toggle-error"
+              disabled={@user.is_admin}
+            />
+          </label>
+          <div class="label">
+            <span class="label-text-alt text-error">Prevents user from logging in</span>
+          </div>
+        </div>
+
+        <%= if @user.banned do %>
+          <div class="mt-4">
+            <label class="label">
+              <span>Ban Reason</span>
+              <span class="opacity-50">Why was this user banned?</span>
+            </label>
+            <textarea
+              name="user[banned_reason]"
+              class="textarea textarea-bordered w-full"
+              rows="3"
+              placeholder="Reason for banning this user..."
+            >{@user.banned_reason}</textarea>
+          </div>
+        <% end %>
+
+        <div class="form-control mt-4">
+          <label class="label cursor-pointer">
+            <span class="label-text">Account suspended</span>
+            <input
+              type="checkbox"
+              name="user[suspended]"
+              checked={@user.suspended}
+              class="toggle toggle-warning"
+              disabled={@user.is_admin}
+            />
+          </label>
+          <div class="label">
+            <span class="label-text-alt text-warning">
+              Temporarily prevents user from logging in
+            </span>
+          </div>
+        </div>
+
+        <%= if @user.suspended do %>
+          <div class="mt-4">
+            <label class="label">
+              <span>Suspended Until</span>
+              <span class="opacity-50">When should the suspension end?</span>
+            </label>
+            <input
+              type="datetime-local"
+              name="user[suspended_until]"
+              value={format_datetime_local(@user.suspended_until)}
+              class="input input-bordered w-full"
+            />
+          </div>
+          <div class="mt-4">
+            <label class="label">
+              <span>Suspension Reason</span>
+              <span class="opacity-50">Why was this user suspended?</span>
+            </label>
+            <textarea
+              name="user[suspension_reason]"
+              class="textarea textarea-bordered w-full"
+              rows="2"
+              placeholder="Reason for suspending this user..."
+            >{@user.suspension_reason}</textarea>
+          </div>
+        <% end %>
+
+        <div class="card-actions justify-between mt-6">
+          <.link href={~p"/pripyat/users"} class="btn btn-ghost">
+            Cancel
+          </.link>
+
+          <button type="submit" class="btn btn-primary">
+            <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update User
+          </button>
+        </div>
+      </.form>
+    </div>
+  </div>
+  
+<!-- User Info Card -->
+  <div class="card glass-card shadow-xl mt-6">
+    <div class="card-body">
+      <h2 class="card-title">User Information</h2>
+
+      <div class="stats stats-vertical lg:stats-horizontal shadow">
+        <div class="stat">
+          <div class="stat-title">User ID</div>
+          <div class="stat-value text-sm">{@user.id}</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title">Status</div>
+          <div class="stat-value text-sm">
+            <%= cond do %>
+              <% @user.banned -> %>
+                <div class="badge badge-error">Banned</div>
+              <% @user.suspended && Elektrine.Accounts.user_suspended?(@user) -> %>
+                <div class="badge badge-warning">Suspended</div>
+              <% @user.is_admin -> %>
+                <div class="badge badge-secondary">Admin</div>
+              <% true -> %>
+                <div class="badge badge-success">Active</div>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title">Joined</div>
+          <div class="stat-value text-sm">
+            {Calendar.strftime(@user.inserted_at, "%B %d, %Y")}
+          </div>
+        </div>
+      </div>
+      
+<!-- Social Identity Information -->
+      <div class="divider">Social Identity</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Handle</span>
+          </label>
+          <div class="input input-bordered flex items-center">
+            <span class="font-medium">{@user.handle || "Not set"}</span>
+          </div>
+        </div>
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Display Name</span>
+          </label>
+          <div class="input input-bordered flex items-center">
+            <span>{@user.display_name || @user.username}</span>
+          </div>
+        </div>
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Login Username</span>
+          </label>
+          <div class="input input-bordered flex items-center">
+            <span class="font-medium">{@user.username}</span>
+          </div>
+        </div>
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Unique ID</span>
+          </label>
+          <div class="input input-bordered flex items-center">
+            <span class="font-medium text-xs opacity-70">{@user.unique_id || "Not set"}</span>
+          </div>
+        </div>
+      </div>
+
+      <%= if @user.handle_changed_at do %>
+        <div class="alert alert-info mt-4">
+          <.icon name="hero-information-circle" class="w-4 h-4" />
+          <span class="text-sm">
+            Handle last changed: {Calendar.strftime(
+              @user.handle_changed_at,
+              "%B %d, %Y at %I:%M %p"
+            )}
+          </span>
+        </div>
+      <% end %>
+
+      <%= if @user.banned do %>
+        <div class="alert alert-error mt-4">
+          <.icon name="hero-x-circle" class="stroke-current shrink-0 w-6 h-6" />
+          <div>
+            <h3 class="font-bold">User is banned</h3>
+            <div class="text-xs">
+              <%= if @user.banned_reason do %>
+                Reason: {@user.banned_reason}
+              <% end %>
+              <%= if @user.banned_at do %>
+                <br />Banned on: {Calendar.strftime(@user.banned_at, "%B %d, %Y at %I:%M %p")}
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- IP Address Information -->
+  <div class="card glass-card shadow-xl mt-6">
+    <div class="card-body">
+      <h2 class="card-title">IP Address Information</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="stat">
+          <div class="stat-title">Registration IP</div>
+          <div class="stat-value text-xs font-medium break-all">
+            <%= if @user.registration_ip do %>
+              {@user.registration_ip}
+            <% else %>
+              <span class="text-gray-400">Not recorded</span>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title">Last Login IP</div>
+          <div class="stat-value text-xs font-medium break-all">
+            <%= if @user.last_login_ip do %>
+              {@user.last_login_ip}
+            <% else %>
+              <span class="text-gray-400">Never logged in</span>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title">Last Login</div>
+          <div class="stat-value text-sm">
+            <%= if @user.last_login_at do %>
+              {Calendar.strftime(@user.last_login_at, "%B %d, %Y at %I:%M %p")}
+            <% else %>
+              <span class="text-gray-400">Never</span>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-title">Total Logins</div>
+          <div class="stat-value text-sm">
+            {@user.login_count || 0}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+<!-- Email Aliases -->
+  <div class="card glass-card shadow-xl mt-6">
+    <div class="card-body">
+      <h2 class="card-title">Email Aliases</h2>
+
+      <%= if @aliases && length(@aliases) > 0 do %>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Alias Email</th>
+                <th>Target Email</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for alias <- @aliases do %>
+                <tr>
+                  <td class="font-medium text-sm">{alias.alias_email}</td>
+                  <td class="font-medium text-sm">{alias.target_email}</td>
+                  <td class="text-sm">{alias.description || "-"}</td>
+                  <td>
+                    <%= if alias.enabled do %>
+                      <div class="badge badge-success badge-sm">Active</div>
+                    <% else %>
+                      <div class="badge badge-ghost badge-sm">Disabled</div>
+                    <% end %>
+                  </td>
+                  <td class="text-sm">
+                    {Calendar.strftime(alias.inserted_at, "%m/%d/%y")}
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-sm opacity-70 mt-2">
+          Total aliases: {length(@aliases)} / 5
+        </div>
+      <% else %>
+        <p class="text-sm opacity-70">No email aliases configured</p>
+      <% end %>
+    </div>
+  </div>
+  
+<!-- Related Accounts -->
+  <%= if length(@related_by_registration) > 0 do %>
+    <div class="card glass-card shadow-xl mt-6">
+      <div class="card-body">
+        <h2 class="card-title text-warning">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" /> Related Accounts Detected
+        </h2>
+        <p class="text-sm opacity-70">
+          This user shares IP addresses with other accounts, which could indicate multi-account usage.
+        </p>
+        
+<!-- Related by Registration IP -->
+        <%= if length(@related_by_registration) > 0 do %>
+          <div class="mt-4">
+            <h3 class="font-semibold text-orange-600 mb-2">
+              <.icon name="hero-user-plus" class="w-4 h-4 inline" />
+              Same Registration IP ({@user.registration_ip})
+            </h3>
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Registered</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for related_user <- @related_by_registration do %>
+                    <tr>
+                      <td>
+                        <div class="flex items-center gap-2">
+                          <div class="avatar">
+                            <div class="bg-orange-500 text-white rounded-lg w-8 h-8">
+                              <span class="text-xs font-bold flex items-center justify-center h-full">
+                                {String.first(related_user.username) |> String.upcase()}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <div class="font-semibold">{related_user.username}</div>
+                            <div class="text-xs opacity-50">ID: {related_user.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <%= cond do %>
+                          <% related_user.banned -> %>
+                            <div class="badge badge-error badge-sm">Banned</div>
+                          <% related_user.is_admin -> %>
+                            <div class="badge badge-secondary badge-sm">Admin</div>
+                          <% true -> %>
+                            <div class="badge badge-success badge-sm">Active</div>
+                        <% end %>
+                      </td>
+                      <td class="text-sm">
+                        {Calendar.strftime(related_user.inserted_at, "%m/%d/%y %H:%M")}
+                      </td>
+                      <td class="text-sm">
+                        <%= if related_user.last_login_at do %>
+                          {Calendar.strftime(related_user.last_login_at, "%m/%d/%y %H:%M")}
+                        <% else %>
+                          <span class="text-gray-400">Never</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <.link
+                          href={~p"/pripyat/users/#{related_user.id}/edit"}
+                          class="btn btn-xs btn-ghost"
+                        >
+                          <.icon name="hero-pencil" class="w-3 h-3" />
+                        </.link>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

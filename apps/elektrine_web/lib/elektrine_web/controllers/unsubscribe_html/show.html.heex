@@ -1,0 +1,22 @@
+<div class="card glass-card shadow-xl max-w-md mx-auto">
+  <div class="card-body">
+    <h1 class="text-center text-3xl font-bold mb-6">Unsubscribe</h1>
+
+    <p class="text-center opacity-70 mb-6">
+      Are you sure you want to unsubscribe <strong>{@email}</strong>
+      from receiving emails{if @list_id, do: " from this mailing list", else: ""}?
+    </p>
+
+    <.form for={%{}} action={~p"/unsubscribe/confirm/#{@token}"} method="post">
+      <div class="flex flex-col gap-4 w-full">
+        <.button class="w-full btn-secondary">
+          Unsubscribe
+        </.button>
+
+        <.link href={~p"/"} class="btn btn-ghost w-full">
+          Cancel
+        </.link>
+      </div>
+    </.form>
+  </div>
+</div>

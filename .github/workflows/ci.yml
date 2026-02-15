@@ -1,0 +1,56 @@
+name: Quality Checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+    inputs:
+      allow_format_failure:
+        description: Allow formatting check to fail without failing the workflow
+        required: false
+        type: boolean
+        default: false
+
+env:
+  MIX_ENV: test
+  ELIXIR_VERSION: '1.19.4'
+  OTP_VERSION: '28'
+
+jobs:
+  quality_checks:
+    name: Code Quality (Format + Compile)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Restore deps cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Verify formatting
+        id: format_check
+        continue-on-error: ${{ inputs.allow_format_failure }}
+        run: mix format --check-formatted
+
+      - name: Emit warning when formatting is allowed to fail
+        if: ${{ inputs.allow_format_failure && steps.format_check.outcome == 'failure' }}
+        run: echo "::warning::Formatting check failed, but deploy can continue."
+
+      - name: Compile with warnings treated as errors
+        run: mix compile --warnings-as-errors

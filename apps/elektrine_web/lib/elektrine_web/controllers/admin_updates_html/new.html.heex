@@ -1,0 +1,80 @@
+<div class="p-6">
+  <div class="mb-6 flex justify-between items-start">
+    <div>
+      <h1 class="text-2xl font-bold">Add Platform Update</h1>
+      <p class="opacity-70 mt-2">Create a new changelog entry.</p>
+    </div>
+    <div class="flex gap-2">
+      <.link href={~p"/pripyat/updates"} class="btn btn-ghost">
+        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back
+      </.link>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <form action={~p"/pripyat/updates"} method="post" class="space-y-4">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+
+        <div>
+          <label class="label">
+            <span class="label-text">Title</span>
+            <span class="label-text-alt">Date will be set automatically</span>
+          </label>
+          <input
+            type="text"
+            name="update[title]"
+            placeholder="Platform Improvements"
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text">Badge (optional)</span>
+          </label>
+          <input
+            type="text"
+            name="update[badge]"
+            placeholder="NEW"
+            class="input input-bordered w-full"
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text">Description</span>
+          </label>
+          <input
+            type="text"
+            name="update[description]"
+            placeholder="Brief description of this update"
+            class="input input-bordered w-full"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text">Update Items</span>
+            <span class="label-text-alt">One item per line</span>
+          </label>
+          <textarea
+            name="update[items]"
+            class="textarea textarea-bordered w-full"
+            rows="6"
+            placeholder="Email delivery improvements&#10;Interface bug fixes&#10;Performance optimizations&#10;Security enhancements"
+            required
+          ></textarea>
+        </div>
+
+        <div class="mt-6">
+          <button type="submit" class="btn btn-primary">
+            Create Update
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,3154 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: zh\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Poedit 3.7\n"
+
+#: lib/elektrine_web/live/email_live/inbox.ex:139
+msgid "Messages refreshed"
+msgstr "消息已刷新"
+
+#: lib/elektrine_web/live/email_live/inbox.ex:162
+msgid "Message deleted successfully"
+msgstr "消息成功删除"
+
+#: lib/elektrine_web/live/email_live/inbox.ex:165, lib/elektrine_web/live/email_live/inbox.ex:175
+msgid "Message not found"
+msgstr "未找到消息"
+
+#: lib/elektrine_web/live/email_live/inbox.ex:187
+msgid "Message marked as spam"
+msgstr "该消息已被标记为垃圾邮件"
+
+#: lib/elektrine_web/live/email_live/inbox.ex:212
+msgid "Message archived"
+msgstr "消息已归档"
+
+#: lib/elektrine_web/live/email_live/compose.ex:254
+msgid "Email sent successfully!"
+msgstr "电子邮件已成功发送！"
+
+#: lib/elektrine_web/live/email_live/compose.ex:261
+msgid "You have reached your daily limit of 100 emails. Please try again tomorrow."
+msgstr "您已达到每日100封邮件的发送上限。请明天再次尝试。"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:400
+#: lib/elektrine_web/live/email_live/email_helpers.ex:403
+#: lib/elektrine_web/live/email_live/home.ex:1515
+#: lib/elektrine_web/live/email_live/home.html.heex:256
+#, elixir-autogen
+msgid "Inbox"
+msgstr "收件箱"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:420
+#: lib/elektrine_web/live/email_live/home.ex:1520
+#, elixir-autogen
+msgid "Sent"
+msgstr "已发送"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:405
+#: lib/elektrine_web/live/email_live/email_helpers.ex:499
+#, elixir-autogen
+msgid "Compose"
+msgstr "写信"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:468
+#: lib/elektrine_web/live/email_live/home.ex:1523
+#: lib/elektrine_web/live/email_live/home.html.heex:71
+#: lib/elektrine_web/live/email_live/home.html.heex:181
+#: lib/elektrine_web/live/email_live/search.html.heex:157
+#, elixir-autogen
+msgid "Archive"
+msgstr "存档"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:444
+#: lib/elektrine_web/live/email_live/home.ex:1521
+#, elixir-autogen
+msgid "Spam"
+msgstr "垃圾箱"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:317
+#, elixir-autogen
+msgid "Subject"
+msgstr "主题"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:89
+#: lib/elektrine_web/live/email_live/home.html.heex:823
+#, elixir-autogen
+msgid "To"
+msgstr "收件人"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:63
+#: lib/elektrine_web/live/email_live/home.html.heex:1117
+#, elixir-autogen
+msgid "From"
+msgstr "发件人"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:333
+#, elixir-autogen
+msgid "Message"
+msgstr "正文"
+
+msgid "Send"
+msgstr "发送"
+
+#: lib/elektrine_web/live/discussions_live/home.html.heex:360
+#: lib/elektrine_web/live/discussions_live/home.html.heex:696
+#: lib/elektrine_web/live/email_live/home.html.heex:577
+#: lib/elektrine_web/live/email_live/home.html.heex:1165
+#: lib/elektrine_web/live/email_live/show.html.heex:182
+#: lib/elektrine_web/live/email_live/show.html.heex:315
+#: lib/elektrine_web/live/timeline_live/home.html.heex:336
+#: lib/elektrine_web/live/timeline_live/home.html.heex:1191
+#, elixir-autogen
+msgid "Cancel"
+msgstr "取消"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:900
+#: lib/elektrine_web/live/email_live/search.html.heex:167
+#: lib/elektrine_web/live/email_live/show.html.heex:49
+#: lib/elektrine_web/live/email_live/show.html.heex:247
+#: lib/elektrine_web/live/timeline_live/home.html.heex:1195
+#, elixir-autogen
+msgid "Reply"
+msgstr "回复"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:916
+#: lib/elektrine_web/live/email_live/search.html.heex:177
+#: lib/elektrine_web/live/email_live/show.html.heex:256
+#, elixir-autogen
+msgid "Forward"
+msgstr "转发"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:83
+#: lib/elektrine_web/live/email_live/home.html.heex:234
+#: lib/elektrine_web/live/email_live/home.html.heex:681
+#: lib/elektrine_web/live/email_live/show.html.heex:95
+#, elixir-autogen
+msgid "Delete"
+msgstr "删除"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:77
+#: lib/elektrine_web/live/email_live/home.html.heex:213
+#, elixir-autogen
+msgid "Mark as Spam"
+msgstr "标记为垃圾邮件"
+
+msgid "Admin"
+msgstr "管理员"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:353
+#: lib/elektrine_web/controllers/page_html/home.html.heex:476
+#, elixir-autogen
+msgid "Users"
+msgstr "用户数"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:81
+#, elixir-autogen
+msgid "Messages"
+msgstr "消息"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:73
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:3
+#, elixir-autogen
+msgid "Mailboxes"
+msgstr "邮箱"
+
+msgid "Login"
+msgstr "登录"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:3
+#, elixir-autogen
+msgid "Register"
+msgstr "注册"
+
+msgid "Logout"
+msgstr "退出"
+
+msgid "Account"
+msgstr "账户"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:12
+#, elixir-autogen
+msgid "Settings"
+msgstr "设置"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:20
+#, elixir-autogen
+msgid "Profile"
+msgstr "个人资料"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:525
+#, elixir-autogen
+msgid "Language"
+msgstr "语言"
+
+msgid "English"
+msgstr "英语"
+
+msgid "Spanish"
+msgstr "西班牙语"
+
+msgid "French"
+msgstr "法语"
+
+msgid "German"
+msgstr "德语"
+
+msgid "Chinese"
+msgstr "中文"
+
+msgid "Japanese"
+msgstr "日语"
+
+#: lib/elektrine_web/components/ui/table.ex:46
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:60
+#: lib/elektrine_web/live/email_live/home.html.heex:50
+#: lib/elektrine_web/live/email_live/home.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "操作"
+
+#: lib/elektrine_web/components/ui/modal.ex:64
+#, elixir-autogen, elixir-format
+msgid "close"
+msgstr "关闭"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "(%{count} emails left today)"
+msgstr "今日剩余 %{count} 封邮件"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:72
+#: lib/elektrine_web/live/email_live/show.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "(No Subject)"
+msgstr "(无主题)"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:454
+#: lib/elektrine_web/controllers/user_settings_html/edit.html.heex:3
+#: lib/elektrine_web/live/user_settings_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Account Settings"
+msgstr "账户设置"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Admin Dashboard"
+msgstr "管理面板"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:92
+#: lib/elektrine_web/live/email_live/home.html.heex:341
+#, elixir-autogen, elixir-format
+msgid "Aliases"
+msgstr "别名"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "Already have an account? Log in"
+msgstr "已经拥有账户？点此登录"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Approaching daily limit!"
+msgstr "即将达到每日上限！"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1272
+#: lib/elektrine_web/live/email_live/compose.ex:1274
+#: lib/elektrine_web/live/email_live/show.ex:449
+#: lib/elektrine_web/live/email_live/show.ex:451
+#, elixir-autogen, elixir-format
+msgid "Back to Inbox"
+msgstr "返回收件箱"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Back to Login"
+msgstr "返回登录"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "Blind carbon copy"
+msgstr "密送"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:169
+#, elixir-autogen, elixir-format
+msgid "Carbon copy"
+msgstr "副本"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Confirm password"
+msgstr "确认密码"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "Confirm your password"
+msgstr "确认您的密码"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:508
+#, elixir-autogen, elixir-format
+msgid "Create Alias"
+msgstr "创建别名"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:440
+#, elixir-autogen, elixir-format
+msgid "Create New Alias"
+msgstr "创建新的别名"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "Create account"
+msgstr "创建账户"
+
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Create an account"
+msgstr "创建一个账户"
+
+#: lib/elektrine_web/controllers/user_settings_html/edit.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "Current avatar"
+msgstr "当前头像"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "Daily limit reached!"
+msgstr "已达每日上限！"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:489
+#, elixir-autogen, elixir-format
+msgid "Description (optional)"
+msgstr "描述（可选）"
+
+#: lib/elektrine_web/components/platform/elektrine_nav.ex:36
+#: lib/elektrine_web/live/email_live/home.ex:1527
+#: lib/elektrine_web/live/user_settings_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr "邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1525
+#: lib/elektrine_web/live/email_live/home.html.heex:427
+#: lib/elektrine_web/live/user_settings_live.html.heex:774
+#: lib/elektrine_web/live/user_settings_live.html.heex:781
+#, elixir-autogen, elixir-format
+msgid "Email Aliases"
+msgstr "电子邮件别名"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:497
+#, elixir-autogen, elixir-format
+msgid "Enable immediately"
+msgstr "立即启用"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Enter your invite code"
+msgstr "输入您的邀请码"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:22
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Enter your password"
+msgstr "输入您的密码"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:14
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Enter your username"
+msgstr "输入您的用户名"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Enter your username or recovery email"
+msgstr "输入您的用户名或恢复邮箱"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Enter your username or recovery email address and we'll send you a link to reset your password."
+msgstr "输入您的用户名或恢复邮箱，我们将向您发送重置密码的链接。"
+
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Forgot your password?"
+msgstr "忘记密码？"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:475
+#, elixir-autogen, elixir-format
+msgid "Forward To (optional)"
+msgstr "转发至（可选）"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Forward this message to someone"
+msgstr "将此信息转发给"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:43
+#: lib/elektrine_web/components/layouts/app.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "Home"
+msgstr "首页"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:304
+#, elixir-autogen, elixir-format
+msgid "In 3 Days"
+msgstr "3 天内"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Invite Code"
+msgstr "邀请码"
+
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Keep me logged in"
+msgstr "保持我的登录状态"
+
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:3
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Log in"
+msgstr "登录"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:361
+#, elixir-autogen, elixir-format
+msgid "Main Email Forwarding"
+msgstr "主电子邮件地址转发"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:614
+#, elixir-autogen, elixir-format
+msgid "Main Mailbox"
+msgstr "主邮箱"
+
+#: lib/elektrine_web/controllers/user_settings_html/edit.html.heex:4
+#: lib/elektrine_web/live/user_settings_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Manage your account preferences and security settings"
+msgstr "管理首选账户和安全设置"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:65
+#: lib/elektrine_web/live/email_live/home.html.heex:173
+#: lib/elektrine_web/live/email_live/home.html.heex:976
+#: lib/elektrine_web/live/email_live/show.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Mark as Unread"
+msgstr "标记为未读"
+
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:112
+#: lib/elektrine_web/live/notifications_live.html.heex:292
+#, elixir-autogen, elixir-format
+msgid "Mark as read"
+msgstr "标记为已读"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1017
+#: lib/elektrine_web/live/email_live/home.html.heex:1058
+#, elixir-autogen, elixir-format
+msgid "Next"
+msgstr "下一个"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "Next Month"
+msgstr "下一个月"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:307
+#, elixir-autogen, elixir-format
+msgid "Next Week"
+msgstr "下一周"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:521
+#, elixir-autogen, elixir-format
+msgid "No email aliases yet"
+msgstr "没有电子邮件别名"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:39
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:112
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "OR"
+msgstr "或"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:7
+#: lib/elektrine_web/controllers/user_settings_html/edit.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Oops, something went wrong! Please check the errors below."
+msgstr "哎呀，出错了！请检查以下错误。"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:210
+#: lib/elektrine_web/live/email_live/search.html.heex:87
+#: lib/elektrine_web/live/email_live/search.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Page %{current} of %{total}"
+msgstr "当前%{current} / %{total}页"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:21
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:17
+#: lib/elektrine_web/live/user_settings_live.html.heex:234
+#, elixir-autogen, elixir-format
+msgid "Password"
+msgstr "密码"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Password must be at least 12 characters long"
+msgstr "密码长度至少为 12 个字符"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Pending Account Deletion Requests"
+msgstr "待处理的账户删除申请"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Please complete the captcha verification"
+msgstr "请完成验证码确认"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1031
+#, elixir-autogen, elixir-format
+msgid "Previous"
+msgstr "上一页"
+
+#: lib/elektrine_web/controllers/user_settings_html/edit.html.heex:13
+#: lib/elektrine_web/live/user_settings_live.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Profile Information"
+msgstr "个人简介"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Quick Search"
+msgstr "快速搜索"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:455
+#: lib/elektrine_web/live/email_live/compose.html.heex:669
+#, elixir-autogen, elixir-format
+msgid "Quote"
+msgstr "引用"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:264
+#, elixir-autogen, elixir-format
+msgid "Reply Later"
+msgstr "稍后回复"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Reply to this message"
+msgstr "回复此信息"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Reset Password"
+msgstr "重置密码"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:288
+#, elixir-autogen, elixir-format
+msgid "Schedule Reply Later"
+msgstr "稍后回复"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Search mailboxes..."
+msgstr "搜索邮箱..."
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:47
+#: lib/elektrine_web/live/email_live/home.html.heex:99
+#, elixir-autogen, elixir-format
+msgid "Search messages..."
+msgstr "搜索信息..."
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Search users..."
+msgstr "搜索用户..."
+
+#: lib/elektrine_web/components/layouts/app.html.heex:213
+#, elixir-autogen, elixir-format
+msgid "Search..."
+msgstr "搜索..."
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:795
+#, elixir-autogen, elixir-format
+msgid "Send Message"
+msgstr "发送消息"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Send Reset Link"
+msgstr "发送重置链接"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Send an email to someone"
+msgstr "给某人发送邮件"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:197
+#: lib/elektrine_web/live/email_live/home.html.heex:939
+#: lib/elektrine_web/live/email_live/show.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Set Aside"
+msgstr "暂存"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:59
+#: lib/elektrine_web/live/email_live/show.html.heex:301
+#, elixir-autogen, elixir-format
+msgid "Tomorrow"
+msgstr "明天"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Total Users"
+msgstr "用户总数"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:13
+#: lib/elektrine_web/controllers/user_session_html/new.html.heex:10
+#: lib/elektrine_web/live/user_settings_live.html.heex:749
+#, elixir-autogen, elixir-format
+msgid "Username"
+msgstr "用户名"
+
+#: lib/elektrine_web/controllers/password_reset_html/new.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Username or Recovery Email"
+msgstr "用户名或恢复邮箱"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Welcome back, %{username}"
+msgstr "欢迎回来，%{username}"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:296
+#, elixir-autogen, elixir-format
+msgid "When would you like to be reminded to reply to this message?"
+msgstr "您希望何时被提醒回复此信息？"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "You have %{count} emails remaining today."
+msgstr "您今天还剩下 %{count} 封电子邮件未读。"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "You have sent %{count} emails today."
+msgstr "您今天发送了 %{count} 封电子邮件。"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:82
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:139
+#: lib/elektrine_web/live/email_live/home.html.heex:624
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "激活"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "All emails to %{email} and %{alt_email} are being forwarded to %{forward_to}"
+msgstr "所有发送至 %{email} 和 %{alt_email} 的邮件均被转发至 %{forward_to}"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:678
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to delete this alias? This action cannot be undone."
+msgstr "您确定要删除此别名吗？此操作无法撤销。"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:430
+#, elixir-autogen, elixir-format
+msgid "Create additional email addresses on @elektrine.com or @z.org that can forward to specific destinations or deliver to your main mailbox"
+msgstr "在 @elektrine.com 或 @z.org 上创建其他电子邮件地址，可转发到特定邮箱地或发送到您的主邮箱"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:524
+#, elixir-autogen, elixir-format
+msgid "Create your first email alias above to start organizing your email with dedicated addresses for different purposes."
+msgstr "在这创建您的第一个电子邮件别名，不同的用途选择不同的别名。"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:629
+#: lib/elektrine_web/live/user_settings_live.html.heex:276
+#, elixir-autogen, elixir-format
+msgid "Disabled"
+msgstr "已禁用"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:388
+#, elixir-autogen, elixir-format
+msgid "Enable Forwarding"
+msgstr "启用转发"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:364
+#, elixir-autogen, elixir-format
+msgid "Forward all emails from %{email} and %{alt_email} to another address"
+msgstr "将 %{email} 和 %{alt_email} 的所有电子邮件转发到另一个邮件地址"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:380
+#, elixir-autogen, elixir-format
+msgid "Forward to Email"
+msgstr "转发到电子邮件"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:480
+#, elixir-autogen, elixir-format
+msgid "Leave empty to deliver emails to your main mailbox instead of forwarding"
+msgstr "留空则将电子邮件发送到您的主邮箱，而不是转发"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:401
+#, elixir-autogen, elixir-format
+msgid "Update Settings"
+msgstr "更新设置"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:490
+#, elixir-autogen, elixir-format
+msgid "e.g., Shopping accounts, newsletters, work projects..."
+msgstr "例如，购物账户、通讯、工作项目......"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:476
+#, elixir-autogen, elixir-format
+msgid "your.email@example.com (leave empty to use main mailbox)"
+msgstr "your.email@example.com （留空以使用主邮箱）"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:381
+#, elixir-autogen, elixir-format
+msgid "your.personal@example.com"
+msgstr "your.personal@example.com"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "%{count} mailbox found"
+msgid_plural "%{count} mailboxes found"
+msgstr[0] "找到 %{count} 个邮箱"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "%{count} result"
+msgid_plural "%{count} results"
+msgstr[0] "%{count} 个结果"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1147
+#, elixir-autogen, elixir-format
+msgid "1 week"
+msgstr "1周"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1155
+#, elixir-autogen, elixir-format
+msgid "2 weeks"
+msgstr "2周"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1139
+#, elixir-autogen, elixir-format
+msgid "3 days"
+msgstr "3天"
+
+#: lib/elektrine_web/live/email_live/home.ex:1540
+#, elixir-autogen, elixir-format
+msgid "Archived messages"
+msgstr "存档信息"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to delete this message?"
+msgstr "您确定要删除这条信息吗？"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:271
+#, elixir-autogen, elixir-format
+msgid "Attachment (%{count})"
+msgid_plural "Attachments (%{count})"
+msgstr[0] "附件（%{count}）"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "Attachments (%{count})"
+msgstr "附件 (%{count})"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:239
+#: lib/elektrine_web/live/email_live/show.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "BCC:"
+msgstr "密送："
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Back to Email"
+msgstr "返回到邮件"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:232
+#: lib/elektrine_web/live/email_live/show.html.heex:128
+#, elixir-autogen, elixir-format
+msgid "CC:"
+msgstr "抄送："
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:59
+#: lib/elektrine_web/live/vpn_live/home.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr "创建"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Created at:"
+msgstr "创建于："
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:245
+#, elixir-autogen, elixir-format
+msgid "Date:"
+msgstr "日期："
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:91
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Delete orphaned mailbox"
+msgstr "删除孤立邮箱"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:102
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:174
+#, elixir-autogen, elixir-format
+msgid "Delete orphaned mailbox %{email}?"
+msgstr "删除孤立邮箱 %{email}？"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:220
+#: lib/elektrine_web/live/vpn_live/home.html.heex:240
+#, elixir-autogen, elixir-format
+msgid "Download"
+msgstr "下载"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Email Address"
+msgstr "邮件地址"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:234
+#, elixir-autogen, elixir-format
+msgid "Enter keywords to find messages by sender, subject, or content."
+msgstr "输入关键字，按发件人、主题或内容查找信息。"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Find emails by sender, subject, or content"
+msgstr "按发件人、主题或内容查找电子邮件"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:221
+#: lib/elektrine_web/live/email_live/raw.html.heex:63
+#: lib/elektrine_web/live/email_live/show.html.heex:107
+#: lib/elektrine_web/live/email_live/show.html.heex:291
+#, elixir-autogen, elixir-format
+msgid "From:"
+msgstr "来自："
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:68
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "ID:"
+msgstr "ID："
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:288
+#, elixir-autogen, elixir-format
+msgid "Mailbox:"
+msgstr "邮箱："
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:253
+#: lib/elektrine_web/live/email_live/raw.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Message ID:"
+msgstr "邮件 ID："
+
+#: lib/elektrine_web/live/email_live/search.html.heex:220
+#, elixir-autogen, elixir-format
+msgid "Next »"
+msgstr "下一个 »"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:6
+#: lib/elektrine_web/controllers/email_html/print.html.heex:216
+#, elixir-autogen, elixir-format
+msgid "No Subject"
+msgstr "无主题"
+
+#: lib/elektrine_web/live/email_live/home.ex:1572
+#, elixir-autogen, elixir-format
+msgid "No archived messages"
+msgstr "无存档信息"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "No results found for \"%{query}\""
+msgstr "未找到\"%{query}\"的结果"
+
+#: lib/elektrine_web/live/email_live/home.ex:1570
+#, elixir-autogen, elixir-format
+msgid "No sent messages"
+msgstr "没有已发送的邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1571
+#, elixir-autogen, elixir-format
+msgid "No spam messages"
+msgstr "无垃圾邮件"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:73
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:150
+#, elixir-autogen, elixir-format
+msgid "No user association"
+msgstr "未关联用户"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:206
+#, elixir-autogen, elixir-format
+msgid "Not Spam"
+msgstr "不是垃圾邮件"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:72
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "ORPHANED"
+msgstr "孤立"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Overview of all user mailboxes in the system."
+msgstr "系统中所有用户邮箱的概览。"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:57
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Owner"
+msgstr "拥有者"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Print"
+msgstr "打印"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Print Email"
+msgstr "打印邮件"
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:286
+#, elixir-autogen, elixir-format
+msgid "Printed from Elektrine Email System"
+msgstr "从 Elektrine 电子邮件系统打印"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:110
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "Protected"
+msgstr "受保护"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Raw"
+msgstr "查看原文"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Raw Email Data"
+msgstr "原始电子邮件数据"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "Read"
+msgstr "阅读"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:53
+#: lib/elektrine_web/live/email_live/show.html.heex:251
+#, elixir-autogen, elixir-format
+msgid "Reply All"
+msgstr "全部回复"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:432
+#: lib/elektrine_web/live/email_live/home.ex:1524
+#: lib/elektrine_web/live/email_live/home.html.heex:105
+#: lib/elektrine_web/live/email_live/search.html.heex:21
+#: lib/elektrine_web/live/email_live/search.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Search"
+msgstr "搜索"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:20
+#, elixir-autogen, elixir-format
+msgid "Search by email address or username..."
+msgstr "按电子邮件地址或用户名搜索..."
+
+#: lib/elektrine_web/live/email_live/search.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Search tips:"
+msgstr "搜索提示："
+
+#: lib/elektrine_web/live/email_live/search.html.heex:232
+#, elixir-autogen, elixir-format
+msgid "Search your emails"
+msgstr "搜索您的电子邮件"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Search your emails..."
+msgstr "搜索您的电子邮件..."
+
+#: lib/elektrine_web/live/email_live/search.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Searching..."
+msgstr "搜索中"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:243
+#, elixir-autogen, elixir-format
+msgid "Showing %{start}-%{end} of %{total} mailboxes"
+msgstr "显示 %{start}-%{end}的 %{total}邮箱"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Showing results for \"%{query}\""
+msgstr "显示 \"%{query}\" 的结果"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "状态"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Subject:"
+msgstr "主题："
+
+#: lib/elektrine_web/controllers/email_html/print.html.heex:226
+#: lib/elektrine_web/live/email_live/raw.html.heex:67
+#: lib/elektrine_web/live/email_live/show.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "To:"
+msgstr "收件人："
+
+#: lib/elektrine_web/live/email_live/search.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Try searching for:"
+msgstr "尝试搜索："
+
+#: lib/elektrine_web/live/email_live/search.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Use multiple words to narrow results • Search works across sender, subject, and message content"
+msgstr "使用多个单词缩小搜索结果范围 - 搜索范围涵盖发件人、主题和邮件内容"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:890
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:102
+#, elixir-autogen, elixir-format
+msgid "View"
+msgstr "查看"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:291
+#, elixir-autogen, elixir-format
+msgid "Your Mailbox"
+msgstr "您的邮箱"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "for \"%{query}\""
+msgstr "搜索关键词“%{query}”"
+
+#: lib/elektrine_web/live/email_live/search.html.heex:205
+#, elixir-autogen, elixir-format
+msgid "« Previous"
+msgstr "« 上一页"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:444
+#, elixir-autogen, elixir-format
+msgid "Admin Panel"
+msgstr "管理面板"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:441
+#, elixir-autogen, elixir-format
+msgid "Administration"
+msgstr "管理员"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:467
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr "注销"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:462
+#, elixir-autogen, elixir-format
+msgid "Report Issue"
+msgstr "报告问题"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:508
+#, elixir-autogen, elixir-format
+msgid "Keyboard shortcuts (Shift + /)"
+msgstr "键盘快捷键（Shift + /）"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:510
+#, elixir-autogen, elixir-format
+msgid "Shortcuts"
+msgstr "快捷键"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "%{total} total mailboxes"
+msgstr "共有 %{total} 个邮箱"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1131
+#, elixir-autogen, elixir-format
+msgid "1 day"
+msgstr "1天"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1007
+#, elixir-autogen, elixir-format
+msgid "1 message"
+msgid_plural "%{count} messages"
+msgstr[0] "正文"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "Active Users"
+msgstr "活跃用户"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:728
+#, elixir-autogen, elixir-format
+msgid "Admin Delete"
+msgstr "管理员删除"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:447
+#, elixir-autogen, elixir-format
+msgid "Alias Username"
+msgstr "别名用户名"
+
+#: lib/elektrine_web/live/email_live/home.ex:1588
+#, elixir-autogen, elixir-format
+msgid "Archived messages will appear here"
+msgstr "已归档的邮件将显示在这里"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:521
+#, elixir-autogen, elixir-format
+msgid "Attachments to forward:"
+msgstr "将要转发的附件："
+
+#: lib/elektrine_web/live/email_live/compose.ex:1269
+#: lib/elektrine_web/live/email_live/show.ex:446
+#, elixir-autogen, elixir-format
+msgid "Back to Aliases"
+msgstr "返回到邮件"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1261
+#: lib/elektrine_web/live/email_live/show.ex:438
+#, elixir-autogen, elixir-format
+msgid "Back to Archive"
+msgstr "返回归档"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1268
+#: lib/elektrine_web/live/email_live/show.ex:445
+#, elixir-autogen, elixir-format
+msgid "Back to Boomerang"
+msgstr "返回定时提醒"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1265
+#: lib/elektrine_web/live/email_live/show.ex:442
+#, elixir-autogen, elixir-format
+msgid "Back to Bulk Mail"
+msgstr "返回批量邮件"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1266
+#: lib/elektrine_web/live/email_live/show.ex:443
+#, elixir-autogen, elixir-format
+msgid "Back to Paper Trail"
+msgstr "返回到邮件"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1271
+#: lib/elektrine_web/live/email_live/show.ex:448
+#, elixir-autogen, elixir-format
+msgid "Back to Read"
+msgstr "返回到邮件"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1262
+#: lib/elektrine_web/live/email_live/show.ex:439
+#, elixir-autogen, elixir-format
+msgid "Back to Search"
+msgstr "返回搜索"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1259
+#: lib/elektrine_web/live/email_live/show.ex:436
+#, elixir-autogen, elixir-format
+msgid "Back to Sent"
+msgstr "返回收件箱"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1260
+#: lib/elektrine_web/live/email_live/show.ex:437
+#, elixir-autogen, elixir-format
+msgid "Back to Spam"
+msgstr "返回到邮件"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1267
+#: lib/elektrine_web/live/email_live/show.ex:444
+#, elixir-autogen, elixir-format
+msgid "Back to The Pile"
+msgstr "返回待办箱"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1270
+#: lib/elektrine_web/live/email_live/show.ex:447
+#, elixir-autogen, elixir-format
+msgid "Back to Unread"
+msgstr "标记为未读"
+
+#: lib/elektrine_web/live/email_live/home.ex:1519
+#: lib/elektrine_web/live/email_live/home.html.heex:328
+#: lib/elektrine_web/live/email_live/home.html.heex:963
+#, elixir-autogen, elixir-format
+msgid "Boomerang"
+msgstr "定时提醒"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:424
+#: lib/elektrine_web/components/platform/z_nav.ex:46
+#, elixir-autogen, elixir-format
+msgid "Chat"
+msgstr "聊天"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:952
+#, elixir-autogen, elixir-format
+msgid "Clear Boomerang"
+msgstr "清除定时提醒"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:390
+#: lib/elektrine_web/live/email_live/compose.html.heex:604
+#, elixir-autogen, elixir-format
+msgid "Code"
+msgstr "代码"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:434
+#: lib/elektrine_web/components/platform/z_nav.ex:58
+#: lib/elektrine_web/live/discussions_live/home.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Communities"
+msgstr "社区"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1080
+#, elixir-autogen, elixir-format
+msgid "Compose Email"
+msgstr "写信"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:680
+#, elixir-autogen, elixir-format
+msgid "Copy Link"
+msgstr "复制链接"
+
+#: lib/elektrine_web/live/discussions_live/home.html.heex:364
+#: lib/elektrine_web/live/discussions_live/home.html.heex:549
+#, elixir-autogen, elixir-format
+msgid "Create Community"
+msgstr "创建社区"
+
+#: lib/elektrine_web/live/email_live/home.ex:1590
+#, elixir-autogen, elixir-format
+msgid "Create email aliases to organize your incoming mail and forward emails to different addresses."
+msgstr "创建电子邮件别名以整理收件，并将邮件转发到不同的地址。"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:695
+#, elixir-autogen, elixir-format
+msgid "Delete Post"
+msgstr "删除帖子"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:768
+#, elixir-autogen, elixir-format
+msgid "Deselect all messages"
+msgstr "取消选择所有消息"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:666
+#, elixir-autogen, elixir-format
+msgid "Disable"
+msgstr "已禁用"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:275
+#, elixir-autogen, elixir-format
+msgid "Download EML"
+msgstr "下载EML"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:669
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr "启用"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "Enter email subject (optional)"
+msgstr "输入您的邮件主题（可选）"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Found %{count} result for \"%{query}\""
+msgid_plural "Found %{count} results for \"%{query}\""
+msgstr[0] "找到 %{count} 条关于“%{query}”的结果"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "Last 24 Hours"
+msgstr "过去 24 小时"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Last 30 Days"
+msgstr "过去 30 天"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Last 7 Days"
+msgstr "过去 7 天"
+
+#: lib/elektrine_web/live/email_live/home.ex:1542
+#, elixir-autogen, elixir-format
+msgid "Manage your email aliases and forwarding rules"
+msgstr "管理您的邮箱别名和转发规则"
+
+#: lib/elektrine_web/live/email_live/home.ex:1538
+#, elixir-autogen, elixir-format
+msgid "Messages you have sent"
+msgstr "已发送邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1586
+#, elixir-autogen, elixir-format
+msgid "Messages you send will appear here"
+msgstr "您发送的邮件会显示在此处"
+
+#: lib/elektrine_web/live/email_live/home.ex:1537
+#, elixir-autogen, elixir-format
+msgid "Messages you've scheduled to be reminded about for replies"
+msgstr "您设定提醒以便稍后回复的邮件"
+
+#: lib/elektrine_web/live/discussions_live/home.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "My Communities"
+msgstr "我的社区"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:123
+#, elixir-autogen, elixir-format
+msgid "Never Logged In"
+msgstr "从未登录"
+
+#: lib/elektrine_web/live/discussions_live/home.html.heex:15
+#: lib/elektrine_web/live/discussions_live/home.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "New Community"
+msgstr "新建社区"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:44
+#: lib/elektrine_web/live/timeline_live/home.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "New Post"
+msgstr "新帖子"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1015
+#: lib/elektrine_web/live/email_live/home.html.heex:1056
+#, elixir-autogen, elixir-format
+msgid "Next page"
+msgstr "下一页"
+
+#: lib/elektrine_web/live/email_live/home.ex:1574
+#, elixir-autogen, elixir-format
+msgid "No email aliases"
+msgstr "没有电子邮件别名"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "No mailboxes found"
+msgstr "未找到邮箱"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "No mailboxes have been created yet."
+msgstr "尚未创建任何邮箱。"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "No mailboxes match your search criteria."
+msgstr "没有符合搜索条件的邮箱。"
+
+#: lib/elektrine_web/live/email_live/home.ex:1575
+#, elixir-autogen, elixir-format
+msgid "No messages"
+msgstr "尚无留言"
+
+#: lib/elektrine_web/live/email_live/home.ex:1565
+#, elixir-autogen, elixir-format
+msgid "No messages in your inbox"
+msgstr "收件箱暂无邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1573
+#, elixir-autogen, elixir-format
+msgid "No search results"
+msgstr "没有搜索结果"
+
+#: lib/elektrine_web/live/email_live/home.ex:1569
+#, elixir-autogen, elixir-format
+msgid "Nothing scheduled"
+msgstr "暂无安排"
+
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:80
+#: lib/elektrine_web/controllers/admin_html/mailboxes.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Orphaned"
+msgstr "孤立"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:340
+#, elixir-autogen, elixir-format
+msgid "Post"
+msgstr "发布"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:1175
+#, elixir-autogen, elixir-format
+msgid "Post your reply..."
+msgstr "发表你的回复..."
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1001
+#, elixir-autogen, elixir-format
+msgid "Prev"
+msgstr "上一页"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:998
+#: lib/elektrine_web/live/email_live/home.html.heex:1028
+#, elixir-autogen, elixir-format
+msgid "Previous page"
+msgstr "上一页"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1123
+#, elixir-autogen, elixir-format
+msgid "Remind me to reply in:"
+msgstr "提醒我在以下时间内回复："
+
+#: lib/elektrine_web/live/email_live/home.html.heex:190
+#: lib/elektrine_web/live/email_live/home.html.heex:928
+#, elixir-autogen, elixir-format
+msgid "Remove from Pile"
+msgstr "从待办箱移出"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:756
+#: lib/elektrine_web/live/timeline_live/home.html.heex:1131
+#, elixir-autogen, elixir-format
+msgid "Replying to"
+msgstr "回复"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:708
+#, elixir-autogen, elixir-format
+msgid "Report Post"
+msgstr "举报帖子"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1099
+#, elixir-autogen, elixir-format
+msgid "Schedule Reply"
+msgstr "稍后回复"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:1112
+#, elixir-autogen, elixir-format
+msgid "Schedule a reminder to reply to this message:"
+msgstr "为此邮件设置回复提醒："
+
+#: lib/elektrine_web/live/email_live/home.ex:1585
+#, elixir-autogen, elixir-format
+msgid "Schedule reminders for emails that need replies. Use the 'Boomerang' action on any message to set a follow-up reminder."
+msgstr "为需要回复的邮件安排定时提醒。对任何邮件使用「定时提醒」操作即可设置后续提醒。"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Search Email"
+msgstr "搜索邮箱"
+
+#: lib/elektrine_web/live/email_live/home.ex:1541
+#: lib/elektrine_web/live/email_live/home.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Search through your messages"
+msgstr "在邮件中搜索"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:770
+#, elixir-autogen, elixir-format
+msgid "Select all messages"
+msgstr "选择所有消息"
+
+#: lib/elektrine_web/live/discussions_live/home.html.heex:564
+#: lib/elektrine_web/live/discussions_live/home.html.heex:726
+#, elixir-autogen, elixir-format
+msgid "Sign In"
+msgstr "登录"
+
+#: lib/elektrine_web/live/email_live/home.ex:1539
+#, elixir-autogen, elixir-format
+msgid "Spam and junk messages"
+msgstr "垃圾邮件和无用信息"
+
+#: lib/elektrine_web/live/email_live/home.ex:1587
+#, elixir-autogen, elixir-format
+msgid "Spam messages will be moved here automatically"
+msgstr "垃圾邮件会自动移到这里"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:331
+#, elixir-autogen, elixir-format
+msgid "Storage Used"
+msgstr "已用存储"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:373
+#, elixir-autogen, elixir-format
+msgid "Storage limit exceeded"
+msgstr "存储容量已超出"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:378
+#, elixir-autogen, elixir-format
+msgid "Storage nearly full"
+msgstr "存储容量即将用尽"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:543
+#, elixir-autogen, elixir-format
+msgid "These attachments from the original message will be included when you send this forwarded email."
+msgstr "发送此转发邮件时将包含原邮件中的这些附件。"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:429
+#: lib/elektrine_web/components/platform/z_nav.ex:50
+#, elixir-autogen, elixir-format
+msgid "Timeline"
+msgstr "动态"
+
+#: lib/elektrine_web/live/email_live/home.ex:1589
+#, elixir-autogen, elixir-format
+msgid "Try searching for a specific term"
+msgstr "尝试搜索："
+
+#: lib/elektrine_web/live/email_live/home.html.heex:269
+#: lib/elektrine_web/live/notifications_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "Unread"
+msgstr "未读"
+
+#: lib/elektrine_web/controllers/admin_html/dashboard.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "View All"
+msgstr "查看全部"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:668
+#, elixir-autogen, elixir-format
+msgid "View Post"
+msgstr "查看帖子"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:284
+#, elixir-autogen, elixir-format
+msgid "What's on your mind?"
+msgstr "你在想什么？"
+
+#: lib/elektrine_web/live/email_live/home.ex:1581
+#, elixir-autogen, elixir-format
+msgid "When you receive emails, they will appear here"
+msgstr "当您收到邮件时，它们会显示在这里"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:537
+#, elixir-autogen, elixir-format
+msgid "Will be forwarded"
+msgstr "将被转发"
+
+#: lib/elektrine_web/live/email_live/home.ex:1544
+#, elixir-autogen, elixir-format
+msgid "Your email messages"
+msgstr "您的邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1533
+#, elixir-autogen, elixir-format
+msgid "Your incoming messages"
+msgstr "您的来信"
+
+#: lib/elektrine_web/live/email_live/home.ex:1591
+#, elixir-autogen, elixir-format
+msgid "Your messages will appear here"
+msgstr "您的消息会显示在这里"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:453
+#, elixir-autogen, elixir-format
+msgid "shopping, newsletter, work"
+msgstr "购物、简报、工作"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:549
+#, elixir-autogen, elixir-format
+msgid "ACTIVE"
+msgstr "进行中"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:535
+#, elixir-autogen, elixir-format
+msgid "Atoms"
+msgstr "原子数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Available on @elektrine.com and @z.org"
+msgstr "@elektrine.com 和 @z.org 均可用"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:577
+#, elixir-autogen, elixir-format
+msgid "Business account features"
+msgstr "企业账户功能"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:195
+#: lib/elektrine_web/controllers/page_html/home.html.heex:283
+#, elixir-autogen, elixir-format
+msgid "CHAT"
+msgstr "聊天"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "CREATE ACCOUNT"
+msgstr "创建账户"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:361
+#: lib/elektrine_web/controllers/page_html/home.html.heex:484
+#, elixir-autogen, elixir-format
+msgid "Chat Messages"
+msgstr "聊天消息数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:96
+#: lib/elektrine_web/controllers/page_html/home.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "EMAIL"
+msgstr "邮箱"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:357
+#: lib/elektrine_web/controllers/page_html/home.html.heex:480
+#, elixir-autogen, elixir-format
+msgid "Email Messages"
+msgstr "邮件数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:565
+#, elixir-autogen, elixir-format
+msgid "Email automation rules"
+msgstr "邮件自动化规则"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:573
+#, elixir-autogen, elixir-format
+msgid "FUTURE"
+msgstr "未来"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:206
+#, elixir-autogen, elixir-format
+msgid "Follow friends"
+msgstr "关注好友"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:548
+#, elixir-autogen, elixir-format
+msgid "IN PROGRESS"
+msgstr "开发中"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:349
+#: lib/elektrine_web/controllers/page_html/home.html.heex:472
+#, elixir-autogen, elixir-format
+msgid "Launch Date"
+msgstr "上线日期"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Like & comment"
+msgstr "点赞与评论"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:143
+#, elixir-autogen, elixir-format
+msgid "MY ACCOUNT"
+msgstr "我的账户"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:388
+#: lib/elektrine_web/controllers/page_html/home.html.heex:511
+#, elixir-autogen, elixir-format
+msgid "Memory"
+msgstr "内存"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:578
+#, elixir-autogen, elixir-format
+msgid "Mini-app ecosystem"
+msgstr "小程序生态"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:553
+#, elixir-autogen, elixir-format
+msgid "Mobile app (iOS/Android)"
+msgstr "移动应用（iOS/Android）"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:561
+#, elixir-autogen, elixir-format
+msgid "NEXT"
+msgstr "下一阶段"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:560
+#, elixir-autogen, elixir-format
+msgid "PLANNED"
+msgstr "规划中"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:346
+#: lib/elektrine_web/controllers/page_html/home.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "PLATFORM"
+msgstr "平台"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:392
+#: lib/elektrine_web/controllers/page_html/home.html.heex:515
+#, elixir-autogen, elixir-format
+msgid "Processes"
+msgstr "进程数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:543
+#, elixir-autogen, elixir-format
+msgid "ROADMAP"
+msgstr "路线图"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "SIGN IN"
+msgstr "登录"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:574
+#, elixir-autogen, elixir-format
+msgid "SOMEDAY"
+msgstr "未来某天"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:381
+#: lib/elektrine_web/controllers/page_html/home.html.heex:504
+#, elixir-autogen, elixir-format
+msgid "SYSTEM"
+msgstr "系统"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:205
+#, elixir-autogen, elixir-format
+msgid "Share posts & updates"
+msgstr "分享帖子与动态"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:203
+#: lib/elektrine_web/controllers/page_html/home.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "TIMELINE"
+msgstr "动态"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:365
+#: lib/elektrine_web/controllers/page_html/home.html.heex:488
+#, elixir-autogen, elixir-format
+msgid "Timeline Posts"
+msgstr "动态数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:438
+#, elixir-autogen, elixir-format
+msgid "UPDATES"
+msgstr "更新"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:552
+#, elixir-autogen, elixir-format
+msgid "Z social platform"
+msgstr "Z 社交平台"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Account Recovery"
+msgstr "账户恢复"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Add CC/BCC"
+msgstr "添加抄送/密送"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:47
+#: lib/elektrine_web/live/timeline_live/home.html.heex:380
+#: lib/elektrine_web/live/timeline_live/home.html.heex:389
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "全部"
+
+#: lib/elektrine_web/live/settings_live/app_passwords.ex:76
+#: lib/elektrine_web/live/user_settings_live.html.heex:297
+#, elixir-autogen, elixir-format
+msgid "App Passwords"
+msgstr "应用密码"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to permanently delete this message? This cannot be undone."
+msgstr "您确定要永久删除此邮件吗？此操作无法撤销。"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "BLOG.Z.ORG"
+msgstr "BLOG.Z.ORG"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:372
+#: lib/elektrine_web/live/email_live/compose.html.heex:586
+#, elixir-autogen, elixir-format
+msgid "Bold (Ctrl+B)"
+msgstr "粗体 (Ctrl+B)"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:422
+#: lib/elektrine_web/live/email_live/compose.html.heex:636
+#, elixir-autogen, elixir-format
+msgid "Bullet list"
+msgstr "无序列表"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:464
+#: lib/elektrine_web/live/email_live/compose.html.heex:678
+#, elixir-autogen, elixir-format
+msgid "Code block"
+msgstr "代码块"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:227
+#: lib/elektrine_web/live/email_live/show.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Delete Permanently"
+msgstr "永久删除"
+
+#: lib/elektrine_web/live/email_live/home.ex:1516
+#: lib/elektrine_web/live/email_live/home.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Digest"
+msgstr "摘要"
+
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:121
+#: lib/elektrine_web/live/notifications_live.html.heex:301
+#, elixir-autogen, elixir-format
+msgid "Dismiss"
+msgstr "关闭"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:655
+#, elixir-autogen, elixir-format
+msgid "Edit Forward-To"
+msgstr "编辑转发地址"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:561
+#: lib/elektrine_web/live/user_settings_live.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "已启用"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:440
+#: lib/elektrine_web/live/email_live/compose.html.heex:654
+#, elixir-autogen, elixir-format
+msgid "Insert link"
+msgstr "插入链接"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:381
+#: lib/elektrine_web/live/email_live/compose.html.heex:595
+#, elixir-autogen, elixir-format
+msgid "Italic (Ctrl+I)"
+msgstr "斜体 (Ctrl+I)"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:405
+#, elixir-autogen, elixir-format
+msgid "LATEST UPDATES"
+msgstr "最新动态"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:553
+#, elixir-autogen, elixir-format
+msgid "Leave empty for main mailbox"
+msgstr "留空则使用主邮箱"
+
+#: lib/elektrine_web/live/email_live/home.ex:1517
+#: lib/elektrine_web/live/email_live/home.html.heex:302
+#, elixir-autogen, elixir-format
+msgid "Ledger"
+msgstr "账本"
+
+#: lib/elektrine_web/live/settings_live/app_passwords.ex:77
+#, elixir-autogen, elixir-format
+msgid "Manage app-specific passwords for email clients"
+msgstr "管理邮件客户端的应用专用密码"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:25
+#: lib/elektrine_web/live/notifications_live.html.heex:129
+#: lib/elektrine_web/live/notifications_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Mark all as read"
+msgstr "全部标记为已读"
+
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:42
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "Mark all read"
+msgstr "全部标记为已读"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:59
+#: lib/elektrine_web/live/email_live/home.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Mark as Read"
+msgstr "标记为已读"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Message Metadata"
+msgstr "邮件元数据"
+
+#: lib/elektrine_web/live/email_live/home.ex:1536
+#, elixir-autogen, elixir-format
+msgid "Messages you've manually saved to process when you have more time"
+msgstr "您特意留待有空时处理的邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1534
+#, elixir-autogen, elixir-format
+msgid "Newsletters, updates, and automated messages from services and subscriptions"
+msgstr "来自服务和订阅的时事通讯、更新和自动消息"
+
+#: lib/elektrine_web/live/email_live/home.ex:1566
+#, elixir-autogen, elixir-format
+msgid "No digest emails"
+msgstr "暂无摘要邮件"
+
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:62
+#, elixir-autogen, elixir-format
+msgid "No notifications"
+msgstr "无通知"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "No notifications yet"
+msgstr "暂无通知"
+
+#: lib/elektrine_web/live/email_live/home.ex:1567
+#, elixir-autogen, elixir-format
+msgid "No receipts or records"
+msgstr "暂无收据或记录"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "No unread notifications"
+msgstr "暂无未读通知"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:489
+#: lib/elektrine_web/live/email_live/compose.html.heex:702
+#, elixir-autogen, elixir-format
+msgid "Nothing to preview yet..."
+msgstr "暂无预览内容..."
+
+#: lib/elektrine_web/components/layouts/app.html.heex:352
+#: lib/elektrine_web/components/notification/bell.ex:20
+#: lib/elektrine_web/components/notification/bell.ex:42
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:22
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:36
+#: lib/elektrine_web/live/notifications_live.html.heex:7
+#: lib/elektrine_web/live/user_settings_live.html.heex:56
+#: lib/elektrine_web/live/user_settings_live.html.heex:609
+#, elixir-autogen, elixir-format
+msgid "Notifications"
+msgstr "通知"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:431
+#: lib/elektrine_web/live/email_live/compose.html.heex:645
+#, elixir-autogen, elixir-format
+msgid "Numbered list"
+msgstr "有序列表"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Original email data and metadata"
+msgstr "原始邮件数据和元数据"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:355
+#: lib/elektrine_web/live/email_live/compose.html.heex:569
+#, elixir-autogen, elixir-format
+msgid "Preview"
+msgstr "预览"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:320
+#, elixir-autogen, elixir-format
+msgid "Privacy Settings"
+msgstr "隐私设置"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Public Profile"
+msgstr "公开资料"
+
+#: lib/elektrine_web/live/email_live/raw.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Raw Message"
+msgstr "原始邮件"
+
+#: lib/elektrine_web/live/email_live/home.ex:1535
+#, elixir-autogen, elixir-format
+msgid "Receipts, invoices, and financial records automatically filed for you"
+msgstr "自动为您归档的收据、发票和财务记录"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:221
+#: lib/elektrine_web/live/email_live/show.html.heex:78
+#, elixir-autogen, elixir-format
+msgid "Recover"
+msgstr "恢复"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:573
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr "保存"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:359
+#: lib/elektrine_web/live/email_live/compose.html.heex:573
+#, elixir-autogen, elixir-format
+msgid "Split"
+msgstr "分栏"
+
+#: lib/elektrine_web/live/email_live/home.ex:1518
+#: lib/elektrine_web/live/email_live/home.html.heex:315
+#, elixir-autogen, elixir-format
+msgid "Stack"
+msgstr "待办箱"
+
+#: lib/elektrine_web/live/email_live/home.ex:1568
+#, elixir-autogen, elixir-format
+msgid "Stack is empty"
+msgstr "待办箱为空"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:456
+#: lib/elektrine_web/live/email_live/home.ex:1522
+#, elixir-autogen, elixir-format
+msgid "Trash"
+msgstr "回收站"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "VIEW ALL"
+msgstr "查看全部"
+
+#: lib/elektrine_web/live/notifications_dropdown_live.ex:141
+#, elixir-autogen, elixir-format
+msgid "View all notifications"
+msgstr "查看所有通知"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:351
+#: lib/elektrine_web/live/email_live/compose.html.heex:565
+#, elixir-autogen, elixir-format
+msgid "Write"
+msgstr "撰写"
+
+#: lib/elektrine_web/live/email_live/home.ex:1583
+#, elixir-autogen, elixir-format
+msgid "Your automatic filing cabinet for receipts, invoices, and financial records. Never lose an important transaction again."
+msgstr "您的收据、发票和财务记录自动归档柜。不再丢失重要交易记录。"
+
+#: lib/elektrine_web/live/email_live/home.ex:1582
+#, elixir-autogen, elixir-format
+msgid "Your daily digest of newsletters, updates, and notifications from subscriptions and services - all automatically organized in one place."
+msgstr "您的时事通讯、更新和通知的每日摘要，来自订阅和服务——全部自动整理在一个地方。"
+
+#: lib/elektrine_web/live/email_live/home.ex:1584
+#, elixir-autogen, elixir-format
+msgid "Your personal stack of saved emails. Use the 'Stack' action to save messages here for when you have more time."
+msgstr "您的个人邮件待办箱。使用「待办箱」操作将邮件保存到这里，有空时再处理。"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "unread"
+msgid_plural "unread"
+msgstr[0] "未读"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:716
+#, elixir-autogen, elixir-format
+msgid "Attachments"
+msgstr "附件"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:737
+#, elixir-autogen, elixir-format
+msgid "Choose Files"
+msgstr "选择文件"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:733
+#, elixir-autogen, elixir-format
+msgid "Drag and drop files here or click to browse"
+msgstr "拖放文件到此处或点击浏览"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1359
+#, elixir-autogen, elixir-format
+msgid "File is too large (max 10MB)"
+msgstr "文件过大（最大 10MB）"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1361
+#, elixir-autogen, elixir-format
+msgid "File type not accepted"
+msgstr "不支持的文件类型"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:832
+#: lib/elektrine_web/live/email_live/search.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Has attachments"
+msgstr "包含附件"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:765
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr "移除"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1360
+#, elixir-autogen, elixir-format
+msgid "Too many files (max 5)"
+msgstr "文件过多（最多 5 个）"
+
+#: lib/elektrine_web/live/email_live/compose.ex:1362
+#, elixir-autogen, elixir-format
+msgid "Upload error: %{error}"
+msgstr "上传错误：%{error}"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:776
+#, elixir-autogen, elixir-format
+msgid "%{count} configured"
+msgstr "已配置 %{count} 个"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:586
+#, elixir-autogen, elixir-format
+msgid "12-hour (3:45 PM)"
+msgstr "12小时制 (下午 3:45)"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:587
+#, elixir-autogen, elixir-format
+msgid "24-hour (15:45)"
+msgstr "24小时制 (15:45)"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:300
+#, elixir-autogen, elixir-format
+msgid "Access your email from POP3/IMAP clients without 2FA."
+msgstr "从 POP3/IMAP 客户端访问您的邮件，无需 2FA 验证"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:917
+#, elixir-autogen, elixir-format
+msgid "Account deletion pending"
+msgstr "账户删除待处理"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "Add an extra layer of security to your account."
+msgstr "为账户增加一层额外的安全保护"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:113
+#: lib/elektrine_web/live/email_live/compose.html.heex:193
+#: lib/elektrine_web/live/email_live/compose.html.heex:259
+#, elixir-autogen, elixir-format
+msgid "Add email..."
+msgstr "添加邮箱..."
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:572
+#, elixir-autogen, elixir-format
+msgid "All times will be displayed in your selected timezone"
+msgstr "所有时间将以您选择的时区显示"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:722
+#, elixir-autogen, elixir-format
+msgid "Allowed: Images, PDFs, Office docs, Text, Archives"
+msgstr "允许：图片、PDF、Office文档、文本、压缩包"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to clear all notifications?"
+msgstr "确定要清除所有通知吗？"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:552
+#, elixir-autogen, elixir-format
+msgid "Auto-detect (browser timezone)"
+msgstr "自动检测（浏览器时区）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:560
+#, elixir-autogen, elixir-format
+msgid "Berlin"
+msgstr "柏林"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "Can change in %{days} days"
+msgstr "可在 %{days} 天后更改"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Cancel scheduled return"
+msgstr "取消定时返回"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:555
+#, elixir-autogen, elixir-format
+msgid "Central Time (US & Canada)"
+msgstr "中部时间（美国&加拿大）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:244
+#, elixir-autogen, elixir-format
+msgid "Change Password"
+msgstr "修改密码"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:591
+#, elixir-autogen, elixir-format
+msgid "Choose how times are displayed"
+msgstr "选择时间显示方式"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:622
+#, elixir-autogen, elixir-format
+msgid "Choose which events you want to be notified about"
+msgstr "选择您希望接收通知的事件"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:536
+#, elixir-autogen, elixir-format
+msgid "Choose your preferred language for the interface"
+msgstr "选择您偏好的界面语言"
+
+#: lib/elektrine_web/live/notifications_live.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Clear all"
+msgstr "全部清除"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:553
+#, elixir-autogen, elixir-format
+msgid "Common Timezones"
+msgstr "常用时区"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:434
+#, elixir-autogen, elixir-format
+msgid "Control who can @mention you in posts and messages"
+msgstr "控制谁可以在帖子和消息中 @提及您"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:348
+#, elixir-autogen, elixir-format
+msgid "Control who can add you to group conversations and channels"
+msgstr "控制谁可以将您加入群聊和频道"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "Control who can start direct message conversations with you"
+msgstr "控制谁可以与您开始私信对话"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:475
+#, elixir-autogen, elixir-format
+msgid "Control who can view your profile page"
+msgstr "控制谁可以查看您的个人资料页面"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:303
+#: lib/elektrine_web/live/email_live/email_helpers.ex:321
+#, elixir-autogen, elixir-format
+msgid "Copy to clipboard"
+msgstr "复制到剪贴板"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:74
+#: lib/elektrine_web/live/user_settings_live.html.heex:910
+#, elixir-autogen, elixir-format
+msgid "Danger Zone"
+msgstr "危险区域"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "Display Name"
+msgstr "显示名称"
+
+#: lib/elektrine_web/live/email_live/home.ex:1639
+#, elixir-autogen, elixir-format
+msgid "Due Today"
+msgstr "今日到期"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:554
+#, elixir-autogen, elixir-format
+msgid "Eastern Time (US & Canada)"
+msgstr "东部时间（美国&加拿大）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:787
+#, elixir-autogen, elixir-format
+msgid "Email section"
+msgstr "邮件页面"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:286
+#, elixir-autogen, elixir-format
+msgid "Enable 2FA"
+msgstr "启用2FA"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:339
+#: lib/elektrine_web/live/user_settings_live.html.heex:362
+#: lib/elektrine_web/live/user_settings_live.html.heex:385
+#: lib/elektrine_web/live/user_settings_live.html.heex:405
+#: lib/elektrine_web/live/user_settings_live.html.heex:425
+#, elixir-autogen, elixir-format
+msgid "Everyone"
+msgstr "所有人"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:406
+#: lib/elektrine_web/live/user_settings_live.html.heex:449
+#: lib/elektrine_web/live/user_settings_live.html.heex:470
+#, elixir-autogen, elixir-format
+msgid "Followers only"
+msgstr "仅关注者"
+
+#: lib/elektrine_web/components/platform/z_nav.ex:42
+#, elixir-autogen, elixir-format
+msgid "Friends"
+msgstr "好友"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Handle"
+msgstr "账号名"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Hide CC/BCC"
+msgstr "隐藏抄送/密送"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:563
+#, elixir-autogen, elixir-format
+msgid "Hong Kong"
+msgstr "香港"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:62
+#, elixir-autogen, elixir-format
+msgid "In %{count} days"
+msgstr "%{count} 天后"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:71
+#, elixir-autogen, elixir-format
+msgid "In %{count} months"
+msgstr "%{count} 个月后"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:68
+#, elixir-autogen, elixir-format
+msgid "In %{count} weeks"
+msgstr "%{count} 周后"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:118
+#: lib/elektrine_web/live/email_live/compose.html.heex:198
+#: lib/elektrine_web/live/email_live/compose.html.heex:264
+#, elixir-autogen, elixir-format
+msgid "Invalid email address"
+msgstr "无效的邮箱地址"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Keep your account secure with a strong password."
+msgstr "使用强密码保护您的账户安全。"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:558
+#, elixir-autogen, elixir-format
+msgid "London"
+msgstr "伦敦"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:270
+#, elixir-autogen, elixir-format
+msgid "Manage 2FA"
+msgstr "管理2FA"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:307
+#, elixir-autogen, elixir-format
+msgid "Manage App Passwords"
+msgstr "管理应用密码"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:787
+#, elixir-autogen, elixir-format
+msgid "Manage email addresses and aliases in the"
+msgstr "在以下位置管理邮箱地址和别名："
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:719
+#, elixir-autogen, elixir-format
+msgid "Max 10MB per file, 5 files, 20 files per hour"
+msgstr "单文件最大 10MB，单次最多 5 个文件，每小时最多 20 个文件"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:362
+#: lib/elektrine_web/live/timeline_live/home.html.heex:407
+#, elixir-autogen, elixir-format
+msgid "Media"
+msgstr "媒体"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Mentions:"
+msgstr "提及："
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:556
+#, elixir-autogen, elixir-format
+msgid "Mountain Time (US & Canada)"
+msgstr "山地时间（美国&加拿大）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:343
+#: lib/elektrine_web/live/user_settings_live.html.heex:366
+#: lib/elektrine_web/live/user_settings_live.html.heex:429
+#, elixir-autogen, elixir-format
+msgid "Mutual follows only"
+msgstr "仅互相关注"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:342
+#: lib/elektrine_web/live/user_settings_live.html.heex:365
+#: lib/elektrine_web/live/user_settings_live.html.heex:428
+#, elixir-autogen, elixir-format
+msgid "My followers"
+msgstr "我的关注者"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:65
+#, elixir-autogen, elixir-format
+msgid "Next week"
+msgstr "下一周"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:344
+#: lib/elektrine_web/live/user_settings_live.html.heex:367
+#: lib/elektrine_web/live/user_settings_live.html.heex:387
+#: lib/elektrine_web/live/user_settings_live.html.heex:407
+#: lib/elektrine_web/live/user_settings_live.html.heex:430
+#, elixir-autogen, elixir-format
+msgid "Nobody"
+msgstr "禁止所有人"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:782
+#, elixir-autogen, elixir-format
+msgid "None configured"
+msgstr "未配置"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:645
+#, elixir-autogen, elixir-format
+msgid "Notify me for new direct messages"
+msgstr "收到新私信时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:657
+#, elixir-autogen, elixir-format
+msgid "Notify me when I'm mentioned"
+msgstr "被提及时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:633
+#, elixir-autogen, elixir-format
+msgid "Notify me when someone follows me"
+msgstr "有人关注我时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:933
+#, elixir-autogen, elixir-format
+msgid "Once deleted, your account cannot be recovered."
+msgstr "账户一旦删除，将无法恢复。"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:50
+#: lib/elektrine_web/live/email_live/home.ex:1638
+#, elixir-autogen, elixir-format
+msgid "Overdue"
+msgstr "已逾期"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:557
+#, elixir-autogen, elixir-format
+msgid "Pacific Time (US & Canada)"
+msgstr "太平洋时间（美国&加拿大）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:559
+#, elixir-autogen, elixir-format
+msgid "Paris"
+msgstr "巴黎"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:341
+#: lib/elektrine_web/live/user_settings_live.html.heex:364
+#: lib/elektrine_web/live/user_settings_live.html.heex:427
+#, elixir-autogen, elixir-format
+msgid "People I follow"
+msgstr "我关注的人"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Please fix the following errors:"
+msgstr "请修正以下错误："
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:356
+#: lib/elektrine_web/live/timeline_live/home.html.heex:395
+#, elixir-autogen, elixir-format
+msgid "Posts"
+msgstr "帖子"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:47
+#: lib/elektrine_web/live/user_settings_live.html.heex:512
+#, elixir-autogen, elixir-format
+msgid "Preferences"
+msgstr "偏好设置"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:766
+#, elixir-autogen, elixir-format
+msgid "Primary Email"
+msgstr "主邮箱"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Privacy"
+msgstr "隐私"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:451
+#: lib/elektrine_web/live/user_settings_live.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Private"
+msgstr "私密"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Profile URL:"
+msgstr "个人资料链接"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:463
+#, elixir-autogen, elixir-format
+msgid "Profile visibility"
+msgstr "个人资料可见性"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:448
+#: lib/elektrine_web/live/user_settings_live.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "Public"
+msgstr "公开"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:926
+#, elixir-autogen, elixir-format
+msgid "Reason:"
+msgstr "原因："
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:209
+#, elixir-autogen, elixir-format
+msgid "Recovery Email"
+msgstr "恢复邮箱"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:359
+#: lib/elektrine_web/live/timeline_live/home.html.heex:401
+#, elixir-autogen, elixir-format
+msgid "Replies"
+msgstr "回复"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:937
+#, elixir-autogen, elixir-format
+msgid "Request Deletion"
+msgstr "请求删除"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:919
+#, elixir-autogen, elixir-format
+msgid "Requested:"
+msgstr "请求时间："
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:220
+#: lib/elektrine_web/live/user_settings_live.html.heex:500
+#: lib/elektrine_web/live/user_settings_live.html.heex:597
+#: lib/elektrine_web/live/user_settings_live.html.heex:722
+#, elixir-autogen, elixir-format
+msgid "Save Changes"
+msgstr "保存更改"
+
+#: lib/elektrine_web/live/email_live/show.html.heex:163
+#, elixir-autogen, elixir-format
+msgid "Scheduled to return to inbox"
+msgstr "定时返回收件箱"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Security"
+msgstr "安全"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:562
+#, elixir-autogen, elixir-format
+msgid "Shanghai"
+msgstr "上海"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:488
+#: lib/elektrine_web/live/user_settings_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Storage"
+msgstr "存储空间"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:564
+#, elixir-autogen, elixir-format
+msgid "Sydney"
+msgstr "悉尼"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:580
+#, elixir-autogen, elixir-format
+msgid "Time Format"
+msgstr "时间格式"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:544
+#, elixir-autogen, elixir-format
+msgid "Timezone"
+msgstr "时区"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:56
+#, elixir-autogen, elixir-format
+msgid "Today"
+msgstr "今天"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:561
+#, elixir-autogen, elixir-format
+msgid "Tokyo"
+msgstr "东京"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Two-Factor Authentication"
+msgstr "双因素验证"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:753
+#, elixir-autogen, elixir-format
+msgid "Unique ID"
+msgstr "唯一标识"
+
+#: lib/elektrine_web/live/email_live/home.ex:1640
+#, elixir-autogen, elixir-format
+msgid "Upcoming"
+msgstr "即将到来"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "Upload a new avatar image (max 5MB) - Will be automatically cropped to square"
+msgstr "上传新头像图片（最大 5MB）- 将自动裁剪为正方形"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Used for password reset. Must be an external email address."
+msgstr "用于密码重置。必须是外部邮箱地址。"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:757
+#, elixir-autogen, elixir-format
+msgid "Username is for login only. Your handle (%{handle}) is your public identity."
+msgstr "用户名仅用于登录。您的用户名（%{handle}）是您的公开身份。"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:333
+#, elixir-autogen, elixir-format
+msgid "Who can add you to groups/channels"
+msgstr "谁可以将您添加到群组/频道"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:419
+#, elixir-autogen, elixir-format
+msgid "Who can mention you"
+msgstr "谁可以提及您"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:356
+#, elixir-autogen, elixir-format
+msgid "Who can send you direct messages"
+msgstr "谁可以给您发送私信"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:53
+#, elixir-autogen, elixir-format
+msgid "Within an hour"
+msgstr "一小时内"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:263
+#, elixir-autogen, elixir-format
+msgid "Your account is protected with 2FA."
+msgstr "您的账户已启用2FA保护。"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Your public display name. Can be changed anytime."
+msgstr "您的公开显示名称。可随时更改。"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Audio & video calls"
+msgstr "音频与视频通话"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:253
+#, elixir-autogen, elixir-format
+msgid "Check out some profiles:"
+msgstr "查看一些个人资料："
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:391
+#, elixir-autogen, elixir-format
+msgid "Control who can initiate audio and video calls with you"
+msgstr "控制谁可以与您发起音频和视频通话"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:411
+#, elixir-autogen, elixir-format
+msgid "Control who can send you friend requests"
+msgstr "控制谁可以向您发送好友请求"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:442
+#, elixir-autogen, elixir-format
+msgid "Default post visibility"
+msgstr "默认帖子可见性"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:455
+#, elixir-autogen, elixir-format
+msgid "Default visibility for your timeline posts (can be changed per post)"
+msgstr "动态的默认可见性（可为每条动态单独更改）"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:531
+#, elixir-autogen, elixir-format
+msgid "ETS Tables"
+msgstr "ETS 表数"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:340
+#: lib/elektrine_web/live/user_settings_live.html.heex:363
+#: lib/elektrine_web/live/user_settings_live.html.heex:386
+#: lib/elektrine_web/live/user_settings_live.html.heex:426
+#: lib/elektrine_web/live/user_settings_live.html.heex:450
+#, elixir-autogen, elixir-format
+msgid "Friends only"
+msgstr "仅好友"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "Messaging & group chats"
+msgstr "消息与群聊"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:396
+#: lib/elektrine_web/controllers/page_html/home.html.heex:519
+#, elixir-autogen, elixir-format
+msgid "Reductions"
+msgstr "归约数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:523
+#, elixir-autogen, elixir-format
+msgid "Run Queue"
+msgstr "运行队列长度"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:527
+#, elixir-autogen, elixir-format
+msgid "Schedulers"
+msgstr "调度器数"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Screen sharing"
+msgstr "屏幕共享"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:243
+#, elixir-autogen, elixir-format
+msgid "The internet is shifting. AI-generated content is everywhere, and it's getting harder to tell what's real. Most platforms optimize for viral reach and follower counts—metrics that mean nothing when bots can fake them."
+msgstr "互联网正在转变。AI 生成的内容无处不在，越来越难分辨真伪。大多数平台优化的是病毒式传播和粉丝数量——当机器人可以伪造这些指标时，它们就变得毫无意义。"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:102
+#, elixir-autogen, elixir-format
+msgid "Use our webmail or connect with your preferred client like Thunderbird or Mutt:"
+msgstr "使用我们的网页邮箱，或者使用您喜欢的客户端连接，如 Thunderbird 或 Mutt："
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:118
+#, elixir-autogen, elixir-format
+msgid "What This Is"
+msgstr "这是什么"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:379
+#, elixir-autogen, elixir-format
+msgid "Who can call you"
+msgstr "谁可以给您打电话"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:399
+#, elixir-autogen, elixir-format
+msgid "Who can send you friend requests"
+msgstr "谁可以向您发送好友请求"
+
+#: lib/elektrine_web/live/email_live/compose.html.heex:336
+#, elixir-autogen, elixir-format
+msgid "%{count} words"
+msgstr "%{count} 个字"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:831
+#, elixir-autogen, elixir-format
+msgid "Automatically appended to all outgoing emails with '-- ' separator"
+msgstr "自动添加到所有外发邮件，使用 '-- ' 分隔符"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:566
+#, elixir-autogen, elixir-format
+msgid "Calendar sync"
+msgstr "日历同步"
+
+#: lib/elektrine_web/live/email_live/email_helpers.ex:480
+#: lib/elektrine_web/live/email_live/home.ex:1526
+#, elixir-autogen, elixir-format
+msgid "Contacts"
+msgstr "联系人"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:468
+#, elixir-autogen, elixir-format
+msgid "Create an alias for the selected domain (max 15 aliases)"
+msgstr "为所选域名创建别名（最多 15 个别名）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:736
+#, elixir-autogen, elixir-format
+msgid "Email Settings"
+msgstr "邮件设置"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:814
+#, elixir-autogen, elixir-format
+msgid "Email Signature"
+msgstr "邮件签名"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:848
+#, elixir-autogen, elixir-format
+msgid "Email Subscription Preferences"
+msgstr "邮件订阅偏好"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:98
+#, elixir-autogen, elixir-format
+msgid "Full-featured email with up to 15 aliases, forwarding, spam filtering, and smart categorization."
+msgstr "功能完善的邮件服务，支持最多 15 个别名、转发、垃圾邮件过滤和智能分类。"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:564
+#, elixir-autogen, elixir-format
+msgid "JMAP support"
+msgstr "JMAP 支持"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:384
+#: lib/elektrine_web/controllers/page_html/home.html.heex:507
+#, elixir-autogen, elixir-format
+msgid "Last Deployed"
+msgstr "最后部署时间"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:852
+#, elixir-autogen, elixir-format
+msgid "Manage subscription preferences for all your email addresses. Transactional emails cannot be unsubscribed."
+msgstr "管理所有邮箱地址的订阅偏好。事务性邮件无法取消订阅。"
+
+#: lib/elektrine_web/live/email_live/home.ex:1543
+#, elixir-autogen, elixir-format
+msgid "Manage your email contacts"
+msgstr "管理你的邮件联系人"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:820
+#, elixir-autogen, elixir-format
+msgid "Max 500 characters"
+msgstr "最多 500 个字符"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:897
+#, elixir-autogen, elixir-format
+msgid "No email addresses found for your account."
+msgstr "未找到与您的账户关联的电子邮件地址。"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:884
+#, elixir-autogen, elixir-format
+msgid "Required"
+msgstr "必需"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:837
+#, elixir-autogen, elixir-format
+msgid "Save Settings"
+msgstr "保存设置"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:819
+#, elixir-autogen, elixir-format
+msgid "Signature"
+msgstr "签名"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:877
+#, elixir-autogen, elixir-format
+msgid "Subscribed"
+msgstr "已订阅"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "Title (optional)"
+msgstr "标题（可选）"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:880
+#, elixir-autogen, elixir-format
+msgid "Unsubscribed"
+msgstr "已取消订阅"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Why Z Exists"
+msgstr "为什么存在 Z"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:827
+#, elixir-autogen, elixir-format
+msgid "Your signature will be automatically appended to outgoing emails.\n\nExample:\nBest regards,\nYour Name\nYour Title"
+msgstr "你的签名将自动添加到外发邮件中。\n\n示例：\n此致敬礼，\n你的名字\n你的职位"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Z Profile"
+msgstr "Z 个人资料"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:246
+#, elixir-autogen, elixir-format
+msgid "Z is designed around smaller circles of people you actually know and trust. We're building reputation systems based on your interactions with your community—who you talk to, who vouches for you, your actual contribution history. Public moderation logs, AI content labels, and trust networks instead of algorithmic feeds. Think less 'going viral' and more 'building credibility with people who matter.' The internet works better when trust is local, not global."
+msgstr "Z 致力于围绕你真正认识和信任的小圈子进行设计。我们正在构建基于你与社区互动的声誉体系——包括你与谁交流、谁为你背书，以及你的实际贡献记录。我们采用公开的内容管理日志、AI 内容标签和信任网络，而不是算法推荐的信息流。与其追求“病毒式传播”，我们更重视在重要的人群中建立信誉。互联网在本地化的信任机制下运作得更好，而不是依靠全球性的泛化信任。"
+
+#: lib/elektrine_web/live/email_live/home.html.heex:778
+#, elixir-autogen, elixir-format
+msgid "1 result"
+msgid_plural "%{count} results"
+msgstr[0] "%{count} 个结果"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:296
+#, elixir-autogen, elixir-format
+msgid "Activate the tunnel in WireGuard"
+msgstr "在 WireGuard 中激活隧道"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Available Servers"
+msgstr "可用服务器"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:330
+#, elixir-autogen, elixir-format
+msgid "Close"
+msgstr "关闭"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:295
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr "连接"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:174
+#, elixir-autogen, elixir-format
+msgid "Connected"
+msgstr "已连接"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Create Config"
+msgstr "创建配置"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:290
+#, elixir-autogen, elixir-format
+msgid "Desktop: Download .conf file"
+msgstr "桌面端：下载 .conf 文件"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "Freemium VPN. WireGuard servers worldwide, 10GB/month*, 50 Mbps*."
+msgstr "免费增值 VPN。全球 WireGuard 服务器，10GB/月*，50 Mbps*。"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Import Config"
+msgstr "导入配置"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:282
+#, elixir-autogen, elixir-format
+msgid "Install WireGuard"
+msgstr "安装 WireGuard"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:320
+#, elixir-autogen, elixir-format
+msgid "Instructions"
+msgstr "操作说明"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:186
+#, elixir-autogen, elixir-format
+msgid "Last connected"
+msgstr "最后连接时间"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:291
+#, elixir-autogen, elixir-format
+msgid "Mobile: Scan QR code"
+msgstr "移动端：扫描二维码"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:266
+#, elixir-autogen, elixir-format
+msgid "No VPN Configurations"
+msgstr "没有 VPN 配置"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "No servers available"
+msgstr "没有可用服务器"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:693
+#, elixir-autogen, elixir-format
+msgid "Notify me when I receive an email"
+msgstr "收到邮件时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:717
+#, elixir-autogen, elixir-format
+msgid "Notify me when someone comments on my timeline post"
+msgstr "有人评论我的动态时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:681
+#, elixir-autogen, elixir-format
+msgid "Notify me when someone likes my post"
+msgstr "有人点赞我的帖子时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:705
+#, elixir-autogen, elixir-format
+msgid "Notify me when someone replies to my discussion post"
+msgstr "有人回复我的讨论帖时通知我"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:669
+#, elixir-autogen, elixir-format
+msgid "Notify me when someone replies to my message"
+msgstr "有人回复我的消息时通知我"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:322
+#, elixir-autogen, elixir-format
+msgid "Open WireGuard app"
+msgstr "打开 WireGuard 应用"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:248
+#, elixir-autogen, elixir-format
+msgid "QR Code"
+msgstr "二维码"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:309
+#, elixir-autogen, elixir-format
+msgid "QR Code - %{name}"
+msgstr "二维码 - %{name}"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:324
+#, elixir-autogen, elixir-format
+msgid "Scan this code"
+msgstr "扫描此二维码"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:312
+#, elixir-autogen, elixir-format
+msgid "Scan this code with the WireGuard mobile app"
+msgstr "使用 WireGuard 移动应用扫描此二维码"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Select a server from the sidebar to create a configuration"
+msgstr "从侧边栏选择服务器以创建配置"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:278
+#, elixir-autogen, elixir-format
+msgid "Setup Instructions"
+msgstr "设置说明"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:323
+#, elixir-autogen, elixir-format
+msgid "Tap '+' and select 'Create from QR code'"
+msgstr "点击 '+' 并选择 '从二维码创建'"
+
+#: lib/elektrine_web/components/layouts/app.html.heex:410
+#: lib/elektrine_web/components/platform/elektrine_nav.ex:40
+#: lib/elektrine_web/controllers/page_html/home.html.heex:110
+#: lib/elektrine_web/controllers/page_html/home.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "VPN"
+msgstr "VPN"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "VPN Configurations"
+msgstr "VPN 配置管理"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:369
+#: lib/elektrine_web/controllers/page_html/home.html.heex:492
+#, elixir-autogen, elixir-format
+msgid "VPN Servers"
+msgstr "VPN 服务器"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "VPN Service"
+msgstr "VPN 服务"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "During beta, subject to change"
+msgstr "测试期间，可能会有变动"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "3.6 roentgen"
+msgstr "3.6 roentgen"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "ActivityPub Federation"
+msgstr "ActivityPub 联合协议"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:211
+#: lib/elektrine_web/controllers/page_html/home.html.heex:295
+#, elixir-autogen, elixir-format
+msgid "COMMUNITIES"
+msgstr "社区"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "Chat, timelines, communities, and galleries in one platform"
+msgstr "聊天、动态、社区、相册，一站式平台"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Community moderation"
+msgstr "社区管理"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:796
+#, elixir-autogen, elixir-format
+msgid "Compose From"
+msgstr "发件人"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:275
+#, elixir-autogen, elixir-format
+msgid "Content warning (e.g., 'spoilers', 'politics', etc.)"
+msgstr "内容警告（例如：“剧透”、“政治”等）"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:213
+#, elixir-autogen, elixir-format
+msgid "Create & join communities"
+msgstr "创建与加入社区"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:810
+#, elixir-autogen, elixir-format
+msgid "Default 'From' address when composing new emails"
+msgstr "撰写新邮件时的默认“发件人”地址"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:791
+#, elixir-autogen, elixir-format
+msgid "Default Email Domain"
+msgstr "默认邮箱域名"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "Discover visual content"
+msgstr "探索精彩内容"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Discussion threads"
+msgstr "讨论帖"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Elektrine provides email and VPN services built from the ground up with Elixir—custom SMTP/IMAP servers, MTA components, spam filtering, and webmail. Z is the social platform layer with real-time chat, timelines, communities, and photo galleries. Everything runs on the same account."
+msgstr "Elektrine 提供基于 Elixir 从头构建的电子邮件和 VPN 服务——自定义 SMTP/IMAP 服务器、MTA 组件、垃圾邮件过滤和网页邮箱。Z 是社交平台层，包含实时聊天、动态、社区和相册。所有功能均使用同一个账户。"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:219
+#: lib/elektrine_web/controllers/page_html/home.html.heex:301
+#, elixir-autogen, elixir-format
+msgid "GALLERY"
+msgstr "相册"
+
+#: lib/elektrine_web/components/platform/z_nav.ex:62
+#, elixir-autogen, elixir-format
+msgid "Gallery"
+msgstr "相册"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "I agree to the"
+msgstr "我同意"
+
+#: lib/elektrine_web/components/platform/z_nav.ex:54
+#, elixir-autogen, elixir-format
+msgid "Lists"
+msgstr "列表"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:491
+#, elixir-autogen, elixir-format
+msgid "Manually approve followers from the fediverse"
+msgstr "手动批准来自联合网络的关注请求"
+
+#: lib/elektrine_web/live/timeline_live/home.html.heex:656
+#, elixir-autogen, elixir-format
+msgid "Open on Remote Instance"
+msgstr "在远程实例上打开"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:222
+#, elixir-autogen, elixir-format
+msgid "Organize albums"
+msgstr "整理相册"
+
+#: lib/elektrine_web/components/platform/z_nav.ex:38
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr "概览"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Privacy Policy"
+msgstr "隐私政策"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:150
+#, elixir-autogen, elixir-format
+msgid "SIGN OUT"
+msgstr "退出登录"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Share photo collections"
+msgstr "分享照片集"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Terms"
+msgstr "条款"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:373
+#: lib/elektrine_web/controllers/page_html/home.html.heex:496
+#, elixir-autogen, elixir-format
+msgid "VPN Bandwidth"
+msgstr "VPN 带宽"
+
+#: lib/elektrine_web/live/vpn_live/home.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "View Service Policy & Details"
+msgstr "查看服务政策和详情"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:493
+#, elixir-autogen, elixir-format
+msgid "When enabled, you must approve follow requests from Mastodon and other ActivityPub instances"
+msgstr "启用后，您必须批准来自 Mastodon 和其他 ActivityPub 实例的关注请求"
+
+#: lib/elektrine_web/controllers/user_registration_html/new.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "You must agree to the Terms of Service"
+msgstr "您必须同意服务条款"
+
+#: lib/elektrine_web/controllers/page_html/home.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Z federates with Mastodon and the fediverse. Follow users on any instance, see their posts in your timeline, and interact across platforms."
+msgstr "Z 与 Mastodon 和联合网络互通。关注任何实例上的用户，在您的动态中查看他们的帖子，并进行跨平台互动。"
+
+#: lib/elektrine_web/live/user_settings_live.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "1-20 chars, alphanumeric + underscore"
+msgstr "1-20个字符，字母数字+下划线"

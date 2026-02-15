@@ -1,0 +1,22 @@
+# Elixir build/test artifacts
+/_build/
+/deps/
+/cover/
+/.elixir_ls/
+/tmp/
+erl_crash.dump
+
+# Asset build artifacts
+/assets/node_modules/
+/assets/.sass-cache/
+/assets/npm-debug.log*
+/assets/yarn-debug.log*
+/assets/yarn-error.log*
+/priv/static/assets/
+/priv/static/cache_manifest.json
+/priv/static/uploads/
+
+# Generated runtime data
+/priv/acme/
+/priv/exports/
+/priv/imap_rate_limit_*.ets

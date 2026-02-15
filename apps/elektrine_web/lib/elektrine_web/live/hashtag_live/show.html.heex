@@ -1,0 +1,249 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Z Platform Navigation -->
+  <.z_nav active_tab="timeline" />
+  
+<!-- Trending Hashtags Marquee -->
+  <%= if @trending_hashtags && length(@trending_hashtags) > 0 do %>
+    <div
+      id="trending-hashtags-marquee"
+      phx-update="ignore"
+      class="overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
+    >
+      <div class="flex items-center gap-2">
+        <.icon name="hero-fire" class="w-4 h-4 text-orange-500 flex-shrink-0" />
+        <span class="text-xs font-semibold opacity-70 flex-shrink-0">POPULAR:</span>
+        <div class="overflow-hidden flex-1">
+          <div class="marquee-container group">
+            <%= for _i <- 1..4 do %>
+              <div class="marquee-content" aria-hidden="true">
+                <%= for hashtag <- @trending_hashtags do %>
+                  <.link
+                    href={~p"/hashtag/#{hashtag.normalized_name}"}
+                    class="inline-flex items-center px-3 py-1 bg-base-200 border border-base-300 rounded-full hover:border-error hover:bg-error/5 transition-colors flex-shrink-0 text-xs font-medium whitespace-nowrap"
+                    tabindex="-1"
+                  >
+                    #{hashtag.name} <span class="opacity-60">({hashtag.use_count})</span>
+                  </.link>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="flex flex-col sm:flex-row gap-0 sm:gap-2 lg:gap-6 min-h-[calc(100vh-16rem)]">
+    <!-- Left Sidebar (Hidden on mobile) -->
+    <div class="hidden sm:flex w-32 md:w-48 lg:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 flex-col h-full">
+      <div class="p-4">
+        <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start mb-6">
+          <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
+        </.link>
+
+        <h3 class="font-semibold mb-3">About This Hashtag</h3>
+        <div class="space-y-3 text-sm">
+          <div class="flex items-center gap-2">
+            <.icon name="hero-hashtag" class="w-4 h-4 text-primary" />
+            <span class="font-medium">#{@hashtag_name}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <.icon name="hero-document-text" class="w-4 h-4" />
+            <span>{@hashtag_info.use_count} posts</span>
+          </div>
+          <%= if @hashtag_info.last_used_at do %>
+            <div class="flex items-center gap-2">
+              <.icon name="hero-clock" class="w-4 h-4" />
+              <span>
+                Last used {Elektrine.Social.time_ago_in_words(@hashtag_info.last_used_at)}
+              </span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+<!-- Main Content -->
+    <div class="flex-1 min-w-0 max-w-full sm:max-w-full">
+      <div class="overflow-y-auto h-full">
+        <!-- Hashtag Header -->
+        <div class="card glass-card shadow-lg border border-base-300 mb-6">
+          <div class="card-body p-6">
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                <.icon name="hero-hashtag" class="w-8 h-8 text-primary" />
+              </div>
+              <div class="flex-1">
+                <h1 class="text-2xl font-bold text-primary">#{@hashtag_name}</h1>
+                <p class="text-base-content/70 mt-1">
+                  {@hashtag_info.use_count} posts
+                  <%= if @hashtag_info.last_used_at do %>
+                    · Last used {Elektrine.Social.time_ago_in_words(@hashtag_info.last_used_at)}
+                  <% end %>
+                </p>
+              </div>
+              <.link href={~p"/timeline"} class="btn btn-ghost">
+                <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
+              </.link>
+            </div>
+          </div>
+        </div>
+        
+<!-- Hashtag Feed -->
+        <%= if @posts && length(@posts) > 0 do %>
+          <div
+            class="space-y-4"
+            phx-hook="InfiniteScroll"
+            id="hashtag-infinite-scroll"
+            data-offset="500"
+          >
+            <%= for post <- @posts do %>
+              <%= if post.sender || post.remote_actor do %>
+                <.timeline_post
+                  post={post}
+                  current_user={@current_user}
+                  timezone={assigns[:timezone] || "UTC"}
+                  time_format={assigns[:time_format] || "12h"}
+                  user_likes={@user_likes}
+                  user_boosts={@user_boosts}
+                  user_follows={assigns[:user_follows] || %{}}
+                  pending_follows={assigns[:pending_follows] || %{}}
+                  user_statuses={assigns[:user_statuses] || %{}}
+                  id_prefix="hashtag-post"
+                  show_follow_button={false}
+                  show_admin_actions={@current_user && @current_user.is_admin}
+                  on_image_click="open_image_modal"
+                />
+              <% end %>
+            <% end %>
+            
+<!-- Loading Indicator / End of Feed -->
+            <%= if @end_of_feed do %>
+              <div class="text-center py-6 text-base-content/50">
+                <.icon name="hero-check-circle" class="w-6 h-6 mx-auto mb-2" />
+                <p class="text-sm">You've seen all posts</p>
+              </div>
+            <% else %>
+              <div class="text-center py-6">
+                <.spinner size="md" class="text-primary" />
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-12">
+            <.icon name="hero-hashtag" class="w-16 h-16 mx-auto mb-4 opacity-40" />
+            <h3 class="text-lg font-semibold mb-2">No posts found</h3>
+            <p class="text-base-content/70 mb-6">
+              Be the first to post about #{@hashtag_name}
+            </p>
+            <%= if @current_user do %>
+              <button phx-click="toggle_post_composer" class="btn btn-secondary">
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Post
+              </button>
+            <% else %>
+              <.link href={~p"/login"} class="btn btn-secondary">
+                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" />
+                Sign In to Post
+              </.link>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+      <!-- End scrollable container -->
+    </div>
+    <!-- End Main Content -->
+
+    <!-- Right Sidebar (Hidden on mobile) -->
+    <div class="hidden lg:flex w-16 sm:w-20 lg:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 p-2 lg:p-4 flex-col h-full">
+      <h3 class="font-semibold mb-4">Related</h3>
+      <div class="space-y-2">
+        <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start">
+          <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> View Timeline
+        </.link>
+        <%= if @current_user do %>
+          <button
+            phx-click="toggle_post_composer"
+            class="btn btn-secondary btn-sm w-full justify-start"
+          >
+            <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Post
+          </button>
+        <% else %>
+          <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
+            <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In to Post
+          </.link>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Post Composer Modal -->
+<%= if @show_post_composer && @current_user do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-2xl">
+      <h3 class="font-bold text-lg mb-4">Create Post with #{@hashtag_name}</h3>
+
+      <.form for={%{}} phx-submit="create_hashtag_post">
+        <div class="form-control mb-4">
+          <textarea
+            name="content"
+            placeholder={"Write about ##{@hashtag_name}..."}
+            class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+            style="min-height: 6rem; max-height: 20rem;"
+            rows="4"
+            phx-hook="AutoExpandTextarea"
+            phx-update="ignore"
+            phx-change="update_post_content"
+            id="hashtag-post-textarea"
+            required
+          ><%= @post_content %></textarea>
+          <label class="label">
+            <span class="label-text-alt">
+              The hashtag #{@hashtag_name} will be automatically added
+            </span>
+          </label>
+        </div>
+
+        <div class="form-control mb-4">
+          <label class="label">
+            <span class="label-text">Visibility</span>
+          </label>
+          <select
+            name="visibility"
+            class="select select-bordered"
+            phx-change="update_post_visibility"
+          >
+            <option value="public" selected={@post_visibility == "public"}>Public</option>
+            <option value="followers" selected={@post_visibility == "followers"}>
+              Followers Only
+            </option>
+          </select>
+        </div>
+
+        <div class="flex gap-2 justify-end">
+          <button type="button" phx-click="toggle_post_composer" class="btn btn-ghost">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-secondary">
+            <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Post
+          </button>
+        </div>
+      </.form>
+    </div>
+    <form method="dialog" class="modal-backdrop" phx-click="toggle_post_composer">
+      <button type="button">close</button>
+    </form>
+  </div>
+<% end %>
+
+<!-- Image Modal -->
+<.image_modal
+  show={@show_image_modal}
+  image_url={@modal_image_url}
+  images={@modal_images}
+  image_index={@modal_image_index}
+  post={@modal_post}
+  current_user={@current_user}
+  is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
+  like_count={(@modal_post && @modal_post.like_count) || 0}
+/>

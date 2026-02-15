@@ -1,0 +1,2999 @@
+<div
+  id="profile-settings-container"
+  phx-hook="GlassCardContainer"
+  class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+>
+  <div class="mb-6 sm:mb-8">
+    <h1 class="text-2xl sm:text-3xl font-bold text-base-content">Customize Your Profile</h1>
+    <p class="text-base-content/70 mt-2">
+      Create your personal page at z.org/{@user.handle || @user.username}
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+    <!-- Sidebar Navigation -->
+    <div class="lg:col-span-1">
+      <div class="sticky top-24 self-start">
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-4">
+            <h3 class="font-semibold text-sm mb-4">Sections</h3>
+            <ul class="menu menu-compact w-full p-0 space-y-1">
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="basic"
+                  class={"text-sm rounded-lg #{if @selected_tab == "basic", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-user" class="w-4 h-4" /> Basic Info
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="appearance"
+                  class={"text-sm rounded-lg #{if @selected_tab == "appearance", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-paint-brush" class="w-4 h-4" /> Appearance
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="avatar"
+                  class={"text-sm rounded-lg #{if @selected_tab == "avatar", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-photo" class="w-4 h-4" /> Avatar Effects
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="username"
+                  class={"text-sm rounded-lg #{if @selected_tab == "username", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-sparkles" class="w-4 h-4" /> Username Effects
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="links"
+                  class={"text-sm rounded-lg #{if @selected_tab == "links", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-link" class="w-4 h-4" /> Links
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="widgets"
+                  class={"text-sm rounded-lg #{if @selected_tab == "widgets", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-squares-2x2" class="w-4 h-4" /> Widgets
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="badges"
+                  class={"text-sm rounded-lg #{if @selected_tab == "badges", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-check-badge" class="w-4 h-4" /> Badges
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="advanced"
+                  class={"text-sm rounded-lg #{if @selected_tab == "advanced", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> Advanced
+                </a>
+              </li>
+              <li>
+                <a
+                  phx-click="change_tab"
+                  phx-value-tab="static_site"
+                  class={"text-sm rounded-lg #{if @selected_tab == "static_site", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
+                >
+                  <.icon name="hero-code-bracket" class="w-4 h-4" /> Static Site
+                </a>
+              </li>
+            </ul>
+
+            <div class="divider my-4"></div>
+
+            <div class="space-y-2">
+              <.link href={~p"/account"} class="btn btn-ghost btn-sm w-full justify-start">
+                <.icon name="hero-arrow-left" class="w-4 h-4" /> Account
+              </.link>
+              <.link
+                href={"https://#{@user.handle || @user.username}.z.org"}
+                target="_blank"
+                class="btn btn-ghost btn-sm w-full justify-start"
+              >
+                <.icon name="hero-eye" class="w-4 h-4" /> View Profile
+              </.link>
+              <.link
+                href={~p"/account/profile/analytics"}
+                class="btn btn-ghost btn-sm w-full justify-start"
+              >
+                <.icon name="hero-chart-bar" class="w-4 h-4" /> Analytics
+              </.link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+<!-- Main Content -->
+    <div class="lg:col-span-3">
+      <!-- Basic Info Tab -->
+      <%= if @selected_tab == "basic" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-6">
+            <div class="mb-6">
+              <h2 class="card-title text-2xl mb-2">
+                <.icon name="hero-user" class="w-6 h-6" /> Basic Information
+              </h2>
+              <p class="text-sm text-base-content/60">
+                Your profile details and privacy settings
+              </p>
+            </div>
+
+            <.form
+              for={%{}}
+              phx-submit="update_profile"
+              phx-change="validate_profile"
+              multipart
+              class="space-y-4 sm:space-y-6"
+            >
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Display Name</span>
+                </label>
+                <input
+                  type="text"
+                  name="profile[display_name]"
+                  value={(@profile && @profile.display_name) || @user.username}
+                  placeholder="Display name"
+                  class="input input-bordered w-full"
+                  maxlength="50"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60">Keep it short and memorable</span>
+                </div>
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Bio Description</span>
+                </label>
+
+                <div class="tabs tabs-boxed mb-2">
+                  <button
+                    type="button"
+                    data-show-tab="edit"
+                    id="edit-tab"
+                    class="tab tab-active"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    data-show-tab="preview"
+                    id="preview-tab"
+                    class="tab"
+                  >
+                    Preview
+                  </button>
+                </div>
+
+                <div id="markdown-edit" class="">
+                  <textarea
+                    name="profile[description]"
+                    id="description-textarea"
+                    class="textarea textarea-bordered w-full"
+                    rows="4"
+                    placeholder="Tell people about yourself..."
+                    maxlength="1000"
+                    oninput="updateMarkdownPreview()"
+                  ><%= @profile && @profile.description || "" %></textarea>
+                </div>
+
+                <div id="markdown-preview" class="hidden">
+                  <div class="bg-base-200 rounded-lg p-4 min-h-24 prose prose-sm max-w-none">
+                    <div id="preview-content">
+                      <%= if @profile && @profile.description do %>
+                        {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@profile.description))}
+                      <% else %>
+                        <p class="text-base-content/50 italic">Preview will appear here...</p>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    Markdown supported - **bold**, *italic*, [links](url). Max 1000 characters.
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Location</span>
+                </label>
+                <input
+                  type="text"
+                  name="profile[location]"
+                  value={(@profile && @profile.location) || ""}
+                  placeholder="City, Country, or Remote"
+                  class="input input-bordered w-full"
+                  maxlength="100"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    Where are you based?
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Page Title</span>
+                </label>
+                <input
+                  type="text"
+                  name="profile[page_title]"
+                  value={(@profile && @profile.page_title) || ""}
+                  placeholder={"#{@user.handle || @user.username}'s Profile"}
+                  class="input input-bordered w-full"
+                  maxlength="100"
+                />
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    Custom browser tab title. Enable typewriter effect in Appearance tab.
+                  </span>
+                </div>
+              </div>
+
+              <div class="divider text-sm">Privacy Settings</div>
+
+              <div class="space-y-4">
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_view_counter]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_view_counter]"
+                      value="true"
+                      checked={@profile && @profile.hide_view_counter}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide view counter</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show how many people have visited your profile
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_uid]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_uid]"
+                      value="true"
+                      checked={@profile && @profile.hide_uid}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide user ID</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show your numeric user ID on your profile
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_followers]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_followers]"
+                      value="true"
+                      checked={@profile && @profile.hide_followers}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide followers/following</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show follower and following counts
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_avatar]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_avatar]"
+                      value="true"
+                      checked={@profile && @profile.hide_avatar}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide avatar & display name</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show your avatar and display name
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_timeline]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_timeline]"
+                      value="true"
+                      checked={@profile && @profile.hide_timeline}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide timeline</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show your timeline posts on your profile
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_community_posts]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_community_posts]"
+                      value="true"
+                      checked={@profile && @profile.hide_community_posts}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide community posts</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show your community/discussion posts on your profile
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[hide_share_button]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[hide_share_button]"
+                      value="true"
+                      checked={@profile && @profile.hide_share_button}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Hide share button</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Don't show the share button on your profile (includes QR code)
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="cursor-pointer label justify-start gap-4">
+                    <input type="hidden" name="profile[extend_layout]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[extend_layout]"
+                      value="true"
+                      checked={@profile && @profile.extend_layout}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Extend layout to bottom</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Make the profile extend to the bottom of the screen
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-full">
+                Save Basic Info
+              </button>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Appearance Tab -->
+      <%= if @selected_tab == "appearance" do %>
+        <div class="space-y-6">
+          <!-- Color Palette Generator -->
+          <div class="card glass-card shadow-lg border-2 border-primary/20">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-sparkles" class="w-6 h-6" /> Quick Color Palette
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Pick one color and we'll generate a matching palette
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="generate_palette" class="space-y-6">
+                <div class="flex items-center gap-4">
+                  <input
+                    type="color"
+                    name="base_color"
+                    value={(@profile && @profile.accent_color) || "#8b5cf6"}
+                    class="w-24 h-24 border-0 rounded-xl cursor-pointer shadow-lg"
+                  />
+                  <div class="flex-1">
+                    <p class="font-semibold text-lg">Base Color</p>
+                    <p class="text-sm text-base-content/70">
+                      We'll create a harmonious color scheme based on this
+                    </p>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full btn-lg">
+                  <.icon name="hero-sparkles" class="w-5 h-5 mr-2" /> Generate Matching Palette
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Colors & Theme -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-swatch" class="w-6 h-6" /> Individual Colors
+                </h2>
+                <p class="text-sm text-base-content/60">Fine-tune each color separately</p>
+              </div>
+
+              <.form for={%{}} phx-submit="update_profile" multipart class="space-y-6">
+                <div class="flex items-center gap-4">
+                  <input
+                    type="color"
+                    name="profile[accent_color]"
+                    value={(@profile && @profile.accent_color) || "#f97316"}
+                    phx-change="update_color"
+                    phx-value-field="accent_color"
+                    class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                  />
+                  <div>
+                    <p class="font-medium">Accent Color</p>
+                    <p class="text-sm text-base-content/70">
+                      Links, icons, and highlights
+                    </p>
+                  </div>
+                </div>
+                
+<!-- Additional Color Options -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[text_color]"
+                      value={(@profile && @profile.text_color) || "#ffffff"}
+                      phx-change="update_color"
+                      phx-value-field="text_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Text Color</p>
+                      <p class="text-sm text-base-content/70">Color for main text</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[background_color]"
+                      value={(@profile && @profile.background_color) || "#000000"}
+                      phx-change="update_color"
+                      phx-value-field="background_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Page Background</p>
+                      <p class="text-sm text-base-content/70">
+                        Background behind the content box
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[icon_color]"
+                      value={(@profile && @profile.icon_color) || "#ffffff"}
+                      phx-change="update_color"
+                      phx-value-field="icon_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Icon Color</p>
+                      <p class="text-sm text-base-content/70">Color for social icons</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[container_background_color]"
+                      value={(@profile && @profile.container_background_color) || "#000000"}
+                      phx-change="update_color"
+                      phx-value-field="container_background_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Container Background</p>
+                      <p class="text-sm text-base-content/70">
+                        Background for the middle content box
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[tick_color]"
+                      value={(@profile && @profile.tick_color) || "#1d9bf0"}
+                      phx-change="update_color"
+                      phx-value-field="tick_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Verified Badge Color</p>
+                      <p class="text-sm text-base-content/70">
+                        Color for your verified checkmark
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+<!-- Container Pattern -->
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Container Pattern</span>
+                  </label>
+                  <select
+                    name="profile[container_pattern]"
+                    class="select select-bordered w-full"
+                    phx-change="update_effect"
+                  >
+                    <option
+                      value="none"
+                      selected={(@profile && @profile.container_pattern) == "none"}
+                    >
+                      None
+                    </option>
+                    <option
+                      value="dots"
+                      selected={(@profile && @profile.container_pattern) == "dots"}
+                    >
+                      Dots
+                    </option>
+                    <option
+                      value="grid"
+                      selected={(@profile && @profile.container_pattern) == "grid"}
+                    >
+                      Grid
+                    </option>
+                    <option
+                      value="diagonal_lines"
+                      selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
+                    >
+                      Diagonal Lines
+                    </option>
+                    <option
+                      value="zigzag"
+                      selected={(@profile && @profile.container_pattern) == "zigzag"}
+                    >
+                      Zigzag
+                    </option>
+                    <option
+                      value="waves"
+                      selected={(@profile && @profile.container_pattern) == "waves"}
+                    >
+                      Waves
+                    </option>
+                    <option
+                      value="crosses"
+                      selected={(@profile && @profile.container_pattern) == "crosses"}
+                    >
+                      Crosses
+                    </option>
+                    <option
+                      value="houndstooth"
+                      selected={(@profile && @profile.container_pattern) == "houndstooth"}
+                    >
+                      Houndstooth
+                    </option>
+                  </select>
+                </div>
+
+                <%= if @profile && @profile.container_pattern != "none" do %>
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[pattern_color]"
+                      value={(@profile && @profile.pattern_color) || "#ffffff"}
+                      phx-change="update_color"
+                      phx-value-field="pattern_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Pattern Color</p>
+                      <p class="text-sm text-base-content/70">Color for the pattern overlay</p>
+                    </div>
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                      <input type="hidden" name="profile[pattern_animated]" value="false" />
+                      <input
+                        type="checkbox"
+                        name="profile[pattern_animated]"
+                        value="true"
+                        checked={@profile && @profile.pattern_animated}
+                        class="checkbox checkbox-primary"
+                      />
+                      <span class="label-text">
+                        <span class="font-semibold">Animate Pattern</span>
+                        <span class="text-sm text-base-content/70 block">
+                          Add motion to your pattern
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <%= if @profile && @profile.pattern_animated do %>
+                    <div>
+                      <label class="label">
+                        <span class="label-text font-medium">Animation Speed</span>
+                      </label>
+                      <select
+                        name="profile[pattern_animation_speed]"
+                        class="select select-bordered w-full"
+                      >
+                        <option
+                          value="slow"
+                          selected={(@profile && @profile.pattern_animation_speed) == "slow"}
+                        >
+                          Slow
+                        </option>
+                        <option
+                          value="normal"
+                          selected={
+                            (@profile && @profile.pattern_animation_speed) == "normal" ||
+                              !@profile.pattern_animation_speed
+                          }
+                        >
+                          Normal
+                        </option>
+                        <option
+                          value="fast"
+                          selected={(@profile && @profile.pattern_animation_speed) == "fast"}
+                        >
+                          Fast
+                        </option>
+                      </select>
+                    </div>
+                  <% end %>
+                <% end %>
+                
+<!-- Background Type Selector -->
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Background Style</span>
+                  </label>
+                  <select
+                    name="profile[background_type]"
+                    class="select select-bordered w-full"
+                    phx-change="update_effect"
+                  >
+                    <option
+                      value="gradient"
+                      selected={(@profile && @profile.background_type) == "gradient"}
+                    >
+                      Gradient
+                    </option>
+                    <option
+                      value="solid"
+                      selected={(@profile && @profile.background_type) == "solid"}
+                    >
+                      Solid Color
+                    </option>
+                    <option
+                      value="image"
+                      selected={(@profile && @profile.background_type) == "image"}
+                    >
+                      Custom Image
+                    </option>
+                    <option
+                      value="video"
+                      selected={(@profile && @profile.background_type) == "video"}
+                    >
+                      Video (MP4/WebM)
+                    </option>
+                  </select>
+                </div>
+                
+<!-- Text Background Toggle -->
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-3">
+                    <input type="hidden" name="profile[text_background]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[text_background]"
+                      value="true"
+                      checked={@profile && @profile.text_background}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Text Background</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Add semi-transparent background behind text for better readability
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Colors & Background
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Background Upload -->
+          <%= if @profile && @profile.background_type in ["image", "video"] do %>
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
+                <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
+                  <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
+                </h2>
+                <p class="text-sm text-base-content/60 mb-4">
+                  <%= if @profile.background_type == "video" do %>
+                    Upload a video background (MP4 or WebM, max 10MB)
+                  <% else %>
+                    Upload an image background (JPG, PNG, GIF, or WebP, max 10MB)
+                  <% end %>
+                </p>
+
+                <.form
+                  for={%{}}
+                  phx-submit="update_profile"
+                  phx-change="validate_background_upload"
+                  class="space-y-4"
+                >
+                  <!-- Current Background Preview -->
+                  <%= if @profile.background_url do %>
+                    <div class="relative">
+                      <%= if @profile.background_type == "video" do %>
+                        <video
+                          src={Elektrine.Uploads.background_url(@profile.background_url)}
+                          class="w-full h-48 object-cover rounded-lg"
+                          autoplay
+                          loop
+                          muted
+                        >
+                        </video>
+                      <% else %>
+                        <img
+                          src={Elektrine.Uploads.background_url(@profile.background_url)}
+                          alt="Current background"
+                          class="w-full h-48 object-cover rounded-lg"
+                        />
+                      <% end %>
+                      <button
+                        type="button"
+                        phx-click="remove_background"
+                        class="absolute top-2 right-2 btn btn-secondary btn-sm"
+                      >
+                        <.icon name="hero-trash" class="w-4 h-4" /> Remove
+                      </button>
+                    </div>
+                  <% end %>
+                  
+<!-- Upload Progress -->
+                  <%= for entry <- @uploads.background.entries do %>
+                    <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
+                      <.icon
+                        name={
+                          if @profile.background_type == "video",
+                            do: "hero-film",
+                            else: "hero-photo"
+                        }
+                        class="w-6 h-6 flex-shrink-0"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium truncate">{entry.client_name}</p>
+                        <progress
+                          class="progress progress-primary w-full h-2 mt-1"
+                          value={entry.progress}
+                          max="100"
+                        >
+                        </progress>
+                      </div>
+                      <button
+                        type="button"
+                        phx-click="cancel_background_upload"
+                        phx-value-ref={entry.ref}
+                        class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                      >
+                        <.icon name="hero-x-mark" class="w-4 h-4" />
+                      </button>
+                    </div>
+                  <% end %>
+                  
+<!-- Upload Button -->
+                  <label class="btn btn-ghost w-full">
+                    <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" />
+                    Choose {if @profile.background_type == "video", do: "Video", else: "Image"}
+                    <.live_file_input upload={@uploads.background} class="hidden" />
+                  </label>
+
+                  <button type="submit" class="btn btn-primary w-full">
+                    Save Background
+                  </button>
+                </.form>
+              </div>
+            </div>
+          <% end %>
+          
+<!-- Visual Effects -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Visual Effects
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Adjust opacity, blur, and pattern visibility for your profile
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="update_profile" multipart class="space-y-6">
+                
+<!-- Effect Sliders -->
+                <div class="space-y-6">
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Profile Opacity</span>
+                      <span class="label-text-alt">
+                        {round(((@profile && @profile.profile_opacity) || 1.0) * 100)}%
+                      </span>
+                    </label>
+                    <input
+                      type="range"
+                      name="profile[profile_opacity]"
+                      min="0.5"
+                      max="1"
+                      step="0.1"
+                      value={(@profile && @profile.profile_opacity) || 1.0}
+                      phx-change="update_effect"
+                      phx-value-field="profile_opacity"
+                      class="range range-primary w-full"
+                    />
+                    <div class="flex w-full justify-between text-xs text-base-content/60">
+                      <span>50%</span>
+                      <span>75%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Profile Blur</span>
+                      <span class="label-text-alt">
+                        {(@profile && @profile.profile_blur) || 0}px
+                      </span>
+                    </label>
+                    <input
+                      type="range"
+                      name="profile[profile_blur]"
+                      min="0"
+                      max="20"
+                      step="1"
+                      value={(@profile && @profile.profile_blur) || 0}
+                      phx-change="update_effect"
+                      phx-value-field="profile_blur"
+                      class="range range-primary w-full"
+                    />
+                    <div class="flex w-full justify-between text-xs text-base-content/60">
+                      <span>0px</span>
+                      <span>10px</span>
+                      <span>20px</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Container Opacity</span>
+                      <span class="label-text-alt">
+                        {round(((@profile && @profile.container_opacity) || 0.4) * 100)}%
+                      </span>
+                    </label>
+                    <input
+                      type="range"
+                      name="profile[container_opacity]"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={(@profile && @profile.container_opacity) || 0.4}
+                      phx-change="update_effect"
+                      phx-value-field="container_opacity"
+                      class="range range-primary w-full"
+                    />
+                    <div class="flex w-full justify-between text-xs text-base-content/60">
+                      <span>0%</span>
+                      <span>50%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+
+                  <%= if @profile && @profile.container_pattern && @profile.container_pattern != "none" do %>
+                    <div>
+                      <label class="label">
+                        <span class="label-text font-medium">Pattern Opacity</span>
+                        <span class="label-text-alt">
+                          {round(((@profile && @profile.pattern_opacity) || 0.2) * 100)}%
+                        </span>
+                      </label>
+                      <input
+                        type="range"
+                        name="profile[pattern_opacity]"
+                        min="0.0"
+                        max="1.0"
+                        step="0.1"
+                        value={(@profile && @profile.pattern_opacity) || 0.2}
+                        phx-change="update_effect"
+                        phx-value-field="pattern_opacity"
+                        class="range range-primary w-full"
+                      />
+                      <div class="flex w-full justify-between text-xs text-base-content/60">
+                        <span>0%</span>
+                        <span>50%</span>
+                        <span>100%</span>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Effects
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Typewriter Effect -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-pencil-square" class="w-6 h-6" /> Typewriter Effect
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Animate your bio with a typewriter effect
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-3">
+                    <input type="hidden" name="profile[typewriter_title]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[typewriter_title]"
+                      value="true"
+                      checked={@profile && @profile.typewriter_title}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Typewriter for Browser Tab Title</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Animate the page title in the browser tab (requires Page Title to be set in Basic Info)
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-3">
+                    <input type="hidden" name="profile[typewriter_effect]" value="false" />
+                    <input
+                      type="checkbox"
+                      name="profile[typewriter_effect]"
+                      value="true"
+                      checked={@profile && @profile.typewriter_effect}
+                      class="checkbox checkbox-primary"
+                    />
+                    <span class="label-text">
+                      <span class="font-semibold">Typewriter for Bio</span>
+                      <span class="text-sm text-base-content/70 block">
+                        Animate your bio description when visitors load your profile
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <%= if @profile && (@profile.typewriter_effect || @profile.typewriter_title) do %>
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Typing Speed</span>
+                    </label>
+                    <select
+                      name="profile[typewriter_speed]"
+                      class="select select-bordered w-full"
+                    >
+                      <option
+                        value="slow"
+                        selected={(@profile && @profile.typewriter_speed) == "slow"}
+                      >
+                        Slow
+                      </option>
+                      <option
+                        value="normal"
+                        selected={
+                          (@profile && @profile.typewriter_speed) == "normal" ||
+                            !@profile.typewriter_speed
+                        }
+                      >
+                        Normal
+                      </option>
+                      <option
+                        value="fast"
+                        selected={(@profile && @profile.typewriter_speed) == "fast"}
+                      >
+                        Fast
+                      </option>
+                    </select>
+                  </div>
+                <% end %>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Typewriter Settings
+                </button>
+              </.form>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Avatar Effects Tab -->
+      <%= if @selected_tab == "avatar" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-6">
+            <div class="mb-6">
+              <h2 class="card-title text-2xl mb-2">
+                <.icon name="hero-photo" class="w-6 h-6" /> Avatar Effects
+              </h2>
+              <p class="text-sm text-base-content/60">
+                Add animated effects to your profile avatar
+              </p>
+            </div>
+
+            <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+              <!-- Effect Type Selector -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Choose Effect</span>
+                </label>
+                <select
+                  name="profile[avatar_effect]"
+                  class="select select-bordered w-full"
+                >
+                  <option value="none" selected={(@profile && @profile.avatar_effect) == "none"}>
+                    None
+                  </option>
+                  <option value="glow" selected={(@profile && @profile.avatar_effect) == "glow"}>
+                    Glow Pulse
+                  </option>
+                  <option
+                    value="rainbow"
+                    selected={(@profile && @profile.avatar_effect) == "rainbow"}
+                  >
+                    Rainbow Border
+                  </option>
+                  <option value="fire" selected={(@profile && @profile.avatar_effect) == "fire"}>
+                    Fire Ring
+                  </option>
+                  <option value="ice" selected={(@profile && @profile.avatar_effect) == "ice"}>
+                    Ice Shimmer
+                  </option>
+                  <option
+                    value="sparkle"
+                    selected={(@profile && @profile.avatar_effect) == "sparkle"}
+                  >
+                    Sparkle
+                  </option>
+                  <option
+                    value="holographic"
+                    selected={(@profile && @profile.avatar_effect) == "holographic"}
+                  >
+                    Holographic
+                  </option>
+                  <option
+                    value="gold_frame"
+                    selected={(@profile && @profile.avatar_effect) == "gold_frame"}
+                  >
+                    Imperial Gold
+                  </option>
+                  <option value="pulse" selected={(@profile && @profile.avatar_effect) == "pulse"}>
+                    Pulse
+                  </option>
+                  <option
+                    value="rotate_border"
+                    selected={(@profile && @profile.avatar_effect) == "rotate_border"}
+                  >
+                    Rotating Border
+                  </option>
+                </select>
+                <p class="text-xs text-base-content/60 mt-2">
+                  Effects will use your profile's accent color. Save to preview on your profile.
+                </p>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-full">
+                Save Avatar Effects
+              </button>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Username Effects Tab -->
+      <%= if @selected_tab == "username" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-6">
+            <div class="mb-6">
+              <h2 class="card-title text-2xl mb-2">
+                <.icon name="hero-sparkles" class="w-6 h-6" /> Username Effects
+              </h2>
+              <p class="text-sm text-base-content/60">
+                Make your username stand out across the platform
+              </p>
+            </div>
+
+            <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+              <!-- Effect Type Selector -->
+              <div>
+                <label class="label">
+                  <span class="label-text font-medium">Choose Effect</span>
+                </label>
+                <select
+                  name="profile[username_effect]"
+                  class="select select-bordered w-full"
+                  phx-change="update_username_effect"
+                >
+                  <option value="none" selected={(@profile && @profile.username_effect) == "none"}>
+                    None
+                  </option>
+                  <option value="glow" selected={(@profile && @profile.username_effect) == "glow"}>
+                    Glow
+                  </option>
+                  <option value="neon" selected={(@profile && @profile.username_effect) == "neon"}>
+                    Neon
+                  </option>
+                  <option
+                    value="rainbow"
+                    selected={(@profile && @profile.username_effect) == "rainbow"}
+                  >
+                    Rainbow
+                  </option>
+                  <option value="fire" selected={(@profile && @profile.username_effect) == "fire"}>
+                    Fire
+                  </option>
+                  <option value="ice" selected={(@profile && @profile.username_effect) == "ice"}>
+                    Ice
+                  </option>
+                  <option
+                    value="chrome"
+                    selected={(@profile && @profile.username_effect) == "chrome"}
+                  >
+                    Chrome
+                  </option>
+                  <option
+                    value="holographic"
+                    selected={(@profile && @profile.username_effect) == "holographic"}
+                  >
+                    Holographic
+                  </option>
+                  <option
+                    value="gradient"
+                    selected={(@profile && @profile.username_effect) == "gradient"}
+                  >
+                    Custom Gradient
+                  </option>
+                  <option
+                    value="outline"
+                    selected={(@profile && @profile.username_effect) == "outline"}
+                  >
+                    Outline
+                  </option>
+                  <option
+                    value="shadow"
+                    selected={(@profile && @profile.username_effect) == "shadow"}
+                  >
+                    Drop Shadow
+                  </option>
+                  <option
+                    value="double"
+                    selected={(@profile && @profile.username_effect) == "double"}
+                  >
+                    Double Text
+                  </option>
+                  <option
+                    value="retro"
+                    selected={(@profile && @profile.username_effect) == "retro"}
+                  >
+                    Retro VHS
+                  </option>
+                  <option
+                    value="pixelated"
+                    selected={(@profile && @profile.username_effect) == "pixelated"}
+                  >
+                    Pixelated
+                  </option>
+                  <option
+                    value="glitch"
+                    selected={(@profile && @profile.username_effect) == "glitch"}
+                  >
+                    Glitch
+                  </option>
+                </select>
+              </div>
+              
+<!-- Color Settings (for effects that support custom colors) -->
+              <%= if @profile && @profile.username_effect in ["glow", "neon", "outline", "pixelated"] do %>
+                <div class="space-y-4 p-4 bg-base-200/50 rounded-lg">
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[username_glow_color]"
+                      value={(@profile && @profile.username_glow_color) || "#8b5cf6"}
+                      phx-change="update_username_color"
+                      phx-value-field="username_glow_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div class="flex-1">
+                      <p class="font-medium">Glow Color</p>
+                      <p class="text-sm text-base-content/70">
+                        Choose the color for your glow effect
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Glow Intensity</span>
+                      <span class="label-text-alt">
+                        {(@profile && @profile.username_glow_intensity) || 10}px
+                      </span>
+                    </label>
+                    <input
+                      type="range"
+                      name="profile[username_glow_intensity]"
+                      min="0"
+                      max="50"
+                      step="5"
+                      value={(@profile && @profile.username_glow_intensity) || 10}
+                      phx-change="update_username_effect"
+                      class="range range-primary w-full"
+                    />
+                    <div class="flex w-full justify-between text-xs text-base-content/60">
+                      <span>Subtle</span>
+                      <span>Medium</span>
+                      <span>Intense</span>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Shadow Settings -->
+              <%= if @profile && @profile.username_effect in ["shadow", "double"] do %>
+                <div class="p-4 bg-base-200/50 rounded-lg">
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[username_shadow_color]"
+                      value={(@profile && @profile.username_shadow_color) || "#000000"}
+                      phx-change="update_username_color"
+                      phx-value-field="username_shadow_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div class="flex-1">
+                      <p class="font-medium">Shadow Color</p>
+                      <p class="text-sm text-base-content/70">Choose the shadow color</p>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Gradient Settings -->
+              <%= if @profile && @profile.username_effect == "gradient" do %>
+                <div class="p-4 bg-base-200/50 rounded-lg space-y-4">
+                  <p class="font-medium">Gradient Colors</p>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="flex items-center gap-3">
+                      <input
+                        type="color"
+                        name="profile[username_gradient_from]"
+                        value={(@profile && @profile.username_gradient_from) || "#8b5cf6"}
+                        phx-change="update_username_color"
+                        phx-value-field="username_gradient_from"
+                        class="w-14 h-14 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium text-sm">From</p>
+                        <p class="text-xs text-base-content/70">Start color</p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                      <input
+                        type="color"
+                        name="profile[username_gradient_to]"
+                        value={(@profile && @profile.username_gradient_to) || "#ec4899"}
+                        phx-change="update_username_color"
+                        phx-value-field="username_gradient_to"
+                        class="w-14 h-14 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium text-sm">To</p>
+                        <p class="text-xs text-base-content/70">End color</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+              
+<!-- Animation Speed -->
+              <%= if @profile && @profile.username_effect in ["rainbow", "glitch", "neon", "fire", "ice", "holographic"] do %>
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Animation Speed</span>
+                  </label>
+                  <select
+                    name="profile[username_animation_speed]"
+                    class="select select-bordered w-full"
+                  >
+                    <option
+                      value="slow"
+                      selected={(@profile && @profile.username_animation_speed) == "slow"}
+                    >
+                      Slow
+                    </option>
+                    <option
+                      value="normal"
+                      selected={
+                        (@profile && @profile.username_animation_speed) == "normal" ||
+                          !@profile.username_animation_speed
+                      }
+                    >
+                      Normal
+                    </option>
+                    <option
+                      value="fast"
+                      selected={(@profile && @profile.username_animation_speed) == "fast"}
+                    >
+                      Fast
+                    </option>
+                  </select>
+                </div>
+              <% end %>
+
+              <button type="submit" class="btn btn-primary w-full">
+                Save Username Effects
+              </button>
+            </.form>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Links Tab -->
+      <%= if @selected_tab == "links" do %>
+        <div class="space-y-6">
+          <!-- Link Display Style -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-squares-2x2" class="w-6 h-6" /> Link Display Style
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Choose how your links appear on your profile
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Display Style</span>
+                  </label>
+                  <select
+                    name="profile[link_display_style]"
+                    class="select select-bordered w-full"
+                    phx-change="update_link_style"
+                  >
+                    <option
+                      value="circular"
+                      selected={(@profile && @profile.link_display_style) == "circular"}
+                    >
+                      Circular Icons
+                    </option>
+                    <option
+                      value="full_width"
+                      selected={(@profile && @profile.link_display_style) == "full_width"}
+                    >
+                      Full Width Buttons
+                    </option>
+                  </select>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      <strong>Circular:</strong> Small icon circles (current style)<br />
+                      <strong>Full Width:</strong> Large button-style links (Linktree style)
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Default Link Highlight Effect</span>
+                  </label>
+                  <select
+                    name="profile[link_highlight_effect]"
+                    class="select select-bordered w-full"
+                    phx-change="update_link_effect"
+                  >
+                    <option
+                      value="none"
+                      selected={(@profile && @profile.link_highlight_effect) == "none"}
+                    >
+                      None
+                    </option>
+                    <option
+                      value="glow"
+                      selected={(@profile && @profile.link_highlight_effect) == "glow"}
+                    >
+                      Glow
+                    </option>
+                    <option
+                      value="pulse"
+                      selected={(@profile && @profile.link_highlight_effect) == "pulse"}
+                    >
+                      Pulse
+                    </option>
+                    <option
+                      value="border"
+                      selected={(@profile && @profile.link_highlight_effect) == "border"}
+                    >
+                      Border Highlight
+                    </option>
+                    <option
+                      value="shine"
+                      selected={(@profile && @profile.link_highlight_effect) == "shine"}
+                    >
+                      Shine Animation
+                    </option>
+                  </select>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      Default effect for all links (can be overridden per-link when editing individual links)
+                    </span>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Link Settings
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Add New Link -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-plus" class="w-6 h-6" /> Add New Link
+                  <span class="text-sm font-normal text-base-content/60">
+                    ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
+                  </span>
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Add social links and custom URLs to your profile
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="add_link" multipart class="space-y-6">
+                <!-- Platform Selection -->
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Platform</span>
+                  </label>
+                  <input
+                    type="hidden"
+                    name="link[platform]"
+                    value={@selected_platform || "custom"}
+                  />
+                  
+<!-- Platform Selection Grid -->
+                  <div class="space-y-2">
+                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
+                      <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
+                        <% platform_color =
+                          Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
+                        <button
+                          type="button"
+                          class={"platform-btn flex items-center justify-center w-12 h-12 rounded-lg border-2 transition-all duration-200 #{if @selected_platform == platform, do: "platform-selected scale-110", else: "border-base-300 hover:scale-105"}"}
+                          style={
+                            if @selected_platform == platform,
+                              do:
+                                "border-color: #{platform_color}; background-color: #{platform_color}20",
+                              else: ""
+                          }
+                          data-platform={platform}
+                          phx-click="select_platform"
+                          phx-value-platform={platform}
+                        >
+                          <div
+                            class={"w-6 h-6 transition-colors #{if @selected_platform == platform, do: "", else: "text-base-content/70"}"}
+                            style={
+                              if @selected_platform == platform,
+                                do: "color: #{platform_color}",
+                                else: ""
+                            }
+                          >
+                            <%= if platform == "custom" do %>
+                              <svg
+                                class="w-6 h-6"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                                />
+                              </svg>
+                            <% else %>
+                              {Phoenix.HTML.raw(
+                                Elektrine.Profiles.ProfileLink.get_platform_svg(platform)
+                              )}
+                            <% end %>
+                          </div>
+                        </button>
+                      <% end %>
+                    </div>
+                    <%= if @selected_platform do %>
+                      <% selected_color =
+                        Elektrine.Profiles.ProfileLink.get_platform_color(@selected_platform) %>
+                      <div class="text-center text-sm font-medium text-base-content/70">
+                        Selected:
+                        <span style={"color: #{selected_color}"}>
+                          {String.capitalize(@selected_platform)}
+                        </span>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+                
+<!-- Form Fields Below Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Title</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="link[title]"
+                      placeholder={get_title_placeholder(@selected_platform)}
+                      class="input input-bordered w-full"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">URL</span>
+                    </label>
+                    <input
+                      type="url"
+                      name="link[url]"
+                      placeholder={get_url_placeholder(@selected_platform)}
+                      class="input input-bordered w-full"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Display Style</span>
+                    </label>
+                    <select
+                      name="link[display_style]"
+                      class="select select-bordered w-full"
+                    >
+                      <option value="">Use Profile Default</option>
+                      <option value="circular">Circular Icon</option>
+                      <option value="full_width">Full Width Button</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Highlight Effect</span>
+                      <span class="label-text-alt text-xs">Per-Link Override</span>
+                    </label>
+                    <select
+                      name="link[highlight_effect]"
+                      class="select select-bordered w-full"
+                    >
+                      <option value="">Use Profile Default</option>
+                      <option value="none">None</option>
+                      <option value="glow">Glow</option>
+                      <option value="pulse">Pulse</option>
+                      <option value="border">Border</option>
+                      <option value="shine">Shine</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Section</span>
+                    <span class="label-text-alt">For full-width only</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="link[section]"
+                    placeholder="e.g., PRODUCTS, BUSINESS, CONTACT"
+                    class="input input-bordered w-full"
+                    maxlength="50"
+                  />
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      Group full-width links with a header. Circular links ignore sections.
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Description</span>
+                    <span class="label-text-alt">Optional</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="link[description]"
+                    placeholder="Description (optional)"
+                    class="input input-bordered w-full"
+                  />
+                </div>
+
+                <div class="card-actions">
+                  <button type="submit" class="btn btn-primary btn-lg w-full">
+                    Add Link
+                  </button>
+                </div>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Current Links -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-link" class="w-6 h-6" /> Your Links
+                  <span class="text-sm font-normal text-base-content/60">
+                    ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
+                  </span>
+                </h2>
+                <p class="text-sm text-base-content/60">Manage your profile links</p>
+              </div>
+
+              <%= if @profile && @profile.links && length(@profile.links) > 0 do %>
+                <div class="space-y-2">
+                  <%= for link <- @profile.links do %>
+                    <%= if @editing_link_id == link.id do %>
+                      <!-- Edit Form -->
+                      <div class="p-4 bg-primary/10 rounded-lg border border-primary">
+                        <h4 class="font-medium text-sm mb-3">Edit Link</h4>
+                        <.form for={%{}} phx-submit="save_edit_link" class="space-y-3">
+                          <div>
+                            <label class="label">
+                              <span class="label-text font-medium text-xs">Platform</span>
+                            </label>
+                            <input
+                              type="hidden"
+                              name="link[platform]"
+                              id="edit-selected-platform"
+                              value={@editing_link_data["platform"] || "custom"}
+                            />
+                            
+<!-- Platform Selection Grid for Editing -->
+                            <div class="space-y-2">
+                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
+                                <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
+                                  <% platform_color =
+                                    Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
+                                  <button
+                                    type="button"
+                                    class={"edit-platform-btn flex items-center justify-center w-12 h-12 rounded-lg border-2 transition-all duration-200 #{if @editing_link_data["platform"] == platform, do: "platform-selected scale-110", else: "border-base-300 hover:scale-105"}"}
+                                    style={
+                                      if @editing_link_data["platform"] == platform,
+                                        do:
+                                          "border-color: #{platform_color}; background-color: #{platform_color}20",
+                                        else: ""
+                                    }
+                                    data-platform={platform}
+                                    phx-click="select_edit_platform"
+                                    phx-value-platform={platform}
+                                  >
+                                    <div
+                                      class={"w-6 h-6 transition-colors #{if @editing_link_data["platform"] == platform, do: "", else: "text-base-content/70"}"}
+                                      style={
+                                        if @editing_link_data["platform"] == platform,
+                                          do: "color: #{platform_color}",
+                                          else: ""
+                                      }
+                                    >
+                                      <%= if platform == "custom" do %>
+                                        <svg
+                                          class="w-6 h-6"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                                          />
+                                        </svg>
+                                      <% else %>
+                                        {Phoenix.HTML.raw(
+                                          Elektrine.Profiles.ProfileLink.get_platform_svg(
+                                            platform
+                                          )
+                                        )}
+                                      <% end %>
+                                    </div>
+                                  </button>
+                                <% end %>
+                              </div>
+                              <%= if @editing_link_data["platform"] do %>
+                                <% edit_selected_color =
+                                  Elektrine.Profiles.ProfileLink.get_platform_color(
+                                    @editing_link_data["platform"]
+                                  ) %>
+                                <div class="text-center text-sm font-medium text-base-content/70">
+                                  Selected:
+                                  <span style={"color: #{edit_selected_color}"}>
+                                    {String.capitalize(@editing_link_data["platform"])}
+                                  </span>
+                                </div>
+                              <% end %>
+                            </div>
+                          </div>
+
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label class="label">
+                                <span class="label-text font-medium text-xs">Title</span>
+                              </label>
+                              <input
+                                type="text"
+                                name="link[title]"
+                                value={@editing_link_data["title"]}
+                                class="input input-bordered input-sm w-full"
+                                required
+                              />
+                            </div>
+
+                            <div>
+                              <label class="label">
+                                <span class="label-text font-medium text-xs">URL</span>
+                              </label>
+                              <input
+                                type="url"
+                                name="link[url]"
+                                value={@editing_link_data["url"]}
+                                class="input input-bordered input-sm w-full"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label class="label">
+                                <span class="label-text font-medium text-xs">
+                                  Display Style
+                                </span>
+                              </label>
+                              <select
+                                name="link[display_style]"
+                                class="select select-bordered select-sm w-full"
+                              >
+                                <option value="" selected={!@editing_link_data["display_style"]}>
+                                  Use Profile Default
+                                </option>
+                                <option
+                                  value="circular"
+                                  selected={@editing_link_data["display_style"] == "circular"}
+                                >
+                                  Circular Icon
+                                </option>
+                                <option
+                                  value="full_width"
+                                  selected={@editing_link_data["display_style"] == "full_width"}
+                                >
+                                  Full Width Button
+                                </option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label class="label">
+                                <span class="label-text font-medium text-xs">Effect</span>
+                                <span class="label-text-alt text-xs opacity-70">Override</span>
+                              </label>
+                              <select
+                                name="link[highlight_effect]"
+                                class="select select-bordered select-sm w-full"
+                              >
+                                <option
+                                  value=""
+                                  selected={!@editing_link_data["highlight_effect"]}
+                                >
+                                  Use Default
+                                </option>
+                                <option
+                                  value="none"
+                                  selected={@editing_link_data["highlight_effect"] == "none"}
+                                >
+                                  None
+                                </option>
+                                <option
+                                  value="glow"
+                                  selected={@editing_link_data["highlight_effect"] == "glow"}
+                                >
+                                  Glow
+                                </option>
+                                <option
+                                  value="pulse"
+                                  selected={@editing_link_data["highlight_effect"] == "pulse"}
+                                >
+                                  Pulse
+                                </option>
+                                <option
+                                  value="border"
+                                  selected={@editing_link_data["highlight_effect"] == "border"}
+                                >
+                                  Border
+                                </option>
+                                <option
+                                  value="shine"
+                                  selected={@editing_link_data["highlight_effect"] == "shine"}
+                                >
+                                  Shine
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label class="label">
+                              <span class="label-text font-medium text-xs">Section</span>
+                              <span class="label-text-alt text-xs opacity-70">
+                                Full-width only
+                              </span>
+                            </label>
+                            <input
+                              type="text"
+                              name="link[section]"
+                              value={@editing_link_data["section"]}
+                              placeholder="e.g., PRODUCTS, BUSINESS"
+                              class="input input-bordered input-sm w-full"
+                              maxlength="50"
+                            />
+                          </div>
+
+                          <div>
+                            <label class="label">
+                              <span class="label-text font-medium text-xs">Description</span>
+                            </label>
+                            <input
+                              type="text"
+                              name="link[description]"
+                              value={@editing_link_data["description"]}
+                              class="input input-bordered input-sm w-full"
+                            />
+                          </div>
+
+                          <div class="form-control">
+                            <label class="label cursor-pointer justify-start gap-3">
+                              <input
+                                type="checkbox"
+                                name="link[is_active]"
+                                checked={@editing_link_data["is_active"]}
+                                class="checkbox checkbox-primary checkbox-sm"
+                              />
+                              <span class="label-text">Active</span>
+                            </label>
+                          </div>
+
+                          <div class="flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              phx-click="cancel_edit_link"
+                              class="btn btn-ghost btn-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </.form>
+                      </div>
+                    <% else %>
+                      <!-- Normal Display -->
+                      <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg border border-base-300 hover:bg-base-200 transition-colors">
+                        <div class="flex items-center space-x-3">
+                          <div class="flex flex-col gap-1">
+                            <button
+                              phx-click="reorder_link"
+                              phx-value-id={link.id}
+                              phx-value-direction="up"
+                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              disabled={link.position == 0}
+                            >
+                              <.icon name="hero-chevron-up" class="w-3 h-3" />
+                            </button>
+                            <button
+                              phx-click="reorder_link"
+                              phx-value-id={link.id}
+                              phx-value-direction="down"
+                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              disabled={link.position == length(@profile.links) - 1}
+                            >
+                              <.icon name="hero-chevron-down" class="w-3 h-3" />
+                            </button>
+                          </div>
+                          <% link_color =
+                            Elektrine.Profiles.ProfileLink.get_platform_color(link.platform) %>
+                          <div class="w-5 h-5" style={"color: #{link_color}"}>
+                            {Phoenix.HTML.raw(
+                              Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
+                            )}
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                              <p class="font-medium text-sm">{link.title}</p>
+                              <%= if link.section do %>
+                                <span class="badge badge-xs badge-secondary">{link.section}</span>
+                              <% end %>
+                              <%= if link.display_style do %>
+                                <span class="badge badge-xs badge-info">
+                                  {if link.display_style == "circular", do: "⭕", else: "▬"}
+                                </span>
+                              <% end %>
+                            </div>
+                            <p class="text-xs text-base-content/60 truncate max-w-xs">
+                              {link.url}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center space-x-2 flex-shrink-0">
+                          <span class="badge badge-sm">{link.clicks} clicks</span>
+                          <button
+                            phx-click="edit_link"
+                            phx-value-id={link.id}
+                            class="btn btn-ghost btn-xs"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            phx-click="delete_link"
+                            phx-value-id={link.id}
+                            class="btn btn-ghost btn-xs text-error"
+                            data-confirm="Delete this link?"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-center py-8">
+                  <.icon name="hero-link" class="w-12 h-12 text-base-content/30 mx-auto mb-3" />
+                  <p class="text-base-content/60">No links yet</p>
+                  <p class="text-sm text-base-content/40">Add your first link above</p>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Widgets Tab -->
+      <%= if @selected_tab == "widgets" do %>
+        <div class="space-y-6">
+          <!-- Add New Widget -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-squares-plus" class="w-6 h-6" /> Add Widget
+                  <span class="text-sm font-normal text-base-content/60">
+                    ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
+                  </span>
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Add interactive content blocks to your profile
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="add_widget" class="space-y-6">
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Widget Type</span>
+                  </label>
+                  <select
+                    name="widget[widget_type]"
+                    class="select select-bordered w-full"
+                  >
+                    <option value="text">Text Block</option>
+                    <option value="image">Image</option>
+                    <option value="spotify">Spotify Embed</option>
+                    <option value="youtube">YouTube Video</option>
+                    <option value="github_stats">GitHub Stats</option>
+                    <option value="discord_status">Discord Status</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Title</span>
+                    <span class="label-text-alt">Optional</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="widget[title]"
+                    placeholder="Widget title (optional)"
+                    class="input input-bordered w-full"
+                    maxlength="200"
+                  />
+                </div>
+
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Content/URL</span>
+                  </label>
+                  <textarea
+                    name="widget[content]"
+                    placeholder="Text content, URL, or embed code"
+                    class="textarea textarea-bordered w-full"
+                    rows="4"
+                    maxlength="5000"
+                  ></textarea>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      <strong>Text:</strong> Your custom text<br />
+                      <strong>Image:</strong> HTTPS image URL only<br />
+                      <strong>YouTube:</strong> Any YouTube link<br />
+                      <strong>Spotify:</strong> Track/album/playlist URL<br />
+                      <strong>GitHub Stats:</strong> GitHub username<br />
+                      <strong>Discord Status:</strong> Discord User ID (numbers only)
+                    </span>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  <.icon name="hero-plus" class="w-5 h-5 mr-2" /> Add Widget
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Current Widgets -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-squares-2x2" class="w-6 h-6" /> Your Widgets
+                  <span class="text-sm font-normal text-base-content/60">
+                    ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
+                  </span>
+                </h2>
+                <p class="text-sm text-base-content/60">Manage your profile widgets</p>
+              </div>
+
+              <%= if @profile && @profile.widgets && length(@profile.widgets) > 0 do %>
+                <div class="space-y-3">
+                  <%= for widget <- @profile.widgets do %>
+                    <div class="p-4 bg-base-200/50 rounded-lg border border-base-300">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3 flex-1">
+                          <div class="flex flex-col gap-1">
+                            <button
+                              phx-click="reorder_widget"
+                              phx-value-id={widget.id}
+                              phx-value-direction="up"
+                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              disabled={widget.position == 0}
+                            >
+                              <.icon name="hero-chevron-up" class="w-3 h-3" />
+                            </button>
+                            <button
+                              phx-click="reorder_widget"
+                              phx-value-id={widget.id}
+                              phx-value-direction="down"
+                              class="btn btn-ghost btn-xs p-0 h-4 min-h-4"
+                              disabled={widget.position == length(@profile.widgets) - 1}
+                            >
+                              <.icon name="hero-chevron-down" class="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="badge badge-primary badge-sm">
+                                {widget.widget_type}
+                              </span>
+                              <span class="font-medium">{widget.title}</span>
+                            </div>
+                            <p class="text-xs text-base-content/60 truncate">
+                              {widget.content || widget.url}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <button
+                            phx-click="delete_widget"
+                            phx-value-id={widget.id}
+                            class="btn btn-ghost btn-xs text-error"
+                            data-confirm="Delete this widget?"
+                          >
+                            <.icon name="hero-trash" class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-center py-8">
+                  <.icon
+                    name="hero-squares-2x2"
+                    class="w-12 h-12 text-base-content/30 mx-auto mb-3"
+                  />
+                  <p class="text-base-content/60">No widgets yet</p>
+                  <p class="text-sm text-base-content/40">Add your first widget above</p>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Badges Tab -->
+      <%= if @selected_tab == "badges" do %>
+        <div class="card glass-card shadow-lg">
+          <div class="card-body p-6">
+            <div class="mb-6">
+              <h2 class="card-title text-2xl mb-2">
+                <.icon name="hero-check-badge" class="w-6 h-6" /> Manage Your Badges
+              </h2>
+              <p class="text-sm text-base-content/60">
+                Select which badges you want to display on your profile
+              </p>
+            </div>
+
+            <%= if @user_badges && length(@user_badges) > 0 do %>
+              <div class="space-y-3">
+                <%= for badge <- @user_badges do %>
+                  <% # Create darker gradient colors (50% to 65% like show page)
+                  {r, g, b} = hex_to_rgb(badge.badge_color || "#8b5cf6")
+                  from_r = max(0, round(r * 0.5))
+                  from_g = max(0, round(g * 0.5))
+                  from_b = max(0, round(b * 0.5))
+                  to_r = max(0, round(r * 0.65))
+                  to_g = max(0, round(g * 0.65))
+                  to_b = max(0, round(b * 0.65))
+                  from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
+                  to_color = "rgb(#{to_r}, #{to_g}, #{to_b})" %>
+                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300 border border-base-300/50">
+                    <div class="flex items-center gap-3">
+                      <span
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-semibold text-xs"
+                        style={"background: linear-gradient(to right, #{from_color}, #{to_color}); box-shadow: 0 2px 8px #{badge.badge_color || "#8b5cf6"}60, 0 1px 3px rgba(0, 0, 0, 0.5); border: 1px solid #{(@profile && @profile.accent_color) || badge.badge_color || "#8b5cf6"}40;"}
+                      >
+                        <span class="tracking-wide">{badge.badge_text || badge.badge_type}</span>
+                      </span>
+                      <%= if badge.tooltip do %>
+                        <div class="flex flex-col">
+                          <span class="text-sm font-medium text-base-content/80">
+                            {badge.tooltip}
+                          </span>
+                          <span class="text-xs text-base-content/50">Awarded by admin</span>
+                        </div>
+                      <% end %>
+                    </div>
+                    <label class="label cursor-pointer justify-start gap-3">
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-primary"
+                        checked={badge.visible}
+                        phx-click="toggle_badge_visibility"
+                        phx-value-badge_id={badge.id}
+                      />
+                      <span class="label-text font-medium">
+                        {if badge.visible, do: "Visible", else: "Hidden"}
+                      </span>
+                    </label>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="text-center py-12">
+                <.icon
+                  name="hero-check-badge"
+                  class="w-16 h-16 text-base-content/20 mx-auto mb-4"
+                />
+                <p class="text-lg font-medium text-base-content/60 mb-2">No Badges Yet</p>
+                <p class="text-sm text-base-content/40">
+                  Badges are awarded by administrators for special achievements or contributions
+                </p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Advanced Tab -->
+      <%= if @selected_tab == "advanced" do %>
+        <div class="space-y-6">
+          <!-- Text Fonts -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-document-text" class="w-6 h-6" /> Text Fonts
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Choose the font family for your profile
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Font Family</span>
+                  </label>
+                  <select
+                    name="profile[font_family]"
+                    class="select select-bordered w-full"
+                    phx-change="update_font"
+                  >
+                    <option value="" selected={is_nil(@profile && @profile.font_family)}>
+                      System Default
+                    </option>
+                    <option
+                      value="Inter"
+                      selected={(@profile && @profile.font_family) == "Inter"}
+                      style="font-family: 'Inter', sans-serif"
+                    >
+                      Inter
+                    </option>
+                    <option
+                      value="Arial"
+                      selected={(@profile && @profile.font_family) == "Arial"}
+                      style="font-family: 'Arial', sans-serif"
+                    >
+                      Arial
+                    </option>
+                    <option
+                      value="Helvetica"
+                      selected={(@profile && @profile.font_family) == "Helvetica"}
+                      style="font-family: 'Helvetica', sans-serif"
+                    >
+                      Helvetica
+                    </option>
+                    <option
+                      value="Georgia"
+                      selected={(@profile && @profile.font_family) == "Georgia"}
+                      style="font-family: 'Georgia', serif"
+                    >
+                      Georgia
+                    </option>
+                    <option
+                      value="Times New Roman"
+                      selected={(@profile && @profile.font_family) == "Times New Roman"}
+                      style="font-family: 'Times New Roman', serif"
+                    >
+                      Times New Roman
+                    </option>
+                    <option
+                      value="Courier New"
+                      selected={(@profile && @profile.font_family) == "Courier New"}
+                      style="font-family: 'Courier New', monospace"
+                    >
+                      Courier New
+                    </option>
+                    <option
+                      value="Verdana"
+                      selected={(@profile && @profile.font_family) == "Verdana"}
+                      style="font-family: 'Verdana', sans-serif"
+                    >
+                      Verdana
+                    </option>
+                    <option
+                      value="Trebuchet MS"
+                      selected={(@profile && @profile.font_family) == "Trebuchet MS"}
+                      style="font-family: 'Trebuchet MS', sans-serif"
+                    >
+                      Trebuchet MS
+                    </option>
+                    <option
+                      value="Comic Sans MS"
+                      selected={(@profile && @profile.font_family) == "Comic Sans MS"}
+                      style="font-family: 'Comic Sans MS', cursive"
+                    >
+                      Comic Sans MS
+                    </option>
+                    <option
+                      value="Impact"
+                      selected={(@profile && @profile.font_family) == "Impact"}
+                      style="font-family: 'Impact', sans-serif"
+                    >
+                      Impact
+                    </option>
+                    <option
+                      value="Palatino"
+                      selected={(@profile && @profile.font_family) == "Palatino"}
+                      style="font-family: 'Palatino', serif"
+                    >
+                      Palatino
+                    </option>
+                    <option
+                      value="Garamond"
+                      selected={(@profile && @profile.font_family) == "Garamond"}
+                      style="font-family: 'Garamond', serif"
+                    >
+                      Garamond
+                    </option>
+                    <option
+                      value="Bookman"
+                      selected={(@profile && @profile.font_family) == "Bookman"}
+                      style="font-family: 'Bookman', serif"
+                    >
+                      Bookman
+                    </option>
+                    <option
+                      value="Consolas"
+                      selected={(@profile && @profile.font_family) == "Consolas"}
+                      style="font-family: 'Consolas', monospace"
+                    >
+                      Consolas
+                    </option>
+                    <option
+                      value="Monaco"
+                      selected={(@profile && @profile.font_family) == "Monaco"}
+                      style="font-family: 'Monaco', monospace"
+                    >
+                      Monaco
+                    </option>
+                  </select>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      This font will be used across your profile page
+                    </span>
+                  </div>
+                </div>
+
+                <div class="p-4 bg-base-200/50 rounded-lg">
+                  <p class="text-sm font-semibold mb-2">Preview:</p>
+                  <p
+                    class="text-lg"
+                    style={
+                      if @profile && @profile.font_family,
+                        do: "font-family: '#{@profile.font_family}', sans-serif;",
+                        else: ""
+                    }
+                  >
+                    The quick brown fox jumps over the lazy dog
+                  </p>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Font
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Cursor Effects -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-cursor-arrow-rays" class="w-6 h-6" /> Cursor Effects
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Change the cursor style when hovering over your profile
+                </p>
+              </div>
+
+              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">Cursor Style</span>
+                  </label>
+                  <select
+                    name="profile[cursor_style]"
+                    class="select select-bordered w-full"
+                    phx-change="update_cursor"
+                  >
+                    <option
+                      value="default"
+                      selected={(@profile && @profile.cursor_style) == "default"}
+                    >
+                      Default
+                    </option>
+                    <option
+                      value="pointer"
+                      selected={(@profile && @profile.cursor_style) == "pointer"}
+                    >
+                      Pointer
+                    </option>
+                    <option
+                      value="crosshair"
+                      selected={(@profile && @profile.cursor_style) == "crosshair"}
+                    >
+                      Crosshair
+                    </option>
+                    <option value="help" selected={(@profile && @profile.cursor_style) == "help"}>
+                      Help
+                    </option>
+                    <option value="wait" selected={(@profile && @profile.cursor_style) == "wait"}>
+                      Wait
+                    </option>
+                    <option value="grab" selected={(@profile && @profile.cursor_style) == "grab"}>
+                      Grab
+                    </option>
+                    <option value="text" selected={(@profile && @profile.cursor_style) == "text"}>
+                      Text
+                    </option>
+                    <option value="move" selected={(@profile && @profile.cursor_style) == "move"}>
+                      Move
+                    </option>
+                    <option
+                      value="not-allowed"
+                      selected={(@profile && @profile.cursor_style) == "not-allowed"}
+                    >
+                      Not Allowed
+                    </option>
+                    <option value="cell" selected={(@profile && @profile.cursor_style) == "cell"}>
+                      Cell
+                    </option>
+                    <option
+                      value="context-menu"
+                      selected={(@profile && @profile.cursor_style) == "context-menu"}
+                    >
+                      Context Menu
+                    </option>
+                    <option
+                      value="vertical-text"
+                      selected={(@profile && @profile.cursor_style) == "vertical-text"}
+                    >
+                      Vertical Text
+                    </option>
+                    <option
+                      value="alias"
+                      selected={(@profile && @profile.cursor_style) == "alias"}
+                    >
+                      Alias
+                    </option>
+                    <option value="copy" selected={(@profile && @profile.cursor_style) == "copy"}>
+                      Copy
+                    </option>
+                    <option
+                      value="no-drop"
+                      selected={(@profile && @profile.cursor_style) == "no-drop"}
+                    >
+                      No Drop
+                    </option>
+                  </select>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60">
+                      Hover over this card to preview the cursor style
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  class="p-4 bg-base-200/50 rounded-lg text-center"
+                  style={"cursor: #{(@profile && @profile.cursor_style) || "default"}"}
+                >
+                  <p class="text-sm font-semibold mb-2">Hover here to preview</p>
+                  <p class="text-base-content/70">
+                    Current cursor:
+                    <span class="font-medium text-primary">
+                      {(@profile && @profile.cursor_style) || "default"}
+                    </span>
+                  </p>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Cursor
+                </button>
+              </.form>
+            </div>
+          </div>
+          
+<!-- Favicon -->
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-globe-alt" class="w-6 h-6" /> Favicon
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Custom icon for your profile's browser tab
+                </p>
+              </div>
+
+              <.form
+                for={%{}}
+                phx-submit="update_profile"
+                phx-change="validate_favicon_upload"
+                class="space-y-6"
+              >
+                <!-- Current Favicon Preview -->
+                <%= if @profile && @profile.favicon_url do %>
+                  <div class="relative p-4 bg-base-200/50 rounded-lg">
+                    <p class="text-sm font-semibold mb-3">Current Favicon:</p>
+                    <div class="flex items-center gap-3">
+                      <img
+                        src={Elektrine.Uploads.favicon_url(@profile.favicon_url)}
+                        alt="Favicon preview"
+                        class="w-8 h-8"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+                      />
+                      <span class="text-error text-sm hidden">Failed to load favicon</span>
+                      <span class="text-sm text-base-content/70 truncate">
+                        {@profile.favicon_url}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="remove_favicon"
+                      class="absolute top-2 right-2 btn btn-secondary btn-xs"
+                    >
+                      <.icon name="hero-trash" class="w-4 h-4" /> Remove
+                    </button>
+                  </div>
+                <% end %>
+                
+<!-- Upload Progress -->
+                <%= for entry <- @uploads.favicon.entries do %>
+                  <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
+                    <.icon name="hero-photo" class="w-6 h-6 flex-shrink-0" />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">{entry.client_name}</p>
+                      <progress
+                        class="progress progress-primary w-full h-2 mt-1"
+                        value={entry.progress}
+                        max="100"
+                      >
+                      </progress>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="cancel_favicon_upload"
+                      phx-value-ref={entry.ref}
+                      class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                    >
+                      <.icon name="hero-x-mark" class="w-4 h-4" />
+                    </button>
+                  </div>
+                <% end %>
+                
+<!-- Upload Button -->
+                <label class="btn btn-ghost w-full">
+                  <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" /> Choose Favicon
+                  <.live_file_input upload={@uploads.favicon} class="hidden" />
+                </label>
+
+                <div class="label">
+                  <span class="text-xs text-base-content/60">
+                    Accepts: PNG, ICO, SVG, JPG (max 1MB). Square images work best (16x16 to 512x512)
+                  </span>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full">
+                  Save Favicon
+                </button>
+              </.form>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+<!-- Static Site Tab -->
+      <%= if @selected_tab == "static_site" do %>
+        <div class="space-y-6">
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-6">
+              <div class="mb-6">
+                <h2 class="card-title text-2xl mb-2">
+                  <.icon name="hero-code-bracket" class="w-6 h-6" /> Profile Mode
+                </h2>
+                <p class="text-sm text-base-content/60">
+                  Choose between the visual profile builder or host your own custom static site
+                </p>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Builder Mode -->
+                <div
+                  phx-click="set_profile_mode"
+                  phx-value-mode="builder"
+                  class={"card cursor-pointer transition-all hover:shadow-lg #{if (@profile && @profile.profile_mode) != "static", do: "ring-2 ring-primary bg-primary/5", else: "bg-base-200 hover:bg-base-300"}"}
+                >
+                  <div class="card-body p-4">
+                    <div class="flex items-start gap-3">
+                      <div class={"w-10 h-10 rounded-lg flex items-center justify-center #{if (@profile && @profile.profile_mode) != "static", do: "bg-primary text-primary-content", else: "bg-base-300"}"}>
+                        <.icon name="hero-paint-brush" class="w-5 h-5" />
+                      </div>
+                      <div class="flex-1">
+                        <h3 class="font-semibold">Profile Builder</h3>
+                        <p class="text-xs text-base-content/60 mt-1">
+                          Use the visual editor to customize your profile with links, widgets, themes, and more
+                        </p>
+                      </div>
+                      <%= if (@profile && @profile.profile_mode) != "static" do %>
+                        <.icon name="hero-check-circle-solid" class="w-5 h-5 text-primary" />
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                
+<!-- Static Site Mode -->
+                <div
+                  phx-click="set_profile_mode"
+                  phx-value-mode="static"
+                  class={"card cursor-pointer transition-all hover:shadow-lg #{if (@profile && @profile.profile_mode) == "static", do: "ring-2 ring-primary bg-primary/5", else: "bg-base-200 hover:bg-base-300"}"}
+                >
+                  <div class="card-body p-4">
+                    <div class="flex items-start gap-3">
+                      <div class={"w-10 h-10 rounded-lg flex items-center justify-center #{if (@profile && @profile.profile_mode) == "static", do: "bg-primary text-primary-content", else: "bg-base-300"}"}>
+                        <.icon name="hero-code-bracket" class="w-5 h-5" />
+                      </div>
+                      <div class="flex-1">
+                        <h3 class="font-semibold">Custom Static Site</h3>
+                        <p class="text-xs text-base-content/60 mt-1">
+                          Upload your own HTML, CSS, and JavaScript files for complete control
+                        </p>
+                      </div>
+                      <%= if (@profile && @profile.profile_mode) == "static" do %>
+                        <.icon name="hero-check-circle-solid" class="w-5 h-5 text-primary" />
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+<!-- Static Site Upload (only shown when static mode is enabled) -->
+          <%= if @profile && @profile.profile_mode == "static" do %>
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-6">
+                <div class="mb-6">
+                  <h2 class="card-title text-2xl mb-2">
+                    <.icon name="hero-arrow-up-tray" class="w-6 h-6" /> Upload Static Site
+                  </h2>
+                  <p class="text-sm text-base-content/60">
+                    Upload files individually or as a ZIP. Drag and drop supported.
+                  </p>
+                </div>
+                
+<!-- Storage Usage -->
+                <div class="mb-6">
+                  <div class="flex justify-between text-sm mb-2">
+                    <span class="text-base-content/70">Storage used</span>
+                    <span class="font-mono">
+                      {format_bytes(@static_site_storage || 0)} / 1 GB
+                    </span>
+                  </div>
+                  <progress
+                    class="progress progress-primary w-full"
+                    value={@static_site_storage || 0}
+                    max={1_000_000_000}
+                  />
+                </div>
+                
+<!-- Drag & Drop Zone -->
+                <div
+                  id="static-site-dropzone"
+                  phx-drop-target={@uploads.static_files.ref}
+                  class={"relative border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 #{if @drag_over, do: "border-primary bg-primary/10", else: "border-base-300 hover:border-primary/50"}"}
+                  phx-hook="DragDrop"
+                >
+                  <.icon
+                    name="hero-cloud-arrow-up"
+                    class="w-12 h-12 mx-auto text-base-content/30 mb-4"
+                  />
+                  <p class="font-medium">Drag and drop files here</p>
+                  <p class="text-sm text-base-content/60 mt-1">or click to browse</p>
+                  <.live_file_input
+                    upload={@uploads.static_files}
+                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+                
+<!-- Upload Progress for Individual Files -->
+                <%= for entry <- @uploads.static_files.entries do %>
+                  <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg mb-2">
+                    <.icon name="hero-document" class="w-5 h-5 flex-shrink-0" />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">{entry.client_name}</p>
+                      <progress
+                        class="progress progress-primary w-full h-2 mt-1"
+                        value={entry.progress}
+                        max="100"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="cancel_static_file_upload"
+                      phx-value-ref={entry.ref}
+                      class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                    >
+                      <.icon name="hero-x-mark" class="w-4 h-4" />
+                    </button>
+                  </div>
+                <% end %>
+                
+<!-- Upload Errors for Individual Files -->
+                <%= for err <- upload_errors(@uploads.static_files) do %>
+                  <div class="alert alert-error mb-2">
+                    <.icon name="hero-exclamation-circle" class="w-5 h-5" />
+                    <span>{humanize_error(err)}</span>
+                  </div>
+                <% end %>
+                
+<!-- ZIP Upload Section -->
+                <div class="collapse collapse-arrow bg-base-200 mb-4">
+                  <input type="checkbox" />
+                  <div class="collapse-title font-medium">
+                    <.icon name="hero-archive-box" class="w-5 h-5 inline mr-2" />
+                    Upload ZIP Archive
+                  </div>
+                  <div class="collapse-content">
+                    <.form
+                      for={%{}}
+                      phx-submit="upload_static_site"
+                      phx-change="validate_static_site_upload"
+                      class="space-y-3 pt-2"
+                    >
+                      <%= for entry <- @uploads.static_site.entries do %>
+                        <div class="flex items-center gap-2 p-2 bg-base-300 rounded-lg">
+                          <.icon name="hero-archive-box" class="w-5 h-5 flex-shrink-0" />
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm truncate">{entry.client_name}</p>
+                            <progress
+                              class="progress progress-primary w-full h-1.5 mt-1"
+                              value={entry.progress}
+                              max="100"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            phx-click="cancel_static_site_upload"
+                            phx-value-ref={entry.ref}
+                            class="btn btn-ghost btn-xs btn-circle"
+                          >
+                            <.icon name="hero-x-mark" class="w-3 h-3" />
+                          </button>
+                        </div>
+                      <% end %>
+
+                      <label class="btn btn-outline btn-sm w-full">
+                        <.icon name="hero-folder-plus" class="w-4 h-4 mr-1" /> Choose ZIP
+                        <.live_file_input upload={@uploads.static_site} class="hidden" />
+                      </label>
+
+                      <button
+                        type="submit"
+                        class="btn btn-primary btn-sm w-full"
+                        disabled={@uploads.static_site.entries == []}
+                      >
+                        Extract and Deploy
+                      </button>
+                    </.form>
+                  </div>
+                </div>
+
+                <div class="text-xs text-base-content/50">
+                  Supported: HTML, CSS, JS, JSON, images (PNG, JPG, GIF, WebP, SVG), fonts (WOFF, WOFF2, TTF, OTF)
+                </div>
+                
+<!-- Current Files -->
+                <%= if @static_site_files && length(@static_site_files) > 0 do %>
+                  <div class="divider">Current Files ({length(@static_site_files)})</div>
+                  <div class="max-h-80 overflow-y-auto bg-base-200 rounded-lg p-3 font-mono text-sm">
+                    <div class="flex items-center gap-2 text-primary font-semibold mb-2">
+                      <.icon name="hero-folder-open" class="w-4 h-4" />
+                      <span>/</span>
+                    </div>
+                    <%= for file <- @static_site_files do %>
+                      <% parts = String.split(file.path, "/") %>
+                      <% depth = length(parts) - 1 %>
+                      <% filename = List.last(parts) %>
+                      <% is_html =
+                        String.ends_with?(filename, ".html") or
+                          String.ends_with?(filename, ".htm") %>
+                      <% is_css = String.ends_with?(filename, ".css") %>
+                      <% is_js = String.ends_with?(filename, ".js") %>
+                      <% is_json = String.ends_with?(filename, ".json") %>
+                      <% is_text = String.ends_with?(filename, ".txt") %>
+                      <% is_image =
+                        String.ends_with?(filename, ".png") or String.ends_with?(filename, ".jpg") or
+                          String.ends_with?(filename, ".jpeg") or
+                          String.ends_with?(filename, ".gif") or
+                          String.ends_with?(filename, ".webp") or
+                          String.ends_with?(filename, ".svg") or
+                          String.ends_with?(filename, ".ico") %>
+                      <% is_editable = is_html or is_css or is_js or is_json or is_text %>
+                      <div class="flex items-center group hover:bg-base-300 rounded px-1 py-0.5">
+                        <div
+                          class="flex items-center gap-1 flex-1 min-w-0"
+                          style={"padding-left: #{(depth + 1) * 16}px"}
+                        >
+                          <%= cond do %>
+                            <% is_html -> %>
+                              <.icon
+                                name="hero-document-text"
+                                class="w-4 h-4 text-orange-500 flex-shrink-0"
+                              />
+                            <% is_css -> %>
+                              <.icon
+                                name="hero-paint-brush"
+                                class="w-4 h-4 text-blue-500 flex-shrink-0"
+                              />
+                            <% is_js -> %>
+                              <.icon
+                                name="hero-code-bracket"
+                                class="w-4 h-4 text-yellow-500 flex-shrink-0"
+                              />
+                            <% is_json -> %>
+                              <.icon
+                                name="hero-document-text"
+                                class="w-4 h-4 text-purple-500 flex-shrink-0"
+                              />
+                            <% is_image -> %>
+                              <.icon
+                                name="hero-photo"
+                                class="w-4 h-4 text-green-500 flex-shrink-0"
+                              />
+                            <% true -> %>
+                              <.icon
+                                name="hero-document"
+                                class="w-4 h-4 text-base-content/50 flex-shrink-0"
+                              />
+                          <% end %>
+                          <span class="truncate">{filename}</span>
+                          <span class="text-xs text-base-content/50 ml-auto flex-shrink-0">
+                            {format_bytes(file.size)}
+                          </span>
+                        </div>
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+                          <%= if is_editable do %>
+                            <button
+                              phx-click="edit_file"
+                              phx-value-path={file.path}
+                              class="btn btn-ghost btn-xs text-info flex-shrink-0"
+                              title="Edit file"
+                            >
+                              <.icon name="hero-pencil" class="w-3 h-3" />
+                            </button>
+                          <% end %>
+                          <button
+                            phx-click="delete_static_file"
+                            phx-value-path={file.path}
+                            class="btn btn-ghost btn-xs text-error flex-shrink-0"
+                            title="Delete file"
+                          >
+                            <.icon name="hero-trash" class="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+
+                  <button
+                    phx-click="delete_all_static_files"
+                    class="btn btn-error btn-outline btn-sm w-full mt-4"
+                    data-confirm="Are you sure? This will delete all your static site files."
+                  >
+                    <.icon name="hero-trash" class="w-4 h-4" /> Delete All Files
+                  </button>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Code Editor Modal -->
+<%= if @editing_file do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-4xl w-full h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-lg flex items-center gap-2">
+          <.icon name="hero-code-bracket" class="w-5 h-5" /> Editing: {@editing_file.path}
+        </h3>
+        <button phx-click="close_editor" class="btn btn-ghost btn-sm btn-circle">
+          <.icon name="hero-x-mark" class="w-5 h-5" />
+        </button>
+      </div>
+
+      <form phx-submit="save_file" class="flex-1 flex flex-col">
+        <textarea
+          name="content"
+          class="textarea textarea-bordered flex-1 w-full font-mono text-sm resize-none bg-base-200"
+          spellcheck="false"
+          phx-hook="CodeEditor"
+          id="code-editor"
+        >{@file_content}</textarea>
+
+        <div class="modal-action">
+          <button type="button" phx-click="close_editor" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <.icon name="hero-check" class="w-4 h-4" /> Save
+          </button>
+        </div>
+      </form>
+    </div>
+    <div class="modal-backdrop bg-base-300/80" phx-click="close_editor"></div>
+  </div>
+<% end %>

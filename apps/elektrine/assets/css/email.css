@@ -1,0 +1,368 @@
+/* ==========================================================================
+   EMAIL - Email content styling
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   EMAIL CONTENT CONTAINER
+   -------------------------------------------------------------------------- */
+
+.email-content-container {
+  background: var(--fallback-b1,oklch(var(--b1)));
+  border-radius: 8px;
+  padding: 24px;
+  margin: 16px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1));
+  position: relative;
+  overflow: auto;
+  max-width: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #202124;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.email-content-container * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* --------------------------------------------------------------------------
+   EMAIL IMAGES
+   -------------------------------------------------------------------------- */
+
+.email-content-container img {
+  max-width: 100% !important;
+  height: auto !important;
+  vertical-align: middle;
+  border: 0;
+}
+
+.email-content-container img[align="left"] {
+  float: left !important;
+  margin: 0 16px 16px 0 !important;
+}
+
+.email-content-container img[align="right"] {
+  float: right !important;
+  margin: 0 0 16px 16px !important;
+}
+
+.email-content-container img[align="center"] {
+  display: block !important;
+  margin: 16px auto !important;
+}
+
+.email-content-container img:not([align]) {
+  display: inline-block;
+  margin: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   EMAIL TABLES
+   -------------------------------------------------------------------------- */
+
+.email-content-container table {
+  border-collapse: collapse !important;
+  mso-table-lspace: 0pt !important;
+  mso-table-rspace: 0pt !important;
+}
+
+.email-content-container table[width] {
+  max-width: 100% !important;
+}
+
+.email-content-container td,
+.email-content-container th {
+  vertical-align: top;
+  word-wrap: break-word;
+}
+
+/* --------------------------------------------------------------------------
+   EMAIL TYPOGRAPHY
+   -------------------------------------------------------------------------- */
+
+.email-content-container a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.email-content-container a:hover {
+  text-decoration: underline;
+}
+
+.email-content-container p {
+  margin: 0 0 16px 0;
+}
+
+.email-content-container p:last-child {
+  margin-bottom: 0;
+}
+
+.email-content-container blockquote {
+  margin: 16px 0;
+  padding-left: 16px;
+  border-left: 4px solid var(--fallback-bc,oklch(var(--bc)/0.2));
+  color: var(--fallback-bc,oklch(var(--bc)/0.6));
+}
+
+.email-content-container center {
+  text-align: center;
+}
+
+.email-content-container pre {
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--fallback-b2,oklch(var(--b2)));
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 16px 0;
+  border: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1));
+  white-space: pre-wrap;
+}
+
+.email-content-container code {
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--fallback-b2,oklch(var(--b2)));
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.email-content-container ul,
+.email-content-container ol {
+  margin: 16px 0;
+  padding-left: 24px;
+  list-style-position: outside !important;
+}
+
+.email-content-container ul {
+  list-style-type: disc !important;
+}
+
+.email-content-container ol {
+  list-style-type: decimal !important;
+}
+
+.email-content-container li {
+  margin: 4px 0;
+  display: list-item !important;
+}
+
+.email-content-container hr {
+  border: none;
+  border-top: 1px solid var(--fallback-bc,oklch(var(--bc)/0.1));
+  margin: 24px 0;
+}
+
+.email-content-container h1,
+.email-content-container h2,
+.email-content-container h3,
+.email-content-container h4,
+.email-content-container h5,
+.email-content-container h6 {
+  margin: 16px 0 8px 0;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.email-content-container h1 { font-size: 24px; }
+.email-content-container h2 { font-size: 20px; }
+.email-content-container h3 { font-size: 18px; }
+.email-content-container h4 { font-size: 16px; }
+.email-content-container h5 { font-size: 14px; }
+.email-content-container h6 { font-size: 13px; }
+
+/* --------------------------------------------------------------------------
+   EMAIL IFRAME
+   -------------------------------------------------------------------------- */
+
+#email-iframe {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  border: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.email-iframe-container {
+  overflow: hidden !important;
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.email-content-iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: white;
+}
+
+/* --------------------------------------------------------------------------
+   EMAIL WRAPPER (Alternative styling)
+   -------------------------------------------------------------------------- */
+
+.email-content-wrapper {
+  background-color: #ffffff !important;
+  display: block;
+  padding: 1.5rem;
+  overflow-x: auto;
+}
+
+.email-content {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+.email-content img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.email-content table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+.email-content table td,
+.email-content table th {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.email-content a {
+  color: #2563eb !important;
+  text-decoration: underline;
+  padding: 2px 4px;
+  min-height: 32px;
+  display: inline-block;
+}
+
+.email-content a:hover {
+  color: #1d4ed8 !important;
+}
+
+/* --------------------------------------------------------------------------
+   EMAIL CARDS & INTERFACE
+   -------------------------------------------------------------------------- */
+
+.email-card {
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.email-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: rgba(168, 85, 247, 0.2);
+}
+
+.email-avatar {
+  transition: all 0.2s ease;
+}
+
+.compose-field {
+  transition: all 0.2s ease;
+}
+
+.compose-field:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.1);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   EMAIL RESPONSIVE
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+  .email-content-container {
+    padding: 16px;
+    margin: 8px 0;
+  }
+
+  .email-content-container table {
+    font-size: 14px;
+  }
+
+  .email-content-container img[align="left"],
+  .email-content-container img[align="right"] {
+    float: none !important;
+    display: block !important;
+    margin: 16px auto !important;
+  }
+
+  .email-content {
+    font-size: 16px;
+  }
+
+  .email-content table {
+    font-size: 14px;
+  }
+
+  .email-content-wrapper {
+    padding: 1rem !important;
+    overflow-x: hidden !important;
+  }
+
+  .email-content * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .email-content table {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: block !important;
+    overflow-x: auto !important;
+  }
+
+  .email-content tbody,
+  .email-content thead,
+  .email-content tr {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .email-content td,
+  .email-content th {
+    display: block !important;
+    width: 100% !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .email-content img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  .email-content div[width],
+  .email-content div[style*="width"] {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .email-content * {
+    min-width: 0 !important;
+  }
+}

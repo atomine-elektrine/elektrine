@@ -1,0 +1,467 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <!-- Z Platform Navigation -->
+  <.z_nav active_tab="gallery" />
+  
+<!-- Minimal Header -->
+  <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mb-6 relative z-20">
+    <!-- Feed Filter (All/Following) -->
+    <div class="flex flex-wrap gap-2">
+      <button
+        phx-click="set_filter"
+        phx-value-filter="discover"
+        class={[
+          "btn btn-sm",
+          if(@current_filter == "discover", do: "btn-primary", else: "btn-ghost")
+        ]}
+        aria-label="Show all photos"
+      >
+        <.icon name="hero-globe-alt" class="w-4 h-4 hidden sm:inline" /> All
+      </button>
+      <%= if @current_user do %>
+        <button
+          phx-click="set_filter"
+          phx-value-filter="following"
+          class={[
+            "btn btn-sm",
+            if(@current_filter == "following", do: "btn-secondary", else: "btn-ghost")
+          ]}
+          aria-label="Show photos from people you follow"
+        >
+          <.icon name="hero-users" class="w-4 h-4 hidden sm:inline" /> Following
+        </button>
+      <% end %>
+      
+<!-- Category Filter -->
+      <div class="dropdown">
+        <label tabindex="0" class="btn btn-sm btn-ghost gap-1" aria-haspopup="true">
+          <.icon name="hero-tag" class="w-4 h-4" />
+          <span class="hidden sm:inline">
+            <%= case @gallery_filter do %>
+              <% "photography" -> %>
+                Photography
+              <% "art" -> %>
+                Art
+              <% "design" -> %>
+                Design
+              <% "anime" -> %>
+                Anime
+              <% "meme" -> %>
+                Memes
+              <% _ -> %>
+                All Categories
+            <% end %>
+          </span>
+          <.icon name="hero-chevron-down" class="w-3 h-3" />
+        </label>
+        <ul
+          tabindex="0"
+          class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-40 border border-base-300"
+        >
+          <li>
+            <button
+              phx-click="set_gallery_filter"
+              phx-value-filter="all"
+              class={if @gallery_filter == "all", do: "active", else: ""}
+            >
+              All Categories
+            </button>
+          </li>
+          <li>
+            <button
+              phx-click="set_gallery_filter"
+              phx-value-filter="photography"
+              class={if @gallery_filter == "photography", do: "active", else: ""}
+            >
+              Photography
+            </button>
+          </li>
+          <li>
+            <button
+              phx-click="set_gallery_filter"
+              phx-value-filter="art"
+              class={if @gallery_filter == "art", do: "active", else: ""}
+            >
+              Art
+            </button>
+          </li>
+          <li>
+            <button
+              phx-click="set_gallery_filter"
+              phx-value-filter="design"
+              class={if @gallery_filter == "design", do: "active", else: ""}
+            >
+              Design
+            </button>
+          </li>
+          <li>
+            <button
+              phx-click="set_gallery_filter"
+              phx-value-filter="anime"
+              class={if @gallery_filter == "anime", do: "active", else: ""}
+            >
+              Anime
+            </button>
+          </li>
+          <li>
+            <button
+              phx-click="set_gallery_filter"
+              phx-value-filter="meme"
+              class={if @gallery_filter == "meme", do: "active", else: ""}
+            >
+              Memes
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+    
+<!-- Software Filter -->
+    <div class="w-full sm:w-44">
+      <details class="dropdown w-full">
+        <summary class="btn btn-sm bg-base-200 w-full justify-between border-0">
+          <span class="flex items-center gap-2">
+            <%= case @software_filter do %>
+              <% "local" -> %>
+                <.icon name="hero-home" class="w-4 h-4" /> Local
+              <% "pixelfed" -> %>
+                <.icon name="hero-camera" class="w-4 h-4" /> Pixelfed
+              <% "mastodon" -> %>
+                <.icon name="hero-chat-bubble-left-ellipsis" class="w-4 h-4" /> Mastodon
+              <% "pleroma" -> %>
+                <.icon name="hero-sparkles" class="w-4 h-4" /> Pleroma
+              <% "misskey" -> %>
+                <.icon name="hero-musical-note" class="w-4 h-4" /> Misskey
+              <% _ -> %>
+                <.icon name="hero-globe-alt" class="w-4 h-4" /> All Sources
+            <% end %>
+          </span>
+          <.icon name="hero-chevron-down" class="w-4 h-4" />
+        </summary>
+        <ul class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 border border-base-300 rounded-box z-30 w-full p-2 shadow-lg mt-1">
+          <li>
+            <a
+              phx-click="set_software_filter"
+              phx-value-software="all"
+              class={@software_filter == "all" && "active"}
+            >
+              <.icon name="hero-globe-alt" class="w-4 h-4" /> All Sources
+            </a>
+          </li>
+          <li>
+            <a
+              phx-click="set_software_filter"
+              phx-value-software="local"
+              class={@software_filter == "local" && "active"}
+            >
+              <.icon name="hero-home" class="w-4 h-4" /> Local
+            </a>
+          </li>
+          <li>
+            <a
+              phx-click="set_software_filter"
+              phx-value-software="pixelfed"
+              class={@software_filter == "pixelfed" && "active"}
+            >
+              <.icon name="hero-camera" class="w-4 h-4" /> Pixelfed
+            </a>
+          </li>
+          <li>
+            <a
+              phx-click="set_software_filter"
+              phx-value-software="mastodon"
+              class={@software_filter == "mastodon" && "active"}
+            >
+              <.icon name="hero-chat-bubble-left-ellipsis" class="w-4 h-4" /> Mastodon
+            </a>
+          </li>
+          <li>
+            <a
+              phx-click="set_software_filter"
+              phx-value-software="pleroma"
+              class={@software_filter == "pleroma" && "active"}
+            >
+              <.icon name="hero-sparkles" class="w-4 h-4" /> Pleroma
+            </a>
+          </li>
+          <li>
+            <a
+              phx-click="set_software_filter"
+              phx-value-software="misskey"
+              class={@software_filter == "misskey" && "active"}
+            >
+              <.icon name="hero-musical-note" class="w-4 h-4" /> Misskey
+            </a>
+          </li>
+        </ul>
+      </details>
+    </div>
+    
+<!-- Upload Button -->
+    <%= if @current_user do %>
+      <button
+        phx-click="toggle_upload_modal"
+        class="btn btn-secondary btn-sm w-full sm:w-auto"
+      >
+        <.icon name="hero-plus" class="w-4 h-4 mr-1" /> Upload
+      </button>
+    <% end %>
+  </div>
+  
+<!-- Gallery Grid - Full Width with Infinite Scroll -->
+  <div class="w-full" phx-hook="InfiniteScroll" id="gallery-infinite-scroll" data-offset="500">
+    <%= if @loading_gallery do %>
+      <!-- Loading skeleton for gallery grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+        <%= for _i <- 1..12 do %>
+          <div class="aspect-square bg-base-300 rounded-lg animate-pulse"></div>
+        <% end %>
+      </div>
+    <% else %>
+      <%= if Enum.empty?(@filtered_posts) do %>
+        <div class="flex flex-col items-center justify-center py-20 text-center">
+          <.icon name="hero-photo" class="w-16 h-16 opacity-20 mb-4" />
+          <%= if @current_filter == "following" do %>
+            <h3 class="text-lg font-semibold mb-2 opacity-60">
+              No photos from people you follow
+            </h3>
+            <p class="text-sm opacity-50">
+              Follow photographers to see their work here
+            </p>
+          <% else %>
+            <h3 class="text-lg font-semibold mb-2 opacity-60">No photos yet</h3>
+            <p class="text-sm opacity-50">
+              <%= if @current_user do %>
+                Upload your first photo
+              <% else %>
+                Sign in to start sharing
+              <% end %>
+            </p>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+          <%= for photo <- @filtered_posts do %>
+            <% media_url =
+              if photo.media_urls && length(photo.media_urls) > 0,
+                do: hd(photo.media_urls),
+                else: nil
+
+            full_url = if media_url, do: Elektrine.Uploads.attachment_url(media_url), else: nil
+            # Only show images (no video or audio)
+            is_image =
+              full_url &&
+                String.match?(full_url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i) %>
+            <%= if is_image do %>
+              <% all_urls = Enum.map(photo.media_urls || [], &Elektrine.Uploads.attachment_url/1) %>
+              <div
+                class="aspect-square relative group cursor-pointer overflow-hidden bg-base-200 rounded-lg"
+                phx-click="open_image_modal"
+                phx-value-images={Jason.encode!(all_urls)}
+                phx-value-index="0"
+                phx-value-photo_id={photo.id}
+              >
+                <% # Generate meaningful alt text
+                alt_text =
+                  cond do
+                    photo.title && photo.title != "" ->
+                      photo.title
+
+                    Ecto.assoc_loaded?(photo.sender) && photo.sender ->
+                      "Photo by #{photo.sender.display_name || photo.sender.username}"
+
+                    Ecto.assoc_loaded?(photo.remote_actor) && photo.remote_actor ->
+                      "Photo by #{photo.remote_actor.display_name || photo.remote_actor.username}"
+
+                    true ->
+                      "Gallery photo"
+                  end %>
+                <img
+                  src={full_url}
+                  alt={alt_text}
+                  class="absolute inset-0 w-full h-full object-cover rounded-lg"
+                  loading="lazy"
+                />
+                
+<!-- Minimal hover overlay -->
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center pointer-events-none rounded-lg">
+                  <div class="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-white">
+                    <div class="flex items-center gap-1">
+                      <.icon name="hero-heart-solid" class="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span class="text-xs sm:text-sm font-medium">{photo.like_count || 0}</span>
+                    </div>
+                    <%= if photo.reply_count && photo.reply_count > 0 do %>
+                      <div class="flex items-center gap-1">
+                        <.icon name="hero-chat-bubble-left" class="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span class="text-xs sm:text-sm font-medium">{photo.reply_count}</span>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+        
+<!-- Loading indicator -->
+        <%= if @loading_more do %>
+          <div class="flex justify-center py-8">
+            <.spinner size="md" />
+          </div>
+        <% end %>
+        
+<!-- End of feed indicator -->
+        <%= if @end_of_feed && length(@filtered_posts) > 0 do %>
+          <div class="flex justify-center py-8 text-base-content/50 text-sm">
+            No more photos to load
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<%= if @show_upload_modal && @current_user do %>
+  <div class="modal modal-open">
+    <div class="modal-box max-w-2xl">
+      <h3 class="font-bold text-lg mb-4">Upload to Gallery</h3>
+
+      <.form for={%{}} phx-submit="save_gallery_photo" phx-change="validate_upload">
+        <!-- Image Upload Area -->
+        <div class="form-control w-full mb-4">
+          <label class="label">
+            <span class="label-text">Image</span>
+          </label>
+          <label
+            for={@uploads.gallery_image.ref}
+            class="block border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors"
+          >
+            <.live_file_input upload={@uploads.gallery_image} class="hidden" />
+            <%= if Enum.empty?(@uploads.gallery_image.entries) do %>
+              <.icon name="hero-photo" class="w-12 h-12 mx-auto opacity-30 mb-2" />
+              <p class="text-sm opacity-70">Click to upload or drag and drop</p>
+              <p class="text-xs opacity-50 mt-1">JPG, PNG, GIF, WEBP up to 10MB</p>
+            <% else %>
+              <%= for entry <- @uploads.gallery_image.entries do %>
+                <div class="flex items-center justify-center gap-2">
+                  <.icon name="hero-photo" class="w-5 h-5 text-success" />
+                  <span class="text-sm font-medium">{entry.client_name}</span>
+                  <span class="text-xs opacity-60">
+                    ({Float.round(entry.client_size / 1_000_000, 2)} MB)
+                  </span>
+                </div>
+              <% end %>
+            <% end %>
+          </label>
+          <%= for entry <- @uploads.gallery_image.entries do %>
+            <%= for err <- upload_errors(@uploads.gallery_image, entry) do %>
+              <div class="alert alert-error mt-2">
+                <span class="text-sm">{error_to_string(err)}</span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+        
+<!-- Title -->
+        <div class="form-control w-full mb-4">
+          <label class="label">
+            <span class="label-text">Title (optional)</span>
+          </label>
+          <input
+            type="text"
+            class="input input-bordered w-full"
+            placeholder="Give your image a title"
+            phx-change="update_upload_title"
+            name="title"
+            value={@upload_title}
+          />
+        </div>
+        
+<!-- Description -->
+        <div class="form-control w-full mb-4">
+          <label class="label">
+            <span class="label-text">Description (optional)</span>
+          </label>
+          <textarea
+            class="textarea textarea-bordered w-full"
+            placeholder="Describe your image"
+            rows="3"
+            phx-change="update_upload_description"
+            name="description"
+          ><%= @upload_description %></textarea>
+        </div>
+        
+<!-- Category and Visibility -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text">Category</span>
+            </label>
+            <select
+              class="select select-bordered w-full"
+              phx-change="update_upload_category"
+              name="category"
+            >
+              <option value="photography" selected={@upload_category == "photography"}>
+                Photography
+              </option>
+              <option value="art" selected={@upload_category == "art"}>Art</option>
+              <option value="design" selected={@upload_category == "design"}>Design</option>
+              <option value="anime" selected={@upload_category == "anime"}>Anime</option>
+              <option value="meme" selected={@upload_category == "meme"}>Meme</option>
+              <option value="other" selected={@upload_category == "other"}>Other</option>
+            </select>
+          </div>
+
+          <div class="form-control w-full">
+            <label class="label">
+              <span class="label-text">Visibility</span>
+            </label>
+            <select
+              class="select select-bordered w-full"
+              phx-change="update_upload_visibility"
+              name="visibility"
+            >
+              <option value="public" selected={@upload_visibility == "public"}>Public</option>
+              <option value="followers" selected={@upload_visibility == "followers"}>
+                Followers
+              </option>
+              <option value="friends" selected={@upload_visibility == "friends"}>Friends</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-action">
+          <button type="button" class="btn" phx-click="cancel_upload" disabled={@uploading}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-secondary"
+            disabled={Enum.empty?(@uploads.gallery_image.entries) || @uploading}
+          >
+            <%= if @uploading do %>
+              <.spinner size="sm" /> Uploading...
+            <% else %>
+              <.icon name="hero-arrow-up-tray" class="w-4 h-4 mr-1" /> Upload
+            <% end %>
+          </button>
+        </div>
+      </.form>
+    </div>
+  </div>
+<% end %>
+
+<!-- Image Modal -->
+<.image_modal
+  show={@show_image_modal}
+  image_url={@modal_image_url}
+  images={@modal_images}
+  image_index={@modal_image_index}
+  post={@modal_post}
+  timezone={@timezone}
+  time_format={@time_format}
+  current_user={@current_user}
+  is_liked={@modal_is_liked}
+  like_count={(@modal_post && @modal_post.like_count) || 0}
+/>

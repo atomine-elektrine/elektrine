@@ -1,0 +1,107 @@
+# =============================================================================
+# Elixir / Phoenix
+# =============================================================================
+
+# Build artifacts
+/_build/
+*.ez
+erl_crash.dump
+
+# Dependencies
+/deps/
+/.fetch
+
+# Documentation
+/doc/
+
+# Test and coverage
+/cover/
+/tmp/
+/apps/elektrine/tmp/
+/apps/elektrine_web/tmp/
+
+# Package tarball
+elektrine-*.tar
+
+# =============================================================================
+# Assets
+# =============================================================================
+
+# Built assets
+/priv/static/assets/
+/priv/static/cache_manifest.json
+
+# Node.js
+/assets/node_modules/
+npm-debug.log
+
+# Uploads
+/priv/static/uploads/
+
+# =============================================================================
+# Environment / Secrets
+# =============================================================================
+
+.env
+.env.local
+.env.*.local
+
+# =============================================================================
+# Generated / Runtime Files
+# =============================================================================
+
+# Rate limiting ETS tables
+priv/imap_rate_limit_*.ets
+
+# ACME certificates
+priv/acme/
+
+# Export files
+priv/exports/
+
+# Static files (served from CDN in production)
+/priv/static/
+
+# Wallaby screenshots
+/screenshots/
+
+# =============================================================================
+# IDE / Editor
+# =============================================================================
+
+**/.claude/settings.local.json
+
+# macOS Finder metadata
+.DS_Store
+
+# Editor / temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# External Projects (separate repos)
+# =============================================================================
+
+# Maid AI assistant (Rust)
+/maid/
+
+# Haraka email server
+/haraka-elektrine/
+
+# VPN configuration
+/vpn-elektrine/
+
+# iOS app
+/elektrine/
+
+# Lemmy federation
+/lemmy/
+
+# Akkoma federation
+/akkoma/
+
+# Yay AUR helper
+/yay/
