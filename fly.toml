@@ -10,7 +10,7 @@ kill_signal = 'SIGTERM'
 [build]
 
 [deploy]
-  release_command = '/app/bin/migrate'
+  release_command = '/app/bin/elektrine eval "Elektrine.Release.migrate"'
 
 [env]
   PHX_HOST = 'elektrine.com'
@@ -21,7 +21,7 @@ kill_signal = 'SIGTERM'
   DB_TIMEOUT_MS = '30000'
   DB_POOL_TIMEOUT_MS = '30000'
   DB_CONNECT_TIMEOUT_MS = '30000'
-  MIGRATION_POOL_SIZE = '1'
+  MIGRATION_POOL_SIZE = '2'
   MIGRATION_TIMEOUT_MS = '120000'
   MIGRATION_POOL_TIMEOUT_MS = '60000'
   MIGRATION_CONNECT_TIMEOUT_MS = '60000'

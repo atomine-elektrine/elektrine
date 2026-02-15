@@ -493,11 +493,21 @@
       <div>
         <h3 class="font-semibold mb-3 text-sm">Company</h3>
         <ul class="space-y-2 text-xs">
-          <li><a href="/about" class="link link-hover opacity-70 hover:opacity-100">About</a></li>
           <li>
-            <a href="/contact" class="link link-hover opacity-70 hover:opacity-100">Contact</a>
+            <.link href={~p"/about"} class="link link-hover opacity-70 hover:opacity-100">
+              About
+            </.link>
           </li>
-          <li><a href="/faq" class="link link-hover opacity-70 hover:opacity-100">FAQ</a></li>
+          <li>
+            <.link href={~p"/contact"} class="link link-hover opacity-70 hover:opacity-100">
+              Contact
+            </.link>
+          </li>
+          <li>
+            <.link href={~p"/faq"} class="link link-hover opacity-70 hover:opacity-100">
+              FAQ
+            </.link>
+          </li>
         </ul>
       </div>
       
@@ -506,19 +516,19 @@
         <h3 class="font-semibold mb-3 text-sm">Legal</h3>
         <ul class="space-y-2 text-xs">
           <li>
-            <a href="/terms" class="link link-hover opacity-70 hover:opacity-100">
+            <.link href={~p"/terms"} class="link link-hover opacity-70 hover:opacity-100">
               Terms of Service
-            </a>
+            </.link>
           </li>
           <li>
-            <a href="/privacy" class="link link-hover opacity-70 hover:opacity-100">
+            <.link href={~p"/privacy"} class="link link-hover opacity-70 hover:opacity-100">
               Privacy Policy
-            </a>
+            </.link>
           </li>
           <li>
-            <a href="/vpn/policy" class="link link-hover opacity-70 hover:opacity-100">
+            <.link href={~p"/vpn/policy"} class="link link-hover opacity-70 hover:opacity-100">
               VPN Policy
-            </a>
+            </.link>
           </li>
         </ul>
       </div>
@@ -563,7 +573,7 @@
         <h3 class="font-semibold mb-3 text-sm">Connect</h3>
         <div class="flex items-center gap-3 justify-center md:justify-start">
           <a
-            href="https://github.com/businessfunk"
+            href="https://github.com/atomine-elektrine/elektrine"
             target="_blank"
             rel="noopener noreferrer"
             class="opacity-60 hover:opacity-100 transition-opacity"
@@ -585,7 +595,7 @@
         <div class="mt-3">
           <p class="text-xs opacity-70 mb-1">Tor Hidden Service</p>
           <code class="text-xs opacity-60 break-all select-all">
-            mwomjji374vtw3al3lx42eriacwa5ayzkzyvfxgilcfjtijgtqelm5yd.onion
+            khav7sdajxu6om3arvglevskg2vwuy7luyjcwfwg6xnkd7qtskr2vhad.onion
           </code>
         </div>
       </div>

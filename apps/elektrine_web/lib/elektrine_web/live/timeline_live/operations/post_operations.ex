@@ -385,10 +385,16 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
   # Filters timeline by content type (posts, replies, media, etc).
   def handle_event("filter_timeline", %{"filter" => filter}, socket) do
-    {:noreply,
-     socket
-     |> assign(:filter_dropdown_open, false)
-     |> push_patch(to: ~p"/timeline?filter=#{socket.assigns.current_filter}&view=#{filter}")}
+    if filter == socket.assigns.timeline_filter do
+      {:noreply, assign(socket, :filter_dropdown_open, false)}
+    else
+      {:noreply,
+       socket
+       |> assign(:filter_dropdown_open, false)
+       |> assign(:timeline_filter, filter)
+       |> Helpers.apply_timeline_filter()
+       |> push_patch(to: ~p"/timeline?filter=#{socket.assigns.current_filter}&view=#{filter}")}
+    end
   end
 
   # Toggles the filter dropdown open/closed.
@@ -403,16 +409,24 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
   # Sets the main timeline filter (all, following, local, federated).
   def handle_event("set_filter", %{"filter" => filter}, socket) do
-    current_view = socket.assigns.timeline_filter || "all"
-    {:noreply, push_patch(socket, to: ~p"/timeline?filter=#{filter}&view=#{current_view}")}
+    if filter == socket.assigns.current_filter do
+      {:noreply, socket}
+    else
+      current_view = socket.assigns.timeline_filter || "all"
+      {:noreply, push_patch(socket, to: ~p"/timeline?filter=#{filter}&view=#{current_view}")}
+    end
   end
 
   # Sets the software filter (all, mastodon, pixelfed, lemmy, etc).
   def handle_event("set_software_filter", %{"software" => software}, socket) do
-    {:noreply,
-     socket
-     |> assign(:software_filter, software)
-     |> Helpers.apply_timeline_filter()}
+    if software == socket.assigns.software_filter do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(:software_filter, software)
+       |> Helpers.apply_timeline_filter()}
+    end
   end
 
   # ==================== Draft Operations ====================

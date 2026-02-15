@@ -17,6 +17,9 @@ jobs:
     name: Deploy Application
     needs: quality_gate
     runs-on: ubuntu-latest
+    env:
+      # Support either secret name to avoid auth failures across repos/orgs.
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN || secrets.FLY_ACCESS_TOKEN }}
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -26,15 +29,18 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
+      - name: Validate Fly token
+        run: |
+          if [ -z "${FLY_API_TOKEN}" ]; then
+            echo "::error::Missing Fly token. Set repository/org secret FLY_API_TOKEN (preferred) or FLY_ACCESS_TOKEN."
+            exit 1
+          fi
+
       - name: Deploy
         run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Health check
         run: |
           echo "Waiting for deployment to stabilize..."
           sleep 30
           flyctl status
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

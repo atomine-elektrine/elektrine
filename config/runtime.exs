@@ -340,6 +340,7 @@ if config_env() == :prod do
     "https://z.org",
     "https://www.z.org",
     "//*.z.org",
+    "//*.onion",
     "https://elektrine.fly.dev",
     "//*.fly.dev"
   ]
