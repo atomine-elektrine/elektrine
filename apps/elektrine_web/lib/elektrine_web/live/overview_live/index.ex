@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.OverviewLive.Index do
   use ElektrineWeb, :live_view
 
+  require Logger
+
   alias Elektrine.{Social, Messaging}
   alias Elektrine.Social.Recommendations
   import ElektrineWeb.Components.Platform.ZNav
@@ -9,6 +11,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)
+  @feed_load_timeout_ms 12_000
+  @stats_load_timeout_ms 8_000
 
   @impl true
   def mount(_params, session, socket) do
@@ -52,23 +56,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:filter, @default_filter)
        |> assign(:online_users, [])
        |> assign(:user_statuses, %{})
-       |> assign(:platform_stats, %{
-         posts_today: 0,
-         posts_this_week: 0,
-         active_users: 0,
-         top_post_today: nil,
-         top_creators: []
-       })
-       |> assign(:personal_stats, %{
-         total_posts: 0,
-         timeline_posts: 0,
-         gallery_posts: 0,
-         discussion_posts: 0,
-         total_likes: 0,
-         followers: 0,
-         following: 0,
-         top_post: nil
-       })
+       |> assign(:platform_stats, default_platform_stats())
+       |> assign(:personal_stats, default_personal_stats())
        |> assign(:timezone, timezone)
        |> assign(:time_format, time_format)
        |> assign(:loading_feed, true)
@@ -753,41 +742,76 @@ defmodule ElektrineWeb.OverviewLive.Index do
     # Get personalized recommendation feed (For You algorithm)
     session_context = socket.assigns[:session_context] || %{}
 
-    all_posts =
-      Recommendations.get_for_you_feed(user.id, limit: 50, session_context: session_context)
+    personalized_result =
+      load_with_timeout(
+        :for_you_feed,
+        fn ->
+          Recommendations.get_for_you_feed(user.id, limit: 50, session_context: session_context)
+          |> build_feed_state(user.id)
+        end,
+        @feed_load_timeout_ms
+      )
 
-    # Get user likes and boosts as maps for timeline_post component
-    user_likes = get_user_likes_map(user.id, all_posts)
-    user_boosts = get_user_boosts_map(user.id, all_posts)
+    case personalized_result do
+      {:ok, feed_data} ->
+        {:noreply, assign_feed_data(socket, feed_data)}
 
-    # Get user follows
-    user_follows = get_user_follows(user.id, all_posts)
-    pending_follows = get_pending_follows(user.id, all_posts)
+      {:error, _reason} ->
+        fallback_result =
+          load_with_timeout(
+            :public_feed_fallback,
+            fn ->
+              Social.get_public_timeline(user_id: user.id, limit: 50)
+              |> build_feed_state(user.id)
+            end,
+            5_000
+          )
 
-    # Apply filter based on current selection
-    posts = base_posts_for_filter(socket.assigns.filter, %{socket.assigns | all_posts: all_posts})
+        case fallback_result do
+          {:ok, feed_data} ->
+            {:noreply,
+             socket
+             |> assign_feed_data(feed_data)
+             |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")}
 
-    {:noreply,
-     socket
-     |> assign(:all_posts, all_posts)
-     |> assign(:filtered_all_posts, posts)
-     |> assign(:user_likes, user_likes)
-     |> assign(:user_boosts, user_boosts)
-     |> assign(:user_follows, user_follows)
-     |> assign(:pending_follows, pending_follows)
-     |> assign(:loading_feed, false)
-     |> assign(:data_loaded, true)}
+          {:error, _fallback_reason} ->
+            {:noreply,
+             socket
+             |> assign(:all_posts, [])
+             |> assign(:filtered_all_posts, [])
+             |> assign(:user_likes, %{})
+             |> assign(:user_boosts, %{})
+             |> assign(:user_follows, %{})
+             |> assign(:pending_follows, %{})
+             |> assign(:loading_feed, false)
+             |> assign(:data_loaded, true)
+             |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")}
+        end
+    end
   end
 
   def handle_info(:load_stats_data, socket) do
     user = socket.assigns.current_user
 
-    # Load stats in parallel using Task.async
-    platform_task = Task.async(fn -> get_platform_stats() end)
-    personal_task = Task.async(fn -> get_personal_stats(user.id) end)
+    platform_stats =
+      case load_with_timeout(
+             :platform_stats,
+             fn -> get_platform_stats() end,
+             @stats_load_timeout_ms
+           ) do
+        {:ok, stats} -> stats
+        {:error, _reason} -> default_platform_stats()
+      end
 
-    platform_stats = Task.await(platform_task, 10_000)
-    personal_stats = Task.await(personal_task, 10_000)
+    personal_stats =
+      case load_with_timeout(
+             :personal_stats,
+             fn -> get_personal_stats(user.id) end,
+             @stats_load_timeout_ms
+           ) do
+        {:ok, stats} -> stats
+        {:error, _reason} -> default_personal_stats()
+      end
 
     {:noreply,
      socket
@@ -875,6 +899,88 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp parse_non_negative_int(_, default), do: default
+
+  defp assign_feed_data(socket, feed_data) do
+    posts =
+      base_posts_for_filter(socket.assigns.filter, %{
+        socket.assigns
+        | all_posts: feed_data.all_posts
+      })
+
+    socket
+    |> assign(:all_posts, feed_data.all_posts)
+    |> assign(:filtered_all_posts, posts)
+    |> assign(:user_likes, feed_data.user_likes)
+    |> assign(:user_boosts, feed_data.user_boosts)
+    |> assign(:user_follows, feed_data.user_follows)
+    |> assign(:pending_follows, feed_data.pending_follows)
+    |> assign(:loading_feed, false)
+    |> assign(:data_loaded, true)
+  end
+
+  defp build_feed_state(all_posts, user_id) do
+    # Get user likes and boosts as maps for timeline_post component
+    user_likes = get_user_likes_map(user_id, all_posts)
+    user_boosts = get_user_boosts_map(user_id, all_posts)
+
+    # Get user follows
+    user_follows = get_user_follows(user_id, all_posts)
+    pending_follows = get_pending_follows(user_id, all_posts)
+
+    %{
+      all_posts: all_posts,
+      user_likes: user_likes,
+      user_boosts: user_boosts,
+      user_follows: user_follows,
+      pending_follows: pending_follows
+    }
+  end
+
+  defp default_platform_stats do
+    %{
+      posts_today: 0,
+      posts_this_week: 0,
+      active_users: 0,
+      top_post_today: nil,
+      top_creators: []
+    }
+  end
+
+  defp default_personal_stats do
+    %{
+      total_posts: 0,
+      timeline_posts: 0,
+      gallery_posts: 0,
+      discussion_posts: 0,
+      total_likes: 0,
+      followers: 0,
+      following: 0,
+      top_post: nil
+    }
+  end
+
+  defp load_with_timeout(key, loader, timeout_ms) when is_function(loader, 0) do
+    task = Task.async(loader)
+
+    try do
+      case Task.yield(task, timeout_ms) || Task.shutdown(task, :brutal_kill) do
+        {:ok, result} ->
+          {:ok, result}
+
+        {:exit, reason} ->
+          Logger.warning("Overview loader exited (#{key}): #{inspect(reason)}")
+          {:error, reason}
+
+        nil ->
+          Logger.warning("Overview loader timed out (#{key}) after #{timeout_ms}ms")
+          {:error, :timeout}
+      end
+    catch
+      :exit, reason ->
+        Logger.warning("Overview loader crashed (#{key}): #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
 
   # Get platform-wide statistics
   defp get_platform_stats do

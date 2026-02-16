@@ -655,6 +655,18 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           nil
       end
 
+    reply_instance_domain =
+      cond do
+        has_resolved_reply ->
+          PostUtilities.get_instance_domain(resolved_reply)
+
+        in_reply_to_url ->
+          URI.parse(in_reply_to_url).host
+
+        true ->
+          nil
+      end
+
     assigns =
       assigns
       |> assign(:is_reply, is_reply)
@@ -665,6 +677,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       |> assign(:click_id, click_id)
       |> assign(:author_info, author_info)
       |> assign(:reply_content, content)
+      |> assign(:reply_instance_domain, reply_instance_domain)
 
     ~H"""
     <%= if @is_reply do %>
@@ -712,7 +725,9 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             </div>
             <%= if @reply_content do %>
               <div class="mt-2 text-sm opacity-70 line-clamp-3 break-words pl-6">
-                {HtmlSanitizeEx.strip_tags(@reply_content)}
+                {raw(
+                  PostUtilities.render_content_preview(@reply_content, @reply_instance_domain)
+                )}
               </div>
             <% else %>
               <%= if @in_reply_to_url && !@has_resolved_reply do %>
@@ -1527,7 +1542,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     <!-- Content preview (only if no title) -->
           <%= if @post.content && !@title do %>
             <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
-              {raw(PostUtilities.render_content_preview(@post.content))}
+              {raw(
+                PostUtilities.render_content_preview(
+                  @post.content,
+                  PostUtilities.get_instance_domain(@post)
+                )
+              )}
             </div>
           <% end %>
           
@@ -1683,7 +1703,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                     <% end %>
                   </div>
                   <div class="line-clamp-2 text-xs break-words">
-                    {raw(PostUtilities.render_content_preview(PostUtilities.get_reply_content(reply)))}
+                    {raw(
+                      PostUtilities.render_content_preview(
+                        PostUtilities.get_reply_content(reply),
+                        PostUtilities.get_instance_domain(reply)
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -1781,7 +1806,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         <% else %>
           <%= if @post.content do %>
             <div class="text-sm line-clamp-2 opacity-80 mb-1">
-              {raw(PostUtilities.render_content_preview(@post.content))}
+              {raw(
+                PostUtilities.render_content_preview(
+                  @post.content,
+                  PostUtilities.get_instance_domain(@post)
+                )
+              )}
             </div>
           <% end %>
         <% end %>

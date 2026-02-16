@@ -26,7 +26,8 @@ defmodule ElektrineWeb.Admin.MessagesController do
   end
 
   def index(conn, params) do
-    search_query = Map.get(params, "search", "")
+    search_query = params |> Map.get("search", "") |> String.trim()
+    show_domain_stats = truthy_param?(Map.get(params, "show_domains"))
     page = SafeConvert.parse_page(params)
     per_page = 50
 
@@ -39,13 +40,24 @@ defmodule ElektrineWeb.Admin.MessagesController do
 
     total_pages = ceil(total_count / per_page)
     page_range = pagination_range(page, total_pages)
+    {received_messages, sent_messages} = Enum.split_with(messages, &(&1.status == "received"))
 
-    # Get recipient domain statistics
-    recipient_domains = Elektrine.Email.get_unique_recipient_domains_paginated(1, 20)
+    # Domain stats query scans outbound recipient fields across the message table.
+    # Keep it opt-in so the default messages page stays responsive.
+    recipient_domains =
+      if show_domain_stats do
+        Elektrine.Email.get_unique_recipient_domains_paginated(1, 20)
+      else
+        {[], 0}
+      end
 
     render(conn, :messages,
       messages: messages,
+      received_messages: received_messages,
+      sent_messages: sent_messages,
       search_query: search_query,
+      show_domain_stats: show_domain_stats,
+      page_results_count: length(messages),
       recipient_domains: recipient_domains,
       current_page: page,
       total_pages: total_pages,
@@ -239,39 +251,24 @@ defmodule ElektrineWeb.Admin.MessagesController do
   defp get_recent_messages_paginated(page, per_page) do
     offset = (page - 1) * per_page
 
-    # Load full messages with mailbox and user preloaded so we can decrypt
+    # Select lightweight fields for list views; full/decrypted content is only needed in view actions.
     query =
       from(m in Email.Message,
-        join: mb in Email.Mailbox,
+        left_join: mb in Email.Mailbox,
         on: m.mailbox_id == mb.id,
-        join: u in Accounts.User,
+        left_join: u in Accounts.User,
         on: mb.user_id == u.id,
-        order_by: [desc: m.inserted_at],
-        preload: [mailbox: {mb, user: u}]
+        order_by: [desc: m.inserted_at]
       )
+      |> select_message_summary()
 
-    total_count =
-      from(m in Email.Message,
-        join: mb in Email.Mailbox,
-        on: m.mailbox_id == mb.id,
-        join: u in Accounts.User,
-        on: mb.user_id == u.id
-      )
-      |> Repo.aggregate(:count, :id)
+    total_count = Repo.aggregate(Email.Message, :count, :id)
 
     messages =
       query
       |> limit(^per_page)
       |> offset(^offset)
       |> Repo.all()
-      |> Enum.map(fn msg ->
-        # Decrypt each message with its user's key
-        if msg.mailbox && msg.mailbox.user_id do
-          Elektrine.Email.Message.decrypt_content(msg, msg.mailbox.user_id)
-        else
-          msg
-        end
-      end)
 
     {messages, total_count}
   end
@@ -280,29 +277,29 @@ defmodule ElektrineWeb.Admin.MessagesController do
     offset = (page - 1) * per_page
     search_term = "%#{search_query}%"
 
-    # Load full messages with mailbox and user preloaded so we can decrypt
+    # Search over indexed/header fields only and keep payload lightweight for fast list rendering.
     query =
       from(m in Email.Message,
-        join: mb in Email.Mailbox,
+        left_join: mb in Email.Mailbox,
         on: m.mailbox_id == mb.id,
-        join: u in Accounts.User,
+        left_join: u in Accounts.User,
         on: mb.user_id == u.id,
         where:
           ilike(m.subject, ^search_term) or ilike(m.from, ^search_term) or
-            ilike(u.username, ^search_term),
-        order_by: [desc: m.inserted_at],
-        preload: [mailbox: {mb, user: u}]
+            ilike(fragment("COALESCE(?, '')", u.username), ^search_term),
+        order_by: [desc: m.inserted_at]
       )
+      |> select_message_summary()
 
     total_count =
       from(m in Email.Message,
-        join: mb in Email.Mailbox,
+        left_join: mb in Email.Mailbox,
         on: m.mailbox_id == mb.id,
-        join: u in Accounts.User,
+        left_join: u in Accounts.User,
         on: mb.user_id == u.id,
         where:
           ilike(m.subject, ^search_term) or ilike(m.from, ^search_term) or
-            ilike(u.username, ^search_term)
+            ilike(fragment("COALESCE(?, '')", u.username), ^search_term)
       )
       |> Repo.aggregate(:count, :id)
 
@@ -311,14 +308,6 @@ defmodule ElektrineWeb.Admin.MessagesController do
       |> limit(^per_page)
       |> offset(^offset)
       |> Repo.all()
-      |> Enum.map(fn msg ->
-        # Decrypt each message with its user's key
-        if msg.mailbox && msg.mailbox.user_id do
-          Elektrine.Email.Message.decrypt_content(msg, msg.mailbox.user_id)
-        else
-          msg
-        end
-      end)
 
     {messages, total_count}
   end
@@ -326,13 +315,24 @@ defmodule ElektrineWeb.Admin.MessagesController do
   defp get_user_messages_paginated(user_id, page, per_page) do
     offset = (page - 1) * per_page
 
-    # Get full messages so we can decrypt them
+    # User message list does not need body decryption; keep query to list columns.
     query =
       from(m in Email.Message,
         join: mb in Email.Mailbox,
         on: m.mailbox_id == mb.id,
         where: mb.user_id == ^user_id,
-        order_by: [desc: m.inserted_at]
+        order_by: [desc: m.inserted_at],
+        select: %{
+          id: m.id,
+          subject: m.subject,
+          from: m.from,
+          to: m.to,
+          status: m.status,
+          read: m.read,
+          spam: m.spam,
+          category: m.category,
+          inserted_at: m.inserted_at
+        }
       )
 
     total_count =
@@ -348,10 +348,29 @@ defmodule ElektrineWeb.Admin.MessagesController do
       |> limit(^per_page)
       |> offset(^offset)
       |> Repo.all()
-      |> Enum.map(&Elektrine.Email.Message.decrypt_content(&1, user_id))
 
     {messages, total_count}
   end
+
+  defp select_message_summary(query) do
+    from([m, mb, u] in query,
+      select: %{
+        id: m.id,
+        subject: m.subject,
+        from: m.from,
+        to: m.to,
+        status: m.status,
+        inserted_at: m.inserted_at,
+        mailbox: %{
+          email: mb.email,
+          user: %{username: u.username}
+        }
+      }
+    )
+  end
+
+  defp truthy_param?(value) when value in [true, 1, "1", "true", "on", "yes"], do: true
+  defp truthy_param?(_), do: false
 
   defp get_raw_email_content(message) do
     if message.metadata && Map.has_key?(message.metadata, "raw_email") do

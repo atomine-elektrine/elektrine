@@ -48,5 +48,28 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
 
       assert html =~ "/uploads/timeline-attachments/test.jpg"
     end
+
+    test "does not crash when cached replies metadata is a URL string", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, post} =
+        Social.create_timeline_post(user.id, "Cached post with replies URL", visibility: "public")
+
+      activitypub_id = "https://popbob.wtf/notes/aio1kmd9jaat9rgd"
+
+      Repo.update_all(
+        from(m in Message, where: m.id == ^post.id),
+        set: [
+          activitypub_id: activitypub_id,
+          media_metadata: %{
+            "replies" => "#{activitypub_id}/replies",
+            "replies_count" => "7"
+          }
+        ]
+      )
+
+      encoded_id = URI.encode_www_form(activitypub_id)
+      assert {:ok, _view, _html} = live(conn, ~p"/remote/post/#{encoded_id}")
+    end
   end
 end

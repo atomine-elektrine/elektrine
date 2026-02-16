@@ -178,7 +178,7 @@
       <div class="flex justify-center mt-6 gap-2">
         <%= if @current_page > 1 do %>
           <a
-            href={"/admin/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{@current_page - 1}"}
+            href={"/pripyat/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{@current_page - 1}"}
             class="btn btn-sm"
           >
             «
@@ -188,7 +188,7 @@
         <div class="join">
           <%= for page_num <- @page_range do %>
             <a
-              href={"/admin/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{page_num}"}
+              href={"/pripyat/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{page_num}"}
               class={"join-item btn btn-sm " <> if(page_num == @current_page, do: "btn-active", else: "")}
             >
               {page_num}
@@ -198,7 +198,7 @@
 
         <%= if @current_page < @total_pages do %>
           <a
-            href={"/admin/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{@current_page + 1}"}
+            href={"/pripyat/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{@current_page + 1}"}
             class="btn btn-sm"
           >
             »

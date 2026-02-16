@@ -16,6 +16,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   @reserved_subdomains ~w(
     www
     admin
+    pripyat
     api
     mail
     smtp
@@ -85,9 +86,9 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
               |> halt()
           end
 
-        {:reserved_subdomain, base_domain} ->
+        {:reserved_subdomain, handle, base_domain} ->
           conn
-          |> redirect(external: "https://#{base_domain}/")
+          |> redirect(external: "https://#{base_domain}#{reserved_subdomain_path(handle)}")
           |> halt()
 
         :not_subdomain ->
@@ -121,7 +122,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
             :not_subdomain
 
           handle in @reserved_subdomains ->
-            {:reserved_subdomain, base_domain}
+            {:reserved_subdomain, handle, base_domain}
 
           true ->
             {:ok, handle, base_domain}
@@ -245,4 +246,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   defp asset_like_path?(path) when is_binary(path) do
     Path.extname(path) != ""
   end
+
+  defp reserved_subdomain_path("pripyat"), do: "/pripyat"
+  defp reserved_subdomain_path(_), do: "/"
 end

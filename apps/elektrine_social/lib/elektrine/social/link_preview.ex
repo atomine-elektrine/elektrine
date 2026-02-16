@@ -2,6 +2,8 @@ defmodule Elektrine.Social.LinkPreview do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @max_varchar_length 255
+
   schema "link_previews" do
     field :url, :string
     field :title, :string
@@ -30,10 +32,34 @@ defmodule Elektrine.Social.LinkPreview do
       :error_message,
       :fetched_at
     ])
+    |> truncate_field(:title, @max_varchar_length)
+    |> truncate_field(:site_name, @max_varchar_length)
+    |> nilify_overlong_field(:image_url, @max_varchar_length)
+    |> nilify_overlong_field(:favicon_url, @max_varchar_length)
     |> validate_required([:url])
     |> validate_inclusion(:status, ["pending", "success", "failed"])
     |> validate_url(:url)
     |> unique_constraint(:url)
+  end
+
+  defp truncate_field(changeset, field, max_length) do
+    update_change(changeset, field, fn value ->
+      if is_binary(value) and String.length(value) > max_length do
+        String.slice(value, 0, max_length)
+      else
+        value
+      end
+    end)
+  end
+
+  defp nilify_overlong_field(changeset, field, max_length) do
+    update_change(changeset, field, fn value ->
+      if is_binary(value) and String.length(value) > max_length do
+        nil
+      else
+        value
+      end
+    end)
   end
 
   defp validate_url(changeset, field) do

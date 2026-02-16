@@ -195,6 +195,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   # Paths that should never be treated as profile handles
   @reserved_paths ~w(
     admin api account email temp-mail siem search login register
+    pripyat
     dev www support help about contact terms privacy blog docs status
     health ping test settings logout users calendars addressbooks
     principals activitypub inbox outbox followers following liked

@@ -22,14 +22,5 @@ config :logger, :console,
   format: {ElektrineWeb.JsonLogFormatter, :format},
   metadata: [:request_id, :user_id]
 
-# Sentry configuration for error tracking
-config :sentry,
-  dsn: System.get_env("SENTRY_DSN"),
-  environment_name: Mix.env(),
-  enable_source_code_context: true,
-  root_source_code_paths: [File.cwd!()],
-  # Filter out benign errors that don't indicate actual problems
-  before_send: {Elektrine.SentryFilter, :filter_event}
-
 # Runtime production configuration, including reading
-# of environment variables, is done on config/runtime.exs.
+# of environment variables (including Sentry DSN), is done on config/runtime.exs.

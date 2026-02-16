@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   """
 
   alias Elektrine.Messaging.Message
+  alias ElektrineWeb.HtmlHelpers
 
   @public_audience_uris MapSet.new([
                           "Public",
@@ -128,18 +129,49 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   def extract_url_from_content(_), do: nil
 
   @doc """
-  Renders content preview - strips HTML and limits length.
-  """
-  @spec render_content_preview(String.t() | nil) :: String.t()
-  def render_content_preview(nil), do: ""
+  Renders content preview with HTML stripped, length limited, and emoji decoding.
 
-  def render_content_preview(content) when is_binary(content) do
+  Decoding order:
+  1. Strip HTML and truncate to preview length
+  2. Escape remaining text for safe raw rendering
+  3. Convert known shortcode aliases to Unicode
+  4. Render custom emojis when shortcode patterns remain
+  """
+  @spec render_content_preview(String.t() | nil, String.t() | nil) :: String.t()
+  def render_content_preview(content, instance_domain \\ nil)
+  def render_content_preview(nil, _instance_domain), do: ""
+
+  def render_content_preview(content, instance_domain) when is_binary(content) do
     content
     |> HtmlSanitizeEx.strip_tags()
     |> String.slice(0, 200)
+    |> HtmlHelpers.escape_html()
+    |> HtmlHelpers.convert_emoji_shortcodes()
+    |> maybe_render_custom_emojis(instance_domain)
   end
 
-  def render_content_preview(_), do: ""
+  def render_content_preview(_, _instance_domain), do: ""
+
+  @doc """
+  Extracts the best-guess instance domain for remote/custom emoji rendering.
+  """
+  @spec get_instance_domain(map() | Message.t() | nil) :: String.t() | nil
+  def get_instance_domain(%Message{} = message) do
+    message
+    |> remote_actor_domain()
+    |> Kernel.||(host_from_uri(message.activitypub_id))
+    |> Kernel.||(host_from_uri(message.activitypub_url))
+  end
+
+  def get_instance_domain(item) when is_map(item) do
+    item
+    |> remote_actor_domain()
+    |> Kernel.||(Map.get(item, :author_domain) || Map.get(item, "author_domain"))
+    |> Kernel.||(host_from_uri(Map.get(item, :activitypub_id) || Map.get(item, "activitypub_id")))
+    |> Kernel.||(host_from_uri(Map.get(item, :activitypub_url) || Map.get(item, "activitypub_url")))
+  end
+
+  def get_instance_domain(_), do: nil
 
   @doc """
   Formats reactions for display, grouping by emoji.
@@ -315,6 +347,37 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
 
     {display_like_count || 0, display_comment_count || 0}
   end
+
+  defp maybe_render_custom_emojis(text, instance_domain) when is_binary(text) do
+    if contains_emoji_shortcode?(text) do
+      HtmlHelpers.render_custom_emojis(text, instance_domain)
+    else
+      text
+    end
+  end
+
+  defp maybe_render_custom_emojis(text, _instance_domain), do: text
+
+  defp contains_emoji_shortcode?(text) when is_binary(text) do
+    String.match?(text, ~r/:([a-zA-Z_][a-zA-Z0-9_]*):/)
+  end
+
+  defp contains_emoji_shortcode?(_), do: false
+
+  defp remote_actor_domain(%{remote_actor: remote_actor}), do: remote_actor_domain(remote_actor)
+
+  defp remote_actor_domain(%{domain: domain}) when is_binary(domain) and domain != "", do: domain
+  defp remote_actor_domain(%{"domain" => domain}) when is_binary(domain) and domain != "", do: domain
+  defp remote_actor_domain(_), do: nil
+
+  defp host_from_uri(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> host
+      _ -> nil
+    end
+  end
+
+  defp host_from_uri(_), do: nil
 
   defp get_community_uri_value(metadata) do
     metadata["community_actor_uri"] || metadata[:community_actor_uri]

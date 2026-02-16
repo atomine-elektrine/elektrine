@@ -38,5 +38,12 @@ defmodule Elektrine.SentryFilter do
       String.contains?(message, "Request line HTTP error")
   end
 
+  defp should_drop?(%{original_exception: %Bandit.HTTP2.Errors.StreamError{message: message}})
+       when is_binary(message) do
+    # Some clients close HTTP/2 streams before sending the full declared body.
+    # This is client/proxy noise and not an app fault.
+    String.contains?(message, "Received END_STREAM with byte still pending")
+  end
+
   defp should_drop?(_event), do: false
 end

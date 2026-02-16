@@ -452,8 +452,7 @@ defmodule ElektrineWeb.Router do
     pipe_through([
       :browser,
       :require_admin_access,
-      ElektrineWeb.Plugs.RequireElektrineDomain,
-      ElektrineWeb.Plugs.LoadConflicts
+      ElektrineWeb.Plugs.RequireElektrineDomain
     ])
 
     # Main dashboard

@@ -1,5 +1,6 @@
 defmodule ElektrineWeb.DiscussionsLive.Index do
   use ElektrineWeb, :live_view
+  require Logger
 
   import Ecto.Query, warn: false
   alias Elektrine.{Social, Messaging, Profiles, Repo}
@@ -1196,35 +1197,59 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   def handle_info(:load_communities_data, socket) do
     user = socket.assigns[:current_user]
 
-    # Run all database queries in parallel for performance
-    tasks = %{
-      communities: Task.async(fn -> if user, do: get_user_communities(user.id), else: [] end),
-      public_communities: Task.async(fn -> get_public_communities() end),
-      trending_discussions: Task.async(fn -> Social.get_trending_discussions(limit: 15) end),
-      federated_discussions: Task.async(fn -> get_federated_discussions(limit: 10) end),
+    # Load each dataset with a fallback so DB pressure does not crash the LiveView.
+    # Under federation bursts we can see pool checkout timeouts; failing closed keeps
+    # /communities responsive instead of restarting the process on Task.await/2 timeout.
+    results = %{
+      communities:
+        load_with_fallback(:communities, fn ->
+          if user, do: get_user_communities(user.id), else: []
+        end, []),
+      public_communities:
+        load_with_fallback(:public_communities, fn -> get_public_communities() end, []),
+      trending_discussions:
+        load_with_fallback(
+          :trending_discussions,
+          fn -> Social.get_trending_discussions(limit: 15) end,
+          []
+        ),
+      federated_discussions:
+        load_with_fallback(
+          :federated_discussions,
+          fn -> get_federated_discussions(limit: 10) end,
+          []
+        ),
       followed_remote_communities:
-        Task.async(fn -> if user, do: get_followed_remote_communities(user.id), else: [] end),
+        load_with_fallback(
+          :followed_remote_communities,
+          fn -> if user, do: get_followed_remote_communities(user.id), else: [] end,
+          []
+        ),
       followed_community_posts:
-        Task.async(fn ->
-          if user, do: get_followed_community_posts(user.id, limit: 30), else: []
-        end),
+        load_with_fallback(
+          :followed_community_posts,
+          fn -> if user, do: get_followed_community_posts(user.id, limit: 30), else: [] end,
+          []
+        ),
       recent_activity:
-        Task.async(fn ->
-          if user, do: Social.get_recent_community_activity(user.id, limit: 10), else: []
-        end),
+        load_with_fallback(
+          :recent_activity,
+          fn -> if user, do: Social.get_recent_community_activity(user.id, limit: 10), else: [] end,
+          []
+        ),
       popular_communities:
-        Task.async(fn -> Social.get_popular_communities_this_week(limit: 6) end),
+        load_with_fallback(
+          :popular_communities,
+          fn -> Social.get_popular_communities_this_week(limit: 6) end,
+          []
+        ),
       my_community_posts:
-        Task.async(fn ->
-          if user, do: Social.get_user_community_posts(user.id, limit: 50), else: []
-        end)
+        load_with_fallback(
+          :my_community_posts,
+          fn -> if user, do: Social.get_user_community_posts(user.id, limit: 50), else: [] end,
+          []
+        )
     }
-
-    # Await all results (5 second timeout)
-    results =
-      Map.new(tasks, fn {key, task} ->
-        {key, Task.await(task, 5000)}
-      end)
 
     communities = results.communities
     public_communities = results.public_communities
@@ -1239,30 +1264,50 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     # Load cached Lemmy data immediately (fast DB query)
     # Schedule background refresh for stale entries
     {lemmy_counts, post_replies} =
-      if followed_community_posts != [] do
-        activitypub_ids =
-          followed_community_posts
-          |> Enum.map(& &1.activitypub_id)
-          |> Enum.filter(&(&1 && String.contains?(&1, "/post/")))
+      load_with_fallback(
+        :lemmy_cache,
+        fn ->
+          if followed_community_posts != [] do
+            activitypub_ids =
+              followed_community_posts
+              |> Enum.map(& &1.activitypub_id)
+              |> Enum.filter(&(&1 && String.contains?(&1, "/post/")))
 
-        {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
+            {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
 
-        # Schedule background refresh for stale/missing entries
-        LemmyCache.schedule_refresh(activitypub_ids)
+            # Schedule background refresh for stale/missing entries
+            LemmyCache.schedule_refresh(activitypub_ids)
 
-        # If cache was empty/incomplete, schedule a quick refresh to pick up
-        # newly cached data once the background job completes (~5 seconds)
-        # Then schedule regular periodic refresh
-        if map_size(comments) < length(activitypub_ids) do
-          Process.send_after(self(), :refresh_lemmy_cache, 5_000)
-        end
+            # If cache was empty/incomplete, schedule a quick refresh to pick up
+            # newly cached data once the background job completes (~5 seconds)
+            # Then schedule regular periodic refresh
+            if map_size(comments) < length(activitypub_ids) do
+              Process.send_after(self(), :refresh_lemmy_cache, 5_000)
+            end
 
-        Process.send_after(self(), :refresh_lemmy_cache, 60_000)
+            Process.send_after(self(), :refresh_lemmy_cache, 60_000)
 
-        {counts, comments}
-      else
+            {counts, comments}
+          else
+            {%{}, %{}}
+          end
+        end,
         {%{}, %{}}
-      end
+      )
+
+    post_interactions =
+      load_with_fallback(
+        :post_interactions,
+        fn -> load_post_interactions(followed_community_posts, user) end,
+        %{}
+      )
+
+    post_reactions =
+      load_with_fallback(
+        :post_reactions,
+        fn -> get_post_reactions(followed_community_posts) end,
+        %{}
+      )
 
     # Build a set of joined community IDs for quick lookup
     joined_community_ids =
@@ -1292,10 +1337,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:filtered_community_posts, followed_community_posts)
      |> assign(:filtered_remote_communities, followed_remote_communities)
      |> assign(:joined_community_ids, joined_community_ids)
-     |> assign(:post_interactions, load_post_interactions(followed_community_posts, user))
+     |> assign(:post_interactions, post_interactions)
      |> assign(:lemmy_counts, lemmy_counts)
      |> assign(:post_replies, post_replies)
-     |> assign(:post_reactions, get_post_reactions(followed_community_posts))
+     |> assign(:post_reactions, post_reactions)
      |> assign(:loading_communities, false)}
   end
 
@@ -1616,6 +1661,23 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp sort_feed_posts(posts, _, _lemmy_counts), do: posts
+
+  defp load_with_fallback(key, loader, fallback) when is_function(loader, 0) do
+    try do
+      loader.()
+    rescue
+      exception ->
+        Logger.warning(
+          "Communities loader failed (#{key}): #{Exception.message(exception)}"
+        )
+
+        fallback
+    catch
+      :exit, reason ->
+        Logger.warning("Communities loader exited (#{key}): #{inspect(reason)}")
+        fallback
+    end
+  end
 
   # Load interaction state (likes/boosts) for posts
   defp load_post_interactions(_posts, nil), do: %{}

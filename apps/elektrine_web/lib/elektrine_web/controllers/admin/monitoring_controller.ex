@@ -197,15 +197,11 @@ defmodule ElektrineWeb.Admin.MonitoringController do
       )
       |> Repo.all()
 
-    # Get all 2FA users for stats (not paginated)
-    all_2fa_users =
+    users_with_secrets =
       from(u in Accounts.User,
-        where: u.two_factor_enabled == true,
-        select: %{
-          has_secret: not is_nil(u.two_factor_secret)
-        }
+        where: u.two_factor_enabled == true and not is_nil(u.two_factor_secret)
       )
-      |> Repo.all()
+      |> Repo.aggregate(:count)
 
     # Calculate pagination
     total_pages = ceil(total_2fa_users / per_page)
@@ -214,8 +210,8 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     # Get total counts
     stats = %{
       total_2fa_users: total_2fa_users,
-      users_with_secrets: Enum.count(all_2fa_users, & &1.has_secret),
-      users_without_secrets: Enum.count(all_2fa_users, &(not &1.has_secret))
+      users_with_secrets: users_with_secrets,
+      users_without_secrets: max(total_2fa_users - users_with_secrets, 0)
     }
 
     render(conn, :two_factor_status,

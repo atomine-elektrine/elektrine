@@ -15,14 +15,17 @@ defmodule ElektrineWeb.Admin.VPNController do
       from(uc in Elektrine.VPN.UserConfig, where: uc.status == "active")
       |> Elektrine.Repo.aggregate(:count, :id)
 
-    # Calculate bandwidth analytics
-    all_configs = Elektrine.Repo.all(Elektrine.VPN.UserConfig)
-
-    total_bandwidth =
-      Enum.reduce(all_configs, 0, fn config, acc -> acc + config.quota_used_bytes end)
-
-    total_quota =
-      Enum.reduce(all_configs, 0, fn config, acc -> acc + config.bandwidth_quota_bytes end)
+    # Calculate bandwidth analytics in SQL to avoid loading all configs into memory.
+    {total_bandwidth, total_quota} =
+      from(uc in Elektrine.VPN.UserConfig,
+        select:
+          {coalesce(sum(uc.quota_used_bytes), 0), coalesce(sum(uc.bandwidth_quota_bytes), 0)}
+      )
+      |> Elektrine.Repo.one()
+      |> case do
+        nil -> {0, 0}
+        totals -> totals
+      end
 
     quota_usage_percent =
       if total_quota > 0, do: (total_bandwidth / total_quota * 100) |> round(), else: 0
@@ -151,15 +154,33 @@ defmodule ElektrineWeb.Admin.VPNController do
   end
 
   def users(conn, params) do
-    page = Map.get(params, "page", "1") |> String.to_integer()
+    page = SafeConvert.parse_page(params)
     per_page = 50
+    search_query = params |> Map.get("search", "") |> String.trim()
+    offset = (page - 1) * per_page
 
-    # Get all VPN user configs with preloads
-    query =
+    base_query =
       from(uc in Elektrine.VPN.UserConfig,
         preload: [:user, :vpn_server],
         order_by: [desc: uc.inserted_at]
       )
+
+    query =
+      if search_query == "" do
+        base_query
+      else
+        search_pattern = "%#{search_query}%"
+
+        from(uc in base_query,
+          join: u in assoc(uc, :user),
+          join: s in assoc(uc, :vpn_server),
+          where:
+            ilike(u.username, ^search_pattern) or
+              ilike(u.handle, ^search_pattern) or
+              ilike(s.name, ^search_pattern) or
+              ilike(uc.allocated_ip, ^search_pattern)
+        )
+      end
 
     total_count = Elektrine.Repo.aggregate(query, :count, :id)
     total_pages = ceil(total_count / per_page)
@@ -167,7 +188,7 @@ defmodule ElektrineWeb.Admin.VPNController do
     user_configs =
       query
       |> limit(^per_page)
-      |> offset(^((page - 1) * per_page))
+      |> offset(^offset)
       |> Elektrine.Repo.all()
 
     user = conn.assigns.current_user
@@ -177,6 +198,7 @@ defmodule ElektrineWeb.Admin.VPNController do
     render(conn, :vpn_users,
       user_configs: user_configs,
       page: page,
+      search_query: search_query,
       total_pages: total_pages,
       total_count: total_count,
       timezone: timezone,

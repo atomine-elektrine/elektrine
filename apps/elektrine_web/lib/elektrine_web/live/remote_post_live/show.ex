@@ -1488,11 +1488,17 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       normalize_cached_reply_count(metadata["original_reply_count"]),
       normalize_cached_reply_count(metadata["reply_count"]),
       normalize_cached_reply_count(metadata["replies_count"]),
-      normalize_cached_reply_count(get_in(metadata, ["replies", "totalItems"])),
-      normalize_cached_reply_count(get_in(metadata, ["comments", "totalItems"]))
+      normalize_cached_reply_count(total_items_from_collection(metadata["replies"])),
+      normalize_cached_reply_count(total_items_from_collection(metadata["comments"]))
     ]
     |> Enum.max(fn -> 0 end)
   end
+
+  defp total_items_from_collection(collection) when is_map(collection) do
+    Map.get(collection, "totalItems") || Map.get(collection, :totalItems)
+  end
+
+  defp total_items_from_collection(_), do: nil
 
   defp cached_replies_object(msg, replies_count) do
     metadata = msg.media_metadata || %{}
@@ -2765,17 +2771,48 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   # Build tree from standard ActivityPub inReplyTo
   defp build_standard_tree(replies, root_post_id, sort) do
-    # Create a map of reply_id -> reply for quick lookup
-    reply_map = Map.new(replies, fn reply -> {reply["id"], reply} end)
-
     # Group replies by their parent (inReplyTo)
     children_map =
       Enum.group_by(replies, fn reply ->
         reply["inReplyTo"]
       end)
 
-    # Build tree recursively starting from replies to the root post
-    build_children(children_map, root_post_id, reply_map, 0, sort)
+    reply_ids =
+      replies
+      |> Enum.map(& &1["id"])
+      |> Enum.filter(&is_binary/1)
+      |> MapSet.new()
+
+    root_parent_ids = [root_post_id, nil, ""]
+
+    explicit_roots =
+      root_parent_ids
+      |> Enum.flat_map(&Map.get(children_map, &1, []))
+
+    # Some platforms return an inReplyTo URI that does not exactly match the
+    # post ID we loaded. Treat replies whose parent is unknown as top-level so
+    # they remain visible instead of disappearing until a second refresh.
+    orphan_roots =
+      replies
+      |> Enum.filter(fn reply ->
+        parent_id = reply["inReplyTo"]
+
+        parent_id not in root_parent_ids &&
+          (is_nil(parent_id) || parent_id == "" || !MapSet.member?(reply_ids, parent_id))
+      end)
+
+    root_replies =
+      (explicit_roots ++ orphan_roots)
+      |> Enum.uniq_by(&reply_identity_key/1)
+      |> sort_replies(sort)
+
+    Enum.map(root_replies, fn reply ->
+      %{
+        reply: reply,
+        depth: 0,
+        children: build_children(children_map, reply["id"], 1, sort)
+      }
+    end)
   end
 
   # Build tree from Lemmy path-based threading
@@ -2858,12 +2895,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end)
   end
 
-  defp build_children(children_map, parent_id, reply_map, depth, sort) do
+  defp build_children(children_map, parent_id, depth, sort) do
     children = Map.get(children_map, parent_id, [])
     sorted_children = sort_replies(children, sort)
 
     Enum.map(sorted_children, fn reply ->
-      nested_children = build_children(children_map, reply["id"], reply_map, depth + 1, sort)
+      nested_children = build_children(children_map, reply["id"], depth + 1, sort)
 
       %{
         reply: reply,

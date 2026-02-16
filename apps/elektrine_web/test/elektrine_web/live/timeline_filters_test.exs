@@ -2,8 +2,13 @@ defmodule ElektrineWeb.TimelineFiltersTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Ecto.Query
+  import Elektrine.SocialFixtures
 
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Accounts.User
+  alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
   alias Elektrine.Social
 
   defp log_in_user(conn, user) do
@@ -44,5 +49,147 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert html =~ "1 shown"
     assert html =~ "Regular timeline post"
     refute html =~ "Community timeline post"
+  end
+
+  test "my_posts view loads the signed-in user's dataset", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    other = AccountsFixtures.user_fixture()
+    viewer_timeline = timeline_conversation_fixture(viewer)
+    other_timeline = timeline_conversation_fixture(other)
+
+    _my_post =
+      post_fixture(
+        user: viewer,
+        conversation: viewer_timeline,
+        content: "My dedicated timeline post"
+      )
+
+    for i <- 1..25 do
+      _post =
+        post_fixture(
+          user: other,
+          conversation: other_timeline,
+          content: "Other timeline post #{i}"
+        )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "filter_timeline", %{"filter" => "my_posts"})
+    assert_patch(view, ~p"/timeline?filter=all&view=my_posts")
+
+    html = render(view)
+    assert html =~ "My dedicated timeline post"
+    refute html =~ "Other timeline post 25"
+  end
+
+  test "trusted view only shows TL2+ local posts", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    trusted_author = AccountsFixtures.user_fixture()
+    untrusted_author = AccountsFixtures.user_fixture()
+    trusted_timeline = timeline_conversation_fixture(trusted_author)
+    untrusted_timeline = timeline_conversation_fixture(untrusted_author)
+
+    Repo.update_all(from(u in User, where: u.id == ^trusted_author.id), set: [trust_level: 2])
+    Repo.update_all(from(u in User, where: u.id == ^untrusted_author.id), set: [trust_level: 1])
+
+    _trusted_post =
+      post_fixture(
+        user: trusted_author,
+        conversation: trusted_timeline,
+        content: "Trusted timeline post"
+      )
+
+    _untrusted_post =
+      post_fixture(
+        user: untrusted_author,
+        conversation: untrusted_timeline,
+        content: "Untrusted timeline post"
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "filter_timeline", %{"filter" => "trusted"})
+    assert_patch(view, ~p"/timeline?filter=all&view=trusted")
+
+    html = render(view)
+    assert html =~ "Trusted timeline post"
+    refute html =~ "Untrusted timeline post"
+  end
+
+  test "replies view only includes replies in federated threads", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    viewer_timeline = timeline_conversation_fixture(viewer)
+    author_timeline = timeline_conversation_fixture(author)
+
+    federated_parent =
+      post_fixture(
+        user: author,
+        conversation: author_timeline,
+        content: "Federated parent post"
+      )
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^federated_parent.id),
+      set: [federated: true]
+    )
+
+    local_parent =
+      post_fixture(
+        user: author,
+        conversation: author_timeline,
+        content: "Local parent post"
+      )
+
+    {:ok, _federated_reply} =
+      %Message{}
+      |> Message.changeset(%{
+        conversation_id: viewer_timeline.id,
+        sender_id: viewer.id,
+        content: "Reply to federated parent",
+        message_type: "text",
+        visibility: "public",
+        post_type: "post",
+        reply_to_id: federated_parent.id,
+        like_count: 0,
+        reply_count: 0,
+        share_count: 0
+      })
+      |> Repo.insert()
+
+    {:ok, _local_reply} =
+      %Message{}
+      |> Message.changeset(%{
+        conversation_id: viewer_timeline.id,
+        sender_id: viewer.id,
+        content: "Reply to local parent",
+        message_type: "text",
+        visibility: "public",
+        post_type: "post",
+        reply_to_id: local_parent.id,
+        like_count: 0,
+        reply_count: 0,
+        share_count: 0
+      })
+      |> Repo.insert()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "filter_timeline", %{"filter" => "replies"})
+    assert_patch(view, ~p"/timeline?filter=all&view=replies")
+
+    html = render(view)
+    assert html =~ "Reply to federated parent"
+    refute html =~ "Reply to local parent"
   end
 end

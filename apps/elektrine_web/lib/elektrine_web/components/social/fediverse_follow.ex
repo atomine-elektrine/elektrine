@@ -13,6 +13,7 @@ defmodule ElektrineWeb.Components.Social.FediverseFollow do
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
+  alias ElektrineWeb.Components.Social.PostUtilities
 
   @doc """
   Renders a fediverse follow box with input, preview, and submit button.
@@ -197,7 +198,7 @@ defmodule ElektrineWeb.Components.Social.FediverseFollow do
             </div>
             <%= if @actor.summary do %>
               <p class="text-xs mt-1 line-clamp-2 opacity-80">
-                {HtmlSanitizeEx.strip_tags(@actor.summary) |> String.slice(0, 100)}
+                {raw(PostUtilities.render_content_preview(@actor.summary, @actor.domain))}
               </p>
             <% end %>
           </div>

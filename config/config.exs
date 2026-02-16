@@ -19,9 +19,9 @@ config :elektrine, Oban,
     default: 3,
     # Incoming ActivityPub processing - kept very low to prevent DB overload
     # Each worker does multiple DB queries during activity processing
-    activitypub: 2,
+    activitypub: 1,
     # Outgoing ActivityPub delivery - also reduced
-    activitypub_delivery: 3,
+    activitypub_delivery: 2,
     # Email sending
     email: 2,
     # RSS feed fetching

@@ -10,8 +10,9 @@ defmodule ElektrineWeb.Telemetry do
   def init(_arg) do
     children = [
       # Telemetry poller will execute the given period measurements
-      # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
+      # every 30_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
+      # This avoids adding extra DB pressure during traffic spikes.
+      {:telemetry_poller, measurements: periodic_measurements(), period: 30_000}
       # Add reporters as children of your supervision tree.
       # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
@@ -216,7 +217,10 @@ defmodule ElektrineWeb.Telemetry do
             group_by: j.state,
             select: {j.state, count(j.id)}
           ),
-          timeout: 1000
+          # Fail fast when the pool is saturated, but avoid forcing 1s query
+          # timeouts that disconnect busy DB connections.
+          pool_timeout: 250,
+          timeout: 5_000
         )
         |> Enum.into(%{})
 

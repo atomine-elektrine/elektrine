@@ -15,7 +15,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
 
   use Oban.Worker,
     queue: :activitypub,
-    max_attempts: 5
+    max_attempts: 3
 
   # NOTE: Removed Oban uniqueness constraint - using ETS deduplication instead
   # unique: [period: 60, fields: [:args], keys: [:activity_id]]
@@ -33,11 +33,17 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
   # Maximum age of a job before we discard it (prevents infinite snooze loops)
   # Jobs older than 10 minutes are stale and should be dropped
   @max_job_age_seconds 600
+  # Keep throttling/backoff churn bounded so Oban doesn't become the bottleneck.
+  @max_throttle_snoozes 3
+  @throttle_snooze_seconds 30
+  @max_throttled_job_age_seconds 120
+  @max_backoff_job_age_seconds 120
 
   @impl Oban.Worker
   def perform(%Oban.Job{
         args: %{"activity" => activity, "actor_uri" => actor_uri} = args,
-        inserted_at: inserted_at
+        inserted_at: inserted_at,
+        attempt: attempt
       }) do
     started_at = System.monotonic_time(:millisecond)
     target_user_id = args["target_user_id"]
@@ -82,21 +88,18 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
             result
 
           {:error, :throttled} ->
-            # Domain has too many concurrent jobs, snooze and retry
-            Logger.debug("Throttled activity from #{domain}, snoozing for 5s")
-            emit_perform_telemetry(started_at, activity_type, domain, :throttled)
-            {:snooze, 5}
+            handle_throttled(activity, domain, attempt, job_age, started_at, activity_type)
 
           {:error, :backoff, remaining_ms} ->
-            # Domain is in backoff due to failures
-            snooze_seconds = max(1, div(remaining_ms, 1000))
-            Logger.info("Domain #{domain} in backoff, snoozing for #{snooze_seconds}s")
-
-            emit_perform_telemetry(started_at, activity_type, domain, :backoff, %{
-              backoff_ms: remaining_ms
-            })
-
-            {:snooze, snooze_seconds}
+            handle_backoff(
+              activity,
+              domain,
+              attempt,
+              job_age,
+              remaining_ms,
+              started_at,
+              activity_type
+            )
         end
       end
     end
@@ -121,7 +124,14 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
         :ok
 
       {:error, reason}
-      when reason in [:handle_like_failed, :handle_emoji_react_failed, :handle_dislike_failed] ->
+      when reason in [
+             :handle_like_failed,
+             :handle_emoji_react_failed,
+             :handle_dislike_failed,
+             :fetch_failed,
+             :http_error,
+             :not_found
+           ] ->
         # These are expected when remote instances react to posts we don't have - don't retry
         Logger.debug("Activity #{activity["id"]} failed (#{reason}), not retrying")
 
@@ -140,6 +150,51 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
 
         # Return error to trigger retry
         {:error, reason}
+    end
+  end
+
+  defp handle_throttled(activity, domain, attempt, job_age, started_at, activity_type) do
+    if attempt <= @max_throttle_snoozes and job_age <= @max_throttled_job_age_seconds do
+      Logger.debug("Throttled activity from #{domain}, snoozing for #{@throttle_snooze_seconds}s")
+      emit_perform_telemetry(started_at, activity_type, domain, :throttled)
+      {:snooze, @throttle_snooze_seconds}
+    else
+      Logger.warning(
+        "Dropping throttled activity #{activity["id"]} from #{domain} (attempt=#{attempt}, age=#{job_age}s)"
+      )
+
+      emit_perform_telemetry(started_at, activity_type, domain, :discarded_throttled, %{
+        attempt: attempt,
+        job_age_seconds: job_age
+      })
+
+      :ok
+    end
+  end
+
+  defp handle_backoff(activity, domain, attempt, job_age, remaining_ms, started_at, activity_type) do
+    if attempt <= @max_throttle_snoozes and job_age <= @max_backoff_job_age_seconds do
+      snooze_seconds = max(@throttle_snooze_seconds, div(remaining_ms, 1000))
+      Logger.info("Domain #{domain} in backoff, snoozing for #{snooze_seconds}s")
+
+      emit_perform_telemetry(started_at, activity_type, domain, :backoff, %{
+        backoff_ms: remaining_ms,
+        attempt: attempt
+      })
+
+      {:snooze, snooze_seconds}
+    else
+      Logger.warning(
+        "Dropping backoff activity #{activity["id"]} from #{domain} (attempt=#{attempt}, age=#{job_age}s)"
+      )
+
+      emit_perform_telemetry(started_at, activity_type, domain, :discarded_backoff, %{
+        backoff_ms: remaining_ms,
+        attempt: attempt,
+        job_age_seconds: job_age
+      })
+
+      :ok
     end
   end
 

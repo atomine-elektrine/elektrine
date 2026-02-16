@@ -242,7 +242,6 @@ export const FocusOnMount = {
 
 export const TimelineReply = {
   mounted() {
-    this.scrollY = 0
     this.replyFocusPending = false
     this.queuedAnchor = null
 
@@ -298,9 +297,9 @@ export const TimelineReply = {
   },
 
   beforeUpdate() {
-    if (!this.replyFocusPending && !this.queuedAnchor) {
-      this.scrollY = window.scrollY
-    }
+    // Intentionally no generic scroll preservation here.
+    // Restoring window.scrollY on every LiveView patch can fight natural scrolling
+    // when background timeline updates arrive.
   },
 
   updated() {
@@ -316,10 +315,6 @@ export const TimelineReply = {
       this.queuedAnchor = null
       this.replyFocusPending = false
       return
-    }
-
-    if (!this.replyFocusPending && this.scrollY > 0) {
-      window.scrollTo(0, this.scrollY)
     }
 
     this.replyFocusPending = false

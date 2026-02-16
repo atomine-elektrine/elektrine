@@ -19,6 +19,26 @@
         </h2>
       </div>
 
+      <form method="get" action={~p"/pripyat/vpn/users"} class="mb-4">
+        <div class="join w-full">
+          <input
+            type="text"
+            name="search"
+            value={assigns[:search_query] || ""}
+            placeholder="Filter by user, handle, server, or IP..."
+            class="input join-item w-full"
+          />
+          <button type="submit" class="btn btn-primary join-item">
+            <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+          </button>
+          <%= if (assigns[:search_query] || "") != "" do %>
+            <a href={~p"/pripyat/vpn/users"} class="btn btn-ghost join-item">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </a>
+          <% end %>
+        </div>
+      </form>
+
       <%= if @total_count > 0 do %>
         <div class="overflow-x-auto">
           <table class="table table-zebra">
@@ -158,7 +178,14 @@
         <%= if @total_pages > 1 do %>
           <div class="flex justify-center gap-2 mt-6">
             <%= if @page > 1 do %>
-              <a href={~p"/pripyat/vpn/users?page=#{@page - 1}"} class="btn btn-sm">
+              <a
+                href={
+                  if (assigns[:search_query] || "") != "",
+                    do: ~p"/pripyat/vpn/users?page=#{@page - 1}&search=#{@search_query}",
+                    else: ~p"/pripyat/vpn/users?page=#{@page - 1}"
+                }
+                class="btn btn-sm"
+              >
                 Previous
               </a>
             <% end %>
@@ -168,7 +195,14 @@
             </span>
 
             <%= if @page < @total_pages do %>
-              <a href={~p"/pripyat/vpn/users?page=#{@page + 1}"} class="btn btn-sm">
+              <a
+                href={
+                  if (assigns[:search_query] || "") != "",
+                    do: ~p"/pripyat/vpn/users?page=#{@page + 1}&search=#{@search_query}",
+                    else: ~p"/pripyat/vpn/users?page=#{@page + 1}"
+                }
+                class="btn btn-sm"
+              >
                 Next
               </a>
             <% end %>
