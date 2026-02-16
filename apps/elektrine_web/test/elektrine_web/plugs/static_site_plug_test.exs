@@ -107,7 +107,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   describe "reserved paths" do
     test "does not intercept reserved paths", %{conn: conn} do
       # These should pass through to normal routing
-      for path <- ~w(admin api login register) do
+      for path <- ~w(admin api login register pripyat) do
         conn = get(conn, "/#{path}")
         # Should not be halted by static site plug
         # (will get normal 404 or redirect)

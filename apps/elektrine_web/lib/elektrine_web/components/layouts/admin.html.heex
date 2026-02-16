@@ -36,12 +36,6 @@
               <.icon name="hero-squares-2x2" class="w-5 h-5" /> Dashboard
             </.link>
           </li>
-          <li>
-            <.link href={~p"/pripyat/dashboard"} class="rounded-lg py-3">
-              <.icon name="hero-computer-desktop" class="w-5 h-5" /> System Dashboard
-            </.link>
-          </li>
-
           <div class="divider my-1 h-px"></div>
           <li class="menu-title px-3 pt-2 pb-1">
             <span class="text-xs uppercase tracking-wider opacity-60">User Management</span>
@@ -195,7 +189,6 @@
             class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
           >
             <li><.link href={~p"/pripyat"}>Dashboard</.link></li>
-            <li><.link href={~p"/pripyat/dashboard"}>System Dashboard</.link></li>
           </ul>
         </li>
 
@@ -269,7 +262,29 @@
 
     <div class="navbar-end">
       <%= if @current_user do %>
-        <!-- Notification Bell -->
+        <div class="hidden xl:block mr-2">
+          <label for="admin-quick-jump" class="sr-only">Quick jump</label>
+          <select
+            id="admin-quick-jump"
+            class="select select-bordered select-xs min-w-[12rem]"
+            onchange="if(this.value){window.location=this.value;}"
+          >
+            <option value="">Quick Jump</option>
+            <option value={~p"/pripyat"}>Dashboard</option>
+            <option value={~p"/pripyat/users"}>Users</option>
+            <option value={~p"/pripyat/messages"}>Messages</option>
+            <option value={~p"/pripyat/mailboxes"}>Mailboxes</option>
+            <option value={~p"/pripyat/aliases"}>Aliases</option>
+            <option value={~p"/pripyat/content-moderation"}>Moderation</option>
+            <option value={~p"/pripyat/communities"}>Communities</option>
+            <option value={~p"/pripyat/reports"}>Reports</option>
+            <option value={~p"/pripyat/vpn"}>VPN</option>
+            <option value={~p"/pripyat/audit-logs"}>Audit Logs</option>
+            <option value={~p"/pripyat/system-health"}>System Health</option>
+          </select>
+        </div>
+        
+<!-- Notification Bell -->
         <.link
           href="/notifications"
           class="indicator mr-2 flex items-center no-glow"

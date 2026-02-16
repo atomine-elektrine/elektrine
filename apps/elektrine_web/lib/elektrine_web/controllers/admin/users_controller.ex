@@ -792,21 +792,19 @@ defmodule ElektrineWeb.Admin.UsersController do
   defp get_unique_registration_ip_count do
     from(u in Elektrine.Accounts.User,
       where: not is_nil(u.registration_ip),
-      select: u.registration_ip,
-      distinct: true
+      select: count(fragment("DISTINCT ?", u.registration_ip))
     )
-    |> Elektrine.Repo.all()
-    |> length()
+    |> Elektrine.Repo.one()
+    |> Kernel.||(0)
   end
 
   defp get_unique_login_ip_count do
     from(u in Elektrine.Accounts.User,
       where: not is_nil(u.last_login_ip),
-      select: u.last_login_ip,
-      distinct: true
+      select: count(fragment("DISTINCT ?", u.last_login_ip))
     )
-    |> Elektrine.Repo.all()
-    |> length()
+    |> Elektrine.Repo.one()
+    |> Kernel.||(0)
   end
 
   defp perform_account_search_exact(query, "email") do

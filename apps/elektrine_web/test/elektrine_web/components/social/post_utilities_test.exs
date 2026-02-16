@@ -42,4 +42,24 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     assert PostUtilities.community_actor_uri(post) == "https://lemmy.world/c/elixir"
     assert PostUtilities.has_community_uri?(post)
   end
+
+  test "render_content_preview/2 strips html and decodes known emoji shortcodes" do
+    content = "<p>Hello :smile: <strong>world</strong></p>"
+
+    preview = PostUtilities.render_content_preview(content, "lemmy.world")
+
+    assert preview == "Hello 😊 world"
+  end
+
+  test "get_instance_domain/1 prefers remote actor domain" do
+    post = %{remote_actor: %{domain: "lemmy.world"}}
+
+    assert PostUtilities.get_instance_domain(post) == "lemmy.world"
+  end
+
+  test "get_instance_domain/1 falls back to activitypub host" do
+    post = %{activitypub_id: "https://lemmy.world/post/123"}
+
+    assert PostUtilities.get_instance_domain(post) == "lemmy.world"
+  end
 end

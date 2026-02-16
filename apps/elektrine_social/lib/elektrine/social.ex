@@ -362,6 +362,116 @@ defmodule Elektrine.Social do
   end
 
   @doc """
+  Gets replies that belong to federated threads.
+
+  Includes:
+  - local replies to federated parent posts
+  - federated replies that include an `inReplyTo` reference
+  """
+  def get_federated_replies(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    before_id = Keyword.get(opts, :before_id)
+    user_id = Keyword.get(opts, :user_id)
+    preloads = MessagingMessages.timeline_post_preloads()
+    all_blocked_ids = blocked_user_ids(user_id)
+
+    query =
+      from m in Message,
+        left_join: parent in Message,
+        on: parent.id == m.reply_to_id,
+        left_join: c in Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          m.visibility == "public" and
+            is_nil(m.deleted_at) and
+            (m.approval_status == "approved" or is_nil(m.approval_status)) and
+            ((not is_nil(m.reply_to_id) and parent.federated == true) or
+               fragment("(?->>'inReplyTo' IS NOT NULL)", m.media_metadata)) and
+            (c.type == "timeline" or (is_nil(m.conversation_id) and m.federated == true)),
+        order_by: [desc: m.id],
+        limit: ^limit,
+        preload: ^preloads
+
+    query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+    query = maybe_before_id(query, before_id)
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Gets timeline posts from local friends.
+  """
+  def get_friends_timeline(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    before_id = Keyword.get(opts, :before_id)
+    preloads = MessagingMessages.timeline_post_preloads()
+    friend_ids = Friends.list_friends(user_id) |> Enum.map(& &1.id)
+    all_blocked_ids = blocked_user_ids(user_id)
+
+    if Enum.empty?(friend_ids) do
+      []
+    else
+      query =
+        from m in Message,
+          join: c in Conversation,
+          on: c.id == m.conversation_id,
+          where:
+            c.type == "timeline" and
+              m.post_type == "post" and
+              m.sender_id in ^friend_ids and
+              m.visibility in ["public", "followers", "friends"] and
+              is_nil(m.deleted_at) and
+              (m.approval_status == "approved" or is_nil(m.approval_status)) and
+              is_nil(m.reply_to_id) and
+              fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata),
+          order_by: [desc: m.id],
+          limit: ^limit,
+          preload: ^preloads
+
+      query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+      query = maybe_before_id(query, before_id)
+
+      Repo.all(query)
+    end
+  end
+
+  @doc """
+  Gets local public timeline posts from trusted users (TL2+).
+  """
+  def get_trusted_timeline(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    before_id = Keyword.get(opts, :before_id)
+    user_id = Keyword.get(opts, :user_id)
+    preloads = MessagingMessages.timeline_post_preloads()
+    all_blocked_ids = blocked_user_ids(user_id)
+
+    query =
+      from m in Message,
+        join: c in Conversation,
+        on: c.id == m.conversation_id,
+        join: u in User,
+        on: u.id == m.sender_id,
+        where:
+          c.type == "timeline" and
+            m.post_type == "post" and
+            is_nil(m.remote_actor_id) and
+            m.visibility == "public" and
+            is_nil(m.deleted_at) and
+            (m.approval_status == "approved" or is_nil(m.approval_status)) and
+            is_nil(m.reply_to_id) and
+            fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
+            u.trust_level >= 2,
+        order_by: [desc: m.id],
+        limit: ^limit,
+        preload: ^preloads
+
+    query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+    query = maybe_before_id(query, before_id)
+
+    Repo.all(query)
+  end
+
+  @doc """
   Gets gallery feed for a user (posts from people they follow with post_type: "gallery").
   """
   def get_gallery_feed(user_id, opts \\ []) do
@@ -433,23 +543,28 @@ defmodule Elektrine.Social do
 
   def get_user_timeline_posts(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
+    before_id = Keyword.get(opts, :before_id)
     viewer_id = Keyword.get(opts, :viewer_id)
     preloads = MessagingMessages.timeline_post_preloads()
     visibility_levels = visibility_levels_for_viewer(user_id, viewer_id)
 
-    from(m in Message,
-      join: c in Conversation,
-      on: c.id == m.conversation_id,
-      where:
-        m.sender_id == ^user_id and
-          m.post_type == "post" and
-          m.visibility in ^visibility_levels and
-          is_nil(m.deleted_at) and
-          (m.approval_status == "approved" or is_nil(m.approval_status)),
-      order_by: [desc: m.inserted_at],
-      limit: ^limit,
-      preload: ^preloads
-    )
+    query =
+      from(m in Message,
+        join: c in Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          m.sender_id == ^user_id and
+            m.post_type == "post" and
+            m.visibility in ^visibility_levels and
+            is_nil(m.deleted_at) and
+            (m.approval_status == "approved" or is_nil(m.approval_status)),
+        order_by: [desc: m.id],
+        limit: ^limit,
+        preload: ^preloads
+      )
+
+    query
+    |> maybe_before_id(before_id)
     |> Repo.all()
   end
 

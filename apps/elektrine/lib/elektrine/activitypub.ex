@@ -196,14 +196,52 @@ defmodule Elektrine.ActivityPub do
       metadata: actor_data
     }
 
-    if existing_actor do
-      existing_actor
-      |> Actor.changeset(attrs)
-      |> Repo.update()
-    else
-      %Actor{}
-      |> Actor.changeset(attrs)
-      |> Repo.insert()
+    upsert_cached_actor(existing_actor, attrs)
+  end
+
+  defp upsert_cached_actor(%Actor{} = existing_actor, attrs) do
+    existing_actor
+    |> Actor.changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp upsert_cached_actor(nil, attrs) do
+    case %Actor{} |> Actor.changeset(attrs) |> Repo.insert() do
+      {:ok, actor} ->
+        {:ok, actor}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        recover_actor_conflict(attrs, changeset)
+    end
+  end
+
+  # During federation bursts, multiple requests can race to create the same actor
+  # (or a canonicalized variant such as trailing-slash URI differences).
+  # Recover by reloading and refreshing the existing row instead of failing.
+  defp recover_actor_conflict(attrs, original_changeset) do
+    actor =
+      get_actor_by_uri(attrs.uri) ||
+        get_actor_by_username_and_domain(attrs.username, attrs.domain)
+
+    case actor do
+      nil ->
+        {:error, original_changeset}
+
+      %Actor{} = existing_actor ->
+        case existing_actor |> Actor.changeset(attrs) |> Repo.update() do
+          {:ok, updated_actor} ->
+            {:ok, updated_actor}
+
+          {:error, _changeset} ->
+            attrs_without_identity = Map.drop(attrs, [:uri, :username, :domain])
+
+            case existing_actor
+                 |> Actor.changeset(attrs_without_identity)
+                 |> Repo.update() do
+              {:ok, updated_actor} -> {:ok, updated_actor}
+              {:error, _} -> {:ok, existing_actor}
+            end
+        end
     end
   end
 
@@ -738,8 +776,8 @@ defmodule Elektrine.ActivityPub do
     expected_replies =
       [
         normalize_reply_count(post_object["repliesCount"]),
-        normalize_reply_count(get_in(post_object, ["replies", "totalItems"])),
-        normalize_reply_count(get_in(post_object, ["comments", "totalItems"]))
+        normalize_reply_count(collection_total_items(post_object["replies"])),
+        normalize_reply_count(collection_total_items(post_object["comments"]))
       ]
       |> Enum.max(fn -> 0 end)
 
@@ -790,6 +828,12 @@ defmodule Elektrine.ActivityPub do
   defp extract_collection_url(%{"id" => id}) when is_binary(id), do: id
   defp extract_collection_url(url) when is_binary(url), do: url
   defp extract_collection_url(_), do: nil
+
+  defp collection_total_items(collection) when is_map(collection) do
+    Map.get(collection, "totalItems") || Map.get(collection, :totalItems)
+  end
+
+  defp collection_total_items(_), do: nil
 
   defp normalize_reply_count(value) when is_integer(value), do: max(value, 0)
 

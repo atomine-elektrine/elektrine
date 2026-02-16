@@ -105,43 +105,49 @@ defmodule ElektrineWeb.ActivityPubController do
   defp handle_inbox_with_rate_limit(conn, activity, username) do
     require Logger
 
-    # Get client IP and actor domain for rate limiting
-    ip = get_client_ip(conn)
+    # The ActivityPubRateLimit plug runs before signature verification and marks
+    # inbox requests it already checked, so we can avoid double counting here.
+    if conn.assigns[:activitypub_rate_limit_checked] do
+      handle_inbox_activity(conn, activity, username)
+    else
+      # Get client IP and actor domain for rate limiting
+      ip = get_client_ip(conn)
 
-    actor_domain =
-      case activity["actor"] do
-        actor when is_binary(actor) -> URI.parse(actor).host
-        _ -> nil
-      end
-
-    rate_limit_start = System.monotonic_time(:millisecond)
-
-    # Check rate limit first (by IP and by domain)
-    case Elektrine.ActivityPub.InboxRateLimiter.check_rate_limit(ip, actor_domain) do
-      {:error, :rate_limited} ->
-        rate_limit_time = System.monotonic_time(:millisecond) - rate_limit_start
-
-        Events.federation(:inbox, :rate_limit, :rate_limited, rate_limit_time, %{
-          domain: actor_domain || "unknown"
-        })
-
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "Rate limited"})
-
-      {:ok, :allowed} ->
-        rate_limit_time = System.monotonic_time(:millisecond) - rate_limit_start
-
-        # Log if rate limit check is slow (> 10ms)
-        if rate_limit_time > 10 do
-          Logger.warning("Slow rate limit check: #{rate_limit_time}ms")
+      actor_domain =
+        case activity["actor"] do
+          actor when is_binary(actor) -> URI.parse(actor).host
+          _ -> nil
         end
 
-        Events.federation(:inbox, :rate_limit, :ok, rate_limit_time, %{
-          domain: actor_domain || "unknown"
-        })
+      rate_limit_start = System.monotonic_time(:millisecond)
 
-        handle_inbox_activity(conn, activity, username)
+      # Check rate limit first (by IP and by domain)
+      case Elektrine.ActivityPub.InboxRateLimiter.check_rate_limit(ip, actor_domain) do
+        {:error, :rate_limited} ->
+          rate_limit_time = System.monotonic_time(:millisecond) - rate_limit_start
+
+          Events.federation(:inbox, :rate_limit, :rate_limited, rate_limit_time, %{
+            domain: actor_domain || "unknown"
+          })
+
+          conn
+          |> put_status(:too_many_requests)
+          |> json(%{error: "Rate limited"})
+
+        {:ok, :allowed} ->
+          rate_limit_time = System.monotonic_time(:millisecond) - rate_limit_start
+
+          # Log if rate limit check is slow (> 10ms)
+          if rate_limit_time > 10 do
+            Logger.warning("Slow rate limit check: #{rate_limit_time}ms")
+          end
+
+          Events.federation(:inbox, :rate_limit, :ok, rate_limit_time, %{
+            domain: actor_domain || "unknown"
+          })
+
+          handle_inbox_activity(conn, activity, username)
+      end
     end
   end
 

@@ -377,7 +377,12 @@
 
                         <%= if request.remote_actor.summary do %>
                           <p class="text-xs mt-2 opacity-80 line-clamp-2">
-                            {HtmlSanitizeEx.strip_tags(request.remote_actor.summary)}
+                            {raw(
+                              ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                request.remote_actor.summary,
+                                request.remote_actor.domain
+                              )
+                            )}
                           </p>
                         <% end %>
 

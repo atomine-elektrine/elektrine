@@ -97,6 +97,16 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
       assert get_resp_header(conn, "location") == ["https://z.org/"]
     end
 
+    test "redirects pripyat subdomain to admin path on main domain" do
+      conn =
+        build_conn_with_host("pripyat.elektrine.com", "/")
+        |> ProfileSubdomain.call([])
+
+      assert conn.halted
+      assert conn.status == 302
+      assert get_resp_header(conn, "location") == ["https://elektrine.com/pripyat"]
+    end
+
     test "redirects mail subdomain to main domain" do
       conn =
         build_conn_with_host("mail.z.org", "/")

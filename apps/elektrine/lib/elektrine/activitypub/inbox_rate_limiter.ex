@@ -7,12 +7,11 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
   use GenServer
   require Logger
 
-  # Max requests per IP per minute (reduced for performance)
-  @max_per_minute 30
-  # Max requests per domain per minute (reduced - prevents noisy instances)
-  @max_per_domain_per_minute 60
-  # Max global requests per second (reduced to prevent overload)
-  @max_global_per_second 15
+  # Default limits can be overridden at runtime via:
+  # config :elektrine, Elektrine.ActivityPub.InboxRateLimiter, ...
+  @default_max_per_minute 20
+  @default_max_per_domain_per_minute 40
+  @default_max_global_per_second 8
   # Cleanup interval
   @cleanup_interval 60_000
 
@@ -28,20 +27,28 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
     now = System.system_time(:second)
     minute_bucket = div(now, 60)
 
+    max_global_per_second =
+      configured_limit(:max_global_per_second, @default_max_global_per_second)
+
+    max_per_domain_per_minute =
+      configured_limit(:max_per_domain_per_minute, @default_max_per_domain_per_minute)
+
+    max_per_minute = configured_limit(:max_per_minute, @default_max_per_minute)
+
     # Check global rate first
     global_count =
       :ets.update_counter(:inbox_rate_limit, {:global, now}, {2, 1}, {{:global, now}, 0})
 
     cond do
-      global_count > @max_global_per_second ->
+      global_count > max_global_per_second ->
         {:error, :rate_limited}
 
       # Check per-domain rate (most important - prevents one noisy instance from flooding)
-      actor_domain && domain_over_limit?(actor_domain, minute_bucket) ->
+      actor_domain && domain_over_limit?(actor_domain, minute_bucket, max_per_domain_per_minute) ->
         {:error, :rate_limited}
 
       # Check per-IP rate
-      ip_over_limit?(ip_address, minute_bucket) ->
+      ip_over_limit?(ip_address, minute_bucket, max_per_minute) ->
         {:error, :rate_limited}
 
       true ->
@@ -49,7 +56,7 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
     end
   end
 
-  defp domain_over_limit?(domain, minute_bucket) do
+  defp domain_over_limit?(domain, minute_bucket, max_per_domain_per_minute) do
     count =
       :ets.update_counter(
         :inbox_rate_limit,
@@ -58,10 +65,10 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
         {{:domain, domain, minute_bucket}, 0}
       )
 
-    count > @max_per_domain_per_minute
+    count > max_per_domain_per_minute
   end
 
-  defp ip_over_limit?(ip_address, minute_bucket) do
+  defp ip_over_limit?(ip_address, minute_bucket, max_per_minute) do
     count =
       :ets.update_counter(
         :inbox_rate_limit,
@@ -70,7 +77,7 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
         {{ip_address, minute_bucket}, 0}
       )
 
-    count > @max_per_minute
+    count > max_per_minute
   end
 
   @impl true
@@ -108,4 +115,14 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
   defp schedule_cleanup do
     Process.send_after(self(), :cleanup, @cleanup_interval)
   end
+
+  defp configured_limit(key, default) do
+    :elektrine
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(key, default)
+    |> normalize_limit(default)
+  end
+
+  defp normalize_limit(value, _default) when is_integer(value) and value > 0, do: value
+  defp normalize_limit(_, default), do: default
 end

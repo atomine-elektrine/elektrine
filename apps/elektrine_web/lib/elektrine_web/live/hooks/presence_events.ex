@@ -117,9 +117,11 @@ defmodule ElektrineWeb.Live.Hooks.PresenceEvents do
     end)
 
     # Update user_statuses
+    current_statuses = current_user_statuses(socket)
+
     user_statuses =
       Map.update(
-        socket.assigns.user_statuses,
+        current_statuses,
         to_string(user.id),
         %{status: "away", message: nil, devices: [], device_count: 0},
         fn existing -> Map.merge(existing, %{status: "away"}) end
@@ -146,9 +148,11 @@ defmodule ElektrineWeb.Live.Hooks.PresenceEvents do
       end)
 
       # Update user_statuses
+      current_statuses = current_user_statuses(socket)
+
       user_statuses =
         Map.update(
-          socket.assigns.user_statuses,
+          current_statuses,
           to_string(user.id),
           %{status: "online", message: nil, devices: [], device_count: 0},
           fn existing -> Map.merge(existing, %{status: "online"}) end
@@ -162,6 +166,13 @@ defmodule ElektrineWeb.Live.Hooks.PresenceEvents do
     else
       # Manual status set, don't clear
       assign(socket, :last_activity_at, System.system_time(:second))
+    end
+  end
+
+  defp current_user_statuses(socket) do
+    case socket.assigns[:user_statuses] do
+      statuses when is_map(statuses) -> statuses
+      _ -> %{}
     end
   end
 

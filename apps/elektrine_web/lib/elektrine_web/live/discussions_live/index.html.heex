@@ -552,8 +552,12 @@
                                     </div>
                                     <%= if community.summary do %>
                                       <p class="text-xs text-base-content/60 line-clamp-1 mt-1.5">
-                                        {HtmlSanitizeEx.strip_tags(community.summary)
-                                        |> String.slice(0, 100)}
+                                        {raw(
+                                          ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                            community.summary,
+                                            community.domain
+                                          )
+                                        )}
                                       </p>
                                     <% end %>
                                   </div>
@@ -616,8 +620,12 @@
                                   </div>
                                   <%= if community.summary do %>
                                     <p class="text-xs text-base-content/60 line-clamp-1 mt-1.5">
-                                      {HtmlSanitizeEx.strip_tags(community.summary)
-                                      |> String.slice(0, 100)}
+                                      {raw(
+                                        ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                          community.summary,
+                                          community.domain
+                                        )
+                                      )}
                                     </p>
                                   <% end %>
                                 </div>

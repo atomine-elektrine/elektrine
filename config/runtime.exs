@@ -140,6 +140,15 @@ if config_env() == :prod do
   config :elektrine, :acme_account_key_path, "/data/certs/acme/account_key.pem"
   config :elektrine, :export_dir, "/data/exports"
 
+  # Configure Sentry at runtime so releases read the deploy-time DSN.
+  config :sentry,
+    dsn: System.get_env("SENTRY_DSN"),
+    environment_name: config_env(),
+    enable_source_code_context: true,
+    root_source_code_paths: [File.cwd!()],
+    # Filter out benign errors that don't indicate actual problems
+    before_send: {Elektrine.SentryFilter, :filter_event}
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
@@ -278,6 +287,9 @@ if config_env() == :prod do
   query_timeout_ms = env_int.("DB_TIMEOUT_MS", 30_000)
   pool_timeout_ms = env_int.("DB_POOL_TIMEOUT_MS", 15_000)
   connect_timeout_ms = env_int.("DB_CONNECT_TIMEOUT_MS", 15_000)
+  ap_inbox_max_per_ip_per_minute = env_int.("AP_INBOX_MAX_PER_IP_PER_MINUTE", 20)
+  ap_inbox_max_per_domain_per_minute = env_int.("AP_INBOX_MAX_PER_DOMAIN_PER_MINUTE", 40)
+  ap_inbox_max_global_per_second = env_int.("AP_INBOX_MAX_GLOBAL_PER_SECOND", 8)
 
   # SSL configuration for PostgreSQL.
   # Defaults to certificate verification (DATABASE_SSL_VERIFY=peer).
@@ -294,6 +306,11 @@ if config_env() == :prod do
     socket_options: maybe_ipv6 ++ [keepalive: true],
     prepare: db_prepare,
     parameters: [application_name: db_application_name]
+
+  config :elektrine, Elektrine.ActivityPub.InboxRateLimiter,
+    max_per_minute: ap_inbox_max_per_ip_per_minute,
+    max_per_domain_per_minute: ap_inbox_max_per_domain_per_minute,
+    max_global_per_second: ap_inbox_max_global_per_second
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

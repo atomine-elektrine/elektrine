@@ -391,8 +391,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       {:noreply,
        socket
        |> assign(:filter_dropdown_open, false)
-       |> assign(:timeline_filter, filter)
-       |> Helpers.apply_timeline_filter()
        |> push_patch(to: ~p"/timeline?filter=#{socket.assigns.current_filter}&view=#{filter}")}
     end
   end
@@ -580,46 +578,83 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   def handle_load_more(socket) do
     current_posts = socket.assigns.timeline_posts
     before_id = if Enum.empty?(current_posts), do: nil, else: List.last(current_posts).id
+    current_user = socket.assigns[:current_user]
+    timeline_view = socket.assigns.timeline_filter || "all"
 
     more_posts =
-      case socket.assigns.current_filter do
-        "all" ->
-          if socket.assigns[:current_user] do
-            Social.get_public_timeline(
+      case timeline_view do
+        "replies" ->
+          Social.get_federated_replies(
+            limit: 20,
+            before_id: before_id,
+            user_id: current_user && current_user.id
+          )
+
+        "friends" ->
+          if current_user do
+            Social.get_friends_timeline(current_user.id, limit: 20, before_id: before_id)
+          else
+            []
+          end
+
+        "my_posts" ->
+          if current_user do
+            Social.get_user_timeline_posts(current_user.id,
               limit: 20,
               before_id: before_id,
-              user_id: socket.assigns.current_user.id
+              viewer_id: current_user.id
             )
           else
-            Social.get_public_timeline(limit: 20, before_id: before_id)
+            []
           end
 
-        "following" ->
-          if socket.assigns[:current_user] do
-            Social.get_combined_feed(socket.assigns.current_user.id,
-              limit: 20,
-              before_id: before_id
-            )
-          else
-            Social.get_public_timeline(limit: 20, before_id: before_id)
-          end
-
-        "local" ->
-          if socket.assigns[:current_user] do
-            Social.get_local_timeline(
-              limit: 20,
-              before_id: before_id,
-              user_id: socket.assigns.current_user.id
-            )
-          else
-            Social.get_local_timeline(limit: 20, before_id: before_id)
-          end
-
-        "federated" ->
-          Social.get_public_federated_posts(limit: 20, before_id: before_id)
+        "trusted" ->
+          Social.get_trusted_timeline(
+            limit: 20,
+            before_id: before_id,
+            user_id: current_user && current_user.id
+          )
 
         _ ->
-          []
+          case socket.assigns.current_filter do
+            "all" ->
+              if current_user do
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  user_id: current_user.id
+                )
+              else
+                Social.get_public_timeline(limit: 20, before_id: before_id)
+              end
+
+            "following" ->
+              if current_user do
+                Social.get_combined_feed(current_user.id,
+                  limit: 20,
+                  before_id: before_id
+                )
+              else
+                Social.get_public_timeline(limit: 20, before_id: before_id)
+              end
+
+            "local" ->
+              if current_user do
+                Social.get_local_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  user_id: current_user.id
+                )
+              else
+                Social.get_local_timeline(limit: 20, before_id: before_id)
+              end
+
+            "federated" ->
+              Social.get_public_federated_posts(limit: 20, before_id: before_id)
+
+            _ ->
+              []
+          end
       end
 
     new_lemmy_counts = Elektrine.ActivityPub.LemmyApi.fetch_posts_counts(more_posts)

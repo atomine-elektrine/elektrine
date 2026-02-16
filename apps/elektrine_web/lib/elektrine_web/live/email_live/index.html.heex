@@ -472,7 +472,7 @@
                         <% end %>
                         <div class="flex gap-2 mt-2">
                           <.link
-                            href={~p"/email/compose?to=#{contact.email}"}
+                            href={~p"/email/compose?#{[to: contact.email]}"}
                             class="btn btn-primary btn-xs flex-1"
                           >
                             <.icon name="hero-envelope" class="w-3 h-3 mr-1" />Email
@@ -938,7 +938,7 @@
                           <%= if message.status == "draft" do %>
                             <.link
                               navigate={
-                                ~p"/email/compose?mode=draft&draft_id=#{message.id}&return_to=drafts"
+                                ~p"/email/compose?#{[mode: "draft", draft_id: message.id, return_to: "drafts"]}"
                               }
                               class="btn btn-xs btn-primary min-h-[2rem]"
                             >
@@ -947,7 +947,7 @@
                           <% else %>
                             <.link
                               navigate={
-                                ~p"/email/view/#{message.hash || message.id}?return_to=#{@current_tab}&filter=#{@current_filter}"
+                                ~p"/email/view/#{message.hash || message.id}?#{[return_to: @current_tab, filter: @current_filter]}"
                               }
                               class="btn btn-xs btn-primary min-h-[2rem]"
                             >
@@ -959,7 +959,7 @@
                           <%= if @current_tab != "sent" do %>
                             <.link
                               navigate={
-                                ~p"/email/compose?mode=reply&message_id=#{message.id}&return_to=#{@current_tab}&filter=#{@current_filter}"
+                                ~p"/email/compose?#{[mode: "reply", message_id: message.id, return_to: @current_tab, filter: @current_filter]}"
                               }
                               class="btn btn-xs btn-ghost min-h-[2rem] sm:flex"
                             >
@@ -980,7 +980,7 @@
                               <li>
                                 <.link
                                   navigate={
-                                    ~p"/email/compose?mode=forward&message_id=#{message.id}&return_to=#{@current_tab}&filter=#{@current_filter}"
+                                    ~p"/email/compose?#{[mode: "forward", message_id: message.id, return_to: @current_tab, filter: @current_filter]}"
                                   }
                                   class="flex items-center gap-2"
                                 >
@@ -1234,7 +1234,7 @@
                 <%= if @current_tab == "inbox" do %>
                   <.link
                     navigate={
-                      ~p"/email/compose?return_to=#{@current_tab}&filter=#{@current_filter}"
+                      ~p"/email/compose?#{[return_to: @current_tab, filter: @current_filter]}"
                     }
                     class="btn btn-primary mt-4"
                   >

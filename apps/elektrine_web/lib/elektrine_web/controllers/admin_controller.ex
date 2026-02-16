@@ -6,7 +6,7 @@ defmodule ElektrineWeb.AdminController do
 
   use ElektrineWeb, :controller
 
-  alias Elektrine.{Accounts, Email, Repo, Subscriptions}
+  alias Elektrine.{Accounts, AppCache, Email, Repo, Subscriptions}
   import Ecto.Query
 
   plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
@@ -26,10 +26,29 @@ defmodule ElektrineWeb.AdminController do
     |> assign(:time_format, time_format)
   end
 
-  def dashboard(conn, _params) do
+  def dashboard(conn, params) do
+    if truthy_param?(Map.get(params, "refresh")) do
+      AppCache.invalidate_admin_cache()
+    end
+
+    stats =
+      AppCache.get_admin_stats(:dashboard_overview, fn ->
+        build_dashboard_stats()
+      end)
+      |> case do
+        {:ok, value} -> value
+        _ -> build_dashboard_stats()
+      end
+
+    refresh_enabled = Map.get(params, "refresh") == "1"
+
+    render(conn, :dashboard, stats: stats, refresh_enabled: refresh_enabled)
+  end
+
+  defp build_dashboard_stats do
     invite_code_stats = Accounts.get_invite_code_stats()
 
-    stats = %{
+    %{
       total_users: get_user_count(),
       total_mailboxes: get_mailbox_count(),
       total_messages: get_message_count(),
@@ -47,8 +66,6 @@ defmodule ElektrineWeb.AdminController do
       federation: get_federation_stats(),
       subscriptions: get_subscription_stats()
     }
-
-    render(conn, :dashboard, stats: stats)
   end
 
   # Helper functions for dashboard stats
@@ -292,4 +309,7 @@ defmodule ElektrineWeb.AdminController do
       total_subscriptions: total_subscriptions
     }
   end
+
+  defp truthy_param?(value) when value in [true, 1, "1", "true", "on", "yes"], do: true
+  defp truthy_param?(_), do: false
 end
