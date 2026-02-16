@@ -239,13 +239,14 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
           ]}
           type="button"
         >
+          <% is_liked = Map.get(@user_likes, @interaction_id, false) %>
           <.icon
             name={
-              if Map.get(@user_likes, @interaction_id, false),
+              if is_liked,
                 do: "hero-heart-solid",
                 else: "hero-heart"
             }
-            class="w-3 h-3"
+            class={["w-3 h-3", is_liked && "text-red-500"]}
           />
           <span class="text-xs">{@normalized.like_count}</span>
         </button>

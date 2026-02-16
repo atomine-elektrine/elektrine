@@ -10,8 +10,12 @@ defmodule ElektrineWeb.API.SocialController do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages
   alias Elektrine.Accounts
+  alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
 
   action_fallback ElektrineWeb.FallbackController
+
+  plug :enforce_timeline_read_limit
+       when action in [:timeline, :public_timeline, :user_posts, :community_posts, :list_comments]
 
   # MARK: - Timeline
 
@@ -21,10 +25,10 @@ defmodule ElektrineWeb.API.SocialController do
   """
   def timeline(conn, params) do
     user = conn.assigns[:current_user]
-    cursor = params["cursor"]
     limit = parse_int(params["limit"], 20)
+    pagination_opts = timeline_pagination_opts(params)
 
-    posts = Social.get_timeline_feed(user.id, limit: limit, cursor: cursor)
+    posts = Social.get_timeline_feed(user.id, [limit: limit] ++ pagination_opts)
     next_cursor = get_next_cursor(posts, limit)
 
     conn
@@ -41,10 +45,10 @@ defmodule ElektrineWeb.API.SocialController do
   """
   def public_timeline(conn, params) do
     user = conn.assigns[:current_user]
-    cursor = params["cursor"]
     limit = parse_int(params["limit"], 20)
+    pagination_opts = timeline_pagination_opts(params)
 
-    posts = Social.get_public_timeline(limit: limit, cursor: cursor)
+    posts = Social.get_public_timeline([limit: limit, user_id: user.id] ++ pagination_opts)
     next_cursor = get_next_cursor(posts, limit)
 
     conn
@@ -61,10 +65,15 @@ defmodule ElektrineWeb.API.SocialController do
   """
   def user_posts(conn, %{"user_id" => user_id} = params) do
     current_user = conn.assigns[:current_user]
-    cursor = params["cursor"]
     limit = parse_int(params["limit"], 20)
+    pagination_opts = timeline_pagination_opts(params)
 
-    posts = Social.get_user_timeline_posts(parse_int(user_id, 0), limit: limit, cursor: cursor)
+    posts =
+      Social.get_user_timeline_posts(
+        parse_int(user_id, 0),
+        [limit: limit, viewer_id: current_user.id] ++ pagination_opts
+      )
+
     next_cursor = get_next_cursor(posts, limit)
 
     conn
@@ -670,10 +679,16 @@ defmodule ElektrineWeb.API.SocialController do
   """
   def community_posts(conn, %{"community_id" => community_id} = params) do
     user = conn.assigns[:current_user]
-    cursor = params["cursor"]
     limit = parse_int(params["limit"], 20)
+    sort_by = params["sort_by"] || "recent"
+    pagination_opts = timeline_pagination_opts(params)
 
-    posts = Social.get_discussion_posts(parse_int(community_id, 0), limit: limit, cursor: cursor)
+    posts =
+      Social.get_discussion_posts(
+        parse_int(community_id, 0),
+        [limit: limit, sort_by: sort_by] ++ pagination_opts
+      )
+
     next_cursor = get_next_cursor(posts, limit)
 
     conn
@@ -783,6 +798,68 @@ defmodule ElektrineWeb.API.SocialController do
   end
 
   # MARK: - Private Helpers
+
+  defp enforce_timeline_read_limit(conn, _opts) do
+    identifier = timeline_rate_limit_identifier(conn)
+
+    case TimelineRateLimiter.allow_read(identifier) do
+      :ok ->
+        conn
+
+      {:error, retry_after} ->
+        conn
+        |> put_resp_header("retry-after", to_string(retry_after))
+        |> put_status(:too_many_requests)
+        |> json(%{error: "Timeline requests are temporarily rate-limited. Please retry shortly."})
+        |> halt()
+    end
+  end
+
+  defp timeline_rate_limit_identifier(conn) do
+    base_identifier =
+      case conn.assigns[:current_user] do
+        %{id: user_id} -> "user:#{user_id}"
+        _ -> "ip:#{client_ip(conn)}"
+      end
+
+    action = conn.private[:phoenix_action] || :timeline
+    "timeline:#{action}:#{base_identifier}"
+  end
+
+  defp timeline_pagination_opts(params) do
+    before_id = parse_int(params["before_id"] || params["max_id"] || params["cursor"], nil)
+    since_id = parse_int(params["since_id"], nil)
+    min_id = parse_int(params["min_id"], nil)
+    order = normalize_order(params["order"], min_id)
+
+    []
+    |> maybe_put_option(:before_id, before_id)
+    |> maybe_put_option(:since_id, since_id)
+    |> maybe_put_option(:min_id, min_id)
+    |> maybe_put_option(:order, order)
+  end
+
+  defp normalize_order(nil, min_id) when is_integer(min_id), do: "asc"
+  defp normalize_order(nil, _min_id), do: nil
+
+  defp normalize_order(order, _min_id) when is_binary(order) do
+    normalized = String.downcase(order)
+
+    if normalized in ["asc", "desc"] do
+      normalized
+    else
+      nil
+    end
+  end
+
+  defp normalize_order(_order, _min_id), do: nil
+
+  defp maybe_put_option(opts, _key, nil), do: opts
+  defp maybe_put_option(opts, key, value), do: opts ++ [{key, value}]
+
+  defp client_ip(conn) do
+    ElektrineWeb.ClientIP.client_ip(conn)
+  end
 
   defp parse_int(nil, default), do: default
   defp parse_int(value, _default) when is_integer(value), do: value

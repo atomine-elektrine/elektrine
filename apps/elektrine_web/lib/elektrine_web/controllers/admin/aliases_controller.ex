@@ -261,18 +261,6 @@ defmodule ElektrineWeb.Admin.AliasesController do
   end
 
   defp get_remote_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [ip | _] ->
-        ip
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      [] ->
-        # Convert tuple IP to string format
-        conn.remote_ip
-        |> :inet.ntoa()
-        |> to_string()
-    end
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 end

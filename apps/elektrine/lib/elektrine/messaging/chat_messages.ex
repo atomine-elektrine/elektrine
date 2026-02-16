@@ -354,7 +354,7 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   @doc """
   Searches messages in a conversation.
-  Note: For encrypted messages, search uses the search_index tokens.
+  Uses `search_index` tokens derived from plaintext chat content.
   """
   def search_messages(conversation_id, query, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
@@ -381,12 +381,8 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   # Private helpers
 
-  defp should_encrypt?(conversation_id) do
-    case Repo.get(Conversation, conversation_id) do
-      nil -> true
-      %{type: type} -> type in ["dm", "group", "channel"]
-    end
-  end
+  # Chat content is stored in plaintext. Email encryption remains in Elektrine.Email.* modules.
+  defp should_encrypt?(_conversation_id), do: false
 
   defp handle_message_created({:ok, message}, conversation_id) do
     # Preload associations

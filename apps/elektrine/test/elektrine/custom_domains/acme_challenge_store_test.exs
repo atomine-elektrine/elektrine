@@ -77,21 +77,4 @@ defmodule Elektrine.CustomDomains.AcmeChallengeStoreTest do
       assert AcmeChallengeStore.get(token) == "response"
     end
   end
-
-  describe "database fallback" do
-    test "falls back to database for custom domain tokens" do
-      # Create a custom domain with ACME challenge
-      user = Elektrine.AccountsFixtures.user_fixture()
-      {:ok, domain} = Elektrine.CustomDomains.add_domain(user.id, "fallback-test.com")
-
-      token = "db-fallback-token"
-      response = "db-fallback-response"
-
-      # Store challenge in database via CustomDomains context
-      {:ok, _} = Elektrine.CustomDomains.store_acme_challenge(domain, token, response)
-
-      # The store should find it via database fallback
-      assert AcmeChallengeStore.get(token) == response
-    end
-  end
 end

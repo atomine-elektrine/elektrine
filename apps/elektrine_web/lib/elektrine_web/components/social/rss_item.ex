@@ -133,7 +133,7 @@ defmodule ElektrineWeb.Components.Social.RSSItem do
                 >
                   <.icon
                     name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-                    class="w-4 h-4"
+                    class={["w-4 h-4", @is_saved && "text-warning"]}
                   />
                 </button>
               <% end %>

@@ -22,6 +22,7 @@ defmodule Elektrine.Email.Sender do
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Sanitizer
+  alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.Unsubscribes
   alias Elektrine.Email.ListTypes
@@ -115,12 +116,14 @@ defmodule Elektrine.Email.Sender do
   defp continue_send_email(user_id, params, db_attachments) do
     started_at = System.monotonic_time(:millisecond)
 
-    # Sanitize all email content before processing
-    sanitized_params = Sanitizer.sanitize_outgoing_email(params)
+    # Canonical outbound boundary:
+    # 1) Parse raw SMTP payload (if present) into structured fields.
+    # 2) Sanitize once for all downstream routes (internal + external).
+    prepared_params = prepare_outbound_payload(params)
 
-    to_emails = parse_email_list(sanitized_params[:to] || sanitized_params["to"] || "")
-    cc_emails = parse_email_list(sanitized_params[:cc] || sanitized_params["cc"] || "")
-    bcc_emails = parse_email_list(sanitized_params[:bcc] || sanitized_params["bcc"] || "")
+    to_emails = parse_email_list(prepared_params[:to] || prepared_params["to"] || "")
+    cc_emails = parse_email_list(prepared_params[:cc] || prepared_params["cc"] || "")
+    bcc_emails = parse_email_list(prepared_params[:bcc] || prepared_params["bcc"] || "")
     all_recipients = to_emails ++ cc_emails ++ bcc_emails
 
     # Resolve all recipients once and build a cache map to avoid duplicate DB calls
@@ -137,18 +140,16 @@ defmodule Elektrine.Email.Sender do
         :internal ->
           # Handle internal email directly within Phoenix
           # Note: Internal emails never get unsubscribe headers (personal communication)
-          send_internal_email(user_id, sanitized_params, db_attachments)
+          send_internal_email(user_id, prepared_params, db_attachments)
 
         :external ->
-          # Parse raw_email if present (from SMTP clients) - same as internal emails
-          parsed_params = parse_raw_email_if_present(sanitized_params)
-
           # Send external email via Swoosh
           with {:ok, _remaining} <- RateLimiter.check_rate_limit(user_id),
-               {:ok, _recipient_check} <- check_recipient_limits(user_id, parsed_params),
+               {:ok, _recipient_check} <- check_recipient_limits(user_id, prepared_params),
                {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
-               {:ok, _ownership} <- validate_from_address_ownership(parsed_params[:from], user_id),
-               {:ok, formatted_params} <- format_from_header(parsed_params, user, mailbox),
+               {:ok, _ownership} <-
+                 validate_from_address_ownership(prepared_params[:from], user_id),
+               {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
                {:ok, resolved_params} <- resolve_recipient_aliases(formatted_params),
                :ok <- validate_external_recipient_domains(resolved_params),
                # Try PGP encryption if recipient has a public key
@@ -205,6 +206,12 @@ defmodule Elektrine.Email.Sender do
     result
   end
 
+  defp prepare_outbound_payload(params) do
+    params
+    |> parse_raw_email_if_present()
+    |> Sanitizer.sanitize_outgoing_email()
+  end
+
   # Check recipient limits for all To, CC, BCC addresses
   defp check_recipient_limits(user_id, params) do
     all_recipients = extract_all_recipients(params)
@@ -255,7 +262,7 @@ defmodule Elektrine.Email.Sender do
 
   # Parse raw SMTP email data if present using Mail library
   defp parse_raw_email_if_present(params) do
-    raw_email = params[:raw_email]
+    raw_email = params[:raw_email] || params["raw_email"]
 
     if raw_email && is_binary(raw_email) && byte_size(raw_email) > 0 do
       # Validate the raw email has basic RFC2822 structure (headers + blank line + body)
@@ -279,10 +286,10 @@ defmodule Elektrine.Email.Sender do
           subject =
             cond do
               raw_subject_line && raw_subject_line != "" ->
-                ElektrineWeb.HarakaWebhookController.decode_mime_header_public(raw_subject_line)
+                HeaderDecoder.decode_mime_header(raw_subject_line)
 
               mail_subj ->
-                ElektrineWeb.HarakaWebhookController.decode_mime_header_public(mail_subj)
+                HeaderDecoder.decode_mime_header(mail_subj)
 
               true ->
                 "(No Subject)"
@@ -308,6 +315,7 @@ defmodule Elektrine.Email.Sender do
           # components with proper RFC 2047 encoding instead of sending raw_base64
           params
           |> Map.delete(:raw_email)
+          |> Map.delete("raw_email")
           |> Map.put(:subject, subject)
           |> Map.put(:text_body, text_body)
           |> Map.put(:html_body, html_body)
@@ -336,10 +344,10 @@ defmodule Elektrine.Email.Sender do
     subject =
       case extract_raw_subject_from_email(raw_email) do
         subj when is_binary(subj) and subj != "" ->
-          ElektrineWeb.HarakaWebhookController.decode_mime_header_public(subj)
+          HeaderDecoder.decode_mime_header(subj)
 
         _ ->
-          params[:subject] || "(No Subject)"
+          params[:subject] || params["subject"] || "(No Subject)"
       end
 
     # Try to extract body - split on first blank line
@@ -351,8 +359,9 @@ defmodule Elektrine.Email.Sender do
 
     params
     |> Map.delete(:raw_email)
+    |> Map.delete("raw_email")
     |> Map.put(:subject, subject)
-    |> Map.put(:text_body, body || params[:text_body])
+    |> Map.put(:text_body, body || params[:text_body] || params["text_body"])
   end
 
   # Extract raw Subject line from email data for debugging
@@ -804,20 +813,17 @@ defmodule Elektrine.Email.Sender do
 
   # Send internal email directly within Phoenix
   defp send_internal_email(user_id, params, db_attachments) do
-    # For SMTP emails with raw_email, use the same IMAP parsing logic
-    parsed_params = parse_raw_email_if_present(params)
-
     # Merge db_attachments into params if provided
     params_with_db_attachments =
       if db_attachments do
-        Map.put(parsed_params, :db_attachments, db_attachments)
+        Map.put(params, :db_attachments, db_attachments)
       else
-        parsed_params
+        params
       end
 
     with {:ok, _remaining} <- RateLimiter.check_rate_limit(user_id),
          {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
-         {:ok, _ownership} <- validate_from_address_ownership(parsed_params[:from], user_id),
+         {:ok, _ownership} <- validate_from_address_ownership(params[:from], user_id),
          {:ok, formatted_params} <- format_from_header(params_with_db_attachments, user, mailbox),
          {:ok, message} <- deliver_internal_email(mailbox.id, formatted_params) do
       # Record successful send for rate limiting

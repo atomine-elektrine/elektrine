@@ -192,4 +192,47 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert html =~ "Reply to federated parent"
     refute html =~ "Reply to local parent"
   end
+
+  test "navigate_to_post routes federated posts to remote post detail", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Federated timeline post", visibility: "public")
+
+    activitypub_id = "https://example.social/objects/#{post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^post.id),
+      set: [federated: true, activitypub_id: activitypub_id]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Federated timeline post"
+
+    render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
+    assert_redirect(view, "/remote/post/#{URI.encode_www_form(activitypub_id)}")
+  end
+
+  test "navigate_to_post routes local posts to timeline post detail", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Local timeline post", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Local timeline post"
+
+    render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
+    assert_redirect(view, ~p"/timeline/post/#{post.id}")
+  end
 end

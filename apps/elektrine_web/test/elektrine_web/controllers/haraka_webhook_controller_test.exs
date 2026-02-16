@@ -599,44 +599,6 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert "z.org" in response["domains"]
     end
 
-    test "includes custom domains with email enabled", %{conn: conn} do
-      # Create a custom domain with email enabled
-      user = user_fixture()
-      {:ok, domain} = Elektrine.CustomDomains.add_domain(user.id, "haraka-custom.com")
-
-      {:ok, _} =
-        domain
-        |> Ecto.Changeset.change(%{status: "active", ssl_status: "issued", email_enabled: true})
-        |> Elektrine.Repo.update()
-
-      conn =
-        conn
-        |> auth_conn()
-        |> get(~p"/api/haraka/domains")
-
-      response = json_response(conn, 200)
-      assert "haraka-custom.com" in response["domains"]
-    end
-
-    test "excludes custom domains without email enabled", %{conn: conn} do
-      # Create a custom domain without email enabled
-      user = user_fixture()
-      {:ok, domain} = Elektrine.CustomDomains.add_domain(user.id, "haraka-no-email.com")
-
-      {:ok, _} =
-        domain
-        |> Ecto.Changeset.change(%{status: "active", ssl_status: "issued", email_enabled: false})
-        |> Elektrine.Repo.update()
-
-      conn =
-        conn
-        |> auth_conn()
-        |> get(~p"/api/haraka/domains")
-
-      response = json_response(conn, 200)
-      refute "haraka-no-email.com" in response["domains"]
-    end
-
     test "rejects request without API key", %{conn: conn} do
       conn =
         conn

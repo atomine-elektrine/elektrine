@@ -8,7 +8,6 @@ defmodule Elektrine.Accounts.Authentication do
   alias Elektrine.Repo
   alias Elektrine.Accounts.{User, TwoFactor, AppPassword}
   alias Elektrine.Email.Mailbox
-  alias Elektrine.CustomDomains.{CustomDomain, CustomDomainAddress}
 
   require Logger
 
@@ -453,9 +452,7 @@ defmodule Elektrine.Accounts.Authentication do
                 get_user_by_username_case_insensitive(username)
 
               true ->
-                get_user_by_mailbox_email(normalized_identifier) ||
-                  get_user_by_custom_domain_address(username, domain) ||
-                  get_user_by_custom_domain_catch_all(domain)
+                get_user_by_mailbox_email(normalized_identifier)
             end
 
           if user, do: {:ok, user}, else: {:error, :not_found}
@@ -477,31 +474,6 @@ defmodule Elektrine.Accounts.Authentication do
     User
     |> join(:inner, [u], m in Mailbox, on: m.user_id == u.id)
     |> where([_u, m], fragment("lower(?)", m.email) == ^normalized_email)
-    |> limit(1)
-    |> Repo.one()
-  end
-
-  defp get_user_by_custom_domain_address(local_part, domain) do
-    User
-    |> join(:inner, [u], m in Mailbox, on: m.user_id == u.id)
-    |> join(:inner, [_u, m], a in CustomDomainAddress,
-      on: a.mailbox_id == m.id and a.enabled == true
-    )
-    |> join(:inner, [_u, _m, a], d in CustomDomain, on: d.id == a.custom_domain_id)
-    |> where([_u, _m, a, d], fragment("lower(?)", d.domain) == ^domain)
-    |> where([_u, _m, a, _d], fragment("lower(?)", a.local_part) == ^local_part)
-    |> limit(1)
-    |> Repo.one()
-  end
-
-  defp get_user_by_custom_domain_catch_all(domain) do
-    User
-    |> join(:inner, [u], m in Mailbox, on: m.user_id == u.id)
-    |> join(:inner, [_u, m], d in CustomDomain, on: d.catch_all_mailbox_id == m.id)
-    |> where(
-      [_u, _m, d],
-      fragment("lower(?)", d.domain) == ^domain and d.catch_all_enabled == true
-    )
     |> limit(1)
     |> Repo.one()
   end

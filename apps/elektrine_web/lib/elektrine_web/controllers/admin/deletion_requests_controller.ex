@@ -115,17 +115,6 @@ defmodule ElektrineWeb.Admin.DeletionRequestsController do
   end
 
   defp get_remote_ip(conn) do
-    case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      [] ->
-        conn.remote_ip
-        |> :inet.ntoa()
-        |> to_string()
-    end
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 end

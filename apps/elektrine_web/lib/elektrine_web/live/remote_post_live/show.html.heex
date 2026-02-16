@@ -961,11 +961,6 @@
                       </ul>
                     </div>
                   </div>
-                  <%= if !@community_actor do %>
-                    <p class="text-xs text-base-content/60 mb-3">
-                      Timeline mode shows a cleaner conversation view (one nested level inline).
-                    </p>
-                  <% end %>
                   <%= if !@community_actor && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
                     <div class="alert alert-info py-2 mb-3">
                       <.icon name="hero-information-circle" class="w-4 h-4" />

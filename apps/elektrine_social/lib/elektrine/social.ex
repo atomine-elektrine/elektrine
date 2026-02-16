@@ -250,8 +250,8 @@ defmodule Elektrine.Social do
   """
   def get_timeline_feed(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
 
     # Get list of users this person follows + themselves
     following_ids = get_following_user_ids(user_id)
@@ -278,12 +278,12 @@ defmodule Elektrine.Social do
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             m.sender_id not in ^all_blocked_ids,
-        order_by: [desc: m.inserted_at],
+        order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads
 
     query = from(m in query, where: ^visibility_filter)
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
   end
@@ -293,9 +293,9 @@ defmodule Elektrine.Social do
   """
   def get_public_timeline(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
 
     timeline_scope_filter = public_timeline_scope_filter()
@@ -319,7 +319,7 @@ defmodule Elektrine.Social do
 
     query = from(m in query, where: ^timeline_scope_filter)
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
   end
@@ -329,9 +329,9 @@ defmodule Elektrine.Social do
   """
   def get_trending_timeline(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
 
     all_blocked_ids = blocked_user_ids(user_id)
 
@@ -356,7 +356,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-    query = maybe_before_id(query, before_id)
+    query = maybe_before_id(query, pagination.before_id)
 
     Repo.all(query)
   end
@@ -370,9 +370,9 @@ defmodule Elektrine.Social do
   """
   def get_federated_replies(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
 
     query =
@@ -393,7 +393,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
   end
@@ -403,8 +403,8 @@ defmodule Elektrine.Social do
   """
   def get_friends_timeline(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
     friend_ids = Friends.list_friends(user_id) |> Enum.map(& &1.id)
     all_blocked_ids = blocked_user_ids(user_id)
 
@@ -429,7 +429,7 @@ defmodule Elektrine.Social do
           preload: ^preloads
 
       query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-      query = maybe_before_id(query, before_id)
+      query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
       Repo.all(query)
     end
@@ -440,9 +440,9 @@ defmodule Elektrine.Social do
   """
   def get_trusted_timeline(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
 
     query =
@@ -466,7 +466,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
   end
@@ -522,7 +522,7 @@ defmodule Elektrine.Social do
   """
   def get_pinned_posts(user_id, opts \\ []) do
     viewer_id = Keyword.get(opts, :viewer_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
     visibility_levels = visibility_levels_for_viewer(user_id, viewer_id)
 
     from(m in Message,
@@ -543,9 +543,9 @@ defmodule Elektrine.Social do
 
   def get_user_timeline_posts(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     viewer_id = Keyword.get(opts, :viewer_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
     visibility_levels = visibility_levels_for_viewer(user_id, viewer_id)
 
     query =
@@ -564,7 +564,8 @@ defmodule Elektrine.Social do
       )
 
     query
-    |> maybe_before_id(before_id)
+    |> apply_id_pagination(pagination)
+    |> apply_id_order(pagination.order)
     |> Repo.all()
   end
 
@@ -755,6 +756,77 @@ defmodule Elektrine.Social do
 
   defp maybe_before_id(query, nil), do: query
   defp maybe_before_id(query, before_id), do: from(m in query, where: m.id < ^before_id)
+  defp maybe_after_id(query, nil), do: query
+  defp maybe_after_id(query, after_id), do: from(m in query, where: m.id > ^after_id)
+
+  defp apply_id_pagination(query, %{before_id: before_id} = pagination) do
+    lower_bound = pagination_lower_bound(pagination)
+
+    query
+    |> maybe_before_id(before_id)
+    |> maybe_after_id(lower_bound)
+  end
+
+  defp apply_id_order(query, :asc) do
+    query
+    |> exclude(:order_by)
+    |> order_by([m], asc: m.id)
+  end
+
+  defp apply_id_order(query, :desc) do
+    query
+    |> exclude(:order_by)
+    |> order_by([m], desc: m.id)
+  end
+
+  defp pagination_requested?(%{before_id: nil, since_id: nil, min_id: nil}), do: false
+  defp pagination_requested?(_), do: true
+
+  defp pagination_lower_bound(%{since_id: nil, min_id: nil}), do: nil
+  defp pagination_lower_bound(%{since_id: since_id, min_id: nil}), do: since_id
+  defp pagination_lower_bound(%{since_id: nil, min_id: min_id}), do: min_id
+  defp pagination_lower_bound(%{since_id: since_id, min_id: min_id}), do: max(since_id, min_id)
+
+  defp pagination_opts(opts, default_order \\ :desc) do
+    before_id = parse_pagination_id(Keyword.get(opts, :before_id) || Keyword.get(opts, :cursor))
+    since_id = parse_pagination_id(Keyword.get(opts, :since_id))
+    min_id = parse_pagination_id(Keyword.get(opts, :min_id))
+    order = normalize_pagination_order(Keyword.get(opts, :order), default_order, min_id)
+
+    %{
+      before_id: before_id,
+      since_id: since_id,
+      min_id: min_id,
+      order: order
+    }
+  end
+
+  defp normalize_pagination_order(nil, _default_order, min_id) when is_integer(min_id), do: :asc
+  defp normalize_pagination_order(nil, default_order, _min_id), do: default_order
+  defp normalize_pagination_order(:asc, _default_order, _min_id), do: :asc
+  defp normalize_pagination_order(:desc, _default_order, _min_id), do: :desc
+
+  defp normalize_pagination_order(order, default_order, _min_id) when is_binary(order) do
+    case String.downcase(order) do
+      "asc" -> :asc
+      "desc" -> :desc
+      _ -> default_order
+    end
+  end
+
+  defp normalize_pagination_order(_order, default_order, _min_id), do: default_order
+
+  defp parse_pagination_id(nil), do: nil
+  defp parse_pagination_id(value) when is_integer(value) and value > 0, do: value
+  defp parse_pagination_id(value) when is_binary(value), do: parse_integer_id(value)
+  defp parse_pagination_id(_), do: nil
+
+  defp parse_integer_id(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> nil
+    end
+  end
 
   defp maybe_exclude_blocked_senders(query, []), do: query
 
@@ -1022,6 +1094,7 @@ defmodule Elektrine.Social do
   def get_discussion_posts(conversation_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
+    pagination = pagination_opts(opts)
     # "score", "recent", "hot"
     sort_by = Keyword.get(opts, :sort_by, "score")
     preloads = MessagingMessages.discussion_post_preloads()
@@ -1034,12 +1107,25 @@ defmodule Elektrine.Social do
         _ -> [desc: :score, desc: :inserted_at]
       end
 
-    from(m in discussion_post_query(conversation_id),
-      order_by: ^order_clause,
-      limit: ^limit,
-      offset: ^offset,
-      preload: ^preloads
-    )
+    base_query =
+      from(m in discussion_post_query(conversation_id),
+        limit: ^limit,
+        preload: ^preloads
+      )
+
+    query =
+      if pagination_requested?(pagination) do
+        base_query
+        |> apply_id_pagination(pagination)
+        |> apply_id_order(pagination.order)
+      else
+        from(m in base_query,
+          order_by: ^order_clause,
+          offset: ^offset
+        )
+      end
+
+    query
     |> Repo.all()
   end
 
@@ -2051,8 +2137,8 @@ defmodule Elektrine.Social do
   """
   def get_federated_timeline(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
-    before_id = Keyword.get(opts, :before_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
     remote_actor_ids = list_remote_actor_ids(user_id)
 
     case remote_actor_ids do
@@ -2062,7 +2148,8 @@ defmodule Elektrine.Social do
       _ ->
         remote_actor_ids
         |> federated_timeline_query(limit, preloads)
-        |> maybe_before_id(before_id)
+        |> apply_id_pagination(pagination)
+        |> apply_id_order(pagination.order)
         |> Repo.all()
     end
   end
@@ -2072,8 +2159,8 @@ defmodule Elektrine.Social do
   """
   def get_combined_feed(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
-    before_id = Keyword.get(opts, :before_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
 
     remote_actor_ids = list_remote_actor_ids(user_id)
     following_ids = get_following_user_ids(user_id)
@@ -2081,7 +2168,7 @@ defmodule Elektrine.Social do
     local_query = local_combined_feed_query(following_ids, all_blocked_ids)
     federated_query = maybe_federated_combined_query(remote_actor_ids)
     query = combined_feed_query(local_query, federated_query, limit, preloads)
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
   end
@@ -2157,9 +2244,9 @@ defmodule Elektrine.Social do
   """
   def get_local_timeline(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    before_id = Keyword.get(opts, :before_id)
+    pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    preloads = MessagingMessages.timeline_feed_preloads()
 
     all_blocked_ids = blocked_user_ids(user_id)
 
@@ -2176,12 +2263,12 @@ defmodule Elektrine.Social do
             m.visibility == "public" and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)),
-        order_by: [desc: m.inserted_at],
+        order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
   end
@@ -2191,19 +2278,19 @@ defmodule Elektrine.Social do
   """
   def get_public_federated_posts(opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
-    before_id = Keyword.get(opts, :before_id)
-    preloads = MessagingMessages.timeline_post_preloads()
+    pagination = pagination_opts(opts)
+    preloads = MessagingMessages.timeline_feed_preloads()
 
     query =
       from(m in Message,
         where: m.federated == true and m.visibility == "public",
         where: is_nil(m.deleted_at) and is_nil(m.reply_to_id),
-        order_by: [desc: m.inserted_at],
+        order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads
       )
 
-    query = maybe_before_id(query, before_id)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
     Repo.all(query)
   end
 
@@ -2218,30 +2305,44 @@ defmodule Elektrine.Social do
       user_id = Keyword.get(opts, :user_id)
       # Show first 3 replies by default
       limit_per_post = Keyword.get(opts, :limit_per_post, 3)
-      preloads = MessagingMessages.timeline_reply_preloads()
+      preloads = MessagingMessages.timeline_reply_preview_preloads()
 
       all_blocked_ids = blocked_user_ids(user_id)
 
-      # Get all replies for these posts
-      query =
+      base_query =
         from m in Message,
           where:
             m.reply_to_id in ^post_ids and
               is_nil(m.deleted_at) and
-              (m.approval_status == "approved" or is_nil(m.approval_status)),
-          order_by: [asc: m.inserted_at],
+              (m.approval_status == "approved" or is_nil(m.approval_status))
+
+      base_query = maybe_exclude_blocked_senders_or_nil(base_query, all_blocked_ids)
+
+      # Keep only the first N replies per parent in SQL instead of loading all replies.
+      ranked_ids_query =
+        from m in base_query,
+          windows: [
+            per_parent: [partition_by: m.reply_to_id, order_by: [asc: m.inserted_at, asc: m.id]]
+          ],
+          select: %{
+            id: m.id,
+            reply_to_id: m.reply_to_id,
+            row_num: over(row_number(), :per_parent)
+          }
+
+      replies_query =
+        from m in Message,
+          join: ranked in subquery(ranked_ids_query),
+          on: ranked.id == m.id,
+          where: ranked.row_num <= ^limit_per_post,
+          order_by: [asc: ranked.reply_to_id, asc: m.inserted_at, asc: m.id],
           preload: ^preloads
 
-      query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+      replies = Repo.all(replies_query)
 
-      replies = Repo.all(query)
-
-      # Group by reply_to_id and take first N replies per post
       replies
       |> Enum.group_by(& &1.reply_to_id)
-      |> Enum.into(%{}, fn {post_id, post_replies} ->
-        {post_id, Enum.take(post_replies, limit_per_post)}
-      end)
+      |> Enum.into(%{}, fn {post_id, post_replies} -> {post_id, post_replies} end)
     end
   end
 

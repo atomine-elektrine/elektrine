@@ -420,17 +420,28 @@ defmodule Elektrine.ActivityPub.Helpers do
     if Enum.empty?(federated_posts) do
       %{}
     else
-      federated_posts
-      |> Enum.map(fn post ->
-        Task.async(fn ->
-          case fetch_single_post_data(post.activitypub_id) do
-            {:ok, data} -> {post.activitypub_id, data}
-            _ -> nil
-          end
+      tasks =
+        federated_posts
+        |> Enum.map(fn post ->
+          Task.async(fn ->
+            case fetch_single_post_data(post.activitypub_id) do
+              {:ok, data} -> {post.activitypub_id, data}
+              _ -> nil
+            end
+          end)
         end)
+
+      results = Task.yield_many(tasks, timeout: 3_000)
+
+      Enum.each(results, fn {task, result} ->
+        if result == nil, do: Task.shutdown(task, :brutal_kill)
       end)
-      |> Task.await_many(15_000)
-      |> Enum.reject(&is_nil/1)
+
+      results
+      |> Enum.flat_map(fn
+        {_task, {:ok, {id, data}}} when is_binary(id) and is_map(data) -> [{id, data}]
+        _ -> []
+      end)
       |> Map.new()
     end
   end

@@ -290,21 +290,49 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                         sorted_conversations
                       end
 
-                    {:noreply,
-                     socket
-                     |> assign(:message, %{
-                       socket.assigns.message
-                       | new_message: "",
-                         reply_to: nil,
-                         loading_messages: false
-                     })
-                     |> assign(:typing_timer, nil)
-                     |> assign(:conversation, %{
-                       socket.assigns.conversation
-                       | list: sorted_conversations,
-                         filtered: filtered_conversations,
-                         last_message_read_status: last_message_read_status
-                     })}
+                    updated_messages =
+                      if Enum.any?(socket.assigns.messages, &(&1.id == message.id)) do
+                        socket.assigns.messages
+                      else
+                        socket.assigns.messages ++ [message]
+                      end
+
+                    updated_read_status =
+                      Map.put(socket.assigns.message.read_status || %{}, message.id, [])
+
+                    updated_socket =
+                      socket
+                      |> assign(:messages, updated_messages)
+                      |> assign(:newest_message_id, message.id)
+                      |> assign(:has_more_newer_messages, false)
+                      |> assign(:message, %{
+                        socket.assigns.message
+                        | new_message: "",
+                          reply_to: nil,
+                          loading_messages: false,
+                          read_status: updated_read_status
+                      })
+                      |> assign(:typing_timer, nil)
+                      |> assign(:conversation, %{
+                        socket.assigns.conversation
+                        | list: sorted_conversations,
+                          filtered: filtered_conversations,
+                          last_message_read_status: last_message_read_status
+                      })
+
+                    updated_socket =
+                      if message.media_urls && message.media_urls != [] do
+                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 50)
+                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 200)
+                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 500)
+                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1000)
+                        Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1500)
+                        updated_socket
+                      else
+                        push_event(updated_socket, "scroll_to_bottom", %{})
+                      end
+
+                    {:noreply, updated_socket}
 
                   {:error, :rate_limited} ->
                     {:noreply,

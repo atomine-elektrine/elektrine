@@ -684,12 +684,6 @@ defmodule ElektrineWeb.ProfileController do
 
   # Get visitor IP with proxy header support
   defp get_visitor_ip(conn) do
-    case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-      [forwarded_ip | _] ->
-        forwarded_ip |> String.split(",") |> List.first() |> String.trim()
-
-      [] ->
-        conn.remote_ip |> Tuple.to_list() |> Enum.join(".")
-    end
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 end

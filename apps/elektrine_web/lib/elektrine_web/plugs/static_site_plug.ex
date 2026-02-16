@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   """
 
   import Plug.Conn
+  import Phoenix.Controller, only: [redirect: 2]
   alias Elektrine.{Accounts, Profiles, StaticSites}
 
   # Allowed content types for static sites (validated on upload, but double-check here)
@@ -12,6 +13,15 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     text/html text/css text/javascript application/javascript application/json text/plain
     image/png image/jpeg image/gif image/webp image/svg+xml image/x-icon
     font/woff font/woff2 font/ttf font/otf application/font-woff application/font-woff2
+  )
+
+  # Main application hosts where untrusted user static HTML should never be served directly.
+  # Static pages are isolated to profile subdomains to avoid same-origin XSS.
+  @primary_app_hosts ~w(
+    elektrine.com
+    www.elektrine.com
+    z.org
+    www.z.org
   )
 
   # Content Security Policy for static site HTML
@@ -106,15 +116,21 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- StaticSites.get_file(user.id, "index.html"),
          {:ok, content} <- StaticSites.get_file_content(file) do
-      # Serve the static site with security headers including CSP
-      conn
-      |> put_resp_content_type("text/html")
-      |> put_resp_header("content-security-policy", @html_csp)
-      |> put_resp_header("x-content-type-options", "nosniff")
-      |> put_resp_header("x-frame-options", "SAMEORIGIN")
-      |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
-      |> send_resp(200, content)
-      |> halt()
+      if isolate_static_site_on_subdomain?(conn, handle) do
+        conn
+        |> redirect(external: profile_subdomain_url(conn, handle, "/"))
+        |> halt()
+      else
+        # Serve the static site with security headers including CSP
+        conn
+        |> put_resp_content_type("text/html")
+        |> put_resp_header("content-security-policy", @html_csp)
+        |> put_resp_header("x-content-type-options", "nosniff")
+        |> put_resp_header("x-frame-options", "SAMEORIGIN")
+        |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
+        |> send_resp(200, content)
+        |> halt()
+      end
     else
       _ ->
         # Not a static site, continue to LiveView
@@ -146,21 +162,40 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- StaticSites.get_file(user.id, asset_path),
          {:ok, content} <- StaticSites.get_file_content(file) do
-      # Sanitize content type
-      safe_content_type = sanitize_content_type(file.content_type)
+      if isolate_static_site_on_subdomain?(conn, handle) do
+        conn
+        |> redirect(external: profile_subdomain_url(conn, handle, "/#{asset_path}"))
+        |> halt()
+      else
+        # Sanitize content type
+        safe_content_type = sanitize_content_type(file.content_type)
 
-      conn
-      |> put_resp_content_type(safe_content_type)
-      |> put_resp_header("cache-control", "public, max-age=86400")
-      |> put_resp_header("x-content-type-options", "nosniff")
-      |> put_resp_header("x-frame-options", "SAMEORIGIN")
-      |> send_resp(200, content)
-      |> halt()
+        conn
+        |> put_resp_content_type(safe_content_type)
+        |> put_resp_header("cache-control", "public, max-age=86400")
+        |> put_resp_header("x-content-type-options", "nosniff")
+        |> put_resp_header("x-frame-options", "SAMEORIGIN")
+        |> send_resp(200, content)
+        |> halt()
+      end
     else
       _ ->
         conn
     end
   end
+
+  defp isolate_static_site_on_subdomain?(conn, handle) do
+    conn.host in @primary_app_hosts and conn.assigns[:subdomain_handle] != handle
+  end
+
+  defp profile_subdomain_url(conn, handle, path) do
+    base_domain = profile_base_domain(conn.host)
+    query = if conn.query_string in [nil, ""], do: "", else: "?" <> conn.query_string
+    "https://#{handle}.#{base_domain}#{path}#{query}"
+  end
+
+  defp profile_base_domain(host) when host in ["z.org", "www.z.org"], do: "z.org"
+  defp profile_base_domain(_host), do: "elektrine.com"
 
   defp safe_asset_path?(path) do
     # Decode URL-encoded characters first to catch encoded traversal attacks

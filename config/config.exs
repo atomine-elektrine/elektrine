@@ -11,6 +11,14 @@ config :elektrine,
   ecto_repos: [Elektrine.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :elektrine,
+  # In production this is enabled in runtime.exs.
+  enforce_https: false,
+  # Allow HTTP Basic Auth only in local development/testing when explicitly enabled there.
+  allow_insecure_dav_jmap_auth: false,
+  # Empty by default: no proxy headers are trusted unless explicitly configured.
+  trusted_proxy_cidrs: []
+
 # Oban background job processing
 # Worker counts optimized with Lemmy-style per-domain throttling
 config :elektrine, Oban,
@@ -26,12 +34,12 @@ config :elektrine, Oban,
     email: 2,
     # RSS feed fetching
     rss: 2,
-    # Custom domain SSL certificate provisioning
-    certificates: 2,
     # Data exports (low priority, can take time)
     exports: 2,
     # Federation metadata fetching (nodeinfo, favicons)
     federation_metadata: 2,
+    # Federated timeline background refresh/ingestion workers
+    federation: 2,
     # Messaging federation outbox/event delivery
     messaging_federation: 4
   ],
@@ -48,10 +56,17 @@ config :elektrine, Oban,
        {"* * * * *", Elektrine.ActivityPub.DeliveryRetryWorker},
        # Check for stale RSS feeds every 15 minutes
        {"*/15 * * * *", Elektrine.RSS.SchedulerWorker},
-       # Check for SSL certificates needing renewal daily at 4 AM
-       {"0 4 * * *", Elektrine.CustomDomains.RenewalWorker},
        # Re-enqueue due messaging federation outbox rows
        {"* * * * *", Elektrine.Messaging.FederationOutboxRetryWorker},
+       # Refresh counts for recent federated posts hourly
+       {"5 * * * *", Elektrine.ActivityPub.RefreshCountsWorker,
+        args: %{"type" => "refresh_recent"}},
+       # Refresh counts for popular federated posts every 4 hours
+       {"15 */4 * * *", Elektrine.ActivityPub.RefreshCountsWorker,
+        args: %{"type" => "refresh_popular"}},
+       # Refresh counts for recently interacted federated posts every 30 minutes
+       {"*/30 * * * *", Elektrine.ActivityPub.RefreshCountsWorker,
+        args: %{"type" => "refresh_interacted"}},
        # Archive/prune federation event/outbox data daily
        {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker}
      ]}
@@ -78,13 +93,12 @@ config :elektrine, :giphy,
   api_key: System.get_env("GIPHY_API_KEY"),
   base_url: "https://api.giphy.com/v1"
 
-# Configure Custom Domains / ACME
+# Configure ACME
 # Use :staging for testing, :production for real certificates
 config :elektrine, :acme_environment, :staging
 config :elektrine, :acme_contact_email, "admin@elektrine.com"
 # ACME account key path - in production uses /data/certs/acme/, in dev uses tmp
 config :elektrine, :acme_account_key_path, "/tmp/elektrine/acme/account_key.pem"
-config :elektrine, :custom_domains_ssl_enabled, false
 
 # Export directory for user data exports - in production uses /data/exports/, in dev uses tmp
 config :elektrine, :export_dir, "/tmp/elektrine/exports"

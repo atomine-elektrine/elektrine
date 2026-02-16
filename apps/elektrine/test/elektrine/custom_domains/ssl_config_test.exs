@@ -46,8 +46,7 @@ defmodule Elektrine.CustomDomains.SSLConfigTest do
                Keyword.has_key?(result, :key)
     end
 
-    test "treats unknown domains as custom domains" do
-      # Unknown domains are looked up in the certificate cache
+    test "returns undefined for unknown domains" do
       result = SSLConfig.sni_fun("custom-domain.com")
 
       # Without cached cert, returns :undefined
@@ -108,7 +107,6 @@ defmodule Elektrine.CustomDomains.SSLConfigTest do
     end
 
     test "user.random.com is not a subdomain of main domain" do
-      # This should be treated as a custom domain
       result = SSLConfig.sni_fun("user.random.com")
 
       assert result == :undefined

@@ -109,6 +109,7 @@ defmodule ElektrineWeb.ChatLive.Index do
         :loading_conversations,
         !Enum.empty?(cached_conversations) || Messaging.user_has_conversations?(user.id)
       )
+      |> assign(:refresh_conversations_scheduled, false)
 
     # Load conversations async after connection
     if connected?(socket) do
@@ -142,10 +143,9 @@ defmodule ElektrineWeb.ChatLive.Index do
       case Messaging.join_conversation(conversation_id, socket.assigns.current_user.id) do
         {:ok, _} ->
           # Successfully joined, trigger conversation refresh and redirect
-          Process.send_after(self(), :refresh_conversations, 100)
-
           {:noreply,
            socket
+           |> maybe_schedule_conversation_refresh(100)
            |> notify_info("Successfully joined!")
            |> push_navigate(to: ~p"/chat/#{conversation_identifier}")}
 
@@ -877,7 +877,7 @@ defmodule ElektrineWeb.ChatLive.Index do
 
   def handle_info({:member_joined, %{user_id: user_id, conversation_id: conversation_id}}, socket) do
     # Refresh conversation list when someone joins
-    Process.send_after(self(), :refresh_conversations, 50)
+    socket = maybe_schedule_conversation_refresh(socket, 50)
 
     if socket.assigns.conversation.selected &&
          socket.assigns.conversation.selected.id == conversation_id do
@@ -1018,7 +1018,8 @@ defmodule ElektrineWeb.ChatLive.Index do
          unread_count: unread_count,
          unread_counts: unread_counts,
          last_message_read_status: last_message_read_status
-     })}
+     })
+     |> assign(:refresh_conversations_scheduled, false)}
   end
 
   @impl true
@@ -1082,55 +1083,27 @@ defmodule ElektrineWeb.ChatLive.Index do
     {:noreply, assign(socket, :message, %{socket.assigns.message | typing_users: typing_users})}
   end
 
-  def handle_info({:new_message_notification, _message}, socket) do
-    # This handles messages from other conversations (for notifications and conversation list updates)
-    # Immediately update conversation list and unread counts
-    all_conversations = Messaging.list_conversations(socket.assigns.current_user.id)
+  def handle_info({:new_message_notification, message}, socket) do
+    # Keep this path light: update unread state locally and debounce full refreshes.
+    if socket.assigns.conversation.selected &&
+         socket.assigns.conversation.selected.id == message.conversation_id do
+      {:noreply, maybe_schedule_conversation_refresh(socket, 300)}
+    else
+      unread_counts = socket.assigns.conversation.unread_counts || %{}
+      updated_unread_counts = Map.update(unread_counts, message.conversation_id, 1, &(&1 + 1))
 
-    conversations_filtered =
-      Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
+      socket =
+        socket
+        |> assign(:conversation, %{
+          socket.assigns.conversation
+          | unread_count: (socket.assigns.conversation.unread_count || 0) + 1,
+            unread_counts: updated_unread_counts
+        })
+        |> update_conversation_preview(message)
+        |> maybe_schedule_conversation_refresh(500)
 
-    unread_count = Messaging.get_unread_count(socket.assigns.current_user.id)
-
-    unread_counts =
-      Helpers.calculate_unread_counts(conversations_filtered, socket.assigns.current_user.id)
-
-    # Sort conversations with unread ones first
-    conversations =
-      Helpers.sort_conversations_by_unread(
-        conversations_filtered,
-        unread_counts,
-        socket.assigns.current_user.id
-      )
-
-    # Calculate read status for last messages
-    last_message_read_status =
-      Helpers.calculate_last_message_read_status(conversations, socket.assigns.current_user.id)
-
-    # Re-filter conversations if search is active
-    filtered_conversations =
-      if socket.assigns.search.conversation_query != "" do
-        Helpers.filter_conversations(
-          conversations,
-          socket.assigns.search.conversation_query,
-          socket.assigns.current_user.id
-        )
-      else
-        conversations
-      end
-
-    socket =
-      socket
-      |> assign(:conversation, %{
-        socket.assigns.conversation
-        | list: conversations,
-          filtered: filtered_conversations,
-          unread_count: unread_count,
-          unread_counts: unread_counts,
-          last_message_read_status: last_message_read_status
-      })
-
-    {:noreply, socket}
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -1147,87 +1120,92 @@ defmodule ElektrineWeb.ChatLive.Index do
 
   @impl true
   def handle_info({:new_message, message}, socket) do
-    # Always refresh conversation list to update message previews and unread counts
-    Process.send_after(self(), :refresh_conversations, 100)
-
     if socket.assigns.conversation.selected &&
          socket.assigns.conversation.selected.id == message.conversation_id do
-      # Decrypt the new message before adding it
-      decrypted_message = Elektrine.Messaging.Message.decrypt_content(message)
-      messages = socket.assigns.messages ++ [decrypted_message]
+      if Enum.any?(socket.assigns.messages, &(&1.id == message.id)) do
+        {:noreply, socket}
+      else
+        # Decrypt the new message before adding it
+        decrypted_message = Elektrine.Messaging.Message.decrypt_content(message)
+        messages = socket.assigns.messages ++ [decrypted_message]
 
-      # Update read status for the new message
-      current_read_status = socket.assigns.message.read_status
-      updated_read_status = Map.put(current_read_status, message.id, [])
+        # Update read status for the new message
+        current_read_status = socket.assigns.message.read_status || %{}
+        updated_read_status = Map.put(current_read_status, message.id, [])
 
-      # Update newest message ID for pagination
-      newest_id = message.id
+        # If this is not my message, mark it as read immediately and clear notification
+        if message.sender_id != socket.assigns.current_user.id do
+          user_id = socket.assigns.current_user.id
 
-      # If this is not my message, mark it as read immediately and clear notification
-      if message.sender_id != socket.assigns.current_user.id do
-        user_id = socket.assigns.current_user.id
+          # Mark conversation as read
+          Messaging.mark_as_read(message.conversation_id, user_id)
 
-        # Mark conversation as read
-        Messaging.mark_as_read(message.conversation_id, user_id)
+          # Clear the notification for this message immediately
+          Elektrine.Notifications.mark_as_read_by_source(user_id, "message", message.id)
 
-        # Clear the notification for this message immediately
-        Elektrine.Notifications.mark_as_read_by_source(user_id, "message", message.id)
-
-        # Broadcast that I read this message
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "conversation:#{message.conversation_id}",
-          {:user_read_messages, user_id}
-        )
-
-        # Also broadcast to all conversation members so their conversation list updates
-        members = Messaging.get_conversation_members(message.conversation_id)
-
-        Enum.each(members, fn member ->
+          # Broadcast that I read this message
           Phoenix.PubSub.broadcast(
             Elektrine.PubSub,
-            "user:#{member.user_id}",
-            {:user_read_messages_in_conversation,
-             %{conversation_id: message.conversation_id, reader_id: user_id}}
+            "conversation:#{message.conversation_id}",
+            {:user_read_messages, user_id}
           )
-        end)
-      end
 
-      # Scroll to bottom after adding the message
-      # Always scroll if it's your own message, ensures media messages are visible
-      updated_socket =
-        socket
-        |> assign(:messages, messages)
-        |> assign(:message_read_status, updated_read_status)
-        |> assign(:newest_message_id, newest_id)
-        |> assign(:has_more_newer_messages, false)
+          # Also broadcast to all conversation members so their conversation list updates
+          members = Messaging.get_conversation_members(message.conversation_id)
 
-      # Only trigger scroll if it's the current user's own message
-      # For other messages, let the client-side MutationObserver handle it
-      updated_socket =
-        if message.sender_id == socket.assigns.current_user.id do
-          # User sent a message - scroll to show their message
-          # If message has media, use delayed scroll to wait for images to load
-          if message.media_urls && message.media_urls != [] do
-            # Message has media - trigger multiple scroll attempts for image loading
-            Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 50)
-            Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 200)
-            Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 500)
-            Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1000)
-            Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1500)
-            updated_socket
-          else
-            # Text only - immediate scroll is fine
-            push_event(updated_socket, "scroll_to_bottom", %{})
-          end
-        else
-          # Someone else sent a message - client will auto-scroll if user is at bottom
-          updated_socket
+          Enum.each(members, fn member ->
+            Phoenix.PubSub.broadcast(
+              Elektrine.PubSub,
+              "user:#{member.user_id}",
+              {:user_read_messages_in_conversation,
+               %{conversation_id: message.conversation_id, reader_id: user_id}}
+            )
+          end)
         end
 
-      {:noreply, updated_socket}
+        # Always keep currently viewed conversation unread count at 0.
+        updated_unread_counts =
+          Map.put(socket.assigns.conversation.unread_counts || %{}, message.conversation_id, 0)
+
+        updated_socket =
+          socket
+          |> assign(:messages, messages)
+          |> assign(:message, %{socket.assigns.message | read_status: updated_read_status})
+          |> assign(:newest_message_id, message.id)
+          |> assign(:has_more_newer_messages, false)
+          |> assign(:conversation, %{
+            socket.assigns.conversation
+            | unread_counts: updated_unread_counts
+          })
+          |> update_conversation_preview(decrypted_message)
+
+        # Only trigger scroll if it's the current user's own message
+        # For other messages, let the client-side MutationObserver handle it
+        updated_socket =
+          if message.sender_id == socket.assigns.current_user.id do
+            # User sent a message - scroll to show their message
+            # If message has media, use delayed scroll to wait for images to load
+            if message.media_urls && message.media_urls != [] do
+              # Message has media - trigger multiple scroll attempts for image loading
+              Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 50)
+              Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 200)
+              Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 500)
+              Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1000)
+              Process.send_after(self(), {:ensure_scroll_after_media, message.id}, 1500)
+              updated_socket
+            else
+              # Text only - immediate scroll is fine
+              push_event(updated_socket, "scroll_to_bottom", %{})
+            end
+          else
+            # Someone else sent a message - client will auto-scroll if user is at bottom
+            updated_socket
+          end
+
+        {:noreply, updated_socket}
+      end
     else
-      {:noreply, socket}
+      {:noreply, maybe_schedule_conversation_refresh(socket, 200)}
     end
   end
 
@@ -1262,33 +1240,42 @@ defmodule ElektrineWeb.ChatLive.Index do
 
   # Chat message handlers (from ChatMessages module for DMs/groups/channels)
   def handle_info({:new_chat_message, message}, socket) do
-    # Refresh conversation list to update message previews and unread counts
-    Process.send_after(self(), :refresh_conversations, 100)
-
     if socket.assigns.conversation.selected &&
          socket.assigns.conversation.selected.id == message.conversation_id do
-      # ChatMessage is already decrypted from the broadcast
-      messages = socket.assigns.messages ++ [message]
+      if Enum.any?(socket.assigns.messages, &(&1.id == message.id)) do
+        {:noreply, socket}
+      else
+        # ChatMessage is already decrypted from the broadcast
+        messages = socket.assigns.messages ++ [message]
 
-      # Update read status for the new message
-      current_read_status = socket.assigns.message.read_status
-      updated_read_status = Map.put(current_read_status, message.id, [])
+        # Update read status for the new message
+        current_read_status = socket.assigns.message.read_status || %{}
+        updated_read_status = Map.put(current_read_status, message.id, [])
 
-      # If this is not my message, mark it as read immediately
-      if message.sender_id != socket.assigns.current_user.id do
-        user_id = socket.assigns.current_user.id
-        Messaging.mark_chat_messages_read(message.conversation_id, user_id, message.id)
+        # If this is not my message, mark it as read immediately
+        if message.sender_id != socket.assigns.current_user.id do
+          user_id = socket.assigns.current_user.id
+          Messaging.mark_chat_messages_read(message.conversation_id, user_id, message.id)
+        end
+
+        updated_unread_counts =
+          Map.put(socket.assigns.conversation.unread_counts || %{}, message.conversation_id, 0)
+
+        updated_socket =
+          socket
+          |> assign(:messages, messages)
+          |> assign(:message, %{socket.assigns.message | read_status: updated_read_status})
+          |> assign(:conversation, %{
+            socket.assigns.conversation
+            | unread_counts: updated_unread_counts
+          })
+          |> update_conversation_preview(message)
+
+        # Scroll to bottom
+        {:noreply, push_event(updated_socket, "scroll_to_bottom", %{})}
       end
-
-      updated_socket =
-        socket
-        |> assign(:messages, messages)
-        |> assign(:message, %{socket.assigns.message | read_status: updated_read_status})
-
-      # Scroll to bottom
-      {:noreply, push_event(updated_socket, "scroll_to_bottom", %{})}
     else
-      {:noreply, socket}
+      {:noreply, maybe_schedule_conversation_refresh(socket, 200)}
     end
   end
 
@@ -1602,6 +1589,64 @@ defmodule ElektrineWeb.ChatLive.Index do
 
     :ok
   end
+
+  defp maybe_schedule_conversation_refresh(socket, delay_ms) do
+    if socket.assigns[:refresh_conversations_scheduled] do
+      socket
+    else
+      Process.send_after(self(), :refresh_conversations, delay_ms)
+      assign(socket, :refresh_conversations_scheduled, true)
+    end
+  end
+
+  defp update_conversation_preview(socket, message) do
+    conversations = socket.assigns.conversation.list
+
+    {updated_conversations, conversation_found?} =
+      Enum.map_reduce(conversations, false, fn conversation, found? ->
+        if conversation.id == message.conversation_id do
+          last_message_at =
+            case message.inserted_at do
+              %DateTime{} = datetime -> datetime
+              %NaiveDateTime{} = naive_datetime -> DateTime.from_naive!(naive_datetime, "Etc/UTC")
+              _ -> conversation.last_message_at
+            end
+
+          {%{conversation | messages: [message], last_message_at: last_message_at}, true}
+        else
+          {conversation, found?}
+        end
+      end)
+
+    if conversation_found? do
+      sorted_conversations =
+        Helpers.sort_conversations_by_unread(
+          updated_conversations,
+          socket.assigns.conversation.unread_counts || %{},
+          socket.assigns.current_user.id
+        )
+
+      assign(socket, :conversation, %{
+        socket.assigns.conversation
+        | list: sorted_conversations,
+          filtered:
+            refresh_conversation_filter(
+              sorted_conversations,
+              socket.assigns.search.conversation_query,
+              socket.assigns.current_user.id
+            )
+      })
+    else
+      socket
+    end
+  end
+
+  defp refresh_conversation_filter(conversations, query, current_user_id)
+       when is_binary(query) and query != "" do
+    Helpers.filter_conversations(conversations, query, current_user_id)
+  end
+
+  defp refresh_conversation_filter(conversations, _query, _current_user_id), do: conversations
 
   # Delegate helper functions for use in templates
   defdelegate conversation_name(conversation, current_user_id), to: Helpers

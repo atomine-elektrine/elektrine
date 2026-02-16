@@ -158,23 +158,7 @@ defmodule ElektrineWeb.UserSessionController do
   # Helper function to get client IP address
   # For IPv6, normalizes to /64 subnet to prevent address rotation attacks
   defp get_client_ip(conn) do
-    ip_string =
-      case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-        [forwarded_ips] ->
-          # Take the first IP from the list (original client)
-          forwarded_ips
-          |> String.split(",")
-          |> List.first()
-          |> String.trim()
-
-        [] ->
-          # Fall back to direct connection IP
-          case conn.remote_ip do
-            {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
-            {a, b, c, d, e, f, g, h} -> "#{a}:#{b}:#{c}:#{d}:#{e}:#{f}:#{g}:#{h}"
-            ip -> to_string(ip)
-          end
-      end
+    ip_string = ElektrineWeb.ClientIP.client_ip(conn)
 
     # Normalize IPv6 to /64 subnet to prevent rotation attacks
     normalize_ipv6_subnet(ip_string)

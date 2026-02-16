@@ -94,6 +94,15 @@ config :elektrine, :messaging_federation,
   outbox_retention_days: messaging_federation_outbox_retention_days,
   peers: messaging_federation_peers
 
+# Default OFF for local-first timeline performance.
+timeline_remote_enrichment_enabled =
+  case System.get_env("TIMELINE_REMOTE_ENRICHMENT", "false") do
+    value when value in ["0", "false", "FALSE", "no", "NO", "off", "OFF"] -> false
+    _ -> true
+  end
+
+config :elektrine, :timeline_remote_enrichment, timeline_remote_enrichment_enabled
+
 # Configure Haraka HTTP API adapter if EMAIL_SERVICE is set to haraka (any environment)
 if System.get_env("EMAIL_SERVICE") == "haraka" do
   config :elektrine, Elektrine.Mailer,
@@ -136,6 +145,17 @@ else
 end
 
 if config_env() == :prod do
+  config :elektrine, :environment, :prod
+  config :elektrine, :enforce_https, true
+  config :elektrine, :allow_insecure_dav_jmap_auth, false
+
+  trusted_proxy_cidrs =
+    System.get_env("TRUSTED_PROXY_CIDRS", "")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+
+  config :elektrine, :trusted_proxy_cidrs, trusted_proxy_cidrs
+
   # Production paths - use persistent /data volume
   config :elektrine, :acme_account_key_path, "/data/certs/acme/account_key.pem"
   config :elektrine, :export_dir, "/data/exports"
@@ -398,7 +418,7 @@ if config_env() == :prod do
         max_header_count: 50,
         max_header_length: 8_192
       ],
-      # SNI callback for custom domains - looks up certs from cache/database
+      # SNI callback for main domains and known subdomains
       # Bandit passes this through to ThousandIsland's TLS options
       thousand_island_options: [
         transport_options: [
@@ -575,12 +595,12 @@ if config_env() != :test do
     pop3_port: 2110
 end
 
-# Custom Domains configuration
-# Enable custom domain SSL termination in production
-# SERVER_PUBLIC_IP is shown to users in DNS setup instructions
-config :elektrine,
-  custom_domains_ssl_enabled: System.get_env("CUSTOM_DOMAINS_SSL_ENABLED") == "true",
-  server_public_ip: System.get_env("SERVER_PUBLIC_IP")
+# Server network metadata
+config :elektrine, server_public_ip: System.get_env("SERVER_PUBLIC_IP")
+
+if acme_contact_email = System.get_env("ACME_CONTACT_EMAIL") do
+  config :elektrine, :acme_contact_email, acme_contact_email
+end
 
 # ACME (Let's Encrypt) environment
 # Use :staging for testing (fake certs), :production for real certificates

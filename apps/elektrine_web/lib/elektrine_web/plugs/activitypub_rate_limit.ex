@@ -10,6 +10,7 @@ defmodule ElektrineWeb.Plugs.ActivityPubRateLimit do
   import Phoenix.Controller, only: [json: 2]
 
   alias Elektrine.ActivityPub.InboxRateLimiter
+  alias ElektrineWeb.ClientIP
 
   def init(opts), do: opts
 
@@ -49,28 +50,5 @@ defmodule ElektrineWeb.Plugs.ActivityPubRateLimit do
   defp actor_domain(%Plug.Conn.Unfetched{}), do: nil
   defp actor_domain(_), do: nil
 
-  defp get_client_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [forwarded_ips | _] ->
-        case parse_forwarded_ip(forwarded_ips) do
-          "" -> format_remote_ip(conn.remote_ip)
-          ip -> ip
-        end
-
-      _ ->
-        format_remote_ip(conn.remote_ip)
-    end
-  end
-
-  defp parse_forwarded_ip(forwarded_ips) do
-    forwarded_ips
-    |> String.split(",")
-    |> List.first()
-    |> to_string()
-    |> String.trim()
-  end
-
-  defp format_remote_ip({a, b, c, d}), do: "#{a}.#{b}.#{c}.#{d}"
-  defp format_remote_ip({a, b, c, d, e, f, g, h}), do: "#{a}:#{b}:#{c}:#{d}:#{e}:#{f}:#{g}:#{h}"
-  defp format_remote_ip(ip), do: to_string(ip)
+  defp get_client_ip(conn), do: ClientIP.client_ip(conn)
 end

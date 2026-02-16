@@ -29,7 +29,6 @@ kill_signal = 'SIGTERM'
   MIGRATION_RETRY_DELAY_MS = '3000'
   # App manages SSL certificates via Let's Encrypt
   LETS_ENCRYPT_ENABLED = 'true'
-  CUSTOM_DOMAINS_SSL_ENABLED = 'true'
 
 # =========================================================================
 # HTTP Service (port 8080 internally) - For ACME challenges and HTTP->HTTPS redirect
@@ -56,7 +55,7 @@ kill_signal = 'SIGTERM'
 # =========================================================================
 # HTTPS Service (port 8443 internally) - App handles TLS termination
 # TCP passthrough: Fly.io does NOT terminate TLS, app uses Bandit with SNI
-# This enables custom domain SSL with dynamic certificate selection
+# This enables dynamic certificate selection for primary domains/subdomains
 # =========================================================================
 [[services]]
   internal_port = 8443
@@ -154,7 +153,7 @@ kill_signal = 'SIGTERM'
 #
 # Initial Setup:
 # 1. Create the certificate volume:
-#    fly volumes create certs_data --region iad --size 1
+#    fly volumes create app_data --region iad --size 1
 #
 # 2. Set environment variables:
 #    fly secrets set SERVER_PUBLIC_IP=<your-ipv4>
@@ -168,6 +167,5 @@ kill_signal = 'SIGTERM'
 # - Port 80: HTTP for ACME challenges (/.well-known/acme-challenge/*)
 # - Port 443: Raw TCP passthrough -> App handles TLS with SNI
 # - Main domain certs (elektrine.com, z.org) stored in /data/certs/live/
-# - Custom domain certs stored in database and cached in ETS
-# - Automatic renewal via Oban background jobs
+# - Automatic renewal handled by app startup/maintenance services
 # =========================================================================

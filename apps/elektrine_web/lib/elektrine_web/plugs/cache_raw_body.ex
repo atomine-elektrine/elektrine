@@ -1,10 +1,10 @@
 defmodule ElektrineWeb.Plugs.CacheRawBody do
   @moduledoc """
-  Caches the raw request body for webhook signature verification.
+  Caches raw request bodies for selected signed endpoints.
 
   This plug must be placed BEFORE Plug.Parsers in the endpoint pipeline.
-  It reads and caches the raw body only for specified paths, then assigns
-  a custom body_reader function that returns the cached body.
+  It marks selected paths for raw body caching, and its `read_body/2` callback
+  can be used as Plug.Parsers `:body_reader`.
   """
 
   @behaviour Plug
@@ -18,25 +18,41 @@ defmodule ElektrineWeb.Plugs.CacheRawBody do
   @impl true
   def call(%Plug.Conn{request_path: request_path} = conn, %{paths: paths}) do
     if request_path in paths do
-      cache_raw_body(conn)
+      Plug.Conn.put_private(conn, :cache_raw_body, true)
     else
       conn
     end
   end
 
-  defp cache_raw_body(conn) do
-    case Plug.Conn.read_body(conn) do
-      {:ok, body, conn} ->
-        conn
-        |> Plug.Conn.assign(:raw_body, body)
-        |> Plug.Conn.put_private(:cached_body, body)
+  @doc """
+  Plug.Parsers-compatible body reader that optionally caches raw bodies.
+  """
+  def read_body(conn, opts) do
+    if conn.private[:cache_raw_body] do
+      case conn.private[:cached_body] do
+        body when is_binary(body) ->
+          {:ok, body, conn}
 
-      {:more, _body, conn} ->
-        # Body too large, don't cache
-        conn
+        _ ->
+          read_and_cache_full_body(conn, opts, "")
+      end
+    else
+      Plug.Conn.read_body(conn, opts)
+    end
+  end
 
-      {:error, _reason} ->
-        conn
+  defp read_and_cache_full_body(conn, opts, acc) do
+    case Plug.Conn.read_body(conn, opts) do
+      {:ok, chunk, conn} ->
+        body = acc <> chunk
+        conn = conn |> Plug.Conn.assign(:raw_body, body) |> Plug.Conn.put_private(:cached_body, body)
+        {:ok, body, conn}
+
+      {:more, chunk, conn} ->
+        read_and_cache_full_body(conn, opts, acc <> chunk)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

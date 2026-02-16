@@ -26,8 +26,11 @@ defmodule Elektrine.MessagingEncryptionTest do
     %{user1: user1, user2: user2, conversation: conversation}
   end
 
-  describe "message encryption on creation" do
-    test "encrypts message content when creating", %{user1: user1, conversation: conversation} do
+  describe "chat message storage on creation" do
+    test "stores message content as plaintext when creating", %{
+      user1: user1,
+      conversation: conversation
+    } do
       content = "This is a secret message"
 
       {:ok, message} =
@@ -40,22 +43,16 @@ defmodule Elektrine.MessagingEncryptionTest do
       # Reload from database to check stored values
       db_message = Repo.get(Message, message.id)
 
-      # Encrypted content should be stored
-      assert db_message.encrypted_content != nil
-      assert is_map(db_message.encrypted_content)
-      assert Map.has_key?(db_message.encrypted_content, "encrypted_data")
-      assert Map.has_key?(db_message.encrypted_content, "iv")
-      assert Map.has_key?(db_message.encrypted_content, "tag")
+      # Chat content should be plaintext
+      assert db_message.encrypted_content == nil
+      assert db_message.content == content
 
-      # Search index should be created
+      # Search index should still be created for chat search
       assert is_list(db_message.search_index)
       assert db_message.search_index != []
-
-      # Plaintext should NOT be stored in database
-      assert db_message.content == nil
     end
 
-    test "returned message contains decrypted content", %{
+    test "returned message contains plaintext content", %{
       user1: user1,
       conversation: conversation
     } do
@@ -68,7 +65,7 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      # Returned message should have decrypted content
+      # Returned message should have plaintext content
       assert message.content == content
     end
 
@@ -95,7 +92,7 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert project_hash in db_message.search_index
     end
 
-    test "encrypts media message captions", %{user1: user1, conversation: conversation} do
+    test "stores media message captions as plaintext", %{user1: user1, conversation: conversation} do
       content = "Check out this photo!"
       media_urls = ["attachments/photo.jpg"]
 
@@ -109,8 +106,9 @@ defmodule Elektrine.MessagingEncryptionTest do
 
       db_message = Repo.get(Message, message.id)
 
-      # Caption should be encrypted
-      assert db_message.encrypted_content != nil
+      # Caption should be plaintext
+      assert db_message.encrypted_content == nil
+      assert db_message.content == content
       assert message.content == content
     end
 
@@ -125,13 +123,13 @@ defmodule Elektrine.MessagingEncryptionTest do
           nil
         )
 
-      # Should not crash, encrypted_content should be nil
+      # Should not crash, encrypted_content should be nil for plaintext chat
       assert message.encrypted_content == nil
     end
   end
 
-  describe "message decryption on retrieval" do
-    test "decrypts messages when loading conversation", %{
+  describe "message retrieval" do
+    test "loads plaintext messages when loading conversation", %{
       user1: user1,
       user2: user2,
       conversation: conversation
@@ -145,12 +143,12 @@ defmodule Elektrine.MessagingEncryptionTest do
 
       messages = loaded_conversation.messages
 
-      # Messages should be decrypted
+      # Messages should be readable
       assert Enum.any?(messages, fn m -> m.content == "First message" end)
       assert Enum.any?(messages, fn m -> m.content == "Second message" end)
     end
 
-    test "decrypts messages when searching", %{user1: user1, conversation: conversation} do
+    test "returns plaintext messages when searching", %{user1: user1, conversation: conversation} do
       # Create test message
       {:ok, _message} =
         Messaging.create_text_message(
@@ -167,12 +165,12 @@ defmodule Elektrine.MessagingEncryptionTest do
           "searchable"
         )
 
-      # Should find and decrypt the message
+      # Should find message content
       assert results != []
       assert Enum.any?(results, fn m -> m.content =~ "searchable" end)
     end
 
-    test "decrypts edited messages", %{user1: user1, conversation: conversation} do
+    test "stores edited messages as plaintext", %{user1: user1, conversation: conversation} do
       {:ok, message} =
         Messaging.create_text_message(
           conversation.id,
@@ -184,17 +182,18 @@ defmodule Elektrine.MessagingEncryptionTest do
       new_content = "Updated content"
       {:ok, updated_message} = Messaging.edit_message(message.id, user1.id, new_content)
 
-      # Should be encrypted in database
+      # Should remain plaintext in database
       db_message = Repo.get(Message, message.id)
-      assert db_message.encrypted_content != nil
+      assert db_message.encrypted_content == nil
+      assert db_message.content == new_content
 
-      # But decrypted when returned
+      # Returned content should match
       assert updated_message.content == new_content
     end
   end
 
-  describe "message list decryption" do
-    test "decrypts conversation list preview messages", %{
+  describe "message list display" do
+    test "loads conversation list preview messages", %{
       user1: user1,
       user2: user2,
       conversation: conversation
@@ -214,15 +213,18 @@ defmodule Elektrine.MessagingEncryptionTest do
       # Find our conversation
       conv = Enum.find(conversations, fn c -> c.id == conversation.id end)
 
-      # Last message should be decrypted
+      # Last message should be readable
       assert conv.messages != []
       [last_msg | _] = conv.messages
       assert last_msg.content == last_message_content
     end
   end
 
-  describe "encryption with special content" do
-    test "encrypts unicode and emoji content", %{user1: user1, conversation: conversation} do
+  describe "special content handling" do
+    test "stores unicode and emoji content as plaintext", %{
+      user1: user1,
+      conversation: conversation
+    } do
       content = "Hello 世界 🌍 Привет 😊"
 
       {:ok, message} =
@@ -232,16 +234,16 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      # Should encrypt and decrypt properly
+      # Should preserve content
       assert message.content == content
 
-      # Reload and decrypt
+      # Reload and verify
       {:ok, loaded_conv} = Messaging.get_conversation!(conversation.id, user1.id)
       [loaded_msg | _] = loaded_conv.messages
       assert loaded_msg.content == content
     end
 
-    test "encrypts long messages", %{user1: user1, conversation: conversation} do
+    test "stores long messages as plaintext", %{user1: user1, conversation: conversation} do
       content = String.duplicate("Long message content. ", 100)
 
       {:ok, message} =
@@ -254,10 +256,14 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert message.content == content
 
       db_message = Repo.get(Message, message.id)
-      assert db_message.encrypted_content != nil
+      assert db_message.encrypted_content == nil
+      assert db_message.content == content
     end
 
-    test "encrypts messages with hashtags", %{user1: user1, conversation: conversation} do
+    test "indexes plaintext messages with hashtags for search", %{
+      user1: user1,
+      conversation: conversation
+    } do
       content = "Important #project #deadline #meeting notes"
 
       {:ok, message} =
@@ -267,8 +273,10 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      # Content should be encrypted and searchable by hashtags
+      # Content should be plaintext and searchable by hashtags
       db_message = Repo.get(Message, message.id)
+      assert db_message.encrypted_content == nil
+      assert db_message.content == content
 
       project_hash = Elektrine.Encryption.hash_keyword("#project", user1.id)
       deadline_hash = Elektrine.Encryption.hash_keyword("#deadline", user1.id)
@@ -282,12 +290,10 @@ defmodule Elektrine.MessagingEncryptionTest do
 
   describe "system messages" do
     test "system messages validation", %{conversation: conversation} do
-      # System messages don't have sender_id, so they can't be encrypted
-      # This is expected behavior - system messages should not be encrypted
+      # System messages don't have sender_id
       changeset = Message.system_changeset(conversation.id, "User joined the conversation")
 
       # System changeset should not be valid without sender_id
-      # since sender_id is required for encryption
       refute changeset.valid?
     end
   end

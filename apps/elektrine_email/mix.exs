@@ -38,8 +38,7 @@ defmodule ElektrineEmail.MixProject do
 
   defp no_warn_undefined do
     [
-      ElektrineWeb.Endpoint,
-      ElektrineWeb.HarakaWebhookController
+      ElektrineWeb.Endpoint
     ]
   end
 

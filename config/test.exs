@@ -4,6 +4,11 @@ import Config
 # (e.g. Elektrine.DataCase, fixture modules). Ignore redefinition warnings in test.
 config :elixir, :compiler_options, ignore_module_conflict: true
 
+config :elektrine,
+  enforce_https: false,
+  allow_insecure_dav_jmap_auth: true,
+  trusted_proxy_cidrs: ["127.0.0.1/32", "::1/128"]
+
 ci_env? = System.get_env("CI") in ["true", "1"]
 
 test_db_username =

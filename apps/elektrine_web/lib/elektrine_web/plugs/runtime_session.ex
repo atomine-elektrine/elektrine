@@ -33,7 +33,7 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
       # 30 days
       max_age: 30 * 24 * 60 * 60,
       same_site: "Lax",
-      secure: System.get_env("FORCE_SSL") == "true",
+      secure: secure_cookies?(),
       http_only: true,
       path: "/",
       extra: "SameSite=Lax"
@@ -97,6 +97,22 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
       # Fallback for other environments
       true ->
         "dev_encryption_salt"
+    end
+  end
+
+  defp secure_cookies? do
+    case System.get_env("SESSION_COOKIE_SECURE") do
+      "true" ->
+        true
+
+      "false" ->
+        false
+
+      _ ->
+        Application.get_env(:elektrine, :enforce_https, false) or
+          Application.get_env(:elektrine, :environment) == :prod or
+          System.get_env("LETS_ENCRYPT_ENABLED") == "true" or
+          System.get_env("FORCE_SSL") == "true"
     end
   end
 end

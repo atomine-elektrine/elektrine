@@ -209,8 +209,7 @@ defmodule Elektrine.Email do
   Checks in order:
   1. User's main mailbox (user@elektrine.com or user@z.org)
   2. User's email aliases
-  3. User's custom domain addresses
-  4. Cross-domain matching (elektrine.com <-> z.org)
+  3. Cross-domain matching (elektrine.com <-> z.org)
   """
   def verify_email_ownership(email_address, user_id)
       when is_binary(email_address) and is_integer(user_id) do
@@ -244,34 +243,8 @@ defmodule Elektrine.Email do
         {:error, {:owned_by_other_user, other_user_id}}
 
       nil ->
-        # Check 3: User's custom domain addresses
-        check_custom_domain_ownership(email_address, user_id)
-    end
-  end
-
-  # Check if user owns the email through a custom domain address
-  defp check_custom_domain_ownership(email_address, user_id) do
-    case String.split(email_address, "@") do
-      [local_part, domain] ->
-        # Check if user has a custom domain with this address configured
-        case Elektrine.CustomDomains.get_address_by_email(local_part, domain) do
-          %Elektrine.CustomDomains.CustomDomainAddress{} = addr ->
-            # Verify the custom domain belongs to this user
-            addr = Elektrine.Repo.preload(addr, :custom_domain)
-
-            if addr.custom_domain.user_id == user_id && addr.enabled do
-              {:ok, :custom_domain_address}
-            else
-              {:error, :unauthorized_custom_domain_address}
-            end
-
-          nil ->
-            # Check 4: Cross-domain matching (user@elektrine.com <-> user@z.org)
-            check_cross_domain_ownership(email_address, user_id)
-        end
-
-      _ ->
-        {:error, :invalid_email_format}
+        # Check 3: Cross-domain matching (user@elektrine.com <-> user@z.org)
+        check_cross_domain_ownership(email_address, user_id)
     end
   end
 

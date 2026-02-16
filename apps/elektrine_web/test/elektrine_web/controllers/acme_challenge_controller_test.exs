@@ -43,21 +43,5 @@ defmodule ElektrineWeb.AcmeChallengeControllerTest do
 
       assert get_resp_header(conn, "content-type") |> hd() =~ "text/plain"
     end
-
-    test "retrieves challenge from database for custom domains", %{conn: conn} do
-      # Create a custom domain with ACME challenge
-      user = Elektrine.AccountsFixtures.user_fixture()
-      {:ok, domain} = Elektrine.CustomDomains.add_domain(user.id, "acme-test.com")
-
-      token = "db-token-#{System.unique_integer()}"
-      response = "db-response"
-
-      # Store challenge in database via CustomDomains context
-      {:ok, _} = Elektrine.CustomDomains.store_acme_challenge(domain, token, response)
-
-      conn = get(conn, ~p"/.well-known/acme-challenge/#{token}")
-
-      assert text_response(conn, 200) == response
-    end
   end
 end

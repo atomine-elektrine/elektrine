@@ -192,18 +192,29 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   Returns a map of activitypub_id => [comments]
   """
   def fetch_posts_top_comments(posts, limit \\ 3) when is_list(posts) do
-    posts
-    |> Enum.filter(&is_lemmy_post?/1)
-    |> Enum.map(fn post ->
-      Task.async(fn ->
-        activitypub_id = get_activitypub_id(post)
-        post_url = activitypub_id || get_activitypub_url(post)
-        comments = fetch_top_comments(post_url, limit)
-        {activitypub_id, comments}
+    tasks =
+      posts
+      |> Enum.filter(&is_lemmy_post?/1)
+      |> Enum.map(fn post ->
+        Task.async(fn ->
+          activitypub_id = get_activitypub_id(post)
+          post_url = activitypub_id || get_activitypub_url(post)
+          comments = fetch_top_comments(post_url, limit)
+          {activitypub_id, comments}
+        end)
       end)
+
+    results = Task.yield_many(tasks, timeout: 3_000)
+
+    Enum.each(results, fn {task, result} ->
+      if result == nil, do: Task.shutdown(task, :brutal_kill)
     end)
-    |> Task.await_many(15_000)
-    |> Enum.filter(fn {_id, comments} -> comments != [] end)
+
+    results
+    |> Enum.flat_map(fn
+      {_task, {:ok, {id, comments}}} when is_binary(id) and comments != [] -> [{id, comments}]
+      _ -> []
+    end)
     |> Map.new()
   end
 

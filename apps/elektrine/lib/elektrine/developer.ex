@@ -254,32 +254,40 @@ defmodule Elektrine.Developer do
   end
 
   defp deliver_webhook(%Webhook{} = webhook, event, payload) do
-    timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
-    body = build_webhook_body(event, payload, timestamp)
-    signature = sign_webhook_payload(webhook.secret, body)
+    case Webhook.validate_url(webhook.url) do
+      :ok ->
+        timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+        body = build_webhook_body(event, payload, timestamp)
+        signature = sign_webhook_payload(webhook.secret, body)
 
-    headers = [
-      {"content-type", "application/json"},
-      {"user-agent", "Elektrine-Webhooks/1.0"},
-      {"x-elektrine-event", event},
-      {"x-elektrine-timestamp", DateTime.to_iso8601(timestamp)},
-      {"x-elektrine-signature", "sha256=#{signature}"}
-    ]
+        headers = [
+          {"content-type", "application/json"},
+          {"user-agent", "Elektrine-Webhooks/1.0"},
+          {"x-elektrine-event", event},
+          {"x-elektrine-timestamp", DateTime.to_iso8601(timestamp)},
+          {"x-elektrine-signature", "sha256=#{signature}"}
+        ]
 
-    request = Finch.build(:post, webhook.url, headers, body)
+        request = Finch.build(:post, webhook.url, headers, body)
 
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 5_000, pool_timeout: 5_000) do
-      {:ok, %Finch.Response{status: status}} when status >= 200 and status < 300 ->
-        update_webhook_delivery_status(webhook, timestamp, status, nil)
-        {:ok, status}
+        case Finch.request(request, Elektrine.Finch, receive_timeout: 5_000, pool_timeout: 5_000) do
+          {:ok, %Finch.Response{status: status}} when status >= 200 and status < 300 ->
+            update_webhook_delivery_status(webhook, timestamp, status, nil)
+            {:ok, status}
 
-      {:ok, %Finch.Response{status: status}} ->
-        update_webhook_delivery_status(webhook, timestamp, status, "HTTP #{status}")
-        {:error, {:http_error, status}}
+          {:ok, %Finch.Response{status: status}} ->
+            update_webhook_delivery_status(webhook, timestamp, status, "HTTP #{status}")
+            {:error, {:http_error, status}}
+
+          {:error, reason} ->
+            update_webhook_delivery_status(webhook, timestamp, nil, request_error_message(reason))
+            {:error, {:request_failed, reason}}
+        end
 
       {:error, reason} ->
-        update_webhook_delivery_status(webhook, timestamp, nil, request_error_message(reason))
-        {:error, {:request_failed, reason}}
+        timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+        update_webhook_delivery_status(webhook, timestamp, nil, "Unsafe webhook URL: #{reason}")
+        {:error, {:unsafe_url, reason}}
     end
   end
 
