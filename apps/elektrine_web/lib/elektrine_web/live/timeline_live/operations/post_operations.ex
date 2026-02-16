@@ -14,6 +14,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   alias Elektrine.Social
   alias Elektrine.Social.Drafts
   alias Elektrine.Messaging
+  alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineWeb.TimelineLive.Operations.Helpers
 
   # Toggles the post composer visibility.
@@ -385,13 +386,46 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
   # Filters timeline by content type (posts, replies, media, etc).
   def handle_event("filter_timeline", %{"filter" => filter}, socket) do
-    if filter == socket.assigns.timeline_filter do
+    current_view = socket.assigns.timeline_filter || "all"
+
+    if filter == current_view do
       {:noreply, assign(socket, :filter_dropdown_open, false)}
     else
-      {:noreply,
-       socket
-       |> assign(:filter_dropdown_open, false)
-       |> push_patch(to: ~p"/timeline?filter=#{socket.assigns.current_filter}&view=#{filter}")}
+      path = ~p"/timeline?filter=#{socket.assigns.current_filter}&view=#{filter}"
+
+      cond do
+        special_timeline_view?(filter) ->
+          load_ref = System.unique_integer([:positive, :monotonic])
+          send(self(), {:load_view_data, load_ref, socket.assigns.current_filter, filter})
+
+          {:noreply,
+           socket
+           |> assign(:filter_dropdown_open, false)
+           |> assign(:timeline_load_ref, load_ref)
+           |> assign(:timeline_filter, filter)
+           |> assign(:loading_timeline, Enum.empty?(socket.assigns.timeline_posts))
+           |> assign(:loading_more, false)
+           |> assign(:no_more_posts, false)
+           |> push_patch(to: path)}
+
+        special_timeline_view?(current_view) &&
+            Enum.empty?(Map.get(socket.assigns, :base_timeline_posts, [])) ->
+          {:noreply,
+           socket
+           |> assign(:filter_dropdown_open, false)
+           |> push_patch(to: path)}
+
+        true ->
+          updated_socket =
+            socket
+            |> assign(:filter_dropdown_open, false)
+            |> assign(:timeline_filter, filter)
+            |> assign(:loading_timeline, false)
+            |> maybe_restore_base_timeline(current_view)
+            |> Helpers.apply_timeline_filter()
+
+          {:noreply, push_patch(updated_socket, to: path)}
+      end
     end
   end
 
@@ -576,6 +610,21 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
   # Executes the actual load-more fetch.
   def handle_load_more(socket) do
+    case allow_timeline_read(socket, :load_more) do
+      :ok ->
+        do_handle_load_more(socket)
+
+      {:error, retry_after} ->
+        socket
+        |> assign(:loading_more, false)
+        |> put_flash(
+          :error,
+          "You're switching timeline pages too quickly. Please retry in #{retry_after}s."
+        )
+    end
+  end
+
+  defp do_handle_load_more(socket) do
     current_posts = socket.assigns.timeline_posts
     before_id = if Enum.empty?(current_posts), do: nil, else: List.last(current_posts).id
     current_user = socket.assigns[:current_user]
@@ -657,8 +706,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           end
       end
 
-    new_lemmy_counts = Elektrine.ActivityPub.LemmyApi.fetch_posts_counts(more_posts)
-    merged_lemmy_counts = Map.merge(socket.assigns.lemmy_counts, new_lemmy_counts)
+    merged_lemmy_counts = socket.assigns.lemmy_counts || %{}
 
     # Load replies for new posts and include in follows check
     new_post_ids = Enum.map(more_posts, & &1.id)
@@ -697,15 +745,136 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
     # Track if we've reached the end (no more posts to load)
     no_more_posts = Enum.empty?(more_posts)
+    updated_timeline_posts = current_posts ++ more_posts
+
+    updated_base_timeline_posts =
+      if special_timeline_view?(timeline_view) do
+        Map.get(socket.assigns, :base_timeline_posts, [])
+      else
+        updated_timeline_posts
+      end
+
+    updated_special_view_cache =
+      if special_timeline_view?(timeline_view) do
+        cache_key = {socket.assigns.current_filter, timeline_view}
+        special_view_cache = Map.get(socket.assigns, :special_view_cache, %{})
+
+        existing_cache =
+          Map.get(special_view_cache, cache_key, %{
+            posts: current_posts,
+            post_replies: socket.assigns.post_replies || %{}
+          })
+
+        cached_posts =
+          (Map.get(existing_cache, :posts, current_posts) ++ more_posts)
+          |> Enum.uniq_by(& &1.id)
+
+        cached_replies = Map.merge(Map.get(existing_cache, :post_replies, %{}), new_post_replies)
+
+        Map.put(special_view_cache, cache_key, %{
+          posts: cached_posts,
+          post_replies: cached_replies
+        })
+      else
+        Map.get(socket.assigns, :special_view_cache, %{})
+      end
 
     socket
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, no_more_posts)
     |> assign(:lemmy_counts, merged_lemmy_counts)
+    |> assign(:base_timeline_posts, updated_base_timeline_posts)
+    |> assign(:special_view_cache, updated_special_view_cache)
     |> assign(:user_follows, merged_user_follows)
     |> assign(:pending_follows, merged_pending_follows)
     |> assign(:post_replies, merged_post_replies)
-    |> update(:timeline_posts, fn posts -> posts ++ more_posts end)
+    |> assign(:timeline_posts, updated_timeline_posts)
     |> Helpers.apply_timeline_filter()
+    |> maybe_queue_remote_data_fetch(more_posts)
+    |> maybe_schedule_background_refresh_jobs(more_posts)
+    |> maybe_schedule_reply_ingestion_jobs(more_posts)
+  end
+
+  defp special_timeline_view?(view), do: view in ["replies", "friends", "my_posts", "trusted"]
+
+  defp timeline_remote_enrichment_enabled? do
+    Application.get_env(:elektrine, :timeline_remote_enrichment, false)
+  end
+
+  defp maybe_queue_remote_data_fetch(socket, posts) do
+    if timeline_remote_enrichment_enabled?() && posts != [] do
+      send(self(), {:load_remote_data, posts})
+    end
+
+    socket
+  end
+
+  defp maybe_schedule_background_refresh_jobs(socket, posts) do
+    message_ids =
+      posts
+      |> Enum.filter(&(&1.federated == true && is_integer(&1.id)))
+      |> Enum.map(& &1.id)
+      |> Enum.uniq()
+      |> Enum.take(20)
+
+    if message_ids != [] do
+      Task.start(fn ->
+        Enum.each(message_ids, fn message_id ->
+          _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
+        end)
+      end)
+    end
+
+    socket
+  end
+
+  defp maybe_schedule_reply_ingestion_jobs(socket, posts) do
+    message_ids =
+      posts
+      |> Enum.filter(&(&1.federated == true && is_integer(&1.id) && (&1.reply_count || 0) > 0))
+      |> Enum.reject(fn post ->
+        Map.get(socket.assigns.post_replies || %{}, post.id, []) != []
+      end)
+      |> Enum.map(& &1.id)
+      |> Enum.uniq()
+      |> Enum.take(20)
+
+    if message_ids != [] do
+      Task.start(fn ->
+        Enum.each(message_ids, fn message_id ->
+          _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(message_id)
+        end)
+      end)
+    end
+
+    socket
+  end
+
+  defp allow_timeline_read(socket, action) do
+    TimelineRateLimiter.allow_read(timeline_rate_limit_identifier(socket, action))
+  end
+
+  defp timeline_rate_limit_identifier(socket, action) do
+    actor =
+      case socket.assigns[:current_user] do
+        %{id: user_id} -> "user:#{user_id}"
+        _ -> "anon:#{socket.id || "unknown"}"
+      end
+
+    "liveview:#{action}:#{actor}"
+  end
+
+  defp maybe_restore_base_timeline(socket, previous_view) do
+    if special_timeline_view?(previous_view) do
+      base_posts = Map.get(socket.assigns, :base_timeline_posts, [])
+
+      if Enum.empty?(base_posts) do
+        socket
+      else
+        assign(socket, :timeline_posts, base_posts)
+      end
+    else
+      socket
+    end
   end
 end

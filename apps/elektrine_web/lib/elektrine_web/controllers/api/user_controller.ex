@@ -128,12 +128,6 @@ defmodule ElektrineWeb.API.UserController do
 
   # Get remote IP with proxy header support
   defp get_remote_ip(conn) do
-    real_ip = List.first(Plug.Conn.get_req_header(conn, "x-real-ip"))
-    forwarded_for = List.first(Plug.Conn.get_req_header(conn, "x-forwarded-for"))
-    remote_ip = conn.remote_ip |> Tuple.to_list() |> Enum.join(".")
-
-    real_ip ||
-      if(forwarded_for, do: hd(String.split(forwarded_for, ",")) |> String.trim(), else: nil) ||
-      remote_ip
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 end

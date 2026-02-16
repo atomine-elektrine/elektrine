@@ -151,6 +151,55 @@ defmodule Elektrine.Messaging.FederationTest do
                "k1",
                old_signature
              )
+
+      refute Federation.verify_signature(
+               peer,
+               domain,
+               method,
+               "/federation/messaging/sync",
+               "",
+               timestamp,
+               "k0",
+               old_signature
+             )
+    end
+
+    test "binds signatures to content digest" do
+      peer = %{keys: [%{id: "k0", secret: "secret-old"}]}
+      domain = "remote.example"
+      method = "POST"
+      path = "/federation/messaging/events"
+      timestamp = Integer.to_string(System.system_time(:second))
+      body = ~s({"event":"x"})
+      digest = Federation.body_digest(body)
+
+      signature =
+        Federation.signature_payload(domain, method, path, "", timestamp, digest)
+        |> Federation.sign_payload("secret-old")
+
+      assert Federation.verify_signature(
+               peer,
+               domain,
+               method,
+               path,
+               "",
+               timestamp,
+               digest,
+               "k0",
+               signature
+             )
+
+      refute Federation.verify_signature(
+               peer,
+               domain,
+               method,
+               path,
+               "",
+               timestamp,
+               Federation.body_digest(~s({"event":"tampered"})),
+               "k0",
+               signature
+             )
     end
 
     test "applies events in-order and de-duplicates by event id" do

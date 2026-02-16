@@ -12,7 +12,28 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
 
   # Navigate to a timeline post detail page by post ID.
   def handle_event("navigate_to_post", %{"id" => id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{id}")}
+    post =
+      Enum.find(socket.assigns[:timeline_posts] || [], fn post ->
+        to_string(post.id) == to_string(id)
+      end)
+
+    path =
+      cond do
+        post && post.federated && is_binary(post.activitypub_id) && post.activitypub_id != "" ->
+          "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
+
+        post && post.federated ->
+          "/remote/post/#{id}"
+
+        true ->
+          ~p"/timeline/post/#{id}"
+      end
+
+    {:noreply, push_navigate(socket, to: path)}
+  end
+
+  def handle_event("navigate_to_post", _params, socket) do
+    {:noreply, socket}
   end
 
   # Navigate from image/media cards.

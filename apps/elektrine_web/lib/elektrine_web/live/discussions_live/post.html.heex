@@ -517,7 +517,10 @@
                     >
                       <.icon
                         name={if @liked_by_user, do: "hero-heart-solid", else: "hero-heart"}
-                        class="w-4 h-4 sm:w-5 sm:h-5 mr-1"
+                        class={[
+                          "w-4 h-4 sm:w-5 sm:h-5 mr-1",
+                          @liked_by_user && "text-red-500"
+                        ]}
                       />
                       {@post.like_count || 0}
                     </button>

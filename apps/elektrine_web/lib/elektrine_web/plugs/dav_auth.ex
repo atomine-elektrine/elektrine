@@ -19,14 +19,15 @@ defmodule ElektrineWeb.Plugs.DAVAuth do
 
   alias Elektrine.Accounts.Authentication
   alias Elektrine.Telemetry.Events
+  alias ElektrineWeb.ClientIP
 
   @realm "Elektrine CalDAV/CardDAV"
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    # Enforce HTTPS in production (Basic Auth sends credentials in plain text)
-    if Application.get_env(:elektrine, :env) == :prod && conn.scheme != :https do
+    # Enforce HTTPS for Basic Auth unless explicitly allowed for local development/testing.
+    if https_required?(conn) do
       Events.auth(:dav, :failure, %{reason: :https_required})
 
       conn
@@ -41,6 +42,32 @@ defmodule ElektrineWeb.Plugs.DAVAuth do
           request_auth(conn)
       end
     end
+  end
+
+  defp https_required?(conn) do
+    not https_request?(conn) and not allow_insecure_auth?()
+  end
+
+  defp https_request?(conn) do
+    conn.scheme == :https or forwarded_as_https?(conn)
+  end
+
+  defp forwarded_as_https?(conn) do
+    case get_req_header(conn, "x-forwarded-proto") do
+      [value | _] ->
+        value
+        |> String.split(",")
+        |> List.first()
+        |> String.trim()
+        |> String.downcase() == "https"
+
+      _ ->
+        false
+    end
+  end
+
+  defp allow_insecure_auth? do
+    Application.get_env(:elektrine, :allow_insecure_dav_jmap_auth, false)
   end
 
   defp authenticate_basic(conn, encoded) do
@@ -135,20 +162,6 @@ defmodule ElektrineWeb.Plugs.DAVAuth do
   end
 
   defp get_client_ip(conn) do
-    # Check for forwarded IP headers
-    case get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      [] ->
-        case conn.remote_ip do
-          {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
-          ip when is_tuple(ip) -> :inet.ntoa(ip) |> to_string()
-          _ -> "unknown"
-        end
-    end
+    ClientIP.client_ip(conn)
   end
 end

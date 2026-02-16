@@ -93,14 +93,28 @@ defmodule Elektrine.Messaging.Federation do
   @doc """
   Builds the canonical string that gets signed for federation requests.
   """
-  def signature_payload(domain, method, _request_path, _query_string, timestamp) do
+  def signature_payload(domain, method, request_path, query_string, timestamp, content_digest \\ "") do
     [
       String.downcase(to_string(domain || "")),
       String.downcase(to_string(method || "")),
+      canonical_path(request_path),
+      canonical_query_string(query_string),
       to_string(timestamp || "")
+      |> String.trim(),
+      canonical_content_digest(content_digest)
     ]
     |> Enum.join("\n")
   end
+
+  @doc """
+  Computes the URL-safe base64 SHA-256 digest for a request body.
+  """
+  def body_digest(body) when is_binary(body) do
+    :crypto.hash(:sha256, body)
+    |> Base.url_encode64(padding: false)
+  end
+
+  def body_digest(_), do: body_digest("")
 
   @doc """
   Signs a payload with HMAC SHA-256.
@@ -128,7 +142,30 @@ defmodule Elektrine.Messaging.Federation do
   """
   def verify_signature(secret, domain, method, request_path, query_string, timestamp, signature)
       when is_binary(secret) and is_binary(signature) do
-    payload = signature_payload(domain, method, request_path, query_string, timestamp)
+    verify_signature(
+      secret,
+      domain,
+      method,
+      request_path,
+      query_string,
+      timestamp,
+      "",
+      signature
+    )
+  end
+
+  def verify_signature(
+        secret,
+        domain,
+        method,
+        request_path,
+        query_string,
+        timestamp,
+        content_digest,
+        signature
+      )
+      when is_binary(secret) and is_binary(signature) do
+    payload = signature_payload(domain, method, request_path, query_string, timestamp, content_digest)
     expected_raw = hmac_raw(secret, payload)
 
     case Base.url_decode64(String.trim(signature), padding: false) do
@@ -156,23 +193,58 @@ defmodule Elektrine.Messaging.Federation do
         signature
       )
       when is_map(peer) and is_binary(signature) do
+    verify_signature(
+      peer,
+      domain,
+      method,
+      request_path,
+      query_string,
+      timestamp,
+      "",
+      key_id,
+      signature
+    )
+  end
+
+  def verify_signature(
+        peer,
+        domain,
+        method,
+        request_path,
+        query_string,
+        timestamp,
+        content_digest,
+        key_id,
+        signature
+      )
+      when is_map(peer) and is_binary(signature) do
     peer
     |> incoming_secrets_for_key_id(key_id)
     |> Enum.any?(fn secret ->
-      verify_signature(secret, domain, method, request_path, query_string, timestamp, signature)
+      verify_signature(
+        secret,
+        domain,
+        method,
+        request_path,
+        query_string,
+        timestamp,
+        content_digest,
+        signature
+      )
     end)
   end
 
   @doc """
   Builds headers for an outgoing signed federation request.
   """
-  def signed_headers(peer, method, request_path, query_string \\ "") do
+  def signed_headers(peer, method, request_path, query_string \\ "", body \\ "") do
     timestamp = Integer.to_string(System.system_time(:second))
     domain = ActivityPub.instance_domain()
     {key_id, secret} = outbound_signing_material(peer)
+    content_digest = body_digest(body)
 
     signature =
-      signature_payload(domain, method, request_path, query_string, timestamp)
+      signature_payload(domain, method, request_path, query_string, timestamp, content_digest)
       |> sign_payload(secret)
 
     [
@@ -180,6 +252,7 @@ defmodule Elektrine.Messaging.Federation do
       {"x-elektrine-federation-domain", domain},
       {"x-elektrine-federation-key-id", key_id},
       {"x-elektrine-federation-timestamp", timestamp},
+      {"x-elektrine-federation-content-digest", content_digest},
       {"x-elektrine-federation-signature", signature}
     ]
   end
@@ -826,7 +899,7 @@ defmodule Elektrine.Messaging.Federation do
     path = "/federation/messaging/events"
     url = "#{peer.base_url}#{path}"
     body = Jason.encode!(event)
-    headers = signed_headers(peer, "POST", path, "")
+    headers = signed_headers(peer, "POST", path, "", body)
 
     request = Finch.build(:post, url, headers, body)
 
@@ -849,7 +922,7 @@ defmodule Elektrine.Messaging.Federation do
     path = "/federation/messaging/sync"
     url = "#{peer.base_url}#{path}"
     body = Jason.encode!(snapshot)
-    headers = signed_headers(peer, "POST", path, "")
+    headers = signed_headers(peer, "POST", path, "", body)
 
     request = Finch.build(:post, url, headers, body)
 
@@ -875,7 +948,7 @@ defmodule Elektrine.Messaging.Federation do
   defp fetch_remote_snapshot(peer, remote_server_id) when is_integer(remote_server_id) do
     path = "/federation/messaging/servers/#{remote_server_id}/snapshot"
     url = "#{peer.base_url}#{path}"
-    headers = signed_headers(peer, "GET", path, "")
+    headers = signed_headers(peer, "GET", path, "", "")
     request = Finch.build(:get, url, headers)
 
     case Finch.request(request, Elektrine.Finch,
@@ -1127,6 +1200,35 @@ defmodule Elektrine.Messaging.Federation do
     do: type
 
   defp normalize_message_type(_), do: "text"
+
+  defp canonical_path(nil), do: "/"
+
+  defp canonical_path(path) when is_binary(path) do
+    trimmed = String.trim(path)
+
+    cond do
+      trimmed == "" -> "/"
+      String.starts_with?(trimmed, "/") -> trimmed
+      true -> "/" <> trimmed
+    end
+  end
+
+  defp canonical_path(path), do: canonical_path(to_string(path))
+
+  defp canonical_query_string(nil), do: ""
+  defp canonical_query_string(query) when is_binary(query), do: String.trim(query)
+  defp canonical_query_string(query), do: to_string(query)
+
+  defp canonical_content_digest(nil), do: body_digest("")
+
+  defp canonical_content_digest(content_digest) when is_binary(content_digest) do
+    case String.trim(content_digest) do
+      "" -> body_digest("")
+      value -> value
+    end
+  end
+
+  defp canonical_content_digest(content_digest), do: canonical_content_digest(to_string(content_digest))
 
   defp hmac_raw(secret, payload) do
     :crypto.mac(:hmac, :sha256, secret, payload)

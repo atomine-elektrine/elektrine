@@ -100,5 +100,21 @@ defmodule ElektrineWeb.API.AuthControllerTest do
       # Should return success
       assert conn.status in [200, 204]
     end
+
+    test "revoked token cannot access authenticated endpoints", %{conn: conn, token: token} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post("/api/auth/logout")
+
+      assert conn.status == 200
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get("/api/auth/me")
+
+      assert conn.status == 401
+    end
   end
 end

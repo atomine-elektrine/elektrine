@@ -11,6 +11,7 @@ defmodule ElektrineWeb.UserAuth do
   alias Elektrine.Constants
   alias Elektrine.Email.Cached, as: EmailCached
   alias Elektrine.AppCache
+  alias ElektrineWeb.ClientIP
 
   # Make the remember me cookie valid for 60 days.
   # If you want to customize, set :elektrine, :user_remember_me_cookie_max_age
@@ -377,31 +378,7 @@ defmodule ElektrineWeb.UserAuth do
 
   # Helper function to get remote IP address
   defp get_remote_ip(conn) do
-    # Try to get real IP from proxy headers first (Cloudflare, nginx, etc.)
-    case get_req_header(conn, "cf-connecting-ip") do
-      [ip | _] when is_binary(ip) ->
-        ip
-
-      _ ->
-        case get_req_header(conn, "x-forwarded-for") do
-          [forwarded | _] when is_binary(forwarded) ->
-            # X-Forwarded-For can have multiple IPs, get the first (original client)
-            forwarded
-            |> String.split(",")
-            |> List.first()
-            |> String.trim()
-
-          _ ->
-            case get_req_header(conn, "x-real-ip") do
-              [ip | _] when is_binary(ip) ->
-                ip
-
-              _ ->
-                # Fallback to direct connection IP
-                conn.remote_ip |> :inet.ntoa() |> to_string()
-            end
-        end
-    end
+    ClientIP.client_ip(conn)
   end
 
   # Store IP address in session for admin users (IP binding for session hijacking detection)

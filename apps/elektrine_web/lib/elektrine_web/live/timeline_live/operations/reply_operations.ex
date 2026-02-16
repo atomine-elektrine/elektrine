@@ -212,7 +212,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
   # Loads remote replies for a federated post
   def handle_event(
         "load_remote_replies",
-        %{"post_id" => post_id, "activitypub_id" => activitypub_id},
+        %{"post_id" => post_id, "activitypub_id" => _activitypub_id},
         socket
       ) do
     post_id = String.to_integer(post_id)
@@ -221,25 +221,22 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
     loading_set = MapSet.put(socket.assigns.loading_remote_replies, post_id)
     socket = assign(socket, :loading_remote_replies, loading_set)
 
-    # Fetch remote replies in a task
-    liveview_pid = self()
+    user_id = socket.assigns[:current_user] && socket.assigns.current_user.id
 
-    Task.start(fn ->
-      # First fetch the full post object to get the replies collection
-      case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
-        {:ok, post_object} ->
-          case Elektrine.ActivityPub.fetch_remote_post_replies(post_object, limit: 20) do
-            {:ok, replies} ->
-              send(liveview_pid, {:remote_replies_loaded, post_id, replies})
-
-            {:error, _} ->
-              send(liveview_pid, {:remote_replies_loaded, post_id, []})
-          end
-
-        {:error, _} ->
-          send(liveview_pid, {:remote_replies_loaded, post_id, []})
+    local_replies =
+      if user_id do
+        Social.get_direct_replies_for_posts([post_id], user_id: user_id, limit_per_post: 20)
+        |> Map.get(post_id, [])
+      else
+        Social.get_direct_replies_for_posts([post_id], limit_per_post: 20)
+        |> Map.get(post_id, [])
       end
-    end)
+
+    if local_replies == [] do
+      _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(post_id)
+    end
+
+    send(self(), {:post_replies_loaded, post_id, local_replies})
 
     {:noreply, socket}
   end

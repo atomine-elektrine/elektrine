@@ -2,8 +2,7 @@ defmodule Elektrine.CustomDomains.AcmeChallengeStore do
   @moduledoc """
   Stores ACME HTTP-01 challenge tokens and responses.
 
-  For custom domains: stored in database via CustomDomains context
-  For main domains: stored in ETS for quick access during provisioning
+  Challenges are stored in ETS for quick access during provisioning.
 
   Challenges are short-lived (typically validated within minutes).
   """
@@ -31,7 +30,6 @@ defmodule Elektrine.CustomDomains.AcmeChallengeStore do
 
   @doc """
   Gets the response for a challenge token.
-  Checks ETS first, then falls back to database.
   """
   def get(token) do
     case get_from_ets(token) do
@@ -39,8 +37,7 @@ defmodule Elektrine.CustomDomains.AcmeChallengeStore do
         response
 
       :not_found ->
-        # Fall back to database for custom domains
-        Elektrine.CustomDomains.get_acme_challenge_response(token)
+        nil
     end
   end
 

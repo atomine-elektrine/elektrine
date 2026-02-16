@@ -26,6 +26,7 @@ defmodule Elektrine.Application do
       Elektrine.Email.RateLimiter,
       Elektrine.Webhook.RateLimiter,
       Elektrine.API.RateLimiter,
+      Elektrine.Timeline.RateLimiter,
       Elektrine.DAV.RateLimiter,
       Elektrine.SecurityAlerts.Cache,
       Elektrine.VPN.PeerCache,
@@ -40,7 +41,6 @@ defmodule Elektrine.Application do
       Elektrine.ActivityPub.DomainThrottler,
       Elektrine.ActivityPub.InboxQueue,
       Elektrine.ActivityPub.Nodeinfo,
-      Elektrine.CustomDomains.CertificateCache,
       Elektrine.CustomDomains.AcmeChallengeStore,
       Elektrine.CustomDomains.CertProvisioner,
       ElektrineWeb.Endpoint

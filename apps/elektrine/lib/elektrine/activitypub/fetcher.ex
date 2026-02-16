@@ -8,6 +8,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   alias Elektrine.ActivityPub.HTTPSignature
   alias Elektrine.ActivityPub.Instances
+  alias Elektrine.HTTP.Backoff
 
   @doc """
   Fetches an actor document from a remote instance.
@@ -80,9 +81,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
         base_headers
       end
 
-    request = Finch.build(:get, uri, headers)
-
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 5_000) do
+    case request_with_backoff(uri, headers, recv_timeout: 5_000, timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, data} ->
@@ -107,6 +106,10 @@ defmodule Elektrine.ActivityPub.Fetcher do
           "Failed to fetch from #{uri}, status: #{status}, body: #{String.slice(body || "", 0, 200)}"
         )
 
+        {:error, :fetch_failed}
+
+      {:error, :backoff} ->
+        Logger.debug("Backoff active for #{uri}, deferring fetch")
         {:error, :fetch_failed}
 
       {:error, reason} ->
@@ -170,9 +173,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
       {"user-agent", "Elektrine/1.0"}
     ]
 
-    request = Finch.build(:get, webfinger_url, headers)
-
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 5_000) do
+    case request_with_backoff(webfinger_url, headers, recv_timeout: 5_000, timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"links" => links}} ->
@@ -198,9 +199,17 @@ defmodule Elektrine.ActivityPub.Fetcher do
         Logger.error("WebFinger lookup failed, status: #{status}")
         {:error, :webfinger_failed}
 
+      {:error, :backoff} ->
+        Logger.error("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
+        {:error, :webfinger_failed}
+
       {:error, reason} ->
         Logger.error("HTTP error during WebFinger: #{inspect(reason)}")
         {:error, :http_error}
     end
+  end
+
+  defp request_with_backoff(url, headers, opts) do
+    Backoff.get(url, headers, opts)
   end
 end

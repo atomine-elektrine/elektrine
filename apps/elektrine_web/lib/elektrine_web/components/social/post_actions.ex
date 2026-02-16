@@ -132,7 +132,10 @@ defmodule ElektrineWeb.Components.Social.PostActions do
             class={[@btn_class, "cursor-pointer", @is_liked && "bg-secondary/10 text-secondary"]}
             type="button"
           >
-            <.icon name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"} class={@icon_size} />
+            <.icon
+              name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
+              class={[@icon_size, @is_liked && "text-secondary"]}
+            />
             <span class={@text_class}>{@like_count}</span>
           </button>
         <% else %>
@@ -216,7 +219,7 @@ defmodule ElektrineWeb.Components.Social.PostActions do
           >
             <.icon
               name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-              class={@icon_size}
+              class={[@icon_size, @is_saved && "text-warning"]}
             />
           </button>
         <% else %>
@@ -242,7 +245,10 @@ defmodule ElektrineWeb.Components.Social.PostActions do
               if(@is_liked, do: "text-secondary", else: "text-base-content/60 hover:text-secondary")
             ]}
           >
-            <.icon name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"} class={@icon_size} />
+            <.icon
+              name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
+              class={[@icon_size, @is_liked && "text-secondary"]}
+            />
             <span>{@like_count}</span>
           </button>
         <% else %>
@@ -308,7 +314,7 @@ defmodule ElektrineWeb.Components.Social.PostActions do
           >
             <.icon
               name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-              class={@icon_size}
+              class={[@icon_size, @is_saved && "text-warning"]}
             />
           </button>
         <% else %>
@@ -343,7 +349,10 @@ defmodule ElektrineWeb.Components.Social.PostActions do
         if(@is_liked, do: "text-secondary", else: "text-base-content/60 hover:text-secondary")
       ]}
     >
-      <.icon name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"} class={@icon_size} />
+      <.icon
+        name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
+        class={[@icon_size, @is_liked && "text-secondary"]}
+      />
       <%= if @show_count do %>
         <span>{@like_count}</span>
       <% end %>
@@ -566,7 +575,10 @@ defmodule ElektrineWeb.Components.Social.PostActions do
       ]}
       title={if @is_saved, do: "Remove from saved", else: "Save"}
     >
-      <.icon name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"} class={@icon_size} />
+      <.icon
+        name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
+        class={[@icon_size, @is_saved && "text-warning"]}
+      />
     </button>
     """
   end

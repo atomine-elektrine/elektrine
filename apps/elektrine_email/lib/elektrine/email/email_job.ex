@@ -1,9 +1,9 @@
 defmodule Elektrine.Email.EmailJob do
   @moduledoc """
-  Schema for queued email send jobs.
+  Legacy schema for the old custom `email_jobs` queue.
 
-  Emails are queued here instead of sent inline, then processed
-  by EmailSendWorker in the background.
+  New outbound deliveries are scheduled in Oban via
+  `Elektrine.Email.SendEmailWorker`.
   """
   use Ecto.Schema
   import Ecto.Changeset

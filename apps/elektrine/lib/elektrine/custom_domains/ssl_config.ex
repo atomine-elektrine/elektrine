@@ -11,7 +11,7 @@ defmodule Elektrine.CustomDomains.SSLConfig do
   2. Erlang's SSL module calls `sni_fun` with the hostname
   3. We look up the certificate:
      - Main domains (elektrine.com, z.org) -> from disk
-     - Custom domains -> from cache/database
+     - Subdomains of main domains -> parent domain certificate
   4. Return the certificate and key for the TLS handshake
 
   ## Configuration
@@ -30,7 +30,6 @@ defmodule Elektrine.CustomDomains.SSLConfig do
 
   require Logger
 
-  alias Elektrine.CustomDomains.CertificateCache
   alias Elektrine.CustomDomains.MainDomainCerts
 
   @doc """
@@ -57,9 +56,9 @@ defmodule Elektrine.CustomDomains.SSLConfig do
         parent = get_parent_domain(hostname_lower)
         load_main_domain_cert(parent)
 
-      # Custom domains - load from cache/database
       true ->
-        load_custom_domain_cert(hostname_lower)
+        Logger.debug("SNI: No certificate mapping for #{hostname_lower}, using default")
+        :undefined
     end
   end
 
@@ -94,18 +93,6 @@ defmodule Elektrine.CustomDomains.SSLConfig do
 
       {:error, _reason} ->
         Logger.warning("SNI: No certificate found for main domain #{domain}")
-        :undefined
-    end
-  end
-
-  defp load_custom_domain_cert(hostname) do
-    case CertificateCache.get(hostname) do
-      {:ok, cert_der, {key_type, key_der}} ->
-        Logger.debug("SNI: Found certificate for custom domain #{hostname}")
-        [cert: cert_der, key: {key_type, key_der}]
-
-      :error ->
-        Logger.debug("SNI: No certificate found for #{hostname}, using default")
         :undefined
     end
   end
@@ -150,6 +137,6 @@ defmodule Elektrine.CustomDomains.SSLConfig do
   Checks if dynamic SSL is enabled and properly configured.
   """
   def enabled? do
-    Application.get_env(:elektrine, :custom_domains_ssl_enabled, false)
+    System.get_env("LETS_ENCRYPT_ENABLED") == "true"
   end
 end

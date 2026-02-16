@@ -162,7 +162,7 @@ defmodule ElektrineWeb.Router do
   end
 
   # ACME HTTP-01 challenge for Let's Encrypt (must be before other routes)
-  # This handles certificate provisioning for custom domains
+  # This handles certificate provisioning for app-managed domains
   scope "/.well-known/acme-challenge", ElektrineWeb do
     pipe_through(:api)
 
@@ -1023,7 +1023,6 @@ defmodule ElektrineWeb.Router do
       live("/account/app-passwords", SettingsLive.AppPasswords)
       live("/account/password-manager", SettingsLive.PasswordManager)
       live("/settings/rss", SettingsLive.RSS, :index)
-      live("/settings/custom-domain", SettingsLive.CustomDomain, :index)
 
       # Email
       live("/email", EmailLive.Index, :index)

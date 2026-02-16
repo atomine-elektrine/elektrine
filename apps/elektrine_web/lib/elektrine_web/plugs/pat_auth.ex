@@ -37,6 +37,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
 
   alias Elektrine.Developer
   alias Elektrine.Developer.ApiToken
+  alias ElektrineWeb.ClientIP
 
   def init(opts) do
     %{
@@ -147,19 +148,6 @@ defmodule ElektrineWeb.Plugs.PATAuth do
   defp error_message(_), do: "Authentication failed"
 
   defp get_client_ip(conn) do
-    # Check for forwarded IP first (behind proxy/load balancer)
-    case get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      _ ->
-        case conn.remote_ip do
-          {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
-          _ -> nil
-        end
-    end
+    ClientIP.client_ip(conn)
   end
 end

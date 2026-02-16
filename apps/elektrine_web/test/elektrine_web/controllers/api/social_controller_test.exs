@@ -32,6 +32,54 @@ defmodule ElektrineWeb.API.SocialControllerTest do
       conn = get(conn, "/api/social/timeline")
       assert json_response(conn, 401)
     end
+
+    test "supports cursor pagination", %{conn: conn, user: user, token: token} do
+      older = SocialFixtures.post_fixture(%{user: user, content: "older timeline post"})
+      newer = SocialFixtures.post_fixture(%{user: user, content: "newer timeline post"})
+
+      first_page =
+        conn
+        |> auth_conn(token)
+        |> get("/api/social/timeline", %{limit: 1})
+        |> json_response(200)
+
+      assert [%{"id" => first_id}] = first_page["posts"]
+      assert first_id == newer.id
+      assert first_page["next_cursor"] == Integer.to_string(newer.id)
+
+      second_page =
+        build_conn()
+        |> auth_conn(token)
+        |> get("/api/social/timeline", %{limit: 1, cursor: first_page["next_cursor"]})
+        |> json_response(200)
+
+      assert [%{"id" => second_id}] = second_page["posts"]
+      assert second_id == older.id
+      assert second_id < first_id
+    end
+
+    test "supports min_id pagination with ascending order", %{
+      conn: conn,
+      user: user,
+      token: token
+    } do
+      oldest = SocialFixtures.post_fixture(%{user: user, content: "oldest timeline post"})
+      middle = SocialFixtures.post_fixture(%{user: user, content: "middle timeline post"})
+      newest = SocialFixtures.post_fixture(%{user: user, content: "newest timeline post"})
+
+      response =
+        conn
+        |> auth_conn(token)
+        |> get("/api/social/timeline", %{min_id: oldest.id, order: "asc", limit: 20})
+        |> json_response(200)
+
+      ids = Enum.map(response["posts"], & &1["id"])
+
+      assert ids == Enum.sort(ids)
+      assert Enum.all?(ids, &(&1 > oldest.id))
+      assert middle.id in ids
+      assert newest.id in ids
+    end
   end
 
   describe "GET /api/social/timeline/public" do

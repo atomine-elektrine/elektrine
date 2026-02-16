@@ -80,19 +80,6 @@ defmodule ElektrineWeb.Plugs.CSRFErrorHandler do
   end
 
   defp get_client_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [forwarded_ips] ->
-        forwarded_ips
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      [] ->
-        case conn.remote_ip do
-          {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
-          {a, b, c, d, e, f, g, h} -> "#{a}:#{b}:#{c}:#{d}:#{e}:#{f}:#{g}:#{h}"
-          ip -> to_string(ip)
-        end
-    end
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 end

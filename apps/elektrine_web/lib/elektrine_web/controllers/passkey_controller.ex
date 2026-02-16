@@ -129,23 +129,7 @@ defmodule ElektrineWeb.PasskeyController do
   end
 
   defp get_client_ip(conn) do
-    # Check for forwarded IP first (behind proxy/load balancer)
-    forwarded_for =
-      conn
-      |> Plug.Conn.get_req_header("x-forwarded-for")
-      |> List.first()
-
-    case forwarded_for do
-      nil ->
-        conn.remote_ip |> :inet.ntoa() |> to_string()
-
-      forwarded ->
-        # Take the first IP in the chain (original client)
-        forwarded
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-    end
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 
   defp format_retry_time(seconds) when seconds < 60, do: "#{seconds} seconds"

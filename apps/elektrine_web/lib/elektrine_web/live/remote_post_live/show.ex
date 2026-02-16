@@ -369,7 +369,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 >
                   <.icon
                     name={if is_reply_liked, do: "hero-heart-solid", else: "hero-heart"}
-                    class="w-4 h-4"
+                    class={["w-4 h-4", is_reply_liked && "text-error"]}
                   />
                   <%= if reply_like_count > 0 do %>
                     <span>{reply_like_count}</span>

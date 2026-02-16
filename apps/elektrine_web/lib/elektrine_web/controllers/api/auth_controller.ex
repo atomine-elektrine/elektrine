@@ -3,6 +3,7 @@ defmodule ElektrineWeb.API.AuthController do
 
   alias Elektrine.Accounts
   alias ElektrineWeb.Plugs.APIAuth
+  alias ElektrineWeb.ClientIP
 
   action_fallback ElektrineWeb.FallbackController
 
@@ -98,13 +99,28 @@ defmodule ElektrineWeb.API.AuthController do
 
   @doc """
   POST /api/auth/logout
-  Logs out the current user (token invalidation would go here)
+  Logs out the current user and revokes the current API token.
   """
   def logout(conn, _params) do
-    # Token blacklisting is not implemented yet.
-    conn
-    |> put_status(:ok)
-    |> json(%{message: "Logged out successfully"})
+    case extract_bearer_token(conn) do
+      {:ok, token} ->
+        case APIAuth.revoke_token(token) do
+          :ok ->
+            conn
+            |> put_status(:ok)
+            |> json(%{message: "Logged out successfully"})
+
+          {:error, _reason} ->
+            conn
+            |> put_status(:unauthorized)
+            |> json(%{error: "Invalid token"})
+        end
+
+      {:error, :missing_token} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "Missing token"})
+    end
   end
 
   @doc """
@@ -131,12 +147,13 @@ defmodule ElektrineWeb.API.AuthController do
 
   # Get remote IP with proxy header support
   defp get_remote_ip(conn) do
-    real_ip = List.first(Plug.Conn.get_req_header(conn, "x-real-ip"))
-    forwarded_for = List.first(Plug.Conn.get_req_header(conn, "x-forwarded-for"))
-    remote_ip = conn.remote_ip |> Tuple.to_list() |> Enum.join(".")
+    ClientIP.client_ip(conn)
+  end
 
-    real_ip ||
-      if(forwarded_for, do: hd(String.split(forwarded_for, ",")) |> String.trim(), else: nil) ||
-      remote_ip
+  defp extract_bearer_token(conn) do
+    case Plug.Conn.get_req_header(conn, "authorization") do
+      ["Bearer " <> token] -> {:ok, String.trim(token)}
+      _ -> {:error, :missing_token}
+    end
   end
 end

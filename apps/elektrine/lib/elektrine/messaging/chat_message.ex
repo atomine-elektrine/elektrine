@@ -6,7 +6,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   community discussions, and ActivityPub federation.
 
   Chat messages are:
-  - Encrypted for DMs (private conversations)
+  - Stored as plaintext (email encryption is handled in Elektrine.Email.*)
   - High-volume and ephemeral
   - Optimized for real-time delivery
   - Simple: text, images, files, voice, system messages
@@ -79,7 +79,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   @doc """
   Creates a changeset for a text message.
   """
-  def text_changeset(conversation_id, sender_id, content, reply_to_id \\ nil, encrypt? \\ true) do
+  def text_changeset(conversation_id, sender_id, content, reply_to_id \\ nil, encrypt? \\ false) do
     attrs =
       %{
         conversation_id: conversation_id,
@@ -103,7 +103,7 @@ defmodule Elektrine.Messaging.ChatMessage do
         media_urls,
         content \\ nil,
         media_metadata \\ %{},
-        encrypt? \\ true
+        encrypt? \\ false
       ) do
     message_type = determine_media_type(media_urls)
 
@@ -152,7 +152,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   @doc """
   Creates a changeset for editing a message.
   """
-  def edit_changeset(message, new_content, encrypt? \\ true) do
+  def edit_changeset(message, new_content, encrypt? \\ false) do
     attrs =
       %{
         content: new_content,
@@ -379,7 +379,24 @@ defmodule Elektrine.Messaging.ChatMessage do
     end
   end
 
-  defp maybe_encrypt(attrs, _sender_id, false), do: attrs
+  defp maybe_encrypt(attrs, _sender_id, false) do
+    case Map.get(attrs, :content) do
+      nil ->
+        attrs
+        |> Map.put(:encrypted_content, nil)
+        |> Map.put(:search_index, [])
+
+      "" ->
+        attrs
+        |> Map.put(:encrypted_content, nil)
+        |> Map.put(:search_index, [])
+
+      content ->
+        attrs
+        |> Map.put(:encrypted_content, nil)
+        |> Map.put(:search_index, plain_search_index(content))
+    end
+  end
 
   defp maybe_encrypt(attrs, sender_id, true) do
     case Map.get(attrs, :content) do
@@ -399,6 +416,16 @@ defmodule Elektrine.Messaging.ChatMessage do
         |> Map.put(:content, nil)
     end
   end
+
+  defp plain_search_index(content) when is_binary(content) do
+    content
+    |> String.downcase()
+    |> String.split(~r/\s+/, trim: true)
+    |> Enum.filter(&(String.length(&1) >= 2))
+    |> Enum.uniq()
+  end
+
+  defp plain_search_index(_), do: []
 
   defp format_duration(nil), do: "0:00"
 

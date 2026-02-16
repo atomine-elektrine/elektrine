@@ -3,6 +3,11 @@ import Config
 # Set environment for profile access control
 config :elektrine, :environment, :dev
 
+config :elektrine,
+  enforce_https: false,
+  allow_insecure_dav_jmap_auth: true,
+  trusted_proxy_cidrs: ["127.0.0.1/32", "::1/128"]
+
 dev_db_username =
   System.get_env("DB_USER") ||
     System.get_env("POSTGRES_USER") ||

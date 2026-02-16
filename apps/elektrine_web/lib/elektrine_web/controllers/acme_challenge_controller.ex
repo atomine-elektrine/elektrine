@@ -7,7 +7,7 @@ defmodule ElektrineWeb.AcmeChallengeController do
       GET /.well-known/acme-challenge/{token}
 
   This controller returns the pre-computed key authorization.
-  Checks ETS store first (for main domains), then database (for custom domains).
+  Challenge values are served from the in-memory challenge store.
   """
 
   use ElektrineWeb, :controller

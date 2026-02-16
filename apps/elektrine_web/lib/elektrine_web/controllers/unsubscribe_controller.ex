@@ -114,10 +114,7 @@ defmodule ElektrineWeb.UnsubscribeController do
   end
 
   defp get_ip_address(conn) do
-    case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-      [ip | _] -> String.split(ip, ",") |> List.first() |> String.trim()
-      [] -> to_string(:inet.ntoa(conn.remote_ip))
-    end
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 
   defp get_user_agent(conn) do

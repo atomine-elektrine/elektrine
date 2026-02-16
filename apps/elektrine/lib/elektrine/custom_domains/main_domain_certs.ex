@@ -2,8 +2,7 @@ defmodule Elektrine.CustomDomains.MainDomainCerts do
   @moduledoc """
   Manages SSL certificates for main domains (elektrine.com, z.org).
 
-  Unlike custom domains which store certs in the database, main domain
-  certificates are stored on the persistent volume at /app/priv/certs/live/.
+  Certificates are stored on the persistent volume at /app/priv/certs/live/.
 
   This module handles:
   - Checking if certificates exist and are valid

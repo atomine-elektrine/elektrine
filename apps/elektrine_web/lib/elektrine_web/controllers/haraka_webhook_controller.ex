@@ -4,6 +4,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
   alias Elektrine.Webhook.RateLimiter, as: WebhookRateLimiter
   alias Elektrine.Email.ForwardedMessage
+  alias Elektrine.Email.HeaderDecoder
+  alias Elektrine.Email.InboundRouting
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Repo
@@ -15,7 +17,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
   def verify_recipient(conn, %{"email" => email}) do
     with :ok <- authenticate(conn) do
       # Check if mailbox exists for this email
-      case find_existing_mailbox(email, email) do
+      case InboundRouting.resolve_recipient_mailbox(email, email) do
         {:ok, _mailbox} ->
           conn
           |> put_status(:ok)
@@ -72,22 +74,16 @@ defmodule ElektrineWeb.HarakaWebhookController do
     |> json(%{error: "Missing required fields: username and password"})
   end
 
-  # List all email-enabled custom domains
+  # List all domains accepted by this instance
   # Called by Haraka to know which domains to accept mail for
   def domains(conn, _params) do
     with :ok <- authenticate(conn) do
-      # Get email-enabled custom domain names
-      custom_domains = Elektrine.CustomDomains.list_email_enabled_domain_names()
-
-      # Include the built-in domains
-      builtin_domains =
+      domains =
         Application.get_env(:elektrine, :email)[:supported_domains] || ["elektrine.com", "z.org"]
-
-      all_domains = Enum.uniq(builtin_domains ++ custom_domains)
 
       conn
       |> put_status(:ok)
-      |> json(%{domains: all_domains})
+      |> json(%{domains: domains})
     else
       {:error, :unauthorized} ->
         conn |> put_status(:unauthorized) |> json(%{error: "Unauthorized"})
@@ -256,6 +252,11 @@ defmodule ElektrineWeb.HarakaWebhookController do
   # Process Haraka email webhook
   defp process_haraka_email(params) do
     try do
+      # Inbound boundary order:
+      # 1) Extract + normalize incoming payload.
+      # 2) Run security checks.
+      # 3) Sanitize once before persistence/forwarding.
+
       # Extract email fields from Haraka webhook format
       message_id =
         params["message_id"] ||
@@ -322,8 +323,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
       has_attachments = map_size(attachments) > 0
 
       # Check if this is actually an inbound email (TO elektrine.com addresses)
-      is_outbound = outbound_email?(from, to)
-      is_loopback = loopback_email?(from, to, subject)
+      is_outbound = InboundRouting.outbound_email?(from, to)
+      is_loopback = InboundRouting.loopback_email?(from, to, subject)
 
       if is_outbound do
         {:ok, %{id: "skipped-outbound", message_id: message_id}}
@@ -335,7 +336,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
           # Find existing mailbox - no automatic creation
           rcpt_to = params["rcpt_to"]
 
-          case find_existing_mailbox(to, rcpt_to) do
+          case InboundRouting.resolve_recipient_mailbox(to, rcpt_to) do
             {:forward_external, target_email, alias_email} ->
               # Handle external forwarding for Haraka email
 
@@ -349,7 +350,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
                   "html_body" => html_body,
                   "attachments" => attachments
                 }
-                |> Sanitizer.sanitize_incoming_email()
+                |> sanitize_haraka_email_data()
 
               # Forward the email using the alias email as the from address
               forward_started_at = System.monotonic_time(:millisecond)
@@ -458,11 +459,10 @@ defmodule ElektrineWeb.HarakaWebhookController do
                     spam_report: sanitize_metadata_field(spam_info.report)
                   }
                 }
-                |> Sanitizer.sanitize_incoming_email()
-                |> ensure_all_utf8_valid()
+                |> sanitize_haraka_email_data()
 
               # CRITICAL VALIDATION: Ensure Haraka email is going to the correct mailbox
-              case validate_email_to_mailbox_match_haraka(to, rcpt_to, mailbox) do
+              case InboundRouting.validate_mailbox_route(to, rcpt_to, mailbox) do
                 :ok ->
                   # Mark as pre-validated to skip redundant MailboxAdapter validation
                   email_data = Map.put(email_data, "pre_validated", true)
@@ -684,13 +684,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
   # Get remote IP with proxy header support
   defp get_remote_ip(conn) do
-    real_ip = List.first(Plug.Conn.get_req_header(conn, "x-real-ip"))
-    forwarded_for = List.first(Plug.Conn.get_req_header(conn, "x-forwarded-for"))
-    remote_ip = conn.remote_ip |> Tuple.to_list() |> Enum.join(".")
-
-    real_ip ||
-      if(forwarded_for, do: hd(String.split(forwarded_for, ",")) |> String.trim(), else: nil) ||
-      remote_ip
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 
   # Validate request size to prevent DoS
@@ -766,140 +760,10 @@ defmodule ElektrineWeb.HarakaWebhookController do
     end
   end
 
-  # Extract clean email from string
-  defp extract_clean_email(nil), do: nil
-  defp extract_clean_email(""), do: nil
-
-  defp extract_clean_email(email) when is_binary(email) do
-    # Clean up the input
-    email = String.trim(email)
-
-    # Try these patterns in sequence
-    result =
-      cond do
-        # Pattern 1: Email in angle brackets <email@domain.com>
-        Regex.match?(~r/<([^@>]+@[^>]+)>/, email) ->
-          case Regex.run(~r/<([^@>]+@[^>]+)>/, email) do
-            [_, clean] -> String.trim(clean)
-            _ -> nil
-          end
-
-        # Pattern 2: Name <email@domain.com> format
-        Regex.match?(~r/.+<([^@>]+@[^>]+)>/, email) ->
-          case Regex.run(~r/.+<([^@>]+@[^>]+)>/, email) do
-            [_, clean] -> String.trim(clean)
-            _ -> nil
-          end
-
-        # Pattern 3: Simple email without spaces
-        Regex.match?(~r/^[^\s<>]+@[^\s<>]+$/, email) ->
-          String.trim(email)
-
-        # Pattern 4: Find any email-like pattern
-        Regex.match?(~r/([^\s<>,"']+@[^\s<>,"']+)/, email) ->
-          case Regex.run(~r/([^\s<>,"']+@[^\s<>,"']+)/, email) do
-            [_, clean] -> String.trim(clean)
-            _ -> nil
-          end
-
-        # Pattern 5: Very loose pattern - anything with @ that looks email-ish
-        String.contains?(email, "@") ->
-          case Regex.run(~r/([^@\s]+@[^@\s]+)/, email) do
-            [_, clean] -> String.trim(clean)
-            _ -> nil
-          end
-
-        true ->
-          nil
-      end
-
-    # Validate the result
-    case result do
-      nil ->
-        nil
-
-      clean when is_binary(clean) ->
-        # Basic email validation - allow emails without dots in domain for elektrine.com
-        if String.match?(clean, ~r/^[^@\s]+@[^@\s]+$/) do
-          String.downcase(clean)
-        else
-          nil
-        end
-    end
-  end
-
-  # Extract the email that's on a local domain (for mailing list support)
-  # Mailing lists set To: to the list address, but rcpt_to has the actual recipient
-  defp extract_local_email(primary, fallback) do
-    supported_domains =
-      Application.get_env(:elektrine, :email)[:supported_domains] || ["elektrine.com", "z.org"]
-
-    # Try primary first
-    primary_clean = extract_clean_email(primary)
-
-    if primary_clean && local_domain?(primary_clean, supported_domains) do
-      primary_clean
-    else
-      # Try fallback
-      fallback_clean = extract_clean_email(fallback)
-
-      if fallback_clean && local_domain?(fallback_clean, supported_domains) do
-        fallback_clean
-      else
-        # Neither is local, return nil to fall through to other extraction logic
-        nil
-      end
-    end
-  end
-
-  # Check if an email address is on a local/supported domain
-  defp local_domain?(email, supported_domains) do
-    case String.split(email, "@") do
-      [_local_part, domain] ->
-        domain in supported_domains
-
-      _ ->
-        false
-    end
-  end
-
-  # Haraka now handles charset conversion with postal-mime
-  # This is just a passthrough with basic cleanup
+  # Use the shared email header decoder so webhook and outbound parsing behave the same.
   def decode_mime_header_public(text), do: decode_header_with_mail_library(text)
 
-  defp decode_header_with_mail_library(nil), do: ""
-  defp decode_header_with_mail_library(""), do: ""
-
-  defp decode_header_with_mail_library(text) when is_binary(text) do
-    text
-    |> fix_malformed_header()
-    |> ensure_valid_utf8()
-  end
-
-  # Fix malformed headers (e.g., nested quotes from some email clients)
-  defp fix_malformed_header(text) when is_binary(text) do
-    text
-    |> String.replace(~r/^""/, "\"")
-    |> String.replace(~r/""$/, "\"")
-    |> String.replace(~r/^"+"([^"]+)"/, "\"\\1\"")
-    |> String.trim()
-  end
-
-  defp fix_malformed_header(text), do: text
-
-  # Ensure string is valid UTF-8
-  defp ensure_valid_utf8(text) when is_binary(text) do
-    if String.valid?(text) do
-      text
-    else
-      text
-      |> String.codepoints()
-      |> Enum.filter(&String.valid?/1)
-      |> Enum.join()
-    end
-  end
-
-  defp ensure_valid_utf8(text), do: text
+  defp decode_header_with_mail_library(text), do: HeaderDecoder.decode_mime_header(text)
 
   # Trust local-domain senders only when the submission is authenticated by Haraka
   # metadata or when it carries a valid internal origin signature generated by us.
@@ -972,7 +836,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
   defp internal_origin_payload(from, ts) do
     clean_from =
       from
-      |> extract_clean_email()
+      |> InboundRouting.extract_clean_email()
       |> case do
         nil -> ""
         email -> String.downcase(email)
@@ -987,289 +851,6 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp secure_compare(_left, _right), do: false
-
-  # Check if this is an outbound email (FROM local domains TO external addresses)
-  defp outbound_email?(from, to) do
-    from_clean = extract_clean_email(from) || ""
-    to_clean = extract_clean_email(to) || ""
-
-    # Get supported domains
-    supported_domains =
-      Application.get_env(:elektrine, :email)[:supported_domains] || ["elektrine.com", "z.org"]
-
-    # Check if FROM is a local domain
-    from_is_local = Enum.any?(supported_domains, &String.contains?(from_clean, "@#{&1}"))
-
-    # Check if TO is a local domain  
-    to_is_local = Enum.any?(supported_domains, &String.contains?(to_clean, "@#{&1}"))
-
-    # Only outbound if FROM is local AND TO is external
-    from_is_local && !to_is_local
-  end
-
-  # Check if this is a loopback email (sent by a user that's coming back through inbound)
-  defp loopback_email?(from, to, subject) do
-    import Ecto.Query
-    alias Elektrine.Email.Message
-    alias Elektrine.Email.Mailbox
-    alias Elektrine.Repo
-
-    from_clean = extract_clean_email(from) || ""
-    to_clean = extract_clean_email(to) || ""
-
-    # Check if we have a mailbox for both the sender and recipient
-    sender_mailbox =
-      Mailbox
-      |> where([m], fragment("lower(?)", m.email) == ^String.downcase(from_clean))
-      |> limit(1)
-      |> Repo.one()
-
-    recipient_mailbox =
-      Mailbox
-      |> where([m], fragment("lower(?)", m.email) == ^String.downcase(to_clean))
-      |> limit(1)
-      |> Repo.one()
-
-    if sender_mailbox && recipient_mailbox do
-      # Don't skip same-user emails - we want both sent AND received copies
-      # This allows users to see emails they send to themselves in their inbox
-      # sender_mailbox && recipient_mailbox && sender_mailbox.user_id &&
-      #     sender_mailbox.user_id == recipient_mailbox.user_id ->
-      #   Logger.info("Same user detected - User #{sender_mailbox.user_id} is emailing themselves")
-      #   true
-
-      # Check if we recently sent this email (within last 10 minutes)
-      ten_minutes_ago = DateTime.utc_now() |> DateTime.add(-600, :second)
-
-      recent_sent =
-        Message
-        |> where([m], m.mailbox_id == ^sender_mailbox.id)
-        |> where([m], m.status == "sent")
-        |> where([m], m.to == ^to or m.to == ^to_clean or ilike(m.to, ^"%#{to_clean}%"))
-        |> where([m], m.subject == ^subject)
-        |> where([m], m.inserted_at > ^ten_minutes_ago)
-        |> limit(1)
-        |> Repo.one()
-
-      not is_nil(recent_sent)
-    else
-      false
-    end
-  end
-
-  # Find existing mailbox - no automatic creation for security
-  # Also supports custom domain email addresses
-  defp find_existing_mailbox(to, rcpt_to) do
-    alias Elektrine.Email.Mailbox
-    alias Elektrine.Repo
-    import Ecto.Query
-
-    # Try to extract clean email address
-    # IMPORTANT: Prefer rcpt_to (envelope recipient) over to (header)
-    # For mailing lists, the To header is the list address, but rcpt_to has the actual recipient
-    clean_email =
-      extract_local_email(rcpt_to, to) || extract_clean_email(rcpt_to) || extract_clean_email(to)
-
-    if clean_email do
-      # Normalize plus addressing (user+tag@domain.com -> user@domain.com)
-      normalized_email = Elektrine.Email.normalize_plus_address(clean_email)
-
-      # First check if this email is an alias
-      case Elektrine.Email.resolve_alias(clean_email) do
-        target_email when is_binary(target_email) ->
-          # Mark for forwarding after email processing
-          {:forward_external, target_email, clean_email}
-
-        :no_forward ->
-          # Alias exists but no forwarding, find the user's main mailbox
-          find_main_mailbox_for_alias(clean_email)
-
-        nil ->
-          # Not an alias, check for custom domain address
-          case find_custom_domain_mailbox(clean_email) do
-            {:ok, mailbox} ->
-              {:ok, mailbox}
-
-            :not_custom_domain ->
-              # Not a custom domain, proceed with normal mailbox lookup
-              # Try to find existing mailbox (including temporary mailboxes)
-              # Use normalized email for lookup if plus addressing was used
-              case _find_existing_mailbox(normalized_email, normalized_email) do
-                {:ok, mailbox} ->
-                  # Found existing mailbox, check if it has forwarding enabled
-                  case Elektrine.Email.get_mailbox_forward_target(mailbox) do
-                    target_email when is_binary(target_email) ->
-                      # Mark for forwarding after email processing
-                      {:forward_external, target_email, clean_email}
-
-                    nil ->
-                      # No forwarding, use the mailbox normally
-                      {:ok, mailbox}
-                  end
-
-                nil ->
-                  # No existing mailbox found - reject the email
-                  {:error, :no_mailbox}
-              end
-          end
-      end
-    else
-      {:error, :invalid_email}
-    end
-  end
-
-  # Find mailbox for custom domain email address
-  defp find_custom_domain_mailbox(email) do
-    case Elektrine.CustomDomains.find_mailbox_for_email(email) do
-      {:ok, mailbox_id} ->
-        # Fetch the mailbox
-        case Elektrine.Email.get_mailbox_internal(mailbox_id) do
-          nil -> :not_custom_domain
-          mailbox -> {:ok, mailbox}
-        end
-
-      {:error, :not_found} ->
-        :not_custom_domain
-
-      {:error, :invalid_email} ->
-        :not_custom_domain
-    end
-  end
-
-  # Internal helper to find existing mailbox without creating
-  defp _find_existing_mailbox(to, rcpt_to) do
-    # Try to extract clean email address
-    clean_email = extract_clean_email(to) || extract_clean_email(rcpt_to)
-
-    if clean_email do
-      # Check regular mailboxes (temporary mailbox system removed)
-      check_regular_mailboxes_haraka(clean_email)
-    else
-      nil
-    end
-  end
-
-  # CRITICAL VALIDATION: Ensures Haraka email cannot be routed to wrong mailbox
-  defp validate_email_to_mailbox_match_haraka(to, rcpt_to, mailbox) do
-    # Extract clean email addresses
-    to_clean = extract_clean_email(to)
-    rcpt_to_clean = extract_clean_email(rcpt_to)
-    mailbox_clean = extract_clean_email(mailbox.email)
-
-    # Normalize plus addressing for comparison
-    to_normalized = to_clean && Elektrine.Email.normalize_plus_address(to_clean)
-    rcpt_to_normalized = rcpt_to_clean && Elektrine.Email.normalize_plus_address(rcpt_to_clean)
-    mailbox_normalized = mailbox_clean && Elektrine.Email.normalize_plus_address(mailbox_clean)
-
-    # Check if mailbox email matches either TO or RCPT_TO (case insensitive)
-    matches_to =
-      to_normalized && mailbox_normalized &&
-        String.downcase(to_normalized) == String.downcase(mailbox_normalized)
-
-    matches_rcpt_to =
-      rcpt_to_normalized && mailbox_normalized &&
-        String.downcase(rcpt_to_normalized) == String.downcase(mailbox_normalized)
-
-    # Check if TO address is an alias owned by the mailbox user
-    matches_alias = check_alias_ownership_haraka(to_clean || rcpt_to_clean, mailbox)
-
-    cond do
-      matches_to ->
-        :ok
-
-      matches_rcpt_to ->
-        :ok
-
-      matches_alias ->
-        :ok
-
-      true ->
-        {:error,
-         "Email address mismatch: TO=#{to_clean}, RCPT_TO=#{rcpt_to_clean}, Mailbox=#{mailbox.email}"}
-    end
-  end
-
-  # Check if email address is an alias owned by the mailbox user
-  defp check_alias_ownership_haraka(nil, _mailbox), do: false
-  defp check_alias_ownership_haraka(_email, nil), do: false
-
-  defp check_alias_ownership_haraka(email_address, mailbox) do
-    case Elektrine.Email.get_alias_by_email(email_address) do
-      %Elektrine.Email.Alias{user_id: user_id, enabled: enabled} = _alias_record ->
-        # Check if the alias belongs to the same user as the mailbox
-        if mailbox.user_id == user_id do
-          # Additional security: For disabled aliases, verify the local part matches the user's username
-          # This prevents users from creating arbitrary aliases to intercept emails
-          if enabled do
-            # Enabled aliases should have been forwarded earlier in the flow
-            # If we reach here with an enabled alias, it's suspicious but we'll allow it
-            true
-          else
-            # For disabled aliases, ensure the alias local part matches the user's actual username
-            # This allows legitimate cross-domain usage (user@elektrine.com <-> user@z.org)
-            # but prevents abuse (creating bob@z.org when your username is alice)
-            alias_local_part =
-              email_address |> String.split("@") |> List.first() |> String.downcase()
-
-            # Get the user to check their username
-            user = Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
-            user_username = if user, do: String.downcase(user.username), else: nil
-
-            # Also check the mailbox local part
-            mailbox_local_part =
-              mailbox.email |> String.split("@") |> List.first() |> String.downcase()
-
-            # Allow if alias local part matches either the username or mailbox local part
-            alias_local_part == user_username or alias_local_part == mailbox_local_part
-          end
-        else
-          false
-        end
-
-      _ ->
-        false
-    end
-  end
-
-  # Helper function to check regular mailboxes for Haraka
-  defp check_regular_mailboxes_haraka(clean_email) do
-    alias Elektrine.Email.Mailbox
-    alias Elektrine.Repo
-    import Ecto.Query
-
-    # Try exact match and case-insensitive match
-    regular_mailbox =
-      Mailbox |> where(email: ^clean_email) |> limit(1) |> Repo.one() ||
-        Mailbox
-        |> where([m], fragment("lower(?)", m.email) == ^String.downcase(clean_email))
-        |> limit(1)
-        |> Repo.one()
-
-    if regular_mailbox do
-      {:ok, regular_mailbox}
-    else
-      nil
-    end
-  end
-
-  # Find the main mailbox for an alias that doesn't have forwarding
-  defp find_main_mailbox_for_alias(alias_email) do
-    # Get the alias to find the user
-    case Elektrine.Email.get_alias_by_email(alias_email) do
-      %Elektrine.Email.Alias{user_id: user_id} when is_integer(user_id) ->
-        # Find the user's main mailbox
-        case Elektrine.Email.get_user_mailbox(user_id) do
-          %Elektrine.Email.Mailbox{} = mailbox ->
-            {:ok, mailbox}
-
-          nil ->
-            {:error, :no_main_mailbox}
-        end
-
-      nil ->
-        {:error, :alias_not_found}
-    end
-  end
 
   # Extract spam information from improved Haraka webhook data
   defp extract_spam_info_from_webhook(params) do
@@ -1413,6 +994,13 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp sanitize_metadata_field(value), do: value
+
+  # Apply inbound payload sanitization exactly once before forwarding or persistence.
+  defp sanitize_haraka_email_data(email_data) when is_map(email_data) do
+    email_data
+    |> Sanitizer.sanitize_incoming_email()
+    |> ensure_all_utf8_valid()
+  end
 
   # Ensure ALL string fields in email_data are valid UTF-8 (deep validation)
   # This is a final safety check before database insertion

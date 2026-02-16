@@ -202,21 +202,7 @@ defmodule ElektrineWeb.UserRegistrationController do
   end
 
   defp get_remote_ip(conn) do
-    ip_string =
-      case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-        [forwarded_ips | _] ->
-          # X-Forwarded-For can contain multiple IPs, take the first one
-          forwarded_ips
-          |> String.split(",")
-          |> List.first()
-          |> String.trim()
-
-        [] ->
-          # Convert tuple IP to string format
-          conn.remote_ip
-          |> :inet.ntoa()
-          |> to_string()
-      end
+    ip_string = ElektrineWeb.ClientIP.client_ip(conn)
 
     # Normalize IPv6 to /64 subnet to prevent rotation attacks
     normalize_ipv6_subnet(ip_string)

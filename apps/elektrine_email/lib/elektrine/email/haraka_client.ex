@@ -4,14 +4,10 @@ defmodule Elektrine.Email.HarakaClient do
 
   Supports:
   - Sending emails via Haraka HTTP API
-  - DKIM signing for custom domain emails
   - RFC 2047 MIME encoding for non-ASCII headers
   """
 
   require Logger
-
-  alias Elektrine.CustomDomains
-  alias Elektrine.CustomDomains.DKIM
 
   @default_base_url "https://haraka.elektrine.com"
   @api_path "/api/v1/send"
@@ -81,16 +77,13 @@ defmodule Elektrine.Email.HarakaClient do
       {:ok, {api_key, base_url}} ->
         params_with_origin = add_internal_origin_headers(params)
 
-        # Check if this is a custom domain email that needs DKIM signing
-        params_with_dkim = maybe_add_dkim_signature(params_with_origin)
-
         headers = [
           {"Content-Type", "application/json"},
           {"X-API-Key", api_key},
           {"User-Agent", "Elektrine-Haraka-Client/1.0"}
         ]
 
-        body = build_api_body(params_with_dkim)
+        body = build_api_body(params_with_origin)
 
         request = Finch.build(:post, "#{base_url}#{@api_path}", headers, body)
 
@@ -132,106 +125,6 @@ defmodule Elektrine.Email.HarakaClient do
             Logger.error("HTTP request to Haraka failed: #{inspect(reason)}")
             {:error, reason}
         end
-    end
-  end
-
-  # Add DKIM signature for custom domain emails
-  defp maybe_add_dkim_signature(params) do
-    from_address = params[:from] || ""
-
-    case extract_domain_from_address(from_address) do
-      nil ->
-        params
-
-      domain ->
-        # Check if this is a custom domain with email enabled
-        case CustomDomains.get_email_enabled_domain(domain) do
-          nil ->
-            # Not a custom domain or email not enabled - no DKIM signing needed
-            # (Haraka handles DKIM for elektrine.com and z.org)
-            params
-
-          custom_domain ->
-            # Custom domain - sign with domain-specific DKIM key
-            sign_with_dkim(params, custom_domain)
-        end
-    end
-  end
-
-  defp sign_with_dkim(params, custom_domain) do
-    case CustomDomains.get_dkim_private_key(custom_domain) do
-      {:ok, private_key_pem} ->
-        # Build headers list for DKIM signing
-        headers = build_headers_for_dkim(params)
-        body = params[:text_body] || params[:html_body] || ""
-
-        case DKIM.sign(
-               headers,
-               body,
-               custom_domain.domain,
-               custom_domain.dkim_selector,
-               private_key_pem
-             ) do
-          {:ok, dkim_signature} ->
-            # Add DKIM-Signature to email headers
-            existing_headers = params[:headers] || %{}
-            updated_headers = Map.put(existing_headers, "DKIM-Signature", dkim_signature)
-            Map.put(params, :headers, updated_headers)
-
-          {:error, reason} ->
-            Logger.warning(
-              "Failed to sign email with DKIM for #{custom_domain.domain}: #{inspect(reason)}"
-            )
-
-            params
-        end
-
-      {:error, reason} ->
-        Logger.warning("Could not get DKIM key for #{custom_domain.domain}: #{inspect(reason)}")
-        params
-    end
-  end
-
-  defp build_headers_for_dkim(params) do
-    headers = []
-
-    # Add required headers for DKIM signing
-    headers = if params[:from], do: [{"from", params[:from]} | headers], else: headers
-
-    headers =
-      if params[:to], do: [{"to", normalize_to_string(params[:to])} | headers], else: headers
-
-    headers = if params[:subject], do: [{"subject", params[:subject]} | headers], else: headers
-
-    # Add date if not present
-    date = params[:date] || Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S +0000")
-    headers = [{"date", date} | headers]
-
-    # Add message-id if present
-    headers =
-      if params[:message_id], do: [{"message-id", params[:message_id]} | headers], else: headers
-
-    # Add content-type
-    content_type =
-      if params[:html_body], do: "text/html; charset=utf-8", else: "text/plain; charset=utf-8"
-
-    headers = [{"content-type", content_type} | headers]
-
-    # Add MIME-Version
-    [{"mime-version", "1.0"} | headers]
-  end
-
-  defp normalize_to_string(value) when is_list(value), do: Enum.join(value, ", ")
-  defp normalize_to_string(value) when is_binary(value), do: value
-  defp normalize_to_string(_), do: ""
-
-  defp extract_domain_from_address(address) do
-    # Handle "Display Name <email@domain.com>" format
-    {email, _name} = extract_email_and_name(address)
-
-    case String.split(email, "@") do
-      [_local, domain] -> String.downcase(domain)
-      _ -> nil
     end
   end
 

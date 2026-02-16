@@ -103,13 +103,14 @@ defmodule ElektrineWeb.TimelineLive.Post do
                         Map.get(@liked_replies, @reply.id, false) && "text-red-800"
                       ]}
                     >
+                      <% is_liked = Map.get(@liked_replies, @reply.id, false) %>
                       <.icon
                         name={
-                          if Map.get(@liked_replies, @reply.id, false),
+                          if is_liked,
                             do: "hero-heart-solid",
                             else: "hero-heart"
                         }
-                        class="w-4 h-4 mr-1"
+                        class={["w-4 h-4 mr-1", is_liked && "text-red-800"]}
                       />
                       {@reply.like_count || 0}
                     </button>
@@ -204,13 +205,14 @@ defmodule ElektrineWeb.TimelineLive.Post do
                         Map.get(@liked_replies, @reply.id, false) && "text-red-800"
                       ]}
                     >
+                      <% is_liked = Map.get(@liked_replies, @reply.id, false) %>
                       <.icon
                         name={
-                          if Map.get(@liked_replies, @reply.id, false),
+                          if is_liked,
                             do: "hero-heart-solid",
                             else: "hero-heart"
                         }
-                        class="w-4 h-4 mr-1"
+                        class={["w-4 h-4 mr-1", is_liked && "text-red-800"]}
                       />
                       {@reply.like_count || 0}
                     </button>

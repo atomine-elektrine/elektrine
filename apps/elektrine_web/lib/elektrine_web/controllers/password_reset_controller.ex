@@ -174,18 +174,7 @@ defmodule ElektrineWeb.PasswordResetController do
   # Helper function to get client IP address
   # For IPv6, normalizes to /64 subnet to prevent address rotation attacks
   defp get_client_ip(conn) do
-    ip_string =
-      case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-        [forwarded_ips] ->
-          forwarded_ips |> String.split(",") |> List.first() |> String.trim()
-
-        [] ->
-          case conn.remote_ip do
-            {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
-            {a, b, c, d, e, f, g, h} -> "#{a}:#{b}:#{c}:#{d}:#{e}:#{f}:#{g}:#{h}"
-            ip -> to_string(ip)
-          end
-      end
+    ip_string = ElektrineWeb.ClientIP.client_ip(conn)
 
     normalize_ipv6_subnet(ip_string)
   end

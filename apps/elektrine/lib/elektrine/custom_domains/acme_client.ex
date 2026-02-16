@@ -10,7 +10,7 @@ defmodule Elektrine.CustomDomains.AcmeClient do
   1. Create/load account with Let's Encrypt
   2. Create order for domain
   3. Get HTTP-01 challenge
-  4. Store challenge token/response in database
+  4. Store challenge token/response in challenge store
   5. Notify Let's Encrypt to verify
   6. Finalize order with CSR
   7. Download certificate
@@ -247,17 +247,8 @@ defmodule Elektrine.CustomDomains.AcmeClient do
     # Compute key authorization
     key_authorization = compute_key_authorization(token, account_key)
 
-    # Store challenge - use ETS for main domains, database for custom domains
-    case Elektrine.CustomDomains.get_domain(domain) do
-      nil ->
-        # Main domain or unregistered - use ETS store
-        Elektrine.CustomDomains.AcmeChallengeStore.put(token, key_authorization)
-
-      domain_record ->
-        # Custom domain - store in database
-        {:ok, _} =
-          Elektrine.CustomDomains.store_acme_challenge(domain_record, token, key_authorization)
-    end
+    # Store challenge response for HTTP-01 verification.
+    Elektrine.CustomDomains.AcmeChallengeStore.put(token, key_authorization)
 
     # Small delay to ensure storage is committed
     Process.sleep(1000)

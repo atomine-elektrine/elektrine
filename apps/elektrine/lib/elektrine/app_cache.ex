@@ -17,6 +17,8 @@ defmodule Elektrine.AppCache do
   @actor_ttl :timer.hours(1)
   # Short TTL for fetched objects - balance freshness vs network load
   @object_ttl :timer.minutes(10)
+  # Failed object fetches are cached briefly to avoid hammering unavailable remotes.
+  @object_negative_ttl :timer.seconds(90)
   # WebFinger lookups cached longer since they rarely change
   @webfinger_ttl :timer.hours(6)
   # Instance metadata (nodeinfo) cached for a day
@@ -283,8 +285,15 @@ defmodule Elektrine.AppCache do
 
     case fetch_with_telemetry(key, fn _key ->
            case fetch_fn.() do
-             {:ok, object} -> {:commit, {:ok, object}, ttl: @object_ttl}
-             {:error, reason} -> {:ignore, {:error, reason}}
+             {:ok, object} ->
+               {:commit, {:ok, object}, ttl: @object_ttl}
+
+             {:error, reason} ->
+               if negative_cacheable_object_error?(reason) do
+                 {:commit, {:error, reason}, ttl: @object_negative_ttl}
+               else
+                 {:ignore, {:error, reason}}
+               end
            end
          end) do
       {:commit, value} -> value
@@ -294,6 +303,12 @@ defmodule Elektrine.AppCache do
       error -> error
     end
   end
+
+  defp negative_cacheable_object_error?(reason)
+       when reason in [:not_found, :fetch_failed, :http_error, :invalid_json, :backoff],
+       do: true
+
+  defp negative_cacheable_object_error?(_), do: false
 
   @doc """
   Invalidates cached object data.

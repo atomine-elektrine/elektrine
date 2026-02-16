@@ -2118,6 +2118,27 @@ defmodule Elektrine.Messaging.Messages do
   end
 
   @doc """
+  Lightweight preloads for high-traffic timeline feed queries.
+  """
+  def timeline_feed_preloads do
+    [
+      sender: [:profile],
+      remote_actor: [],
+      link_preview: [],
+      reply_to: [sender: [:profile], remote_actor: []],
+      quoted_message: [sender: [:profile], remote_actor: [], link_preview: []],
+      shared_message: [
+        sender: [:profile],
+        remote_actor: [],
+        link_preview: [],
+        poll: [options: []],
+        quoted_message: [sender: [:profile], remote_actor: [], link_preview: []]
+      ],
+      poll: [options: []]
+    ]
+  end
+
+  @doc """
   Standard preloads for timeline replies.
   """
   def timeline_reply_preloads do
@@ -2136,6 +2157,18 @@ defmodule Elektrine.Messaging.Messages do
         quoted_message: [sender: [:profile], remote_actor: [], link_preview: []]
       ],
       poll: [options: []]
+    ]
+  end
+
+  @doc """
+  Lightweight preloads for inline timeline reply previews.
+  """
+  def timeline_reply_preview_preloads do
+    [
+      sender: [:profile],
+      remote_actor: [],
+      link_preview: [],
+      quoted_message: [sender: [:profile], remote_actor: []]
     ]
   end
 

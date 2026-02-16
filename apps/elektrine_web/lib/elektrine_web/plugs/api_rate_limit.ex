@@ -12,6 +12,7 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
   import Phoenix.Controller
 
   alias Elektrine.API.RateLimiter
+  alias ElektrineWeb.ClientIP
 
   # Default limit per minute
   @default_limit 60
@@ -74,24 +75,6 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
   end
 
   defp get_client_ip(conn) do
-    # Check for forwarded IP headers (for load balancers/proxies)
-    forwarded_for = get_req_header(conn, "x-forwarded-for") |> List.first()
-    real_ip = get_req_header(conn, "x-real-ip") |> List.first()
-
-    cond do
-      forwarded_for ->
-        forwarded_for
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-
-      real_ip ->
-        String.trim(real_ip)
-
-      true ->
-        conn.remote_ip
-        |> :inet.ntoa()
-        |> to_string()
-    end
+    ClientIP.client_ip(conn)
   end
 end
