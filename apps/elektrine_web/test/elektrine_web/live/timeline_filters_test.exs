@@ -7,6 +7,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Accounts.User
+  alias Elektrine.Friends
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social
@@ -49,6 +50,22 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert html =~ "1 shown"
     assert html =~ "Regular timeline post"
     refute html =~ "Community timeline post"
+  end
+
+  test "friends filter is visible in disconnected render when user has friends", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    friend = AccountsFixtures.user_fixture()
+
+    {:ok, request} = Friends.send_friend_request(viewer.id, friend.id)
+    {:ok, _accepted_request} = Friends.accept_friend_request(request.id, friend.id)
+
+    html =
+      conn
+      |> log_in_user(viewer)
+      |> get(~p"/timeline")
+      |> html_response(200)
+
+    assert html =~ ~s(phx-value-filter="friends")
   end
 
   test "my_posts view loads the signed-in user's dataset", %{conn: conn} do
@@ -234,6 +251,78 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
     render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
     assert_redirect(view, ~p"/timeline/post/#{post.id}")
+  end
+
+  test "load_remote_replies keeps loading until ingested replies are available", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Federated timeline post", visibility: "public")
+
+    activitypub_id = "urn:ap:object:#{post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^post.id),
+      set: [federated: true, activitypub_id: activitypub_id, reply_count: 2]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "load_remote_replies", %{
+      "post_id" => to_string(post.id),
+      "activitypub_id" => activitypub_id
+    })
+
+    assert render(view) =~ "Loading replies..."
+
+    {:ok, _reply} =
+      Social.create_timeline_post(author.id, "Reply imported from remote", visibility: "public",
+        reply_to_id: post.id
+      )
+
+    send(view.pid, {:refresh_remote_replies, post.id, 1})
+
+    _ = render(view)
+    html = render(view)
+    assert html =~ "Reply imported from remote"
+    refute html =~ "Loading replies..."
+  end
+
+  test "load_remote_replies clears loading after retry limit when no replies arrive", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Federated timeline post", visibility: "public")
+
+    activitypub_id = "urn:ap:object:#{post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^post.id),
+      set: [federated: true, activitypub_id: activitypub_id, reply_count: 2]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "load_remote_replies", %{
+      "post_id" => to_string(post.id),
+      "activitypub_id" => activitypub_id
+    })
+
+    assert render(view) =~ "Loading replies..."
+
+    send(view.pid, {:refresh_remote_replies, post.id, 6})
+
+    html = render(view)
+    assert html =~ "Load replies"
+    refute html =~ "Loading replies..."
   end
 
   test "new posts banner only appears for posts matching the active timeline view", %{conn: conn} do

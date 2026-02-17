@@ -42,6 +42,10 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
 
+  pipeline :api_rate_limited do
+    plug(ElektrineWeb.Plugs.APIRateLimit)
+  end
+
   # Browser-based JSON API pipeline
   # Used for AJAX calls from static pages that need session/CSRF but return JSON.
   # Examples: profile follow/unfollow, friend requests, followers/following lists
@@ -138,6 +142,13 @@ defmodule ElektrineWeb.Router do
     post("/stripe", StripeWebhookController, :webhook)
   end
 
+  # Matrix internal auth compatibility endpoint (for Synapse REST auth provider)
+  scope "/_matrix-internal/identity/v1", ElektrineWeb do
+    pipe_through([:api, :api_rate_limited])
+
+    post("/check_credentials", MatrixInternalAuthController, :check_credentials)
+  end
+
   # Media proxy for federation privacy (no auth required)
   scope "/media_proxy", ElektrineWeb do
     pipe_through(:api)
@@ -159,6 +170,14 @@ defmodule ElektrineWeb.Router do
     pipe_through(:api)
 
     get("/elektrine-messaging-federation", MessagingFederationController, :well_known)
+  end
+
+  # Matrix well-known discovery/delegation endpoints
+  scope "/.well-known/matrix", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/server", MatrixWellKnownController, :server)
+    get("/client", MatrixWellKnownController, :client)
   end
 
   # Email client autodiscovery

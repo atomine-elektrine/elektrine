@@ -1305,6 +1305,14 @@
                 <%= if length(replies) > 0 do %>
                   <div class="mt-3 pl-4 border-l-2 border-purple-500/60 space-y-3">
                     <%= for reply <- replies do %>
+                      <% normalized =
+                        ElektrineWeb.Components.Social.ReplyItem.normalize_reply(reply)
+
+                      reply_target_id =
+                        Map.get(reply, :id) ||
+                          Map.get(reply, :activitypub_id) ||
+                          Map.get(reply, :ap_id) ||
+                          normalized.ap_id %>
                       <.reply_item
                         reply={reply}
                         post={post}
@@ -1318,9 +1326,7 @@
                       />
                       
 <!-- Quick Reply Form (for replying to this reply) -->
-                      <%= if @current_user && @reply_to_reply_id == (Map.get(reply, :id) || Map.get(reply, :ap_id)) do %>
-                        <% normalized =
-                          ElektrineWeb.Components.Social.ReplyItem.normalize_reply(reply) %>
+                      <%= if @current_user && @reply_to_reply_id == reply_target_id do %>
                         <div class="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
                           <div class="flex items-start gap-2">
                             <div class="w-8 h-8 flex-shrink-0">
@@ -1343,7 +1349,7 @@
                                 <input
                                   type="hidden"
                                   name="reply_to_id"
-                                  value={Map.get(reply, :id) || Map.get(reply, :ap_id)}
+                                  value={reply_target_id}
                                 />
                                 <textarea
                                   name="content"
