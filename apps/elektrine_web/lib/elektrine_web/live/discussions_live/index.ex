@@ -115,6 +115,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   def handle_event("record_dwell_time", _params, socket), do: {:noreply, socket}
   def handle_event("record_dismissal", _params, socket), do: {:noreply, socket}
   def handle_event("update_session_context", _params, socket), do: {:noreply, socket}
+  def handle_event("stop_propagation", _params, socket), do: {:noreply, socket}
 
   def handle_event("filter_by_category", %{"category" => category}, socket) do
     # Filter all community-related data based on selected category

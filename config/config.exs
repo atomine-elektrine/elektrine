@@ -93,13 +93,6 @@ config :elektrine, :giphy,
   api_key: System.get_env("GIPHY_API_KEY"),
   base_url: "https://api.giphy.com/v1"
 
-# Configure ACME
-# Use :staging for testing, :production for real certificates
-config :elektrine, :acme_environment, :staging
-config :elektrine, :acme_contact_email, "admin@elektrine.com"
-# ACME account key path - in production uses /data/certs/acme/, in dev uses tmp
-config :elektrine, :acme_account_key_path, "/tmp/elektrine/acme/account_key.pem"
-
 # Export directory for user data exports - in production uses /data/exports/, in dev uses tmp
 config :elektrine, :export_dir, "/tmp/elektrine/exports"
 

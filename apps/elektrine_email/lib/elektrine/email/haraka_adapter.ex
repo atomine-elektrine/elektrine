@@ -144,6 +144,6 @@ defmodule Elektrine.Email.HarakaAdapter do
 
   # Get the API key (no domain-specific logic needed)
   defp get_api_key_for_email(_from_address, default_key) do
-    System.get_env("HARAKA_API_KEY") || default_key
+    System.get_env("HARAKA_OUTBOUND_API_KEY") || System.get_env("HARAKA_API_KEY") || default_key
   end
 end

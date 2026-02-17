@@ -161,14 +161,6 @@ defmodule ElektrineWeb.Router do
     get("/elektrine-messaging-federation", MessagingFederationController, :well_known)
   end
 
-  # ACME HTTP-01 challenge for Let's Encrypt (must be before other routes)
-  # This handles certificate provisioning for app-managed domains
-  scope "/.well-known/acme-challenge", ElektrineWeb do
-    pipe_through(:api)
-
-    get("/:token", AcmeChallengeController, :challenge)
-  end
-
   # Email client autodiscovery
   scope "/.well-known/autoconfig/mail", ElektrineWeb do
     pipe_through(:autoconfig)

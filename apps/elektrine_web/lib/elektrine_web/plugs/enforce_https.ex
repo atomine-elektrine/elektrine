@@ -2,7 +2,7 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   @moduledoc """
   Redirects plaintext HTTP requests to HTTPS in production.
 
-  Health checks and ACME HTTP-01 challenges remain accessible over HTTP.
+  Health checks remain accessible over HTTP.
   """
 
   import Plug.Conn
@@ -10,7 +10,6 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   @behaviour Plug
 
   @http_allowed_paths ["/health"]
-  @acme_prefix "/.well-known/acme-challenge/"
 
   @impl Plug
   def init(opts), do: opts
@@ -52,7 +51,7 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   end
 
   defp http_allowed_path?(path) when path in @http_allowed_paths, do: true
-  defp http_allowed_path?(path), do: String.starts_with?(path, @acme_prefix)
+  defp http_allowed_path?(_path), do: false
 
   defp https_destination(conn) do
     query = if conn.query_string in [nil, ""], do: "", else: "?" <> conn.query_string

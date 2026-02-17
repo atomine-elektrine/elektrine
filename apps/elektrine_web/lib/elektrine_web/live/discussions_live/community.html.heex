@@ -760,7 +760,7 @@
                             data-id={post.id}
                           >
                             <%= if post.title do %>
-                              <h3 class="font-semibold text-base sm:text-lg mb-2 break-words leading-tight">
+                              <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
                                 {post.title}
                                 <%= if post.auto_title do %>
                                   <span class="text-xs opacity-50 ml-2">(auto)</span>
@@ -1356,7 +1356,7 @@
                           data-id={post.id}
                         >
                           <%= if post.title do %>
-                            <h3 class="font-semibold text-base sm:text-lg mb-2 break-words leading-tight">
+                            <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
                               {post.title}
                               <%= if post.auto_title do %>
                                 <span class="text-xs opacity-50 ml-2">(auto)</span>
@@ -1884,7 +1884,7 @@
                         </div>
 
                         <%= if post.title do %>
-                          <h4 class="font-semibold mb-2">{post.title}</h4>
+                          <h4 class="font-semibold text-base-content mb-2">{post.title}</h4>
                         <% end %>
 
                         <div class="text-sm break-words line-clamp-4">

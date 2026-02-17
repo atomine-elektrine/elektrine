@@ -15,11 +15,13 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   def render_threaded_comments(assigns, comments) do
     # Determine if this is a Lemmy post based on presence of community_actor
     is_lemmy_post = assigns[:community_actor] != nil
+    reply_content_domain = if(assigns[:remote_actor], do: assigns.remote_actor.domain, else: nil)
 
     assigns =
       assigns
       |> assign(:comments, comments)
       |> assign(:is_lemmy_post, is_lemmy_post)
+      |> assign(:reply_content_domain, reply_content_domain)
 
     ~H"""
     <%= for node <- @comments do %>
@@ -206,7 +208,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     <!-- Comment Text -->
               <%= if reply["content"] do %>
                 <div class="text-sm leading-relaxed mb-1.5 post-content">
-                  {raw(render_remote_post_content(reply["content"], @remote_actor.domain))}
+                  {raw(render_remote_post_content(reply["content"], @reply_content_domain))}
                 </div>
               <% end %>
               
@@ -351,7 +353,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     <!-- Comment Content -->
             <%= if reply["content"] do %>
               <div class="text-sm leading-relaxed mb-2 post-content">
-                {raw(render_remote_post_content(reply["content"], @remote_actor.domain))}
+                {raw(render_remote_post_content(reply["content"], @reply_content_domain))}
               </div>
             <% end %>
             

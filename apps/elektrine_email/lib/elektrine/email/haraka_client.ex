@@ -131,12 +131,12 @@ defmodule Elektrine.Email.HarakaClient do
   defp get_api_config_for_domain(_from_address) do
     base_url = System.get_env("HARAKA_BASE_URL") || @default_base_url
 
-    case System.get_env("HARAKA_API_KEY") do
+    case System.get_env("HARAKA_OUTBOUND_API_KEY") || System.get_env("HARAKA_API_KEY") do
       nil ->
-        {:error, "HARAKA_API_KEY environment variable not set"}
+        {:error, "HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is not set"}
 
       "" ->
-        {:error, "HARAKA_API_KEY environment variable is empty"}
+        {:error, "HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is empty"}
 
       api_key ->
         {:ok, {api_key, base_url}}

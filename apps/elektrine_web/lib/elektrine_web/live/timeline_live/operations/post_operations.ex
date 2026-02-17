@@ -403,6 +403,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
            |> assign(:filter_dropdown_open, false)
            |> assign(:timeline_load_ref, load_ref)
            |> assign(:timeline_filter, filter)
+           |> assign(:queued_posts, [])
            |> assign(:loading_timeline, Enum.empty?(socket.assigns.timeline_posts))
            |> assign(:loading_more, false)
            |> assign(:no_more_posts, false)
@@ -420,6 +421,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
             socket
             |> assign(:filter_dropdown_open, false)
             |> assign(:timeline_filter, filter)
+            |> assign(:queued_posts, [])
             |> assign(:loading_timeline, false)
             |> maybe_restore_base_timeline(current_view)
             |> Helpers.apply_timeline_filter()
@@ -454,9 +456,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     if software == socket.assigns.software_filter do
       {:noreply, socket}
     else
+      queued_posts =
+        socket.assigns.queued_posts
+        |> Helpers.filter_posts_by_software(software)
+
       {:noreply,
        socket
        |> assign(:software_filter, software)
+       |> assign(:queued_posts, queued_posts)
        |> Helpers.apply_timeline_filter()}
     end
   end

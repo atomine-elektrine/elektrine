@@ -235,4 +235,28 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
     assert_redirect(view, ~p"/timeline/post/#{post.id}")
   end
+
+  test "new posts banner only appears for posts matching the active timeline view", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    {:ok, queued_post} =
+      Social.create_timeline_post(author.id, "Queued post for all view", visibility: "public")
+
+    queued_post =
+      Repo.preload(queued_post, [:sender, :remote_actor, :link_preview, poll: [options: []]])
+
+    send(view.pid, {:new_post_preloaded, :timeline, queued_post})
+    assert render(view) =~ "Show 1 new post"
+
+    render_hook(view, "filter_timeline", %{"filter" => "replies"})
+    assert_patch(view, ~p"/timeline?filter=all&view=replies")
+
+    refute render(view) =~ "Show 1 new post"
+  end
 end
