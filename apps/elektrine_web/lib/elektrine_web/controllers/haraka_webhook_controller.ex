@@ -661,9 +661,10 @@ defmodule ElektrineWeb.HarakaWebhookController do
   # Authentication check using API key
   defp authenticate(conn) do
     # Load API key at runtime
-    webhook_api_key = System.get_env("HARAKA_API_KEY")
+    webhook_api_key =
+      System.get_env("HARAKA_INBOUND_API_KEY") || System.get_env("HARAKA_API_KEY")
 
-    if is_nil(webhook_api_key) do
+    if is_nil(webhook_api_key) || webhook_api_key == "" do
       # Security: Fail closed if API key isn't configured
       Logger.error("SECURITY: Webhook authentication configuration error")
       {:error, :unauthorized}

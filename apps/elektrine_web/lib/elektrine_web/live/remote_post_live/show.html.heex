@@ -437,40 +437,76 @@
                     <% end %>
                     
 <!-- Post Content -->
-                    <% # Check for external link - Lemmy stores these in attachment with type "Link"
-                    # First check attachment array for Link type
+                    <% # Detect submitted link URL for link posts.
+                    # Prefer explicit link attachments and cached metadata over host heuristics.
                     link_attachment =
                       case @post["attachment"] do
                         attachments when is_list(attachments) ->
-                          Enum.find(attachments, fn att -> att["type"] == "Link" end)
+                          Enum.find(attachments, fn att ->
+                            att["type"] == "Link" && is_binary(att["href"]) &&
+                              String.trim(att["href"]) != ""
+                          end)
 
                         _ ->
                           nil
                       end
 
-                    # Get the external URL from attachment href, or fall back to url field
-                    external_url =
+                    metadata_external_link =
                       cond do
-                        link_attachment && is_binary(link_attachment["href"]) ->
-                          link_attachment["href"]
+                        @local_message && is_binary(@local_message.primary_url) &&
+                            String.trim(@local_message.primary_url) != "" ->
+                          @local_message.primary_url
 
-                        is_binary(@post["url"]) ->
-                          @post["url"]
+                        @local_message && is_map(@local_message.media_metadata) &&
+                          is_binary(@local_message.media_metadata["external_link"]) &&
+                            String.trim(@local_message.media_metadata["external_link"]) != "" ->
+                          @local_message.media_metadata["external_link"]
 
                         true ->
                           nil
                       end
 
-                    # Parse the URL to get the host
-                    url_host =
-                      case external_url && URI.parse(external_url) do
+                    # For servers that only expose submitted links via `url`,
+                    # treat it as external only when it's off-origin.
+                    url_field_external =
+                      cond do
+                        is_binary(@post["url"]) ->
+                          case URI.parse(@post["url"]) do
+                            %URI{host: host}
+                            when is_binary(host) and host != @remote_actor.domain ->
+                              @post["url"]
+
+                            _ ->
+                              nil
+                          end
+
+                        true ->
+                          nil
+                      end
+
+                    submitted_url =
+                      [
+                        link_attachment && link_attachment["href"],
+                        metadata_external_link,
+                        url_field_external
+                      ]
+                      |> Enum.find(fn url -> is_binary(url) && String.trim(url) != "" end)
+
+                    submitted_url =
+                      if is_binary(submitted_url) && submitted_url == @post["id"] do
+                        nil
+                      else
+                        submitted_url
+                      end
+
+                    submitted_url_host =
+                      case submitted_url && URI.parse(submitted_url) do
                         %URI{host: host} when is_binary(host) -> host
                         _ -> nil
                       end
 
-                    # It's an external link if the URL host is different from the remote actor's domain
-                    is_external_link = url_host && url_host != @remote_actor.domain
-                    link_domain = url_host %>
+                    is_external_link = is_binary(submitted_url)
+                    link_domain = submitted_url_host %>
                     <div class={
                       if @post["sensitive"],
                         do: "blur-sm hover:blur-none transition-all",
@@ -479,7 +515,7 @@
                       <%= if @post["name"] do %>
                         <%= if is_external_link do %>
                           <a
-                            href={external_url}
+                            href={submitted_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="group"
@@ -697,6 +733,17 @@
                           class="text-purple-600 hover:underline flex items-center gap-1"
                         >
                           View on {@remote_actor.domain}
+                          <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                        </a>
+                      <% end %>
+                      <%= if is_external_link do %>
+                        <a
+                          href={submitted_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-purple-600 hover:underline flex items-center gap-1"
+                        >
+                          Open submitted link
                           <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
                         </a>
                       <% end %>

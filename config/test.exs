@@ -97,8 +97,5 @@ config :elektrine, :turnstile, skip_verification: true
 # Set environment for profile access control
 config :elektrine, :environment, :test
 
-# Use tmp directory for SSL certificates in tests
-config :elektrine, :certs_base_path, "tmp/test_certs"
-
 # Disable async tasks in tests to work with Ecto Sandbox
 config :elektrine, :async_enabled, false

@@ -27,11 +27,9 @@ kill_signal = 'SIGTERM'
   MIGRATION_CONNECT_TIMEOUT_MS = '60000'
   MIGRATION_DB_RETRIES = '30'
   MIGRATION_RETRY_DELAY_MS = '3000'
-  # App manages SSL certificates via Let's Encrypt
-  LETS_ENCRYPT_ENABLED = 'true'
 
 # =========================================================================
-# HTTP Service (port 8080 internally) - For ACME challenges and HTTP->HTTPS redirect
+# HTTP Service (port 8080 internally) - Fly handles TLS termination
 # Uses non-privileged port internally since app runs as nobody user
 # =========================================================================
 [[services]]
@@ -45,35 +43,16 @@ kill_signal = 'SIGTERM'
     port = 80
     handlers = ['http']
 
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
   [[services.http_checks]]
     interval = '30s'
     timeout = '5s'
     grace_period = '30s'
     method = 'GET'
     path = '/health'
-
-# =========================================================================
-# HTTPS Service (port 8443 internally) - App handles TLS termination
-# TCP passthrough: Fly.io does NOT terminate TLS, app uses Bandit with SNI
-# This enables dynamic certificate selection for primary domains/subdomains
-# =========================================================================
-[[services]]
-  internal_port = 8443
-  protocol = 'tcp'
-  auto_stop_machines = 'suspend'
-  auto_start_machines = true
-  min_machines_running = 1
-
-  [[services.ports]]
-    port = 443
-    # No handlers = TCP passthrough (raw TCP, no TLS termination by Fly.io)
-    handlers = []
-
-  # TCP check instead of HTTP since Fly.io can't decrypt the TLS
-  [[services.tcp_checks]]
-    interval = '30s'
-    timeout = '5s'
-    grace_period = '60s'
 
   [services.concurrency]
     type = 'connections'
@@ -85,7 +64,7 @@ kill_signal = 'SIGTERM'
   cpu_kind = 'shared'
   cpus = 8
 
-# Single volume with subdirectories for tor and certs
+# Single volume for runtime data
 [[mounts]]
   source = 'app_data'
   destination = '/data'
@@ -143,29 +122,3 @@ kill_signal = 'SIGTERM'
     interval = '30s'
     timeout = '5s'
     grace_period = '30s'
-
-# =========================================================================
-# APP-MANAGED SSL CONFIGURATION
-# =========================================================================
-# This configuration uses TCP passthrough on port 443, allowing the app
-# to handle SSL termination directly via Bandit with SNI-based certificate
-# selection. All certificates are managed by the app via Let's Encrypt.
-#
-# Initial Setup:
-# 1. Create the certificate volume:
-#    fly volumes create app_data --region iad --size 1
-#
-# 2. Set environment variables:
-#    fly secrets set SERVER_PUBLIC_IP=<your-ipv4>
-#    fly secrets set ACME_ENVIRONMENT=production
-#    fly secrets set ACME_CONTACT_EMAIL=admin@elektrine.com
-#
-# 3. Deploy the app (it will auto-provision certs on first boot):
-#    fly deploy
-#
-# How it works:
-# - Port 80: HTTP for ACME challenges (/.well-known/acme-challenge/*)
-# - Port 443: Raw TCP passthrough -> App handles TLS with SNI
-# - Main domain certs (elektrine.com, z.org) stored in /data/certs/live/
-# - Automatic renewal handled by app startup/maintenance services
-# =========================================================================

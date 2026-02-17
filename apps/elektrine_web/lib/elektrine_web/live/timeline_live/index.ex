@@ -163,7 +163,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
       # Secondary timeline view changed (all/posts/replies/etc.) - apply locally.
       timeline_view != socket.assigns.timeline_filter ->
-        updated_socket = assign(socket, :timeline_filter, timeline_view)
+        updated_socket =
+          socket
+          |> assign(:timeline_filter, timeline_view)
+          |> prune_queued_posts_for_active_filters()
 
         cond do
           view_requires_data_reload?(timeline_view) ->
@@ -215,6 +218,11 @@ defmodule ElektrineWeb.TimelineLive.Index do
     special_view_cache = socket.assigns[:special_view_cache] || %{}
     cache_key = {filter, timeline_view}
 
+    filter_context_socket =
+      socket
+      |> assign(:current_filter, filter)
+      |> assign(:timeline_filter, timeline_view)
+
     cached_special_view = Map.get(special_view_cache, cache_key)
 
     posts =
@@ -249,6 +257,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
     special_view_cache =
       Map.put(special_view_cache, cache_key, %{posts: posts, post_replies: cached_post_replies})
 
+    queued_posts = queued_posts_for_active_filters(filter_context_socket)
+
     # Load RSS items for relevant filters
     {rss_items, rss_saves} =
       cond do
@@ -276,6 +286,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
      |> assign(:base_timeline_posts, base_timeline_posts)
      |> assign(:special_view_cache, special_view_cache)
      |> assign(:timeline_posts, posts)
+     |> assign(:queued_posts, queued_posts)
      |> assign(:post_replies, cached_post_replies)
      |> assign(:loading_more, false)
      |> assign(:no_more_posts, false)
@@ -773,7 +784,13 @@ defmodule ElektrineWeb.TimelineLive.Index do
         updated_socket
       )
 
-    matches_filter = matches_url_filter && matches_timeline_filter
+    matches_software_filter =
+      post_matches_software_filter?(
+        post_with_associations,
+        updated_socket.assigns.software_filter
+      )
+
+    matches_filter = matches_url_filter && matches_timeline_filter && matches_software_filter
 
     updated_socket =
       if already_queued || already_in_timeline || !matches_filter do
@@ -807,7 +824,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
     matches_timeline_filter =
       post_matches_filter?(post_with_associations, socket.assigns.timeline_filter, socket)
 
-    if !matches_url_filter || !matches_timeline_filter do
+    matches_software_filter =
+      post_matches_software_filter?(post_with_associations, socket.assigns.software_filter)
+
+    if !matches_url_filter || !matches_timeline_filter || !matches_software_filter do
       {:noreply, socket}
     else
       # Update user_follows map for both local and federated posts (only for logged-in users)
@@ -1332,6 +1352,28 @@ defmodule ElektrineWeb.TimelineLive.Index do
         true
     end
   end
+
+  defp prune_queued_posts_for_active_filters(socket) do
+    assign(socket, :queued_posts, queued_posts_for_active_filters(socket))
+  end
+
+  defp queued_posts_for_active_filters(socket) do
+    Enum.filter(socket.assigns.queued_posts || [], fn post ->
+      post_matches_url_filter?(post, socket.assigns.current_filter, socket) &&
+        post_matches_filter?(post, socket.assigns.timeline_filter, socket) &&
+        post_matches_software_filter?(post, socket.assigns.software_filter)
+    end)
+  end
+
+  defp post_matches_software_filter?(_post, "all"), do: true
+
+  defp post_matches_software_filter?(post, "local"), do: post.federated != true
+
+  defp post_matches_software_filter?(post, software) when is_binary(software) do
+    filter_posts_by_software([post], software) != []
+  end
+
+  defp post_matches_software_filter?(_post, _), do: true
 
   defp filter_posts_by_software(posts, "all"), do: posts
 

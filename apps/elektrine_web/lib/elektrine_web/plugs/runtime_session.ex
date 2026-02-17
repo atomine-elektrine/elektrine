@@ -111,7 +111,6 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
       _ ->
         Application.get_env(:elektrine, :enforce_https, false) or
           Application.get_env(:elektrine, :environment) == :prod or
-          System.get_env("LETS_ENCRYPT_ENABLED") == "true" or
           System.get_env("FORCE_SSL") == "true"
     end
   end
