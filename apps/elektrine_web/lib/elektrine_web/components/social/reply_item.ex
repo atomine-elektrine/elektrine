@@ -224,7 +224,12 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   attr :on_reply_click, :string, default: "show_reply_to_reply_form"
 
   defp reply_actions(assigns) do
-    assigns = assign(assigns, :interaction_id, interactive_reply_id(assigns.reply))
+    interaction_id = interactive_reply_id(assigns.reply)
+
+    assigns =
+      assigns
+      |> assign(:interaction_id, interaction_id)
+      |> assign(:reply_target_id, interaction_id || assigns.normalized.ap_id)
 
     ~H"""
     <div class="flex flex-wrap items-center gap-2">
@@ -250,25 +255,27 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
           />
           <span class="text-xs">{@normalized.like_count}</span>
         </button>
-        
+      <% end %>
+      
     <!-- Reply to Reply -->
-        <%= if @post do %>
-          <button
-            phx-click={@on_reply_click}
-            phx-value-reply_id={@interaction_id}
-            phx-value-post_id={@post.id}
-            class="btn btn-xs btn-ghost"
-            type="button"
-            title="Reply to this comment"
-          >
-            <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
-            <%= if @normalized.reply_count > 0 do %>
-              <span class="text-xs">{@normalized.reply_count}</span>
-            <% end %>
-          </button>
-        <% end %>
-        
+      <%= if @post && @reply_target_id do %>
+        <button
+          phx-click={@on_reply_click}
+          phx-value-reply_id={@reply_target_id}
+          phx-value-post_id={@post.id}
+          class="btn btn-xs btn-ghost"
+          type="button"
+          title="Reply to this comment"
+        >
+          <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
+          <%= if @normalized.reply_count > 0 do %>
+            <span class="text-xs">{@normalized.reply_count}</span>
+          <% end %>
+        </button>
+      <% end %>
+      
     <!-- Boost Button -->
+      <%= if @interaction_id do %>
         <button
           phx-click="boost_post"
           phx-value-message_id={@interaction_id}
@@ -280,7 +287,9 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
             <span class="text-xs">{@normalized.share_count}</span>
           <% end %>
         </button>
-      <% else %>
+      <% end %>
+
+      <%= if !@interaction_id do %>
         <!-- Remote reply stats (read-only) -->
         <%= if @normalized.like_count > 0 || @normalized.score do %>
           <div class="flex items-center gap-1 text-xs opacity-60">

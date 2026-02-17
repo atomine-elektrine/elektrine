@@ -125,5 +125,129 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
 
       assert render(view) =~ "Local reply content"
     end
+
+    test "shows '(you)' only for replies written by the signed-in user", %{conn: conn} do
+      post_author = AccountsFixtures.user_fixture()
+      other_user = AccountsFixtures.user_fixture()
+      viewer = AccountsFixtures.user_fixture()
+
+      {:ok, post} =
+        Social.create_timeline_post(post_author.id, "Parent local post", visibility: "public")
+
+      {:ok, _other_reply} =
+        Social.create_timeline_post(other_user.id, "Other user local reply",
+          visibility: "public",
+          reply_to_id: post.id
+        )
+
+      {:ok, _viewer_reply} =
+        Social.create_timeline_post(viewer.id, "Viewer local reply",
+          visibility: "public",
+          reply_to_id: post.id
+        )
+
+      {:ok, view, _initial_html} =
+        conn
+        |> log_in_user(viewer)
+        |> live(~p"/remote/post/#{post.id}")
+
+      html = render(view)
+
+      assert html =~ "Other user local reply"
+      assert html =~ "Viewer local reply"
+      assert html =~ "(you)"
+      assert length(String.split(html, "(you)")) - 1 == 1
+    end
+
+    test "uses HTML profile routes for local usernames on post detail", %{conn: conn} do
+      author = AccountsFixtures.user_fixture()
+
+      {:ok, post} =
+        Social.create_timeline_post(author.id, "Parent local post", visibility: "public")
+
+      {:ok, _view, html} = live(conn, ~p"/remote/post/#{post.id}")
+
+      assert html =~ "Parent local post"
+      refute html =~ ~s(href="/users/#{author.username}")
+    end
+
+    test "shows recent replies in quick reply form for local posts", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, post} = Social.create_timeline_post(user.id, "Local post", visibility: "public")
+
+      {:ok, _older_reply} =
+        Social.create_timeline_post(user.id, "Older reply content",
+          visibility: "public",
+          reply_to_id: post.id
+        )
+
+      {:ok, _newer_reply} =
+        Social.create_timeline_post(user.id, "Newer reply content",
+          visibility: "public",
+          reply_to_id: post.id
+        )
+
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/remote/post/#{post.id}")
+
+      _ = render_click(view, "toggle_reply_form")
+      html = render(view)
+
+      assert html =~ "Recent Replies:"
+      assert html =~ "Older reply content"
+      assert html =~ "Newer reply content"
+    end
+
+    test "supports inline nested replies for local comments", %{conn: conn} do
+      author = AccountsFixtures.user_fixture()
+      replier = AccountsFixtures.user_fixture()
+
+      {:ok, post} = Social.create_timeline_post(author.id, "Local post", visibility: "public")
+
+      {:ok, parent_reply} =
+        Social.create_timeline_post(author.id, "Parent local reply",
+          visibility: "public",
+          reply_to_id: post.id
+        )
+
+      comment_id = "#{ElektrineWeb.Endpoint.url()}/posts/#{parent_reply.id}"
+
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(replier)
+        |> live(~p"/remote/post/#{post.id}")
+
+      _ = render_click(view, "toggle_comment_reply", %{"comment_id" => comment_id})
+
+      _ =
+        render_submit(view, "submit_comment_reply", %{
+          "content" => "Nested inline reply content"
+        })
+
+      html = render(view)
+      assert html =~ "Nested inline reply content"
+
+      nested_reply =
+        Message
+        |> where(
+          [m],
+          m.sender_id == ^replier.id and m.reply_to_id == ^parent_reply.id and
+            m.content == "Nested inline reply content"
+        )
+        |> Repo.one()
+
+      assert nested_reply
+    end
+  end
+
+  defp log_in_user(conn, user) do
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
   end
 end

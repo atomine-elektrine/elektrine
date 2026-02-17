@@ -181,12 +181,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
               <div class="flex items-center gap-2 text-xs mb-1">
                 <%= if is_local_reply && local_user do %>
                   <.link
-                    navigate={"/users/#{local_user.username}"}
+                    navigate={"/#{local_user.handle || local_user.username}"}
                     class="font-medium text-info hover:underline"
                   >
                     {local_user.display_name || local_user.username}
                   </.link>
-                  <span class="text-info/70">(you)</span>
+                  <%= if @current_user && @current_user.id == local_user.id do %>
+                    <span class="text-info/70">(you)</span>
+                  <% end %>
                 <% else %>
                   <%= if reply_actor do %>
                     <.link
@@ -273,7 +275,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             <div class="flex items-center gap-2 mb-2">
               <%= if is_local_reply && local_user do %>
                 <!-- Local user reply -->
-                <.link navigate={"/users/#{local_user.username}"} class="flex-shrink-0">
+                <.link navigate={"/#{local_user.handle || local_user.username}"} class="flex-shrink-0">
                   <%= if local_user.avatar do %>
                     <img
                       src={Elektrine.Uploads.avatar_url(local_user.avatar)}
@@ -288,12 +290,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 </.link>
                 <div class="flex-1 min-w-0">
                   <.link
-                    navigate={"/users/#{local_user.username}"}
+                    navigate={"/#{local_user.handle || local_user.username}"}
                     class="text-sm font-medium hover:text-error transition-colors"
                   >
                     {local_user.display_name || local_user.username}
                   </.link>
-                  <span class="text-xs text-info ml-1">(you)</span>
+                  <%= if @current_user && @current_user.id == local_user.id do %>
+                    <span class="text-xs text-info ml-1">(you)</span>
+                  <% end %>
                   <div class="text-xs opacity-50">
                     {if reply["published"], do: format_activitypub_date(reply["published"])}
                   </div>
@@ -514,6 +518,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       |> assign(:mastodon_counts, nil)
       |> assign(:show_reply_form, false)
       |> assign(:reply_content, "")
+      |> assign(:quick_reply_recent_replies, [])
       |> assign(:replying_to_comment_id, nil)
       |> assign(:comment_reply_content, "")
       |> assign(:show_image_modal, false)
@@ -959,7 +964,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             "attributedTo" => "#{base_url}/users/#{reply.sender.username}",
             "inReplyTo" => "#{base_url}/posts/#{message.id}",
             "_local" => true,
-            "_local_user" => reply.sender
+            "_local_user" => reply.sender,
+            "_local_message_id" => reply.id
           }
         end)
 
@@ -1006,6 +1012,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
        |> assign(:remote_actor, nil)
        |> assign(:page_title, message.title || "Post by #{sender.username}")
        |> assign(:replies, local_replies)
+       |> assign(
+         :quick_reply_recent_replies,
+         recent_replies_for_preview(local_replies, post_object["id"])
+       )
        |> assign(:threaded_replies, threaded_replies)
        |> assign(:replies_loading, false)
        |> assign(:replies_loaded, true)
@@ -1346,6 +1356,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     {:noreply,
      socket
      |> assign(:replies, merged_replies)
+     |> assign(:quick_reply_recent_replies, recent_replies_for_preview(merged_replies, post_id))
      |> assign(:threaded_replies, threaded_replies)
      |> assign(:replies_loading, false)
      |> assign(:replies_loaded, true)
@@ -1604,8 +1615,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         user = socket.assigns.current_user
         comment_id = socket.assigns.replying_to_comment_id
 
-        # Get or store the comment locally first (use single-arg to get correct actor)
-        case APHelpers.get_or_store_remote_post(comment_id) do
+        # Resolve local comments directly and federated comments via ActivityPub fetch/store.
+        case resolve_comment_target_message(comment_id, socket.assigns.replies) do
           {:ok, message} ->
             # Create reply to the comment
             case Elektrine.Social.create_timeline_post(
@@ -1627,7 +1638,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                   "inReplyTo" => comment_id,
                   "likes" => %{"totalItems" => 0},
                   "_local" => true,
-                  "_local_user" => user
+                  "_local_user" => user,
+                  "_local_message_id" => reply.id
                 }
 
                 # Add new reply to existing replies
@@ -1643,6 +1655,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 {:noreply,
                  socket
                  |> assign(:replies, updated_replies)
+                 |> assign(
+                   :quick_reply_recent_replies,
+                   recent_replies_for_preview(updated_replies, socket.assigns.post["id"])
+                 )
                  |> assign(:threaded_replies, threaded_replies)
                  |> assign(:replying_to_comment_id, nil)
                  |> assign(:comment_reply_content, "")
@@ -1695,7 +1711,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 "inReplyTo" => parent_id,
                 "likes" => %{"totalItems" => 0},
                 "_local" => true,
-                "_local_user" => user
+                "_local_user" => user,
+                "_local_message_id" => reply.id
               }
 
               updated_replies = socket.assigns.replies ++ [new_reply_ap]
@@ -1711,6 +1728,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
               {:noreply,
                socket
                |> assign(:replies, updated_replies)
+               |> assign(
+                 :quick_reply_recent_replies,
+                 recent_replies_for_preview(updated_replies, post["id"])
+               )
                |> assign(:threaded_replies, threaded_replies)
                |> assign(:local_message, updated_local_message)
                |> assign(:show_reply_form, false)
@@ -1746,7 +1767,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     "inReplyTo" => activitypub_id,
                     "likes" => %{"totalItems" => 0},
                     "_local" => true,
-                    "_local_user" => user
+                    "_local_user" => user,
+                    "_local_message_id" => reply.id
                   }
 
                   # Add new reply to existing replies
@@ -1762,6 +1784,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                   {:noreply,
                    socket
                    |> assign(:replies, updated_replies)
+                   |> assign(
+                     :quick_reply_recent_replies,
+                     recent_replies_for_preview(updated_replies, socket.assigns.post["id"])
+                   )
                    |> assign(:threaded_replies, threaded_replies)
                    |> assign(:show_reply_form, false)
                    |> assign(:reply_content, "")
@@ -2960,7 +2986,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         "inReplyTo" => msg.parent_activitypub_id,
         "likes" => %{"totalItems" => msg.like_count || 0},
         "_local" => is_local_reply,
-        "_local_user" => local_user
+        "_local_user" => local_user,
+        "_local_message_id" => msg.id
       }
     end)
   end
@@ -3031,6 +3058,50 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     content_hash = :erlang.phash2(reply["content"] || "")
     "#{attributed_to}:#{published}:#{content_hash}"
   end
+
+  defp recent_replies_for_preview(replies, root_post_id, limit \\ 3)
+
+  defp recent_replies_for_preview(replies, root_post_id, limit)
+       when is_list(replies) and is_binary(root_post_id) do
+    replies
+    |> Enum.filter(fn reply -> is_map(reply) and reply["inReplyTo"] == root_post_id end)
+    |> Enum.sort_by(fn reply -> reply["published"] || "" end, :desc)
+    |> Enum.take(limit)
+    |> Enum.reverse()
+  end
+
+  defp recent_replies_for_preview(_, _, _), do: []
+
+  defp resolve_comment_target_message(comment_id, replies) when is_binary(comment_id) do
+    case local_message_id_for_reply(replies, comment_id) do
+      local_message_id when is_integer(local_message_id) ->
+        case Elektrine.Repo.get(Elektrine.Messaging.Message, local_message_id) do
+          %Elektrine.Messaging.Message{} = message ->
+            {:ok, message}
+
+          _ ->
+            APHelpers.get_or_store_remote_post(comment_id)
+        end
+
+      _ ->
+        APHelpers.get_or_store_remote_post(comment_id)
+    end
+  end
+
+  defp resolve_comment_target_message(_, _), do: {:error, :invalid_comment}
+
+  defp local_message_id_for_reply(replies, comment_id) when is_list(replies) do
+    Enum.find_value(replies, fn reply ->
+      if is_map(reply) && reply["id"] == comment_id do
+        case reply["_local_message_id"] do
+          id when is_integer(id) -> id
+          _ -> nil
+        end
+      end
+    end)
+  end
+
+  defp local_message_id_for_reply(_, _), do: nil
 
   defp current_user_missing?(socket), do: is_nil(socket.assigns[:current_user])
 end

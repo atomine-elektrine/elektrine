@@ -81,7 +81,10 @@
           <article class="card border border-base-300 rounded-lg p-6 mb-6">
             <!-- Post Header -->
             <div class="flex items-center gap-3 mb-4">
-              <.link navigate={"/users/#{sender.username}"} class="flex-shrink-0 rounded-full">
+              <.link
+                navigate={"/#{sender.handle || sender.username}"}
+                class="flex-shrink-0 rounded-full"
+              >
                 <%= if sender.avatar do %>
                   <img
                     src={Elektrine.Uploads.avatar_url(sender.avatar)}
@@ -97,7 +100,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
                   <.link
-                    navigate={"/users/#{sender.username}"}
+                    navigate={"/#{sender.handle || sender.username}"}
                     class="font-bold transition-colors duration-200"
                   >
                     {sender.display_name || sender.username}
@@ -206,29 +209,63 @@
             </div>
 
             <%= if @show_reply_form && @current_user do %>
-              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
-                wrapper_class="mt-4 pt-4 border-t border-base-300"
-                content={@reply_content}
-                textarea_id="remote-post-reply-textarea"
-                textarea_class="textarea textarea-bordered w-full"
-                rows={4}
-                form_class="space-y-3"
-                on_submit="submit_reply"
-                on_cancel="toggle_reply_form"
-                cancel_class="btn btn-ghost btn-sm"
-                submit_class="btn btn-secondary btn-sm"
-                textarea_debounce="300"
-                textarea_hook="AutoExpandTextarea"
-                submit_label="Reply"
-                submit_icon="hero-paper-airplane"
-                submit_icon_class="w-4 h-4 mr-1"
-                submit_disable_with="Posting..."
-              />
+              <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
+                <%= if length(@quick_reply_recent_replies) > 0 do %>
+                  <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
+                    <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
+                    <%= for reply <- @quick_reply_recent_replies do %>
+                      <% author =
+                        cond do
+                          reply["_local_user"] ->
+                            "@#{reply["_local_user"].handle || reply["_local_user"].username}@z.org"
+
+                          is_binary(reply["attributedTo"]) ->
+                            "@#{extract_username_from_uri(reply["attributedTo"])}"
+
+                          true ->
+                            "Remote user"
+                        end %>
+                      <div class="text-sm">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class="font-medium">{author}</span>
+                          <%= if reply["published"] do %>
+                            <span class="text-xs opacity-50">
+                              · {format_activitypub_date(reply["published"])}
+                            </span>
+                          <% end %>
+                        </div>
+                        <div class="text-xs opacity-75 line-clamp-2 break-words">
+                          {raw(render_remote_post_content(reply["content"] || "", nil))}
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                  wrapper_class=""
+                  content={@reply_content}
+                  textarea_id="remote-post-reply-textarea"
+                  textarea_class="textarea textarea-bordered w-full"
+                  rows={4}
+                  form_class="space-y-3"
+                  on_submit="submit_reply"
+                  on_cancel="toggle_reply_form"
+                  cancel_class="btn btn-ghost btn-sm"
+                  submit_class="btn btn-secondary btn-sm"
+                  textarea_debounce="300"
+                  textarea_hook="AutoExpandTextarea"
+                  submit_label="Reply"
+                  submit_icon="hero-paper-airplane"
+                  submit_icon_class="w-4 h-4 mr-1"
+                  submit_disable_with="Posting..."
+                />
+              </div>
             <% end %>
 
             <%= if !@current_user do %>
               <div class="mt-3 pt-3 border-t border-base-300 text-center">
-                <.link navigate={~p"/users/log_in"} class="btn btn-secondary btn-sm">
+                <.link navigate={~p"/login"} class="btn btn-secondary btn-sm">
                   Sign in to interact
                 </.link>
               </div>
@@ -871,7 +908,7 @@
 <!-- Sign in prompt for non-logged in users -->
                     <%= if !@current_user do %>
                       <div class="mt-3 pt-3 border-t border-base-300 text-center">
-                        <.link navigate={~p"/users/log_in"} class="btn btn-secondary btn-sm">
+                        <.link navigate={~p"/login"} class="btn btn-secondary btn-sm">
                           Sign in to interact
                         </.link>
                       </div>
@@ -879,24 +916,63 @@
                     
 <!-- Reply Form -->
                     <%= if @show_reply_form do %>
-                      <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
-                        wrapper_class="mt-4 pt-4 border-t border-base-300"
-                        content={@reply_content}
-                        textarea_id="remote-post-reply-textarea"
-                        textarea_class="textarea textarea-bordered w-full"
-                        rows={4}
-                        form_class="space-y-3"
-                        on_submit="submit_reply"
-                        on_cancel="toggle_reply_form"
-                        cancel_class="btn btn-ghost btn-sm"
-                        submit_class="btn btn-secondary btn-sm"
-                        textarea_debounce="300"
-                        textarea_hook="AutoExpandTextarea"
-                        submit_label="Reply"
-                        submit_icon="hero-paper-airplane"
-                        submit_icon_class="w-4 h-4 mr-1"
-                        submit_disable_with="Posting..."
-                      />
+                      <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
+                        <%= if length(@quick_reply_recent_replies) > 0 do %>
+                          <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
+                            <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
+                            <%= for reply <- @quick_reply_recent_replies do %>
+                              <% author =
+                                cond do
+                                  reply["_local_user"] ->
+                                    "@#{reply["_local_user"].handle || reply["_local_user"].username}@z.org"
+
+                                  is_binary(reply["attributedTo"]) ->
+                                    "@#{extract_username_from_uri(reply["attributedTo"])}"
+
+                                  true ->
+                                    "Remote user"
+                                end %>
+                              <div class="text-sm">
+                                <div class="flex items-center gap-2 mb-1">
+                                  <span class="font-medium">{author}</span>
+                                  <%= if reply["published"] do %>
+                                    <span class="text-xs opacity-50">
+                                      · {format_activitypub_date(reply["published"])}
+                                    </span>
+                                  <% end %>
+                                </div>
+                                <div class="text-xs opacity-75 line-clamp-2 break-words">
+                                  {raw(
+                                    render_remote_post_content(
+                                      reply["content"] || "",
+                                      @remote_actor && @remote_actor.domain
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+
+                        <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                          wrapper_class=""
+                          content={@reply_content}
+                          textarea_id="remote-post-reply-textarea"
+                          textarea_class="textarea textarea-bordered w-full"
+                          rows={4}
+                          form_class="space-y-3"
+                          on_submit="submit_reply"
+                          on_cancel="toggle_reply_form"
+                          cancel_class="btn btn-ghost btn-sm"
+                          submit_class="btn btn-secondary btn-sm"
+                          textarea_debounce="300"
+                          textarea_hook="AutoExpandTextarea"
+                          submit_label="Reply"
+                          submit_icon="hero-paper-airplane"
+                          submit_icon_class="w-4 h-4 mr-1"
+                          submit_disable_with="Posting..."
+                        />
+                      </div>
                     <% end %>
                   </div>
                 </div>

@@ -19,6 +19,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
   alias ElektrineWeb.TimelineLive.Router
   alias ElektrineWeb.TimelineLive.Operations.PostOperations
 
+  @remote_replies_poll_interval_ms 1_500
+  @remote_replies_poll_max_attempts 6
+
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -26,6 +29,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     # Set locale from session or user preference
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
+
+    friends = if user, do: Elektrine.Friends.list_friends(user.id), else: []
+    friend_ids = Enum.map(friends, & &1.id)
 
     if connected?(socket) do
       if user do
@@ -84,8 +90,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:report_metadata, %{})
       |> assign(:remote_user_preview, nil)
       |> assign(:remote_user_loading, false)
-      |> assign(:friends, [])
-      |> assign(:friend_ids, [])
+      |> assign(:friends, friends)
+      |> assign(:friend_ids, friend_ids)
       |> assign(:show_image_upload_modal, false)
       |> assign(:pending_media_urls, [])
       |> assign(:pending_media_alt_texts, %{})
@@ -812,6 +818,39 @@ defmodule ElektrineWeb.TimelineLive.Index do
     else
       preload_timeline_post_async(post, :public)
       {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:refresh_remote_replies, post_id, attempt}, socket) do
+    user_id = socket.assigns[:current_user] && socket.assigns.current_user.id
+
+    replies =
+      if user_id do
+        Social.get_direct_replies_for_posts([post_id], user_id: user_id, limit_per_post: 20)
+        |> Map.get(post_id, [])
+      else
+        Social.get_direct_replies_for_posts([post_id], limit_per_post: 20)
+        |> Map.get(post_id, [])
+      end
+
+    cond do
+      replies != [] ->
+        send(self(), {:post_replies_loaded, post_id, replies})
+        {:noreply, socket}
+
+      attempt < @remote_replies_poll_max_attempts ->
+        Process.send_after(
+          self(),
+          {:refresh_remote_replies, post_id, attempt + 1},
+          @remote_replies_poll_interval_ms
+        )
+
+        {:noreply, socket}
+
+      true ->
+        loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
+        {:noreply, assign(socket, :loading_remote_replies, loading_set)}
     end
   end
 
