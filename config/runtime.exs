@@ -16,8 +16,40 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+runtime_profile =
+  case System.get_env("ELEKTRINE_RUNTIME_PROFILE") || System.get_env("RELEASE_NAME") do
+    "chat_auth" -> :chat_auth
+    "elektrine_chat_auth" -> :chat_auth
+    _ -> :full
+  end
+
+config :elektrine, :runtime_profile, runtime_profile
+
+if runtime_profile == :chat_auth do
+  config :elektrine, Oban,
+    queues: [
+      default: 2,
+      messaging_federation: 4
+    ],
+    plugins: [
+      {Oban.Plugins.Pruner, max_age: 60 * 60 * 24},
+      {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+      {Oban.Plugins.Cron,
+       crontab: [
+         {"* * * * *", Elektrine.Messaging.FederationOutboxRetryWorker},
+         {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker}
+       ]}
+    ]
+end
+
 if System.get_env("PHX_SERVER") do
-  config :elektrine, ElektrineWeb.Endpoint, server: true
+  case runtime_profile do
+    :chat_auth ->
+      config :elektrine_chat_web, ElektrineChatWeb.Endpoint, server: true
+
+    _ ->
+      config :elektrine, ElektrineWeb.Endpoint, server: true
+  end
 end
 
 # Lightweight messaging federation runtime configuration
@@ -47,6 +79,28 @@ messaging_federation_identity_key_id =
     nil -> "default"
     "" -> "default"
     value -> value
+  end
+
+messaging_federation_official_relay_operator =
+  case System.get_env("MESSAGING_FEDERATION_OFFICIAL_RELAY_OPERATOR") do
+    nil -> "Community-operated"
+    "" -> "Community-operated"
+    value -> value
+  end
+
+messaging_federation_official_relays =
+  case System.get_env("MESSAGING_FEDERATION_OFFICIAL_RELAYS_JSON") do
+    nil ->
+      []
+
+    "" ->
+      []
+
+    json ->
+      case Jason.decode(json) do
+        {:ok, relays} when is_list(relays) -> relays
+        _ -> []
+      end
   end
 
 parse_int_env = fn env_name, default ->
@@ -86,6 +140,8 @@ messaging_federation_outbox_retention_days =
 config :elektrine, :messaging_federation,
   enabled: messaging_federation_enabled,
   identity_key_id: messaging_federation_identity_key_id,
+  official_relay_operator: messaging_federation_official_relay_operator,
+  official_relays: messaging_federation_official_relays,
   delivery_concurrency: messaging_federation_delivery_concurrency,
   delivery_timeout_ms: messaging_federation_delivery_timeout_ms,
   outbox_max_attempts: messaging_federation_outbox_max_attempts,
@@ -383,6 +439,20 @@ if config_env() == :prod do
 
   # Fly terminates TLS at the edge and forwards HTTP to the app.
   config :elektrine, ElektrineWeb.Endpoint,
+    url: [host: host, port: 443, scheme: "https"],
+    http: [
+      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      port: port,
+      http_1_options: [
+        max_header_count: 50,
+        max_header_length: 8_192
+      ]
+    ],
+    secret_key_base: secret_key_base,
+    live_view: [signing_salt: session_signing_salt],
+    check_origin: allowed_origins
+
+  config :elektrine_chat_web, ElektrineChatWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
       ip: {0, 0, 0, 0, 0, 0, 0, 0},

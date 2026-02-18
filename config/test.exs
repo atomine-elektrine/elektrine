@@ -52,6 +52,10 @@ config :elektrine, ElektrineWeb.Endpoint,
   secret_key_base: Base.encode64(:crypto.strong_rand_bytes(48)),
   server: true
 
+config :elektrine_chat_web, ElektrineChatWeb.Endpoint,
+  http: [ip: {127, 0, 0, 1}, port: 4102],
+  secret_key_base: Base.encode64(:crypto.strong_rand_bytes(48))
+
 # Wallaby configuration
 config :wallaby,
   driver: Wallaby.Chrome,

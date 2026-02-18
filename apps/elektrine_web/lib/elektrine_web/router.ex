@@ -523,10 +523,6 @@ defmodule ElektrineWeb.Router do
     post("/deletion-requests/:id/approve", Admin.DeletionRequestsController, :approve)
     post("/deletion-requests/:id/deny", Admin.DeletionRequestsController, :deny)
 
-    # Mailbox integrity management (Admin.MailboxesController)
-    get("/mailbox-integrity", Admin.MailboxesController, :integrity)
-    post("/mailbox-integrity/fix", Admin.MailboxesController, :fix_integrity)
-
     # Invite codes management (Admin.InviteCodesController)
     get("/invite-codes", Admin.InviteCodesController, :index)
     get("/invite-codes/new", Admin.InviteCodesController, :new)

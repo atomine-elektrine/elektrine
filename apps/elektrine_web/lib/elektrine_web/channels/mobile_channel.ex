@@ -6,7 +6,8 @@ defmodule ElektrineWeb.MobileChannel do
   use ElektrineWeb, :channel
   require Logger
 
-  alias Elektrine.{Email, Messaging, Notifications, Accounts, Social, Profiles}
+  alias Elektrine.{Email, Notifications, Accounts, Social, Profiles}
+  alias Elektrine.Messaging, as: Messaging
   alias Elektrine.PubSubTopics
 
   @impl true
@@ -23,7 +24,7 @@ defmodule ElektrineWeb.MobileChannel do
     end
 
     # Subscribe to all user's conversations for chat updates
-    conversations = Messaging.Conversations.list_conversations(user_id)
+    conversations = Messaging.list_conversations(user_id)
 
     for conv <- conversations do
       PubSubTopics.subscribe(PubSubTopics.conversation(conv.id))

@@ -241,12 +241,39 @@ defmodule Elektrine.Email.InboundRouting do
         Mailbox
         |> where([m], fragment("lower(?)", m.email) == ^String.downcase(clean_email))
         |> limit(1)
-        |> Repo.one()
+        |> Repo.one() ||
+        find_cross_domain_mailbox(clean_email)
 
     if regular_mailbox do
       {:ok, regular_mailbox}
     else
       nil
+    end
+  end
+
+  defp find_cross_domain_mailbox(clean_email) do
+    case String.split(clean_email, "@") do
+      [local_part, domain] ->
+        supported_domains = supported_domains()
+
+        if domain in supported_domains do
+          base_local_part = local_part |> String.split("+") |> List.first() |> String.downcase()
+
+          candidate_emails =
+            Enum.map(supported_domains, fn supported_domain ->
+              "#{base_local_part}@#{supported_domain}"
+            end)
+
+          Mailbox
+          |> where([m], fragment("lower(?)", m.email) in ^candidate_emails)
+          |> limit(1)
+          |> Repo.one()
+        else
+          nil
+        end
+
+      _ ->
+        nil
     end
   end
 

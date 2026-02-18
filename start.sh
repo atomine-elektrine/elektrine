@@ -24,4 +24,5 @@ done
 # Start Phoenix app
 echo "Starting Phoenix..."
 export PHX_SERVER=true
-exec /app/bin/elektrine start
+RELEASE_NAME="${RELEASE_NAME:-elektrine}"
+exec "/app/bin/${RELEASE_NAME}" start

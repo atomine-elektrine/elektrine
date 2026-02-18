@@ -5,6 +5,7 @@ defmodule Elektrine.Messaging.Federation do
   This module now supports both:
   - snapshot sync (coarse-grained)
   - real-time event sync with per-stream sequencing and idempotency
+  - optional relay-routed transport for outbound HTTP federation traffic
   """
 
   import Ecto.Query, warn: false
@@ -68,6 +69,7 @@ defmodule Elektrine.Messaging.Federation do
   """
   def local_discovery_document do
     base_url = ActivityPub.instance_url()
+    official_relays = discovery_official_relays()
 
     %{
       "version" => 1,
@@ -80,7 +82,14 @@ defmodule Elektrine.Messaging.Federation do
         "event_federation" => true,
         "snapshot_sync" => true,
         "ordered_streams" => true,
-        "idempotent_events" => true
+        "idempotent_events" => true,
+        "relay_transport" => true
+      },
+      "relay_transport" => %{
+        "mode" => "optional",
+        "community_hostable" => true,
+        "official_operator" => official_relay_operator(),
+        "official_relays" => official_relays
       },
       "endpoints" => %{
         "events" => "#{base_url}/federation/messaging/events",
@@ -93,7 +102,14 @@ defmodule Elektrine.Messaging.Federation do
   @doc """
   Builds the canonical string that gets signed for federation requests.
   """
-  def signature_payload(domain, method, request_path, query_string, timestamp, content_digest \\ "") do
+  def signature_payload(
+        domain,
+        method,
+        request_path,
+        query_string,
+        timestamp,
+        content_digest \\ ""
+      ) do
     [
       String.downcase(to_string(domain || "")),
       String.downcase(to_string(method || "")),
@@ -165,7 +181,9 @@ defmodule Elektrine.Messaging.Federation do
         signature
       )
       when is_binary(secret) and is_binary(signature) do
-    payload = signature_payload(domain, method, request_path, query_string, timestamp, content_digest)
+    payload =
+      signature_payload(domain, method, request_path, query_string, timestamp, content_digest)
+
     expected_raw = hmac_raw(secret, payload)
 
     case Base.url_decode64(String.trim(signature), padding: false) do
@@ -897,7 +915,7 @@ defmodule Elektrine.Messaging.Federation do
 
   defp push_event_to_peer(peer, event) do
     path = "/federation/messaging/events"
-    url = "#{peer.base_url}#{path}"
+    url = outbound_events_url(peer)
     body = Jason.encode!(event)
     headers = signed_headers(peer, "POST", path, "", body)
 
@@ -920,7 +938,7 @@ defmodule Elektrine.Messaging.Federation do
 
   defp push_snapshot_to_peer(peer, snapshot) do
     path = "/federation/messaging/sync"
-    url = "#{peer.base_url}#{path}"
+    url = outbound_sync_url(peer)
     body = Jason.encode!(snapshot)
     headers = signed_headers(peer, "POST", path, "", body)
 
@@ -947,7 +965,7 @@ defmodule Elektrine.Messaging.Federation do
 
   defp fetch_remote_snapshot(peer, remote_server_id) when is_integer(remote_server_id) do
     path = "/federation/messaging/servers/#{remote_server_id}/snapshot"
-    url = "#{peer.base_url}#{path}"
+    url = outbound_snapshot_url(peer, remote_server_id)
     headers = signed_headers(peer, "GET", path, "", "")
     request = Finch.build(:get, url, headers)
 
@@ -1228,7 +1246,8 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp canonical_content_digest(content_digest), do: canonical_content_digest(to_string(content_digest))
+  defp canonical_content_digest(content_digest),
+    do: canonical_content_digest(to_string(content_digest))
 
   defp hmac_raw(secret, payload) do
     :crypto.mac(:hmac, :sha256, secret, payload)
@@ -1320,6 +1339,28 @@ defmodule Elektrine.Messaging.Federation do
   defp delivery_concurrency do
     federation_config()
     |> Keyword.get(:delivery_concurrency, 6)
+  end
+
+  defp outbound_events_url(peer) do
+    peer.event_endpoint || "#{peer.base_url}/federation/messaging/events"
+  end
+
+  defp outbound_sync_url(peer) do
+    peer.sync_endpoint || "#{peer.base_url}/federation/messaging/sync"
+  end
+
+  defp outbound_snapshot_url(peer, remote_server_id) do
+    case peer.snapshot_endpoint_template do
+      template when is_binary(template) ->
+        if String.contains?(template, "{server_id}") do
+          String.replace(template, "{server_id}", Integer.to_string(remote_server_id))
+        else
+          template
+        end
+
+      _ ->
+        "#{peer.base_url}/federation/messaging/servers/#{remote_server_id}/snapshot"
+    end
   end
 
   defp delivery_timeout_ms do
@@ -1428,25 +1469,88 @@ defmodule Elektrine.Messaging.Federation do
     |> to_string()
   end
 
+  defp official_relay_operator do
+    federation_config()
+    |> Keyword.get(:official_relay_operator, "Community-operated")
+    |> normalize_relay_operator_label()
+  end
+
+  defp discovery_official_relays do
+    federation_config()
+    |> Keyword.get(:official_relays, [])
+    |> Enum.map(&normalize_discovery_relay/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_discovery_relay(relay) when is_binary(relay) do
+    url = normalize_optional_string(relay)
+    if is_binary(url), do: %{"url" => url}, else: nil
+  end
+
+  defp normalize_discovery_relay(relay) when is_map(relay) do
+    url = normalize_optional_string(value_from(relay, :url))
+    name = normalize_optional_string(value_from(relay, :name))
+    websocket_url = normalize_optional_string(value_from(relay, :websocket_url))
+    region = normalize_optional_string(value_from(relay, :region))
+
+    if is_binary(url) do
+      relay_doc = %{"url" => url}
+      relay_doc = if is_binary(name), do: Map.put(relay_doc, "name", name), else: relay_doc
+
+      relay_doc =
+        if is_binary(websocket_url) do
+          Map.put(relay_doc, "websocket_url", websocket_url)
+        else
+          relay_doc
+        end
+
+      if is_binary(region), do: Map.put(relay_doc, "region", region), else: relay_doc
+    else
+      nil
+    end
+  end
+
+  defp normalize_discovery_relay(_), do: nil
+
+  defp normalize_relay_operator_label(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" ->
+        "Community-operated"
+
+      label ->
+        label
+    end
+  end
+
   defp normalize_peer(peer) when is_map(peer) do
     domain = value_from(peer, :domain)
     base_url = value_from(peer, :base_url)
     shared_secret = value_from(peer, :shared_secret)
     keys = normalize_peer_keys(value_from(peer, :keys, []), shared_secret)
 
+    normalized_base_url =
+      if is_binary(base_url), do: String.trim_trailing(base_url, "/"), else: nil
+
     cond do
-      !is_binary(domain) or !is_binary(base_url) or Enum.empty?(keys) ->
+      !is_binary(domain) or !is_binary(normalized_base_url) or Enum.empty?(keys) ->
         nil
 
       true ->
         %{
           domain: domain,
-          base_url: String.trim_trailing(base_url, "/"),
+          base_url: normalized_base_url,
           shared_secret: shared_secret,
           keys: keys,
           active_outbound_key_id: resolve_active_outbound_key_id(peer, keys),
           allow_incoming: value_from(peer, :allow_incoming, true) == true,
-          allow_outgoing: value_from(peer, :allow_outgoing, true) == true
+          allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
+          event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
+          sync_endpoint: normalize_optional_string(value_from(peer, :sync_endpoint)),
+          snapshot_endpoint_template:
+            normalize_optional_string(value_from(peer, :snapshot_endpoint_template))
         }
     end
   end

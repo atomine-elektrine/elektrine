@@ -941,12 +941,21 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           []
         end
 
+      post_attributed_to =
+        case sender do
+          %{username: username} when is_binary(username) and username != "" ->
+            "#{base_url}/users/#{username}"
+
+          _ ->
+            nil
+        end
+
       post_object = %{
         "id" => "#{base_url}/posts/#{message.id}",
         "type" => "Note",
         "content" => message.content,
         "published" => NaiveDateTime.to_iso8601(message.inserted_at) <> "Z",
-        "attributedTo" => "#{base_url}/users/#{sender.username}",
+        "attributedTo" => post_attributed_to,
         "attachment" => attachments,
         "name" => message.title,
         "_local" => true,
@@ -956,18 +965,47 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       # Convert replies to ActivityPub-like format
       local_replies =
         Enum.map(message.replies || [], fn reply ->
+          {actor_uri, local_user, is_local_reply} =
+            cond do
+              reply.sender && is_binary(reply.sender.username) && reply.sender.username != "" ->
+                {"#{base_url}/users/#{reply.sender.username}", reply.sender, true}
+
+              reply.remote_actor && is_binary(reply.remote_actor.uri) &&
+                  reply.remote_actor.uri != "" ->
+                {reply.remote_actor.uri, nil, false}
+
+              reply.remote_actor && is_binary(reply.remote_actor.domain) &&
+                is_binary(reply.remote_actor.username) && reply.remote_actor.domain != "" &&
+                  reply.remote_actor.username != "" ->
+                {"https://#{reply.remote_actor.domain}/users/#{reply.remote_actor.username}", nil,
+                 false}
+
+              true ->
+                {nil, nil, false}
+            end
+
           %{
-            "id" => "#{base_url}/posts/#{reply.id}",
+            "id" => reply.activitypub_id || "#{base_url}/posts/#{reply.id}",
             "type" => "Note",
             "content" => reply.content,
             "published" => NaiveDateTime.to_iso8601(reply.inserted_at) <> "Z",
-            "attributedTo" => "#{base_url}/users/#{reply.sender.username}",
-            "inReplyTo" => "#{base_url}/posts/#{message.id}",
-            "_local" => true,
-            "_local_user" => reply.sender,
+            "attributedTo" => actor_uri,
+            "inReplyTo" => reply.parent_activitypub_id || "#{base_url}/posts/#{message.id}",
+            "_local" => is_local_reply,
+            "_local_user" => local_user,
             "_local_message_id" => reply.id
           }
         end)
+
+      page_title =
+        message.title ||
+          case sender do
+            %{username: username} when is_binary(username) and username != "" ->
+              "Post by #{username}"
+
+            _ ->
+              "Post"
+          end
 
       threaded_replies =
         build_reply_tree(local_replies, post_object["id"], socket.assigns.comment_sort)
@@ -1010,7 +1048,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
        |> assign(:post, post_object)
        |> assign(:local_message, message)
        |> assign(:remote_actor, nil)
-       |> assign(:page_title, message.title || "Post by #{sender.username}")
+       |> assign(:page_title, page_title)
        |> assign(:replies, local_replies)
        |> assign(
          :quick_reply_recent_replies,

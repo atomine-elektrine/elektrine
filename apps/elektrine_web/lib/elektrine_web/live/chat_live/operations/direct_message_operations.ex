@@ -12,7 +12,8 @@ defmodule ElektrineWeb.ChatLive.Operations.DirectMessageOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.{Accounts, Messaging}
+  alias Elektrine.Accounts
+  alias Elektrine.Messaging, as: Messaging
 
   def handle_event("start_dm", %{"user_id" => user_id}, socket) do
     user_id = String.to_integer(user_id)

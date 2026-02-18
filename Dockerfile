@@ -14,11 +14,14 @@
 ARG ELIXIR_VERSION=1.18.3
 ARG OTP_VERSION=27.3.4
 ARG DEBIAN_VERSION=bullseye-20250428-slim
+ARG RELEASE_NAME=elektrine
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} as builder
+
+ARG RELEASE_NAME
 
 # Retry helper function for flaky network operations
 SHELL ["/bin/bash", "-c"]
@@ -47,6 +50,8 @@ ENV MIX_ENV="prod"
 # install mix dependencies
 COPY mix.exs mix.lock ./
 COPY apps/elektrine/mix.exs apps/elektrine/mix.exs
+COPY apps/elektrine_chat/mix.exs apps/elektrine_chat/mix.exs
+COPY apps/elektrine_chat_web/mix.exs apps/elektrine_chat_web/mix.exs
 COPY apps/elektrine_web/mix.exs apps/elektrine_web/mix.exs
 COPY apps/elektrine_email/mix.exs apps/elektrine_email/mix.exs
 COPY apps/elektrine_social/mix.exs apps/elektrine_social/mix.exs
@@ -100,11 +105,13 @@ RUN mix compile
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
 
-RUN mix release
+RUN mix release ${RELEASE_NAME}
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE}
+
+ARG RELEASE_NAME
 
 SHELL ["/bin/bash", "-c"]
 
@@ -139,9 +146,10 @@ COPY --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
 # set runner ENV
 ENV MIX_ENV="prod"
 ENV PATH="/usr/bin:$PATH"
+ENV RELEASE_NAME="${RELEASE_NAME}"
 
 # Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/elektrine ./
+COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/${RELEASE_NAME} ./
 
 # Expose ports for HTTP and HTTPS (non-privileged ports, fly.toml maps external 80/443)
 EXPOSE 8080 8443

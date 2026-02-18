@@ -129,6 +129,16 @@ config :elektrine, ElektrineWeb.Endpoint,
   pubsub_server: Elektrine.PubSub,
   live_view: [signing_salt: "ewG/v8k5"]
 
+config :elektrine_chat_web, ElektrineChatWeb.Endpoint,
+  url: [host: "localhost"],
+  adapter: Bandit.PhoenixAdapter,
+  render_errors: [
+    formats: [json: ElektrineChatWeb.ErrorJSON],
+    layout: false
+  ],
+  pubsub_server: Elektrine.PubSub,
+  live_view: [signing_salt: "ewG/v8k5"]
+
 # Configures the mailer
 #
 # Use SMTP adapter as a placeholder - we'll override in runtime
@@ -208,6 +218,8 @@ config :elektrine, :uploads,
 config :elektrine, :messaging_federation,
   enabled: false,
   identity_key_id: "default",
+  official_relay_operator: "Community-operated",
+  official_relays: [],
   delivery_concurrency: 6,
   delivery_timeout_ms: 12_000,
   outbox_max_attempts: 8,

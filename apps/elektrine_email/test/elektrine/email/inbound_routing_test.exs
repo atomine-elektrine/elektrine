@@ -34,6 +34,19 @@ defmodule Elektrine.Email.InboundRoutingTest do
       assert resolved_mailbox.id == mailbox.id
     end
 
+    test "resolves supported cross-domain recipient to the same mailbox" do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "crossroute@elektrine.com"})
+
+      assert {:ok, resolved_mailbox} =
+               InboundRouting.resolve_recipient_mailbox(
+                 "crossroute@z.org",
+                 "crossroute@z.org"
+               )
+
+      assert resolved_mailbox.id == mailbox.id
+    end
+
     test "returns forwarding tuple for aliases with external targets" do
       user = user_fixture()
       local_part = "aliasroute#{System.unique_integer([:positive])}"
