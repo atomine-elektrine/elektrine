@@ -1,7 +1,8 @@
 defmodule ElektrineWeb.ChatLive.Index do
   use ElektrineWeb, :live_view
+  require Logger
 
-  alias Elektrine.Messaging
+  alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Accounts.User
@@ -42,16 +43,8 @@ defmodule ElektrineWeb.ChatLive.Index do
 
     # Load cached conversations to prevent flicker on refresh
     # This returns cached data instantly if available, only hits DB on cache miss
-    {:ok, cached_conversations} =
-      Elektrine.AppCache.get_conversations(user.id, fn ->
-        all_conversations = Messaging.list_conversations(user.id)
-        Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
-      end)
-
-    {:ok, cached_unread} =
-      Elektrine.AppCache.get_chat_unread_count(user.id, fn ->
-        Messaging.get_unread_count(user.id)
-      end)
+    cached_conversations = get_cached_conversations(user.id)
+    cached_unread = get_cached_unread_count(user.id)
 
     # Initialize with cached data to prevent flicker
     socket =
@@ -105,6 +98,7 @@ defmodule ElektrineWeb.ChatLive.Index do
       |> assign(:public_group_search_results, [])
       |> assign(:public_channel_search_results, [])
       |> assign(:custom_emojis, load_custom_emojis())
+      |> assign(:federation_preview, build_federation_preview())
       |> assign(
         :loading_conversations,
         !Enum.empty?(cached_conversations) || Messaging.user_has_conversations?(user.id)
@@ -1647,6 +1641,97 @@ defmodule ElektrineWeb.ChatLive.Index do
   end
 
   defp refresh_conversation_filter(conversations, _query, _current_user_id), do: conversations
+
+  defp get_cached_conversations(user_id) do
+    case Elektrine.AppCache.get_conversations(user_id, fn ->
+           all_conversations = Messaging.list_conversations(user_id)
+           Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
+         end) do
+      {:ok, conversations} ->
+        conversations
+
+      {:error, reason} ->
+        Logger.warning(
+          "failed to fetch cached conversations for user #{user_id}: #{inspect(reason)}"
+        )
+
+        all_conversations = Messaging.list_conversations(user_id)
+        Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
+    end
+  end
+
+  defp get_cached_unread_count(user_id) do
+    case Elektrine.AppCache.get_chat_unread_count(user_id, fn ->
+           Messaging.get_unread_count(user_id)
+         end) do
+      {:ok, unread_count} ->
+        unread_count
+
+      {:error, reason} ->
+        Logger.warning(
+          "failed to fetch cached unread count for user #{user_id}: #{inspect(reason)}"
+        )
+
+        Messaging.get_unread_count(user_id)
+    end
+  end
+
+  defp build_federation_preview do
+    config = Application.get_env(:elektrine, :messaging_federation, [])
+
+    %{
+      enabled: Keyword.get(config, :enabled, false),
+      relay_operator:
+        config
+        |> Keyword.get(:official_relay_operator, "Community-operated")
+        |> normalize_relay_operator_label(),
+      official_relays:
+        config
+        |> Keyword.get(:official_relays, [])
+        |> Enum.map(&normalize_official_relay/1)
+        |> Enum.reject(&is_nil/1)
+    }
+  end
+
+  defp normalize_official_relay(relay) when is_binary(relay) do
+    case String.trim(relay) do
+      "" -> nil
+      url -> %{url: url, name: nil}
+    end
+  end
+
+  defp normalize_official_relay(relay) when is_map(relay) do
+    url = relay[:url] || relay["url"]
+    name = relay[:name] || relay["name"]
+
+    if is_binary(url) and String.trim(url) != "" do
+      normalized_name =
+        if is_binary(name) and String.trim(name) != "" do
+          String.trim(name)
+        else
+          nil
+        end
+
+      %{url: String.trim(url), name: normalized_name}
+    else
+      nil
+    end
+  end
+
+  defp normalize_official_relay(_), do: nil
+
+  defp normalize_relay_operator_label(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" ->
+        "Community-operated"
+
+      label ->
+        label
+    end
+  end
 
   # Delegate helper functions for use in templates
   defdelegate conversation_name(conversation, current_user_id), to: Helpers

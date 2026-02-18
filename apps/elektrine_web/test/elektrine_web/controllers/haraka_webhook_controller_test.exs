@@ -288,6 +288,15 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@elektrine.com"}
     end
 
+    test "returns exists: true for supported cross-domain mailbox", %{conn: conn} do
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@z.org"})
+
+      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@z.org"}
+    end
+
     test "returns exists: false for non-existing mailbox", %{conn: conn} do
       conn =
         conn

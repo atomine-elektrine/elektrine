@@ -4,6 +4,21 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
   alias Elektrine.Accounts
 
   plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
+  plug :assign_timezone_and_format
+
+  defp assign_timezone_and_format(conn, _opts) do
+    current_user = conn.assigns[:current_user]
+
+    timezone =
+      if current_user && current_user.timezone, do: current_user.timezone, else: "Etc/UTC"
+
+    time_format =
+      if current_user && current_user.time_format, do: current_user.time_format, else: "12"
+
+    conn
+    |> assign(:timezone, timezone)
+    |> assign(:time_format, time_format)
+  end
 
   def index(conn, _params) do
     invite_codes = Accounts.list_invite_codes()

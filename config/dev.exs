@@ -70,6 +70,25 @@ config :elektrine, ElektrineWeb.Endpoint,
     tailwind: {Tailwind, :install_and_run, [:elektrine, ~w(--watch)]}
   ]
 
+config :elektrine_chat_web, ElektrineChatWeb.Endpoint,
+  http: [
+    ip: {0, 0, 0, 0},
+    port: 4100,
+    http_1_options: [
+      max_header_count: 50,
+      max_header_length: 8_192
+    ]
+  ],
+  check_origin: [
+    "http://localhost:4100",
+    "http://127.0.0.1:4100"
+  ],
+  code_reloader: true,
+  debug_errors: true,
+  secret_key_base:
+    System.get_env("CHAT_AUTH_SECRET_KEY_BASE") ||
+      Base.encode64(:crypto.strong_rand_bytes(48))
+
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed

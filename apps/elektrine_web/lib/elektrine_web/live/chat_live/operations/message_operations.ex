@@ -8,7 +8,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
 
-  alias Elektrine.Messaging
+  alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.SlashCommands
   alias Elektrine.Accounts.Storage
   alias Elektrine.Uploads

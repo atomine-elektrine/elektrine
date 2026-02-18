@@ -4,7 +4,7 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
   Contains utility functions for formatting, filtering, and calculating various states.
   """
 
-  alias Elektrine.Messaging
+  alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.{Conversation, Message}
 
   @doc """

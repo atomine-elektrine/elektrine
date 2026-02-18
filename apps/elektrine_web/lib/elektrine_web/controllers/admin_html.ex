@@ -33,50 +33,6 @@ defmodule ElektrineWeb.AdminHTML do
 
   def time_ago_in_words(datetime), do: Elektrine.TextHelpers.time_ago_in_words(datetime)
 
-  # Email integrity monitoring helpers
-  def get_status_color(:healthy), do: "text-success"
-  def get_status_color(:checking), do: "text-info"
-  def get_status_color(:issues_detected), do: "text-warning"
-  def get_status_color(:error), do: "text-error"
-  def get_status_color(_), do: "text-base-content"
-
-  def get_status_text(:healthy), do: "HEALTHY"
-  def get_status_text(:checking), do: "CHECKING..."
-  def get_status_text(:issues_detected), do: "ISSUES DETECTED"
-  def get_status_text(:error), do: "ERROR"
-  def get_status_text(_), do: "UNKNOWN"
-
-  def get_severity_class(:critical), do: "badge-error"
-  def get_severity_class(:high), do: "badge-warning"
-  def get_severity_class(:medium), do: "badge-warning badge-outline"
-  def get_severity_class(_), do: "badge-info"
-
-  def format_issue_type(:routing_mismatch), do: "Routing Mismatch"
-  def format_issue_type(:duplicate_mailbox_email), do: "Duplicate Email"
-  def format_issue_type(:orphaned_mailbox), do: "Orphaned Mailbox"
-  def format_issue_type(:duplicate_message_id), do: "Duplicate Message"
-
-  def format_issue_type(type),
-    do: String.replace(to_string(type), "_", " ") |> String.capitalize()
-
-  def format_issue_description(%{type: :routing_mismatch} = issue) do
-    "TO: #{issue.to_address} → Mailbox: #{issue.mailbox_email}"
-  end
-
-  def format_issue_description(%{type: :duplicate_mailbox_email} = issue) do
-    "Email: #{issue.email} (#{issue.count} mailboxes)"
-  end
-
-  def format_issue_description(%{type: :orphaned_mailbox} = issue) do
-    "#{issue.email} (#{issue.message_count} messages)"
-  end
-
-  def format_issue_description(%{type: :duplicate_message_id} = issue) do
-    "Message ID: #{issue.message_id} (#{issue.count} copies)"
-  end
-
-  def format_issue_description(_issue), do: "Unknown issue"
-
   # Content moderation helper functions
   def truncate_content(nil), do: ""
 

@@ -37,6 +37,7 @@ defmodule ElektrineWeb.MixProject do
   defp deps do
     [
       {:elektrine, in_umbrella: true},
+      {:elektrine_chat, in_umbrella: true},
       {:elektrine_password_manager, in_umbrella: true},
       {:elektrine_email, in_umbrella: true},
       {:elektrine_social, in_umbrella: true},

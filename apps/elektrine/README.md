@@ -5,10 +5,12 @@ Core domain app for the Elektrine umbrella.
 ## What this app owns
 
 - Accounts, auth, and privacy settings
-- Messaging/chat domain models and federation runtime
+- Shared persistence/runtime services consumed by other umbrella apps
 - ActivityPub domain logic and delivery workers
 - Calendar, contacts, profiles, notifications, and uploads
 - Repo/runtime services used by other umbrella apps
+
+Chat-facing app API now lives in `../elektrine_chat`.
 
 ## Notes
 

@@ -11,7 +11,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.Messaging
+  alias Elektrine.Messaging, as: Messaging
 
   def handle_event("show_add_members", _params, socket) do
     {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members, true))}

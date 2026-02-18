@@ -12,7 +12,8 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.{Accounts, Messaging}
+  alias Elektrine.Accounts
+  alias Elektrine.Messaging, as: Messaging
 
   def handle_event("select_conversation", %{"id" => conversation_id}, socket) do
     {:noreply, push_patch(socket, to: ~p"/chat/#{conversation_id}")}

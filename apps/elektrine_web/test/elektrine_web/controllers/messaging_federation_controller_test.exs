@@ -15,6 +15,13 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       :messaging_federation,
       enabled: true,
       identity_key_id: "k1",
+      official_relay_operator: "Relay Collective",
+      official_relays: [
+        %{
+          "name" => "Relay US",
+          "url" => "https://relay-us.example.com"
+        }
+      ],
       peers: [
         %{
           "domain" => "remote.test",
@@ -60,10 +67,13 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
         "messages" => []
       }
 
+      body = Jason.encode!(payload)
+
       conn =
         conn
-        |> signed_federation_headers("POST", "/federation/messaging/sync")
-        |> post("/federation/messaging/sync", payload)
+        |> signed_federation_headers("POST", "/federation/messaging/sync", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/sync", body)
 
       response = json_response(conn, 200)
       assert response["status"] == "ok"
@@ -107,15 +117,19 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
         "messages" => []
       }
 
+      body = Jason.encode!(payload)
+
       conn =
         conn
         |> signed_federation_headers(
           "POST",
           "/federation/messaging/sync",
+          raw_body: body,
           key_id: "k0",
           secret: "old-shared-secret"
         )
-        |> post("/federation/messaging/sync", payload)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/sync", body)
 
       response = json_response(conn, 200)
       assert response["status"] == "ok"
@@ -125,11 +139,13 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
   describe "POST /federation/messaging/events" do
     test "applies valid server.upsert event and updates mirrored server", %{conn: conn} do
       event = server_upsert_event("evt-1", 1, "remote-room-v1")
+      body = Jason.encode!(event)
 
       conn =
         conn
-        |> signed_federation_headers("POST", "/federation/messaging/events")
-        |> post("/federation/messaging/events", event)
+        |> signed_federation_headers("POST", "/federation/messaging/events", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/events", body)
 
       response = json_response(conn, 200)
       assert response["status"] == "applied"
@@ -144,29 +160,34 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
     test "is idempotent for duplicate event ids", %{conn: conn} do
       event = server_upsert_event("evt-dup-1", 1, "dup-room")
+      body = Jason.encode!(event)
 
       conn1 =
         conn
-        |> signed_federation_headers("POST", "/federation/messaging/events")
-        |> post("/federation/messaging/events", event)
+        |> signed_federation_headers("POST", "/federation/messaging/events", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/events", body)
 
       assert json_response(conn1, 200)["status"] == "applied"
 
       conn2 =
         build_conn()
-        |> signed_federation_headers("POST", "/federation/messaging/events")
-        |> post("/federation/messaging/events", event)
+        |> signed_federation_headers("POST", "/federation/messaging/events", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/events", body)
 
       assert json_response(conn2, 200)["status"] == "duplicate"
     end
 
     test "rejects sequence gaps per stream", %{conn: conn} do
       event = server_upsert_event("evt-gap-2", 2, "gap-room")
+      body = Jason.encode!(event)
 
       conn =
         conn
-        |> signed_federation_headers("POST", "/federation/messaging/events")
-        |> post("/federation/messaging/events", event)
+        |> signed_federation_headers("POST", "/federation/messaging/events", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/events", body)
 
       _response = json_response(conn, 409)
     end
@@ -200,8 +221,17 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       assert response["version"] == 1
       assert response["domain"] == Elektrine.ActivityPub.instance_domain()
       assert response["features"]["event_federation"] == true
+      assert response["features"]["relay_transport"] == true
       assert response["identity"]["current_key_id"] == "k1"
       assert is_binary(response["endpoints"]["events"])
+      assert response["relay_transport"]["mode"] == "optional"
+      assert response["relay_transport"]["official_operator"] == "Relay Collective"
+
+      relay_urls =
+        response["relay_transport"]["official_relays"]
+        |> Enum.map(& &1["url"])
+
+      assert "https://relay-us.example.com" in relay_urls
     end
   end
 
@@ -210,10 +240,12 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
     domain = "remote.test"
     key_id = Keyword.get(opts, :key_id, "k1")
     secret = Keyword.get(opts, :secret, "test-shared-secret")
+    raw_body = Keyword.get(opts, :raw_body, "")
+    content_digest = Federation.body_digest(raw_body)
 
     signature =
       Federation.sign_payload(
-        Federation.signature_payload(domain, method, path, "", timestamp),
+        Federation.signature_payload(domain, method, path, "", timestamp, content_digest),
         secret
       )
 
@@ -221,6 +253,7 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
     |> put_req_header("x-elektrine-federation-domain", domain)
     |> put_req_header("x-elektrine-federation-key-id", key_id)
     |> put_req_header("x-elektrine-federation-timestamp", timestamp)
+    |> put_req_header("x-elektrine-federation-content-digest", content_digest)
     |> put_req_header("x-elektrine-federation-signature", signature)
   end
 

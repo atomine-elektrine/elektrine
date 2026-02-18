@@ -12,7 +12,7 @@ defmodule ElektrineWeb.ChatLive.Operations.GroupChannelOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.Messaging
+  alias Elektrine.Messaging, as: Messaging
 
   def handle_event("toggle_new_chat", _params, socket) do
     {:noreply,
