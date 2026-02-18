@@ -65,6 +65,50 @@ defmodule Elektrine.Email.SenderPipelineTest do
       refute sanitized_body =~ "<script"
       assert sanitized_body =~ "Hello"
     end
+
+    test "filters suppressed external recipients before routing", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      assert {:ok, _suppression} =
+               Email.suppress_recipient(sender.id, "blocked@example.com",
+                 reason: "hard_bounce",
+                 source: "test"
+               )
+
+      params = %{
+        from: sender_mailbox.email,
+        to: "#{recipient_mailbox.email}, blocked@example.com",
+        subject: "Suppression filter",
+        text_body: "hello"
+      }
+
+      assert {:ok, sent_message} = Sender.send_email(sender.id, params)
+      assert sent_message.to == recipient_mailbox.email
+      refute String.contains?(sent_message.to, "blocked@example.com")
+    end
+
+    test "blocks send when every recipient is suppressed", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox
+    } do
+      assert {:ok, _suppression} =
+               Email.suppress_recipient(sender.id, "blocked@example.com",
+                 reason: "complaint",
+                 source: "test"
+               )
+
+      params = %{
+        from: sender_mailbox.email,
+        to: "blocked@example.com",
+        subject: "Suppressed only",
+        text_body: "hello"
+      }
+
+      assert {:error, reason} = Sender.send_email(sender.id, params)
+      assert reason =~ "suppressed"
+    end
   end
 
   defp unique_username(prefix) do

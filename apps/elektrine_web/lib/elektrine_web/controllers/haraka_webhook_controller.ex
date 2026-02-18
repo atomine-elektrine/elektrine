@@ -6,10 +6,33 @@ defmodule ElektrineWeb.HarakaWebhookController do
   alias Elektrine.Email.ForwardedMessage
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.InboundRouting
+  alias Elektrine.Email.Suppressions
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
+  alias ElektrineWeb.HarakaInboundWorker
+
+  @hard_bounce_indicators [
+    "user unknown",
+    "unknown user",
+    "no such user",
+    "mailbox unavailable",
+    "recipient address rejected",
+    "address rejected",
+    "does not exist",
+    "invalid recipient",
+    "account disabled"
+  ]
+
+  @soft_bounce_indicators [
+    "mailbox full",
+    "temporarily deferred",
+    "temporary failure",
+    "try again later",
+    "resources temporarily unavailable",
+    "over quota"
+  ]
 
   # API key for webhook authentication is loaded at runtime from environment variables
 
@@ -99,112 +122,132 @@ defmodule ElektrineWeb.HarakaWebhookController do
     with :ok <- authenticate(conn),
          :ok <- validate_request_size(conn),
          :ok <- check_rate_limit(remote_ip) do
-      try do
-        # Process Haraka webhook format
-        case process_haraka_email(params) do
-          {:ok, email} ->
-            duration = System.monotonic_time(:millisecond) - start_time
-            Events.email_inbound(:webhook, :success, duration, %{source: :haraka})
+      if async_ingest_enabled?() do
+        handle_async_ingest(conn, params, remote_ip, start_time)
+      else
+        try do
+          # Process Haraka webhook format
+          case process_haraka_email(params, %{
+                 "ingest_mode" => "sync",
+                 "remote_ip" => remote_ip
+               }) do
+            {:ok, email} ->
+              duration = System.monotonic_time(:millisecond) - start_time
+              Events.email_inbound(:webhook, :success, duration, %{source: :haraka})
 
-            conn
-            |> put_status(:ok)
-            |> json(%{
-              status: "success",
-              message_id: email.id,
-              processing_time_ms: duration
+              conn
+              |> put_status(:ok)
+              |> json(%{
+                status: "success",
+                message_id: email.id,
+                processing_time_ms: duration
+              })
+
+            {:error, reason} ->
+              duration = System.monotonic_time(:millisecond) - start_time
+
+              Events.email_inbound(:webhook, :failure, duration, %{
+                reason: reason,
+                source: :haraka
+              })
+
+              # Security rejections are expected (spam/spoofing blocked) - don't log as errors
+              if reason == :security_rejection do
+                Logger.debug(
+                  "Security rejection for email from #{params["from"]} (#{duration}ms)"
+                )
+              else
+                Logger.error("Failed to process Haraka email: #{inspect(reason)} (#{duration}ms)")
+
+                # Get attachment info for debugging
+                raw_attachments = params["attachments"]
+
+                attachment_info =
+                  case raw_attachments do
+                    list when is_list(list) ->
+                      %{format: "list", count: length(list)}
+
+                    map when is_map(map) ->
+                      %{format: "map", count: map_size(map), keys: Map.keys(map)}
+
+                    nil ->
+                      %{format: "nil", count: 0}
+
+                    other ->
+                      %{format: inspect(other.__struct__ || "unknown"), count: 0}
+                  end
+
+                # Report to Sentry - but NOT security rejections (expected behavior)
+                Sentry.capture_message("Failed to process inbound email",
+                  level: if(reason == :no_mailbox, do: :warning, else: :error),
+                  extra: %{
+                    reason: inspect(reason),
+                    duration_ms: duration,
+                    to: params["to"],
+                    rcpt_to: params["rcpt_to"],
+                    from: params["from"],
+                    attachment_info: attachment_info,
+                    subject: params["subject"]
+                  }
+                )
+              end
+
+              # Return appropriate status code for bouncing
+              {status_code, error_message} = get_bounce_status(reason)
+
+              conn
+              |> put_status(status_code)
+              |> json(%{
+                error: error_message,
+                processing_time_ms: duration,
+                bounce: true
+              })
+          end
+        rescue
+          e ->
+            Logger.error("Error processing Haraka email: #{inspect(e)}")
+            Logger.error("Stack trace: #{Exception.format_stacktrace()}")
+            duration = System.monotonic_time(:millisecond) - start_time
+
+            Events.email_inbound(:webhook, :failure, duration, %{
+              reason: :exception,
+              source: :haraka
             })
 
-          {:error, reason} ->
-            duration = System.monotonic_time(:millisecond) - start_time
-            Events.email_inbound(:webhook, :failure, duration, %{reason: reason, source: :haraka})
+            # Get attachment info for debugging
+            raw_attachments = params["attachments"]
 
-            # Security rejections are expected (spam/spoofing blocked) - don't log as errors
-            if reason == :security_rejection do
-              Logger.debug("Security rejection for email from #{params["from"]} (#{duration}ms)")
-            else
-              Logger.error("Failed to process Haraka email: #{inspect(reason)} (#{duration}ms)")
+            attachment_info =
+              case raw_attachments do
+                list when is_list(list) ->
+                  %{format: "list", count: length(list)}
 
-              # Get attachment info for debugging
-              raw_attachments = params["attachments"]
+                map when is_map(map) ->
+                  %{format: "map", count: map_size(map), keys: Map.keys(map)}
 
-              attachment_info =
-                case raw_attachments do
-                  list when is_list(list) ->
-                    %{format: "list", count: length(list)}
+                nil ->
+                  %{format: "nil", count: 0}
 
-                  map when is_map(map) ->
-                    %{format: "map", count: map_size(map), keys: Map.keys(map)}
+                _ ->
+                  %{format: "unknown", count: 0}
+              end
 
-                  nil ->
-                    %{format: "nil", count: 0}
-
-                  other ->
-                    %{format: inspect(other.__struct__ || "unknown"), count: 0}
-                end
-
-              # Report to Sentry - but NOT security rejections (expected behavior)
-              Sentry.capture_message("Failed to process inbound email",
-                level: if(reason == :no_mailbox, do: :warning, else: :error),
-                extra: %{
-                  reason: inspect(reason),
-                  duration_ms: duration,
-                  to: params["to"],
-                  rcpt_to: params["rcpt_to"],
-                  from: params["from"],
-                  attachment_info: attachment_info,
-                  subject: params["subject"]
-                }
-              )
-            end
-
-            # Return appropriate status code for bouncing
-            {status_code, error_message} = get_bounce_status(reason)
+            # Report exception to Sentry
+            Sentry.capture_exception(e,
+              stacktrace: __STACKTRACE__,
+              extra: %{
+                context: "haraka_webhook_processing",
+                attachment_info: attachment_info,
+                to: params["to"],
+                from: params["from"],
+                subject: params["subject"]
+              }
+            )
 
             conn
-            |> put_status(status_code)
-            |> json(%{
-              error: error_message,
-              processing_time_ms: duration,
-              bounce: true
-            })
+            |> put_status(:internal_server_error)
+            |> json(%{error: "Internal server error"})
         end
-      rescue
-        e ->
-          Logger.error("Error processing Haraka email: #{inspect(e)}")
-          Logger.error("Stack trace: #{Exception.format_stacktrace()}")
-          duration = System.monotonic_time(:millisecond) - start_time
-
-          Events.email_inbound(:webhook, :failure, duration, %{
-            reason: :exception,
-            source: :haraka
-          })
-
-          # Get attachment info for debugging
-          raw_attachments = params["attachments"]
-
-          attachment_info =
-            case raw_attachments do
-              list when is_list(list) -> %{format: "list", count: length(list)}
-              map when is_map(map) -> %{format: "map", count: map_size(map), keys: Map.keys(map)}
-              nil -> %{format: "nil", count: 0}
-              _ -> %{format: "unknown", count: 0}
-            end
-
-          # Report exception to Sentry
-          Sentry.capture_exception(e,
-            stacktrace: __STACKTRACE__,
-            extra: %{
-              context: "haraka_webhook_processing",
-              attachment_info: attachment_info,
-              to: params["to"],
-              from: params["from"],
-              subject: params["subject"]
-            }
-          )
-
-          conn
-          |> put_status(:internal_server_error)
-          |> json(%{error: "Internal server error"})
       end
     else
       {:error, :unauthorized} ->
@@ -249,8 +292,159 @@ defmodule ElektrineWeb.HarakaWebhookController do
     end
   end
 
+  @doc false
+  def process_haraka_email_public(params, ingest_context \\ %{})
+      when is_map(params) and is_map(ingest_context) do
+    process_haraka_email(params, ingest_context)
+  end
+
+  defp handle_async_ingest(conn, params, remote_ip, start_time) do
+    try do
+      case enqueue_haraka_email(params, remote_ip) do
+        {:ok, %{job_id: job_id, outcome: outcome, idempotency_key: idempotency_key}} ->
+          duration = System.monotonic_time(:millisecond) - start_time
+
+          Events.email_inbound(:webhook_enqueue, outcome, duration, %{
+            source: :haraka,
+            queue: :email_inbound,
+            job_id: job_id
+          })
+
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            status: "queued",
+            queue: "email_inbound",
+            enqueue_outcome: Atom.to_string(outcome),
+            job_id: job_id,
+            idempotency_key: idempotency_key,
+            processing_time_ms: duration
+          })
+
+        {:error, reason} ->
+          duration = System.monotonic_time(:millisecond) - start_time
+
+          Events.email_inbound(:webhook_enqueue, :failure, duration, %{
+            reason: reason,
+            source: :haraka,
+            queue: :email_inbound
+          })
+
+          {status_code, error_message} = get_bounce_status(reason)
+
+          conn
+          |> put_status(status_code)
+          |> json(%{
+            error: error_message,
+            processing_time_ms: duration,
+            bounce: true
+          })
+      end
+    rescue
+      e ->
+        Logger.error("Error enqueueing Haraka email: #{inspect(e)}")
+        Logger.error("Stack trace: #{Exception.format_stacktrace()}")
+        duration = System.monotonic_time(:millisecond) - start_time
+
+        Events.email_inbound(:webhook_enqueue, :failure, duration, %{
+          reason: :exception,
+          source: :haraka,
+          queue: :email_inbound
+        })
+
+        Sentry.capture_exception(e,
+          stacktrace: __STACKTRACE__,
+          extra: %{
+            context: "haraka_webhook_enqueue",
+            to: params["to"],
+            rcpt_to: params["rcpt_to"],
+            from: params["from"],
+            subject: params["subject"]
+          }
+        )
+
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Internal server error"})
+    end
+  end
+
+  defp enqueue_haraka_email(params, remote_ip) do
+    idempotency_key = HarakaInboundWorker.idempotency_key(params)
+
+    with :ok <- preflight_recipient_check(params) do
+      if already_processed_payload?(params) do
+        {:ok,
+         %{
+           job_id: nil,
+           outcome: :duplicate,
+           idempotency_key: idempotency_key
+         }}
+      else
+        with {:ok, job, outcome} <- HarakaInboundWorker.enqueue(params, remote_ip: remote_ip) do
+          {:ok,
+           %{
+             job_id: job.id,
+             outcome: outcome,
+             idempotency_key: job.args["idempotency_key"] || idempotency_key
+           }}
+        end
+      end
+    end
+  end
+
+  defp preflight_recipient_check(params) do
+    to = get_header_value(params, "to", "rcpt_to")
+    rcpt_to = params["rcpt_to"] || to
+
+    case InboundRouting.resolve_recipient_mailbox(to, rcpt_to) do
+      {:ok, _mailbox} ->
+        :ok
+
+      {:forward_external, _target, _alias_email} ->
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp already_processed_payload?(params) do
+    import Ecto.Query, only: [from: 2]
+
+    message_id = params["message_id"]
+    to = get_header_value(params, "to", "rcpt_to")
+    rcpt_to = params["rcpt_to"] || to
+
+    if is_binary(message_id) and String.trim(message_id) != "" do
+      case InboundRouting.resolve_recipient_mailbox(to, rcpt_to) do
+        {:ok, mailbox} ->
+          query =
+            from(m in Elektrine.Email.Message,
+              where: m.mailbox_id == ^mailbox.id and m.message_id == ^message_id,
+              limit: 1
+            )
+
+          not is_nil(Repo.one(query))
+
+        _ ->
+          false
+      end
+    else
+      false
+    end
+  end
+
+  defp async_ingest_enabled? do
+    case Application.get_env(:elektrine, :haraka_async_ingest, false) do
+      true -> true
+      false -> false
+      _ -> false
+    end
+  end
+
   # Process Haraka email webhook
-  defp process_haraka_email(params) do
+  defp process_haraka_email(params, ingest_context) do
     try do
       # Inbound boundary order:
       # 1) Extract + normalize incoming payload.
@@ -266,12 +460,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
       # Extract and decode headers - use helper to handle empty strings properly
       from = get_header_value(params, "from", "mail_from") || "unknown@example.com"
       to = get_header_value(params, "to", "rcpt_to") || "unknown@elektrine.com"
-
-      subject =
-        params["subject"]
-        |> extract_from_array()
-        |> decode_header_with_mail_library()
-        |> Sanitizer.sanitize_utf8()
+      subject = extract_subject(params)
 
       # Security validations for inbound email
       # 1. Check for local domain spoofing (external sender claiming to be from our domain)
@@ -419,6 +608,17 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
               # Extract spam information from webhook data (now improved)
               spam_info = extract_spam_info_from_webhook(params)
+              delivery_signal = classify_delivery_signal(params, from, subject)
+
+              suppression_event =
+                build_suppression_event(
+                  mailbox,
+                  delivery_signal,
+                  params,
+                  subject,
+                  text_body,
+                  html_body
+                )
 
               # Double-check spam detection logic
               final_is_spam =
@@ -446,6 +646,14 @@ defmodule ElektrineWeb.HarakaWebhookController do
                     temporary: is_temporary,
                     attachment_count: map_size(attachments),
                     format: "haraka",
+                    envelope_rcpt_to: sanitize_metadata_field(rcpt_to),
+                    envelope_to: sanitize_metadata_field(to),
+                    ingest_mode: sanitize_metadata_field(ingest_context["ingest_mode"]),
+                    ingest_job_id: sanitize_metadata_field(ingest_context["job_id"]),
+                    ingest_received_at: sanitize_metadata_field(ingest_context["received_at"]),
+                    ingest_idempotency_key:
+                      sanitize_metadata_field(ingest_context["idempotency_key"]),
+                    remote_ip: sanitize_metadata_field(ingest_context["remote_ip"]),
                     haraka_id: sanitize_metadata_field(params["id"]),
                     spam_status: sanitize_metadata_field(params["spam_status"]),
                     bounce: sanitize_metadata_field(params["bounce"]),
@@ -456,7 +664,16 @@ defmodule ElektrineWeb.HarakaWebhookController do
                     spam_score: spam_info.score,
                     spam_threshold: spam_info.threshold,
                     spam_status_header: sanitize_metadata_field(spam_info.status),
-                    spam_report: sanitize_metadata_field(spam_info.report)
+                    spam_report: sanitize_metadata_field(spam_info.report),
+                    delivery_signal: sanitize_metadata_field(delivery_signal.signal),
+                    is_dsn: delivery_signal.is_dsn,
+                    is_feedback_loop: delivery_signal.is_feedback_loop,
+                    is_auto_reply: delivery_signal.is_auto_reply,
+                    suppression_candidate_reason:
+                      sanitize_metadata_field(suppression_event.reason),
+                    suppression_candidate_recipients:
+                      Enum.map(suppression_event.recipients, &sanitize_metadata_field/1),
+                    suppression_candidate_apply: suppression_event.apply?
                   }
                 }
                 |> sanitize_haraka_email_data()
@@ -482,6 +699,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
                   # Broadcast the actual message struct to user topic after creation
                   case result do
                     {:ok, message} ->
+                      maybe_apply_suppression(mailbox, suppression_event, params, message_id)
+
                       if mailbox.user_id do
                         Phoenix.PubSub.broadcast!(
                           Elektrine.PubSub,
@@ -761,6 +980,70 @@ defmodule ElektrineWeb.HarakaWebhookController do
     end
   end
 
+  defp extract_subject(params) when is_map(params) do
+    primary_subject =
+      params["subject"]
+      |> extract_from_array()
+      |> decode_header_with_mail_library()
+      |> Sanitizer.sanitize_utf8()
+
+    header_subject =
+      params["headers"]
+      |> decode_subject_from_headers()
+
+    choose_cleaner_decoded_text(primary_subject, header_subject)
+  end
+
+  defp extract_subject(_), do: ""
+
+  defp decode_subject_from_headers(headers) when is_map(headers) do
+    subject_value =
+      Enum.find_value(headers, fn
+        {key, value} when is_binary(key) ->
+          if String.downcase(key) == "subject", do: value
+
+        _ ->
+          nil
+      end)
+
+    subject_value
+    |> extract_from_array()
+    |> decode_header_with_mail_library()
+    |> Sanitizer.sanitize_utf8()
+  end
+
+  defp decode_subject_from_headers(_), do: ""
+
+  defp choose_cleaner_decoded_text(primary, fallback) do
+    primary = if(is_binary(primary), do: primary, else: "")
+    fallback = if(is_binary(fallback), do: fallback, else: "")
+
+    cond do
+      fallback == "" ->
+        primary
+
+      primary == "" ->
+        fallback
+
+      decoded_text_quality_score(fallback) < decoded_text_quality_score(primary) ->
+        fallback
+
+      true ->
+        primary
+    end
+  end
+
+  defp decoded_text_quality_score(text) when is_binary(text) do
+    c1_controls = Regex.scan(~r/[\x{0080}-\x{009F}]/u, text) |> length()
+    replacement_chars = Regex.scan(~r/�/u, text) |> length()
+    mojibake_pairs = Regex.scan(~r/[À-ÿ][\x{0080}-\x{00BF}]/u, text) |> length()
+    ascii_marker_noise = Regex.scan(~r/(?:Ã|Â|Å|æ|ç|å)/u, text) |> length()
+
+    c1_controls * 6 + replacement_chars * 8 + mojibake_pairs * 4 + ascii_marker_noise
+  end
+
+  defp decoded_text_quality_score(_), do: 0
+
   # Use the shared email header decoder so webhook and outbound parsing behave the same.
   def decode_mime_header_public(text), do: decode_header_with_mail_library(text)
 
@@ -888,6 +1171,310 @@ defmodule ElektrineWeb.HarakaWebhookController do
     }
   end
 
+  defp classify_delivery_signal(params, from, subject) do
+    from_down = (InboundRouting.extract_clean_email(from) || from || "") |> String.downcase()
+    subject_down = (subject || "") |> String.downcase()
+    auto_submitted = (params["auto_submitted"] || "") |> to_string() |> String.downcase()
+    headers = params["headers"] || %{}
+
+    feedback_header? =
+      is_map(headers) &&
+        Enum.any?(["feedback-type", "Feedback-Type", "x-feedback-id", "X-Feedback-Id"], fn key ->
+          case headers[key] do
+            value when is_binary(value) and value != "" -> true
+            _ -> false
+          end
+        end)
+
+    is_dsn =
+      String.contains?(from_down, "mailer-daemon") ||
+        String.contains?(from_down, "postmaster@") ||
+        String.contains?(subject_down, "delivery status notification") ||
+        String.contains?(subject_down, "mail delivery subsystem") ||
+        String.contains?(subject_down, "undelivered") ||
+        String.contains?(subject_down, "delivery failure")
+
+    is_feedback_loop =
+      feedback_header? ||
+        String.contains?(subject_down, "abuse report") ||
+        String.contains?(subject_down, "complaint")
+
+    is_auto_reply =
+      auto_submitted not in ["", "no"] || String.contains?(subject_down, "out of office")
+
+    signal =
+      cond do
+        is_feedback_loop -> "feedback_loop"
+        is_dsn -> "dsn"
+        is_auto_reply -> "auto_reply"
+        true -> "normal"
+      end
+
+    %{
+      signal: signal,
+      is_dsn: is_dsn,
+      is_feedback_loop: is_feedback_loop,
+      is_auto_reply: is_auto_reply
+    }
+  end
+
+  defp build_suppression_event(mailbox, delivery_signal, params, subject, text_body, html_body) do
+    recipients = extract_delivery_signal_recipients(params, text_body, html_body, mailbox)
+
+    cond do
+      not auto_suppression_enabled?() ->
+        %{apply?: false, reason: nil, source: nil, recipients: []}
+
+      not is_integer(mailbox.user_id) ->
+        %{apply?: false, reason: nil, source: nil, recipients: []}
+
+      delivery_signal.is_feedback_loop and recipients != [] ->
+        %{apply?: true, reason: "complaint", source: "feedback_loop", recipients: recipients}
+
+      delivery_signal.is_dsn and hard_bounce?(params, subject, text_body, html_body) and
+          recipients != [] ->
+        %{apply?: true, reason: "hard_bounce", source: "dsn_hard_bounce", recipients: recipients}
+
+      true ->
+        %{apply?: false, reason: nil, source: nil, recipients: []}
+    end
+  end
+
+  defp maybe_apply_suppression(
+         %{user_id: user_id},
+         %{apply?: true, recipients: recipients, reason: reason, source: source},
+         params,
+         message_id
+       )
+       when is_integer(user_id) and is_list(recipients) do
+    event_at = DateTime.utc_now()
+
+    results =
+      Enum.map(recipients, fn recipient ->
+        metadata = %{
+          "message_id" => message_id,
+          "haraka_id" => params["id"],
+          "reason_source" => source,
+          "from" => params["from"],
+          "subject" => params["subject"]
+        }
+
+        case Suppressions.suppress_recipient(user_id, recipient,
+               reason: reason,
+               source: "haraka_inbound",
+               metadata: metadata,
+               last_event_at: event_at
+             ) do
+          {:ok, _suppression} ->
+            {:ok, recipient}
+
+          {:error, suppress_reason} ->
+            {:error, recipient, suppress_reason}
+        end
+      end)
+
+    applied = for {:ok, recipient} <- results, do: recipient
+    failed = for {:error, recipient, failure_reason} <- results, do: {recipient, failure_reason}
+
+    if applied != [] do
+      Events.email_inbound(:suppression, :applied, nil, %{
+        source: :haraka,
+        user_id: user_id,
+        reason: reason,
+        count: length(applied)
+      })
+    end
+
+    if failed != [] do
+      Logger.warning(
+        "Failed to apply suppression entries for user #{user_id}: #{inspect(failed)}"
+      )
+
+      Events.email_inbound(:suppression, :failure, nil, %{
+        source: :haraka,
+        user_id: user_id,
+        reason: reason,
+        count: length(failed)
+      })
+    end
+
+    :ok
+  end
+
+  defp maybe_apply_suppression(_mailbox, _suppression_event, _params, _message_id), do: :ok
+
+  defp auto_suppression_enabled? do
+    case Application.get_env(:elektrine, :email_auto_suppression, true) do
+      true -> true
+      false -> false
+      _ -> false
+    end
+  end
+
+  defp hard_bounce?(params, subject, text_body, html_body) do
+    headers_blob =
+      params["headers"]
+      |> normalize_headers()
+      |> Enum.map_join("\n", fn {k, v} -> "#{k}: #{inspect(v)}" end)
+
+    combined =
+      [subject, text_body, strip_html_tags(html_body), headers_blob]
+      |> Enum.filter(&is_binary/1)
+      |> Enum.join("\n")
+
+    combined_down = String.downcase(combined)
+
+    status_codes =
+      Regex.scan(~r/\b([245]\.\d{1,3}\.\d{1,3})\b/, combined, capture: :all_but_first)
+      |> List.flatten()
+
+    cond do
+      Enum.any?(status_codes, &String.starts_with?(&1, "5.")) ->
+        true
+
+      Enum.any?(status_codes, &String.starts_with?(&1, "4.")) ->
+        false
+
+      String.contains?(combined_down, " smtp; 550") or String.contains?(combined_down, " 550 ") ->
+        true
+
+      Enum.any?(@hard_bounce_indicators, &String.contains?(combined_down, &1)) ->
+        true
+
+      Enum.any?(@soft_bounce_indicators, &String.contains?(combined_down, &1)) ->
+        false
+
+      true ->
+        false
+    end
+  end
+
+  defp extract_delivery_signal_recipients(params, text_body, html_body, mailbox) do
+    headers = normalize_headers(params["headers"])
+
+    structured_values = [
+      params["failed_recipients"],
+      params["final_recipient"],
+      params["original_recipient"],
+      params["recipient"],
+      get_case_insensitive(headers, "x-failed-recipients"),
+      get_case_insensitive(headers, "final-recipient"),
+      get_case_insensitive(headers, "original-recipient"),
+      get_case_insensitive(headers, "recipient")
+    ]
+
+    structured_emails =
+      structured_values
+      |> Enum.flat_map(&extract_emails_from_value/1)
+
+    body_blob =
+      [text_body, strip_html_tags(html_body)]
+      |> Enum.filter(&is_binary/1)
+      |> Enum.join("\n")
+
+    hinted_emails =
+      extract_dsn_emails(body_blob)
+      |> case do
+        [] ->
+          extract_emails_from_value(body_blob)
+
+        values ->
+          values
+      end
+
+    candidates = if structured_emails != [], do: structured_emails, else: hinted_emails
+
+    mailbox_email =
+      mailbox.email
+      |> InboundRouting.extract_clean_email()
+      |> case do
+        nil -> nil
+        email -> String.downcase(email)
+      end
+
+    candidates
+    |> Enum.map(&InboundRouting.extract_clean_email/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&internal_email?/1)
+    |> Enum.reject(&(&1 == mailbox_email))
+    |> Enum.uniq()
+  end
+
+  defp extract_dsn_emails(blob) when is_binary(blob) do
+    regexes = [
+      ~r/(?:Final-Recipient|Original-Recipient)\s*:\s*[^;\n]*;\s*([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/i,
+      ~r/X-Failed-Recipients\s*:\s*([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/i,
+      ~r/Recipient\s*:\s*([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/i
+    ]
+
+    regexes
+    |> Enum.flat_map(fn regex ->
+      Regex.scan(regex, blob, capture: :all_but_first) |> List.flatten()
+    end)
+    |> Enum.uniq()
+  end
+
+  defp extract_dsn_emails(_), do: []
+
+  defp extract_emails_from_value(value) when is_binary(value) do
+    Regex.scan(~r/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i, value, capture: :all_but_first)
+    |> List.flatten()
+  end
+
+  defp extract_emails_from_value(value) when is_list(value) do
+    Enum.flat_map(value, &extract_emails_from_value/1)
+  end
+
+  defp extract_emails_from_value(value) when is_map(value) do
+    value
+    |> Map.values()
+    |> Enum.flat_map(&extract_emails_from_value/1)
+  end
+
+  defp extract_emails_from_value(_), do: []
+
+  defp normalize_headers(headers) when is_map(headers), do: headers
+  defp normalize_headers(_), do: %{}
+
+  defp get_case_insensitive(map, key) when is_map(map) and is_binary(key) do
+    key_down = String.downcase(key)
+
+    Enum.find_value(map, fn
+      {map_key, value} when is_binary(map_key) ->
+        if String.downcase(map_key) == key_down, do: value
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp get_case_insensitive(_, _), do: nil
+
+  defp strip_html_tags(value) when is_binary(value) do
+    value
+    |> String.replace(~r/<[^>]+>/, " ")
+    |> String.replace("&nbsp;", " ")
+  end
+
+  defp strip_html_tags(_), do: ""
+
+  defp internal_email?(email) when is_binary(email) do
+    case String.split(email, "@", parts: 2) do
+      [_local, domain] ->
+        domain in supported_domains()
+
+      _ ->
+        false
+    end
+  end
+
+  defp internal_email?(_), do: false
+
+  defp supported_domains do
+    Application.get_env(:elektrine, :email)[:supported_domains] || ["elektrine.com", "z.org"]
+  end
+
   # Get appropriate HTTP status code for email bouncing
   defp get_bounce_status(reason) do
     case reason do
@@ -924,6 +1511,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
     alias Elektrine.Email.Message
     alias Elektrine.Repo
 
+    envelope_rcpt_to = get_in(email_data, ["metadata", "envelope_rcpt_to"])
+
     # Check by message ID first
     by_message_id =
       Message
@@ -939,15 +1528,35 @@ defmodule ElektrineWeb.HarakaWebhookController do
       # Check for near-duplicates by subject, from, and time
       five_minutes_ago = DateTime.utc_now() |> DateTime.add(-300, :second)
 
-      Message
-      |> where([m], m.mailbox_id == ^email_data["mailbox_id"])
-      |> where([m], m.subject == ^email_data["subject"])
-      |> where([m], m.from == ^email_data["from"])
-      |> where([m], m.inserted_at > ^five_minutes_ago)
-      |> limit(1)
-      |> Repo.one()
+      near_duplicate_query =
+        Message
+        |> where([m], m.mailbox_id == ^email_data["mailbox_id"])
+        |> where([m], m.subject == ^email_data["subject"])
+        |> where([m], m.from == ^email_data["from"])
+        |> where([m], m.inserted_at > ^five_minutes_ago)
+        |> maybe_filter_by_envelope_rcpt(envelope_rcpt_to)
+        |> limit(1)
+
+      Repo.one(near_duplicate_query)
     end
   end
+
+  defp maybe_filter_by_envelope_rcpt(query, envelope_rcpt_to)
+       when is_binary(envelope_rcpt_to) and envelope_rcpt_to != "" do
+    import Ecto.Query, only: [where: 3]
+
+    where(
+      query,
+      [m],
+      fragment(
+        "lower(coalesce(?->>'envelope_rcpt_to', '')) = lower(?)",
+        m.metadata,
+        ^envelope_rcpt_to
+      )
+    )
+  end
+
+  defp maybe_filter_by_envelope_rcpt(query, _), do: query
 
   # Record a forwarded message to the database for tracking
   defp record_forwarded_message_haraka(

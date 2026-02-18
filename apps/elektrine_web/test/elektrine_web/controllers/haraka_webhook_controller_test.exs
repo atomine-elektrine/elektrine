@@ -10,9 +10,12 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   setup do
     # Set test API key
     System.put_env("HARAKA_API_KEY", @api_key)
+    old_async_setting = Application.get_env(:elektrine, :haraka_async_ingest, true)
+    Application.put_env(:elektrine, :haraka_async_ingest, false)
 
     on_exit(fn ->
       System.delete_env("HARAKA_API_KEY")
+      Application.put_env(:elektrine, :haraka_async_ingest, old_async_setting)
     end)
 
     :ok
@@ -85,6 +88,35 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
 
       messages = Email.list_inbox_messages(mailbox.id)
       assert length(messages) == 1
+    end
+
+    test "prefers cleaner subject decoding from raw Subject header when payload subject is mojibake",
+         %{conn: conn, mailbox: mailbox} do
+      params = %{
+        "from" => "sender@example.com",
+        "to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@elektrine.com",
+        "subject" => "xiha711@gmail.com çå®å¨æé",
+        "headers" => %{
+          "Subject" => "=?UTF-8?B?eGloYTcxMUBnbWFpbC5jb20g55qE5a6J5YWo5o+Q6YaS?="
+        },
+        "text_body" => "Encoding fallback test",
+        "message_id" => "test-encoding-fallback-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] =
+        mailbox.id
+        |> Email.list_inbox_messages()
+        |> Enum.filter(&(&1.message_id == params["message_id"]))
+
+      assert message.subject == "xiha711@gmail.com 的安全提醒"
     end
 
     test "prefers rcpt_to over to header when both have different addresses", %{
@@ -270,6 +302,13 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert ElektrineWeb.HarakaWebhookController.decode_mime_header_public("") == ""
       assert ElektrineWeb.HarakaWebhookController.decode_mime_header_public(nil) == ""
     end
+
+    test "decodes RFC 2047 base64 encoded UTF-8 headers" do
+      encoded = "=?UTF-8?B?eGloYTcxMUBnbWFpbC5jb20g55qE5a6J5YWo5o+Q6YaS?="
+
+      assert ElektrineWeb.HarakaWebhookController.decode_mime_header_public(encoded) ==
+               "xiha711@gmail.com 的安全提醒"
+    end
   end
 
   describe "verify_recipient endpoint" do
@@ -316,6 +355,116 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> post(~p"/api/haraka/verify-recipient", %{"email" => "test@elektrine.com"})
 
       assert json_response(conn, 401)["error"] == "Unauthorized"
+    end
+  end
+
+  describe "async inbound ingest" do
+    setup do
+      old_async_setting = Application.get_env(:elektrine, :haraka_async_ingest, false)
+      Application.put_env(:elektrine, :haraka_async_ingest, true)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :haraka_async_ingest, old_async_setting)
+      end)
+
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "asyncuser@elektrine.com"})
+      {:ok, mailbox: mailbox}
+    end
+
+    test "queues inbound payload and preserves envelope recipient metadata", %{
+      conn: conn,
+      mailbox: mailbox
+    } do
+      params = %{
+        "from" => "sender@example.com",
+        "to" => "dev-list@lists.example.org",
+        "rcpt_to" => "asyncuser@z.org",
+        "subject" => "Async ingest metadata test",
+        "text_body" => "payload body",
+        "message_id" => "async-metadata-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      response = json_response(conn, 200)
+      assert response["status"] == "queued"
+      assert response["queue"] == "email_inbound"
+      assert response["enqueue_outcome"] in ["queued", "duplicate"]
+      assert is_binary(response["idempotency_key"])
+
+      import Ecto.Query
+
+      messages =
+        Elektrine.Email.Message
+        |> where(mailbox_id: ^mailbox.id)
+        |> where([m], m.message_id == ^params["message_id"])
+        |> Elektrine.Repo.all()
+
+      assert length(messages) == 1
+      [message] = messages
+      assert message.metadata["envelope_rcpt_to"] == "asyncuser@z.org"
+      assert message.metadata["ingest_mode"] == "async"
+      assert is_binary(message.metadata["ingest_idempotency_key"])
+    end
+
+    test "marks duplicate enqueue outcome for repeated payload", %{conn: conn, mailbox: mailbox} do
+      unique_suffix = System.system_time(:millisecond)
+
+      params = %{
+        "from" => "sender@example.com",
+        "to" => "updates@lists.example.org",
+        "rcpt_to" => "asyncuser@z.org",
+        "subject" => "Duplicate async payload",
+        "text_body" => "same body",
+        "message_id" => "async-dup-#{unique_suffix}"
+      }
+
+      first_conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      second_conn =
+        build_conn()
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(first_conn, 200)["status"] == "queued"
+      assert json_response(second_conn, 200)["enqueue_outcome"] == "duplicate"
+
+      import Ecto.Query
+
+      message_count =
+        Elektrine.Email.Message
+        |> where(mailbox_id: ^mailbox.id)
+        |> where([m], m.message_id == ^params["message_id"])
+        |> Elektrine.Repo.aggregate(:count, :id)
+
+      assert message_count == 1
+    end
+
+    test "returns bounce response for invalid recipient before enqueue", %{conn: conn} do
+      params = %{
+        "from" => "sender@example.com",
+        "to" => "external@outside.net",
+        "rcpt_to" => "other@outside.net",
+        "subject" => "Should bounce",
+        "text_body" => "invalid recipient",
+        "message_id" => "async-bounce-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      response = json_response(conn, 404)
+      assert response["error"] == "Mailbox does not exist"
+      assert response["bounce"] == true
     end
   end
 
@@ -420,7 +569,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "list-owner@lists.example.org",
         "to" => "discussion@lists.example.org",
-        "rcpt_to" => "crossdomain@elektrine.com",
+        "rcpt_to" => "crossdomain@z.org",
         "subject" => "Cross domain test",
         "text_body" => "Testing cross domain delivery",
         "message_id" => "test-cross-#{System.system_time(:millisecond)}"
@@ -441,6 +590,88 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> Elektrine.Repo.all()
 
       assert length(messages) == 1
+    end
+
+    test "verify endpoint accepts z.org address for elektrine.com mailbox", %{conn: conn} do
+      user = user_fixture()
+      _mailbox = mailbox_fixture(%{user_id: user.id, email: "crossverify@elektrine.com"})
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "crossverify@z.org"})
+
+      assert json_response(conn, 200) == %{"exists" => true, "email" => "crossverify@z.org"}
+    end
+  end
+
+  describe "delivery signal suppression automation" do
+    setup do
+      local_part = "signals#{System.unique_integer([:positive])}"
+      user = user_fixture(%{username: local_part})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      {:ok, user: user, mailbox: mailbox}
+    end
+
+    test "creates suppression for hard bounce DSN recipient", %{
+      conn: conn,
+      user: user,
+      mailbox: mailbox
+    } do
+      params = %{
+        "from" => "Mail Delivery Subsystem <mailer-daemon@example.net>",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "Delivery Status Notification (Failure)",
+        "text_body" =>
+          "Final-Recipient: rfc822; bounced@example.net\nStatus: 5.1.1\nDiagnostic-Code: smtp; 550 5.1.1 User unknown",
+        "headers" => %{
+          "Final-Recipient" => "rfc822; bounced@example.net",
+          "Status" => "5.1.1"
+        },
+        "message_id" => "dsn-hard-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      suppression = Email.get_active_suppression(user.id, "bounced@example.net")
+      assert suppression
+      assert suppression.reason == "hard_bounce"
+    end
+
+    test "creates suppression for feedback-loop complaint recipient", %{
+      conn: conn,
+      user: user,
+      mailbox: mailbox
+    } do
+      params = %{
+        "from" => "complaints@example.net",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "Abuse report",
+        "text_body" => "Original-Recipient: rfc822; complainant@example.org",
+        "headers" => %{
+          "Feedback-Type" => "abuse",
+          "Original-Recipient" => "rfc822; complainant@example.org"
+        },
+        "message_id" => "fbl-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      suppression = Email.get_active_suppression(user.id, "complainant@example.org")
+      assert suppression
+      assert suppression.reason == "complaint"
     end
   end
 

@@ -86,7 +86,7 @@ defmodule Elektrine.Email.SendEmailWorker do
   @valid_email_keys ~w(
     to from cc bcc subject text_body html_body reply_to message_id in_reply_to
     references attachments headers priority content_type charset
-    mailbox_id user_id scheduled_at expires_at
+    mailbox_id user_id scheduled_at expires_at list_id
   )
 
   defp atomize_keys(nil), do: nil

@@ -59,19 +59,11 @@ defmodule Elektrine.Email.InboundRouting do
   def validate_mailbox_route(to, rcpt_to, mailbox) do
     to_clean = extract_clean_email(to)
     rcpt_to_clean = extract_clean_email(rcpt_to)
-    mailbox_clean = extract_clean_email(mailbox.email)
 
     to_normalized = to_clean && Email.normalize_plus_address(to_clean)
     rcpt_to_normalized = rcpt_to_clean && Email.normalize_plus_address(rcpt_to_clean)
-    mailbox_normalized = mailbox_clean && Email.normalize_plus_address(mailbox_clean)
-
-    matches_to =
-      to_normalized && mailbox_normalized &&
-        String.downcase(to_normalized) == String.downcase(mailbox_normalized)
-
-    matches_rcpt_to =
-      rcpt_to_normalized && mailbox_normalized &&
-        String.downcase(rcpt_to_normalized) == String.downcase(mailbox_normalized)
+    matches_to = to_normalized && Mailbox.owns_email?(mailbox, to_normalized)
+    matches_rcpt_to = rcpt_to_normalized && Mailbox.owns_email?(mailbox, rcpt_to_normalized)
 
     matches_alias = check_alias_ownership(to_clean || rcpt_to_clean, mailbox)
 
