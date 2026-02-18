@@ -32,6 +32,8 @@ config :elektrine, Oban,
     activitypub_delivery: 2,
     # Email sending
     email: 2,
+    # Inbound Haraka processing
+    email_inbound: 2,
     # RSS feed fetching
     rss: 2,
     # Data exports (low priority, can take time)
@@ -87,6 +89,14 @@ config :elektrine, :email,
     "elektrine.com",
     "z.org"
   ]
+
+# Process Haraka inbound payloads asynchronously through Oban.
+# Can be overridden with HARAKA_ASYNC_INGEST at runtime.
+config :elektrine, :haraka_async_ingest, true
+
+# Automatically suppress outbound recipients after verified hard bounces/FBL complaints.
+# Can be overridden with EMAIL_AUTO_SUPPRESSION at runtime.
+config :elektrine, :email_auto_suppression, true
 
 # Configure Giphy API
 config :elektrine, :giphy,

@@ -51,8 +51,9 @@ defmodule Elektrine.Email.HeaderSanitizer do
     |> ensure_valid_utf8()
     # Remove all forms of line breaks that could enable header injection
     |> String.replace(~r/[\r\n\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/, "")
-    # Remove other dangerous Unicode whitespace characters
-    |> String.replace(~r/[\x85]/, "")
+    # Remove NEL (U+0085) as a Unicode control codepoint.
+    # Use a Unicode class so we don't strip raw 0x85 bytes from UTF-8 multibyte characters.
+    |> String.replace(~r/[\x{0085}]/u, "")
     # Trim whitespace
     |> String.trim()
     # Limit length to prevent buffer overflow attacks

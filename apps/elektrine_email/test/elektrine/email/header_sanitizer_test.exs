@@ -159,6 +159,15 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
         assert String.length(result) > 0
       end
     end
+
+    test "does not corrupt UTF-8 CJK characters containing byte 0x85" do
+      subject = "xiha711@gmail.com 的安全提醒"
+      result = HeaderSanitizer.sanitize_subject_header(subject)
+
+      assert result == subject
+      assert String.valid?(result)
+      assert result =~ "安全"
+    end
   end
 
   describe "sanitize_email_params/1 - full email validation" do

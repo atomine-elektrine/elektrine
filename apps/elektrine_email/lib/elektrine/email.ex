@@ -12,6 +12,7 @@ defmodule Elektrine.Email do
   - Elektrine.Email.Processing - Categorization and processing
   - Elektrine.Email.Aliases - Email alias management
   - Elektrine.Email.BlockedSenders - Blocked sender management
+  - Elektrine.Email.Suppressions - Outbound recipient suppression management
   - Elektrine.Email.SafeSenders - Safe sender/whitelist management
   - Elektrine.Email.Filters - Email filter/rule management
   - Elektrine.Email.AutoReplies - Auto-reply/vacation responder
@@ -330,6 +331,18 @@ defmodule Elektrine.Email do
 
   defdelegate change_blocked_sender(blocked_sender, attrs \\ %{}),
     to: Elektrine.Email.BlockedSenders
+
+  # Delegate suppression functions to Suppressions module
+  defdelegate suppress_recipient(user_id, email, opts \\ []), to: Elektrine.Email.Suppressions
+  defdelegate unsuppress_recipient(user_id, email), to: Elektrine.Email.Suppressions
+  defdelegate suppressed?(user_id, email), to: Elektrine.Email.Suppressions
+  defdelegate get_active_suppression(user_id, email), to: Elektrine.Email.Suppressions
+  defdelegate list_active_suppressions(user_id, opts \\ []), to: Elektrine.Email.Suppressions
+
+  defdelegate filter_suppressed_recipients(user_id, recipients, opts \\ []),
+    to: Elektrine.Email.Suppressions
+
+  defdelegate prune_expired_suppressions(), to: Elektrine.Email.Suppressions, as: :prune_expired
 
   # Delegate safe sender functions to SafeSenders module
   defdelegate list_safe_senders(user_id), to: Elektrine.Email.SafeSenders

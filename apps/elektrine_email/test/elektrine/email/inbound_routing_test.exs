@@ -66,6 +66,18 @@ defmodule Elektrine.Email.InboundRoutingTest do
   end
 
   describe "validate_mailbox_route/3" do
+    test "accepts supported cross-domain recipient for mailbox" do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@elektrine.com"})
+
+      assert :ok =
+               InboundRouting.validate_mailbox_route(
+                 "list@lists.example.org",
+                 "owner@z.org",
+                 mailbox
+               )
+    end
+
     test "rejects mismatched recipient to mailbox routing" do
       user = user_fixture()
       mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@elektrine.com"})

@@ -25,6 +25,7 @@ defmodule Elektrine.Email.Sender do
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.Unsubscribes
+  alias Elektrine.Email.Suppressions
   alias Elektrine.Email.ListTypes
   alias Elektrine.Email.PGP
   alias Elektrine.Telemetry.Events
@@ -73,38 +74,55 @@ defmodule Elektrine.Email.Sender do
           {:error, reason}
 
         :ok ->
-          # Only check unsubscribes if this is a mass email with an explicit list_id
-          # Personal emails (SMTP/webmail without list_id) skip this check
-          list_id = params[:list_id]
+          case filter_suppressed_recipients_for_send(user_id, to_emails, cc_emails, bcc_emails) do
+            {:error, :all_suppressed, reasons} ->
+              Events.email_outbound(:suppression, :blocked, nil, %{
+                user_id: user_id,
+                reason: summarize_suppression_reasons(reasons)
+              })
 
-          if list_id && !is_transactional_email?(list_id) do
-            # Mass email - filter out unsubscribed recipients
-            case filter_unsubscribed_recipients(to_emails, cc_emails, bcc_emails, list_id) do
-              {:error, :all_unsubscribed} ->
-                {:error, "All recipients have unsubscribed from this mailing list"}
+              {:error,
+               "All recipients are suppressed due to prior delivery failures or complaints"}
 
-              {:ok, filtered_to, filtered_cc, filtered_bcc} ->
-                # Update params with filtered recipients
-                params =
-                  params
-                  |> Map.put(
-                    :to,
-                    if(filtered_to != [], do: Enum.join(filtered_to, ", "), else: "")
-                  )
-                  |> Map.put(
-                    :cc,
-                    if(filtered_cc != [], do: Enum.join(filtered_cc, ", "), else: "")
-                  )
-                  |> Map.put(
-                    :bcc,
-                    if(filtered_bcc != [], do: Enum.join(filtered_bcc, ", "), else: "")
-                  )
+            {:ok, filtered_to, filtered_cc, filtered_bcc, suppressed, reasons} ->
+              params = put_filtered_recipients(params, filtered_to, filtered_cc, filtered_bcc)
 
+              if suppressed != [] do
+                Logger.warning(
+                  "Suppressed outbound recipients for user #{user_id}: #{inspect(suppressed)} reasons=#{inspect(reasons)}"
+                )
+
+                Events.email_outbound(:suppression, :applied, nil, %{
+                  user_id: user_id,
+                  suppressed_count: length(suppressed)
+                })
+              end
+
+              # Only check unsubscribes if this is a mass email with an explicit list_id
+              # Personal emails (SMTP/webmail without list_id) skip this check
+              list_id = params[:list_id] || params["list_id"]
+
+              if list_id && !is_transactional_email?(list_id) do
+                # Mass email - filter out unsubscribed recipients
+                case filter_unsubscribed_recipients(
+                       filtered_to,
+                       filtered_cc,
+                       filtered_bcc,
+                       list_id
+                     ) do
+                  {:error, :all_unsubscribed} ->
+                    {:error, "All recipients have unsubscribed from this mailing list"}
+
+                  {:ok, unsub_to, unsub_cc, unsub_bcc} ->
+                    params =
+                      put_filtered_recipients(params, unsub_to, unsub_cc, unsub_bcc)
+
+                    continue_send_email(user_id, params, db_attachments)
+                end
+              else
+                # Personal email (no list_id) or transactional - proceed without filtering
                 continue_send_email(user_id, params, db_attachments)
-            end
-          else
-            # Personal email (no list_id) or transactional - proceed without filtering
-            continue_send_email(user_id, params, db_attachments)
+              end
           end
       end
 
@@ -1582,6 +1600,42 @@ defmodule Elektrine.Email.Sender do
       params
     end
   end
+
+  defp filter_suppressed_recipients_for_send(user_id, to_emails, cc_emails, bcc_emails) do
+    suppression_result =
+      Suppressions.filter_suppressed_recipients(user_id, to_emails ++ cc_emails ++ bcc_emails,
+        external_only: true
+      )
+
+    suppressed_set = MapSet.new(suppression_result.suppressed)
+    filtered_to = Enum.reject(to_emails, &MapSet.member?(suppressed_set, &1))
+    filtered_cc = Enum.reject(cc_emails, &MapSet.member?(suppressed_set, &1))
+    filtered_bcc = Enum.reject(bcc_emails, &MapSet.member?(suppressed_set, &1))
+
+    if Enum.empty?(filtered_to) && Enum.empty?(filtered_cc) && Enum.empty?(filtered_bcc) do
+      {:error, :all_suppressed, suppression_result.reasons}
+    else
+      {:ok, filtered_to, filtered_cc, filtered_bcc, suppression_result.suppressed,
+       suppression_result.reasons}
+    end
+  end
+
+  defp put_filtered_recipients(params, to_emails, cc_emails, bcc_emails) do
+    params
+    |> Map.put(:to, Enum.join(to_emails, ", "))
+    |> Map.put(:cc, Enum.join(cc_emails, ", "))
+    |> Map.put(:bcc, Enum.join(bcc_emails, ", "))
+  end
+
+  defp summarize_suppression_reasons(reasons) when is_map(reasons) do
+    reasons
+    |> Map.values()
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.join(",")
+  end
+
+  defp summarize_suppression_reasons(_), do: "unknown"
 
   # Filter out unsubscribed recipients from email lists
   defp filter_unsubscribed_recipients(to_emails, cc_emails, bcc_emails, list_id) do

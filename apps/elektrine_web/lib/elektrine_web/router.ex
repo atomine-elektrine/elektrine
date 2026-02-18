@@ -458,6 +458,18 @@ defmodule ElektrineWeb.Router do
     get("/email/export/download/:id", EmailController, :download_export)
   end
 
+  # Impersonation exit route (must be accessible while acting as a non-admin user)
+  scope "/pripyat", ElektrineWeb do
+    pipe_through([
+      :browser,
+      :require_authenticated_user,
+      ElektrineWeb.Plugs.RequireElektrineDomain
+    ])
+
+    get("/stop-impersonation", Admin.UsersController, :stop_impersonation)
+    post("/stop-impersonation", Admin.UsersController, :stop_impersonation)
+  end
+
   # Admin routes - require admin privileges and elektrine.com domain
   scope "/pripyat", ElektrineWeb do
     pipe_through([
@@ -481,7 +493,6 @@ defmodule ElektrineWeb.Router do
     post("/users/:id/suspend", Admin.UsersController, :suspend)
     post("/users/:id/unsuspend", Admin.UsersController, :unsuspend)
     post("/users/:id/impersonate", Admin.UsersController, :impersonate)
-    post("/stop-impersonation", Admin.UsersController, :stop_impersonation)
     delete("/users/:id", Admin.UsersController, :delete)
     delete("/users/:user_id/aliases/:alias_id", Admin.UsersController, :delete_user_alias)
     get("/multi-accounts", Admin.UsersController, :multi_accounts)

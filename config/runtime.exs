@@ -159,6 +159,22 @@ timeline_remote_enrichment_enabled =
 
 config :elektrine, :timeline_remote_enrichment, timeline_remote_enrichment_enabled
 
+haraka_async_ingest_enabled =
+  case System.get_env("HARAKA_ASYNC_INGEST", "true") do
+    value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+    _ -> false
+  end
+
+config :elektrine, :haraka_async_ingest, haraka_async_ingest_enabled
+
+email_auto_suppression_enabled =
+  case System.get_env("EMAIL_AUTO_SUPPRESSION", "true") do
+    value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+    _ -> false
+  end
+
+config :elektrine, :email_auto_suppression, email_auto_suppression_enabled
+
 # Configure Haraka HTTP API adapter if EMAIL_SERVICE is set to haraka (any environment)
 if System.get_env("EMAIL_SERVICE") == "haraka" do
   config :elektrine, Elektrine.Mailer,
