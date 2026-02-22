@@ -17,8 +17,7 @@ import {
   initEmailSelection,
   initDropdownManagement,
   initNavigationHandlers,
-  initClipboardHandlers,
-  initFlashMessages
+  initClipboardHandlers
 } from "./utils"
 
 // Import UI modules
@@ -80,28 +79,14 @@ const liveSocket = new LiveSocket("/live", Socket, {
 // ============================================================================
 
 topbar.config({ barColors: { 0: "#a855f7" }, shadowColor: "rgba(168, 85, 247, .3)" })
+
 window.addEventListener("phx:page-loading-start", () => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", () => {
   topbar.hide()
   checkBlinkenlights()
   initProfileStatic()
-  processFlashMessages()
+  initAutoDismissFlashes()
 })
-
-// Process flash messages from controllers and show as toasts
-function processFlashMessages() {
-  const flashEl = document.getElementById('flash-messages')
-  if (flashEl) {
-    if (flashEl.dataset.info) {
-      window.showNotification(flashEl.dataset.info, 'success', { title: 'Success' })
-      flashEl.dataset.info = ''
-    }
-    if (flashEl.dataset.error) {
-      window.showNotification(flashEl.dataset.error, 'error', { title: 'Error' })
-      flashEl.dataset.error = ''
-    }
-  }
-}
 
 // ============================================================================
 // Global Event Handlers
@@ -110,42 +95,87 @@ function processFlashMessages() {
 // Keyboard shortcuts modal
 window.addEventListener('phx:show-keyboard-shortcuts', showKeyboardShortcuts)
 
-// Toast notifications from LiveView
-window.addEventListener('phx:show_toast', (e) => {
-  const { message, type, title } = e.detail
-  window.showNotification(message, type || 'info', title || null)
-})
-
 // Scroll to top (used by new posts button)
 window.addEventListener("scroll-to-top", () => {
   window.scrollTo({ top: 0, behavior: "instant" })
 })
 
-// ============================================================================
-// Status Update Handler (without page navigation)
-// ============================================================================
+function initAutoDismissFlashes(rootCandidate = document) {
+  const root =
+    rootCandidate && typeof rootCandidate.querySelectorAll === 'function' ? rootCandidate : document
 
-document.addEventListener('submit', (e) => {
-  const form = e.target
-  if (form.action && form.action.includes('/account/status')) {
-    e.preventDefault()
+  root.querySelectorAll('[data-flash-auto-dismiss="true"]').forEach((flashEl) => {
+    bindFlashDismissButton(flashEl)
+    scheduleFlashAutoDismiss(flashEl)
+  })
+}
 
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').content
-    const formData = new FormData(form)
-    const status = form.querySelector('input[name="status"]')?.value
+const flashAutoDismissTimers = new WeakMap()
 
-    fetch(form.action, {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': csrfToken },
-      body: formData
-    }).then(() => {
-      const idleDetector = document.getElementById('idle-detector')
-      if (idleDetector && status) {
-        idleDetector.dataset.userStatus = status
-      }
-    })
+function clearFlashAutoDismissTimer(flashEl) {
+  const timerId = flashAutoDismissTimers.get(flashEl)
+  if (timerId) {
+    window.clearTimeout(timerId)
+    flashAutoDismissTimers.delete(flashEl)
   }
-})
+}
+
+function dismissFlashElement(flashEl) {
+  if (!flashEl || flashEl.dataset.flashDismissed === 'true') return
+
+  flashEl.dataset.flashDismissed = 'true'
+  clearFlashAutoDismissTimer(flashEl)
+  flashEl.classList.add('is-dismissing')
+
+  const exitMsRaw = parseInt(flashEl.dataset.flashExitMs || '260', 10)
+  const exitMs = Number.isFinite(exitMsRaw) ? exitMsRaw : 260
+
+  window.setTimeout(() => {
+    if (flashEl.parentNode) {
+      flashEl.remove()
+    }
+  }, Math.max(exitMs, 0) + 40)
+}
+
+function bindFlashDismissButton(flashEl) {
+  if (flashEl.dataset.flashDismissBound === 'true') return
+
+  const dismissBtn = flashEl.querySelector('[data-flash-dismiss="true"]')
+  if (!dismissBtn) return
+
+  dismissBtn.addEventListener('click', () => {
+    dismissFlashElement(flashEl)
+  })
+
+  flashEl.dataset.flashDismissBound = 'true'
+}
+
+function scheduleFlashAutoDismiss(flashEl) {
+  if (flashEl.dataset.flashTimerInitialized === 'true') return
+  flashEl.dataset.flashTimerInitialized = 'true'
+
+  const timeoutMsRaw = parseInt(flashEl.dataset.flashAutoDismissMs || '5000', 10)
+  const timeoutMs = Number.isFinite(timeoutMsRaw) ? timeoutMsRaw : 5000
+
+  const timerId = window.setTimeout(() => {
+    if (!document.body.contains(flashEl)) {
+      clearFlashAutoDismissTimer(flashEl)
+      return
+    }
+
+    const dismissBtn = flashEl.querySelector('[data-flash-dismiss="true"]')
+    if (dismissBtn) {
+      dismissBtn.click()
+    } else {
+      dismissFlashElement(flashEl)
+    }
+  }, timeoutMs)
+
+  flashAutoDismissTimers.set(flashEl, timerId)
+}
+
+window.dismissFlashElement = dismissFlashElement
+window.initAutoDismissFlashes = initAutoDismissFlashes
 
 // ============================================================================
 // DOM Ready Initialization
@@ -157,10 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDropdownManagement()
   initNavigationHandlers()
   initClipboardHandlers()
-  initFlashMessages()
-  // Controller flashes (redirects/full page loads) won't necessarily trigger
-  // `phx:page-loading-stop`, so process them on initial load as well.
-  processFlashMessages()
+  initAutoDismissFlashes()
 
   // Initialize UI modules
   initCursorGlow()

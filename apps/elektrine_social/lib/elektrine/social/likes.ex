@@ -53,6 +53,8 @@ defmodule Elektrine.Social.Likes do
 
           # Federate the like to ActivityPub
           Elektrine.ActivityPub.Outbox.federate_like(message_id, user_id)
+          # Queue durable Bluesky like sync
+          _ = Elektrine.Bluesky.OutboundWorker.enqueue_like(message_id, user_id)
         end)
 
         {:ok, like}
@@ -83,6 +85,8 @@ defmodule Elektrine.Social.Likes do
               broadcast_like_event(:unliked, deleted_like)
               # Federate the unlike to ActivityPub
               Elektrine.ActivityPub.Outbox.federate_unlike(message_id, user_id)
+              # Queue durable Bluesky unlike sync
+              _ = Elektrine.Bluesky.OutboundWorker.enqueue_unlike(message_id, user_id)
             end)
 
             {:ok, deleted_like}
@@ -138,9 +142,20 @@ defmodule Elektrine.Social.Likes do
       {event_type, like}
     )
 
-    # Get fresh like count from database after the change
-    fresh_message = Repo.get!(Message, like.message_id)
-    message = like.message |> Repo.preload(:conversation)
+    message =
+      Repo.get!(Message, like.message_id)
+      |> Repo.preload([:conversation, :hashtags])
+
+    payload = %{
+      message_id: like.message_id,
+      like_count: message.like_count,
+      sender_id: message.sender_id,
+      remote_actor_id: message.remote_actor_id,
+      creator_id: message.sender_id || message.remote_actor_id,
+      creator_type:
+        if(message.federated || not is_nil(message.remote_actor_id), do: "remote", else: "local"),
+      hashtags: Enum.map(message.hashtags || [], & &1.normalized_name)
+    }
 
     # Broadcast to timeline feeds if it's a timeline post OR federated post
     # Always use :post_liked event type (whether liking or unliking) for consistency
@@ -148,7 +163,7 @@ defmodule Elektrine.Social.Likes do
       Phoenix.PubSub.broadcast(
         Elektrine.PubSub,
         "timeline:all",
-        {:post_liked, %{message_id: like.message_id, like_count: fresh_message.like_count}}
+        {:post_liked, payload}
       )
     end
 
@@ -157,7 +172,7 @@ defmodule Elektrine.Social.Likes do
       Phoenix.PubSub.broadcast(
         Elektrine.PubSub,
         "discussion:#{message.conversation_id}",
-        {:post_liked, %{message_id: like.message_id, like_count: fresh_message.like_count}}
+        {:post_liked, payload}
       )
     end
   end

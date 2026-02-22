@@ -25,6 +25,7 @@ defmodule ElektrineWeb.CoreComponents do
   Icons are provided by [heroicons](https://heroicons.com).
   """
   use Phoenix.Component
+  alias Phoenix.LiveView.JS
 
   # UI Components
   alias ElektrineWeb.Components.UI.Modal
@@ -113,6 +114,93 @@ defmodule ElektrineWeb.CoreComponents do
 
   # Datetime components
   defdelegate local_time(assigns), to: LocalTime
+
+  @doc """
+  Renders a dismissible flash message.
+  """
+  attr :id, :string, default: nil
+  attr :flash, :map, required: true
+  attr :kind, :atom, values: [:info, :error], required: true
+  attr :title, :string, default: nil
+  attr :auto_dismiss_ms, :integer, default: 5000
+  attr :exit_ms, :integer, default: 260
+  attr :rest, :global
+  slot :inner_block
+
+  def flash(assigns) do
+    assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
+
+    tone_vars =
+      case assigns.kind do
+        :error ->
+          "--flash-accent: rgba(239, 68, 68, 0.92); --flash-accent-soft: rgba(239, 68, 68, 0.25); --flash-tint-start: rgba(239, 68, 68, 0.2); --flash-tint-mid: rgba(239, 68, 68, 0.08); --flash-border: rgba(239, 68, 68, 0.48); --flash-icon: rgba(248, 113, 113, 0.98);"
+
+        _ ->
+          "--flash-accent: rgba(34, 197, 94, 0.9); --flash-accent-soft: rgba(34, 197, 94, 0.24); --flash-tint-start: rgba(34, 197, 94, 0.16); --flash-tint-mid: rgba(34, 197, 94, 0.06); --flash-border: rgba(34, 197, 94, 0.42); --flash-icon: rgba(34, 197, 94, 0.96);"
+      end
+
+    assigns = assign(assigns, :tone_vars, tone_vars)
+
+    ~H"""
+    <div
+      :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
+      id={@id}
+      role="alert"
+      class={[
+        "alert app-flash shadow-lg pointer-events-auto",
+        @kind == :info && "app-flash--info",
+        @kind == :error && "app-flash--error",
+        "w-full"
+      ]}
+      data-flash-auto-dismiss="true"
+      data-flash-auto-dismiss-ms={@auto_dismiss_ms}
+      data-flash-exit-ms={@exit_ms}
+      data-flash-kind={@kind}
+      style={"--flash-auto-dismiss: #{@auto_dismiss_ms}ms; --flash-exit: #{@exit_ms}ms; #{@tone_vars}"}
+      {@rest}
+    >
+      <.icon name={flash_icon(@kind)} class="h-5 w-5 flex-shrink-0" />
+      <div class="min-w-0">
+        <p class="font-semibold leading-tight">{@title || default_flash_title(@kind)}</p>
+        <p class="text-sm break-words">{msg}</p>
+      </div>
+      <button
+        type="button"
+        class="btn btn-ghost btn-xs app-flash__dismiss"
+        data-flash-dismiss="true"
+        phx-click={JS.push("lv:clear-flash", value: %{key: @kind})}
+        aria-label="Dismiss notification"
+      >
+        <span class="sr-only">Dismiss</span>
+        <.icon name="hero-x-mark-solid" class="h-4 w-4" />
+      </button>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders info and error flashes in a fixed top-right stack.
+  """
+  attr :flash, :map, required: true
+
+  def flash_group(assigns) do
+    ~H"""
+    <div
+      id="flash-group"
+      phx-hook="FlashAutoDismiss"
+      class="fixed bottom-4 right-4 z-[1000] w-full max-w-sm px-4 sm:px-0 space-y-2 pointer-events-none"
+    >
+      <.flash kind={:info} title="Success" flash={@flash} auto_dismiss_ms={5000} />
+      <.flash kind={:error} title="Error" flash={@flash} auto_dismiss_ms={5000} />
+    </div>
+    """
+  end
+
+  defp default_flash_title(:info), do: "Success"
+  defp default_flash_title(:error), do: "Error"
+
+  defp flash_icon(:info), do: "hero-check-circle-solid"
+  defp flash_icon(:error), do: "hero-exclamation-circle-solid"
 
   # Email processing functions
   defdelegate process_email_html(html_content), to: Display

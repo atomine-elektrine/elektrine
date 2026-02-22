@@ -372,14 +372,7 @@
   </div>
 </div>
 
-<%!-- Flash messages for JavaScript to process --%>
-<div
-  id="flash-messages"
-  class="hidden"
-  data-info={Phoenix.Flash.get(@flash, :info)}
-  data-error={Phoenix.Flash.get(@flash, :error)}
->
-</div>
+<.flash_group flash={assigns[:flash] || %{}} />
 
 <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 min-h-[100vh] overflow-x-hidden">
   {@inner_content}

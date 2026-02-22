@@ -3,6 +3,7 @@ defmodule ElektrineWeb.API.SettingsController do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
+  alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
@@ -45,7 +46,10 @@ defmodule ElektrineWeb.API.SettingsController do
         notify_on_mention: user.notify_on_mention,
         notify_on_reply: user.notify_on_reply,
         notify_on_new_follower: user.notify_on_new_follower,
-        notify_on_direct_message: user.notify_on_direct_message
+        notify_on_direct_message: user.notify_on_direct_message,
+        bluesky_enabled: user.bluesky_enabled,
+        bluesky_identifier: user.bluesky_identifier,
+        bluesky_pds_url: user.bluesky_pds_url
       }
     })
   end
@@ -61,7 +65,15 @@ defmodule ElektrineWeb.API.SettingsController do
     # Build update attrs from params (only User fields, excluding username)
     user_attrs =
       params
-      |> Map.take(["display_name", "locale", "timezone"])
+      |> Map.take([
+        "display_name",
+        "locale",
+        "timezone",
+        "bluesky_enabled",
+        "bluesky_identifier",
+        "bluesky_app_password",
+        "bluesky_pds_url"
+      ])
       # Explicitly prevent username/handle changes
       |> Map.drop(["username", "handle"])
       |> Enum.into(%{})
@@ -207,5 +219,73 @@ defmodule ElektrineWeb.API.SettingsController do
     conn
     |> put_status(:bad_request)
     |> json(%{error: "current_password and new_password are required"})
+  end
+
+  @doc """
+  POST /api/settings/bluesky/enable
+  Enables Bluesky in managed-PDS mode by provisioning an account automatically.
+  """
+  def enable_bluesky_managed(conn, %{"current_password" => current_password}) do
+    user = conn.assigns[:current_user]
+
+    case BlueskyManaged.enable_for_user(user, current_password) do
+      {:ok, %{user: updated_user, did: did, handle: handle}} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          message: "Bluesky enabled successfully",
+          bluesky: %{
+            enabled: updated_user.bluesky_enabled,
+            did: did,
+            handle: handle,
+            identifier: updated_user.bluesky_identifier,
+            pds_url: updated_user.bluesky_pds_url
+          }
+        })
+
+      {:error, :managed_pds_disabled} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Managed Bluesky provisioning is disabled"})
+
+      {:error, :invalid_credentials} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "Current password is incorrect"})
+
+      {:error, :already_enabled} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "Bluesky is already enabled for this account"})
+
+      {:error, :current_password_required} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "current_password is required"})
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Failed to enable Bluesky", errors: changeset_errors(changeset)})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Failed to enable Bluesky", reason: inspect(reason)})
+    end
+  end
+
+  def enable_bluesky_managed(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "current_password is required"})
+  end
+
+  defp changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
   end
 end

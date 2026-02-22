@@ -738,6 +738,7 @@ defmodule ElektrineWeb.Router do
     put("/settings/profile", SettingsController, :update_profile)
     put("/settings/notifications", SettingsController, :update_notifications)
     put("/settings/password", SettingsController, :update_password)
+    post("/settings/bluesky/enable", SettingsController, :enable_bluesky_managed)
 
     # VPN endpoints
     get("/vpn/servers", VPNController, :index)
@@ -933,6 +934,9 @@ defmodule ElektrineWeb.Router do
 
       forward("/mailbox", Plug.Swoosh.MailboxPreview)
 
+      # Flash testing routes (controller redirect path)
+      get("/flash-test/controller/:kind", ElektrineWeb.PageController, :flash_test_controller)
+
       # Test routes for error pages
       get("/test-403", ElektrineWeb.PageController, :test_403)
       get("/test-404", ElektrineWeb.PageController, :test_404)
@@ -976,6 +980,11 @@ defmodule ElektrineWeb.Router do
       live("/faq", PageLive.FAQ, :index)
       live("/contact", PageLive.Contact, :index)
       live("/vpn/policy", PageLive.VPNPolicy, :index)
+
+      if Application.compile_env(:elektrine, :dev_routes) do
+        # Flash testing page (LiveView path)
+        live("/dev/flash-test", PageLive.DevFlashTest, :index)
+      end
 
       # Unsubscribe (GET only - POST stays as controller)
       live("/unsubscribe/:token", UnsubscribeLive.Show, :show)

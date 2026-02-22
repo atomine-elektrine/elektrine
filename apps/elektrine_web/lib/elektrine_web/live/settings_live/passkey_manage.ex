@@ -281,10 +281,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
             |> assign(:registering, false)
             |> assign(:registration_challenge, nil)
             |> assign(:error, nil)
-            |> push_event("show_toast", %{
-              message: gettext("Passkey registered successfully"),
-              type: "success"
-            })
+            |> put_flash(:info, gettext("Passkey registered successfully"))
 
           {:noreply, socket}
 
@@ -330,10 +327,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
          socket
          |> assign(:passkeys, passkeys)
          |> assign(:renaming_id, nil)
-         |> push_event("show_toast", %{
-           message: gettext("Passkey renamed"),
-           type: "success"
-         })}
+         |> put_flash(:info, gettext("Passkey renamed"))}
 
       {:error, _reason} ->
         {:noreply, assign(socket, :error, gettext("Failed to rename passkey"))}
@@ -353,10 +347,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
          socket
          |> assign(:passkeys, passkeys)
          |> assign(:passkey_count, length(passkeys))
-         |> push_event("show_toast", %{
-           message: gettext("Passkey deleted"),
-           type: "success"
-         })}
+         |> put_flash(:info, gettext("Passkey deleted"))}
 
       {:error, _reason} ->
         {:noreply, assign(socket, :error, gettext("Failed to delete passkey"))}

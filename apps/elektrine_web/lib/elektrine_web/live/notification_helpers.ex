@@ -1,35 +1,15 @@
 defmodule ElektrineWeb.Live.NotificationHelpers do
   @moduledoc """
-  Helper functions for sending stackable notifications from LiveView.
+  Helper wrappers around LiveView `put_flash/3`.
 
-  ## Stackable Flash System
-
-  These helpers provide stackable notifications that can show multiple messages
-  simultaneously, unlike Phoenix's `put_flash` which only allows one message per type.
-
-  ### Use these helpers instead of `put_flash` when:
-  - You need multiple notifications to stack
-  - Messages should be repeatable without clearing
-  - Real-time events from PubSub
-  - Any LiveView that needs better notification UX
-
-  ### For backwards compatibility:
-  You can create wrapper functions that replace `put_flash`:
-  ```elixir
-  def notify_info(socket, message), do: notify_info(socket, message)
-  def notify_error(socket, message), do: notify_error(socket, message)
-  ```
+  These functions preserve the existing `notify_*` API used across the codebase
+  while routing all server notifications through standard Phoenix flash storage.
 
   ## Options
 
-  All notification functions accept an optional `opts` keyword list:
+  The following options are supported:
   - `:title` - Custom title (overrides default)
-  - `:duration` - Auto-dismiss time in ms (default: 5000, use 0 for persistent)
-  - `:persistent` - If true, notification won't auto-dismiss
-  - `:progress` - If true, show a countdown progress bar
-  - `:undo_event` - Event name for undo action (adds Undo button)
-  - `:undo_data` - Data to pass with undo event
-  - `:actions` - List of action button maps: %{label: "Label", event: "event_name", data: %{}}
+  Additional options are accepted for compatibility but are ignored by Phoenix flash.
   """
 
   @type notify_opts :: [
@@ -43,7 +23,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
         ]
 
   @doc """
-  Sends a success notification via JavaScript.
+  Sends a success notification via flash.
 
   ## Examples
 
@@ -58,7 +38,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
   end
 
   @doc """
-  Sends an info notification via JavaScript.
+  Sends an info notification via flash.
 
   ## Examples
 
@@ -73,7 +53,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
   end
 
   @doc """
-  Sends an error notification via JavaScript.
+  Sends an error notification via flash.
 
   ## Examples
 
@@ -88,7 +68,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
   end
 
   @doc """
-  Sends a warning notification via JavaScript.
+  Sends a warning notification via flash.
 
   ## Examples
 
@@ -102,8 +82,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
   end
 
   @doc """
-  Sends a loading notification via JavaScript.
-  Loading notifications are persistent by default.
+  Sends a loading-style notification via flash.
 
   ## Examples
 
@@ -169,7 +148,7 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
   end
 
   @doc """
-  Sends a custom notification via JavaScript.
+  Sends a custom notification via flash.
 
   ## Examples
 
@@ -182,55 +161,40 @@ defmodule ElektrineWeb.Live.NotificationHelpers do
     push_notification(socket, message, type, opts)
   end
 
-  # Private helper to build and push the notification event
+  # Private helper to store a normalized flash message.
   defp push_notification(socket, message, type, opts) do
-    payload =
-      %{message: message, type: type}
-      |> maybe_add_opt(opts, :title)
-      |> maybe_add_opt(opts, :duration)
-      |> maybe_add_persistent(opts)
-      |> maybe_add_opt(opts, :progress)
-      |> maybe_add_opt(opts, :undo_event, :undoEvent)
-      |> maybe_add_opt(opts, :undo_data, :undoData)
-      |> maybe_add_actions(opts)
-
-    Phoenix.LiveView.push_event(socket, "show_notification", payload)
+    message = format_notification_message(message, Keyword.get(opts, :title))
+    Phoenix.LiveView.put_flash(socket, notification_flash_kind(type), message)
   end
 
-  defp maybe_add_opt(payload, opts, key, js_key \\ nil) do
-    js_key = js_key || key
+  defp format_notification_message(message, nil), do: message
 
-    case Keyword.get(opts, key) do
-      nil -> payload
-      value -> Map.put(payload, js_key, value)
-    end
+  defp format_notification_message(message, title) when is_binary(title) do
+    title = String.trim(title)
+    if title == "", do: message, else: "#{title}: #{message}"
   end
 
-  defp maybe_add_persistent(payload, opts) do
-    case Keyword.get(opts, :persistent) do
-      true -> Map.put(payload, :persistent, true)
-      _ -> payload
-    end
-  end
+  defp format_notification_message(message, _title), do: message
 
-  defp maybe_add_actions(payload, opts) do
-    case Keyword.get(opts, :actions) do
-      nil -> payload
-      [] -> payload
-      actions when is_list(actions) -> Map.put(payload, :actions, actions)
+  defp notification_flash_kind(kind) do
+    case to_string(kind) do
+      "error" -> :error
+      "warning" -> :error
+      "info" -> :info
+      "success" -> :info
+      "loading" -> :info
+      _ -> :info
     end
   end
 
   @doc """
-  Replacement for put_flash that supports stacking.
-  Import this function to override Phoenix's put_flash in your LiveViews.
+  Compatibility wrapper that delegates to flash-based notifications.
 
   ## Examples
 
       import ElektrineWeb.Live.NotificationHelpers, only: [put_stackable_flash: 3]
 
-      socket |> put_stackable_flash(:info, "First message")
-      socket |> put_stackable_flash(:info, "Second message")  # Both will show!
+      socket |> put_stackable_flash(:info, "Saved")
   """
   def put_stackable_flash(socket, :info, message) do
     notify_info(socket, message)

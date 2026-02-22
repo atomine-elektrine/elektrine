@@ -67,6 +67,9 @@ export const KeyboardShortcuts = {
     if (this.keyHandler) {
       document.removeEventListener('keydown', this.keyHandler)
     }
+    if (this.gotoMenuCleanup) {
+      this.gotoMenuCleanup()
+    }
   },
 
   updateMessageList() {
@@ -167,6 +170,10 @@ export const KeyboardShortcuts = {
   },
 
   showGotoMenu() {
+    if (this.gotoMenuCleanup) {
+      this.gotoMenuCleanup()
+    }
+
     // Show a temporary goto menu
     const menu = document.createElement('div')
     menu.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-base-100 border border-base-300 rounded-lg shadow-xl p-6 z-50'
@@ -194,53 +201,58 @@ export const KeyboardShortcuts = {
 
     document.body.appendChild(menu)
 
+    const handleGotoKey = (e) => {
+      if (e.key === 'Escape') {
+        cleanup()
+      } else if (e.key === 'i') {
+        this.navigateTo('inbox')
+        cleanup()
+      } else if (e.key === 's') {
+        this.navigateTo('sent')
+        cleanup()
+      } else if (e.key === 't') {
+        this.navigateTo('search')
+        cleanup()
+      } else if (e.key === 'a') {
+        this.navigateTo('archive')
+        cleanup()
+      } else if (e.key === 'p') {
+        this.navigateTo('spam')
+        cleanup()
+      }
+    }
+
+    let timeoutId = null
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      document.removeEventListener('keydown', handleGotoKey)
+      if (menu.parentNode) {
+        menu.parentNode.removeChild(menu)
+      }
+      if (this.gotoMenuCleanup === cleanup) {
+        this.gotoMenuCleanup = null
+      }
+    }
+
+    this.gotoMenuCleanup = cleanup
+
     // Handle goto navigation
     menu.addEventListener('click', (e) => {
       const button = e.target.closest('[data-goto]')
       if (button) {
         const destination = button.dataset.goto
         this.navigateTo(destination)
-        document.body.removeChild(menu)
+        cleanup()
       }
     })
-
-    // Handle keyboard navigation in goto menu
-    const handleGotoKey = (e) => {
-      if (e.key === 'Escape') {
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'i') {
-        this.navigateTo('inbox')
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 's') {
-        this.navigateTo('sent')
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 't') {
-        this.navigateTo('search')
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'a') {
-        this.navigateTo('archive')
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'p') {
-        this.navigateTo('spam')
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      }
-    }
 
     document.addEventListener('keydown', handleGotoKey)
 
     // Auto-close after 5 seconds
-    setTimeout(() => {
-      if (menu.parentNode) {
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      }
-    }, 5000)
+    timeoutId = setTimeout(cleanup, 5000)
   },
 
   navigateTo(destination) {
@@ -579,9 +591,19 @@ export const EmailShowKeyboardShortcuts = {
     if (this.keyHandler) {
       document.removeEventListener('keydown', this.keyHandler)
     }
+    if (this.gotoMenuCleanup) {
+      this.gotoMenuCleanup()
+    }
+    if (this.shortcutsModalCleanup) {
+      this.shortcutsModalCleanup()
+    }
   },
 
   showShortcutsHelp() {
+    if (this.shortcutsModalCleanup) {
+      this.shortcutsModalCleanup()
+    }
+
     const modal = document.createElement('div')
     modal.className = 'fixed inset-0 bg-base-300/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
     modal.innerHTML = `
@@ -648,26 +670,40 @@ export const EmailShowKeyboardShortcuts = {
 
     document.body.appendChild(modal)
 
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        cleanup()
+      }
+    }
+
+    const cleanup = () => {
+      document.removeEventListener('keydown', escHandler)
+      if (modal.parentNode) {
+        modal.parentNode.removeChild(modal)
+      }
+      if (this.shortcutsModalCleanup === cleanup) {
+        this.shortcutsModalCleanup = null
+      }
+    }
+
+    this.shortcutsModalCleanup = cleanup
+
     // Close on click outside or close button
     modal.addEventListener('click', (e) => {
       if (e.target === modal || e.target.closest('[data-close]')) {
-        document.body.removeChild(modal)
+        cleanup()
       }
     })
 
     // Close on Escape key
-    const escHandler = (e) => {
-      if (e.key === 'Escape') {
-        if (modal.parentNode) {
-          document.body.removeChild(modal)
-        }
-        document.removeEventListener('keydown', escHandler)
-      }
-    }
     document.addEventListener('keydown', escHandler)
   },
 
   showGotoMenu() {
+    if (this.gotoMenuCleanup) {
+      this.gotoMenuCleanup()
+    }
+
     // Show a temporary goto menu
     const menu = document.createElement('div')
     menu.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-base-100 border border-base-300 rounded-lg shadow-xl p-6 z-50'
@@ -695,53 +731,58 @@ export const EmailShowKeyboardShortcuts = {
 
     document.body.appendChild(menu)
 
+    const handleGotoKey = (e) => {
+      if (e.key === 'Escape') {
+        cleanup()
+      } else if (e.key === 'i') {
+        window.location.href = '/email?tab=inbox'
+        cleanup()
+      } else if (e.key === 's') {
+        window.location.href = '/email?tab=sent'
+        cleanup()
+      } else if (e.key === 't') {
+        window.location.href = '/email?tab=search'
+        cleanup()
+      } else if (e.key === 'a') {
+        window.location.href = '/email?tab=archive'
+        cleanup()
+      } else if (e.key === 'p') {
+        window.location.href = '/email?tab=spam'
+        cleanup()
+      }
+    }
+
+    let timeoutId = null
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      document.removeEventListener('keydown', handleGotoKey)
+      if (menu.parentNode) {
+        menu.parentNode.removeChild(menu)
+      }
+      if (this.gotoMenuCleanup === cleanup) {
+        this.gotoMenuCleanup = null
+      }
+    }
+
+    this.gotoMenuCleanup = cleanup
+
     // Handle goto navigation
     menu.addEventListener('click', (e) => {
       const button = e.target.closest('[data-goto]')
       if (button) {
         const destination = button.dataset.goto
         window.location.href = '/email?tab=' + destination
-        document.body.removeChild(menu)
+        cleanup()
       }
     })
-
-    // Handle keyboard navigation in goto menu
-    const handleGotoKey = (e) => {
-      if (e.key === 'Escape') {
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'i') {
-        window.location.href = '/email?tab=inbox'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 's') {
-        window.location.href = '/email?tab=sent'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 't') {
-        window.location.href = '/email?tab=search'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'a') {
-        window.location.href = '/email?tab=archive'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'p') {
-        window.location.href = '/email?tab=spam'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      }
-    }
 
     document.addEventListener('keydown', handleGotoKey)
 
     // Auto-close after 5 seconds
-    setTimeout(() => {
-      if (menu.parentNode) {
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      }
-    }, 5000)
+    timeoutId = setTimeout(cleanup, 5000)
   }
 }
 
@@ -818,9 +859,19 @@ export const EmailComposeKeyboardShortcuts = {
     if (this.keyHandler) {
       document.removeEventListener('keydown', this.keyHandler)
     }
+    if (this.gotoMenuCleanup) {
+      this.gotoMenuCleanup()
+    }
+    if (this.shortcutsModalCleanup) {
+      this.shortcutsModalCleanup()
+    }
   },
 
   showGotoMenu() {
+    if (this.gotoMenuCleanup) {
+      this.gotoMenuCleanup()
+    }
+
     const menu = document.createElement('div')
     menu.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-base-100 border border-base-300 rounded-lg shadow-xl p-6 z-50'
     menu.innerHTML = `
@@ -841,45 +892,57 @@ export const EmailComposeKeyboardShortcuts = {
 
     document.body.appendChild(menu)
 
+    const handleGotoKey = (e) => {
+      if (e.key === 'Escape') {
+        cleanup()
+      } else if (e.key === 'i') {
+        window.location.href = '/email?tab=inbox'
+        cleanup()
+      } else if (e.key === 's') {
+        window.location.href = '/email?tab=sent'
+        cleanup()
+      } else if (e.key === 't') {
+        window.location.href = '/email?tab=search'
+        cleanup()
+      }
+    }
+
+    let timeoutId = null
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      document.removeEventListener('keydown', handleGotoKey)
+      if (menu.parentNode) {
+        menu.parentNode.removeChild(menu)
+      }
+      if (this.gotoMenuCleanup === cleanup) {
+        this.gotoMenuCleanup = null
+      }
+    }
+
+    this.gotoMenuCleanup = cleanup
+
     menu.addEventListener('click', (e) => {
       const button = e.target.closest('[data-goto]')
       if (button) {
         const destination = button.dataset.goto
         window.location.href = '/email?tab=' + destination
-        document.body.removeChild(menu)
+        cleanup()
       }
     })
 
-    const handleGotoKey = (e) => {
-      if (e.key === 'Escape') {
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 'i') {
-        window.location.href = '/email?tab=inbox'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 's') {
-        window.location.href = '/email?tab=sent'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      } else if (e.key === 't') {
-        window.location.href = '/email?tab=search'
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      }
-    }
-
     document.addEventListener('keydown', handleGotoKey)
 
-    setTimeout(() => {
-      if (menu.parentNode) {
-        document.body.removeChild(menu)
-        document.removeEventListener('keydown', handleGotoKey)
-      }
-    }, 5000)
+    timeoutId = setTimeout(cleanup, 5000)
   },
 
   showShortcutsHelp() {
+    if (this.shortcutsModalCleanup) {
+      this.shortcutsModalCleanup()
+    }
+
     const modal = document.createElement('div')
     modal.className = 'fixed inset-0 bg-base-300/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
     modal.innerHTML = `
@@ -930,20 +993,30 @@ export const EmailComposeKeyboardShortcuts = {
 
     document.body.appendChild(modal)
 
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        cleanup()
+      }
+    }
+
+    const cleanup = () => {
+      document.removeEventListener('keydown', escHandler)
+      if (modal.parentNode) {
+        modal.parentNode.removeChild(modal)
+      }
+      if (this.shortcutsModalCleanup === cleanup) {
+        this.shortcutsModalCleanup = null
+      }
+    }
+
+    this.shortcutsModalCleanup = cleanup
+
     modal.addEventListener('click', (e) => {
       if (e.target === modal || e.target.closest('[data-close]')) {
-        document.body.removeChild(modal)
+        cleanup()
       }
     })
 
-    const escHandler = (e) => {
-      if (e.key === 'Escape') {
-        if (modal.parentNode) {
-          document.body.removeChild(modal)
-        }
-        document.removeEventListener('keydown', escHandler)
-      }
-    }
     document.addEventListener('keydown', escHandler)
   }
 }

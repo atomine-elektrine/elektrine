@@ -11,123 +11,62 @@ defmodule ElektrineWeb.PasswordResetController do
     render(conn, :new, error_message: nil)
   end
 
-  def create(conn, %{
-        "password_reset" => %{"username_or_email" => username_or_email},
-        "cf-turnstile-response" => captcha_token
-      }) do
-    # Get IP address for rate limiting and verification
+  def create(
+        conn,
+        %{"password_reset" => %{"username_or_email" => username_or_email} = password_reset_params} =
+          params
+      ) do
     ip_address = get_client_ip(conn)
+    via_tor = conn.assigns[:via_tor] || false
 
-    # Verify Turnstile captcha first
-    case Turnstile.verify(captcha_token, ip_address) do
+    case verify_password_reset_captcha(conn, params, password_reset_params, via_tor, ip_address) do
       {:ok, :verified} ->
-        # Check rate limit (5 attempts per minute, 10 per hour per IP)
-        rate_limit_key = "password_reset:#{ip_address}"
-
-        case RateLimiter.check_rate_limit(rate_limit_key) do
-          {:ok, :allowed} ->
-            RateLimiter.record_failed_attempt(rate_limit_key)
-
-            case Accounts.initiate_password_reset(username_or_email) do
-              {:ok, :user_not_found} ->
-                # Still show success message to avoid username enumeration
-                Events.auth(:password_reset_request, :accepted, %{reason: :user_not_found})
-
-                conn
-                |> put_flash(
-                  :info,
-                  "If an account with that username or recovery email exists, you will receive password reset instructions."
-                )
-                |> redirect(to: ~p"/login")
-
-              {:ok, :emails_sent} ->
-                # Successfully sent reset emails (possibly to multiple users)
-                Events.auth(:password_reset_request, :accepted, %{reason: :emails_sent})
-
-                conn
-                |> put_flash(
-                  :info,
-                  "If an account with that username or recovery email exists, you will receive password reset instructions."
-                )
-                |> redirect(to: ~p"/login")
-
-              {:ok, _user} ->
-                Events.auth(:password_reset_request, :accepted, %{reason: :single_user})
-
-                conn
-                |> put_flash(
-                  :info,
-                  "If an account with that username or recovery email exists, you will receive password reset instructions."
-                )
-                |> redirect(to: ~p"/login")
-
-              {:error, :no_recovery_email} ->
-                Events.auth(:password_reset_request, :accepted, %{reason: :no_recovery_email})
-
-                conn
-                |> put_flash(
-                  :info,
-                  "If an account with that username or recovery email exists, you will receive password reset instructions."
-                )
-                |> redirect(to: ~p"/login")
-
-              {:error, _changeset} ->
-                Events.auth(:password_reset_request, :failure, %{reason: :changeset_error})
-
-                conn
-                |> put_flash(
-                  :error,
-                  "There was an error processing your request. Please try again."
-                )
-                |> render(:new, error_message: nil)
-            end
-
-          {:error, {:rate_limited, retry_after, _reason}} ->
-            Events.auth(:password_reset_request, :rate_limited, %{reason: :rate_limit})
-
-            conn
-            |> put_flash(
-              :error,
-              "Too many password reset requests. Please try again in #{format_retry_time(retry_after)}."
-            )
-            |> render(:new, error_message: nil)
-        end
+        process_password_reset_request(conn, username_or_email, ip_address)
 
       {:error, :verification_failed} ->
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_failed})
 
         conn
         |> put_flash(:error, "Captcha verification failed. Please try again.")
-        |> render(:new, error_message: nil)
+        |> redirect(to: ~p"/password/reset")
 
       {:error, {:verification_failed, _error_codes}} ->
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_failed})
 
         conn
         |> put_flash(:error, "Captcha verification failed. Please try again.")
-        |> render(:new, error_message: nil)
+        |> redirect(to: ~p"/password/reset")
+
+      {:error, :missing_captcha} ->
+        Events.auth(:password_reset_request, :failure, %{reason: :missing_captcha})
+
+        conn
+        |> put_flash(:error, missing_captcha_message(via_tor))
+        |> redirect(to: ~p"/password/reset")
+
+      {:error, :missing_token} ->
+        Events.auth(:password_reset_request, :failure, %{reason: :missing_captcha})
+
+        conn
+        |> put_flash(:error, missing_captcha_message(via_tor))
+        |> redirect(to: ~p"/password/reset")
 
       {:error, _other} ->
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_error})
 
         conn
         |> put_flash(:error, "Captcha verification failed. Please try again.")
-        |> render(:new, error_message: nil)
+        |> redirect(to: ~p"/password/reset")
     end
-  end
-
-  # Handle missing captcha token
-  def create(conn, %{"password_reset" => _params}) do
-    Events.auth(:password_reset_request, :failure, %{reason: :missing_captcha})
-
-    conn
-    |> put_flash(:error, "Please complete the captcha verification.")
-    |> render(:new, error_message: nil)
   end
 
   def create(conn, %{"password_reset[username_or_email]" => username_or_email} = params) do
     # Handle flattened form parameters (when content-type is application/json)
-    password_reset_params = %{"username_or_email" => username_or_email}
+    password_reset_params =
+      %{"username_or_email" => username_or_email}
+      |> maybe_put_password_reset_captcha_answer(
+        Map.get(params, "password_reset[captcha_answer]")
+      )
 
     new_params =
       Map.put(params, "password_reset", password_reset_params)
@@ -169,6 +108,99 @@ defmodule ElektrineWeb.PasswordResetController do
         Events.auth(:password_reset_confirm, :failure, %{reason: :validation_error})
         render(conn, :edit, token: token, changeset: changeset)
     end
+  end
+
+  defp verify_password_reset_captcha(conn, params, password_reset_params, true, _ip_address) do
+    captcha_token = get_session(conn, :captcha_token)
+
+    captcha_answer =
+      Map.get(password_reset_params, "captcha_answer") || Map.get(params, "captcha_answer")
+
+    if captcha_token && is_binary(captcha_answer) && String.trim(captcha_answer) != "" do
+      case Elektrine.Captcha.verify(captcha_token, captcha_answer) do
+        :ok -> {:ok, :verified}
+        error -> error
+      end
+    else
+      {:error, :missing_captcha}
+    end
+  end
+
+  defp verify_password_reset_captcha(_conn, params, _password_reset_params, false, ip_address) do
+    captcha_token = Map.get(params, "cf-turnstile-response")
+    Turnstile.verify(captcha_token, ip_address)
+  end
+
+  defp process_password_reset_request(conn, username_or_email, ip_address) do
+    # Check rate limit (5 attempts per minute, 10 per hour per IP)
+    rate_limit_key = "password_reset:#{ip_address}"
+
+    case RateLimiter.check_rate_limit(rate_limit_key) do
+      {:ok, :allowed} ->
+        RateLimiter.record_failed_attempt(rate_limit_key)
+
+        case Accounts.initiate_password_reset(username_or_email) do
+          {:ok, :user_not_found} ->
+            # Still show success message to avoid username enumeration
+            Events.auth(:password_reset_request, :accepted, %{reason: :user_not_found})
+
+            conn
+            |> put_flash(:info, reset_confirmation_message())
+            |> redirect(to: ~p"/login")
+
+          {:ok, :emails_sent} ->
+            # Successfully sent reset emails (possibly to multiple users)
+            Events.auth(:password_reset_request, :accepted, %{reason: :emails_sent})
+
+            conn
+            |> put_flash(:info, reset_confirmation_message())
+            |> redirect(to: ~p"/login")
+
+          {:ok, _user} ->
+            Events.auth(:password_reset_request, :accepted, %{reason: :single_user})
+
+            conn
+            |> put_flash(:info, reset_confirmation_message())
+            |> redirect(to: ~p"/login")
+
+          {:error, :no_recovery_email} ->
+            Events.auth(:password_reset_request, :accepted, %{reason: :no_recovery_email})
+
+            conn
+            |> put_flash(:info, reset_confirmation_message())
+            |> redirect(to: ~p"/login")
+
+          {:error, _changeset} ->
+            Events.auth(:password_reset_request, :failure, %{reason: :changeset_error})
+
+            conn
+            |> put_flash(:error, "There was an error processing your request. Please try again.")
+            |> redirect(to: ~p"/password/reset")
+        end
+
+      {:error, {:rate_limited, retry_after, _reason}} ->
+        Events.auth(:password_reset_request, :rate_limited, %{reason: :rate_limit})
+
+        conn
+        |> put_flash(
+          :error,
+          "Too many password reset requests. Please try again in #{format_retry_time(retry_after)}."
+        )
+        |> redirect(to: ~p"/password/reset")
+    end
+  end
+
+  defp missing_captcha_message(true), do: "Please solve the captcha."
+  defp missing_captcha_message(false), do: "Please complete the captcha verification."
+
+  defp reset_confirmation_message do
+    "If an account with that username or recovery email exists, you will receive password reset instructions."
+  end
+
+  defp maybe_put_password_reset_captcha_answer(params, nil), do: params
+
+  defp maybe_put_password_reset_captcha_answer(params, captcha_answer) do
+    Map.put(params, "captcha_answer", captcha_answer)
   end
 
   # Helper function to get client IP address

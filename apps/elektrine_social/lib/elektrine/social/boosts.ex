@@ -71,6 +71,7 @@ defmodule Elektrine.Social.Boosts do
           # Federate the boost
           Elektrine.Async.run(fn ->
             Elektrine.ActivityPub.Outbox.federate_announce(message_id, user_id)
+            _ = Elektrine.Bluesky.OutboundWorker.enqueue_repost(message_id, user_id)
           end)
 
           {:ok, boost}
@@ -134,6 +135,8 @@ defmodule Elektrine.Social.Boosts do
                   Elektrine.ActivityPub.Publisher.publish(undo_activity, user, inbox_urls)
                 end
               end
+
+              _ = Elektrine.Bluesky.OutboundWorker.enqueue_unrepost(message_id, user_id)
             end)
 
             {:ok, deleted_boost}

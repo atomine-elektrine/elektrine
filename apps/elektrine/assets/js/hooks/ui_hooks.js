@@ -45,14 +45,12 @@ export const CopyEmail = {
 
 export const PreserveFocus = {
   mounted() {
-    // Store the currently focused element before LiveView updates
-    let focusedElement = null
-    let focusedId = null
+    this.focusedId = null
 
     this.handleEvent("restore_focus", () => {
       // Try to restore focus to the previously focused element
-      if (focusedId) {
-        const element = document.getElementById(focusedId)
+      if (this.focusedId) {
+        const element = document.getElementById(this.focusedId)
         if (element) {
           element.focus()
         }
@@ -60,12 +58,35 @@ export const PreserveFocus = {
     })
 
     // Track focus changes
-    document.addEventListener('focusin', (e) => {
+    this.focusInHandler = (e) => {
       if (e.target.id) {
-        focusedId = e.target.id
-        focusedElement = e.target
+        this.focusedId = e.target.id
       }
-    })
+    }
+
+    document.addEventListener('focusin', this.focusInHandler)
+  },
+
+  destroyed() {
+    if (this.focusInHandler) {
+      document.removeEventListener('focusin', this.focusInHandler)
+    }
+  }
+}
+
+export const FlashAutoDismiss = {
+  mounted() {
+    this.schedule()
+  },
+
+  updated() {
+    this.schedule()
+  },
+
+  schedule() {
+    if (window.initAutoDismissFlashes) {
+      window.initAutoDismissFlashes(this.el)
+    }
   }
 }
 

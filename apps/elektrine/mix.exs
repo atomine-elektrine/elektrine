@@ -128,8 +128,7 @@ defmodule Elektrine.MixProject do
         "deps.get",
         "ecto.setup",
         "assets.setup",
-        "assets.build",
-        "cmd git config core.hooksPath ../../.githooks"
+        "assets.build"
       ],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],

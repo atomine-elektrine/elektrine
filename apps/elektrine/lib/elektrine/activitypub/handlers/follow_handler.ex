@@ -239,8 +239,13 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
         existing_follow = Profiles.get_follow_by_remote_actor(remote_actor.id, followed_user.id)
 
         if existing_follow do
-          send_accept(followed_user, remote_actor, existing_follow)
-          {:ok, :already_following}
+          if existing_follow.pending do
+            # Keep pending requests pending until explicitly approved by the local user.
+            {:ok, :pending}
+          else
+            send_accept(followed_user, remote_actor, existing_follow)
+            {:ok, :already_following}
+          end
         else
           pending = followed_user.activitypub_manually_approve_followers
 

@@ -3,12 +3,23 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
 
   # Note: on_mount is handled by live_session :auth in router
 
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    via_tor = via_tor_request?(socket, session)
+
     {:ok,
      assign(socket,
        page_title: "Reset Password",
+       via_tor: via_tor,
        turnstile_site_key: Application.get_env(:elektrine, :turnstile)[:site_key]
      )}
+  end
+
+  defp via_tor_request?(socket, session) do
+    session["via_tor"] ||
+      case socket.host_uri do
+        %URI{host: host} when is_binary(host) -> String.ends_with?(host, ".onion")
+        _ -> false
+      end
   end
 
   def render(assigns) do
@@ -39,17 +50,45 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
           <:actions>
             <div class="flex flex-col gap-4 w-full">
               <div class="w-full">
-                <div class="turnstile-wrapper">
-                  <div
-                    id="turnstile-container"
-                    phx-hook="Turnstile"
-                    class="cf-turnstile"
-                    data-sitekey={@turnstile_site_key}
-                    data-theme="dark"
-                    data-size="normal"
-                  >
+                <%= if @via_tor do %>
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">{gettext("Solve the problem")}</span>
+                    </label>
+                    <div class="flex items-center gap-3">
+                      <img src={~p"/captcha"} alt="Captcha" class="rounded border border-base-300" />
+                      <a href={~p"/password/reset"} class="btn btn-ghost btn-sm">
+                        {gettext("Refresh")}
+                      </a>
+                    </div>
+                    <input
+                      type="text"
+                      name="password_reset[captcha_answer]"
+                      placeholder={gettext("Your answer")}
+                      required
+                      autocomplete="off"
+                      class="input input-bordered w-full mt-2"
+                    />
                   </div>
-                </div>
+                <% else %>
+                  <div class="turnstile-wrapper">
+                    <div
+                      id="turnstile-container"
+                      phx-hook="Turnstile"
+                      class="cf-turnstile"
+                      data-sitekey={@turnstile_site_key}
+                      data-theme="dark"
+                      data-size="normal"
+                    >
+                    </div>
+                  </div>
+                  <input
+                    type="hidden"
+                    name="cf-turnstile-response"
+                    id="cf-turnstile-response"
+                    value=""
+                  />
+                <% end %>
               </div>
 
               <.button class="w-full">{gettext("Send Reset Link")}</.button>

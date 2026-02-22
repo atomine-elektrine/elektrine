@@ -150,6 +150,68 @@ config :elektrine, :messaging_federation,
   outbox_retention_days: messaging_federation_outbox_retention_days,
   peers: messaging_federation_peers
 
+bluesky_enabled =
+  case System.get_env("BLUESKY_ENABLED", "false") do
+    value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+    _ -> false
+  end
+
+bluesky_inbound_enabled =
+  case System.get_env("BLUESKY_INBOUND_ENABLED", "false") do
+    value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+    _ -> false
+  end
+
+bluesky_managed_enabled =
+  case System.get_env("BLUESKY_MANAGED_ENABLED", "false") do
+    value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+    _ -> false
+  end
+
+bluesky_service_url =
+  case System.get_env("BLUESKY_SERVICE_URL") do
+    nil -> "https://bsky.social"
+    "" -> "https://bsky.social"
+    value -> value
+  end
+
+bluesky_timeout_ms = parse_int_env.("BLUESKY_TIMEOUT_MS", 12_000)
+bluesky_max_chars = parse_int_env.("BLUESKY_MAX_CHARS", 300)
+bluesky_inbound_limit = parse_int_env.("BLUESKY_INBOUND_LIMIT", 50)
+
+bluesky_managed_service_url =
+  case System.get_env("BLUESKY_MANAGED_SERVICE_URL") do
+    nil -> bluesky_service_url
+    "" -> bluesky_service_url
+    value -> value
+  end
+
+bluesky_managed_domain =
+  case System.get_env("BLUESKY_MANAGED_DOMAIN") do
+    nil -> nil
+    "" -> nil
+    value -> value
+  end
+
+bluesky_managed_admin_password =
+  case System.get_env("BLUESKY_MANAGED_ADMIN_PASSWORD") do
+    nil -> nil
+    "" -> nil
+    value -> value
+  end
+
+config :elektrine, :bluesky,
+  enabled: bluesky_enabled,
+  service_url: bluesky_service_url,
+  timeout_ms: bluesky_timeout_ms,
+  max_chars: bluesky_max_chars,
+  inbound_enabled: bluesky_inbound_enabled,
+  inbound_limit: bluesky_inbound_limit,
+  managed_enabled: bluesky_managed_enabled,
+  managed_service_url: bluesky_managed_service_url,
+  managed_domain: bluesky_managed_domain,
+  managed_admin_password: bluesky_managed_admin_password
+
 # Default OFF for local-first timeline performance.
 timeline_remote_enrichment_enabled =
   case System.get_env("TIMELINE_REMOTE_ENRICHMENT", "false") do
@@ -436,8 +498,44 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
+  onion_tls_port = String.to_integer(System.get_env("ONION_TLS_PORT") || "8443")
+  onion_tls_certfile = System.get_env("ONION_TLS_CERTFILE") || "/data/certs/live/onion-cert.pem"
+  onion_tls_keyfile = System.get_env("ONION_TLS_KEYFILE") || "/data/certs/live/onion-key.pem"
+
+  onion_tls_enabled =
+    case System.get_env("ONION_TLS_ENABLED", "true") do
+      value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+      _ -> false
+    end
 
   config :elektrine, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+
+  endpoint_http = [
+    ip: {0, 0, 0, 0, 0, 0, 0, 0},
+    port: port,
+    http_1_options: [
+      max_header_count: 50,
+      max_header_length: 8_192
+    ]
+  ]
+
+  onion_https =
+    if onion_tls_enabled and File.regular?(onion_tls_certfile) and
+         File.regular?(onion_tls_keyfile) do
+      [
+        ip: {0, 0, 0, 0, 0, 0, 0, 0},
+        port: onion_tls_port,
+        cipher_suite: :strong,
+        certfile: onion_tls_certfile,
+        keyfile: onion_tls_keyfile,
+        http_1_options: [
+          max_header_count: 50,
+          max_header_length: 8_192
+        ]
+      ]
+    else
+      nil
+    end
 
   # Allowed origins for WebSocket connections
   # Includes primary domains, subdomains, and fly.dev for staging
@@ -453,34 +551,25 @@ if config_env() == :prod do
     "//*.fly.dev"
   ]
 
-  # Fly terminates TLS at the edge and forwards HTTP to the app.
-  config :elektrine, ElektrineWeb.Endpoint,
+  endpoint_config = [
     url: [host: host, port: 443, scheme: "https"],
-    http: [
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port,
-      http_1_options: [
-        max_header_count: 50,
-        max_header_length: 8_192
-      ]
-    ],
+    http: endpoint_http,
     secret_key_base: secret_key_base,
     live_view: [signing_salt: session_signing_salt],
     check_origin: allowed_origins
+  ]
 
-  config :elektrine_chat_web, ElektrineChatWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
-    http: [
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port,
-      http_1_options: [
-        max_header_count: 50,
-        max_header_length: 8_192
-      ]
-    ],
-    secret_key_base: secret_key_base,
-    live_view: [signing_salt: session_signing_salt],
-    check_origin: allowed_origins
+  endpoint_config =
+    if onion_https do
+      Keyword.put(endpoint_config, :https, onion_https)
+    else
+      endpoint_config
+    end
+
+  # Fly terminates TLS at the edge for clearnet traffic.
+  # Onion traffic can terminate TLS in-app on :https when cert/key files are present.
+  config :elektrine, ElektrineWeb.Endpoint, endpoint_config
+  config :elektrine_chat_web, ElektrineChatWeb.Endpoint, endpoint_config
 
   # Verify session encryption salt is properly set (not the build-time placeholder)
   if session_encryption_salt == "compile_time_placeholder_will_be_overridden_at_runtime" do

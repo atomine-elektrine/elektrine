@@ -23,10 +23,18 @@ defmodule ElektrineWeb.ClientIP do
   def client_ip_tuple(conn) do
     remote_ip = conn.remote_ip
 
-    if trusted_proxy?(remote_ip) do
-      forwarded_ip(conn) || remote_ip
-    else
-      remote_ip
+    cond do
+      # Fly always injects fly-client-ip for external HTTP traffic. Use it even when
+      # trusted proxy CIDRs are not configured to avoid collapsing all clients to a
+      # shared edge IP.
+      running_on_fly?() and header_ip(conn, "fly-client-ip") ->
+        header_ip(conn, "fly-client-ip")
+
+      trusted_proxy?(remote_ip) ->
+        forwarded_ip(conn) || remote_ip
+
+      true ->
+        remote_ip
     end
   end
 
@@ -119,6 +127,14 @@ defmodule ElektrineWeb.ClientIP do
     |> Enum.reject(&is_nil/1)
   end
 
+  defp running_on_fly? do
+    case System.get_env("FLY_APP_NAME") do
+      nil -> false
+      "" -> false
+      _ -> true
+    end
+  end
+
   defp parse_cidr(value) when is_binary(value) do
     value
     |> String.trim()
@@ -173,7 +189,7 @@ defmodule ElektrineWeb.ClientIP do
 
   defp masked_equal?(ip, network, prefix, bits) when prefix > 0 do
     shift = bits - prefix
-    (ip >>> shift) == (network >>> shift)
+    ip >>> shift == network >>> shift
   end
 
   defp ip_to_int({a, b, c, d}) do

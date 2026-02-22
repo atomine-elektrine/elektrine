@@ -140,6 +140,13 @@ defmodule Elektrine.Social.Recommendations do
       # Session context (real-time adaptation)
       session_liked_hashtags: Map.get(session_context, :liked_hashtags, []),
       session_liked_creators: Map.get(session_context, :liked_creators, []),
+      session_liked_local_creators:
+        Map.get(
+          session_context,
+          :liked_local_creators,
+          Map.get(session_context, :liked_creators, [])
+        ),
+      session_liked_remote_creators: Map.get(session_context, :liked_remote_creators, []),
       session_engagement_rate: Map.get(session_context, :engagement_rate, 0.0),
       session_viewed_posts: Map.get(session_context, :viewed_posts, [])
     }
@@ -153,9 +160,30 @@ defmodule Elektrine.Social.Recommendations do
   defp get_candidate_posts_fast(user_id, limit) do
     blocked_user_ids = Elektrine.Accounts.list_blocked_users(user_id) |> Enum.map(& &1.id)
     blocked_by_user_ids = Elektrine.Accounts.list_users_who_blocked(user_id) |> Enum.map(& &1.id)
+    followed_user_ids = get_followed_user_ids(user_id)
     all_blocked_ids = (blocked_user_ids ++ blocked_by_user_ids) |> Enum.uniq()
 
     thirty_days_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-30, :day)
+
+    scope_and_visibility_filter =
+      if Enum.empty?(followed_user_ids) do
+        dynamic(
+          [m, c],
+          (c.type == "timeline" and
+             m.post_type in ["post", "gallery"] and
+             m.visibility == "public") or
+            (c.type == "community" and m.post_type == "discussion" and c.is_public == true)
+        )
+      else
+        dynamic(
+          [m, c],
+          (c.type == "timeline" and
+             m.post_type in ["post", "gallery"] and
+             (m.visibility == "public" or
+                (m.visibility == "followers" and m.sender_id in ^followed_user_ids))) or
+            (c.type == "community" and m.post_type == "discussion" and c.is_public == true)
+        )
+      end
 
     # Local posts
     local_query =
@@ -163,17 +191,14 @@ defmodule Elektrine.Social.Recommendations do
         join: c in Elektrine.Messaging.Conversation,
         on: c.id == m.conversation_id,
         where:
-          ((c.type == "timeline" and m.post_type == "post" and
-              m.visibility in ["public", "followers"]) or
-             (c.type == "timeline" and m.post_type == "gallery" and
-                m.visibility in ["public", "followers"]) or
-             (c.type == "community" and m.post_type == "discussion" and c.is_public == true)) and
-            is_nil(m.deleted_at) and
+          is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             m.inserted_at > ^thirty_days_ago and
             m.sender_id != ^user_id,
         order_by: [desc: m.inserted_at],
         limit: ^limit
+
+    local_query = from [m, c] in local_query, where: ^scope_and_visibility_filter
 
     local_query =
       if !Enum.empty?(all_blocked_ids) do
@@ -460,8 +485,20 @@ defmodule Elektrine.Social.Recommendations do
           0
         end
 
+    local_creators = user_profile.session_liked_local_creators
+    remote_creators = user_profile.session_liked_remote_creators
+    legacy_creators = user_profile.session_liked_creators
+
+    creator_match =
+      if post.federated do
+        not is_nil(post.remote_actor_id) and
+          (post.remote_actor_id in remote_creators or post.remote_actor_id in legacy_creators)
+      else
+        post.sender_id in local_creators or post.sender_id in legacy_creators
+      end
+
     # Creator match with session engagement
-    score = score + if post.sender_id in user_profile.session_liked_creators, do: 10, else: 0
+    score = score + if creator_match, do: 10, else: 0
 
     # Boost if user is highly engaged this session
     score =

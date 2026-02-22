@@ -3,6 +3,18 @@ defmodule ElektrineWeb.PageController do
 
   # Development-only error page test routes
   if Mix.env() == :dev do
+    def flash_test_controller(conn, %{"kind" => kind}) do
+      {flash_kind, message} =
+        case kind do
+          "error" -> {:error, "Controller error flash (dev test)"}
+          _ -> {:info, "Controller info flash (dev test)"}
+        end
+
+      conn
+      |> put_flash(flash_kind, message)
+      |> redirect(to: ~p"/dev/flash-test")
+    end
+
     def test_404(conn, _params) do
       conn
       |> put_status(404)

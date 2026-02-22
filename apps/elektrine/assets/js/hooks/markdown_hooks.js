@@ -7,19 +7,29 @@ export const MarkdownEditor = {
     this.setupPreview()
   },
 
+  destroyed() {
+    if (this.previewInputHandler) {
+      this.el.removeEventListener('input', this.previewInputHandler)
+    }
+    if (this.previewModeClickHandler) {
+      document.removeEventListener('click', this.previewModeClickHandler)
+    }
+  },
+
   setupPreview() {
     // Auto-update preview when typing
-    this.el.addEventListener('input', () => {
+    this.previewInputHandler = () => {
       const previewPanel = document.getElementById('preview-panel')
       const previewContent = document.getElementById('preview-content')
 
       if (previewPanel && !previewPanel.classList.contains('hidden')) {
         this.updatePreviewContent(this.el.value, previewContent)
       }
-    })
+    }
+    this.el.addEventListener('input', this.previewInputHandler)
 
     // Also update preview when mode changes to preview or split
-    document.addEventListener('click', (e) => {
+    this.previewModeClickHandler = (e) => {
       const modeBtn = e.target.closest('[data-editor-mode]')
       if (!modeBtn) return
 
@@ -32,7 +42,8 @@ export const MarkdownEditor = {
           }
         }, 0)
       }
-    })
+    }
+    document.addEventListener('click', this.previewModeClickHandler)
   },
 
   updatePreviewContent(markdown, previewElement) {

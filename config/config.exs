@@ -69,6 +69,8 @@ config :elektrine, Oban,
        # Refresh counts for recently interacted federated posts every 30 minutes
        {"*/30 * * * *", Elektrine.ActivityPub.RefreshCountsWorker,
         args: %{"type" => "refresh_interacted"}},
+       # Poll Bluesky notifications for mirrored post replies/mentions
+       {"*/2 * * * *", Elektrine.Bluesky.InboundPollWorker},
        # Archive/prune federation event/outbox data daily
        {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker}
      ]}
@@ -237,6 +239,20 @@ config :elektrine, :messaging_federation,
   event_retention_days: 14,
   outbox_retention_days: 30,
   peers: []
+
+# Bluesky outbound bridge (cross-post local public timeline posts)
+# Keep disabled by default.
+config :elektrine, :bluesky,
+  enabled: false,
+  service_url: "https://bsky.social",
+  timeout_ms: 12_000,
+  max_chars: 300,
+  inbound_enabled: false,
+  inbound_limit: 50,
+  managed_enabled: false,
+  managed_service_url: nil,
+  managed_domain: nil,
+  managed_admin_password: nil
 
 # Cloudflare Turnstile configuration
 config :elektrine, :turnstile,

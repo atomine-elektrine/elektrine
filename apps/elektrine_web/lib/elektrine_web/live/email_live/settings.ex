@@ -122,7 +122,11 @@ defmodule ElektrineWeb.EmailLive.Settings do
         |> assign(:exports, Email.list_exports(user_id))
 
       "aliases" ->
+        mailbox = Email.get_user_mailbox(user_id) || socket.assigns.mailbox
+
         socket
+        |> assign(:mailbox, mailbox)
+        |> assign(:mailbox_form, to_form(Email.change_mailbox_forwarding(mailbox)))
         |> assign(:aliases, Aliases.list_aliases(user_id))
         |> assign(:new_alias, %Alias{})
 
@@ -626,6 +630,37 @@ defmodule ElektrineWeb.EmailLive.Settings do
          socket
          |> put_flash(:info, "Alias deleted")
          |> assign(:aliases, Aliases.list_aliases(user_id))}
+    end
+  end
+
+  @impl true
+  def handle_event("update_mailbox_forwarding", %{"mailbox" => mailbox_params}, socket) do
+    mailbox = socket.assigns.mailbox
+
+    mailbox_params = Map.put_new(mailbox_params, "forward_enabled", "false")
+
+    mailbox_params =
+      if mailbox_params["forward_enabled"] == "true" do
+        mailbox_params
+      else
+        Map.put(mailbox_params, "forward_to", nil)
+      end
+
+    case Email.update_mailbox_forwarding(mailbox, mailbox_params) do
+      {:ok, updated_mailbox} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Main mailbox forwarding updated")
+         |> assign(:mailbox, updated_mailbox)
+         |> assign(:mailbox_form, to_form(Email.change_mailbox_forwarding(updated_mailbox)))}
+
+      {:error, changeset} ->
+        error = get_changeset_error(changeset)
+
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update mailbox forwarding: #{error}")
+         |> assign(:mailbox_form, to_form(changeset))}
     end
   end
 
@@ -1469,6 +1504,69 @@ defmodule ElektrineWeb.EmailLive.Settings do
       <p class="text-base-content/70 mb-6">
         Create additional email addresses that deliver to your mailbox or forward elsewhere. You can have up to 15 aliases.
       </p>
+
+      <.form
+        for={@mailbox_form}
+        as={:mailbox}
+        phx-submit="update_mailbox_forwarding"
+        class="card space-y-4 mb-8 p-5"
+      >
+        <h3 class="font-semibold text-lg mb-1">Main Email Forwarding</h3>
+        <p class="text-sm text-base-content/60">
+          Forward all emails sent to your primary mailbox addresses.
+        </p>
+
+        <div class="flex flex-wrap gap-2">
+          <%= if @mailbox.username do %>
+            <span class="badge badge-outline">{@mailbox.username}@elektrine.com</span>
+            <span class="badge badge-outline">{@mailbox.username}@z.org</span>
+          <% else %>
+            <span class="badge badge-outline">{@mailbox.email}</span>
+          <% end %>
+        </div>
+
+        <div class="flex items-center justify-between p-3 bg-base-200/40 rounded-lg">
+          <label class="label cursor-pointer gap-3 p-0">
+            <span class="label-text font-medium">Enable Forwarding</span>
+            <input type="hidden" name="mailbox[forward_enabled]" value="false" />
+            <input
+              type="checkbox"
+              name="mailbox[forward_enabled]"
+              value="true"
+              checked={@mailbox.forward_enabled}
+              class="toggle toggle-primary"
+            />
+          </label>
+        </div>
+
+        <div>
+          <label class="label pb-1">
+            <span class="label-text font-medium">Forward to Email</span>
+          </label>
+          <input
+            type="email"
+            name="mailbox[forward_to]"
+            value={@mailbox_form[:forward_to].value || ""}
+            placeholder="your.email@example.com"
+            class="input input-bordered w-full"
+          />
+          <div class="text-xs text-base-content/50 mt-1">
+            Required when forwarding is enabled.
+          </div>
+        </div>
+
+        <%= if @mailbox.forward_enabled && @mailbox.forward_to && String.trim(@mailbox.forward_to) != "" do %>
+          <div class="alert alert-info py-2 px-3">
+            <span class="text-sm">
+              Forwarding active: mail to your main mailbox goes to {@mailbox.forward_to}
+            </span>
+          </div>
+        <% end %>
+
+        <div class="flex justify-end">
+          <button type="submit" class="btn btn-primary">Save Main Forwarding</button>
+        </div>
+      </.form>
       
     <!-- Add Form -->
       <form phx-submit="create_alias" class="card space-y-4 mb-8 p-5">

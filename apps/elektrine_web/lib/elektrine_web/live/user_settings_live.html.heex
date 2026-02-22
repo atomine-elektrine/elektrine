@@ -20,98 +20,17 @@
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
             <ul class="menu menu-compact w-full p-0 space-y-1">
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="profile"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "profile", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-user" class="w-4 h-4" /> {gettext("Profile")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="security"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "security", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("Security")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="password-manager"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "password-manager", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-lock-closed" class="w-4 h-4" /> {gettext("Password Manager")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="privacy"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "privacy", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-lock-closed" class="w-4 h-4" /> {gettext("Privacy")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="preferences"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "preferences", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> {gettext("Preferences")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="notifications"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "notifications", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-bell" class="w-4 h-4" /> {gettext("Notifications")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="timeline"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "timeline", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Timeline")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="email"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "email", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-envelope" class="w-4 h-4" /> {gettext("Email")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="developer"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "developer", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-code-bracket" class="w-4 h-4" /> {gettext("Developer")}
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="danger"
-                  class={"text-sm rounded-lg flex items-center gap-2 #{if @selected_tab == "danger", do: "bg-error text-error-content", else: "hover:bg-base-200 text-error"}"}
-                >
-                  <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
-                    "Danger Zone"
-                  )}
-                </a>
-              </li>
+              <%= for {tab_id, tab_icon, tab_tone} <- setting_tabs() do %>
+                <li>
+                  <a
+                    phx-click="change_tab"
+                    phx-value-tab={tab_id}
+                    class={tab_link_class(@selected_tab, tab_id, tab_tone)}
+                  >
+                    <.icon name={tab_icon} class="w-4 h-4" /> {tab_label(tab_id)}
+                  </a>
+                </li>
+              <% end %>
             </ul>
 
             <div class="divider my-4"></div>
@@ -153,7 +72,9 @@
                 <div class="alert alert-error">
                   <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
                   <div>
-                    <div class="font-semibold">{gettext("Please fix the following errors:")}</div>
+                    <div class="font-semibold">
+                      {gettext("Please fix the following errors:")}
+                    </div>
                     <ul class="list-disc list-inside mt-2 text-sm">
                       <%= for {field, {message, opts}} <- @changeset.errors do %>
                         <li>
@@ -486,7 +407,9 @@
                 <% else %>
                   <div class="alert alert-info">
                     <.icon name="hero-information-circle" class="w-5 h-5" />
-                    <span>Please add a recovery email address in the Profile tab first.</span>
+                    <span class="text-sm">
+                      Please add a recovery email address in the Profile tab first.
+                    </span>
                   </div>
                 <% end %>
               </div>
@@ -1213,38 +1136,6 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Federation Follower Approval -->
-              <div class="form-control">
-                <label class="label cursor-pointer justify-start gap-4">
-                  <input
-                    type="hidden"
-                    name="user[activitypub_manually_approve_followers]"
-                    value="false"
-                  />
-                  <input
-                    type="checkbox"
-                    name="user[activitypub_manually_approve_followers]"
-                    class="checkbox checkbox-primary"
-                    checked={
-                      Ecto.Changeset.get_field(
-                        @changeset,
-                        :activitypub_manually_approve_followers
-                      )
-                    }
-                  />
-                  <div>
-                    <span class="label-text font-medium">
-                      {gettext("Manually approve followers from the fediverse")}
-                    </span>
-                    <p class="text-xs text-base-content/60 mt-1">
-                      {gettext(
-                        "When enabled, you must approve follow requests from Mastodon and other ActivityPub instances"
-                      )}
-                    </p>
-                  </div>
-                </label>
-              </div>
 
               <div class="card-actions justify-end mt-4 sm:mt-6">
                 <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
@@ -1587,6 +1478,318 @@
               </div>
             </.form>
           </div>
+        </div>
+      <% end %>
+      
+<!-- Federation Tab -->
+      <%= if @selected_tab == "federation" do %>
+        <div class="space-y-4 sm:space-y-6">
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
+                <.icon name="hero-globe-alt" class="w-5 h-5" /> {gettext("Federation")}
+              </h2>
+              <p class="text-sm text-base-content/70">
+                {gettext(
+                  "Manage your federated account bridge and cross-network connection status."
+                )}
+              </p>
+
+              <div class="alert alert-info mt-4 text-xs sm:text-sm">
+                <.icon name="hero-information-circle" class="w-5 h-5" />
+                <span>
+                  {gettext(
+                    "Manage ActivityPub and Bluesky bridge behavior for your federated account."
+                  )}
+                </span>
+              </div>
+
+              <div class="divider my-4">{gettext("ActivityPub")}</div>
+              <.form
+                for={@changeset}
+                id="federation-activitypub-form"
+                phx-submit="save"
+                phx-change="validate"
+                class="space-y-4"
+              >
+                <div class="form-control">
+                  <label class="label cursor-pointer justify-start gap-4">
+                    <input
+                      type="hidden"
+                      name="user[activitypub_manually_approve_followers]"
+                      value="false"
+                    />
+                    <input
+                      type="checkbox"
+                      name="user[activitypub_manually_approve_followers]"
+                      class="checkbox checkbox-primary"
+                      checked={
+                        Ecto.Changeset.get_field(
+                          @changeset,
+                          :activitypub_manually_approve_followers
+                        )
+                      }
+                    />
+                    <div>
+                      <span class="label-text font-medium">
+                        {gettext("Manually approve followers from the fediverse")}
+                      </span>
+                      <p class="text-xs text-base-content/60 mt-1">
+                        {gettext(
+                          "When enabled, you must approve follow requests from Mastodon and other ActivityPub instances."
+                        )}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="card-actions justify-end">
+                  <.button class="btn-primary w-full sm:w-auto">
+                    {gettext("Save Changes")}
+                  </.button>
+                </div>
+              </.form>
+
+              <div class="divider my-4">{gettext("Bluesky Bridge")}</div>
+              <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %>
+              <% bluesky_profile_url = bluesky_profile_url(@user) %>
+
+              <div class="rounded-xl border border-base-300 bg-base-200/50 p-4 sm:p-5 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <h3 class="text-sm sm:text-base font-semibold flex items-center gap-2">
+                    <.icon name="hero-link" class="w-4 h-4" /> {gettext("Managed Bluesky")}
+                  </h3>
+                  <span class={[
+                    "badge badge-outline w-fit",
+                    if(@bluesky_managed_enabled && managed_linked, do: "badge-success"),
+                    if(@bluesky_managed_enabled && !managed_linked, do: "badge-info"),
+                    if(!@bluesky_managed_enabled, do: "badge-warning")
+                  ]}>
+                    <%= cond do %>
+                      <% !@bluesky_managed_enabled -> %>
+                        {gettext("Unavailable")}
+                      <% managed_linked -> %>
+                        {gettext("Connected")}
+                      <% true -> %>
+                        {gettext("Ready to Connect")}
+                    <% end %>
+                  </span>
+                </div>
+
+                <%= if @bluesky_managed_enabled do %>
+                  <p class="text-xs sm:text-sm text-base-content/70">
+                    {gettext(
+                      "This server provisions and maintains your Bluesky identifier, app password, and PDS URL."
+                    )}
+                  </p>
+
+                  <%= if managed_linked do %>
+                    <div class="space-y-3">
+                      <div>
+                        <label class="label">
+                          <span class="label-text font-medium">
+                            {gettext("Bluesky identifier")}
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          class="input input-bordered w-full"
+                          value={Ecto.Changeset.get_field(@changeset, :bluesky_identifier) || ""}
+                          readonly
+                        />
+                      </div>
+
+                      <div>
+                        <label class="label">
+                          <span class="label-text font-medium">
+                            {gettext("Bluesky app password")}
+                          </span>
+                        </label>
+                        <input
+                          type="password"
+                          class="input input-bordered w-full"
+                          value="****************"
+                          readonly
+                        />
+                      </div>
+
+                      <div>
+                        <label class="label">
+                          <span class="label-text font-medium">{gettext("Bluesky PDS URL")}</span>
+                        </label>
+                        <input
+                          type="text"
+                          class="input input-bordered w-full"
+                          value={Ecto.Changeset.get_field(@changeset, :bluesky_pds_url) || ""}
+                          readonly
+                        />
+                      </div>
+
+                      <%= if bluesky_profile_url do %>
+                        <div class="card-actions justify-end pt-1">
+                          <a
+                            href={bluesky_profile_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="btn btn-outline btn-sm w-full sm:w-auto"
+                          >
+                            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+                            {gettext("Open Bluesky Profile")}
+                          </a>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="alert alert-info">
+                      <span class="text-sm">
+                        {gettext(
+                          "Your account is not linked yet. Confirm your password below to create and connect a managed Bluesky account."
+                        )}
+                      </span>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <div class="alert alert-warning">
+                    <span class="text-sm">
+                      {gettext("Managed Bluesky is currently disabled on this server.")}
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <%= if @bluesky_managed_enabled do %>
+            <% managed_linked = @user.bluesky_enabled && @user.bluesky_app_password %>
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6 space-y-4">
+                <h3 class="card-title text-base sm:text-lg flex flex-wrap items-center gap-2 leading-tight">
+                  <.icon name="hero-link" class="w-5 h-5 shrink-0" /> {gettext(
+                    "Managed Account Setup"
+                  )}
+                </h3>
+
+                <%= if managed_linked do %>
+                  <p class="text-xs sm:text-sm text-base-content/70 break-words">
+                    {gettext(
+                      "Your managed Bluesky account is connected and maintained automatically."
+                    )}
+                  </p>
+                  <div class="alert alert-success">
+                    <span class="text-sm break-words">
+                      {gettext("Managed Bluesky is active for this account.")}
+                    </span>
+                  </div>
+
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <form
+                      phx-submit="reconnect_bluesky_managed"
+                      class="space-y-3 min-w-0 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
+                    >
+                      <label class="label py-0">
+                        <span class="label-text font-medium whitespace-normal break-words leading-snug">
+                          {gettext("Confirm your account password")}
+                        </span>
+                      </label>
+                      <input
+                        type="password"
+                        name="current_password"
+                        class="input input-bordered w-full"
+                        autocomplete="current-password"
+                      />
+                      <div class="label py-0">
+                        <span class="text-xs text-base-content/60 break-words leading-relaxed">
+                          {gettext(
+                            "Reconnects this account and rotates the managed Bluesky app password."
+                          )}
+                        </span>
+                      </div>
+                      <div class="card-actions justify-start sm:justify-end">
+                        <.button
+                          type="submit"
+                          class="btn-primary w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
+                        >
+                          {gettext("Reconnect Managed Bluesky")}
+                        </.button>
+                      </div>
+                    </form>
+
+                    <form
+                      phx-submit="disconnect_bluesky_managed"
+                      class="space-y-3 min-w-0 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
+                    >
+                      <label class="label py-0">
+                        <span class="label-text font-medium whitespace-normal break-words leading-snug">
+                          {gettext("Confirm your account password")}
+                        </span>
+                      </label>
+                      <input
+                        type="password"
+                        name="current_password"
+                        class="input input-bordered w-full"
+                        autocomplete="current-password"
+                      />
+                      <div class="label py-0">
+                        <span class="text-xs text-base-content/60 break-words leading-relaxed">
+                          {gettext(
+                            "Disconnects local Bluesky bridge credentials. Your Bluesky account remains on the managed PDS."
+                          )}
+                        </span>
+                      </div>
+                      <div class="card-actions justify-start sm:justify-end">
+                        <.button
+                          type="submit"
+                          class="btn-error w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
+                        >
+                          {gettext("Disconnect Managed Bluesky")}
+                        </.button>
+                      </div>
+                    </form>
+                  </div>
+                <% else %>
+                  <p class="text-xs sm:text-sm text-base-content/70 break-words">
+                    {gettext(
+                      "Confirm your account password once to create or reconnect your managed Bluesky account."
+                    )}
+                  </p>
+                  <form
+                    phx-submit="enable_bluesky_managed"
+                    class="space-y-4 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
+                  >
+                    <div>
+                      <label class="label py-0">
+                        <span class="label-text font-medium whitespace-normal break-words leading-snug">
+                          {gettext("Confirm your account password")}
+                        </span>
+                      </label>
+                      <input
+                        type="password"
+                        name="current_password"
+                        class="input input-bordered w-full"
+                        autocomplete="current-password"
+                      />
+                      <div class="label py-0">
+                        <span class="text-xs text-base-content/60 break-words leading-relaxed">
+                          {gettext(
+                            "Used once to verify you and create or reconnect your managed Bluesky account. Bluesky credentials are then managed automatically."
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="card-actions justify-start sm:justify-end">
+                      <.button
+                        type="submit"
+                        class="btn-primary w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
+                      >
+                        {gettext("Create or Reconnect Managed Bluesky")}
+                      </.button>
+                    </div>
+                  </form>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
         </div>
       <% end %>
       

@@ -470,7 +470,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
       case HeaderSanitizer.check_local_domain_spoofing(from, authenticated_context) do
         {:error, reason} ->
-          throw({:security_rejection, reason})
+          throw({:security_rejection, {:local_domain_spoofing, reason}})
 
         _ ->
           :ok
@@ -479,7 +479,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
       # 2. Check for backscatter/bounce attack
       case HeaderSanitizer.check_bounce_attack(%{from: from, to: to, subject: subject}) do
         {:error, reason} ->
-          throw({:security_rejection, reason})
+          throw({:security_rejection, {:bounce_attack, reason}})
 
         _ ->
           :ok
@@ -489,7 +489,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
       if params["raw"] do
         case HeaderSanitizer.check_multiple_from_headers(params["raw"]) do
           {:error, reason} ->
-            throw({:security_rejection, reason})
+            throw({:security_rejection, {:multiple_from_headers, reason}})
 
           _ ->
             :ok
@@ -581,18 +581,13 @@ defmodule ElektrineWeb.HarakaWebhookController do
                     "Failed to forward Haraka email to #{target_email}: #{inspect(reason)}. Dashboard: #{admin_dashboard_url()}"
                   )
 
-                  # Report forwarding failure with details to Sentry
-                  Sentry.capture_message("Email forwarding failed",
-                    level: :error,
-                    extra: %{
-                      forward_reason: inspect(reason),
-                      alias_email: alias_email,
-                      target_email: target_email,
-                      original_from: from,
-                      subject: subject,
-                      forward_duration_ms: forward_duration,
-                      dashboard_url: admin_dashboard_url()
-                    }
+                  capture_forwarding_failure_sentry(
+                    reason,
+                    alias_email,
+                    target_email,
+                    from,
+                    subject,
+                    forward_duration
                   )
 
                   {:error, :forwarding_failed}
@@ -750,20 +745,32 @@ defmodule ElektrineWeb.HarakaWebhookController do
         {:error, :parsing_error}
     catch
       {:security_rejection, reason} ->
-        Logger.debug("Security rejection: #{reason}")
-
-        # Send security alert to the owner of the spoofed address
-        from = get_header_value(params, "from", "mail_from") || ""
-        to = get_header_value(params, "to", "rcpt_to") || ""
-        subject = params["subject"] |> extract_from_array()
-
-        Task.start(fn ->
-          Elektrine.SecurityAlerts.send_spoofing_alert(from, to, subject)
-        end)
+        Logger.debug("Security rejection: #{inspect(reason)}")
+        maybe_send_spoofing_alert(reason, params)
 
         {:error, :security_rejection}
     end
   end
+
+  defp maybe_send_spoofing_alert({:local_domain_spoofing, _reason}, params) do
+    # Prefer envelope recipient for accuracy in list/masked To headers.
+    recipient =
+      case params["rcpt_to"] |> extract_from_array() do
+        value when is_binary(value) and value != "" -> value
+        _ -> get_header_value(params, "to", "rcpt_to") || ""
+      end
+
+    from = get_header_value(params, "from", "mail_from") || ""
+    subject = extract_subject(params)
+
+    Task.start(fn ->
+      Elektrine.SecurityAlerts.send_spoofing_alert(from, recipient, subject)
+    end)
+
+    :ok
+  end
+
+  defp maybe_send_spoofing_alert(_reason, _params), do: :ok
 
   # Process attachments from Haraka format
   # Normalize attachments to list format
@@ -1756,6 +1763,42 @@ defmodule ElektrineWeb.HarakaWebhookController do
   defp reconstruct_pgp_mime_if_needed(text_body, html_body, _attachments) do
     # Fallback for non-list attachments
     {text_body, html_body, %{}}
+  end
+
+  defp capture_forwarding_failure_sentry(
+         reason,
+         alias_email,
+         target_email,
+         from,
+         subject,
+         forward_duration
+       ) do
+    sentry_exception =
+      RuntimeError.exception("Email forwarding failed: #{inspect(reason)}")
+
+    Sentry.capture_exception(sentry_exception,
+      stacktrace: current_stacktrace(),
+      extra: %{
+        forward_reason: inspect(reason),
+        alias_email: alias_email,
+        target_email: target_email,
+        original_from: from,
+        subject: subject,
+        forward_duration_ms: forward_duration,
+        dashboard_url: admin_dashboard_url()
+      }
+    )
+  end
+
+  defp current_stacktrace do
+    case Process.info(self(), :current_stacktrace) do
+      {:current_stacktrace, stacktrace} ->
+        # Drop this helper frame from the reported trace.
+        Enum.drop(stacktrace, 1)
+
+      _ ->
+        []
+    end
   end
 
   defp admin_dashboard_url do

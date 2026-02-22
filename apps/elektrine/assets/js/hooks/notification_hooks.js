@@ -1,4 +1,5 @@
 // Notification-related LiveView hooks
+import { showNotificationFromPayload } from '../notification_system'
 
 export const NotificationHandler = {
   mounted() {
@@ -6,33 +7,11 @@ export const NotificationHandler = {
     this.loadingNotifications = new Map()
 
     this.handleEvent("show_notification", (data) => {
-      const {
-        message,
-        type,
-        title,
-        duration,
-        persistent,
-        progress,
-        undoEvent,
-        undoData,
-        actions,
-        id
-      } = data
-
-      // Build options object
-      const options = {}
-      if (title) options.title = title
-      if (duration !== undefined) options.duration = duration
-      if (persistent) options.persistent = persistent
-      if (progress) options.progress = progress
-      if (undoEvent) options.undoEvent = undoEvent
-      if (undoData) options.undoData = undoData
-      if (actions && actions.length > 0) options.actions = actions
-
-      const notification = window.showNotification(message, type, options)
+      const { id, type } = data
+      const notification = showNotificationFromPayload(data)
 
       // Store loading notifications by ID for later updates
-      if (id && type === 'loading') {
+      if (id && type === 'loading' && notification) {
         this.loadingNotifications.set(id, notification)
       }
     })
@@ -65,7 +44,11 @@ export const NotificationHandler = {
       if (notification && notification.dismiss) {
         notification.dismiss()
         this.loadingNotifications.delete(id)
-        window.showNotification(message, type || 'success', { title })
+        showNotificationFromPayload({
+          message,
+          type: type || 'success',
+          title
+        })
       }
     })
 

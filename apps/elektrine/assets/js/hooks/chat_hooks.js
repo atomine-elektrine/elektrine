@@ -203,6 +203,10 @@ export const AutoExpandTextarea = {
 export const SimpleChatInput = {
   mounted() {
     this.maxHeight = 150
+    this.form = this.el.closest("form")
+    this.awaitingSubmitClear = false
+    this.valueBeforeUpdate = ""
+    this.wasFocusedBeforeUpdate = false
 
     // Get the natural single-line height
     this.el.style.height = 'auto'
@@ -221,22 +225,91 @@ export const SimpleChatInput = {
       this.el.style.borderRadius = newHeight > this.baseHeight + 10 ? '1rem' : '9999px'
     }
 
-    this.el.addEventListener("input", this.autoResize)
+    this.handleInput = () => {
+      if (this.awaitingSubmitClear) {
+        this.awaitingSubmitClear = false
+      }
+
+      this.autoResize()
+    }
+
+    this.el.addEventListener("input", this.handleInput)
 
     // Enter key handling
-    this.el.addEventListener("keydown", (e) => {
+    this.handleKeydown = (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
-        const form = this.el.closest("form")
-        if (form && this.el.value.trim()) {
-          form.requestSubmit()
+        if (this.form && this.el.value.trim()) {
+          this.awaitingSubmitClear = true
+          this.form.requestSubmit()
         }
       }
+    }
+
+    this.el.addEventListener("keydown", this.handleKeydown)
+
+    if (this.form) {
+      this.handleFormSubmit = () => {
+        this.awaitingSubmitClear = true
+      }
+
+      this.form.addEventListener("submit", this.handleFormSubmit)
+    }
+
+    this.handleEvent("clear_message_input", () => {
+      this.awaitingSubmitClear = false
+      this.el.value = ""
+      this.autoResize()
+      this.el.focus()
     })
   },
+
+  beforeUpdate() {
+    this.valueBeforeUpdate = this.el.value
+    this.wasFocusedBeforeUpdate = document.activeElement === this.el
+  },
+
   updated() {
+    if (this.awaitingSubmitClear) {
+      if (this.el.value === "") {
+        this.awaitingSubmitClear = false
+      }
+
+      this.autoResize()
+      return
+    }
+
+    // Keep local draft if an unrelated patch tries to shorten it while typing.
+    if (
+      this.wasFocusedBeforeUpdate &&
+      this.valueBeforeUpdate &&
+      this.el.value.length < this.valueBeforeUpdate.length
+    ) {
+      const cursorPosition = this.el.selectionStart
+      this.el.value = this.valueBeforeUpdate
+
+      if (cursorPosition !== null) {
+        const safePosition = Math.min(cursorPosition, this.el.value.length)
+        this.el.setSelectionRange(safePosition, safePosition)
+      }
+    }
+
     // Restore height after LiveView re-render
     this.autoResize()
+  },
+
+  destroyed() {
+    if (this.handleInput) {
+      this.el.removeEventListener("input", this.handleInput)
+    }
+
+    if (this.handleKeydown) {
+      this.el.removeEventListener("keydown", this.handleKeydown)
+    }
+
+    if (this.form && this.handleFormSubmit) {
+      this.form.removeEventListener("submit", this.handleFormSubmit)
+    }
   }
 }
 
@@ -662,6 +735,8 @@ export const VoiceRecorder = {
     const cancelBtn = document.getElementById('voice-cancel')
     const sendBtn = document.getElementById('voice-send')
     const recordingIndicator = document.getElementById('voice-recording-indicator')
+    this.cancelBtn = cancelBtn
+    this.sendBtn = sendBtn
 
     const updateUI = (recording) => {
       if (recordingIndicator) {
@@ -774,33 +849,49 @@ export const VoiceRecorder = {
     }
 
     // Toggle recording on button click
-    recordBtn.addEventListener('click', () => {
+    this.recordClickHandler = () => {
       if (this.isRecording) {
         sendRecording()
       } else {
         startRecording()
       }
-    })
+    }
+    recordBtn.addEventListener('click', this.recordClickHandler)
 
     // Cancel button
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', cancelRecording)
+      this.cancelClickHandler = cancelRecording
+      cancelBtn.addEventListener('click', this.cancelClickHandler)
     }
 
     // Send button (if separate)
     if (sendBtn) {
-      sendBtn.addEventListener('click', sendRecording)
+      this.sendClickHandler = sendRecording
+      sendBtn.addEventListener('click', this.sendClickHandler)
     }
 
     // Handle escape to cancel
-    document.addEventListener('keydown', (e) => {
+    this.escapeKeyHandler = (e) => {
       if (e.key === 'Escape' && this.isRecording) {
         cancelRecording()
       }
-    })
+    }
+    document.addEventListener('keydown', this.escapeKeyHandler)
   },
 
   destroyed() {
+    if (this.recordClickHandler) {
+      this.el.removeEventListener('click', this.recordClickHandler)
+    }
+    if (this.cancelBtn && this.cancelClickHandler) {
+      this.cancelBtn.removeEventListener('click', this.cancelClickHandler)
+    }
+    if (this.sendBtn && this.sendClickHandler) {
+      this.sendBtn.removeEventListener('click', this.sendClickHandler)
+    }
+    if (this.escapeKeyHandler) {
+      document.removeEventListener('keydown', this.escapeKeyHandler)
+    }
     if (this.recordingTimer) {
       clearInterval(this.recordingTimer)
     }

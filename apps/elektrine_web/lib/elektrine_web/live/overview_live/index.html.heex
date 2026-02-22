@@ -9,6 +9,12 @@
       <div class="mb-4">
         <h2 class="text-2xl font-bold mb-1">
           <%= case @filter do %>
+            <% "timeline" -> %>
+              Timeline
+            <% "gallery" -> %>
+              Gallery
+            <% "discussions" -> %>
+              Discussions
             <% "my_posts" -> %>
               My Posts
             <% _ -> %>
@@ -17,6 +23,12 @@
         </h2>
         <p class="text-sm opacity-70">
           <%= case @filter do %>
+            <% "timeline" -> %>
+              Text posts from your personalized feed
+            <% "gallery" -> %>
+              Media posts from your personalized feed
+            <% "discussions" -> %>
+              Community discussion posts from your personalized feed
             <% "my_posts" -> %>
               Your recent activity across all platforms
             <% _ -> %>
@@ -40,6 +52,27 @@
           class={["btn btn-sm", if(@filter == "my_posts", do: "btn-secondary", else: "btn-ghost")]}
         >
           <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
+        </button>
+        <button
+          phx-click="set_filter"
+          phx-value-filter="timeline"
+          class={["btn btn-sm", if(@filter == "timeline", do: "btn-secondary", else: "btn-ghost")]}
+        >
+          <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Timeline
+        </button>
+        <button
+          phx-click="set_filter"
+          phx-value-filter="gallery"
+          class={["btn btn-sm", if(@filter == "gallery", do: "btn-secondary", else: "btn-ghost")]}
+        >
+          <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Gallery
+        </button>
+        <button
+          phx-click="set_filter"
+          phx-value-filter="discussions"
+          class={["btn btn-sm", if(@filter == "discussions", do: "btn-secondary", else: "btn-ghost")]}
+        >
+          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" /> Discussions
         </button>
       </div>
       
