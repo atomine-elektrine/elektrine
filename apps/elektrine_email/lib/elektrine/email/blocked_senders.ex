@@ -3,8 +3,8 @@ defmodule Elektrine.Email.BlockedSenders do
   Context module for managing blocked email senders.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.BlockedSender
+  alias Elektrine.Repo
 
   @doc """
   Lists all blocked senders for a user.
@@ -97,7 +97,7 @@ defmodule Elektrine.Email.BlockedSenders do
   @doc """
   Checks if an email address is blocked for a user.
   """
-  def is_blocked?(user_id, from_email) when is_binary(from_email) do
+  def blocked?(user_id, from_email) when is_binary(from_email) do
     email = extract_email(from_email) |> String.downcase()
     domain = extract_domain(email)
 
@@ -110,7 +110,7 @@ defmodule Elektrine.Email.BlockedSenders do
     Repo.one(query) > 0
   end
 
-  def is_blocked?(_, _), do: false
+  def blocked?(_, _), do: false
 
   @doc """
   Gets the blocked entries that match a given email.

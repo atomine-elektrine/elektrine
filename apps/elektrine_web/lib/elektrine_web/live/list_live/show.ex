@@ -1,50 +1,33 @@
 defmodule ElektrineWeb.ListLive.Show do
   use ElektrineWeb, :live_view
-
   require Logger
-
   alias Elektrine.Social
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers, except: [make_links_and_hashtags_clickable: 1]
   import ElektrineWeb.Live.Helpers.PostStateHelpers
-
   @impl true
   def mount(%{"id" => list_id}, _session, socket) do
     user = socket.assigns[:current_user]
     list_id = String.to_integer(list_id)
 
-    if !user do
-      {:ok, push_navigate(socket, to: ~p"/login")}
-    else
-      # Try to get as owner first, then as public list
+    if user do
       list = Social.get_user_list(user.id, list_id) || Social.get_public_list(list_id)
 
       case list do
         nil ->
-          {:ok,
-           socket
-           |> put_flash(:error, "List not found")
-           |> push_navigate(to: ~p"/lists")}
+          {:ok, socket |> put_flash(:error, "List not found") |> push_navigate(to: ~p"/lists")}
 
         list ->
-          # Check if user is the owner
           is_owner = list.user_id == user.id
-
-          # Load timeline for this list
           posts = Social.get_list_timeline(list_id, limit: 20)
-
-          # Load replies for posts
           post_ids = Enum.map(posts, & &1.id)
 
           post_replies =
             Social.get_direct_replies_for_posts(post_ids, user_id: user.id, limit_per_post: 3)
 
-          # Get all message IDs (posts + replies)
           all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
           all_message_ids = post_ids ++ all_reply_ids
-
-          # Get user likes and boosts
           user_likes = get_user_likes(user.id, posts ++ List.flatten(Map.values(post_replies)))
           user_boosts = get_user_boosts(user.id, all_message_ids)
 
@@ -65,6 +48,8 @@ defmodule ElektrineWeb.ListLive.Show do
            |> assign(:reply_to_reply_id, nil)
            |> assign(:reply_content, "")}
       end
+    else
+      {:ok, push_navigate(socket, to: ~p"/login")}
     end
   end
 
@@ -82,10 +67,8 @@ defmodule ElektrineWeb.ListLive.Show do
     {:noreply, assign(socket, :show_add_member_form, !socket.assigns.show_add_member_form)}
   end
 
-  # Handle keyup events with key metadata
   def handle_event("search_users", %{"value" => query}, socket) do
     import Ecto.Query
-
     query = String.trim(query)
 
     if String.length(query) < 2 do
@@ -93,7 +76,6 @@ defmodule ElektrineWeb.ListLive.Show do
     else
       search_term = "%#{query}%"
 
-      # Search local users
       local_results =
         from(u in Elektrine.Accounts.User,
           where: ilike(u.username, ^search_term) or ilike(u.display_name, ^search_term),
@@ -104,13 +86,11 @@ defmodule ElektrineWeb.ListLive.Show do
         |> Elektrine.Repo.all()
         |> Enum.map(&%{type: :local, user: &1})
 
-      # Search remote actors (if query looks like @user@domain)
       remote_results =
         if String.contains?(query, "@") do
           from(a in Elektrine.ActivityPub.Actor,
             where:
-              ilike(a.username, ^search_term) or
-                ilike(a.display_name, ^search_term) or
+              ilike(a.username, ^search_term) or ilike(a.display_name, ^search_term) or
                 ilike(a.domain, ^search_term),
             limit: 10
           )
@@ -121,22 +101,16 @@ defmodule ElektrineWeb.ListLive.Show do
         end
 
       all_results = local_results ++ remote_results
-
-      {:noreply,
-       socket
-       |> assign(:search_results, all_results)
-       |> assign(:search_query, query)}
+      {:noreply, socket |> assign(:search_results, all_results) |> assign(:search_query, query)}
     end
   end
 
-  # Add remote user by handle (like @user@domain)
   def handle_event("add_remote_user", %{"handle" => handle}, socket) do
     case Elektrine.ActivityPub.FederationHelpers.follow_remote_user(
            socket.assigns.current_user.username,
            handle
          ) do
       {:ok, result} ->
-        # Add the remote actor to the list
         case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: result.remote_actor.id}) do
           {:ok, _} ->
             list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
@@ -149,7 +123,6 @@ defmodule ElektrineWeb.ListLive.Show do
                 limit_per_post: 3
               )
 
-            # Get all message IDs (posts + replies)
             all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
             all_message_ids = post_ids ++ all_reply_ids
 
@@ -187,7 +160,6 @@ defmodule ElektrineWeb.ListLive.Show do
          put_flash(socket, :error, "Could not find user. Check the handle and try again.")}
 
       {:error, :already_following} ->
-        # User already followed, just add to list
         case Elektrine.ActivityPub.get_actor_by_username_and_domain(
                String.split(handle, "@") |> Enum.at(0),
                String.split(handle, "@") |> Enum.at(1)
@@ -210,7 +182,6 @@ defmodule ElektrineWeb.ListLive.Show do
                     limit_per_post: 3
                   )
 
-                # Get all message IDs (posts + replies)
                 all_reply_ids =
                   post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
 
@@ -246,10 +217,8 @@ defmodule ElektrineWeb.ListLive.Show do
     end
   end
 
-  # Handle regular form input
   def handle_event("search_users", %{"query" => query}, socket) do
     import Ecto.Query
-
     query = String.trim(query)
 
     if String.length(query) < 2 do
@@ -257,7 +226,6 @@ defmodule ElektrineWeb.ListLive.Show do
     else
       search_term = "%#{query}%"
 
-      # Search local users by username or handle
       local_results =
         from(u in Elektrine.Accounts.User,
           where: ilike(u.username, ^search_term) or ilike(u.handle, ^search_term),
@@ -267,7 +235,6 @@ defmodule ElektrineWeb.ListLive.Show do
         |> Elektrine.Repo.all()
         |> Enum.map(&%{type: :local, user: &1})
 
-      # Search remote actors
       remote_results =
         from(a in Elektrine.ActivityPub.Actor,
           where: ilike(a.username, ^search_term) or ilike(a.display_name, ^search_term),
@@ -277,7 +244,6 @@ defmodule ElektrineWeb.ListLive.Show do
         |> Enum.map(&%{type: :remote, actor: &1})
 
       results = local_results ++ remote_results
-
       {:noreply, assign(socket, search_results: results)}
     end
   end
@@ -327,33 +293,22 @@ defmodule ElektrineWeb.ListLive.Show do
     if handles_text == "" do
       {:noreply, put_flash(socket, :error, "Please enter at least one handle")}
     else
-      # Parse comma-separated handles
       handles =
-        handles_text
-        |> String.split(",")
-        |> Enum.map(&String.trim/1)
-        |> Enum.reject(&(&1 == ""))
+        handles_text |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 
-      # Process each handle
       results =
         Enum.map(handles, fn handle ->
-          # Remove leading @ if present
           clean_handle = String.trim_leading(handle, "@")
 
-          # Check if it's a fediverse handle (contains @) or local username
           if String.contains?(clean_handle, "@") do
-            # Fediverse handle: user@domain
             add_remote_user_to_list(socket, clean_handle)
           else
-            # Local username
             add_local_user_to_list(socket, clean_handle)
           end
         end)
 
       successful = Enum.count(results, &(&1 == :ok))
       total = length(handles)
-
-      # Reload list and posts
       list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
       posts = Social.get_list_timeline(socket.assigns.list.id, limit: 20)
       post_ids = Enum.map(posts, & &1.id)
@@ -364,7 +319,6 @@ defmodule ElektrineWeb.ListLive.Show do
           limit_per_post: 3
         )
 
-      # Get all message IDs (posts + replies)
       all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
       all_message_ids = post_ids ++ all_reply_ids
 
@@ -390,26 +344,20 @@ defmodule ElektrineWeb.ListLive.Show do
   end
 
   def handle_event("follow_all_members", _params, socket) do
-    # Reload list to get fresh members with associations
     list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
     list_members = list.list_members
     current_user_id = socket.assigns.current_user.id
 
-    # Follow all members
     results =
       Enum.map(list_members, fn member ->
         cond do
-          # Local user
           member.user_id && member.user ->
             case Elektrine.Profiles.follow_user(current_user_id, member.user_id) do
               {:ok, _} -> {:ok, member.user.username}
-              # Already following is ok
               {:error, _} -> {:ok, member.user.username}
             end
 
-          # Remote actor
           member.remote_actor_id && member.remote_actor ->
-            # Already followed when added to list
             {:ok, "@#{member.remote_actor.username}@#{member.remote_actor.domain}"}
 
           true ->
@@ -417,7 +365,6 @@ defmodule ElektrineWeb.ListLive.Show do
         end
       end)
 
-    # Count successes
     successful =
       Enum.count(results, fn
         {:ok, _} -> true
@@ -427,9 +374,7 @@ defmodule ElektrineWeb.ListLive.Show do
     total = length(list_members)
 
     {:noreply,
-     socket
-     |> assign(:list, list)
-     |> put_flash(:info, "Followed #{successful}/#{total} members")}
+     socket |> assign(:list, list) |> put_flash(:info, "Followed #{successful}/#{total} members")}
   end
 
   def handle_event("remove_member", %{"member_id" => member_id}, socket) do
@@ -447,7 +392,6 @@ defmodule ElektrineWeb.ListLive.Show do
             limit_per_post: 3
           )
 
-        # Get all message IDs (posts + replies)
         all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
         _all_message_ids = post_ids ++ all_reply_ids
 
@@ -481,7 +425,6 @@ defmodule ElektrineWeb.ListLive.Show do
       true ->
         case Social.unlike_post(user_id, message_id) do
           {:ok, _} ->
-            # Update in posts or replies
             {updated_posts, updated_replies} =
               update_message_count(
                 socket.assigns.posts,
@@ -504,7 +447,6 @@ defmodule ElektrineWeb.ListLive.Show do
       false ->
         case Social.like_post(user_id, message_id) do
           {:ok, _} ->
-            # Update in posts or replies
             {updated_posts, updated_replies} =
               update_message_count(
                 socket.assigns.posts,
@@ -534,7 +476,6 @@ defmodule ElektrineWeb.ListLive.Show do
       true ->
         case Social.unboost_post(user_id, message_id) do
           {:ok, _} ->
-            # Update in posts or replies
             {updated_posts, updated_replies} =
               update_message_count(
                 socket.assigns.posts,
@@ -557,7 +498,6 @@ defmodule ElektrineWeb.ListLive.Show do
       false ->
         case Social.boost_post(user_id, message_id) do
           {:ok, _} ->
-            # Update in posts or replies
             {updated_posts, updated_replies} =
               update_message_count(
                 socket.assigns.posts,
@@ -599,10 +539,7 @@ defmodule ElektrineWeb.ListLive.Show do
   end
 
   def handle_event("cancel_reply", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:reply_to_reply_id, nil)
-     |> assign(:reply_content, "")}
+    {:noreply, socket |> assign(:reply_to_reply_id, nil) |> assign(:reply_content, "")}
   end
 
   def handle_event("update_reply_content", %{"content" => content}, socket) do
@@ -616,7 +553,6 @@ defmodule ElektrineWeb.ListLive.Show do
       reply_to_id = String.to_integer(reply_to_id)
       user = socket.assigns.current_user
 
-      # Find parent reply
       parent_reply =
         socket.assigns.post_replies
         |> Map.values()
@@ -633,10 +569,8 @@ defmodule ElektrineWeb.ListLive.Show do
              reply_to_id: reply_to_id
            ) do
         {:ok, _new_reply} ->
-          # Increment reply count
           Social.increment_reply_count(reply_to_id)
 
-          # Find the root post
           root_post =
             socket.assigns.posts
             |> Enum.find(fn post ->
@@ -644,7 +578,6 @@ defmodule ElektrineWeb.ListLive.Show do
               |> Enum.any?(&(&1.id == reply_to_id))
             end)
 
-          # Reload replies for the root post
           if root_post do
             reloaded_replies =
               Social.get_direct_replies_for_posts([root_post.id],
@@ -654,7 +587,6 @@ defmodule ElektrineWeb.ListLive.Show do
 
             updated_post_replies = Map.merge(socket.assigns.post_replies, reloaded_replies)
 
-            # Update root post reply count
             updated_posts =
               Enum.map(socket.assigns.posts, fn post ->
                 if post.id == root_post.id do
@@ -693,7 +625,6 @@ defmodule ElektrineWeb.ListLive.Show do
         end
 
       {:error, :already_following} ->
-        # Already followed, just add to list
         [username, domain] = String.split(handle, "@")
 
         case Elektrine.ActivityPub.get_actor_by_username_and_domain(username, domain) do
@@ -725,19 +656,15 @@ defmodule ElektrineWeb.ListLive.Show do
     end
   end
 
-  # Helper to make links clickable
   defp make_links_and_hashtags_clickable(text) when is_binary(text) do
-    text
-    |> make_content_safe_with_links()
-    |> render_custom_emojis()
-    |> preserve_line_breaks()
+    text |> make_content_safe_with_links() |> render_custom_emojis() |> preserve_line_breaks()
   end
 
-  defp make_links_and_hashtags_clickable(_), do: ""
+  defp make_links_and_hashtags_clickable(_) do
+    ""
+  end
 
-  # Helper to update counts in either posts or replies
   defp update_message_count(posts, post_replies, message_id, field, delta) do
-    # Try to update in posts
     updated_posts =
       Enum.map(posts, fn post ->
         if post.id == message_id do
@@ -748,7 +675,6 @@ defmodule ElektrineWeb.ListLive.Show do
         end
       end)
 
-    # Try to update in replies
     updated_replies =
       Enum.into(post_replies, %{}, fn {post_id, replies} ->
         updated_reply_list =

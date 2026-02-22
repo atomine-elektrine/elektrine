@@ -119,8 +119,8 @@ defmodule Elektrine.IMAP.Server do
               {:keepalive, true},
               {:nodelay, true},
               {:send_timeout, Constants.imap_send_timeout_ms()},
-              {:recbuf, 65536},
-              {:sndbuf, 65536}
+              {:recbuf, 65_536},
+              {:sndbuf, 65_536}
             ])
 
             increment_connection_count(client_ip)

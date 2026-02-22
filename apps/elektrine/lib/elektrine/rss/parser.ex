@@ -1,26 +1,17 @@
 defmodule Elektrine.RSS.Parser do
-  @moduledoc """
-  Simple RSS/Atom feed parser using SweetXml.
-  Handles RSS 2.0, RSS 1.0, and Atom feeds.
-  """
-
+  @moduledoc "Simple RSS/Atom feed parser using SweetXml.\nHandles RSS 2.0, RSS 1.0, and Atom feeds.\n"
   import SweetXml
 
-  @doc """
-  Parses an RSS or Atom feed from XML content.
-  Returns {:ok, feed_map} or {:error, reason}.
-  """
+  @doc "Parses an RSS or Atom feed from XML content.\nReturns {:ok, feed_map} or {:error, reason}.\n"
   def parse(xml_content) when is_binary(xml_content) do
-    try do
-      case detect_format(xml_content) do
-        :rss2 -> parse_rss2(xml_content)
-        :rss1 -> parse_rss1(xml_content)
-        :atom -> parse_atom(xml_content)
-        :unknown -> {:error, :unknown_format}
-      end
-    rescue
-      e -> {:error, {:parse_error, Exception.message(e)}}
+    case detect_format(xml_content) do
+      :rss2 -> parse_rss2(xml_content)
+      :rss1 -> parse_rss1(xml_content)
+      :atom -> parse_atom(xml_content)
+      :unknown -> {:error, :unknown_format}
     end
+  rescue
+    e -> {:error, {:parse_error, Exception.message(e)}}
   end
 
   defp detect_format(xml) do
@@ -46,8 +37,7 @@ defmodule Elektrine.RSS.Parser do
   defp parse_rss2(xml) do
     feed =
       xml
-      |> xpath(
-        ~x"//channel"e,
+      |> xpath(~x"//channel"e,
         title: ~x"./title/text()"os,
         description: ~x"./description/text()"os,
         link: ~x"./link/text()"os,
@@ -95,11 +85,9 @@ defmodule Elektrine.RSS.Parser do
   end
 
   defp parse_rss1(xml) do
-    # RSS 1.0 has a different namespace structure
     feed =
       xml
-      |> xpath(
-        ~x"/*[local-name()='RDF']"e,
+      |> xpath(~x"/*[local-name()='RDF']"e,
         title: ~x"./*[local-name()='channel']/*[local-name()='title']/text()"os,
         description: ~x"./*[local-name()='channel']/*[local-name()='description']/text()"os,
         link: ~x"./*[local-name()='channel']/*[local-name()='link']/text()"os,
@@ -141,8 +129,7 @@ defmodule Elektrine.RSS.Parser do
   defp parse_atom(xml) do
     feed =
       xml
-      |> xpath(
-        ~x"/*[local-name()='feed']"e,
+      |> xpath(~x"/*[local-name()='feed']"e,
         title: ~x"./*[local-name()='title']/text()"os,
         subtitle: ~x"./*[local-name()='subtitle']/text()"os,
         link: ~x"./*[local-name()='link' and @rel='alternate']/@href"os,
@@ -192,30 +179,29 @@ defmodule Elektrine.RSS.Parser do
      }}
   end
 
-  defp clean_text(nil), do: nil
-
-  defp clean_text(text) when is_binary(text) do
-    text
-    |> String.trim()
-    |> HtmlEntities.decode()
+  defp clean_text(nil) do
+    nil
   end
 
-  defp clean_author(nil), do: nil
+  defp clean_text(text) when is_binary(text) do
+    text |> String.trim() |> HtmlEntities.decode()
+  end
+
+  defp clean_author(nil) do
+    nil
+  end
 
   defp clean_author(author) when is_binary(author) do
-    # RSS author field often contains email in format "email (name)" or just email
     author = String.trim(author)
 
     cond do
       String.contains?(author, "(") ->
-        # Extract name from "email (name)" format
         case Regex.run(~r/\(([^)]+)\)/, author) do
           [_, name] -> String.trim(name)
           _ -> author
         end
 
       String.contains?(author, "@") ->
-        # Just an email, extract username part
         case String.split(author, "@") do
           [username | _] -> username
           _ -> author
@@ -226,35 +212,27 @@ defmodule Elektrine.RSS.Parser do
     end
   end
 
-  defp parse_date(nil), do: nil
-  defp parse_date(""), do: nil
+  defp parse_date(nil) do
+    nil
+  end
+
+  defp parse_date("") do
+    nil
+  end
 
   defp parse_date(date_string) when is_binary(date_string) do
     date_string = String.trim(date_string)
 
-    # Try ISO 8601 first
     case DateTime.from_iso8601(date_string) do
-      {:ok, datetime, _} ->
-        datetime
-
-      _ ->
-        # Try RFC 2822 (used in RSS)
-        parse_rfc2822(date_string)
+      {:ok, datetime, _} -> datetime
+      _ -> parse_rfc2822(date_string)
     end
   end
 
   defp parse_rfc2822(date_string) do
-    # Common RSS date format: "Mon, 02 Jan 2006 15:04:05 GMT"
-    # Also handles: "02 Jan 2006 15:04:05 +0000"
-    # Clean up and try multiple patterns
-    date_string =
-      date_string
-      |> String.replace(~r/\s+/, " ")
-      |> String.trim()
+    date_string = date_string |> String.replace(~r/\s+/, " ") |> String.trim()
 
-    # Try parsing with Erlang's :httpd_util
     try do
-      # Remove day name if present
       date_string =
         if String.match?(date_string, ~r/^\w{3},\s/) do
           String.replace(date_string, ~r/^\w{3},\s*/, "")

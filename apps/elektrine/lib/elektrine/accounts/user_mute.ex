@@ -1,4 +1,5 @@
 defmodule Elektrine.Accounts.UserMute do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

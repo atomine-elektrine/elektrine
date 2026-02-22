@@ -3,10 +3,10 @@ defmodule ElektrineWeb.MatrixInternalAuthControllerTest do
 
   import Elektrine.AccountsFixtures
 
-  alias Elektrine.API.RateLimiter, as: APIRateLimiter
   alias Elektrine.Accounts.Authentication
-  alias Elektrine.Auth.RateLimiter, as: AuthRateLimiter
   alias Elektrine.ActivityPub
+  alias Elektrine.API.RateLimiter, as: APIRateLimiter
+  alias Elektrine.Auth.RateLimiter, as: AuthRateLimiter
   alias Elektrine.Repo
 
   describe "POST /_matrix-internal/identity/v1/check_credentials" do

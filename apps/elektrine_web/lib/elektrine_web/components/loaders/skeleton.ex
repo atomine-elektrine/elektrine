@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.Loaders.Skeleton do
+  @moduledoc false
   use Phoenix.Component
 
   @doc """

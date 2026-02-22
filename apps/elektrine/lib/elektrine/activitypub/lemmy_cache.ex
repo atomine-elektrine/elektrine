@@ -6,8 +6,8 @@ defmodule Elektrine.ActivityPub.LemmyCache do
 
   use Ecto.Schema
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.ActivityPub.LemmyApi
+  alias Elektrine.Repo
 
   @cache_ttl_minutes 15
 

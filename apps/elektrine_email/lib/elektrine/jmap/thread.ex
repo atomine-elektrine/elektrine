@@ -7,8 +7,8 @@ defmodule Elektrine.JMAP.Thread do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Elektrine.Repo
   alias Elektrine.Email.Message
+  alias Elektrine.Repo
 
   schema "email_threads" do
     field :subject_hash, :string

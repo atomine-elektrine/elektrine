@@ -6,11 +6,11 @@ defmodule Elektrine.OAuth do
   to authenticate with the Mastodon-compatible API.
   """
 
+  alias Elektrine.Accounts.User
   alias Elektrine.OAuth.App
   alias Elektrine.OAuth.Authorization
-  alias Elektrine.OAuth.Token
   alias Elektrine.OAuth.Scopes
-  alias Elektrine.Accounts.User
+  alias Elektrine.OAuth.Token
 
   # Re-export key modules
   defdelegate valid_scopes, to: Scopes

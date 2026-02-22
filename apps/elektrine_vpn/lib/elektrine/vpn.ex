@@ -5,7 +5,7 @@ defmodule Elektrine.VPN do
 
   import Ecto.Query, warn: false
   alias Elektrine.Repo
-  alias Elektrine.VPN.{Server, UserConfig, ConnectionLog}
+  alias Elektrine.VPN.{ConnectionLog, Server, UserConfig}
 
   require Logger
 
@@ -66,7 +66,7 @@ defmodule Elektrine.VPN do
       |> Map.put_new(:max_users, 1000)
       |> Map.put_new(:current_users, 0)
       |> Map.put_new(:minimum_trust_level, 0)
-      |> Map.put_new(:endpoint_port, 51820)
+      |> Map.put_new(:endpoint_port, 51_820)
       |> Map.put_new(:dns_servers, "1.1.1.1, 1.0.0.1")
       |> Map.put_new(:internal_ip_range, "10.8.0.0/24")
 

@@ -241,7 +241,7 @@ defmodule Elektrine.Reports do
   """
   def validate_not_spam_reporting(reporter_id) do
     # Check dismissed report ratio in last 30 days
-    thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30 * 86400, :second)
+    thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second)
 
     total_reports =
       Report
@@ -315,7 +315,7 @@ defmodule Elektrine.Reports do
   Get user's reporting statistics
   """
   def get_user_report_stats(reporter_id) do
-    thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30 * 86400, :second)
+    thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second)
 
     reports =
       Report

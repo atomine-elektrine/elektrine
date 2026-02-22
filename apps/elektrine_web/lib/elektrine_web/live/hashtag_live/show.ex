@@ -1,30 +1,19 @@
 defmodule ElektrineWeb.HashtagLive.Show do
   use ElektrineWeb, :live_view
-
   alias Elektrine.Social
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.TimelinePost
   import ElektrineWeb.Live.Helpers.PostStateHelpers
-
   @impl true
   def mount(%{"hashtag" => hashtag_name}, _session, socket) do
-    # Get posts for this hashtag
     posts = Social.get_posts_for_hashtag(hashtag_name, limit: 20)
-
-    # Get hashtag info
     hashtag_info = get_hashtag_info(hashtag_name)
-
-    # Get trending hashtags
     trending_hashtags = Social.get_trending_hashtags(limit: 10)
 
-    # Get user likes and boosts only if logged in
     {user_likes, user_boosts} =
       case socket.assigns[:current_user] do
-        %{id: user_id} ->
-          {get_user_likes(user_id, posts), get_user_boosts(user_id, posts)}
-
-        _ ->
-          {%{}, %{}}
+        %{id: user_id} -> {get_user_likes(user_id, posts), get_user_boosts(user_id, posts)}
+        _ -> {%{}, %{}}
       end
 
     {:ok,
@@ -49,21 +38,25 @@ defmodule ElektrineWeb.HashtagLive.Show do
   end
 
   @impl true
-  def handle_event("load-more", _params, socket), do: handle_event("load_more_posts", %{}, socket)
+  def handle_event("load-more", _params, socket) do
+    handle_event("load_more_posts", %{}, socket)
+  end
 
   def handle_event("load_more_posts", _params, socket) do
     if socket.assigns.loading_more || socket.assigns.end_of_feed do
       {:noreply, socket}
     else
       current_posts = socket.assigns.posts
-      before_id = if Enum.empty?(current_posts), do: nil, else: List.last(current_posts).id
+
+      before_id =
+        if Enum.empty?(current_posts) do
+          nil
+        else
+          List.last(current_posts).id
+        end
 
       more_posts =
-        Social.get_posts_for_hashtag(
-          socket.assigns.hashtag_name,
-          limit: 20,
-          before_id: before_id
-        )
+        Social.get_posts_for_hashtag(socket.assigns.hashtag_name, limit: 20, before_id: before_id)
 
       {:noreply,
        socket
@@ -73,18 +66,15 @@ defmodule ElektrineWeb.HashtagLive.Show do
     end
   end
 
-  # Unlike delegates to like_post since it toggles
   def handle_event("unlike_post", params, socket) do
     handle_event("like_post", params, socket)
   end
 
-  # Unboost delegates to boost_post since it toggles
   def handle_event("unboost_post", params, socket) do
     handle_event("boost_post", params, socket)
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
-    # Require user to be logged in
     case socket.assigns[:current_user] do
       nil ->
         {:noreply, socket |> put_flash(:error, "You must be logged in to like posts")}
@@ -94,19 +84,16 @@ defmodule ElektrineWeb.HashtagLive.Show do
 
         case Map.get(socket.assigns.user_likes, message_id, false) do
           true ->
-            # Optimistically update UI
             updated_socket =
               socket
               |> update_post_in_hashtag_feed(message_id, :decrement_likes)
               |> update_user_like_status(message_id, false)
 
-            # Unlike in background
             case Social.unlike_post(user_id, message_id) do
               {:ok, _} ->
                 {:noreply, updated_socket}
 
               {:error, _} ->
-                # Revert on error
                 {:noreply,
                  updated_socket
                  |> update_post_in_hashtag_feed(message_id, :increment_likes)
@@ -115,19 +102,16 @@ defmodule ElektrineWeb.HashtagLive.Show do
             end
 
           false ->
-            # Optimistically update UI
             updated_socket =
               socket
               |> update_post_in_hashtag_feed(message_id, :increment_likes)
               |> update_user_like_status(message_id, true)
 
-            # Like in background
             case Social.like_post(user_id, message_id) do
               {:ok, _} ->
                 {:noreply, updated_socket}
 
               {:error, _} ->
-                # Revert on error
                 {:noreply,
                  updated_socket
                  |> update_post_in_hashtag_feed(message_id, :decrement_likes)
@@ -138,7 +122,6 @@ defmodule ElektrineWeb.HashtagLive.Show do
     end
   end
 
-  # Modal like toggle (for image modal)
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
     handle_event("like_post", %{"message_id" => post_id}, socket)
   end
@@ -175,7 +158,6 @@ defmodule ElektrineWeb.HashtagLive.Show do
      |> assign(:modal_post, nil)}
   end
 
-  # Stop propagation handler to prevent post card clicks when interacting with buttons
   def handle_event("stop_propagation", _params, socket) do
     {:noreply, socket}
   end
@@ -185,9 +167,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
     new_url = Enum.at(socket.assigns.modal_images, new_index)
 
     {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+     socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
   end
 
   def handle_event("prev_image", _params, socket) do
@@ -196,9 +176,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
     new_url = Enum.at(socket.assigns.modal_images, new_index)
 
     {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+     socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
   end
 
   def handle_event("navigate_to_post", %{"id" => post_id}, socket) do
@@ -234,12 +212,8 @@ defmodule ElektrineWeb.HashtagLive.Show do
         %{"content" => content, "visibility" => visibility},
         socket
       ) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to post")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
-
-      # Add hashtag to content if not already present
       hashtag = "##{socket.assigns.hashtag_name}"
 
       content_with_hashtag =
@@ -251,10 +225,8 @@ defmodule ElektrineWeb.HashtagLive.Show do
 
       case Social.create_timeline_post(user_id, content_with_hashtag, visibility: visibility) do
         {:ok, new_post} ->
-          # Preload associations
           new_post = Elektrine.Repo.preload(new_post, sender: [:profile], hashtags: [])
 
-          # Update hashtag info
           updated_info = %{
             socket.assigns.hashtag_info
             | use_count: socket.assigns.hashtag_info.use_count + 1,
@@ -274,18 +246,17 @@ defmodule ElektrineWeb.HashtagLive.Show do
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to create post")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to post")}
     end
   end
 
-  # Handle click-away and other empty events
   def handle_event("", _params, socket) do
     {:noreply, socket}
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       message_id = String.to_integer(message_id)
 
@@ -332,13 +303,13 @@ defmodule ElektrineWeb.HashtagLive.Show do
               {:noreply, put_flash(socket, :error, "Failed to boost")}
           end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
     end
   end
 
   def handle_event("vote_poll", params, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
-    else
+    if socket.assigns[:current_user] do
       poll_id = params["poll_id"] || params["poll-id"]
       option_id = params["option_id"] || params["option-id"]
 
@@ -356,7 +327,11 @@ defmodule ElektrineWeb.HashtagLive.Show do
 
             updated_posts =
               Enum.map(socket.assigns.posts, fn post ->
-                if post.id == message_id, do: updated_post, else: post
+                if post.id == message_id do
+                  updated_post
+                else
+                  post
+                end
               end)
 
             {:noreply, assign(socket, :posts, updated_posts)}
@@ -373,37 +348,38 @@ defmodule ElektrineWeb.HashtagLive.Show do
       else
         _ -> {:noreply, put_flash(socket, :error, "Invalid poll vote")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
     end
   end
 
-  # View post - same as navigate_to_post
   def handle_event("view_post", %{"message_id" => post_id}, socket) do
     handle_event("navigate_to_post", %{"id" => post_id}, socket)
   end
 
-  # Navigate to embedded post
   def handle_event("navigate_to_embedded_post", %{"id" => post_id}, socket) do
     handle_event("navigate_to_post", %{"id" => post_id}, socket)
   end
 
-  # Copy post link
   def handle_event("copy_post_link", %{"message_id" => post_id}, socket) do
     link = ElektrineWeb.Endpoint.url() <> "/timeline/post/#{post_id}"
 
     {:noreply,
-     socket
-     |> push_event("copy_to_clipboard", %{text: link})
-     |> put_flash(:info, "Link copied!")}
+     socket |> push_event("copy_to_clipboard", %{text: link}) |> put_flash(:info, "Link copied!")}
   end
 
-  # Report post - placeholder for now
   def handle_event("report_post", %{"message_id" => _post_id}, socket) do
     {:noreply, put_flash(socket, :info, "Report feature coming soon")}
   end
 
-  # Delete post
   def handle_event("delete_post", %{"message_id" => post_id}, socket) do
-    post_id = if is_binary(post_id), do: String.to_integer(post_id), else: post_id
+    post_id =
+      if is_binary(post_id) do
+        String.to_integer(post_id)
+      else
+        post_id
+      end
+
     post = Enum.find(socket.assigns.posts, &(&1.id == post_id))
 
     cond do
@@ -422,9 +398,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
             updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
 
             {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> put_flash(:info, "Post deleted")}
+             socket |> assign(:posts, updated_posts) |> put_flash(:info, "Post deleted")}
 
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to delete post")}
@@ -432,9 +406,13 @@ defmodule ElektrineWeb.HashtagLive.Show do
     end
   end
 
-  # Admin delete post
   def handle_event("delete_post_admin", %{"message_id" => post_id}, socket) do
-    post_id = if is_binary(post_id), do: String.to_integer(post_id), else: post_id
+    post_id =
+      if is_binary(post_id) do
+        String.to_integer(post_id)
+      else
+        post_id
+      end
 
     cond do
       is_nil(socket.assigns[:current_user]) ->
@@ -453,9 +431,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
             updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
 
             {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> put_flash(:info, "Post deleted by admin")}
+             socket |> assign(:posts, updated_posts) |> put_flash(:info, "Post deleted by admin")}
 
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to delete post")}
@@ -463,12 +439,10 @@ defmodule ElektrineWeb.HashtagLive.Show do
     end
   end
 
-  # Catch-all for unhandled events
   def handle_event(_event, _params, socket) do
     {:noreply, socket}
   end
 
-  # Helper functions
   defp get_hashtag_info(hashtag_name) do
     normalized_name = String.downcase(hashtag_name)
 
@@ -477,11 +451,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
         %{name: hashtag_name, use_count: 0, last_used_at: nil}
 
       hashtag ->
-        %{
-          name: hashtag.name,
-          use_count: hashtag.use_count,
-          last_used_at: hashtag.last_used_at
-        }
+        %{name: hashtag.name, use_count: hashtag.use_count, last_used_at: hashtag.last_used_at}
     end
   end
 

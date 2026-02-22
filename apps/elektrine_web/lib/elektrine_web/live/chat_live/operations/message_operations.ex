@@ -1,22 +1,14 @@
 defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
-  @moduledoc """
-  Handles all message-related operations: sending, editing, deleting, reactions, pagination.
-  Extracted from ChatLive.Home.
-  """
-
+  @moduledoc "Handles all message-related operations: sending, editing, deleting, reactions, pagination.\nExtracted from ChatLive.Home.\n"
   import Phoenix.LiveView
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
-
+  alias Elektrine.Accounts.Storage
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.SlashCommands
-  alias Elektrine.Accounts.Storage
   alias Elektrine.Uploads
   alias ElektrineWeb.ChatLive.Operations.Helpers
-
-  @doc """
-  Load older messages in the conversation (pagination upward).
-  """
+  @doc "Load older messages in the conversation (pagination upward).\n"
   def handle_event("load_older_messages", _, socket) do
     if socket.assigns.loading_older_messages || !socket.assigns.has_more_older_messages do
       {:noreply, socket}
@@ -24,10 +16,8 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
       conversation = socket.assigns.conversation.selected
       conversation_id = conversation.id
       user_id = socket.assigns.current_user.id
-
       socket = assign(socket, :loading_older_messages, true)
 
-      # Load older messages from messages table
       data =
         Messaging.get_conversation_messages(
           conversation_id,
@@ -37,15 +27,10 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
         )
 
       older_messages =
-        data.messages
-        |> Enum.reverse()
-        |> Elektrine.Messaging.Message.decrypt_messages()
+        data.messages |> Enum.reverse() |> Elektrine.Messaging.Message.decrypt_messages()
 
       message_data = data
-
       new_messages = older_messages ++ socket.assigns.messages
-
-      # Load read status for new messages
       new_message_ids = Enum.map(older_messages, & &1.id)
 
       new_read_status =
@@ -76,10 +61,8 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
       conversation = socket.assigns.conversation.selected
       conversation_id = conversation.id
       user_id = socket.assigns.current_user.id
-
       socket = assign(socket, :loading_newer_messages, true)
 
-      # Load newer messages from messages table
       data =
         Messaging.get_conversation_messages(
           conversation_id,
@@ -89,15 +72,10 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
         )
 
       newer_messages =
-        data.messages
-        |> Enum.reverse()
-        |> Elektrine.Messaging.Message.decrypt_messages()
+        data.messages |> Enum.reverse() |> Elektrine.Messaging.Message.decrypt_messages()
 
       message_data = data
-
       new_messages = socket.assigns.messages ++ newer_messages
-
-      # Load read status for new messages
       new_message_ids = Enum.map(newer_messages, & &1.id)
 
       new_read_status =
@@ -127,12 +105,10 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   def handle_event("send_message", %{"message" => message_content}, socket) do
     trimmed_content = String.trim(message_content)
 
-    # Process any uploaded files
     uploaded_files =
       consume_uploaded_entries(socket, :chat_attachments, fn %{path: path}, entry ->
         user_id = socket.assigns.current_user.id
 
-        # Create a Plug.Upload struct to use with Uploads module
         upload_struct = %Plug.Upload{
           path: path,
           content_type: entry.client_type,
@@ -167,7 +143,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
               {:noreply, socket}
 
             conversation ->
-              # Check if user is timed out
               if Map.get(
                    socket.assigns.moderation.user_timeout_status,
                    socket.assigns.current_user.id,
@@ -177,20 +152,33 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                  notify_error(socket, "You are currently timed out and cannot send messages")}
               else
                 reply_to_id =
-                  if socket.assigns.message.reply_to,
-                    do: socket.assigns.message.reply_to.id,
-                    else: nil
+                  if socket.assigns.message.reply_to do
+                    socket.assigns.message.reply_to.id
+                  else
+                    nil
+                  end
 
                 socket =
                   assign(socket, :message, %{socket.assigns.message | loading_messages: true})
 
-                # Create message based on whether we have uploads or just text
                 result =
-                  if !Enum.empty?(uploaded_files) do
+                  if Enum.empty?(uploaded_files) do
+                    Messaging.create_text_message(
+                      conversation.id,
+                      socket.assigns.current_user.id,
+                      resolved_content,
+                      reply_to_id
+                    )
+                  else
                     media_urls = Enum.map(uploaded_files, & &1.url)
-                    content = if resolved_content != "", do: resolved_content, else: nil
 
-                    # Build metadata map with file sizes indexed by URL
+                    content =
+                      if resolved_content != "" do
+                        resolved_content
+                      else
+                        nil
+                      end
+
                     media_metadata =
                       uploaded_files
                       |> Enum.map(fn file ->
@@ -206,24 +194,14 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                       content,
                       media_metadata
                     )
-                  else
-                    Messaging.create_text_message(
-                      conversation.id,
-                      socket.assigns.current_user.id,
-                      resolved_content,
-                      reply_to_id
-                    )
                   end
 
                 case result do
                   {:ok, message} ->
-                    # Update storage after sending message (especially if attachments)
-                    # Do synchronously for immediate UI feedback
                     if !Enum.empty?(uploaded_files) do
                       Storage.update_user_storage(socket.assigns.current_user.id)
                     end
 
-                    # Clear typing indicator when message is sent
                     if socket.assigns[:typing_timer] do
                       Process.cancel_timer(socket.assigns.typing_timer)
                     end
@@ -235,17 +213,12 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                       {:user_stopped_typing, socket.assigns.current_user.id}
                     )
 
-                    # Immediately update conversation list to show new message as unread
-                    # Reload the message with sender preloaded to match conversation list format
                     message_with_sender = Elektrine.Repo.preload(message, sender: [:profile])
-
                     conversations = socket.assigns.conversation.list
 
                     updated_conversations =
                       Enum.map(conversations, fn conv ->
                         if conv.id == conversation.id do
-                          # Update this conversation's last message
-                          # Convert NaiveDateTime to DateTime for consistency
                           last_message_at = DateTime.from_naive!(message.inserted_at, "Etc/UTC")
 
                           %{
@@ -258,14 +231,12 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                         end
                       end)
 
-                    # Recalculate read status for conversation list (will show single checkmark)
                     last_message_read_status =
                       Helpers.calculate_last_message_read_status(
                         updated_conversations,
                         socket.assigns.current_user.id
                       )
 
-                    # Re-sort and re-filter conversations
                     unread_counts =
                       Helpers.calculate_unread_counts(
                         updated_conversations,
@@ -357,10 +328,8 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("update_message", %{"message" => message_content}, socket) do
-    # Handle typing indicator when user is actively typing
     socket =
       if String.trim(message_content) != "" && socket.assigns.conversation.selected do
-        # Only broadcast typing if we haven't recently
         should_broadcast =
           case socket.assigns[:last_typing_broadcast] do
             nil -> true
@@ -382,12 +351,10 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
             socket
           end
 
-        # Cancel previous typing timeout timer if exists
         if socket.assigns[:typing_timer] do
           Process.cancel_timer(socket.assigns.typing_timer)
         end
 
-        # Set new timer to clear typing after 3 seconds
         timer = Process.send_after(self(), :clear_typing, 3000)
         assign(socket, :typing_timer, timer)
       else
@@ -398,7 +365,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("handle_keydown", %{"key" => "Enter"}, socket) do
-    # Send message on Enter without restrictions
     trimmed_content = String.trim(socket.assigns.message.new_message)
 
     if trimmed_content != "" do
@@ -418,12 +384,10 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
         {:noreply, socket}
 
       conversation ->
-        # Cancel typing timer if exists
         if socket.assigns[:typing_timer] do
           Process.cancel_timer(socket.assigns.typing_timer)
         end
 
-        # Broadcast stop typing to other users
         Phoenix.PubSub.broadcast_from(
           Elektrine.PubSub,
           self(),
@@ -442,7 +406,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
       ) do
     message_id = String.to_integer(message_id_str)
 
-    # Check if user is timed out
     if Map.get(
          socket.assigns.moderation.user_timeout_status,
          socket.assigns.current_user.id,
@@ -497,7 +460,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
 
       case Messaging.admin_delete_message(message_id, socket.assigns.current_user) do
         {:ok, deleted_message} ->
-          # Log the moderation action (use message sender as target_user_id)
           conversation_id =
             socket.assigns.conversation.selected && socket.assigns.conversation.selected.id
 
@@ -542,7 +504,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("validate_upload", _params, socket) do
-    # Just validate - don't consume yet
     {:noreply, socket}
   end
 
@@ -551,9 +512,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   end
 
   def handle_event("scroll_to_message", %{"message_id" => message_id}, socket) do
-    {:noreply,
-     socket
-     |> push_event("scroll_to_message", %{message_id: message_id})}
+    {:noreply, socket |> push_event("scroll_to_message", %{message_id: message_id})}
   end
 
   def handle_event("search_messages", %{"value" => query}, socket) do
@@ -669,7 +628,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
         {:noreply, socket}
 
       conversation ->
-        # Check if user is timed out
         if Map.get(
              socket.assigns.moderation.user_timeout_status,
              socket.assigns.current_user.id,
@@ -677,10 +635,8 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
            ) do
           {:noreply, notify_error(socket, "You are currently timed out and cannot send messages")}
         else
-          # Decode base64 audio data
           case Base.decode64(audio_data) do
             {:ok, audio_binary} ->
-              # Determine file extension from mime type
               extension =
                 case mime_type do
                   "audio/webm" -> "webm"
@@ -691,7 +647,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
 
               filename = "voice_#{System.system_time(:second)}.#{extension}"
 
-              # Upload to storage
               case Uploads.upload_voice_message(
                      audio_binary,
                      filename,
@@ -699,7 +654,6 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                      socket.assigns.current_user.id
                    ) do
                 {:ok, metadata} ->
-                  # Create voice message
                   case Messaging.create_voice_message(
                          conversation.id,
                          socket.assigns.current_user.id,
@@ -732,7 +686,9 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
     {:noreply, notify_error(socket, error)}
   end
 
-  defp maybe_apply_slash_command("", _uploaded_files, socket), do: {:send, "", socket}
+  defp maybe_apply_slash_command("", _uploaded_files, socket) do
+    {:send, "", socket}
+  end
 
   defp maybe_apply_slash_command(content, uploaded_files, socket) do
     if uploaded_files != [] or not String.starts_with?(content, "/") do
@@ -748,14 +704,9 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
              user_handle: user.handle,
              username: user.username
            ) do
-        {:send, resolved_content} ->
-          {:send, resolved_content, socket}
-
-        {:noop, info_message} ->
-          {:halt, notify_info(socket, info_message)}
-
-        {:error, error_message} ->
-          {:halt, notify_error(socket, error_message)}
+        {:send, resolved_content} -> {:send, resolved_content, socket}
+        {:noop, info_message} -> {:halt, notify_info(socket, info_message)}
+        {:error, error_message} -> {:halt, notify_error(socket, error_message)}
       end
     end
   end

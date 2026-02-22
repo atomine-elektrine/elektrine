@@ -5,8 +5,8 @@ defmodule Elektrine.Accounts.Tracking do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   @doc """
   Update user login information (IP address, login time, login count).

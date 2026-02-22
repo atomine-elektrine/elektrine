@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.Notification.Bell do
+  @moduledoc false
   use Phoenix.Component
   use Gettext, backend: ElektrineWeb.Gettext
   import ElektrineWeb.CoreComponents

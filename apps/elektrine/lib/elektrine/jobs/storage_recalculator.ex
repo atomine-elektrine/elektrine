@@ -5,9 +5,9 @@ defmodule Elektrine.Jobs.StorageRecalculator do
   """
 
   require Logger
-  alias Elektrine.Repo
-  alias Elektrine.Accounts.User
   alias Elektrine.Accounts.Storage
+  alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   @doc """
   Recalculates storage for all users.

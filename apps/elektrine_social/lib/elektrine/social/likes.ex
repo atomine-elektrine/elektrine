@@ -11,8 +11,8 @@ defmodule Elektrine.Social.Likes do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
   alias Elektrine.Social.PostLike
 
   @doc """

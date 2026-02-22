@@ -414,7 +414,7 @@ defmodule Elektrine.ActivityPub.Helpers do
     # Filter to federated posts that aren't Lemmy (Lemmy uses its own API)
     federated_posts =
       Enum.filter(posts, fn post ->
-        post.federated && post.activitypub_id && !is_lemmy_post?(post)
+        post.federated && post.activitypub_id && !lemmy_post?(post)
       end)
 
     if Enum.empty?(federated_posts) do
@@ -522,7 +522,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   end
 
   # Check if a post is from a Lemmy instance (has /post/ in activitypub_id)
-  defp is_lemmy_post?(post) do
+  defp lemmy_post?(post) do
     case post.activitypub_id do
       id when is_binary(id) -> String.contains?(id, "/post/")
       _ -> false

@@ -5,7 +5,7 @@ defmodule ElektrineWeb.DAV.PrincipalController do
 
   use ElektrineWeb, :controller
 
-  alias ElektrineWeb.DAV.{ResponseHelpers, Properties}
+  alias ElektrineWeb.DAV.{Properties, ResponseHelpers}
 
   @doc """
   PROPFIND on principal resource.

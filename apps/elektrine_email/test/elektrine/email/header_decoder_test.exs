@@ -18,7 +18,7 @@ defmodule Elektrine.Email.HeaderDecoderTest do
     end
 
     test "normalizes malformed quoted headers" do
-      assert HeaderDecoder.decode_mime_header("\"\"Hello\"\"") == "\"Hello\""
+      assert HeaderDecoder.decode_mime_header(~s(""Hello"")) == ~s("Hello")
     end
   end
 end

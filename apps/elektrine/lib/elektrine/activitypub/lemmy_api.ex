@@ -51,7 +51,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_posts_counts(posts) when is_list(posts) do
     tasks =
       posts
-      |> Enum.filter(&is_lemmy_post?/1)
+      |> Enum.filter(&lemmy_post?/1)
       |> Enum.map(fn post ->
         Task.async(fn ->
           activitypub_id = get_activitypub_id(post)
@@ -194,7 +194,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_posts_top_comments(posts, limit \\ 3) when is_list(posts) do
     tasks =
       posts
-      |> Enum.filter(&is_lemmy_post?/1)
+      |> Enum.filter(&lemmy_post?/1)
       |> Enum.map(fn post ->
         Task.async(fn ->
           activitypub_id = get_activitypub_id(post)
@@ -221,7 +221,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   defp extract_domain(url), do: Elektrine.TextHelpers.extract_domain_from_url(url)
 
   # Check if a post is from a Lemmy-compatible community platform.
-  defp is_lemmy_post?(post) do
+  defp lemmy_post?(post) do
     activitypub_id = get_activitypub_id(post)
     activitypub_url = get_activitypub_url(post)
     community_uri = get_community_actor_uri(post)

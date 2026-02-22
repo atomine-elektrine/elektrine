@@ -4,9 +4,9 @@ defmodule Elektrine.Social.HashtagExtractor do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.{Hashtag, PostHashtag}
-  alias Elektrine.Messaging.Message
 
   @doc """
   Extracts hashtags from text content.

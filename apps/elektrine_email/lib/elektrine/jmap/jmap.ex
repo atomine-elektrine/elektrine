@@ -3,8 +3,8 @@ defmodule Elektrine.JMAP do
   Main JMAP context module. Provides the public API for JMAP operations.
   """
 
-  alias Elektrine.JMAP.{Thread, State, EmailSubmission}
   alias Elektrine.Email.{Mailbox, Message}
+  alias Elektrine.JMAP.{EmailSubmission, State, Thread}
   alias Elektrine.Repo
 
   import Ecto.Query

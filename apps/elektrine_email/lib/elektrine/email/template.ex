@@ -26,7 +26,7 @@ defmodule Elektrine.Email.Template do
     |> validate_required([:name, :body, :user_id])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_length(:subject, max: 500)
-    |> validate_length(:body, min: 1, max: 50000)
+    |> validate_length(:body, min: 1, max: 50_000)
     |> foreign_key_constraint(:user_id)
     |> unique_constraint([:user_id, :name])
   end

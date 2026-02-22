@@ -1,35 +1,27 @@
 defmodule ElektrineWeb.DiscussionsLive.Index do
   use ElektrineWeb, :live_view
   require Logger
-
   import Ecto.Query, warn: false
-  alias Elektrine.{Social, Messaging, Profiles, Repo}
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.LemmyCache
+  alias Elektrine.{Messaging, Profiles, Repo, Social}
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.LemmyPost
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
-
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
-
-    # Set locale from session or user preference
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
     if connected?(socket) do
       if user do
-        # Subscribe to community updates
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:communities")
-        # Subscribe to all discussion activity for live updates
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussions:all")
-        # Subscribe to public timeline for reaction updates
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
       end
 
-      # Trigger async data loading
       send(self(), :load_communities_data)
     end
 
@@ -80,13 +72,11 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> assign(:loading_communities, true)
       |> assign(:has_community_data, Messaging.has_any_communities?())
 
-    # Allow media uploads for authenticated users
     socket =
       if user do
         allow_upload(socket, :discussion_attachments,
           accept: ~w(.jpg .jpeg .png .gif .webp .mp4 .webm .ogv .mov .mp3 .wav),
           max_entries: 4,
-          # 50MB
           max_file_size: 50_000_000
         )
       else
@@ -98,27 +88,36 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    # Default to "feed" view when no view param is specified
     view = params["view"] || "feed"
-
     {:noreply, assign(socket, :current_view, view)}
   end
 
   @impl true
   def handle_event("set_view", %{"view" => view}, socket) do
-    # Use push_patch to update URL so browser back button works
     {:noreply, push_patch(socket, to: ~p"/communities?view=#{view}")}
   end
 
-  # Ignore tracking events from PostClick hook - not needed for communities page
-  def handle_event("record_dwell_times", _params, socket), do: {:noreply, socket}
-  def handle_event("record_dwell_time", _params, socket), do: {:noreply, socket}
-  def handle_event("record_dismissal", _params, socket), do: {:noreply, socket}
-  def handle_event("update_session_context", _params, socket), do: {:noreply, socket}
-  def handle_event("stop_propagation", _params, socket), do: {:noreply, socket}
+  def handle_event("record_dwell_times", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("record_dwell_time", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("record_dismissal", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("update_session_context", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("stop_propagation", _params, socket) do
+    {:noreply, socket}
+  end
 
   def handle_event("filter_by_category", %{"category" => category}, socket) do
-    # Filter all community-related data based on selected category
     filtered_communities = filter_communities_by_category(socket.assigns.communities, category)
 
     filtered_public_communities =
@@ -135,7 +134,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     filtered_popular_communities =
       filter_popular_communities_by_category(socket.assigns.popular_communities, category)
 
-    # Filter community feed posts by inferred category
     filtered_community_posts =
       filter_community_posts_by_category(socket.assigns.followed_community_posts, category)
 
@@ -155,7 +153,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if socket.assigns.feed_sort == sort do
       {:noreply, socket}
     else
-      # Re-sort the filtered posts
       sorted_posts =
         sort_feed_posts(
           socket.assigns.filtered_community_posts,
@@ -164,9 +161,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         )
 
       {:noreply,
-       socket
-       |> assign(:feed_sort, sort)
-       |> assign(:filtered_community_posts, sorted_posts)}
+       socket |> assign(:feed_sort, sort) |> assign(:filtered_community_posts, sorted_posts)}
     end
   end
 
@@ -184,7 +179,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       name = String.trim(params["name"] || "")
       description = String.trim(params["description"] || "")
 
-      # Validate community name - same pattern as usernames
       cond do
         name == "" ->
           {:noreply, notify_error(socket, "Community name is required")}
@@ -218,17 +212,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
           case Messaging.create_group_conversation(user_id, community_attrs, []) do
             {:ok, community} ->
-              # Preload creator for proper display
               community = Elektrine.Repo.preload(community, :creator)
-
-              # Add to joined community IDs
               joined_community_ids = MapSet.put(socket.assigns.joined_community_ids, community.id)
-
-              # Update all relevant lists
               updated_communities = [community | socket.assigns.communities]
               updated_public_communities = [community | socket.assigns.public_communities]
-
-              # Apply category filter if needed
               selected_category = socket.assigns.selected_category
 
               filtered_communities =
@@ -251,7 +238,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
                |> push_navigate(to: ~p"/communities/#{community.name}")}
 
             {:error, changeset} ->
-              # Check for unique constraint error
               if changeset.errors[:name] do
                 {:noreply, notify_error(socket, "A community with this name already exists")}
               else
@@ -271,10 +257,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
       case Messaging.join_conversation(community_id, user_id) do
         {:ok, _} ->
-          # Refresh communities list
           communities = get_user_communities(user_id)
-
-          # Update joined community IDs
           joined_community_ids = MapSet.put(socket.assigns.joined_community_ids, community_id)
 
           {:noreply,
@@ -299,10 +282,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if String.trim(query) == "" do
       {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
     else
-      {:noreply,
-       socket
-       |> assign(:searching, true)
-       |> assign(:search_query, query)}
+      {:noreply, socket |> assign(:searching, true) |> assign(:search_query, query)}
     end
   end
 
@@ -310,28 +290,21 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     query = socket.assigns.search_query
 
     results =
-      Messaging.CommunitySearch.search_communities(
-        query,
+      Messaging.CommunitySearch.search_communities(query,
         user_id: socket.assigns[:current_user] && socket.assigns.current_user.id,
         limit: 20
       )
 
-    {:noreply,
-     socket
-     |> assign(:search_results, results)
-     |> assign(:searching, false)}
+    {:noreply, socket |> assign(:search_results, results) |> assign(:searching, false)}
   end
 
   def handle_event("follow_remote_group", %{"actor_id" => actor_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, notify_error(socket, "You must be signed in to follow communities")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       actor_id = String.to_integer(actor_id)
 
       case Messaging.CommunitySearch.follow_remote_group(user_id, actor_id) do
         {:ok, mirror} ->
-          # Refresh communities list
           communities = get_user_communities(user_id)
           joined_community_ids = MapSet.put(socket.assigns.joined_community_ids, mirror.id)
 
@@ -348,6 +321,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         {:error, reason} ->
           {:noreply, notify_error(socket, "Failed to follow community: #{inspect(reason)}")}
       end
+    else
+      {:noreply, notify_error(socket, "You must be signed in to follow communities")}
     end
   end
 
@@ -358,13 +333,9 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
       case Messaging.remove_member_from_conversation(community_id, user_id) do
         {:ok, _} ->
-          # Refresh communities list
           communities = get_user_communities(user_id)
-
-          # Update joined community IDs by removing this community
           joined_community_ids = MapSet.delete(socket.assigns.joined_community_ids, community_id)
 
-          # Also update discover communities if present
           discover_communities =
             if socket.assigns[:discover_communities] do
               socket.assigns.discover_communities
@@ -404,7 +375,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
       case Profiles.unfollow_remote_actor(user_id, actor_id) do
         {:ok, _} ->
-          # Refresh followed remote communities
           followed_remote_communities = get_followed_remote_communities(user_id)
 
           {:noreply,
@@ -439,7 +409,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:pending_media_alt_texts, %{})}
   end
 
-  # Media upload handlers
   def handle_event("open_image_upload", _params, socket) do
     {:noreply, assign(socket, :show_image_upload_modal, true)}
   end
@@ -455,7 +424,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   def handle_event("upload_discussion_images", params, socket) do
     user = socket.assigns.current_user
 
-    # Capture alt texts from params
     alt_texts =
       params
       |> Enum.filter(fn {key, _value} -> String.starts_with?(key, "alt_text_") end)
@@ -465,7 +433,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       end)
       |> Map.new()
 
-    # Upload files
     uploaded_files =
       consume_uploaded_entries(socket, :discussion_attachments, fn %{path: path}, entry ->
         upload_struct = %Plug.Upload{
@@ -475,11 +442,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         }
 
         case Elektrine.Uploads.upload_discussion_attachment(upload_struct, user.id) do
-          {:ok, metadata} ->
-            {:ok, metadata.key}
-
-          {:error, _reason} ->
-            {:postpone, :error}
+          {:ok, metadata} -> {:ok, metadata.key}
+          {:error, _reason} -> {:postpone, :error}
         end
       end)
 
@@ -496,14 +460,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_event("clear_pending_images", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:pending_media_urls, [])
-     |> assign(:pending_media_alt_texts, %{})}
+    {:noreply, socket |> assign(:pending_media_urls, []) |> assign(:pending_media_alt_texts, %{})}
   end
 
   def handle_event("navigate_to_profile", params, socket) do
-    # Navigate to the user's profile using handle or username
     handle = params["handle"] || params["username"]
     {:noreply, push_navigate(socket, to: ~p"/#{handle}")}
   end
@@ -517,10 +477,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_event("like_post", %{"post_id" => post_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
-    else
-      # Get the post to find its activitypub_id
+    if socket.assigns[:current_user] do
       post =
         Enum.find(socket.assigns.filtered_community_posts, fn p ->
           to_string(p.id) == to_string(post_id)
@@ -529,7 +486,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       activitypub_id = post && post.activitypub_id
 
       if activitypub_id do
-        # Optimistic update - update UI immediately
         current_state =
           socket.assigns.post_interactions[activitypub_id] ||
             %{liked: false, downvoted: false, like_delta: 0}
@@ -543,14 +499,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        # Perform database operation in background
         Task.start(fn ->
           case get_or_store_remote_post(activitypub_id) do
-            {:ok, message} ->
-              Social.like_post(socket.assigns.current_user.id, message.id)
-
-            _ ->
-              :ok
+            {:ok, message} -> Social.like_post(socket.assigns.current_user.id, message.id)
+            _ -> :ok
           end
         end)
 
@@ -558,14 +510,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
     end
   end
 
   def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
-      # Get the post to find its activitypub_id
+    if socket.assigns[:current_user] do
       post =
         Enum.find(socket.assigns.filtered_community_posts, fn p ->
           to_string(p.id) == to_string(post_id)
@@ -574,7 +525,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       activitypub_id = post && post.activitypub_id
 
       if activitypub_id do
-        # Optimistic update - update UI immediately
         current_state =
           socket.assigns.post_interactions[activitypub_id] ||
             %{liked: false, downvoted: false, like_delta: 0}
@@ -588,7 +538,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        # Perform database operation in background
         Task.start(fn ->
           case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
             nil -> :ok
@@ -600,15 +549,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
   end
 
-  # Modal like toggle (for image modal)
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
-    else
-      # Find post and check current like state
+    if socket.assigns[:current_user] do
       post =
         Enum.find(socket.assigns.filtered_community_posts, fn p ->
           to_string(p.id) == to_string(post_id)
@@ -623,13 +570,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       else
         handle_event("like_post", %{"post_id" => post_id}, socket)
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
     end
   end
 
   def handle_event("downvote_post", %{"post_id" => post_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
-    else
+    if socket.assigns[:current_user] do
       post =
         Enum.find(socket.assigns.filtered_community_posts, fn p ->
           to_string(p.id) == to_string(post_id)
@@ -638,13 +585,16 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       activitypub_id = post && post.activitypub_id
 
       if activitypub_id do
-        # Optimistic update - update UI immediately
         current_state =
           socket.assigns.post_interactions[activitypub_id] ||
             %{liked: false, downvoted: false, like_delta: 0}
 
-        # If was liked before, need to account for removing the upvote
-        delta_adjustment = if Map.get(current_state, :liked, false), do: -2, else: -1
+        delta_adjustment =
+          if Map.get(current_state, :liked, false) do
+            -2
+          else
+            -1
+          end
 
         post_interactions =
           Map.put(socket.assigns.post_interactions, activitypub_id, %{
@@ -655,7 +605,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        # Perform database operation in background
         Task.start(fn ->
           case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
             nil -> :ok
@@ -667,13 +616,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
     end
   end
 
   def handle_event("undownvote_post", %{"post_id" => post_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:current_user] do
       post =
         Enum.find(socket.assigns.filtered_community_posts, fn p ->
           to_string(p.id) == to_string(post_id)
@@ -682,7 +631,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       activitypub_id = post && post.activitypub_id
 
       if activitypub_id do
-        # Optimistic update - update UI immediately
         current_state =
           socket.assigns.post_interactions[activitypub_id] ||
             %{liked: false, downvoted: false, like_delta: 0}
@@ -696,14 +644,12 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        # Perform database operation in background
         Task.start(fn ->
           case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
             nil ->
               :ok
 
             message ->
-              # Remove the vote entirely by voting up then unliking
               Social.vote_on_message(socket.assigns.current_user.id, message.id, "up")
               Social.unlike_post(socket.assigns.current_user.id, message.id)
           end
@@ -713,16 +659,15 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to react")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
 
-      # Find the post to get its activitypub_id
       post =
         Enum.find(socket.assigns.filtered_community_posts, fn p ->
           to_string(p.id) == to_string(post_id)
@@ -731,22 +676,18 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       activitypub_id = post && post.activitypub_id
 
       if activitypub_id do
-        # Get or create the local message for this remote post
         case Elektrine.ActivityPub.Helpers.get_or_store_remote_post(activitypub_id) do
           {:ok, message} ->
             alias Elektrine.Messaging.Reactions
 
-            # Check if user already has this reaction in the database
             existing_reaction =
-              Elektrine.Repo.get_by(
-                Elektrine.Messaging.MessageReaction,
+              Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
                 message_id: message.id,
                 user_id: user_id,
                 emoji: emoji
               )
 
             if existing_reaction do
-              # Remove the existing reaction
               case Reactions.remove_reaction(message.id, user_id, emoji) do
                 {:ok, _} ->
                   updated_reactions =
@@ -763,7 +704,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
                   {:noreply, socket}
               end
             else
-              # Add new reaction
               case Reactions.add_reaction(message.id, user_id, emoji) do
                 {:ok, reaction} ->
                   reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
@@ -784,6 +724,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       else
         {:noreply, socket}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to react")}
     end
   end
 
@@ -794,15 +736,12 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       content = params["content"]
       media_urls = socket.assigns.pending_media_urls
       alt_texts = socket.assigns.pending_media_alt_texts
-
-      # Content can be empty if there's media
       content_empty = String.trim(content || "") == ""
       has_media = !Enum.empty?(media_urls)
 
       if String.trim(title) == "" or (content_empty and not has_media) do
         {:noreply, notify_error(socket, "Title and content (or media) are required")}
       else
-        # Parse community selector (local:123 or remote:456)
         case String.split(community_selector, ":", parts: 2) do
           ["local", id_str] ->
             create_local_community_post(
@@ -839,20 +778,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if String.trim(remote_handle) == "" do
       {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
     else
-      # Start loading
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
-
-      # Capture LiveView PID
       lv_pid = self()
 
-      # Fetch in background
       Task.start(fn ->
         case parse_and_fetch_remote_user(remote_handle) do
-          {:ok, actor} ->
-            send(lv_pid, {:remote_user_fetched, actor})
-
-          {:error, _reason} ->
-            send(lv_pid, {:remote_user_fetch_failed, remote_handle})
+          {:ok, actor} -> send(lv_pid, {:remote_user_fetched, actor})
+          {:error, _reason} -> send(lv_pid, {:remote_user_fetch_failed, remote_handle})
         end
       end)
 
@@ -861,17 +793,26 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_event("follow_remote_user", %{"remote_handle" => _remote_handle}, socket) do
-    # Use the preview that was already fetched
     if socket.assigns.remote_user_preview do
       actor = socket.assigns.remote_user_preview
       current_user = socket.assigns.current_user
 
       case Profiles.follow_remote_actor(current_user.id, actor.id) do
         {:ok, _follow} ->
-          actor_type = if actor.actor_type == "Group", do: "community", else: "user"
-          handle_prefix = if actor.actor_type == "Group", do: "!", else: "@"
+          actor_type =
+            if actor.actor_type == "Group" do
+              "community"
+            else
+              "user"
+            end
 
-          # Refresh followed remote communities if it's a group
+          handle_prefix =
+            if actor.actor_type == "Group" do
+              "!"
+            else
+              "@"
+            end
+
           followed_remote_communities =
             if actor.actor_type == "Group" do
               get_followed_remote_communities(current_user.id)
@@ -892,7 +833,11 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           {:noreply,
            notify_info(
              socket,
-             "You're already following this #{if actor.actor_type == "Group", do: "community", else: "user"}"
+             "You're already following this #{if actor.actor_type == "Group" do
+               "community"
+             else
+               "user"
+             end}"
            )}
 
         {:error, reason} ->
@@ -920,7 +865,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
            content
          ) do
       {:ok, message} ->
-        # Build media metadata with alt texts
         media_metadata =
           if map_size(alt_texts) > 0 do
             %{"alt_texts" => alt_texts}
@@ -928,14 +872,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
             %{}
           end
 
-        # Mark as discussion with title and media
-        update_attrs = %{
-          post_type: "discussion",
-          title: title,
-          visibility: "public"
-        }
+        update_attrs = %{post_type: "discussion", title: title, visibility: "public"}
 
-        # Add media if present
         update_attrs =
           if has_media do
             update_attrs
@@ -951,7 +889,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           |> Elektrine.Messaging.Message.changeset(update_attrs)
           |> Elektrine.Repo.update()
 
-        # Federate to ActivityPub if community is public
         Task.start(fn ->
           case Elektrine.Messaging.Conversations.get_conversation_basic(community_id) do
             {:ok, community_conv} ->
@@ -967,11 +904,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           end
         end)
 
-        # Navigate to the new discussion
         community = Enum.find(socket.assigns.communities, &(&1.id == community_id))
         community_name = community.name
-
-        # Use friendly URL with slug
         slug = Elektrine.Utils.Slug.discussion_url_slug(updated_message.id, updated_message.title)
 
         {:noreply,
@@ -998,19 +932,18 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
          has_media,
          socket
        ) do
-    # Find the remote community actor
     remote_actor = Enum.find(socket.assigns.followed_remote_communities, &(&1.id == actor_id))
 
     if remote_actor do
-      # Build full content with title
       full_content =
         if title != "" do
-          "**#{title}**\n\n#{content}"
+          "**#{title}**
+
+#{content}"
         else
           content
         end
 
-      # Build media metadata with alt texts
       media_metadata =
         if map_size(alt_texts) > 0 do
           %{"alt_texts" => alt_texts}
@@ -1018,12 +951,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           %{}
         end
 
-      post_opts = [
-        visibility: "public",
-        community_actor_uri: remote_actor.uri
-      ]
+      post_opts = [visibility: "public", community_actor_uri: remote_actor.uri]
 
-      # Add media if present
       post_opts =
         if has_media do
           post_opts
@@ -1072,7 +1001,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_info({:new_discussion_post, post}, socket) do
-    # Add new discussion posts to trending feed
     if socket.assigns.current_view == "trending" do
       {:noreply,
        Phoenix.Component.update(socket, :trending_discussions, fn posts -> [post | posts] end)}
@@ -1086,7 +1014,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
          %{message_id: message_id, upvotes: upvotes, downvotes: downvotes, score: score}},
         socket
       ) do
-    # Update vote counts in trending discussions
     if socket.assigns.current_view == "trending" do
       updated_discussions =
         Enum.map(socket.assigns.trending_discussions, fn discussion ->
@@ -1104,7 +1031,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_info(:refresh_lemmy_cache, socket) do
-    # Periodic refresh - reload from cache and schedule next refresh
     posts = socket.assigns.filtered_community_posts || []
 
     if posts != [] do
@@ -1114,31 +1040,19 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         |> Enum.filter(&(&1 && String.contains?(&1, "/post/")))
 
       {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
-
-      # Schedule background refresh for any stale entries
       LemmyCache.schedule_refresh(activitypub_ids)
-
-      # Schedule next cache read in 60 seconds
       Process.send_after(self(), :refresh_lemmy_cache, 60_000)
-
-      {:noreply,
-       socket
-       |> assign(:lemmy_counts, counts)
-       |> assign(:post_replies, comments)}
+      {:noreply, socket |> assign(:lemmy_counts, counts) |> assign(:post_replies, comments)}
     else
       {:noreply, socket}
     end
   end
 
   def handle_info({:post_reaction_added, reaction}, socket) do
-    # Find the post in our list that matches this message_id
-    # The discussions page uses post.id as key, but we need to match by the underlying message
     message_id = reaction.message_id
 
-    # Check if any of our posts correspond to this message
     matching_post =
       Enum.find(socket.assigns.filtered_community_posts, fn post ->
-        # For remote posts, check if the message was created from this post's activitypub_id
         case Elektrine.Messaging.get_message(message_id) do
           nil -> false
           msg -> msg.activitypub_id == post.activitypub_id
@@ -1148,8 +1062,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if matching_post do
       current_reactions = Map.get(socket.assigns, :post_reactions, %{})
       post_reactions = Map.get(current_reactions, matching_post.id, [])
-
-      # Add reaction if not already present
       already_present = Enum.any?(post_reactions, fn r -> r.id == reaction.id end)
 
       updated_reactions =
@@ -1168,7 +1080,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   def handle_info({:post_reaction_removed, reaction}, socket) do
     message_id = reaction.message_id
 
-    # Check if any of our posts correspond to this message
     matching_post =
       Enum.find(socket.assigns.filtered_community_posts, fn post ->
         case Elektrine.Messaging.get_message(message_id) do
@@ -1181,7 +1092,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       current_reactions = Map.get(socket.assigns, :post_reactions, %{})
       post_reactions = Map.get(current_reactions, matching_post.id, [])
 
-      # Remove the reaction
       updated_post_reactions =
         Enum.reject(post_reactions, fn r ->
           r.emoji == reaction.emoji && r.user_id == reaction.user_id
@@ -1194,18 +1104,22 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end
   end
 
-  # Async data loading handler
   def handle_info(:load_communities_data, socket) do
     user = socket.assigns[:current_user]
 
-    # Load each dataset with a fallback so DB pressure does not crash the LiveView.
-    # Under federation bursts we can see pool checkout timeouts; failing closed keeps
-    # /communities responsive instead of restarting the process on Task.await/2 timeout.
     results = %{
       communities:
-        load_with_fallback(:communities, fn ->
-          if user, do: get_user_communities(user.id), else: []
-        end, []),
+        load_with_fallback(
+          :communities,
+          fn ->
+            if user do
+              get_user_communities(user.id)
+            else
+              []
+            end
+          end,
+          []
+        ),
       public_communities:
         load_with_fallback(:public_communities, fn -> get_public_communities() end, []),
       trending_discussions:
@@ -1223,19 +1137,37 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       followed_remote_communities:
         load_with_fallback(
           :followed_remote_communities,
-          fn -> if user, do: get_followed_remote_communities(user.id), else: [] end,
+          fn ->
+            if user do
+              get_followed_remote_communities(user.id)
+            else
+              []
+            end
+          end,
           []
         ),
       followed_community_posts:
         load_with_fallback(
           :followed_community_posts,
-          fn -> if user, do: get_followed_community_posts(user.id, limit: 30), else: [] end,
+          fn ->
+            if user do
+              get_followed_community_posts(user.id, limit: 30)
+            else
+              []
+            end
+          end,
           []
         ),
       recent_activity:
         load_with_fallback(
           :recent_activity,
-          fn -> if user, do: Social.get_recent_community_activity(user.id, limit: 10), else: [] end,
+          fn ->
+            if user do
+              Social.get_recent_community_activity(user.id, limit: 10)
+            else
+              []
+            end
+          end,
           []
         ),
       popular_communities:
@@ -1247,7 +1179,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       my_community_posts:
         load_with_fallback(
           :my_community_posts,
-          fn -> if user, do: Social.get_user_community_posts(user.id, limit: 50), else: [] end,
+          fn ->
+            if user do
+              Social.get_user_community_posts(user.id, limit: 50)
+            else
+              []
+            end
+          end,
           []
         )
     }
@@ -1262,8 +1200,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     popular_communities = results.popular_communities
     my_community_posts = results.my_community_posts
 
-    # Load cached Lemmy data immediately (fast DB query)
-    # Schedule background refresh for stale entries
     {lemmy_counts, post_replies} =
       load_with_fallback(
         :lemmy_cache,
@@ -1275,19 +1211,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
               |> Enum.filter(&(&1 && String.contains?(&1, "/post/")))
 
             {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
-
-            # Schedule background refresh for stale/missing entries
             LemmyCache.schedule_refresh(activitypub_ids)
 
-            # If cache was empty/incomplete, schedule a quick refresh to pick up
-            # newly cached data once the background job completes (~5 seconds)
-            # Then schedule regular periodic refresh
             if map_size(comments) < length(activitypub_ids) do
-              Process.send_after(self(), :refresh_lemmy_cache, 5_000)
+              Process.send_after(self(), :refresh_lemmy_cache, 5000)
             end
 
             Process.send_after(self(), :refresh_lemmy_cache, 60_000)
-
             {counts, comments}
           else
             {%{}, %{}}
@@ -1310,7 +1240,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         %{}
       )
 
-    # Build a set of joined community IDs for quick lookup
     joined_community_ids =
       if user do
         MapSet.new(communities, & &1.id)
@@ -1349,8 +1278,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     {:noreply, socket}
   end
 
-  # Helper functions
-
   defp update_post_reactions(socket, post_id, reaction, action) do
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})
     post_reactions = Map.get(current_reactions, post_id, [])
@@ -1358,7 +1285,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     updated =
       case action do
         :add ->
-          # Add the reaction to the list (if not already present)
           if Enum.any?(post_reactions, fn r ->
                r.emoji == reaction.emoji && r.user_id == reaction.user_id
              end) do
@@ -1368,7 +1294,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           end
 
         :remove ->
-          # Remove the reaction from the list
           Enum.reject(post_reactions, fn r ->
             r.emoji == reaction.emoji && r.user_id == reaction.user_id
           end)
@@ -1378,13 +1303,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp get_user_communities(user_id) do
-    Messaging.list_conversations(user_id)
-    |> Enum.filter(&(&1.type == "community"))
+    Messaging.list_conversations(user_id) |> Enum.filter(&(&1.type == "community"))
   end
 
   defp get_followed_remote_communities(user_id) do
-    # Get all remote Group actors that this user follows
-    # Note: Include pending follows since Lemmy may not send Accept
     from(f in Profiles.Follow,
       join: a in Actor,
       on: f.remote_actor_id == a.id,
@@ -1398,8 +1320,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   defp get_followed_community_posts(user_id, opts) do
     limit = Keyword.get(opts, :limit, 20)
 
-    # Get the URIs of communities the user follows
-    # Note: Include pending follows for Group actors since Lemmy may not send Accept
     followed_uris =
       from(f in Profiles.Follow,
         join: a in Actor,
@@ -1412,12 +1332,9 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if Enum.empty?(followed_uris) do
       []
     else
-      # Get posts that have community_actor_uri matching followed community URIs
       from(m in Messaging.Message,
         where:
-          m.federated == true and
-            m.visibility == "public" and
-            is_nil(m.deleted_at) and
+          m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
             is_nil(m.reply_to_id) and
             fragment("?->>'community_actor_uri' = ANY(?)", m.media_metadata, ^followed_uris),
         order_by: [desc: m.inserted_at],
@@ -1432,7 +1349,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     from(c in Messaging.Conversation,
       where: c.type == "community" and c.is_public == true,
       order_by: [
-        # Prioritize local communities over mirrors
         desc: fragment("CASE WHEN ? = false THEN 1 ELSE 0 END", c.is_federated_mirror),
         desc: c.member_count,
         desc: c.last_message_at
@@ -1443,59 +1359,52 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     |> Elektrine.Repo.all()
   end
 
-  defp filter_communities_by_category(communities, "all"), do: communities
-
-  defp filter_communities_by_category(communities, category) do
-    # Filter communities based on their community_category field
-    Enum.filter(communities, fn community ->
-      community.community_category == category
-    end)
+  defp filter_communities_by_category(communities, "all") do
+    communities
   end
 
-  defp filter_discussions_by_category(discussions, "all"), do: discussions
+  defp filter_communities_by_category(communities, category) do
+    Enum.filter(communities, fn community -> community.community_category == category end)
+  end
+
+  defp filter_discussions_by_category(discussions, "all") do
+    discussions
+  end
 
   defp filter_discussions_by_category(discussions, category) do
-    # Filter discussions based on their conversation's community_category
     Enum.filter(discussions, fn discussion ->
-      # Check if the discussion has a conversation preloaded and its category matches
       discussion.conversation && discussion.conversation.community_category == category
     end)
   end
 
-  defp filter_activity_by_category(activity, "all"), do: activity
+  defp filter_activity_by_category(activity, "all") do
+    activity
+  end
 
   defp filter_activity_by_category(activity, category) do
-    # Filter recent activity based on conversation's community_category
     Enum.filter(activity, fn item ->
       item.conversation && item.conversation.community_category == category
     end)
   end
 
-  defp filter_popular_communities_by_category(communities, "all"), do: communities
+  defp filter_popular_communities_by_category(communities, "all") do
+    communities
+  end
 
   defp filter_popular_communities_by_category(communities, category) do
-    # Filter popular communities based on their category field
-    # Note: popular_communities returns a map with :category field
-    Enum.filter(communities, fn community ->
-      community.category == category
-    end)
+    Enum.filter(communities, fn community -> community.category == category end)
   end
 
   defp get_federated_discussions(opts) do
     import Ecto.Query
     limit = Keyword.get(opts, :limit, 10)
 
-    # Get federated posts from Group actors only (Lemmy communities, Guppe groups, etc.)
-    # Groups are community/forum actors in ActivityPub - perfect for discussions
     from(m in Messaging.Message,
       join: a in Elektrine.ActivityPub.Actor,
       on: a.id == m.remote_actor_id,
       where:
-        m.federated == true and
-          m.visibility == "public" and
-          is_nil(m.deleted_at) and
-          is_nil(m.reply_to_id) and
-          a.actor_type == "Group",
+        m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
+          is_nil(m.reply_to_id) and a.actor_type == "Group",
       order_by: [desc: m.inserted_at],
       limit: ^limit,
       preload: [remote_actor: [], hashtags: [], link_preview: []]
@@ -1503,7 +1412,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     |> Elektrine.Repo.all()
   end
 
-  # Infer category from community name/URI for filtering
   defp infer_community_category(community_uri) when is_binary(community_uri) do
     name = community_uri |> String.downcase()
 
@@ -1588,10 +1496,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end
   end
 
-  defp infer_community_category(_), do: "general"
+  defp infer_community_category(_) do
+    "general"
+  end
 
-  # Filter community posts by inferred category
-  defp filter_community_posts_by_category(posts, "all"), do: posts
+  defp filter_community_posts_by_category(posts, "all") do
+    posts
+  end
 
   defp filter_community_posts_by_category(posts, category) do
     Enum.filter(posts, fn post ->
@@ -1600,7 +1511,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end)
   end
 
-  # Sort feed posts by different criteria
   defp sort_feed_posts(posts, "new", _lemmy_counts) do
     Enum.sort_by(posts, & &1.inserted_at, {:desc, NaiveDateTime})
   end
@@ -1609,7 +1519,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     Enum.sort_by(
       posts,
       fn post ->
-        # Use Lemmy score if available, otherwise use local like_count
         case Map.get(lemmy_counts, post.activitypub_id) do
           %{score: score} -> score
           _ -> post.like_count || 0
@@ -1625,22 +1534,14 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     Enum.sort_by(
       posts,
       fn post ->
-        # Hot score: combines recency with engagement
-        # Based on Reddit's hot algorithm (simplified)
         score =
           case Map.get(lemmy_counts, post.activitypub_id) do
             %{score: s, comments: c} -> s + c * 2
             _ -> (post.like_count || 0) + (post.reply_count || 0) * 2
           end
 
-        # Calculate hours since posted (inserted_at is NaiveDateTime)
         hours_ago = NaiveDateTime.diff(now, post.inserted_at, :hour)
-
-        # Decay factor: newer posts score higher
-        # Score decays by half every 12 hours
         decay = :math.pow(0.5, max(hours_ago, 0) / 12)
-
-        # Final hot score
         score * decay
       end,
       :desc
@@ -1651,7 +1552,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     Enum.sort_by(
       posts,
       fn post ->
-        # Sort by comment count
         case Map.get(lemmy_counts, post.activitypub_id) do
           %{comments: comments} -> comments
           _ -> post.reply_count || 0
@@ -1661,48 +1561,36 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     )
   end
 
-  defp sort_feed_posts(posts, _, _lemmy_counts), do: posts
-
-  defp load_with_fallback(key, loader, fallback) when is_function(loader, 0) do
-    try do
-      loader.()
-    rescue
-      exception ->
-        Logger.warning(
-          "Communities loader failed (#{key}): #{Exception.message(exception)}"
-        )
-
-        fallback
-    catch
-      :exit, reason ->
-        Logger.warning("Communities loader exited (#{key}): #{inspect(reason)}")
-        fallback
-    end
+  defp sort_feed_posts(posts, _, _lemmy_counts) do
+    posts
   end
 
-  # Load interaction state (likes/boosts) for posts
-  defp load_post_interactions(_posts, nil), do: %{}
+  defp load_with_fallback(key, loader, fallback) when is_function(loader, 0) do
+    loader.()
+  rescue
+    exception ->
+      Logger.warning("Communities loader failed (#{key}): #{Exception.message(exception)}")
+      fallback
+  catch
+    :exit, reason ->
+      Logger.warning("Communities loader exited (#{key}): #{inspect(reason)}")
+      fallback
+  end
+
+  defp load_post_interactions(_posts, nil) do
+    %{}
+  end
 
   defp load_post_interactions(posts, user) do
-    # Get all ActivityPub IDs from posts
-    activitypub_ids =
-      posts
-      |> Enum.map(& &1.activitypub_id)
-      |> Enum.filter(& &1)
+    activitypub_ids = posts |> Enum.map(& &1.activitypub_id) |> Enum.filter(& &1)
 
     if Enum.empty?(activitypub_ids) do
       %{}
     else
-      # Find messages that exist locally
       local_messages = Elektrine.Messaging.get_messages_by_activitypub_ids(activitypub_ids)
-
-      # Build a map of activitypub_id => message_id
       message_id_map = Map.new(local_messages, fn msg -> {msg.activitypub_id, msg.id} end)
-
-      # Get all local message IDs
       message_ids = Enum.map(local_messages, & &1.id)
 
-      # Check which posts the user has liked (via PostLike)
       liked_ids =
         if Enum.empty?(message_ids) do
           MapSet.new()
@@ -1715,7 +1603,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           |> MapSet.new()
         end
 
-      # Get user's votes (upvote/downvote) - maps message_id to vote_type
       user_votes =
         if Enum.empty?(message_ids) do
           %{}
@@ -1728,7 +1615,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           |> Map.new()
         end
 
-      # Build interaction state map by ActivityPub ID
       Map.new(activitypub_ids, fn activitypub_id ->
         case Map.get(message_id_map, activitypub_id) do
           nil ->
@@ -1739,7 +1625,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
             {activitypub_id,
              %{
-               # For Lemmy-style posts, "liked" means upvoted
                liked: vote == "up" || MapSet.member?(liked_ids, message_id),
                downvoted: vote == "down",
                like_delta: 0
@@ -1754,30 +1639,21 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp parse_and_fetch_remote_user(remote_handle) do
-    # Handle both user (@user@domain or user@domain) and community (!community@domain or community@domain) formats
     handle =
-      remote_handle
-      |> String.trim_leading("@")
-      |> String.trim_leading("!")
-      |> String.trim()
+      remote_handle |> String.trim_leading("@") |> String.trim_leading("!") |> String.trim()
 
     case String.split(handle, "@") do
       [username, domain] when username != "" and domain != "" ->
         acct = "#{username}@#{domain}"
 
-        # Try WebFinger lookup - will work for both users and communities
-        with {:ok, actor_uri} <- Elektrine.ActivityPub.Fetcher.webfinger_lookup(acct),
-             {:ok, actor} <- Elektrine.ActivityPub.get_or_fetch_actor(actor_uri) do
-          {:ok, actor}
-        else
-          {:error, _} ->
-            # If normal lookup failed and it might be a community, try with ! prefix
-            case Elektrine.ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
-              {:ok, actor_uri} ->
-                Elektrine.ActivityPub.get_or_fetch_actor(actor_uri)
+        case Elektrine.ActivityPub.Fetcher.webfinger_lookup(acct) do
+          {:ok, actor_uri} ->
+            Elektrine.ActivityPub.get_or_fetch_actor(actor_uri)
 
-              error ->
-                error
+          {:error, _} ->
+            case Elektrine.ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
+              {:ok, actor_uri} -> Elektrine.ActivityPub.get_or_fetch_actor(actor_uri)
+              error -> error
             end
         end
 
@@ -1786,9 +1662,19 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end
   end
 
-  # Upload error helper
-  defp error_to_string(:too_large), do: "File is too large (max 50MB)"
-  defp error_to_string(:too_many_files), do: "Too many files (max 4)"
-  defp error_to_string(:not_accepted), do: "Invalid file type"
-  defp error_to_string(err), do: "Upload error: #{inspect(err)}"
+  defp error_to_string(:too_large) do
+    "File is too large (max 50MB)"
+  end
+
+  defp error_to_string(:too_many_files) do
+    "Too many files (max 4)"
+  end
+
+  defp error_to_string(:not_accepted) do
+    "Invalid file type"
+  end
+
+  defp error_to_string(err) do
+    "Upload error: #{inspect(err)}"
+  end
 end

@@ -5,8 +5,8 @@ defmodule Elektrine.Jobs.ReplyLaterProcessor do
 
   require Logger
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Message
+  alias Elektrine.Repo
 
   @doc """
   Processes all due reply later messages and returns them to inbox.

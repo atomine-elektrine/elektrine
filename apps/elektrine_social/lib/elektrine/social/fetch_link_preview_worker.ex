@@ -13,9 +13,9 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
 
   require Logger
 
+  alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
   alias Elektrine.Social.LinkPreviewFetcher
-  alias Elektrine.Repo
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"url" => url} = args}) do

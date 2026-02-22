@@ -1,28 +1,16 @@
 defmodule Elektrine.ActivityPub.HTTPSignature do
-  @moduledoc """
-  Handles HTTP Signatures for ActivityPub federation.
-  Implements signing and verification according to the HTTP Signatures spec.
-  """
-
+  @moduledoc "Handles HTTP Signatures for ActivityPub federation.\nImplements signing and verification according to the HTTP Signatures spec.\n"
   require Logger
 
-  @doc """
-  Verifies an HTTP signature on an incoming request.
-  Returns {:ok, actor_uri} if valid, {:error, reason} otherwise.
-  """
+  @doc "Verifies an HTTP signature on an incoming request.\nReturns {:ok, actor_uri} if valid, {:error, reason} otherwise.\n"
   def verify(conn, signature_header) do
-    # Parse the signature header
     case parse_signature_header(signature_header) do
-      {:ok, params} ->
-        verify_signature(conn, params)
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, params} -> verify_signature(conn, params)
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp parse_signature_header(header) do
-    # Parse: Signature keyId="...",headers="...",signature="..."
     parts =
       header
       |> String.split(",")
@@ -46,21 +34,16 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
          "headers" => headers_string,
          "signature" => signature
        }) do
-    # Extract the actor URI from the keyId
     actor_uri = extract_actor_uri(key_id)
 
-    # Fetch the actor to get their public key
     case Elektrine.ActivityPub.get_or_fetch_actor(actor_uri) do
       {:ok, actor} ->
-        # Build the signing string
         headers_list = String.split(headers_string, " ")
 
         case build_signing_string(conn, headers_list) do
           {:ok, signing_string} ->
-            # Decode the signature
             case Base.decode64(signature) do
               {:ok, decoded_signature} ->
-                # Verify the signature with the public key
                 case verify_with_public_key(signing_string, decoded_signature, actor.public_key) do
                   true ->
                     {:ok, actor_uri}
@@ -83,18 +66,13 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
         end
 
       {:error, _reason} ->
-        # Actor fetch failed (usually deleted accounts) - not an error, just info
         Logger.info("Could not fetch actor for signature verification: #{actor_uri}")
         {:error, :actor_fetch_failed}
     end
   end
 
   defp extract_actor_uri(key_id) do
-    # KeyId format: https://mastodon.social/users/alice#main-key
-    # We want: https://mastodon.social/users/alice
-    key_id
-    |> String.split("#")
-    |> List.first()
+    key_id |> String.split("#") |> List.first()
   end
 
   defp build_signing_string(conn, headers_list) do
@@ -114,10 +92,7 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       |> Enum.map(fn {:error, name} -> name end)
 
     if Enum.empty?(missing_headers) do
-      signing_string =
-        results
-        |> Enum.map_join("\n", fn {:ok, line} -> line end)
-
+      signing_string = results |> Enum.map_join("\n", fn {:ok, line} -> line end)
       {:ok, signing_string}
     else
       {:error, :missing_headers, missing_headers}
@@ -127,18 +102,22 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
   defp get_header_value(conn, header_name) do
     case header_name do
       "(request-target)" ->
-        # Special pseudo-header - always available
         method = conn.method |> String.downcase()
         path = conn.request_path
-        query = if conn.query_string != "", do: "?#{conn.query_string}", else: ""
+
+        query =
+          if conn.query_string != "" do
+            "?#{conn.query_string}"
+          else
+            ""
+          end
+
         {:ok, "#{method} #{path}#{query}"}
 
       "(created)" ->
-        # Optional pseudo-header for created timestamp - can be missing
         {:ok, ""}
 
       "(expires)" ->
-        # Optional pseudo-header for expires timestamp - can be missing
         {:ok, ""}
 
       _ ->
@@ -151,28 +130,20 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
 
   defp verify_with_public_key(signing_string, signature, public_key_pem) do
     case decode_public_key(public_key_pem) do
-      {:ok, public_key} ->
-        :public_key.verify(signing_string, :sha256, signature, public_key)
-
-      {:error, _} ->
-        false
+      {:ok, public_key} -> :public_key.verify(signing_string, :sha256, signature, public_key)
+      {:error, _} -> false
     end
   end
 
   defp decode_public_key(pem) do
-    try do
-      [entry] = :public_key.pem_decode(pem)
-      public_key = :public_key.pem_entry_decode(entry)
-      {:ok, public_key}
-    rescue
-      _ -> {:error, :invalid_key}
-    end
+    [entry] = :public_key.pem_decode(pem)
+    public_key = :public_key.pem_entry_decode(entry)
+    {:ok, public_key}
+  rescue
+    _ -> {:error, :invalid_key}
   end
 
-  @doc """
-  Signs an HTTP GET request for authorized fetch mode.
-  Returns headers to add to the request.
-  """
+  @doc "Signs an HTTP GET request for authorized fetch mode.\nReturns headers to add to the request.\n"
   def sign_get(url, private_key_pem, key_id) do
     uri = URI.parse(url)
     date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
@@ -184,7 +155,6 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
         uri.path || "/"
       end
 
-    # Build signing string for GET (no digest needed)
     headers_to_sign = ["(request-target)", "host", "date"]
 
     signing_string_parts = [
@@ -194,11 +164,7 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
     ]
 
     signing_string = Enum.join(signing_string_parts, "\n")
-
-    # Sign the string
     signature = sign_string(signing_string, private_key_pem)
-
-    # Build signature header
     headers_string = Enum.join(headers_to_sign, " ")
 
     signature_header =
@@ -210,23 +176,14 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       ]
       |> Enum.join(",")
 
-    # Return headers to add
-    [
-      {"host", uri.host},
-      {"date", date},
-      {"signature", signature_header}
-    ]
+    [{"host", uri.host}, {"date", date}, {"signature", signature_header}]
   end
 
-  @doc """
-  Signs an HTTP POST request for outgoing federation.
-  Returns headers to add to the request.
-  """
+  @doc "Signs an HTTP POST request for outgoing federation.\nReturns headers to add to the request.\n"
   def sign(url, body, private_key_pem, key_id) do
     uri = URI.parse(url)
     date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
 
-    # Calculate digest for POST requests with body
     digest =
       if body do
         "SHA-256=#{:crypto.hash(:sha256, body) |> Base.encode64()}"
@@ -234,7 +191,6 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
         nil
       end
 
-    # Build signing string
     headers_to_sign =
       if digest do
         ["(request-target)", "host", "date", "digest"]
@@ -263,14 +219,9 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       end
 
     signing_string = Enum.join(signing_string_parts, "\n")
-
-    # Sign the string
     signature = sign_string(signing_string, private_key_pem)
-
-    # Build signature header
     headers_string = Enum.join(headers_to_sign, " ")
 
-    # Use hs2019 algorithm identifier (RSA-SHA256)
     signature_header =
       [
         ~s(keyId="#{key_id}"),
@@ -280,12 +231,7 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       ]
       |> Enum.join(",")
 
-    # Return headers to add (lowercase for Finch)
-    base_headers = [
-      {"host", uri.host},
-      {"date", date},
-      {"signature", signature_header}
-    ]
+    base_headers = [{"host", uri.host}, {"date", date}, {"signature", signature_header}]
 
     if digest do
       base_headers ++ [{"digest", digest}]
@@ -306,34 +252,22 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
   end
 
   defp decode_private_key(pem) do
-    try do
-      [entry] = :public_key.pem_decode(pem)
-      private_key = :public_key.pem_entry_decode(entry)
-      {:ok, private_key}
-    rescue
-      e ->
-        Logger.error("Failed to decode private key: #{inspect(e)}")
-        {:error, :invalid_key}
-    end
+    [entry] = :public_key.pem_decode(pem)
+    private_key = :public_key.pem_entry_decode(entry)
+    {:ok, private_key}
+  rescue
+    e ->
+      Logger.error("Failed to decode private key: #{inspect(e)}")
+      {:error, :invalid_key}
   end
 
-  @doc """
-  Generates a new RSA key pair for a user.
-  Returns {public_key_pem, private_key_pem}.
-
-  Public key is generated in PKCS#8 format for ActivityPub compatibility.
-  """
+  @doc "Generates a new RSA key pair for a user.\nReturns {public_key_pem, private_key_pem}.\n\nPublic key is generated in PKCS#8 format for ActivityPub compatibility.\n"
   def generate_key_pair do
-    # Generate 2048-bit RSA key
-    private_key = :public_key.generate_key({:rsa, 2048, 65537})
+    private_key = :public_key.generate_key({:rsa, 2048, 65_537})
 
-    # Encode private key as RSAPrivateKey (standard format)
     private_pem =
-      :public_key.pem_encode([
-        :public_key.pem_entry_encode(:RSAPrivateKey, private_key)
-      ])
+      :public_key.pem_encode([:public_key.pem_entry_encode(:RSAPrivateKey, private_key)])
 
-    # Generate PKCS#8 format public key using openssl
     temp_dir = System.tmp_dir!()
     private_path = Path.join(temp_dir, "temp_private_#{:rand.uniform(999_999)}.pem")
     public_path = Path.join(temp_dir, "temp_public_#{:rand.uniform(999_999)}.pem")
@@ -341,12 +275,10 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
     try do
       File.write!(private_path, private_pem)
 
-      # Use openssl to extract public key in PKCS#8 format
       case System.cmd("openssl", ["rsa", "-in", private_path, "-pubout", "-out", public_path],
              stderr_to_stdout: true
            ) do
         {_output, 0} ->
-          # Read the generated public key
           public_pem = File.read!(public_path)
           {public_pem, private_pem}
 
@@ -355,20 +287,15 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
           {extract_public_key_basic(private_key), private_pem}
       end
     after
-      # Clean up temp files
       File.rm(private_path)
       File.rm(public_path)
     end
   end
 
-  # Fallback: Extract public key in basic RSAPublicKey format
   defp extract_public_key_basic(
          {:RSAPrivateKey, _version, modulus, exponent, _d, _p, _q, _e1, _e2, _c, _other}
        ) do
     rsa_public_key = {:RSAPublicKey, modulus, exponent}
-
-    :public_key.pem_encode([
-      :public_key.pem_entry_encode(:RSAPublicKey, rsa_public_key)
-    ])
+    :public_key.pem_encode([:public_key.pem_entry_encode(:RSAPublicKey, rsa_public_key)])
   end
 end

@@ -1,17 +1,11 @@
 defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
-  @moduledoc """
-  Handles voice/video call operations: initiate, answer, reject, end, audio/video toggle.
-  Extracted from ChatLive.Home.
-  """
-
+  @moduledoc "Handles voice/video call operations: initiate, answer, reject, end, audio/video toggle.\nExtracted from ChatLive.Home.\n"
   import Phoenix.LiveView
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
-
   alias Elektrine.Calls
   alias ElektrineWeb.ChatLive.Operations.Helpers
 
-  # Initiate call
   def handle_event(
         "initiate_call",
         %{
@@ -70,104 +64,97 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
           {:noreply, notify_error(socket, error_msg)}
       end
     else
-      {:error, :invalid_integer} ->
-        {:noreply, notify_error(socket, "Invalid call request")}
+      {:error, :invalid_integer} -> {:noreply, notify_error(socket, "Invalid call request")}
     end
   end
 
-  # Answer call
   def handle_event("answer_call", %{"call_id" => call_id}, socket) do
-    with {:ok, call_id} <- parse_integer(call_id) do
-      case Calls.answer_call(call_id) do
-        {:ok, call} ->
-          full_call =
-            socket.assigns.call.incoming_call ||
-              socket.assigns.call.active_call ||
-              Calls.get_call_with_users(call.id)
+    case parse_integer(call_id) do
+      {:ok, call_id} ->
+        case Calls.answer_call(call_id) do
+          {:ok, call} ->
+            full_call =
+              socket.assigns.call.incoming_call || socket.assigns.call.active_call ||
+                Calls.get_call_with_users(call.id)
 
-          call_state = %{
-            socket.assigns.call
-            | incoming_call: nil,
-              active_call: full_call,
-              status: "connecting",
-              audio_enabled: true,
-              video_enabled: not is_nil(full_call) and full_call.call_type == "video"
-          }
+            call_state = %{
+              socket.assigns.call
+              | incoming_call: nil,
+                active_call: full_call,
+                status: "connecting",
+                audio_enabled: true,
+                video_enabled: not is_nil(full_call) and full_call.call_type == "video"
+            }
 
-          {:noreply,
-           socket
-           |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-           |> assign(:call, call_state)
-           |> push_event("stop_ringtone", %{})
-           |> push_event("answer_call", %{
-             call_id: call_id,
-             ice_servers: ice_servers(),
-             user_token: user_token(socket)
-           })}
+            {:noreply,
+             socket
+             |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
+             |> assign(:call, call_state)
+             |> push_event("stop_ringtone", %{})
+             |> push_event("answer_call", %{
+               call_id: call_id,
+               ice_servers: ice_servers(),
+               user_token: user_token(socket)
+             })}
 
-        {:error, _reason} ->
-          {:noreply, notify_error(socket, "Failed to answer call")}
-      end
-    else
+          {:error, _reason} ->
+            {:noreply, notify_error(socket, "Failed to answer call")}
+        end
+
       {:error, :invalid_integer} ->
         {:noreply, notify_error(socket, "Invalid call request")}
     end
   end
 
-  # Reject call
   def handle_event("reject_call", %{"call_id" => call_id}, socket) do
-    with {:ok, call_id} <- parse_integer(call_id) do
-      _ = Calls.reject_call(call_id)
+    case parse_integer(call_id) do
+      {:ok, call_id} ->
+        _ = Calls.reject_call(call_id)
 
-      {:noreply,
-       socket
-       |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-       |> assign(:call, reset_call_state(socket.assigns.call))
-       |> push_event("stop_ringtone", %{})
-       |> push_event("reject_call", %{call_id: call_id, user_token: user_token(socket)})}
-    else
+        {:noreply,
+         socket
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
+         |> assign(:call, reset_call_state(socket.assigns.call))
+         |> push_event("stop_ringtone", %{})
+         |> push_event("reject_call", %{call_id: call_id, user_token: user_token(socket)})}
+
       {:error, :invalid_integer} ->
         {:noreply, notify_error(socket, "Invalid call request")}
     end
   end
 
-  # End call
   def handle_event("end_call", %{"call_id" => call_id}, socket) do
-    with {:ok, call_id} <- parse_integer(call_id) do
-      _ = Calls.end_call(call_id)
+    case parse_integer(call_id) do
+      {:ok, call_id} ->
+        _ = Calls.end_call(call_id)
 
-      {:noreply,
-       socket
-       |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-       |> assign(:call, reset_call_state(socket.assigns.call))
-       |> push_event("stop_ringtone", %{})}
-    else
+        {:noreply,
+         socket
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
+         |> assign(:call, reset_call_state(socket.assigns.call))
+         |> push_event("stop_ringtone", %{})}
+
       {:error, :invalid_integer} ->
         {:noreply, notify_error(socket, "Invalid call request")}
     end
   end
 
-  # Toggle audio
   def handle_event("toggle_audio", _params, socket) do
     {:noreply, socket}
   end
 
-  # Toggle video
   def handle_event("toggle_video", _params, socket) do
     {:noreply, socket}
   end
 
-  # Audio toggled
   def handle_event("audio_toggled", %{"enabled" => enabled}, socket) do
     {:noreply, assign(socket, :call, %{socket.assigns.call | audio_enabled: truthy?(enabled)})}
   end
 
-  # Video toggled
   def handle_event("video_toggled", %{"enabled" => enabled}, socket) do
     {:noreply, assign(socket, :call, %{socket.assigns.call | video_enabled: truthy?(enabled)})}
   end
 
-  # Call error
   def handle_event("call_error", %{"error" => error}, socket) do
     if socket.assigns.call.active_call do
       _ = Calls.update_call_status(socket.assigns.call.active_call.id, "failed")
@@ -181,7 +168,6 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
      |> notify_error("Call error: #{error}")}
   end
 
-  # Call events
   def handle_event("call_started", _params, socket) do
     {:noreply, assign(socket, :call, %{socket.assigns.call | status: "connecting"})}
   end
@@ -245,23 +231,39 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
     end
   end
 
-  defp parse_integer(value) when is_integer(value), do: {:ok, value}
-  defp parse_integer(_value), do: {:error, :invalid_integer}
+  defp parse_integer(value) when is_integer(value) do
+    {:ok, value}
+  end
 
-  defp parse_optional_integer(nil), do: {:ok, nil}
-  defp parse_optional_integer(""), do: {:ok, nil}
-  defp parse_optional_integer(value), do: parse_integer(value)
+  defp parse_integer(_value) do
+    {:error, :invalid_integer}
+  end
 
-  defp truthy?(value) when value in [true, "true", 1, "1"], do: true
-  defp truthy?(_value), do: false
+  defp parse_optional_integer(nil) do
+    {:ok, nil}
+  end
+
+  defp parse_optional_integer("") do
+    {:ok, nil}
+  end
+
+  defp parse_optional_integer(value) do
+    parse_integer(value)
+  end
+
+  defp truthy?(value) when value in [true, "true", 1, "1"] do
+    true
+  end
+
+  defp truthy?(_value) do
+    false
+  end
 
   defp user_token(socket) do
     socket.assigns[:user_token] || Helpers.generate_user_token(socket.assigns.current_user.id)
   end
 
   defp ice_servers do
-    :elektrine
-    |> Application.get_env(:webrtc, [])
-    |> Keyword.get(:ice_servers, [])
+    :elektrine |> Application.get_env(:webrtc, []) |> Keyword.get(:ice_servers, [])
   end
 end

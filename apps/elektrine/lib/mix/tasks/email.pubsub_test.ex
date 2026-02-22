@@ -1,4 +1,5 @@
 defmodule Mix.Tasks.Email.PubsubTest do
+  @moduledoc false
   use Mix.Task
   require Logger
 

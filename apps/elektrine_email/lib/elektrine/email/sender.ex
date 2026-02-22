@@ -19,18 +19,18 @@ defmodule Elektrine.Email.Sender do
   """
 
   alias Elektrine.Email
-  alias Elektrine.Email.Mailbox
-  alias Elektrine.Email.RateLimiter
-  alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
-  alias Elektrine.Email.Unsubscribes
-  alias Elektrine.Email.Suppressions
   alias Elektrine.Email.ListTypes
+  alias Elektrine.Email.Mailbox
   alias Elektrine.Email.PGP
-  alias Elektrine.Telemetry.Events
+  alias Elektrine.Email.RateLimiter
+  alias Elektrine.Email.Sanitizer
+  alias Elektrine.Email.Suppressions
+  alias Elektrine.Email.Unsubscribes
   alias Elektrine.Mailer
   alias Elektrine.Repo
+  alias Elektrine.Telemetry.Events
   import Swoosh.Email
 
   require Logger
@@ -102,7 +102,7 @@ defmodule Elektrine.Email.Sender do
               # Personal emails (SMTP/webmail without list_id) skip this check
               list_id = params[:list_id] || params["list_id"]
 
-              if list_id && !is_transactional_email?(list_id) do
+              if list_id && !transactional_email?(list_id) do
                 # Mass email - filter out unsubscribed recipients
                 case filter_unsubscribed_recipients(
                        filtered_to,
@@ -571,7 +571,7 @@ defmodule Elektrine.Email.Sender do
           email
         end
 
-      # Add BCC if provided  
+      # Add BCC if provided
       email =
         if params[:bcc] && String.trim(params[:bcc]) != "" do
           bcc(email, parse_recipients(params[:bcc]))
@@ -906,11 +906,11 @@ defmodule Elektrine.Email.Sender do
       !has_forwarding && sender_mailbox &&
         Enum.any?(all_recipients, fn recipient_email ->
           String.downcase(recipient_email) == String.downcase(sender_mailbox.email) ||
-            is_user_alias?(recipient_email, sender_mailbox.user_id)
+            user_alias?(recipient_email, sender_mailbox.user_id)
         end) &&
         Enum.all?(all_recipients, fn recipient_email ->
           String.downcase(recipient_email) == String.downcase(sender_mailbox.email) ||
-            is_user_alias?(recipient_email, sender_mailbox.user_id)
+            user_alias?(recipient_email, sender_mailbox.user_id)
         end)
 
     if is_self_email do
@@ -1238,7 +1238,7 @@ defmodule Elektrine.Email.Sender do
   end
 
   # Check if email address is an alias owned by the user
-  defp is_user_alias?(email_address, user_id) do
+  defp user_alias?(email_address, user_id) do
     case Email.get_alias_by_email(email_address) do
       %Email.Alias{user_id: ^user_id, enabled: true} -> true
       _ -> false
@@ -1246,7 +1246,7 @@ defmodule Elektrine.Email.Sender do
   end
 
   # Check if two email addresses belong to the same user across domains
-  defp is_same_user_cross_domain?(email1, email2) do
+  defp same_user_cross_domain?(email1, email2) do
     case {parse_email_parts(email1), parse_email_parts(email2)} do
       {{username1, domain1}, {username2, domain2}} ->
         # Same username and both are our domains
@@ -1282,9 +1282,9 @@ defmodule Elektrine.Email.Sender do
     is_internal = is_internal_email?([recipient_email])
 
     is_sender =
-      sender_mailbox && is_same_user_cross_domain?(recipient_email, sender_mailbox.email)
+      sender_mailbox && same_user_cross_domain?(recipient_email, sender_mailbox.email)
 
-    is_alias = sender_mailbox && is_user_alias?(recipient_email, sender_mailbox.user_id)
+    is_alias = sender_mailbox && user_alias?(recipient_email, sender_mailbox.user_id)
 
     if is_internal || is_sender || is_alias do
       # Deliver copy to their inbox
@@ -1653,7 +1653,7 @@ defmodule Elektrine.Email.Sender do
 
   # Check if an email is transactional (should not honor unsubscribes)
   # Transactional emails include: password resets, account notifications, etc.
-  defp is_transactional_email?(list_id) do
+  defp transactional_email?(list_id) do
     ListTypes.transactional?(list_id)
   end
 

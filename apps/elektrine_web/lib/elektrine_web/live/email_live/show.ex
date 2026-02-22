@@ -425,7 +425,7 @@ defmodule ElektrineWeb.EmailLive.Show do
         []
       end
 
-    # Add CC recipients  
+    # Add CC recipients
     cc_recipients =
       if message.cc && String.trim(message.cc) != "" do
         message.cc |> String.split(~r/[,;]\s*/) |> Enum.map(&String.trim/1)

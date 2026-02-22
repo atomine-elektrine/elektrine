@@ -47,7 +47,7 @@ defmodule ElektrineWeb.Plugs.EmailOwnershipGuard do
     end
   end
 
-  # Validate mailbox access  
+  # Validate mailbox access
   defp check_mailbox_access(conn) do
     user_id =
       case conn.assigns[:current_user] do

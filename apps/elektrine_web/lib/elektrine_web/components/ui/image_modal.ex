@@ -148,7 +148,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
             
     <!-- Media (Image, Video, or Audio) -->
             <%= cond do %>
-              <% is_video_url?(@image_url) -> %>
+              <% video_url?(@image_url) -> %>
                 <video
                   src={@image_url}
                   controls
@@ -157,7 +157,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
                 >
                   Your browser does not support the video tag.
                 </video>
-              <% is_audio_url?(@image_url) -> %>
+              <% audio_url?(@image_url) -> %>
                 <div class="p-8 bg-base-200 flex flex-col items-center justify-center min-h-[40vh]">
                   <.icon name="hero-musical-note" class="w-24 h-24 opacity-30 mb-6" />
                   <audio
@@ -287,15 +287,15 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
     """
   end
 
-  defp is_video_url?(nil), do: false
+  defp video_url?(nil), do: false
 
-  defp is_video_url?(url) when is_binary(url) do
+  defp video_url?(url) when is_binary(url) do
     String.match?(url, ~r/\.(mp4|webm|ogv|mov|avi|mkv)(\?.*)?$/i)
   end
 
-  defp is_audio_url?(nil), do: false
+  defp audio_url?(nil), do: false
 
-  defp is_audio_url?(url) when is_binary(url) do
+  defp audio_url?(url) when is_binary(url) do
     String.match?(url, ~r/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)
   end
 end

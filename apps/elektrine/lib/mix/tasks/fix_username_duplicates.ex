@@ -1,9 +1,10 @@
 defmodule Mix.Tasks.Elektrine.FixUsernameDuplicates do
+  @moduledoc false
   use Mix.Task
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
   alias Elektrine.Email.Mailbox
+  alias Elektrine.Repo
 
   @shortdoc "Find and fix username duplicates (case-insensitive)"
 

@@ -4,8 +4,8 @@ defmodule Elektrine.Email.Unsubscribes do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Unsubscribe
+  alias Elektrine.Repo
 
   @doc """
   Generates a unique unsubscribe token for an email address and optional list.

@@ -5,9 +5,9 @@ defmodule Elektrine.ProfilesTest do
   """
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.Profiles
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Profiles
   alias Elektrine.Repo
 
   describe "get_profile_by_handle/1" do

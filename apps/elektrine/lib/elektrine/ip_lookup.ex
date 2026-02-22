@@ -12,7 +12,7 @@ defmodule Elektrine.IpLookup do
   """
   def lookup(ip_address) when is_binary(ip_address) do
     # Check if it's a private/local IP first
-    if is_private_ip?(ip_address) do
+    if private_ip?(ip_address) do
       {:ok,
        %{
          ip: ip_address,
@@ -60,7 +60,7 @@ defmodule Elektrine.IpLookup do
     end
   end
 
-  defp is_private_ip?(ip) do
+  defp private_ip?(ip) do
     case String.split(ip, ".") do
       # IPv4 private ranges
       ["10" | _] ->

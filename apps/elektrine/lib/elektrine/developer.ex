@@ -7,9 +7,9 @@ defmodule Elektrine.Developer do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Developer.ApiToken
   alias Elektrine.Developer.Webhook
+  alias Elektrine.Repo
 
   # =============================================================================
   # API Tokens

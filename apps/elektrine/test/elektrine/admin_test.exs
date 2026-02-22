@@ -1,8 +1,8 @@
 defmodule Elektrine.AdminTest do
   use Elektrine.DataCase
 
-  alias Elektrine.Admin
   alias Elektrine.Accounts
+  alias Elektrine.Admin
 
   describe "announcements" do
     setup do

@@ -105,7 +105,7 @@ defmodule Mix.Tasks.Email.InboundDlq do
     worker_module = Module.concat([ElektrineWeb, HarakaInboundWorker])
 
     if Code.ensure_loaded?(worker_module) and function_exported?(worker_module, :enqueue, 2) do
-      apply(worker_module, :enqueue, [payload, [remote_ip: remote_ip]])
+      worker_module.enqueue(payload, remote_ip: remote_ip)
     else
       args = %{
         "payload" => payload,
@@ -156,14 +156,13 @@ defmodule Mix.Tasks.Email.InboundDlq do
         payload["rcpt_to"] || payload["to"],
         payload["subject"]
       ]
-      |> Enum.map(fn value ->
+      |> Enum.map_join("|", fn value ->
         case value do
           nil -> ""
           value when is_binary(value) -> String.trim(value)
           value -> to_string(value)
         end
       end)
-      |> Enum.join("|")
 
     :crypto.hash(:sha256, base)
     |> Base.encode16(case: :lower)

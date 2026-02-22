@@ -7,11 +7,11 @@ defmodule Elektrine.Messaging.Moderation do
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
-    ConversationMember,
-    UserTimeout,
-    ModerationAction,
+    CommunityBan,
     CommunityFlair,
-    CommunityBan
+    ConversationMember,
+    ModerationAction,
+    UserTimeout
   }
 
   ## User Timeouts
@@ -275,7 +275,7 @@ defmodule Elektrine.Messaging.Moderation do
   @doc """
   Checks if a user is banned from a community.
   """
-  def is_user_banned?(community_id, user_id) do
+  def user_banned?(community_id, user_id) do
     now = DateTime.utc_now()
 
     from(b in CommunityBan,

@@ -1,4 +1,5 @@
 defmodule Elektrine.ActivityPub.Activity do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

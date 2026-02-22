@@ -1,16 +1,9 @@
 defmodule Elektrine.Email.Suppressions do
-  @moduledoc """
-  Context for outbound recipient suppressions.
-  """
-
+  @moduledoc "Context for outbound recipient suppressions.\n"
   import Ecto.Query
-
   alias Elektrine.Email.Suppression
   alias Elektrine.Repo
-
-  @doc """
-  Upserts an active suppression entry for a recipient and user.
-  """
+  @doc "Upserts an active suppression entry for a recipient and user.\n"
   def suppress_recipient(user_id, email, opts \\ [])
 
   def suppress_recipient(user_id, email, opts) when is_integer(user_id) and is_binary(email) do
@@ -54,11 +47,11 @@ defmodule Elektrine.Email.Suppressions do
     end
   end
 
-  def suppress_recipient(_, _, _), do: {:error, :invalid_params}
+  def suppress_recipient(_, _, _) do
+    {:error, :invalid_params}
+  end
 
-  @doc """
-  Deletes a suppression entry for a recipient and user.
-  """
+  @doc "Deletes a suppression entry for a recipient and user.\n"
   def unsuppress_recipient(user_id, email) when is_integer(user_id) and is_binary(email) do
     case normalize_email(email) do
       {:ok, normalized_email} ->
@@ -70,41 +63,43 @@ defmodule Elektrine.Email.Suppressions do
     end
   end
 
-  def unsuppress_recipient(_, _), do: {:error, :invalid_params}
+  def unsuppress_recipient(_, _) do
+    {:error, :invalid_params}
+  end
 
-  @doc """
-  Returns true when an active suppression exists for the user/recipient pair.
-  """
+  @doc "Returns true when an active suppression exists for the user/recipient pair.\n"
   def suppressed?(user_id, email) when is_integer(user_id) and is_binary(email) do
     not is_nil(get_active_suppression(user_id, email))
   end
 
-  def suppressed?(_, _), do: false
+  def suppressed?(_, _) do
+    false
+  end
 
-  @doc """
-  Returns the active suppression for a user/recipient if present.
-  """
+  @doc "Returns the active suppression for a user/recipient if present.\n"
   def get_active_suppression(user_id, email) when is_integer(user_id) and is_binary(email) do
-    with {:ok, normalized_email} <- normalize_email(email) do
-      now = DateTime.utc_now()
+    case normalize_email(email) do
+      {:ok, normalized_email} ->
+        now = DateTime.utc_now()
 
-      from(s in Suppression,
-        where: s.user_id == ^user_id and s.email == ^normalized_email,
-        where: is_nil(s.expires_at) or s.expires_at > ^now,
-        order_by: [desc: s.last_event_at, desc: s.updated_at],
-        limit: 1
-      )
-      |> Repo.one()
-    else
-      {:error, _} -> nil
+        from(s in Suppression,
+          where: s.user_id == ^user_id and s.email == ^normalized_email,
+          where: is_nil(s.expires_at) or s.expires_at > ^now,
+          order_by: [desc: s.last_event_at, desc: s.updated_at],
+          limit: 1
+        )
+        |> Repo.one()
+
+      {:error, _} ->
+        nil
     end
   end
 
-  def get_active_suppression(_, _), do: nil
+  def get_active_suppression(_, _) do
+    nil
+  end
 
-  @doc """
-  Lists active suppressions for a user.
-  """
+  @doc "Lists active suppressions for a user.\n"
   def list_active_suppressions(user_id, opts \\ [])
 
   def list_active_suppressions(user_id, opts) when is_integer(user_id) do
@@ -120,13 +115,11 @@ defmodule Elektrine.Email.Suppressions do
     |> Repo.all()
   end
 
-  def list_active_suppressions(_, _), do: []
+  def list_active_suppressions(_, _) do
+    []
+  end
 
-  @doc """
-  Filters recipient list using active suppressions.
-
-  Returns `%{allowed: [...], suppressed: [...], reasons: %{email => reason}}`.
-  """
+  @doc "Filters recipient list using active suppressions.\n\nReturns `%{allowed: [...], suppressed: [...], reasons: %{email => reason}}`.\n"
   def filter_suppressed_recipients(user_id, recipients, opts \\ [])
 
   def filter_suppressed_recipients(user_id, recipients, opts)
@@ -134,10 +127,7 @@ defmodule Elektrine.Email.Suppressions do
     external_only = Keyword.get(opts, :external_only, true)
 
     normalized =
-      recipients
-      |> Enum.map(&normalize_email_value/1)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
+      recipients |> Enum.map(&normalize_email_value/1) |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
     candidate_emails =
       if external_only do
@@ -180,17 +170,12 @@ defmodule Elektrine.Email.Suppressions do
 
   def filter_suppressed_recipients(_, recipients, _) when is_list(recipients) do
     normalized =
-      recipients
-      |> Enum.map(&normalize_email_value/1)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
+      recipients |> Enum.map(&normalize_email_value/1) |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
     %{allowed: normalized, suppressed: [], reasons: %{}}
   end
 
-  @doc """
-  Deletes expired suppressions and returns number of deleted rows.
-  """
+  @doc "Deletes expired suppressions and returns number of deleted rows.\n"
   def prune_expired do
     now = DateTime.utc_now()
 
@@ -209,43 +194,62 @@ defmodule Elektrine.Email.Suppressions do
   end
 
   defp normalize_email_value(email) when is_binary(email) do
-    email =
-      email
-      |> String.trim()
-      |> String.downcase()
+    email = email |> String.trim() |> String.downcase()
 
-    if Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, email), do: email, else: nil
+    if Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, email) do
+      email
+    else
+      nil
+    end
   end
 
-  defp normalize_email_value(_), do: nil
+  defp normalize_email_value(_) do
+    nil
+  end
 
   defp normalize_reason(reason) when is_binary(reason) do
     reason |> String.trim() |> String.downcase()
   end
 
-  defp normalize_reason(reason) when is_atom(reason),
-    do: reason |> Atom.to_string() |> normalize_reason()
+  defp normalize_reason(reason) when is_atom(reason) do
+    reason |> Atom.to_string() |> normalize_reason()
+  end
 
-  defp normalize_reason(_), do: "manual"
+  defp normalize_reason(_) do
+    "manual"
+  end
 
   defp normalize_source(source) when is_binary(source) do
     source |> String.trim() |> String.downcase()
   end
 
-  defp normalize_source(source) when is_atom(source),
-    do: source |> Atom.to_string() |> normalize_source()
+  defp normalize_source(source) when is_atom(source) do
+    source |> Atom.to_string() |> normalize_source()
+  end
 
-  defp normalize_source(_), do: "manual"
+  defp normalize_source(_) do
+    "manual"
+  end
 
-  defp normalize_metadata(metadata) when is_map(metadata), do: metadata
-  defp normalize_metadata(_), do: %{}
+  defp normalize_metadata(metadata) when is_map(metadata) do
+    metadata
+  end
 
-  defp truncate_datetime(nil), do: nil
+  defp normalize_metadata(_) do
+    %{}
+  end
 
-  defp truncate_datetime(%DateTime{} = value),
-    do: DateTime.truncate(value, :second)
+  defp truncate_datetime(nil) do
+    nil
+  end
 
-  defp truncate_datetime(value), do: value
+  defp truncate_datetime(%DateTime{} = value) do
+    DateTime.truncate(value, :second)
+  end
+
+  defp truncate_datetime(value) do
+    value
+  end
 
   defp internal_email?(email) do
     case String.split(email, "@", parts: 2) do

@@ -1,47 +1,26 @@
 defmodule Elektrine.ActivityPub.InboxQueue do
-  @moduledoc """
-  Fast in-memory queue for incoming ActivityPub activities.
-
-  Instead of calling Oban.insert() for every /inbox request (which requires
-  a database connection), activities are queued in ETS and batch-inserted
-  into Oban periodically. This removes the database from the /inbox hot path.
-
-  Performance improvement: ~1000ms → ~5ms per /inbox request
-  """
-
+  @moduledoc "Fast in-memory queue for incoming ActivityPub activities.\n\nInstead of calling Oban.insert() for every /inbox request (which requires\na database connection), activities are queued in ETS and batch-inserted\ninto Oban periodically. This removes the database from the /inbox hot path.\n\nPerformance improvement: ~1000ms → ~5ms per /inbox request\n"
   use GenServer
   require Logger
-
   alias Elektrine.Telemetry.Events
-
   @table_name :inbox_activity_queue
-  # Flush every 500ms
   @flush_interval 500
-  # Max activities per batch insert
   @max_batch_size 25
-  # Keep DB checkout times short by splitting large inserts
   @insert_chunk_size 5
-  # Start shedding low-priority traffic if backlog grows too large
-  @max_queue_size 5_000
+  @max_queue_size 5000
   @activity_drop_keys ["contentMap"]
-
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc """
-  Enqueue an activity for processing. Returns immediately without hitting the database.
-  """
+  @doc "Enqueue an activity for processing. Returns immediately without hitting the database.\n"
   def enqueue(activity, actor_uri, target_user_id) do
     activity_id = activity["id"]
     activity_type = activity["type"] || "unknown"
 
     cond do
-      # Fast dedup check
       activity_id && already_queued?(activity_id) ->
-        Events.federation(:inbox_queue, :enqueue, :duplicate, nil, %{
-          activity_type: activity_type
-        })
+        Events.federation(:inbox_queue, :enqueue, :duplicate, nil, %{activity_type: activity_type})
 
         {:ok, :duplicate}
 
@@ -51,12 +30,12 @@ defmodule Elektrine.ActivityPub.InboxQueue do
           actor_domain: actor_domain(actor_uri)
         })
 
-        # Return success so remote senders don't retry aggressively.
         {:ok, :shed}
 
       true ->
-        # Mark as queued and add to queue
-        if activity_id, do: mark_queued(activity_id)
+        if activity_id do
+          mark_queued(activity_id)
+        end
 
         item = %{
           activity: activity,
@@ -78,17 +57,11 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     end
   end
 
-  # GenServer callbacks
-
   @impl true
   def init(_opts) do
-    # Create ETS tables
-    :ets.new(@table_name, [:named_table, :public, :set, {:write_concurrency, true}])
-    :ets.new(:inbox_dedup, [:named_table, :public, :set, {:write_concurrency, true}])
-
-    # Schedule first flush
+    :ets.new(@table_name, [:named_table, :public, :set, write_concurrency: true])
+    :ets.new(:inbox_dedup, [:named_table, :public, :set, write_concurrency: true])
     schedule_flush()
-
     Logger.info("InboxQueue started - activities will be batched every #{@flush_interval}ms")
     {:ok, %{}}
   end
@@ -105,7 +78,6 @@ defmodule Elektrine.ActivityPub.InboxQueue do
   end
 
   defp flush_queue do
-    # Take up to max_batch_size items directly from ETS without copying the whole table.
     items = take_batch(@max_batch_size)
 
     if items != [] do
@@ -117,39 +89,25 @@ defmodule Elektrine.ActivityPub.InboxQueue do
         {:ok, inserted_count} ->
           Logger.debug("InboxQueue flushed #{inserted_count} activities")
 
-          Events.federation(
-            :inbox_queue,
-            :flush,
-            :success,
-            flush_duration,
-            %{
-              batch_size: inserted_count
-            }
-          )
+          Events.federation(:inbox_queue, :flush, :success, flush_duration, %{
+            batch_size: inserted_count
+          })
 
         {:error, reason, inserted_count, failed_items} ->
-          Logger.error("InboxQueue flush failed after #{inserted_count} inserts: #{inspect(reason)}")
-
-          Events.federation(
-            :inbox_queue,
-            :flush,
-            :failure,
-            flush_duration,
-            %{
-              batch_size: length(items),
-              inserted_count: inserted_count,
-              requeued_count: length(failed_items),
-              reason: inspect(reason)
-            }
+          Logger.error(
+            "InboxQueue flush failed after #{inserted_count} inserts: #{inspect(reason)}"
           )
 
-          # Re-queue only the items that were not successfully inserted.
-          Enum.each(failed_items, fn item ->
-            :ets.insert(@table_name, {make_ref(), item})
-          end)
+          Events.federation(:inbox_queue, :flush, :failure, flush_duration, %{
+            batch_size: length(items),
+            inserted_count: inserted_count,
+            requeued_count: length(failed_items),
+            reason: inspect(reason)
+          })
+
+          Enum.each(failed_items, fn item -> :ets.insert(@table_name, {make_ref(), item}) end)
       end
 
-      # Clean up old dedup entries periodically
       cleanup_dedup()
     end
   end
@@ -158,20 +116,24 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     do_take_batch(limit, :ets.first(@table_name), [])
   end
 
-  defp take_batch(_), do: []
+  defp take_batch(_) do
+    []
+  end
 
-  defp do_take_batch(0, _key, acc), do: Enum.reverse(acc)
-  defp do_take_batch(_remaining, :"$end_of_table", acc), do: Enum.reverse(acc)
+  defp do_take_batch(0, _key, acc) do
+    Enum.reverse(acc)
+  end
+
+  defp do_take_batch(_remaining, :"$end_of_table", acc) do
+    Enum.reverse(acc)
+  end
 
   defp do_take_batch(remaining, key, acc) do
     next_key = :ets.next(@table_name, key)
 
     case :ets.take(@table_name, key) do
-      [{^key, item}] ->
-        do_take_batch(remaining - 1, next_key, [item | acc])
-
-      [] ->
-        do_take_batch(remaining, next_key, acc)
+      [{^key, item}] -> do_take_batch(remaining - 1, next_key, [item | acc])
+      [] -> do_take_batch(remaining, next_key, acc)
     end
   end
 
@@ -180,7 +142,9 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     do_insert_chunks(chunks, 0)
   end
 
-  defp do_insert_chunks([], inserted_count), do: {:ok, inserted_count}
+  defp do_insert_chunks([], inserted_count) do
+    {:ok, inserted_count}
+  end
 
   defp do_insert_chunks([chunk | rest], inserted_count) do
     jobs = Enum.map(chunk, &build_job/1)
@@ -196,11 +160,9 @@ defmodule Elektrine.ActivityPub.InboxQueue do
   end
 
   defp safe_insert_all(jobs) do
-    try do
-      {:ok, Oban.insert_all(jobs)}
-    rescue
-      e -> {:error, e}
-    end
+    {:ok, Oban.insert_all(jobs)}
+  rescue
+    e -> {:error, e}
   end
 
   defp build_job(item) do
@@ -215,7 +177,6 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     |> Elektrine.ActivityPub.ProcessActivityWorker.new(priority: priority)
   end
 
-  # Activity priority (same as ProcessActivityWorker)
   defp activity_priority(%{"type" => type} = activity) do
     case type do
       "Create" -> 0
@@ -242,9 +203,13 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     end
   end
 
-  defp announce_priority(_), do: 1
+  defp announce_priority(_) do
+    1
+  end
 
-  defp actor_domain(nil), do: "unknown"
+  defp actor_domain(nil) do
+    "unknown"
+  end
 
   defp actor_domain(actor_uri) when is_binary(actor_uri) do
     case URI.parse(actor_uri) do
@@ -253,7 +218,9 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     end
   end
 
-  defp actor_domain(_), do: "unknown"
+  defp actor_domain(_) do
+    "unknown"
+  end
 
   defp overload_drop?(activity) do
     queue_size =
@@ -274,9 +241,13 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     true
   end
 
-  defp low_priority_activity?(_), do: false
+  defp low_priority_activity?(_) do
+    false
+  end
 
-  defp compact_activity(activity), do: drop_activity_keys(activity)
+  defp compact_activity(activity) do
+    drop_activity_keys(activity)
+  end
 
   defp drop_activity_keys(value) when is_map(value) do
     Enum.reduce(value, %{}, fn {key, nested}, acc ->
@@ -292,18 +263,14 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     Enum.map(value, &drop_activity_keys/1)
   end
 
-  defp drop_activity_keys(value), do: value
-
-  # Deduplication helpers
+  defp drop_activity_keys(value) do
+    value
+  end
 
   defp already_queued?(activity_id) do
     case :ets.lookup(:inbox_dedup, activity_id) do
-      [{^activity_id, timestamp}] ->
-        # Check if within dedup window (60 seconds)
-        System.system_time(:second) - timestamp < 60
-
-      _ ->
-        false
+      [{^activity_id, timestamp}] -> System.system_time(:second) - timestamp < 60
+      _ -> false
     end
   end
 
@@ -312,14 +279,11 @@ defmodule Elektrine.ActivityPub.InboxQueue do
   end
 
   defp cleanup_dedup do
-    # 1% chance to clean up
     if :rand.uniform(100) == 1 do
       cutoff = System.system_time(:second) - 120
 
       try do
-        :ets.select_delete(:inbox_dedup, [
-          {{:_, :"$1"}, [{:<, :"$1", cutoff}], [true]}
-        ])
+        :ets.select_delete(:inbox_dedup, [{{:_, :"$1"}, [{:<, :"$1", cutoff}], [true]}])
       rescue
         _ -> :ok
       end

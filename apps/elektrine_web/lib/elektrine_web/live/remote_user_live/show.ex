@@ -4,9 +4,9 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
-  alias ElektrineWeb.Live.PostInteractions
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.{Repo, Social}
+  alias ElektrineWeb.Live.PostInteractions
 
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.HtmlHelpers

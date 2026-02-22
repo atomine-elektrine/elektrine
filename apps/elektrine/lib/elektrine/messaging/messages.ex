@@ -5,18 +5,18 @@ defmodule Elektrine.Messaging.Messages do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Repo
   alias Elektrine.Accounts
+  alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
     Conversation,
     ConversationMember,
     Message,
-    UserHiddenMessage,
-    RateLimiter
+    RateLimiter,
+    UserHiddenMessage
   }
 
-  alias Elektrine.Social.{LinkPreviewFetcher, LinkPreview, FetchLinkPreviewWorker}
+  alias Elektrine.Social.{FetchLinkPreviewWorker, LinkPreview, LinkPreviewFetcher}
   @mention_pattern ~r/(?:^|[^A-Za-z0-9_])@([A-Za-z0-9_]{1,30})/
 
   @doc """

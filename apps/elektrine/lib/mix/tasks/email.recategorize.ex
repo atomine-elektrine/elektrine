@@ -118,7 +118,7 @@ defmodule Mix.Tasks.Email.Recategorize do
   defp dry_run_recategorize(mailbox_id) do
     # Get all messages
     messages =
-      Email.list_messages(mailbox_id, 10000, 0)
+      Email.list_messages(mailbox_id, 10_000, 0)
       # Skip spam messages
       |> Enum.reject(& &1.spam)
 

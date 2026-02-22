@@ -39,7 +39,7 @@ defmodule ElektrineWeb.ProfileHTML do
       String.pad_leading(Integer.to_string(new_b, 16), 2, "0")
   end
 
-  defp is_light_color(hex) do
+  defp light_color?(hex) do
     {r, g, b} = hex_to_rgb(hex)
     luminance = 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255)
     luminance > 0.5

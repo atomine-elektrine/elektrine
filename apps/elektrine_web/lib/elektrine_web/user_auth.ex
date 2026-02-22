@@ -8,9 +8,9 @@ defmodule ElektrineWeb.UserAuth do
   import Phoenix.Controller
 
   alias Elektrine.Accounts
+  alias Elektrine.AppCache
   alias Elektrine.Constants
   alias Elektrine.Email.Cached, as: EmailCached
-  alias Elektrine.AppCache
   alias ElektrineWeb.ClientIP
 
   # Make the remember me cookie valid for 60 days.

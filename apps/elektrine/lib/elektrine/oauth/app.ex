@@ -11,8 +11,8 @@ defmodule Elektrine.OAuth.App do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   @type t :: %__MODULE__{}
 

@@ -1,8 +1,8 @@
 defmodule Elektrine.CalendarTest do
   use Elektrine.DataCase
 
-  alias Elektrine.Calendar, as: CalendarContext
   alias Elektrine.Accounts
+  alias Elektrine.Calendar, as: CalendarContext
 
   # Helper to create a test user
   defp create_test_user(attrs \\ %{}) do

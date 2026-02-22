@@ -11,7 +11,7 @@ defmodule Mix.Tasks.Elektrine.RecategorizeEmails do
   """
 
   use Mix.Task
-  alias Elektrine.{Repo, Email}
+  alias Elektrine.{Email, Repo}
   alias Elektrine.Email.Mailbox
 
   @shortdoc "Recategorize email messages with updated detection logic"

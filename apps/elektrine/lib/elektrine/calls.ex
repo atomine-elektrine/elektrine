@@ -4,8 +4,8 @@ defmodule Elektrine.Calls do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Calls.Call
+  alias Elektrine.Repo
 
   @doc """
   Initiates a new call between two users.

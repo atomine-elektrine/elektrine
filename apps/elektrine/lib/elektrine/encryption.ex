@@ -79,7 +79,7 @@ defmodule Elektrine.Encryption do
       |> String.replace(~r/[^\w\s#]/, " ")
       |> String.split()
       |> Enum.filter(&(String.length(&1) >= 3))
-      |> Enum.reject(&is_stop_word?/1)
+      |> Enum.reject(&stop_word?/1)
       |> Enum.uniq()
 
     Enum.uniq(hashtags ++ words)
@@ -151,7 +151,7 @@ defmodule Elektrine.Encryption do
       raise "ENCRYPTION_SEARCH_SALT not configured"
   end
 
-  defp is_stop_word?(word) do
+  defp stop_word?(word) do
     stop_words = ~w(
       the and but for not with you that this from they have
       are was were been will would could should may might

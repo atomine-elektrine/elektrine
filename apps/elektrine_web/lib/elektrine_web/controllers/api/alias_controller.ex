@@ -4,8 +4,8 @@ defmodule ElektrineWeb.API.AliasController do
   """
   use ElektrineWeb, :controller
 
-  alias Elektrine.Email.Aliases
   alias Elektrine.Email.Alias
+  alias Elektrine.Email.Aliases
 
   action_fallback ElektrineWeb.FallbackController
 

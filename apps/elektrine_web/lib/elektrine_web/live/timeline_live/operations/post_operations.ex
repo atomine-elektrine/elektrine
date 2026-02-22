@@ -1,23 +1,14 @@
 defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
-  @moduledoc """
-  Handles post-related operations for the timeline LiveView.
-  Includes post creation, deletion, filtering, and composer interactions.
-  """
-
+  @moduledoc "Handles post-related operations for the timeline LiveView.\nIncludes post creation, deletion, filtering, and composer interactions.\n"
   import Phoenix.LiveView
   import Phoenix.Component
-
-  use Phoenix.VerifiedRoutes,
-    endpoint: ElektrineWeb.Endpoint,
-    router: ElektrineWeb.Router
-
+  use Phoenix.VerifiedRoutes, endpoint: ElektrineWeb.Endpoint, router: ElektrineWeb.Router
+  alias Elektrine.Messaging
   alias Elektrine.Social
   alias Elektrine.Social.Drafts
-  alias Elektrine.Messaging
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineWeb.TimelineLive.Operations.Helpers
 
-  # Toggles the post composer visibility.
   def handle_event("toggle_post_composer", _params, socket) do
     {:noreply,
      socket
@@ -32,28 +23,28 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
      |> assign(:draft_saving, false)}
   end
 
-  # Updates the post title.
   def handle_event("update_post_title", %{"title" => title}, socket) do
     {:noreply, assign(socket, :new_post_title, title)}
   end
 
-  # Updates the post visibility setting.
   def handle_event("update_visibility", %{"visibility" => visibility}, socket) do
     {:noreply, assign(socket, :new_post_visibility, visibility)}
   end
 
-  # Toggles the content warning input field.
   def handle_event("toggle_content_warning", _params, socket) do
     {:noreply,
      socket
      |> update(:show_cw_input, &(!&1))
      |> assign(
        :new_post_content_warning,
-       if(socket.assigns.show_cw_input, do: nil, else: socket.assigns.new_post_content_warning)
+       if socket.assigns.show_cw_input do
+         nil
+       else
+         socket.assigns.new_post_content_warning
+       end
      )}
   end
 
-  # Updates the content warning text.
   def handle_event("update_content_warning", %{"cw" => cw}, socket) do
     {:noreply,
      socket
@@ -61,10 +52,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
      |> assign(:new_post_sensitive, cw && String.trim(cw) != "")}
   end
 
-  # Updates the post content and automatically fetches link preview for title.
   def handle_event("update_post_content", %{"content" => content}, socket) do
     urls = Elektrine.Social.LinkPreviewFetcher.extract_urls(content)
-
     current_title = socket.assigns.new_post_title
     should_fetch_title = (is_nil(current_title) || current_title == "") && urls != []
 
@@ -84,34 +73,33 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     {:noreply, assign(updated_socket, :new_post_content, content)}
   end
 
-  # Auto-saves draft when form changes (debounced from template)
   def handle_event("autosave_draft", params, socket) do
     user = socket.assigns.current_user
 
-    if !user do
-      {:noreply, socket}
-    else
+    if user do
       content = params["content"] || socket.assigns.new_post_content || ""
       title = params["title"] || socket.assigns.new_post_title
       cw = params["cw"]
 
-      # Only auto-save if there's some content
       has_content =
         content != "" || title != nil || !Enum.empty?(socket.assigns.pending_media_urls)
 
-      if !has_content do
-        {:noreply, socket}
-      else
-        # Update local state first
+      if has_content do
         socket =
           socket
           |> assign(:new_post_content, content)
-          |> assign(:new_post_title, if(title == "", do: nil, else: title))
+          |> assign(
+            :new_post_title,
+            if title == "" do
+              nil
+            else
+              title
+            end
+          )
           |> assign(:new_post_content_warning, cw)
           |> assign(:new_post_sensitive, cw && String.trim(cw || "") != "")
           |> assign(:draft_saving, true)
 
-        # Auto-fetch link preview for title if needed
         urls = Elektrine.Social.LinkPreviewFetcher.extract_urls(content)
         current_title = socket.assigns.new_post_title
 
@@ -128,7 +116,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
             socket
           end
 
-        # Save or update draft
         visibility = socket.assigns.new_post_visibility
         media_urls = socket.assigns.pending_media_urls
         alt_texts = socket.assigns.pending_media_alt_texts || %{}
@@ -143,11 +130,15 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           content_warning: socket.assigns.new_post_content_warning
         ]
 
-        opts = if draft_id, do: Keyword.put(opts, :draft_id, draft_id), else: opts
+        opts =
+          if draft_id do
+            Keyword.put(opts, :draft_id, draft_id)
+          else
+            opts
+          end
 
         case Drafts.save_draft(user.id, opts) do
           {:ok, draft} ->
-            # Update the drafts list to reflect the new/updated draft
             updated_drafts =
               socket.assigns.user_drafts
               |> Kernel.||([])
@@ -164,11 +155,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           {:error, _changeset} ->
             {:noreply, assign(socket, :draft_saving, false)}
         end
+      else
+        {:noreply, socket}
       end
+    else
+      {:noreply, socket}
     end
   end
 
-  # Loads queued posts into the timeline.
   def handle_event("load_queued_posts", _params, socket) do
     queued = socket.assigns.queued_posts
 
@@ -191,7 +185,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Creates a new timeline post.
   def handle_event(
         "create_post",
         %{"content" => content, "visibility" => visibility} = params,
@@ -213,32 +206,40 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
       uploaded_files = socket.assigns.pending_media_urls
       alt_texts = socket.assigns.pending_media_alt_texts || %{}
-
       post_opts = [visibility: visibility, media_urls: uploaded_files]
-      post_opts = if title, do: Keyword.put(post_opts, :title, title), else: post_opts
 
       post_opts =
-        if !Enum.empty?(alt_texts),
-          do: Keyword.put(post_opts, :alt_texts, alt_texts),
-          else: post_opts
+        if title do
+          Keyword.put(post_opts, :title, title)
+        else
+          post_opts
+        end
 
       post_opts =
-        if socket.assigns.new_post_content_warning,
-          do: Keyword.put(post_opts, :content_warning, socket.assigns.new_post_content_warning),
-          else: post_opts
+        if Enum.empty?(alt_texts) do
+          post_opts
+        else
+          Keyword.put(post_opts, :alt_texts, alt_texts)
+        end
 
       post_opts =
-        if socket.assigns.new_post_sensitive,
-          do: Keyword.put(post_opts, :sensitive, true),
-          else: post_opts
+        if socket.assigns.new_post_content_warning do
+          Keyword.put(post_opts, :content_warning, socket.assigns.new_post_content_warning)
+        else
+          post_opts
+        end
+
+      post_opts =
+        if socket.assigns.new_post_sensitive do
+          Keyword.put(post_opts, :sensitive, true)
+        else
+          post_opts
+        end
 
       case Social.create_timeline_post(user.id, content, post_opts) do
         {:ok, real_post} ->
-          # Delete the auto-saved draft if one exists
           if socket.assigns[:editing_draft_id] do
-            Task.start(fn ->
-              Drafts.delete_draft(socket.assigns.editing_draft_id, user.id)
-            end)
+            Task.start(fn -> Drafts.delete_draft(socket.assigns.editing_draft_id, user.id) end)
           end
 
           Task.start(fn ->
@@ -271,7 +272,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Deletes a post (user deleting their own post).
   def handle_event("delete_post", %{"message_id" => message_id}, socket) do
     message_id = String.to_integer(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
@@ -295,7 +295,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Deletes a post (admin action).
   def handle_event("delete_post_admin", %{"message_id" => message_id}, socket) do
     if socket.assigns.current_user && socket.assigns.current_user.is_admin do
       message_id = String.to_integer(message_id)
@@ -318,12 +317,10 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Navigates to post detail view.
   def handle_event("view_post", %{"message_id" => message_id}, socket) do
     {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message_id}")}
   end
 
-  # Copies post link to clipboard.
   def handle_event("copy_post_link", %{"message_id" => message_id}, socket) do
     message_id = String.to_integer(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
@@ -340,7 +337,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Opens the report modal for a post.
   def handle_event("report_post", %{"message_id" => message_id}, socket) do
     message_id = String.to_integer(message_id)
     post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
@@ -363,9 +359,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Loads more posts for infinite scroll.
   def handle_event("load_more_posts", _params, socket) do
-    # Skip if already loading or we've reached the end
     if socket.assigns.loading_more || socket.assigns[:no_more_posts] do
       {:noreply, socket}
     else
@@ -374,9 +368,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Triggers load more when infinite scroll is detected.
   def handle_event("load-more", _params, socket) do
-    # Skip if loading or we've reached the end
     if socket.assigns.loading_more || socket.assigns[:no_more_posts] do
       {:noreply, socket}
     else
@@ -384,7 +376,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Filters timeline by content type (posts, replies, media, etc).
   def handle_event("filter_timeline", %{"filter" => filter}, socket) do
     current_view = socket.assigns.timeline_filter || "all"
 
@@ -411,10 +402,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
         special_timeline_view?(current_view) &&
             Enum.empty?(Map.get(socket.assigns, :base_timeline_posts, [])) ->
-          {:noreply,
-           socket
-           |> assign(:filter_dropdown_open, false)
-           |> push_patch(to: path)}
+          {:noreply, socket |> assign(:filter_dropdown_open, false) |> push_patch(to: path)}
 
         true ->
           updated_socket =
@@ -431,17 +419,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Toggles the filter dropdown open/closed.
   def handle_event("toggle_filter_dropdown", _params, socket) do
     {:noreply, assign(socket, :filter_dropdown_open, !socket.assigns.filter_dropdown_open)}
   end
 
-  # Closes the filter dropdown (used by phx-click-away).
   def handle_event("close_filter_dropdown", _params, socket) do
     {:noreply, assign(socket, :filter_dropdown_open, false)}
   end
 
-  # Sets the main timeline filter (all, following, local, federated).
   def handle_event("set_filter", %{"filter" => filter}, socket) do
     if filter == socket.assigns.current_filter do
       {:noreply, socket}
@@ -451,14 +436,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Sets the software filter (all, mastodon, pixelfed, lemmy, etc).
   def handle_event("set_software_filter", %{"software" => software}, socket) do
     if software == socket.assigns.software_filter do
       {:noreply, socket}
     else
-      queued_posts =
-        socket.assigns.queued_posts
-        |> Helpers.filter_posts_by_software(software)
+      queued_posts = socket.assigns.queued_posts |> Helpers.filter_posts_by_software(software)
 
       {:noreply,
        socket
@@ -468,15 +450,10 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # ==================== Draft Operations ====================
-
-  # Saves the current post as a draft.
   def handle_event("save_draft", _params, socket) do
     user = socket.assigns.current_user
 
-    if !user do
-      {:noreply, put_flash(socket, :error, "You must be logged in to save drafts")}
-    else
+    if user do
       content = socket.assigns.new_post_content
       title = socket.assigns.new_post_title
       visibility = socket.assigns.new_post_visibility
@@ -494,7 +471,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
         content_warning: content_warning
       ]
 
-      opts = if draft_id, do: Keyword.put(opts, :draft_id, draft_id), else: opts
+      opts =
+        if draft_id do
+          Keyword.put(opts, :draft_id, draft_id)
+        else
+          opts
+        end
 
       case Drafts.save_draft(user.id, opts) do
         {:ok, draft} ->
@@ -515,10 +497,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
         {:error, _changeset} ->
           {:noreply, put_flash(socket, :error, "Failed to save draft")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be logged in to save drafts")}
     end
   end
 
-  # Loads a draft into the composer for editing.
   def handle_event("edit_draft", %{"draft_id" => draft_id}, socket) do
     user = socket.assigns.current_user
     draft_id = String.to_integer(draft_id)
@@ -543,14 +526,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Publishes a draft as a regular post.
   def handle_event("publish_draft", %{"draft_id" => draft_id}, socket) do
     user = socket.assigns.current_user
     draft_id = String.to_integer(draft_id)
 
     case Drafts.publish_draft(draft_id, user.id) do
       {:ok, published_post} ->
-        # Record stats
         Task.start(fn ->
           Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
           Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
@@ -558,9 +539,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
         {:noreply,
          socket
-         |> update(:user_drafts, fn drafts ->
-           Enum.reject(drafts || [], &(&1.id == draft_id))
-         end)
+         |> update(:user_drafts, fn drafts -> Enum.reject(drafts || [], &(&1.id == draft_id)) end)
          |> update(:timeline_posts, fn posts -> [published_post | posts] end)
          |> Helpers.apply_timeline_filter()
          |> put_flash(:info, "Draft published!")}
@@ -576,7 +555,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Deletes a draft.
   def handle_event("delete_draft", %{"draft_id" => draft_id}, socket) do
     user = socket.assigns.current_user
     draft_id = String.to_integer(draft_id)
@@ -585,9 +563,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       {:ok, _deleted_draft} ->
         {:noreply,
          socket
-         |> update(:user_drafts, fn drafts ->
-           Enum.reject(drafts || [], &(&1.id == draft_id))
-         end)
+         |> update(:user_drafts, fn drafts -> Enum.reject(drafts || [], &(&1.id == draft_id)) end)
          |> put_flash(:info, "Draft deleted")}
 
       {:error, :not_found} ->
@@ -598,7 +574,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Shows the drafts panel/dropdown.
   def handle_event("show_drafts", _params, socket) do
     user = socket.assigns.current_user
 
@@ -610,12 +585,10 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
-  # Hides the drafts panel.
   def handle_event("hide_drafts", _params, socket) do
     {:noreply, assign(socket, :show_drafts_panel, false)}
   end
 
-  # Executes the actual load-more fetch.
   def handle_load_more(socket) do
     case allow_timeline_read(socket, :load_more) do
       :ok ->
@@ -633,7 +606,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
   defp do_handle_load_more(socket) do
     current_posts = socket.assigns.timeline_posts
-    before_id = if Enum.empty?(current_posts), do: nil, else: List.last(current_posts).id
+
+    before_id =
+      if Enum.empty?(current_posts) do
+        nil
+      else
+        List.last(current_posts).id
+      end
+
     current_user = socket.assigns[:current_user]
     timeline_view = socket.assigns.timeline_filter || "all"
 
@@ -686,10 +666,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
             "following" ->
               if current_user do
-                Social.get_combined_feed(current_user.id,
-                  limit: 20,
-                  before_id: before_id
-                )
+                Social.get_combined_feed(current_user.id, limit: 20, before_id: before_id)
               else
                 Social.get_public_timeline(limit: 20, before_id: before_id)
               end
@@ -714,8 +691,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       end
 
     merged_lemmy_counts = socket.assigns.lemmy_counts || %{}
-
-    # Load replies for new posts and include in follows check
     new_post_ids = Enum.map(more_posts, & &1.id)
 
     new_post_replies =
@@ -749,8 +724,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       end
 
     merged_post_replies = Map.merge(socket.assigns.post_replies || %{}, new_post_replies)
-
-    # Track if we've reached the end (no more posts to load)
     no_more_posts = Enum.empty?(more_posts)
     updated_timeline_posts = current_posts ++ more_posts
 
@@ -773,8 +746,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           })
 
         cached_posts =
-          (Map.get(existing_cache, :posts, current_posts) ++ more_posts)
-          |> Enum.uniq_by(& &1.id)
+          (Map.get(existing_cache, :posts, current_posts) ++ more_posts) |> Enum.uniq_by(& &1.id)
 
         cached_replies = Map.merge(Map.get(existing_cache, :post_replies, %{}), new_post_replies)
 
@@ -802,7 +774,9 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     |> maybe_schedule_reply_ingestion_jobs(more_posts)
   end
 
-  defp special_timeline_view?(view), do: view in ["replies", "friends", "my_posts", "trusted"]
+  defp special_timeline_view?(view) do
+    view in ["replies", "friends", "my_posts", "trusted"]
+  end
 
   defp timeline_remote_enrichment_enabled? do
     Application.get_env(:elektrine, :timeline_remote_enrichment, false)

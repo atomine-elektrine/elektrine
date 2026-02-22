@@ -6,14 +6,14 @@ defmodule ElektrineWeb.EmailLive.Settings do
   alias Elektrine.Email
 
   alias Elektrine.Email.{
+    Alias,
+    Aliases,
     BlockedSender,
-    SafeSender,
     Filter,
-    Template,
     Folder,
     Label,
-    Alias,
-    Aliases
+    SafeSender,
+    Template
   }
 
   @impl true

@@ -1,4 +1,5 @@
 defmodule Elektrine.Admin.Announcement do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

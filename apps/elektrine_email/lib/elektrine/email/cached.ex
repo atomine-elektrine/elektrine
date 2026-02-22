@@ -5,9 +5,9 @@ defmodule Elektrine.Email.Cached do
   to improve performance and reduce database load.
   """
 
+  alias Elektrine.AppCache
   alias Elektrine.Email
   alias Elektrine.Email.Cache
-  alias Elektrine.AppCache
 
   @doc """
   Gets cached unread count for a mailbox.

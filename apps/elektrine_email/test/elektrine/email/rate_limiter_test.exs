@@ -1,10 +1,10 @@
 defmodule Elektrine.Email.RateLimiterTest do
   use Elektrine.DataCase
 
-  alias Elektrine.Email.RateLimiter
-  alias Elektrine.Email
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
+  alias Elektrine.Email
+  alias Elektrine.Email.RateLimiter
   alias Elektrine.Repo
 
   describe "rate limiting" do
@@ -214,7 +214,7 @@ defmodule Elektrine.Email.RateLimiterTest do
       status = RateLimiter.get_status(user.id)
       assert status.tier == :day_1
       # day_1 limits: {1, 5, 5, 3}
-      assert status.attempts[86400].limit == 5
+      assert status.attempts[86_400].limit == 5
       assert status.attempts[3600].limit == 5
       assert status.attempts[60].limit == 1
     end
@@ -235,7 +235,7 @@ defmodule Elektrine.Email.RateLimiterTest do
       status = RateLimiter.get_status(user.id)
       assert status.tier == :tl1
       # tl1 limits: {5, 50, 200, 50}
-      assert status.attempts[86400].limit == 200
+      assert status.attempts[86_400].limit == 200
       assert status.attempts[3600].limit == 50
       assert status.attempts[60].limit == 5
     end
@@ -256,7 +256,7 @@ defmodule Elektrine.Email.RateLimiterTest do
       status = RateLimiter.get_status(user.id)
       assert status.tier == :tl3_plus
       # tl3_plus limits: {15, 150, 1000, 200}
-      assert status.attempts[86400].limit == 1000
+      assert status.attempts[86_400].limit == 1000
       assert status.attempts[3600].limit == 150
       assert status.attempts[60].limit == 15
     end

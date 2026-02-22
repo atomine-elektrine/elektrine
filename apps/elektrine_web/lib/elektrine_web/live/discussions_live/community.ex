@@ -19,7 +19,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
   """
   use ElektrineWeb, :live_view
 
-  alias Elektrine.{Social, Messaging}
+  alias Elektrine.{Messaging, Social}
   alias ElektrineWeb.DiscussionsLive.Operations.SortHelpers
   alias ElektrineWeb.DiscussionsLive.Router
 
@@ -188,7 +188,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     user = socket.assigns.current_user
 
     # Check if the user still has access after the visibility change
-    if updated_community.is_public || (user && is_member?(updated_community.id, user.id)) do
+    if updated_community.is_public || (user && member?(updated_community.id, user.id)) do
       {:noreply, assign(socket, :community, updated_community)}
     else
       # User no longer has access to the private community
@@ -529,7 +529,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
 
   # Helper functions (kept in main module as they're used by handle_info)
 
-  defp is_member?(community_id, user_id) do
+  defp member?(community_id, user_id) do
     import Ecto.Query
 
     Elektrine.Repo.exists?(

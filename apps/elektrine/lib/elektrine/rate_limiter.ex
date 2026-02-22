@@ -53,7 +53,7 @@ defmodule Elektrine.RateLimiter do
                          {3600, max}
 
                        {:day, max} ->
-                         {86400, max}
+                         {86_400, max}
 
                        {window_seconds, max} when is_integer(window_seconds) ->
                          {window_seconds, max}
@@ -65,7 +65,7 @@ defmodule Elektrine.RateLimiter do
                           {:seconds, n} -> n
                           {:minutes, n} -> n * 60
                           {:hours, n} -> n * 3600
-                          {:days, n} -> n * 86400
+                          {:days, n} -> n * 86_400
                           n when is_integer(n) -> n
                         end)
 
@@ -272,7 +272,7 @@ defmodule Elektrine.RateLimiter do
 
       defp format_limit_reason(60, count, max), do: "#{count}/#{max} attempts in last minute"
       defp format_limit_reason(3600, count, max), do: "#{count}/#{max} attempts in last hour"
-      defp format_limit_reason(86400, count, max), do: "#{count}/#{max} attempts in last day"
+      defp format_limit_reason(86_400, count, max), do: "#{count}/#{max} attempts in last day"
 
       defp format_limit_reason(seconds, count, max),
         do: "#{count}/#{max} attempts in last #{seconds}s"

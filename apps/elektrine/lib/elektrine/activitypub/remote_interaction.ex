@@ -17,8 +17,8 @@ defmodule Elektrine.ActivityPub.RemoteInteraction do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Elektrine.Repo
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Repo
 
   @type interaction_type :: :like | :share | :reply | :emoji_react
 

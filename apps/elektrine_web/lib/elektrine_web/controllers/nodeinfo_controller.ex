@@ -1,9 +1,9 @@
 defmodule ElektrineWeb.NodeinfoController do
   use ElektrineWeb, :controller
 
+  alias Elektrine.Accounts
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.MRF
-  alias Elektrine.Accounts
   alias Elektrine.Messaging
   alias Elektrine.System, as: SystemSettings
 

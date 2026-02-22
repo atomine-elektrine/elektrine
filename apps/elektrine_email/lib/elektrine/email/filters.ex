@@ -3,8 +3,8 @@ defmodule Elektrine.Email.Filters do
   Context module for managing email filters/rules.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Filter
+  alias Elektrine.Repo
 
   require Logger
 

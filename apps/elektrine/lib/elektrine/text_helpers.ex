@@ -159,7 +159,7 @@ defmodule Elektrine.TextHelpers do
     cond do
       diff < 60 -> "#{diff} seconds"
       diff < 3600 -> "#{div(diff, 60)} minutes"
-      diff < 86400 -> "#{div(diff, 3600)} hours"
+      diff < 86_400 -> "#{div(diff, 3600)} hours"
       diff < 2_592_000 -> "#{div(diff, 86400)} days"
       diff < 31_536_000 -> "#{div(diff, 2_592_000)} months"
       true -> "#{div(diff, 31_536_000)} years"
@@ -189,7 +189,7 @@ defmodule Elektrine.TextHelpers do
     cond do
       diff < 60 -> "#{diff}s"
       diff < 3600 -> "#{div(diff, 60)}m"
-      diff < 86400 -> "#{div(diff, 3600)}h"
+      diff < 86_400 -> "#{div(diff, 3600)}h"
       diff < 2_592_000 -> "#{div(diff, 86400)}d"
       true -> Calendar.strftime(datetime, "%b %d")
     end

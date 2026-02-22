@@ -6,8 +6,8 @@ defmodule Elektrine.Email.Processing do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Repo
   alias Elektrine.Email.Message
+  alias Elektrine.Repo
 
   @doc """
   Categorizes an incoming message based on content analysis.

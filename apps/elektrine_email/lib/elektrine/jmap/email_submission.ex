@@ -6,8 +6,8 @@ defmodule Elektrine.JMAP.EmailSubmission do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Elektrine.Repo
   alias Elektrine.JMAP.State
+  alias Elektrine.Repo
 
   @undo_statuses ~w(pending final canceled)
 

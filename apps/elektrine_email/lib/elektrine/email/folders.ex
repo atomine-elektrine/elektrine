@@ -5,8 +5,8 @@ defmodule Elektrine.Email.Folders do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Email.{CacheHooks, Mailbox, Message}
   alias Elektrine.Repo
-  alias Elektrine.Email.{Message, Mailbox, CacheHooks}
 
   # Private helper to decrypt email messages and preload labels
   defp decrypt_email_messages(messages, mailbox_id) when is_list(messages) do

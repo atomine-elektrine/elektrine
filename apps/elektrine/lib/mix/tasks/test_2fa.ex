@@ -1,4 +1,5 @@
 defmodule Mix.Tasks.Test2fa do
+  @moduledoc false
   @shortdoc "Tests 2FA secret generation and current codes"
 
   use Mix.Task

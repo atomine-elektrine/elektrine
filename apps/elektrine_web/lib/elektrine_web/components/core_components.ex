@@ -28,22 +28,22 @@ defmodule ElektrineWeb.CoreComponents do
   alias Phoenix.LiveView.JS
 
   # UI Components
-  alias ElektrineWeb.Components.UI.Modal
+  alias ElektrineWeb.Components.UI.Badge
+  alias ElektrineWeb.Components.UI.BrandIcon
   alias ElektrineWeb.Components.UI.Button
-  alias ElektrineWeb.Components.UI.Form
-  alias ElektrineWeb.Components.UI.Table
-  alias ElektrineWeb.Components.UI.Icon
   alias ElektrineWeb.Components.UI.Card
   alias ElektrineWeb.Components.UI.Dropdown
   alias ElektrineWeb.Components.UI.EmptyState
-  alias ElektrineWeb.Components.UI.Badge
+  alias ElektrineWeb.Components.UI.Form
+  alias ElektrineWeb.Components.UI.Icon
   alias ElektrineWeb.Components.UI.Loading
-  alias ElektrineWeb.Components.UI.BrandIcon
+  alias ElektrineWeb.Components.UI.Modal
+  alias ElektrineWeb.Components.UI.Table
 
   # Layout Components
+  alias ElektrineWeb.Components.Layout.Announcement
   alias ElektrineWeb.Components.Layout.Header
   alias ElektrineWeb.Components.Layout.Navigation
-  alias ElektrineWeb.Components.Layout.Announcement
 
   # Datetime Components
   alias ElektrineWeb.Components.Datetime.LocalTime

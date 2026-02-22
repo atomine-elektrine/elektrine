@@ -5,14 +5,14 @@ defmodule ElektrineWeb.TimelineLive.Router do
   """
 
   alias ElektrineWeb.TimelineLive.Operations.{
-    PostOperations,
-    VotingOperations,
     ImageOperations,
     NavigationOperations,
-    SocialOperations,
+    PostOperations,
     ReplyOperations,
+    SocialOperations,
+    TrackingOperations,
     UIOperations,
-    TrackingOperations
+    VotingOperations
   }
 
   @doc """

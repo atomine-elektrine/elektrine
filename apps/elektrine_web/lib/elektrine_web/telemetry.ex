@@ -8,27 +8,14 @@ defmodule ElektrineWeb.Telemetry do
 
   @impl true
   def init(_arg) do
-    children = [
-      # Telemetry poller will execute the given period measurements
-      # every 30_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      # This avoids adding extra DB pressure during traffic spikes.
-      {:telemetry_poller, measurements: periodic_measurements(), period: 30_000}
-      # Add reporters as children of your supervision tree.
-      # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
-    ]
-
+    children = [telemetry_poller: [measurements: periodic_measurements(), period: 30_000]]
     Supervisor.init(children, strategy: :one_for_one)
   end
 
   def metrics do
     [
-      # Phoenix Metrics
-      summary("phoenix.endpoint.start.system_time",
-        unit: {:native, :millisecond}
-      ),
-      summary("phoenix.endpoint.stop.duration",
-        unit: {:native, :millisecond}
-      ),
+      summary("phoenix.endpoint.start.system_time", unit: {:native, :millisecond}),
+      summary("phoenix.endpoint.stop.duration", unit: {:native, :millisecond}),
       summary("phoenix.router_dispatch.start.system_time",
         tags: [:route],
         unit: {:native, :millisecond}
@@ -41,19 +28,13 @@ defmodule ElektrineWeb.Telemetry do
         tags: [:route],
         unit: {:native, :millisecond}
       ),
-      summary("phoenix.socket_connected.duration",
-        unit: {:native, :millisecond}
-      ),
+      summary("phoenix.socket_connected.duration", unit: {:native, :millisecond}),
       sum("phoenix.socket_drain.count"),
-      summary("phoenix.channel_joined.duration",
-        unit: {:native, :millisecond}
-      ),
+      summary("phoenix.channel_joined.duration", unit: {:native, :millisecond}),
       summary("phoenix.channel_handled_in.duration",
         tags: [:event],
         unit: {:native, :millisecond}
       ),
-
-      # Database Metrics
       summary("elektrine.repo.query.total_time",
         unit: {:native, :millisecond},
         description: "The sum of the other measurements"
@@ -75,21 +56,15 @@ defmodule ElektrineWeb.Telemetry do
         description:
           "The time the connection spent waiting before being checked out for the query"
       ),
-
-      # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),
       summary("vm.total_run_queue_lengths.cpu"),
       summary("vm.total_run_queue_lengths.io"),
-
-      # Oban Metrics
       counter("oban.job.start.count", tags: [:queue, :worker]),
       counter("oban.job.stop.count", tags: [:queue, :worker]),
       counter("oban.job.exception.count", tags: [:queue, :worker]),
       summary("oban.job.stop.duration", unit: {:native, :millisecond}, tags: [:queue, :worker]),
       summary("oban.job.stop.queue_time", unit: {:native, :millisecond}, tags: [:queue]),
-
-      # Mail protocol metrics (IMAP/POP3/SMTP)
       counter("elektrine.mail.auth.count", tags: [:protocol, :outcome, :ratelimit]),
       summary("elektrine.mail.command.duration",
         unit: {:microsecond, :millisecond},
@@ -97,11 +72,7 @@ defmodule ElektrineWeb.Telemetry do
       ),
       last_value("elektrine.mail.sessions.total", tags: [:protocol]),
       last_value("elektrine.mail.sessions.per_ip", tags: [:protocol]),
-
-      # Auth and account security
       counter("elektrine.auth.flow.count", tags: [:flow, :outcome, :reason]),
-
-      # Inbound/outbound email pipelines
       counter("elektrine.email.inbound.count", tags: [:stage, :outcome, :reason, :source]),
       summary("elektrine.email.inbound.duration",
         unit: {:millisecond, :millisecond},
@@ -112,15 +83,11 @@ defmodule ElektrineWeb.Telemetry do
         unit: {:millisecond, :millisecond},
         tags: [:stage, :outcome, :route]
       ),
-
-      # ActivityPub federation
       counter("elektrine.federation.event.count", tags: [:component, :event, :outcome]),
       summary("elektrine.federation.event.duration",
         unit: {:millisecond, :millisecond},
         tags: [:component, :event, :outcome]
       ),
-
-      # Certificate lifecycle
       counter("elektrine.cert.lifecycle.count", tags: [:component, :event, :outcome, :domain]),
       summary("elektrine.cert.lifecycle.duration",
         unit: {:millisecond, :millisecond},
@@ -128,18 +95,12 @@ defmodule ElektrineWeb.Telemetry do
       ),
       last_value("elektrine.cert.status.expiring"),
       last_value("elektrine.cert.status.total"),
-
-      # Upload/storage path
       counter("elektrine.upload.operation.count", tags: [:type, :outcome, :reason]),
       summary("elektrine.upload.operation.bytes",
         unit: {:byte, :kilobyte},
         tags: [:type, :outcome]
       ),
-
-      # Cache effectiveness
       counter("elektrine.cache.request.count", tags: [:cache, :op, :result]),
-
-      # API + DAV business requests
       counter("elektrine.api.request.count", tags: [:status_class, :endpoint_group, :method]),
       summary("elektrine.api.request.duration",
         unit: {:millisecond, :millisecond},
@@ -154,26 +115,16 @@ defmodule ElektrineWeb.Telemetry do
   end
 
   defp periodic_measurements do
-    [
-      # Check system health every 10 seconds
-      {__MODULE__, :measure_system_health, []}
-    ]
+    [{__MODULE__, :measure_system_health, []}]
   end
 
-  @doc """
-  Measures system health indicators and logs warnings when overloaded.
-  """
+  @doc "Measures system health indicators and logs warnings when overloaded.\n"
   def measure_system_health do
     scheduler_count = :erlang.system_info(:schedulers_online)
     run_queue = :erlang.statistics(:run_queue)
-
-    # CPU is stressed if run queue > schedulers
     cpu_stress = run_queue / scheduler_count
-
-    # Get Oban queue depths
     oban_stats = get_oban_queue_stats()
 
-    # Emit telemetry
     :telemetry.execute(
       [:elektrine, :system, :health],
       %{
@@ -187,7 +138,6 @@ defmodule ElektrineWeb.Telemetry do
       %{}
     )
 
-    # Log warning if system is stressed
     cond do
       cpu_stress > 2.0 ->
         require Logger
@@ -206,31 +156,26 @@ defmodule ElektrineWeb.Telemetry do
   end
 
   defp get_oban_queue_stats do
-    try do
-      # Query Oban job counts by state
-      import Ecto.Query
+    import Ecto.Query
 
-      counts =
-        Elektrine.Repo.all(
-          from(j in "oban_jobs",
-            where: j.state in ["available", "executing", "scheduled"],
-            group_by: j.state,
-            select: {j.state, count(j.id)}
-          ),
-          # Fail fast when the pool is saturated, but avoid forcing 1s query
-          # timeouts that disconnect busy DB connections.
-          pool_timeout: 250,
-          timeout: 5_000
-        )
-        |> Enum.into(%{})
+    counts =
+      Elektrine.Repo.all(
+        from(j in "oban_jobs",
+          where: j.state in ["available", "executing", "scheduled"],
+          group_by: j.state,
+          select: {j.state, count(j.id)}
+        ),
+        pool_timeout: 250,
+        timeout: 5000
+      )
+      |> Enum.into(%{})
 
-      %{
-        available: Map.get(counts, "available", 0),
-        executing: Map.get(counts, "executing", 0),
-        scheduled: Map.get(counts, "scheduled", 0)
-      }
-    rescue
-      _ -> %{available: 0, executing: 0, scheduled: 0}
-    end
+    %{
+      available: Map.get(counts, "available", 0),
+      executing: Map.get(counts, "executing", 0),
+      scheduled: Map.get(counts, "scheduled", 0)
+    }
+  rescue
+    _ -> %{available: 0, executing: 0, scheduled: 0}
   end
 end

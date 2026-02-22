@@ -1,4 +1,5 @@
 defmodule Elektrine.Email.ContactGroup do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

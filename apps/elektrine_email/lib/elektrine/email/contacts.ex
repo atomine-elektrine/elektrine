@@ -3,8 +3,8 @@ defmodule Elektrine.Email.Contacts do
   Context for managing email contacts.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.{Contact, ContactGroup}
+  alias Elektrine.Repo
 
   # ===== CONTACTS =====
 

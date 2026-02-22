@@ -1,11 +1,8 @@
 defmodule ElektrineWeb.SettingsLive.PasswordManager do
   use ElektrineWeb, :live_view
-
   alias Elektrine.PasswordManager
   alias Elektrine.PasswordManager.VaultEntry
-
-  on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
-
+  on_mount({ElektrineWeb.Live.AuthHooks, :require_authenticated_user})
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
@@ -22,7 +19,6 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
   def handle_event("validate", %{"entry" => params}, socket) do
     user = socket.assigns.current_user
     form = entry_form(user.id, params, :validate)
-
     {:noreply, assign(socket, :form, form)}
   end
 
@@ -70,13 +66,15 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
 
   @impl true
   def handle_event("hide", %{"id" => id}, socket) do
-    with {:ok, entry_id} <- parse_entry_id(id) do
-      {:noreply,
-       update(socket, :revealed_entries, fn revealed_entries ->
-         Map.delete(revealed_entries, entry_id)
-       end)}
-    else
-      :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
+    case parse_entry_id(id) do
+      {:ok, entry_id} ->
+        {:noreply,
+         update(socket, :revealed_entries, fn revealed_entries ->
+           Map.delete(revealed_entries, entry_id)
+         end)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid entry id")}
     end
   end
 
@@ -94,14 +92,9 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
        end)
        |> put_flash(:info, "Vault entry deleted")}
     else
-      :error ->
-        {:noreply, put_flash(socket, :error, "Invalid entry id")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Entry not found")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not delete entry")}
+      :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
+      {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Entry not found")}
+      {:error, _reason} -> {:noreply, put_flash(socket, :error, "Could not delete entry")}
     end
   end
 
@@ -290,14 +283,8 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
   end
 
   defp entry_form(user_id, attrs \\ %{}, action \\ nil) do
-    params =
-      attrs
-      |> normalize_params()
-      |> Map.put("user_id", user_id)
-
-    changeset =
-      %VaultEntry{}
-      |> VaultEntry.form_changeset(params)
+    params = attrs |> normalize_params() |> Map.put("user_id", user_id)
+    changeset = %VaultEntry{} |> VaultEntry.form_changeset(params)
 
     changeset =
       if action do
@@ -310,13 +297,16 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
   end
 
   defp normalize_params(attrs) do
-    Enum.reduce(attrs, %{}, fn {key, value}, acc ->
-      Map.put(acc, normalize_key(key), value)
-    end)
+    Enum.reduce(attrs, %{}, fn {key, value}, acc -> Map.put(acc, normalize_key(key), value) end)
   end
 
-  defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)
-  defp normalize_key(key), do: key
+  defp normalize_key(key) when is_atom(key) do
+    Atom.to_string(key)
+  end
+
+  defp normalize_key(key) do
+    key
+  end
 
   defp parse_entry_id(id) do
     case Integer.parse(to_string(id)) do

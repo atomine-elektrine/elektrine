@@ -6,8 +6,8 @@ defmodule Mix.Tasks.Social.RecalculateReplyCounts do
   """
   use Mix.Task
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
 
   @shortdoc "Recalculates reply counts for all timeline posts"
 

@@ -5,8 +5,8 @@ defmodule ElektrineWeb.TimelineFiltersTest do
   import Ecto.Query
   import Elektrine.SocialFixtures
 
-  alias Elektrine.AccountsFixtures
   alias Elektrine.Accounts.User
+  alias Elektrine.AccountsFixtures
   alias Elektrine.Friends
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
@@ -280,7 +280,8 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert render(view) =~ "Loading replies..."
 
     {:ok, _reply} =
-      Social.create_timeline_post(author.id, "Reply imported from remote", visibility: "public",
+      Social.create_timeline_post(author.id, "Reply imported from remote",
+        visibility: "public",
         reply_to_id: post.id
       )
 
@@ -292,7 +293,9 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     refute html =~ "Loading replies..."
   end
 
-  test "load_remote_replies clears loading after retry limit when no replies arrive", %{conn: conn} do
+  test "load_remote_replies clears loading after retry limit when no replies arrive", %{
+    conn: conn
+  } do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 

@@ -1,4 +1,5 @@
 defmodule Elektrine.Accounts.UsernameHistory do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

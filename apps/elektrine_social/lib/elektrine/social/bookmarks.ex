@@ -7,8 +7,8 @@ defmodule Elektrine.Social.Bookmarks do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
   alias Elektrine.Social.SavedItem
 
   @doc """
@@ -178,7 +178,7 @@ defmodule Elektrine.Social.Bookmarks do
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
 
-    alias Elektrine.RSS.{Item, Feed}
+    alias Elektrine.RSS.{Feed, Item}
 
     from(s in SavedItem,
       where: s.user_id == ^user_id and not is_nil(s.rss_item_id),

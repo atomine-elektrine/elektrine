@@ -1,42 +1,25 @@
 defmodule Elektrine.IMAP.Helpers do
-  @moduledoc """
-  Helper functions for IMAP server operations including parsing, validation,
-  pattern matching, and utility functions.
-  """
-
+  @moduledoc "Helper functions for IMAP server operations including parsing, validation,\npattern matching, and utility functions.\n"
   require Logger
-
-  # Parsing functions
-
   @doc "Parse LOGIN command arguments"
-  def parse_login_args(nil), do: {:error, :missing_args}
+  def parse_login_args(nil) do
+    {:error, :missing_args}
+  end
 
   def parse_login_args(args) do
-    # Handle both quoted and unquoted usernames/passwords
-    # Examples:
-    #   user@example.com password123
-    #   "user@example.com" "password123"
-    #   "user name" "pass word"
-    #   user "password with spaces"
     case parse_quoted_strings(args) do
       [username, password] ->
         {:ok, username, password}
 
       _ ->
-        # Fallback to simple space split for unquoted args
         case String.split(args, " ", parts: 2) do
-          [username, password] ->
-            {:ok, username, password}
-
-          _ ->
-            {:error, :invalid_format}
+          [username, password] -> {:ok, username, password}
+          _ -> {:error, :invalid_format}
         end
     end
   end
 
-  # Parse a string that may contain quoted values
   defp parse_quoted_strings(str) do
-    # Match quoted strings or non-space sequences
     Regex.scan(~r/"([^"\\]*(?:\\.[^"\\]*)*)"|(\S+)/, str)
     |> Enum.map(fn
       [_, quoted, ""] -> quoted
@@ -47,7 +30,9 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   @doc "Parse LIST command arguments"
-  def parse_list_args(nil), do: {"", "*"}
+  def parse_list_args(nil) do
+    {"", "*"}
+  end
 
   def parse_list_args(args) do
     case String.split(args, " ", parts: 2) do
@@ -66,20 +51,21 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   @doc "Parse STATUS command arguments"
-  def parse_status_args(nil), do: {:error, :missing_args}
+  def parse_status_args(nil) do
+    {:error, :missing_args}
+  end
 
   def parse_status_args(args) do
     case Regex.run(~r/"([^"]+)"\s*\(([^)]+)\)/, args) do
-      [_, folder, items] ->
-        {:ok, folder, String.split(items, " ")}
-
-      _ ->
-        {:error, :invalid_format}
+      [_, folder, items] -> {:ok, folder, String.split(items, " ")}
+      _ -> {:error, :invalid_format}
     end
   end
 
   @doc "Parse FETCH command arguments"
-  def parse_fetch_args(nil), do: {:error, :missing_args}
+  def parse_fetch_args(nil) do
+    {:error, :missing_args}
+  end
 
   def parse_fetch_args(args) do
     trimmed = String.trim(args)
@@ -96,11 +82,7 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Parse fetch items list"
   def parse_fetch_items(items_str) do
-    cleaned =
-      items_str
-      |> String.trim()
-      |> String.trim_leading("(")
-      |> String.trim_trailing(")")
+    cleaned = items_str |> String.trim() |> String.trim_leading("(") |> String.trim_trailing(")")
 
     if String.contains?(cleaned, "[") do
       parse_complex_items(cleaned)
@@ -111,7 +93,6 @@ defmodule Elektrine.IMAP.Helpers do
 
   defp parse_complex_items(str) do
     simple_items = ["UID", "FLAGS", "RFC822.SIZE", "ENVELOPE", "BODYSTRUCTURE"]
-
     words = String.split(str, ~r/\s+/)
 
     Enum.filter(words, fn word ->
@@ -120,7 +101,9 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   @doc "Parse COPY/MOVE command arguments"
-  def parse_copy_args(nil), do: {:error, :missing_args}
+  def parse_copy_args(nil) do
+    {:error, :missing_args}
+  end
 
   def parse_copy_args(args) do
     case String.split(args, " ", parts: 2) do
@@ -134,7 +117,9 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   @doc "Parse STORE command arguments"
-  def parse_store_args(nil), do: {:error, :missing_args}
+  def parse_store_args(nil) do
+    {:error, :missing_args}
+  end
 
   def parse_store_args(args) do
     case String.split(args, " ", parts: 3) do
@@ -156,12 +141,10 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Parse APPEND command arguments"
   def parse_append_args(args) do
-    # Support both synchronizing {size} and non-synchronizing {size+} literals (LITERAL+)
     case Regex.run(~r/"([^"]+)"\s*(?:\([^)]*\))?\s*\{(\d+)\+?\}/, args || "") do
       [_, folder, size_str] ->
         case Integer.parse(size_str) do
           {size, ""} ->
-            # Check if it's a non-synchronizing literal (LITERAL+)
             is_literal_plus = String.contains?(args || "", "+}")
             {:ok, folder, [], size, is_literal_plus}
 
@@ -176,29 +159,25 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Decode PLAIN authentication credentials"
   def decode_auth_plain(credentials) do
-    try do
-      decoded = Base.decode64!(credentials)
+    decoded = Base.decode64!(credentials)
 
-      case String.split(decoded, "\0") do
-        ["", username, password] ->
-          {:ok, username, password}
-
-        [_authzid, username, password] ->
-          {:ok, username, password}
-
-        _ ->
-          {:error, :invalid_format}
-      end
-    rescue
-      _ -> {:error, :decode_failed}
+    case String.split(decoded, "\0") do
+      ["", username, password] -> {:ok, username, password}
+      [_authzid, username, password] -> {:ok, username, password}
+      _ -> {:error, :invalid_format}
     end
+  rescue
+    _ -> {:error, :decode_failed}
   end
 
-  # Sequence and UID parsing
-
   @doc "Parse sequence number with wildcard support"
-  def parse_sequence_number("*", max) when is_integer(max) and max > 0, do: max
-  def parse_sequence_number("*", _max), do: nil
+  def parse_sequence_number("*", max) when is_integer(max) and max > 0 do
+    max
+  end
+
+  def parse_sequence_number("*", _max) do
+    nil
+  end
 
   def parse_sequence_number(str, _max) do
     case Integer.parse(str) do
@@ -318,11 +297,8 @@ defmodule Elektrine.IMAP.Helpers do
       case String.split(String.trim(part), ":") do
         [start_str, end_str] ->
           case {Integer.parse(start_str), Integer.parse(end_str)} do
-            {{start_uid, ""}, {end_uid, ""}} ->
-              uid >= start_uid and uid <= end_uid
-
-            _ ->
-              false
+            {{start_uid, ""}, {end_uid, ""}} -> uid >= start_uid and uid <= end_uid
+            _ -> false
           end
 
         [uid_str] ->
@@ -337,14 +313,11 @@ defmodule Elektrine.IMAP.Helpers do
     end)
   end
 
-  # Search criteria matching
-
   @doc "Check if message matches search criteria"
   def matches_search_criteria?(msg, criteria, sequence_number \\ nil, max_sequence \\ nil) do
     criteria_upper = String.upcase(criteria)
 
     cond do
-      # Basic flags
       criteria_upper == "ALL" ->
         true
 
@@ -387,11 +360,9 @@ defmodule Elektrine.IMAP.Helpers do
       criteria_upper == "UNDRAFT" ->
         Map.get(msg, :status) != "draft"
 
-      # UID search
       String.starts_with?(criteria_upper, "UID ") ->
         matches_uid_range?(msg, String.replace_prefix(criteria_upper, "UID ", ""))
 
-      # Header searches
       String.starts_with?(criteria_upper, "FROM ") ->
         matches_from?(msg, String.slice(criteria, 5..-1//1))
 
@@ -407,18 +378,15 @@ defmodule Elektrine.IMAP.Helpers do
       String.starts_with?(criteria_upper, "SUBJECT ") ->
         matches_subject?(msg, String.slice(criteria, 8..-1//1))
 
-      # Content searches
       String.starts_with?(criteria_upper, "BODY ") ->
         matches_body?(msg, String.slice(criteria, 5..-1//1))
 
       String.starts_with?(criteria_upper, "TEXT ") ->
         matches_text?(msg, String.slice(criteria, 5..-1//1))
 
-      # Header field search - HEADER field-name string
       String.starts_with?(criteria_upper, "HEADER ") ->
         matches_header?(msg, String.slice(criteria, 7..-1//1))
 
-      # Date searches
       String.starts_with?(criteria_upper, "BEFORE ") ->
         matches_before?(msg, String.slice(criteria, 7..-1//1))
 
@@ -437,14 +405,12 @@ defmodule Elektrine.IMAP.Helpers do
       String.starts_with?(criteria_upper, "SENTSINCE ") ->
         matches_since?(msg, String.slice(criteria, 10..-1//1))
 
-      # Size searches
       String.starts_with?(criteria_upper, "LARGER ") ->
         matches_larger?(msg, String.slice(criteria, 7..-1//1))
 
       String.starts_with?(criteria_upper, "SMALLER ") ->
         matches_smaller?(msg, String.slice(criteria, 8..-1//1))
 
-      # Boolean operators - NOT
       String.starts_with?(criteria_upper, "NOT ") ->
         !matches_search_criteria?(
           msg,
@@ -453,11 +419,9 @@ defmodule Elektrine.IMAP.Helpers do
           max_sequence
         )
 
-      # Sequence set
       String.match?(criteria, ~r/^[\d\*]+(:[\d\*]+)?(,[\d\*]+(:[\d\*]+)?)*$/) ->
         matches_sequence_set?(sequence_number, max_sequence, criteria)
 
-      # Default - match all
       true ->
         true
     end
@@ -524,7 +488,6 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   defp matches_header?(msg, args) do
-    # HEADER field-name string
     case String.split(args, " ", parts: 2) do
       [field_name, search_term] ->
         search_term = String.trim(search_term, "\"")
@@ -601,8 +564,13 @@ defmodule Elektrine.IMAP.Helpers do
     end
   end
 
-  defp matches_sequence_set?(nil, _max_sequence, _set), do: false
-  defp matches_sequence_set?(_sequence_number, nil, _set), do: false
+  defp matches_sequence_set?(nil, _max_sequence, _set) do
+    false
+  end
+
+  defp matches_sequence_set?(_sequence_number, nil, _set) do
+    false
+  end
 
   defp matches_sequence_set?(sequence_number, max_sequence, set)
        when is_integer(sequence_number) and is_integer(max_sequence) do
@@ -638,7 +606,6 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   defp parse_imap_date(date_str) do
-    # IMAP date format: "DD-Mon-YYYY" e.g., "01-Jan-2024"
     date_str = String.trim(date_str, "\"")
 
     case Regex.run(~r/(\d{1,2})-(\w{3})-(\d{4})/, date_str) do
@@ -672,8 +639,6 @@ defmodule Elektrine.IMAP.Helpers do
       _ -> 1
     end
   end
-
-  # Pattern matching for LIST command
 
   @doc "Check if folder name matches pattern"
   def matches_pattern?(name, pattern) do
@@ -724,19 +689,14 @@ defmodule Elektrine.IMAP.Helpers do
           {:cont, remaining}
         else
           case :binary.match(remaining, String.downcase(part)) do
-            {pos, len} ->
-              {:cont, String.slice(remaining, (pos + len)..-1//1)}
-
-            :nomatch ->
-              {:halt, :nomatch}
+            {pos, len} -> {:cont, String.slice(remaining, (pos + len)..-1//1)}
+            :nomatch -> {:halt, :nomatch}
           end
         end
       end)
 
     starts_ok and ends_ok and middle_ok != :nomatch
   end
-
-  # Utility functions
 
   @doc "Check if message should be in current folder"
   def message_in_current_folder?(message, folder) do
@@ -784,15 +744,13 @@ defmodule Elektrine.IMAP.Helpers do
       item_upper = String.upcase(item)
 
       (String.starts_with?(item_upper, "BODY[") && !String.contains?(item_upper, "PEEK")) ||
-        item_upper == "RFC822" ||
-        item_upper == "RFC822.TEXT"
+        item_upper == "RFC822" || item_upper == "RFC822.TEXT"
     end)
   end
 
   @doc "Generate random boundary for MIME messages"
   def generate_boundary do
-    :crypto.strong_rand_bytes(16)
-    |> Base.encode16(case: :lower)
+    :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)
   end
 
   @doc "Generate unique session ID"
@@ -802,19 +760,17 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Format date for IMAP response (RFC 5322 compliant)"
   def format_date(datetime) do
-    # RFC 5322: "Tue, 15 Oct 2024 10:30:00 +0000"
-    # Day of week is required for email clients like neomutt to parse correctly
     Calendar.strftime(datetime, "%a, %d %b %Y %H:%M:%S +0000")
   end
 
   @doc "Escape string for IMAP protocol"
   def escape_imap_string(str) when is_binary(str) do
-    str
-    |> String.replace("\\", "\\\\")
-    |> String.replace("\"", "\\\"")
+    str |> String.replace("\\", "\\\\") |> String.replace("\"", "\\\"")
   end
 
-  def escape_imap_string(_), do: ""
+  def escape_imap_string(_) do
+    ""
+  end
 
   @doc "Redact email addresses in logs"
   def redact_email(email) when is_binary(email) do
@@ -828,7 +784,9 @@ defmodule Elektrine.IMAP.Helpers do
     end
   end
 
-  def redact_email(_), do: "***"
+  def redact_email(_) do
+    "***"
+  end
 
   @doc "Normalize IPv6 addresses to /64 subnet"
   def normalize_ipv6_subnet(ip_string) do
@@ -849,31 +807,24 @@ defmodule Elektrine.IMAP.Helpers do
     end
   end
 
-  @doc """
-  Encode text as quoted-printable per RFC 2045.
-  For simplicity, we use 8bit transfer encoding for UTF-8 content since
-  modern email clients support it and it's more readable.
-  """
+  @doc "Encode text as quoted-printable per RFC 2045.\nFor simplicity, we use 8bit transfer encoding for UTF-8 content since\nmodern email clients support it and it's more readable.\n"
   def encode_as_8bit(content) when is_binary(content) do
-    # Just ensure proper line endings (CRLF)
-    content
-    |> String.replace(~r/\r?\n/, "\r\n")
+    content |> String.replace(~r/\r?\n/, "\r\n")
   end
 
-  def encode_as_8bit(nil), do: ""
+  def encode_as_8bit(nil) do
+    ""
+  end
 
-  @doc """
-  Encode binary data as base64 with proper line wrapping at 76 characters per RFC 2045.
-  """
+  @doc "Encode binary data as base64 with proper line wrapping at 76 characters per RFC 2045.\n"
   def base64_encode_wrapped(data) when is_binary(data) do
-    data
-    |> Base.encode64()
-    |> wrap_lines(76)
+    data |> Base.encode64() |> wrap_lines(76)
   end
 
-  def base64_encode_wrapped(nil), do: ""
+  def base64_encode_wrapped(nil) do
+    ""
+  end
 
-  # Wrap text at specified line length with CRLF
   defp wrap_lines(text, max_length) do
     text
     |> String.graphemes()

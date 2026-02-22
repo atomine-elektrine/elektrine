@@ -131,8 +131,7 @@ defmodule ElektrineWeb.HarakaInboundWorker do
 
     material =
       [message_id, from, rcpt_to, subject, body_fingerprint]
-      |> Enum.map(&String.downcase/1)
-      |> Enum.join("|")
+      |> Enum.map_join("|", &String.downcase/1)
 
     :crypto.hash(:sha256, material)
     |> Base.encode16(case: :lower)

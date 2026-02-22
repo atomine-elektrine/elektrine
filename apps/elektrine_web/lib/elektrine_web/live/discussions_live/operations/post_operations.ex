@@ -13,7 +13,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.{Social, Messaging, Repo}
+  alias Elektrine.{Messaging, Repo, Social}
   alias ElektrineWeb.DiscussionsLive.Operations.SortHelpers
 
   # Toggle new post form visibility
@@ -204,7 +204,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
         case Elektrine.Messaging.ModerationTools.check_slow_mode(community.id, user_id) do
           {:ok, :allowed} ->
             # Auto-join the user to the community when they post (if not already a member)
-            if !is_member?(community.id, user_id) do
+            if !member?(community.id, user_id) do
               Messaging.add_member_to_conversation(community.id, user_id, "member")
             end
 
@@ -537,7 +537,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
       user_id = socket.assigns.current_user.id
 
       # Auto-join if not already a member
-      if !is_member?(community.id, user_id) do
+      if !member?(community.id, user_id) do
         Messaging.add_member_to_conversation(community.id, user_id, "member")
       end
 
@@ -1177,7 +1177,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     ~p"/communities/#{community_name}/post/#{slug}"
   end
 
-  defp is_member?(community_id, user_id) do
+  defp member?(community_id, user_id) do
     import Ecto.Query
 
     Repo.exists?(

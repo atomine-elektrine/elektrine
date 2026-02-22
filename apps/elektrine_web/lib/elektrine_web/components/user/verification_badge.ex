@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.User.VerificationBadge do
+  @moduledoc false
   use Phoenix.Component
 
   @doc """

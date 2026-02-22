@@ -3,9 +3,9 @@ defmodule Elektrine.Email.Exports do
   Context module for managing email exports.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Export
   alias Elektrine.Email.Message
+  alias Elektrine.Repo
 
   require Logger
 

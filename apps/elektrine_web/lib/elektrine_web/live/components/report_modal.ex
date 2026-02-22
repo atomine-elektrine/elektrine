@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.ReportModal do
+  @moduledoc false
   use ElektrineWeb, :live_component
   alias Elektrine.Reports
 

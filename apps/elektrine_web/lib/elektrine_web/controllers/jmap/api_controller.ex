@@ -5,8 +5,8 @@ defmodule ElektrineWeb.JMAP.APIController do
   """
   use ElektrineWeb, :controller
 
-  alias Elektrine.JMAP
   alias Elektrine.Email
+  alias Elektrine.JMAP
 
   @supported_capabilities [
     "urn:ietf:params:jmap:core",

@@ -10,9 +10,9 @@ defmodule Elektrine.Friends do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
-  alias Elektrine.Friends.FriendRequest
   alias Elektrine.Accounts.User
+  alias Elektrine.Friends.FriendRequest
+  alias Elektrine.Repo
 
   @doc """
   Sends a friend request from requester to recipient.

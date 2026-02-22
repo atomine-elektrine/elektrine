@@ -22,7 +22,7 @@ defmodule Elektrine.ActivityPub.Nodeinfo do
   Check if a domain is running Pixelfed or similar photo-focused software.
   Returns true if the instance is photo-focused.
   """
-  def is_photo_instance?(domain) do
+  def photo_instance?(domain) do
     case get_software(domain) do
       {:ok, software} -> String.downcase(software) in @known_pixelfed_software
       _ -> false

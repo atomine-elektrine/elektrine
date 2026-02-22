@@ -45,7 +45,10 @@ defmodule ElektrineWeb.Plugs.CacheRawBody do
     case Plug.Conn.read_body(conn, opts) do
       {:ok, chunk, conn} ->
         body = acc <> chunk
-        conn = conn |> Plug.Conn.assign(:raw_body, body) |> Plug.Conn.put_private(:cached_body, body)
+
+        conn =
+          conn |> Plug.Conn.assign(:raw_body, body) |> Plug.Conn.put_private(:cached_body, body)
+
         {:ok, body, conn}
 
       {:more, chunk, conn} ->

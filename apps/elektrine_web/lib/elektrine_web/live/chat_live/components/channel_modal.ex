@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.ChatLive.Components.ChannelModal do
+  @moduledoc false
   use ElektrineWeb, :live_component
 
   def render(assigns) do

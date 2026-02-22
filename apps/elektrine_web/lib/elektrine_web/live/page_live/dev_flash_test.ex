@@ -53,7 +53,9 @@ defmodule ElektrineWeb.PageLive.DevFlashTest do
             <div class="divider my-0"></div>
 
             <p class="text-sm opacity-70">
-              Flash messages render through the layout-level <code class="font-mono">flash_group</code> component.
+              Flash messages render through the layout-level
+              <code class="font-mono">flash_group</code>
+              component.
             </p>
           </div>
         </div>

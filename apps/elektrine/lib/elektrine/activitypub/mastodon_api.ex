@@ -40,7 +40,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   def fetch_statuses_counts(posts) when is_list(posts) do
     tasks =
       posts
-      |> Enum.filter(&is_mastodon_compatible?/1)
+      |> Enum.filter(&mastodon_compatible?/1)
       |> Enum.map(fn post ->
         Task.async(fn ->
           activitypub_id = get_activitypub_id(post)
@@ -160,7 +160,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   Detect if a URL is from a Mastodon-compatible instance.
   This is a heuristic based on URL patterns.
   """
-  def is_mastodon_compatible?(post) do
+  def mastodon_compatible?(post) do
     activitypub_id = get_activitypub_id(post)
 
     cond do

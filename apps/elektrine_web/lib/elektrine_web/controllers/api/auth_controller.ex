@@ -2,8 +2,8 @@ defmodule ElektrineWeb.API.AuthController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
-  alias ElektrineWeb.Plugs.APIAuth
   alias ElektrineWeb.ClientIP
+  alias ElektrineWeb.Plugs.APIAuth
 
   action_fallback ElektrineWeb.FallbackController
 

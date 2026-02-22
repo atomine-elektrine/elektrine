@@ -3,8 +3,8 @@ defmodule Elektrine.ActivityPub.Builder do
   Builds ActivityPub JSON-LD documents for actors, activities, and objects.
   """
 
-  alias Elektrine.ActivityPub
   alias Elektrine.Accounts.User
+  alias Elektrine.ActivityPub
   alias Elektrine.Messaging.Message
 
   @doc """

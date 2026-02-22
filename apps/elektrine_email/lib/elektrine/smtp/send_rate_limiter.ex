@@ -54,7 +54,7 @@ defmodule Elektrine.SMTP.SendRateLimiter do
 
     minute_count = count_recent(attempts, now, 60)
     hour_count = count_recent(attempts, now, 3600)
-    day_count = count_recent(attempts, now, 86400)
+    day_count = count_recent(attempts, now, 86_400)
 
     cond do
       minute_count >= @minute_limit ->
@@ -95,7 +95,7 @@ defmodule Elektrine.SMTP.SendRateLimiter do
 
       [{^ip_address, attempts}] ->
         # Filter old attempts and add new one
-        cutoff = now - 86400
+        cutoff = now - 86_400
         filtered = Enum.filter(attempts, fn ts -> ts > cutoff end)
         new_attempts = [now | filtered]
         :ets.insert(@table_name, {ip_address, new_attempts})
@@ -123,9 +123,9 @@ defmodule Elektrine.SMTP.SendRateLimiter do
         remaining: max(0, @hour_limit - count_recent(attempts, now, 3600))
       },
       day: %{
-        count: count_recent(attempts, now, 86400),
+        count: count_recent(attempts, now, 86_400),
         limit: @day_limit,
-        remaining: max(0, @day_limit - count_recent(attempts, now, 86400))
+        remaining: max(0, @day_limit - count_recent(attempts, now, 86_400))
       }
     }
   end
@@ -146,7 +146,7 @@ defmodule Elektrine.SMTP.SendRateLimiter do
 
   defp cleanup_expired_entries do
     now = System.system_time(:second)
-    cutoff = now - 86400 * 2
+    cutoff = now - 86_400 * 2
 
     :ets.tab2list(@table_name)
     |> Enum.each(fn {ip, attempts} ->

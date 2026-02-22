@@ -2,8 +2,8 @@
 # Run with: mix run priv/repo/seed_test_emails.exs
 
 import Ecto.Query
-alias Elektrine.{Repo, Email, Accounts}
 alias Elektrine.Email.{Mailbox, Message}
+alias Elektrine.{Accounts, Email, Repo}
 
 # Get or create a test user
 user =

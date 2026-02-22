@@ -6,8 +6,8 @@ defmodule Elektrine.Email.Messages do
 
   import Ecto.Query, warn: false
   require Logger
+  alias Elektrine.Email.{CacheHooks, Mailbox, Message}
   alias Elektrine.Repo
-  alias Elektrine.Email.{Message, Mailbox, CacheHooks}
 
   # Private helper to decrypt email messages
   defp decrypt_email_messages(messages, mailbox_id) when is_list(messages) do

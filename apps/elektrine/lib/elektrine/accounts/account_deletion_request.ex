@@ -1,4 +1,5 @@
 defmodule Elektrine.Accounts.AccountDeletionRequest do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

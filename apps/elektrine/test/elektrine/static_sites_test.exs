@@ -1,8 +1,8 @@
 defmodule Elektrine.StaticSitesTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.StaticSites
   alias Elektrine.AccountsFixtures
+  alias Elektrine.StaticSites
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -318,7 +318,7 @@ defmodule Elektrine.StaticSitesTest do
       {:ok, _} = StaticSites.upload_file(user, "index.html", small_content, "text/html")
       small_size = StaticSites.total_storage_used(user.id)
 
-      large_content = "<html>" <> String.duplicate("x", 10000) <> "</html>"
+      large_content = "<html>" <> String.duplicate("x", 10_000) <> "</html>"
       {:ok, _} = StaticSites.upload_file(user, "index.html", large_content, "text/html")
       large_size = StaticSites.total_storage_used(user.id)
 

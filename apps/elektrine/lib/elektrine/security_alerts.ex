@@ -7,8 +7,8 @@ defmodule Elektrine.SecurityAlerts do
   require Logger
   import Swoosh.Email
 
-  alias Elektrine.Email.MailboxAdapter
   alias Elektrine.Accounts
+  alias Elektrine.Email.MailboxAdapter
 
   # Rate limit: 1 alert per type per user per hour
   @rate_limit_seconds 3600

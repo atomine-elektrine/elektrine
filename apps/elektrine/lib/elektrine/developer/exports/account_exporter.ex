@@ -12,8 +12,8 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   @doc """
   Exports account data for a user.

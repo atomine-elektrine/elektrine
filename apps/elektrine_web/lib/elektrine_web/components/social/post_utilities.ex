@@ -16,22 +16,22 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   @doc """
   Checks if the given URL is a video file based on extension.
   """
-  @spec is_video_url?(String.t() | nil) :: boolean()
-  def is_video_url?(url) when is_binary(url) do
+  @spec video_url?(String.t() | nil) :: boolean()
+  def video_url?(url) when is_binary(url) do
     String.match?(String.downcase(url), ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/)
   end
 
-  def is_video_url?(_), do: false
+  def video_url?(_), do: false
 
   @doc """
   Checks if the given URL is an audio file based on extension.
   """
-  @spec is_audio_url?(String.t() | nil) :: boolean()
-  def is_audio_url?(url) when is_binary(url) do
+  @spec audio_url?(String.t() | nil) :: boolean()
+  def audio_url?(url) when is_binary(url) do
     String.match?(String.downcase(url), ~r/\.(mp3|wav|m4a|aac|flac|oga|opus|ogg)(\?.*)?$/)
   end
 
-  def is_audio_url?(_), do: false
+  def audio_url?(_), do: false
 
   @doc """
   Filters a list of URLs to return only image URLs.
@@ -168,7 +168,9 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
     |> remote_actor_domain()
     |> Kernel.||(Map.get(item, :author_domain) || Map.get(item, "author_domain"))
     |> Kernel.||(host_from_uri(Map.get(item, :activitypub_id) || Map.get(item, "activitypub_id")))
-    |> Kernel.||(host_from_uri(Map.get(item, :activitypub_url) || Map.get(item, "activitypub_url")))
+    |> Kernel.||(
+      host_from_uri(Map.get(item, :activitypub_url) || Map.get(item, "activitypub_url"))
+    )
   end
 
   def get_instance_domain(_), do: nil
@@ -297,8 +299,8 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   @doc """
   Determines if a post is a reply based on reply_to_id or inReplyTo metadata.
   """
-  @spec is_reply?(map()) :: boolean()
-  def is_reply?(post) do
+  @spec reply?(map()) :: boolean()
+  def reply?(post) do
     post.reply_to_id != nil ||
       (is_map(post.media_metadata) && post.media_metadata["inReplyTo"] != nil)
   end
@@ -306,8 +308,8 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   @doc """
   Determines if a post is a gallery post (has images, not video/audio).
   """
-  @spec is_gallery_post?(map()) :: boolean()
-  def is_gallery_post?(post) do
+  @spec gallery_post?(map()) :: boolean()
+  def gallery_post?(post) do
     has_images =
       !Enum.empty?(post.media_urls || []) &&
         Enum.any?(post.media_urls || [], fn url ->
@@ -367,7 +369,10 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   defp remote_actor_domain(%{remote_actor: remote_actor}), do: remote_actor_domain(remote_actor)
 
   defp remote_actor_domain(%{domain: domain}) when is_binary(domain) and domain != "", do: domain
-  defp remote_actor_domain(%{"domain" => domain}) when is_binary(domain) and domain != "", do: domain
+
+  defp remote_actor_domain(%{"domain" => domain}) when is_binary(domain) and domain != "",
+    do: domain
+
   defp remote_actor_domain(_), do: nil
 
   defp host_from_uri(uri) when is_binary(uri) do

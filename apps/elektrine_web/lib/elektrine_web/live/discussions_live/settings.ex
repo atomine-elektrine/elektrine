@@ -17,7 +17,7 @@ defmodule ElektrineWeb.DiscussionsLive.Settings do
       community_id = community.id
 
       # Check if user is the owner
-      is_owner = user && Messaging.is_community_owner?(community_id, user.id)
+      is_owner = user && Messaging.community_owner?(community_id, user.id)
 
       if is_owner do
         if connected?(socket) do

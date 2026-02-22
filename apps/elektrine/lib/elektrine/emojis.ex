@@ -3,8 +3,8 @@ defmodule Elektrine.Emojis do
   Context for managing custom emojis from local and federated instances.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Emojis.CustomEmoji
+  alias Elektrine.Repo
 
   @doc """
   Gets a custom emoji by shortcode and instance domain.

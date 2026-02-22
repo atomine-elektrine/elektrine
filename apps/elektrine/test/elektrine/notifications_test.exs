@@ -1,7 +1,7 @@
 defmodule Elektrine.NotificationsTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.{Notifications, Accounts}
+  alias Elektrine.{Accounts, Notifications}
   import Elektrine.AccountsFixtures
 
   describe "notification preferences" do

@@ -14,8 +14,8 @@ defmodule Mix.Tasks.Elektrine.MigrateEmailAttachments do
   import Ecto.Query
   require Logger
 
+  alias Elektrine.Email.{AttachmentStorage, Message}
   alias Elektrine.Repo
-  alias Elektrine.Email.{Message, AttachmentStorage}
 
   @shortdoc "Migrates email attachments from database to S3/R2"
 

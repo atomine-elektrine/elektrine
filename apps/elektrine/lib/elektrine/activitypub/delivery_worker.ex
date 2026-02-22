@@ -7,9 +7,9 @@ defmodule Elektrine.ActivityPub.DeliveryWorker do
   use GenServer
   require Logger
 
+  alias Elektrine.Accounts
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Publisher
-  alias Elektrine.Accounts
 
   # Run every 30 seconds (increased from 10 to reduce pool pressure)
   @tick_interval 30_000

@@ -13,9 +13,9 @@ defmodule Mix.Tasks.Email.RecalculateStorage do
 
   use Mix.Task
 
-  alias Elektrine.Repo
-  alias Elektrine.Accounts.User
   alias Elektrine.Accounts.Storage
+  alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   require Logger
 

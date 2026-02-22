@@ -1,7 +1,7 @@
 defmodule Elektrine.EncryptedSearchTest do
   use Elektrine.DataCase
 
-  alias Elektrine.{Messaging, Accounts, Repo}
+  alias Elektrine.{Accounts, Messaging, Repo}
   alias Elektrine.Messaging.Message
 
   setup do

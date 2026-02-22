@@ -1,8 +1,9 @@
 defmodule Mix.Tasks.Elektrine.CleanupDuplicateMailboxes do
+  @moduledoc false
   use Mix.Task
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Mailbox
+  alias Elektrine.Repo
 
   @shortdoc "Find and optionally clean up duplicate mailboxes"
 

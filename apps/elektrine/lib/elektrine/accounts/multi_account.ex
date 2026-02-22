@@ -6,8 +6,8 @@ defmodule Elektrine.Accounts.MultiAccount do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   @doc """
   Find users sharing the same registration IP address.
@@ -38,7 +38,7 @@ defmodule Elektrine.Accounts.MultiAccount do
   legitimate users changing networks, VPN, or traveling.
   Returns a map with registration_ip_groups.
   """
-  def detect_multi_accounts() do
+  def detect_multi_accounts do
     # Find IPs with multiple registrations
     # Only use registration_ip (not last_login_ip) to avoid false positives
     # from legitimate users changing networks/VPN/traveling

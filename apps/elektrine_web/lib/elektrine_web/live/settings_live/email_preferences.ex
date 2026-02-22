@@ -1,9 +1,9 @@
 defmodule ElektrineWeb.SettingsLive.EmailPreferences do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.Email.Unsubscribes
-  alias Elektrine.Email.ListTypes
   alias Elektrine.Email
+  alias Elektrine.Email.ListTypes
+  alias Elektrine.Email.Unsubscribes
 
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
   on_mount {ElektrineWeb.Live.Hooks.NotificationCountHook, :default}

@@ -3,8 +3,8 @@ defmodule Elektrine.Notifications.FederationNotifications do
   Handles notifications for ActivityPub federation events.
   """
 
-  alias Elektrine.Notifications
   alias Elektrine.ActivityPub
+  alias Elektrine.Notifications
 
   @doc """
   Notifies a user when a remote user follows them.

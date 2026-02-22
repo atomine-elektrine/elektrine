@@ -6,9 +6,9 @@ defmodule Elektrine.Email.Mailboxes do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Repo
-  alias Elektrine.Email.{Mailbox, Message}
   alias Ecto.Multi
+  alias Elektrine.Email.{Mailbox, Message}
+  alias Elektrine.Repo
 
   @doc """
   Gets a user's mailbox.

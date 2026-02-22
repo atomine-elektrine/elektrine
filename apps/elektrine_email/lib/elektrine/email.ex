@@ -327,7 +327,7 @@ defmodule Elektrine.Email do
   defdelegate delete_blocked_sender(blocked_sender), to: Elektrine.Email.BlockedSenders
   defdelegate unblock_email(user_id, email), to: Elektrine.Email.BlockedSenders
   defdelegate unblock_domain(user_id, domain), to: Elektrine.Email.BlockedSenders
-  defdelegate is_blocked?(user_id, from_email), to: Elektrine.Email.BlockedSenders
+  defdelegate blocked?(user_id, from_email), to: Elektrine.Email.BlockedSenders
 
   defdelegate change_blocked_sender(blocked_sender, attrs \\ %{}),
     to: Elektrine.Email.BlockedSenders
@@ -354,7 +354,7 @@ defmodule Elektrine.Email do
   defdelegate delete_safe_sender(safe_sender), to: Elektrine.Email.SafeSenders
   defdelegate remove_safe_email(user_id, email), to: Elektrine.Email.SafeSenders
   defdelegate remove_safe_domain(user_id, domain), to: Elektrine.Email.SafeSenders
-  defdelegate is_safe?(user_id, from_email), to: Elektrine.Email.SafeSenders
+  defdelegate safe?(user_id, from_email), to: Elektrine.Email.SafeSenders
   defdelegate change_safe_sender(safe_sender, attrs \\ %{}), to: Elektrine.Email.SafeSenders
 
   # Delegate filter functions to Filters module

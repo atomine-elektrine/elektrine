@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.ChatLive.Components.MessageList do
+  @moduledoc false
   use ElektrineWeb, :live_component
   import Phoenix.HTML
   import ElektrineWeb.HtmlHelpers

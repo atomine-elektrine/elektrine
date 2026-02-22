@@ -1,4 +1,5 @@
 defmodule Elektrine.Social.List do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

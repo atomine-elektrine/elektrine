@@ -5,9 +5,9 @@ defmodule ElektrineWeb.ContactsLive.Operations.ContactOperations do
 
   import Phoenix.LiveView
   import Phoenix.Component, only: [assign: 3]
-  alias Elektrine.Email.Contacts
   alias Elektrine.Email.Contact
   alias Elektrine.Email.ContactGroup
+  alias Elektrine.Email.Contacts
 
   def handle_contact_event("search", %{"query" => query}, socket) do
     filtered = filter_contacts(socket.assigns.contacts, query, socket.assigns.selected_group)

@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Live.AuthHooks do
+  @moduledoc false
   import Phoenix.LiveView
   import Phoenix.Component
   use ElektrineWeb, :verified_routes

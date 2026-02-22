@@ -1,9 +1,9 @@
 defmodule Elektrine.EmailAliasTest do
   use Elektrine.DataCase
 
+  alias Elektrine.Accounts
   alias Elektrine.Email
   alias Elektrine.Email.Alias
-  alias Elektrine.Accounts
 
   describe "email aliases" do
     setup do

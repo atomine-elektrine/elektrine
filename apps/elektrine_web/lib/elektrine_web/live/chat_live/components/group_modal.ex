@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.ChatLive.Components.GroupModal do
+  @moduledoc false
   use ElektrineWeb, :live_component
   import ElektrineWeb.Components.User.Avatar
 

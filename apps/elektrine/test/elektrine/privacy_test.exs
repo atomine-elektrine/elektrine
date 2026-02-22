@@ -1,7 +1,7 @@
 defmodule Elektrine.PrivacyTest do
   use Elektrine.DataCase
 
-  alias Elektrine.{Privacy, Accounts, Friends, Repo}
+  alias Elektrine.{Accounts, Friends, Privacy, Repo}
 
   describe "can_send_dm?/2" do
     setup do

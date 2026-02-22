@@ -8,9 +8,9 @@ defmodule Elektrine.Subscriptions do
   """
   import Ecto.Query
   require Logger
+  alias Elektrine.Accounts.User
   alias Elektrine.Repo
   alias Elektrine.Subscriptions.{Product, Subscription}
-  alias Elektrine.Accounts.User
 
   # ===========================================================================
   # Product Management

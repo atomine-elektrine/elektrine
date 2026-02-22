@@ -11,7 +11,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.VotingOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.{Social, Repo}
+  alias Elektrine.{Repo, Social}
 
   @doc "Vote on a post (upvote/downvote)"
   def handle_event("vote", %{"message_id" => message_id, "type" => vote_type}, socket) do

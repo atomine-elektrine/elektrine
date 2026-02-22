@@ -17,8 +17,8 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.Publisher
   alias Elektrine.ActivityPub.DomainThrottler
+  alias Elektrine.ActivityPub.Publisher
   alias Elektrine.Telemetry.Events
 
   @impl Oban.Worker

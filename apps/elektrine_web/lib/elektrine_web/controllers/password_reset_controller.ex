@@ -3,9 +3,9 @@ defmodule ElektrineWeb.PasswordResetController do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
-  alias Elektrine.Turnstile
   alias Elektrine.Auth.RateLimiter
   alias Elektrine.Telemetry.Events
+  alias Elektrine.Turnstile
 
   def new(conn, _params) do
     render(conn, :new, error_message: nil)

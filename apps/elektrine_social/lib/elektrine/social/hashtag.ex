@@ -1,4 +1,5 @@
 defmodule Elektrine.Social.Hashtag do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

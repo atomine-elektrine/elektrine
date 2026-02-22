@@ -26,9 +26,9 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Blocking
   alias Elektrine.Accounts.Muting
-  alias Elektrine.Social
   alias Elektrine.Profiles
   alias Elektrine.Repo
+  alias Elektrine.Social
 
   import Ecto.Query
 
@@ -413,8 +413,8 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   end
 
   defp render_relationship(user, target) do
-    following = Accounts.is_following?(user.id, target.id)
-    followed_by = Accounts.is_following?(target.id, user.id)
+    following = Accounts.following?(user.id, target.id)
+    followed_by = Accounts.following?(target.id, user.id)
     blocking = Blocking.user_blocked?(user.id, target.id)
     blocked_by = Blocking.user_blocked?(target.id, user.id)
     muting = Muting.user_muted?(user.id, target.id)

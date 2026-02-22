@@ -5,7 +5,7 @@ defmodule Elektrine.RSS do
 
   import Ecto.Query
   alias Elektrine.Repo
-  alias Elektrine.RSS.{Feed, Subscription, Item}
+  alias Elektrine.RSS.{Feed, Item, Subscription}
 
   ## Feeds
 

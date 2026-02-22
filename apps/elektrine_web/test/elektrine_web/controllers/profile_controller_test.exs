@@ -5,8 +5,8 @@ defmodule ElektrineWeb.ProfileControllerTest do
   """
   use ElektrineWeb.ConnCase, async: false
 
-  alias Elektrine.Profiles
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Profiles
 
   setup do
     user = AccountsFixtures.user_fixture()

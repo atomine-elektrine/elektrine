@@ -8,8 +8,8 @@ defmodule Elektrine.Developer.Exports.ChatExporter do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Messaging.{ChatMessage, Conversation, ConversationMember}
+  alias Elektrine.Repo
 
   @doc """
   Exports all chat data for a user.

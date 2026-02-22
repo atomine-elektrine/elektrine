@@ -1,8 +1,8 @@
 defmodule Elektrine.Accounts.PasskeysTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.Accounts.Passkeys
   alias Elektrine.Accounts.PasskeyCredential
+  alias Elektrine.Accounts.Passkeys
 
   import Elektrine.AccountsFixtures
 

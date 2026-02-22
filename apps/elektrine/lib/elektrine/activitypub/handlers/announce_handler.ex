@@ -127,7 +127,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
     case CreateHandler.create_note(actual_object, original_actor_uri) do
       {:ok, :already_exists} ->
         # Skip boost treatment for community distributions and relay actors
-        is_distribution = is_distribution_actor?(booster_actor)
+        is_distribution = distribution_actor?(booster_actor)
 
         unless is_distribution do
           ap_id = actual_object["id"]
@@ -145,7 +145,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
       {:ok, message} when is_struct(message) ->
         # Skip boost treatment for community distributions and relay actors
-        is_distribution = is_distribution_actor?(booster_actor)
+        is_distribution = distribution_actor?(booster_actor)
 
         updated_msg =
           if is_distribution do
@@ -196,18 +196,18 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
   # Check if actor is a distribution actor (relay or community group)
   # These actors relay/distribute content, not boost it
-  defp is_distribution_actor?(actor) do
+  defp distribution_actor?(actor) do
     cond do
       # Community/Group actors distribute content
       actor.actor_type == "Group" ->
         true
 
       # Relay actors (Application type with relay in URI)
-      actor.actor_type == "Application" && is_relay_uri?(actor.uri) ->
+      actor.actor_type == "Application" && relay_uri?(actor.uri) ->
         true
 
       # Service actors that are relays
-      actor.actor_type == "Service" && is_relay_uri?(actor.uri) ->
+      actor.actor_type == "Service" && relay_uri?(actor.uri) ->
         true
 
       true ->
@@ -215,7 +215,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
     end
   end
 
-  defp is_relay_uri?(uri) when is_binary(uri) do
+  defp relay_uri?(uri) when is_binary(uri) do
     uri_lower = String.downcase(uri)
 
     String.contains?(uri_lower, "/relay") ||
@@ -223,7 +223,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
       (String.ends_with?(uri_lower, "/actor") && String.contains?(uri_lower, "relay"))
   end
 
-  defp is_relay_uri?(_), do: false
+  defp relay_uri?(_), do: false
 
   defp get_local_message_from_uri(uri) do
     base_url = ActivityPub.instance_url()
