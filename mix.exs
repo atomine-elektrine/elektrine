@@ -6,6 +6,7 @@ defmodule ElektrineUmbrella.MixProject do
       version: "0.1.0",
       apps_path: "apps",
       start_permanent: Mix.env() == :prod,
+      consolidate_protocols: Mix.env() == :prod,
       listeners: [Phoenix.CodeReloader],
       releases: releases(),
       deps: deps(),

@@ -13,6 +13,7 @@ defmodule Elektrine.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: elixirc_options(),
       start_permanent: Mix.env() == :prod,
+      consolidate_protocols: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
       listeners: [Phoenix.CodeReloader]

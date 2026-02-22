@@ -4,7 +4,7 @@ defmodule Elektrine.VPN do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
+  alias Elektrine.{PubSubTopics, Repo}
   alias Elektrine.VPN.{ConnectionLog, Server, UserConfig}
 
   require Logger
@@ -182,7 +182,10 @@ defmodule Elektrine.VPN do
           # Invalidate peer cache for this server
           Elektrine.VPN.PeerCache.invalidate(server_id)
 
-          {:ok, Repo.preload(config, [:vpn_server])}
+          config = Repo.preload(config, [:vpn_server])
+          broadcast_vpn_event(user_id, {:vpn_config_created, config})
+
+          {:ok, config}
 
         {:error, _} = error ->
           error
@@ -206,6 +209,9 @@ defmodule Elektrine.VPN do
           Elektrine.VPN.PeerCache.invalidate(user_config.vpn_server_id)
         end
 
+        updated_config = Repo.preload(updated_config, [:vpn_server])
+        broadcast_vpn_event(updated_config.user_id, {:vpn_config_updated, updated_config})
+
         {:ok, updated_config}
 
       error ->
@@ -225,6 +231,8 @@ defmodule Elektrine.VPN do
         # Don't decrement current_users - that's based on actual connections
         # Invalidate peer cache for this server
         Elektrine.VPN.PeerCache.invalidate(server_id)
+
+        broadcast_vpn_event(deleted_config.user_id, {:vpn_config_deleted, deleted_config.id})
 
         {:ok, deleted_config}
 
@@ -346,6 +354,12 @@ defmodule Elektrine.VPN do
   end
 
   defp decrypt_private_key(nil), do: nil
+
+  defp broadcast_vpn_event(user_id, event) when is_integer(user_id) and user_id > 0 do
+    Phoenix.PubSub.broadcast(Elektrine.PubSub, PubSubTopics.user_vpn(user_id), event)
+  end
+
+  defp broadcast_vpn_event(_, _), do: :ok
 
   ## Connection Log functions
 

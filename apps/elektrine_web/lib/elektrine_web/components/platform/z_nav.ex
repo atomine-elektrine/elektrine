@@ -1,8 +1,6 @@
 defmodule ElektrineWeb.Components.Platform.ZNav do
   @moduledoc """
-  Provides Z platform-specific UI components.
-
-  Components for the social platform (chat, timeline, discussions) including navigation, posts, etc.
+  Provides unified product navigation components.
   """
   use Phoenix.Component
   use Gettext, backend: ElektrineWeb.Gettext
@@ -16,7 +14,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
     statics: ElektrineWeb.static_paths()
 
   @doc """
-  Renders the Z platform navigation tabs.
+  Renders the unified product navigation tabs.
 
   ## Examples
 
@@ -28,123 +26,107 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
   attr :active_tab, :string, required: true
 
   def z_nav(assigns) do
+    assigns = assign(assigns, :items, nav_items())
+
     ~H"""
-    <div class="sticky top-16 z-40 card shadow-lg rounded-box border border-red-500/30 mb-6 py-2 px-2 sm:px-4 bg-base-100/80 backdrop-blur-md">
-      <div class="flex items-center gap-2 sm:gap-4">
-        <div class="flex flex-1 overflow-x-auto gap-1">
-          <.link
-            href={~p"/overview"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "overview" && "bg-secondary/15 text-secondary",
-              @active_tab != "overview" && "hover:bg-base-200"
-            ]}
-          >
+    <nav class="sticky top-16 z-40 mb-6 rounded-box border border-base-300 bg-base-100/90 backdrop-blur-sm shadow-sm">
+      <div class="flex items-center gap-1 overflow-x-auto px-2 py-2 sm:px-3">
+        <%= for item <- @items do %>
+          <.link href={item.href} class={tab_class(@active_tab, item.id)}>
             <.icon
-              name={if @active_tab == "overview", do: "hero-sparkles-solid", else: "hero-sparkles"}
-              class="w-4 h-4 sm:mr-2"
+              name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
+              class="h-4 w-4 sm:mr-1.5"
             />
-            <span class="hidden sm:inline">{gettext("Overview")}</span>
+            <span class="hidden sm:inline">{item.label}</span>
           </.link>
-          <.link
-            href={~p"/friends"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "friends" && "bg-secondary/15 text-secondary",
-              @active_tab != "friends" && "hover:bg-base-200"
-            ]}
-          >
-            <.icon
-              name={if @active_tab == "friends", do: "hero-user-group-solid", else: "hero-user-group"}
-              class="w-4 h-4 sm:mr-2"
-            />
-            <span class="hidden sm:inline">{gettext("Friends")}</span>
-          </.link>
-          <.link
-            href={~p"/chat"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "chat" && "bg-secondary/15 text-secondary",
-              @active_tab != "chat" && "hover:bg-base-200"
-            ]}
-          >
-            <.icon
-              name={
-                if @active_tab == "chat",
-                  do: "hero-chat-bubble-left-right-solid",
-                  else: "hero-chat-bubble-left-right"
-              }
-              class="w-4 h-4 sm:mr-2"
-            />
-            <span class="hidden sm:inline">{gettext("Chat")}</span>
-          </.link>
-          <.link
-            href={~p"/timeline"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "timeline" && "bg-secondary/15 text-secondary",
-              @active_tab != "timeline" && "hover:bg-base-200"
-            ]}
-          >
-            <.icon
-              name={
-                if @active_tab == "timeline",
-                  do: "hero-rectangle-stack-solid",
-                  else: "hero-rectangle-stack"
-              }
-              class="w-4 h-4 sm:mr-2"
-            />
-            <span class="hidden sm:inline">{gettext("Timeline")}</span>
-          </.link>
-          <.link
-            href={~p"/lists"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "lists" && "bg-secondary/15 text-secondary",
-              @active_tab != "lists" && "hover:bg-base-200"
-            ]}
-          >
-            <.icon
-              name={if @active_tab == "lists", do: "hero-queue-list-solid", else: "hero-queue-list"}
-              class="w-4 h-4 sm:mr-2"
-            />
-            <span class="hidden sm:inline">{gettext("Lists")}</span>
-          </.link>
-          <.link
-            href={~p"/communities"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "discussions" && "bg-secondary/15 text-secondary",
-              @active_tab != "discussions" && "hover:bg-base-200"
-            ]}
-          >
-            <.icon
-              name={
-                if @active_tab == "discussions",
-                  do: "hero-chat-bubble-bottom-center-text-solid",
-                  else: "hero-chat-bubble-bottom-center-text"
-              }
-              class="w-4 h-4 sm:mr-2"
-            />
-            <span class="hidden sm:inline">{gettext("Communities")}</span>
-          </.link>
-          <.link
-            href={~p"/gallery"}
-            class={[
-              "flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap",
-              @active_tab == "gallery" && "bg-secondary/15 text-secondary",
-              @active_tab != "gallery" && "hover:bg-base-200"
-            ]}
-          >
-            <.icon
-              name={if @active_tab == "gallery", do: "hero-photo-solid", else: "hero-photo"}
-              class="w-4 h-4 sm:mr-2"
-            />
-            <span class="hidden sm:inline">{gettext("Gallery")}</span>
-          </.link>
-        </div>
+        <% end %>
       </div>
-    </div>
+    </nav>
     """
+  end
+
+  defp nav_items do
+    [
+      %{
+        id: "overview",
+        label: gettext("Overview"),
+        href: ~p"/overview",
+        icon: "hero-sparkles",
+        active_icon: "hero-sparkles-solid"
+      },
+      %{
+        id: "search",
+        label: gettext("Search"),
+        href: ~p"/search",
+        icon: "hero-magnifying-glass",
+        active_icon: "hero-magnifying-glass"
+      },
+      %{
+        id: "chat",
+        label: gettext("Chat"),
+        href: ~p"/chat",
+        icon: "hero-chat-bubble-left-right",
+        active_icon: "hero-chat-bubble-left-right-solid"
+      },
+      %{
+        id: "timeline",
+        label: gettext("Timeline"),
+        href: ~p"/timeline",
+        icon: "hero-rectangle-stack",
+        active_icon: "hero-rectangle-stack-solid"
+      },
+      %{
+        id: "discussions",
+        label: gettext("Communities"),
+        href: ~p"/communities",
+        icon: "hero-chat-bubble-bottom-center-text",
+        active_icon: "hero-chat-bubble-bottom-center-text-solid"
+      },
+      %{
+        id: "gallery",
+        label: gettext("Gallery"),
+        href: ~p"/gallery",
+        icon: "hero-photo",
+        active_icon: "hero-photo-solid"
+      },
+      %{
+        id: "lists",
+        label: gettext("Lists"),
+        href: ~p"/lists",
+        icon: "hero-queue-list",
+        active_icon: "hero-queue-list-solid"
+      },
+      %{
+        id: "friends",
+        label: gettext("Friends"),
+        href: ~p"/friends",
+        icon: "hero-user-group",
+        active_icon: "hero-user-group-solid"
+      },
+      %{
+        id: "email",
+        label: gettext("Email"),
+        href: ~p"/email",
+        icon: "hero-envelope",
+        active_icon: "hero-envelope-solid"
+      },
+      %{
+        id: "vpn",
+        label: gettext("VPN"),
+        href: ~p"/vpn",
+        icon: "hero-shield-check",
+        active_icon: "hero-shield-check-solid"
+      }
+    ]
+  end
+
+  defp tab_class(active_tab, tab_id) do
+    [
+      "flex items-center rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
+      if(active_tab == tab_id,
+        do: "bg-base-200 text-base-content font-medium",
+        else: "text-base-content/75 hover:bg-base-200 hover:text-base-content"
+      )
+    ]
   end
 end
