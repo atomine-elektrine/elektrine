@@ -1,0 +1,34 @@
+# Fly app config for managed Bluesky PDS
+app = "elektrine-bsky-pds"
+primary_region = "iad"
+
+[build]
+  image = "ghcr.io/bluesky-social/pds:0.4"
+
+[env]
+  PDS_DATA_DIRECTORY = "/pds"
+  PDS_BLOBSTORE_DISK_LOCATION = "/pds/blocks"
+  PDS_BLOB_UPLOAD_LIMIT = "52428800"
+  PDS_DID_PLC_URL = "https://plc.directory"
+  PDS_BSKY_APP_VIEW_URL = "https://api.bsky.app"
+  PDS_BSKY_APP_VIEW_DID = "did:web:api.bsky.app"
+  PDS_REPORT_SERVICE_URL = "https://mod.bsky.app"
+  PDS_REPORT_SERVICE_DID = "did:plc:ar7c4by46qjdydhdevvrndac"
+  PDS_CRAWLERS = "https://bsky.network"
+  LOG_ENABLED = "true"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[mounts]]
+  source = "pds_data"
+  destination = "/pds"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"
