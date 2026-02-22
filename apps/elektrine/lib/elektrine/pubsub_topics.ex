@@ -118,6 +118,16 @@ defmodule Elektrine.PubSubTopics do
   def user_email(user_id), do: "user:#{user_id}:email"
 
   @doc """
+  Topic for a user's VPN updates (config lifecycle and connection changes).
+  """
+  def user_vpn(user_id), do: "user:#{user_id}:vpn"
+
+  @doc """
+  Topic for the unified per-user event stream consumed by clients.
+  """
+  def user_events(user_id), do: "user:#{user_id}:events"
+
+  @doc """
   Topic for mailbox-specific updates.
   """
   def mailbox(mailbox_id), do: "mailbox:#{mailbox_id}"

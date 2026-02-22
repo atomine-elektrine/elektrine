@@ -318,10 +318,11 @@ export const KeyboardShortcuts = {
   openSelectedMessage() {
     if (this.selectedMessageIndex >= 0 && this.selectedMessageIndex < this.messages.length) {
       const selectedMsg = this.messages[this.selectedMessageIndex]
-      // Click on the message card itself to open it
-      const messageCard = selectedMsg.querySelector('.cursor-pointer')
-      if (messageCard) {
-        messageCard.click()
+      const openLink = selectedMsg.querySelector('.message-open-link')
+      if (openLink) {
+        openLink.click()
+      } else {
+        selectedMsg.click()
       }
     }
   },

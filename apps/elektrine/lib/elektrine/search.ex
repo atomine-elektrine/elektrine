@@ -3,10 +3,13 @@ defmodule Elektrine.Search do
   Global search functionality with access control.
 
   Searches across all user-accessible data including:
+  - People
   - Chat conversations and messages
   - Timeline posts and replies
   - Discussion threads and posts
   - Email messages and mailboxes
+  - Email attachments and files
+  - Settings and command actions
 
   SECURITY: All search functions enforce proper authorization:
   - Chat: Only messages in conversations where user is an active member
@@ -25,24 +28,35 @@ defmodule Elektrine.Search do
   def global_search(user, query, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
 
-    if String.length(String.trim(query)) < 2 do
+    safe_query = sanitize_search_term(query)
+    trimmed_query = String.trim(safe_query)
+    command_mode = String.starts_with?(trimmed_query, ">")
+    command_query = normalize_command_query(trimmed_query)
+
+    if !command_mode && String.length(trimmed_query) < 2 do
       %{results: [], total_count: 0}
     else
-      # Sanitize search term to prevent LIKE pattern injection
-      safe_query = sanitize_search_term(query)
-      search_term = "%#{String.trim(safe_query)}%"
+      search_term = "%#{trimmed_query}%"
 
       results = []
 
-      # Search social platform content
-      results = results ++ search_chat_messages(user, search_term, limit)
-      results = results ++ search_timeline_posts(user, search_term, limit)
-      results = results ++ search_discussions(user, search_term, limit)
-      results = results ++ search_communities(user, search_term, limit)
-      results = results ++ search_federated_posts(search_term, limit)
+      results =
+        if command_mode do
+          results
+        else
+          results
+          |> Kernel.++(search_people(user, search_term, limit))
+          |> Kernel.++(search_chat_messages(user, search_term, limit))
+          |> Kernel.++(search_timeline_posts(user, search_term, limit))
+          |> Kernel.++(search_discussions(user, search_term, limit))
+          |> Kernel.++(search_communities(user, search_term, limit))
+          |> Kernel.++(search_federated_posts(search_term, limit))
+          |> Kernel.++(search_emails(user, search_term, limit))
+          |> Kernel.++(search_files(user, search_term, limit))
+        end
 
-      # Search emails
-      results = results ++ search_emails(user, search_term, limit)
+      results = results ++ search_settings(command_query, limit)
+      results = results ++ search_actions(command_query, limit)
 
       # Sort by relevance and limit results
       sorted_results =
@@ -55,6 +69,51 @@ defmodule Elektrine.Search do
         total_count: length(results)
       }
     end
+  end
+
+  defp search_people(user, search_term, limit) do
+    from(u in Elektrine.Accounts.User,
+      where:
+        u.id != ^user.id and
+          (ilike(u.username, ^search_term) or ilike(u.display_name, ^search_term) or
+             ilike(u.handle, ^search_term)),
+      select: %{
+        id: u.id,
+        type: "person",
+        username: u.username,
+        display_name: u.display_name,
+        handle: u.handle,
+        updated_at: u.updated_at,
+        relevance: 0.95
+      },
+      limit: ^max(div(limit, 8), 3),
+      order_by: [desc: u.updated_at]
+    )
+    |> Repo.all()
+    |> Enum.map(fn result ->
+      username = result.username || "user"
+      handle = result.handle || username
+
+      display_name =
+        if is_binary(result.display_name), do: String.trim(result.display_name), else: ""
+
+      title =
+        if display_name == "" do
+          "@#{username}"
+        else
+          display_name
+        end
+
+      %{
+        id: result.id,
+        type: "person",
+        title: title,
+        content: "@#{handle}",
+        url: "/#{handle}",
+        updated_at: result.updated_at,
+        relevance: result.relevance
+      }
+    end)
   end
 
   # Search chat messages - ONLY messages in conversations the user is a member of
@@ -336,6 +395,69 @@ defmodule Elektrine.Search do
     messages ++ mailboxes
   end
 
+  defp search_files(user, search_term, limit) do
+    from(m in Elektrine.Email.Message,
+      join: mb in Elektrine.Email.Mailbox,
+      on: m.mailbox_id == mb.id,
+      where:
+        mb.user_id == ^user.id and
+          m.has_attachments == true and
+          m.deleted == false and
+          (ilike(m.subject, ^search_term) or ilike(m.from, ^search_term) or
+             fragment("CAST(? AS text) ILIKE ?", m.attachments, ^search_term)),
+      select: %{
+        id: m.id,
+        type: "file",
+        subject: m.subject,
+        from: m.from,
+        attachments: m.attachments,
+        updated_at: m.inserted_at,
+        relevance: 0.72
+      },
+      limit: ^max(div(limit, 8), 3),
+      order_by: [desc: m.inserted_at]
+    )
+    |> Repo.all()
+    |> Enum.map(fn result ->
+      attachment_name = first_attachment_name(result.attachments)
+      subject = if is_binary(result.subject), do: String.trim(result.subject), else: ""
+      from = if is_binary(result.from), do: String.trim(result.from), else: "Unknown sender"
+
+      title =
+        cond do
+          attachment_name != nil -> attachment_name
+          subject != "" -> subject
+          true -> "Email attachment"
+        end
+
+      %{
+        id: result.id,
+        type: "file",
+        title: title,
+        content: "File in email from #{from}",
+        url: "/email/view/#{result.id}",
+        updated_at: result.updated_at,
+        relevance: result.relevance
+      }
+    end)
+  end
+
+  defp search_settings(query, limit) do
+    query = normalize_command_query(query)
+
+    setting_entries()
+    |> Enum.filter(&entry_matches?(&1, query))
+    |> Enum.take(max(div(limit, 6), 4))
+  end
+
+  defp search_actions(query, limit) do
+    query = normalize_command_query(query)
+
+    action_entries()
+    |> Enum.filter(&entry_matches?(&1, query))
+    |> Enum.take(max(div(limit, 6), 4))
+  end
+
   @doc """
   Get search suggestions based on partial query
   """
@@ -345,27 +467,53 @@ defmodule Elektrine.Search do
     else
       # Sanitize search term to prevent LIKE pattern injection
       safe_query = sanitize_search_term(partial_query)
-      search_term = "#{String.trim(safe_query)}%"
+      trimmed_query = String.trim(safe_query)
+      search_term = "#{trimmed_query}%"
 
-      # Suggest email domains
-      email_domains =
-        from(m in Elektrine.Email.Message,
-          join: mb in Elektrine.Email.Mailbox,
-          on: m.mailbox_id == mb.id,
-          where:
-            mb.user_id == ^user.id and
-              ilike(m.from, ^search_term),
-          select: %{
-            text: fragment("SPLIT_PART(?, '@', 2)", m.from),
-            type: "email_domain"
-          },
-          distinct: fragment("SPLIT_PART(?, '@', 2)", m.from),
-          limit: ^limit
-        )
-        |> Repo.all()
-        |> Enum.filter(&(&1.text != ""))
+      if String.starts_with?(trimmed_query, ">") do
+        action_entries()
+        |> Enum.filter(&entry_matches?(&1, normalize_command_query(trimmed_query)))
+        |> Enum.take(limit)
+        |> Enum.map(fn action -> %{text: action.title, type: "action"} end)
+      else
+        email_domains =
+          from(m in Elektrine.Email.Message,
+            join: mb in Elektrine.Email.Mailbox,
+            on: m.mailbox_id == mb.id,
+            where:
+              mb.user_id == ^user.id and
+                ilike(m.from, ^search_term),
+            select: %{
+              text: fragment("SPLIT_PART(?, '@', 2)", m.from),
+              type: "email_domain"
+            },
+            distinct: fragment("SPLIT_PART(?, '@', 2)", m.from),
+            limit: ^limit
+          )
+          |> Repo.all()
+          |> Enum.filter(&(&1.text != ""))
 
-      email_domains
+        people =
+          from(u in Elektrine.Accounts.User,
+            where:
+              u.id != ^user.id and
+                (ilike(u.username, ^search_term) or ilike(u.display_name, ^search_term) or
+                   ilike(u.handle, ^search_term)),
+            select: %{text: fragment("CONCAT('@', ?)", u.username), type: "person"},
+            limit: ^max(div(limit, 2), 2)
+          )
+          |> Repo.all()
+
+        commands =
+          (action_entries() ++ setting_entries())
+          |> Enum.filter(&entry_matches?(&1, normalize_command_query(trimmed_query)))
+          |> Enum.take(max(div(limit, 2), 2))
+          |> Enum.map(fn entry -> %{text: entry.title, type: entry.type} end)
+
+        (people ++ commands ++ email_domains)
+        |> Enum.uniq_by(&String.downcase(to_string(&1.text)))
+        |> Enum.take(limit)
+      end
     end
   end
 
@@ -383,6 +531,168 @@ defmodule Elektrine.Search do
       _ -> []
     end
   end
+
+  defp normalize_command_query(query) when is_binary(query) do
+    query
+    |> String.trim()
+    |> String.trim_leading(">")
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp normalize_command_query(_), do: ""
+
+  defp entry_matches?(_entry, ""), do: true
+
+  defp entry_matches?(entry, query) do
+    haystack =
+      [entry.title, entry.content, Enum.join(entry.keywords || [], " ")]
+      |> Enum.join(" ")
+      |> String.downcase()
+
+    String.contains?(haystack, query)
+  end
+
+  defp action_entries do
+    [
+      %{
+        id: "action_compose_email",
+        type: "action",
+        title: "Compose Email",
+        content: "Start a new email message",
+        url: "/email/compose?return_to=search",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.1,
+        keywords: ["compose", "email", "send", "message"]
+      },
+      %{
+        id: "action_open_chat",
+        type: "action",
+        title: "Open Chat",
+        content: "Jump into your conversations",
+        url: "/chat",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.08,
+        keywords: ["chat", "dm", "message", "conversation"]
+      },
+      %{
+        id: "action_open_notifications",
+        type: "action",
+        title: "Open Notifications",
+        content: "Review unread alerts",
+        url: "/notifications",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.06,
+        keywords: ["alerts", "notifications", "activity"]
+      },
+      %{
+        id: "action_open_vpn",
+        type: "action",
+        title: "Open VPN",
+        content: "Manage your WireGuard profiles",
+        url: "/vpn",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.04,
+        keywords: ["vpn", "wireguard", "security", "network"]
+      },
+      %{
+        id: "action_open_overview",
+        type: "action",
+        title: "Open Overview",
+        content: "Go back to your home dashboard",
+        url: "/overview",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.02,
+        keywords: ["overview", "home", "dashboard"]
+      }
+    ]
+  end
+
+  defp setting_entries do
+    [
+      %{
+        id: "settings_profile",
+        type: "settings",
+        title: "Profile Settings",
+        content: "Edit your profile, avatar, and bio",
+        url: "/account/profile/edit",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.03,
+        keywords: ["profile", "avatar", "bio", "display name"]
+      },
+      %{
+        id: "settings_security",
+        type: "settings",
+        title: "Security Settings",
+        content: "Manage password and security options",
+        url: "/account/password",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.01,
+        keywords: ["security", "password", "account", "login"]
+      },
+      %{
+        id: "settings_two_factor",
+        type: "settings",
+        title: "Two-Factor Authentication",
+        content: "Set up and manage 2FA",
+        url: "/account/two_factor",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.0,
+        keywords: ["2fa", "two factor", "authenticator", "security"]
+      },
+      %{
+        id: "settings_passkeys",
+        type: "settings",
+        title: "Passkeys",
+        content: "Manage WebAuthn passkeys",
+        url: "/account/passkeys",
+        updated_at: DateTime.utc_now(),
+        relevance: 0.99,
+        keywords: ["passkey", "webauthn", "security"]
+      },
+      %{
+        id: "settings_email",
+        type: "settings",
+        title: "Email Settings",
+        content: "Configure signatures, aliases, and inbox behavior",
+        url: "/email/settings",
+        updated_at: DateTime.utc_now(),
+        relevance: 0.98,
+        keywords: ["email", "signature", "alias", "filters"]
+      },
+      %{
+        id: "settings_storage",
+        type: "settings",
+        title: "Storage",
+        content: "View usage and storage limits",
+        url: "/account/storage",
+        updated_at: DateTime.utc_now(),
+        relevance: 0.97,
+        keywords: ["storage", "quota", "usage", "space"]
+      }
+    ]
+  end
+
+  defp first_attachment_name(attachments) when is_map(attachments) do
+    attachments
+    |> Map.values()
+    |> Enum.find_value(fn attachment ->
+      cond do
+        is_map(attachment) ->
+          attachment["filename"] || attachment[:filename] || attachment["name"] ||
+            attachment[:name]
+
+        true ->
+          nil
+      end
+    end)
+    |> case do
+      name when is_binary(name) and name != "" -> name
+      _ -> nil
+    end
+  end
+
+  defp first_attachment_name(_), do: nil
 
   # Sanitize search terms to prevent LIKE pattern injection
   defp sanitize_search_term(term), do: Elektrine.TextHelpers.sanitize_search_term(term)

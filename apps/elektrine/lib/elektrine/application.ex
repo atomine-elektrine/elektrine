@@ -49,6 +49,7 @@ defmodule Elektrine.Application do
       Elektrine.Messaging.RateLimiter,
       Elektrine.Auth.RateLimiter,
       Elektrine.API.RateLimiter,
+      Elektrine.Search.RateLimiter,
       Elektrine.HTTP.Backoff
     ]
   end

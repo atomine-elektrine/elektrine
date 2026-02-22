@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.SearchLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Search
+  alias Elektrine.Search.RateLimiter, as: SearchRateLimiter
+  import ElektrineWeb.Components.Platform.ZNav
 
   @impl true
   def mount(_params, _session, socket) do
@@ -13,7 +15,8 @@ defmodule ElektrineWeb.SearchLive do
      |> assign(:loading, false)
      |> assign(:suggestions, [])
      |> assign(:show_suggestions, false)
-     |> assign(:active_filter, "all")}
+     |> assign(:active_filter, "all")
+     |> assign(:command_mode, false)}
   end
 
   @impl true
@@ -30,43 +33,44 @@ defmodule ElektrineWeb.SearchLive do
   def handle_event("search", %{"query" => query}, socket) do
     query = String.trim(query)
 
-    # Rate limit: uses default (5 per minute, 10 per hour)
-    user_id = socket.assigns.current_user.id
-    rate_limit_key = "search:#{user_id}"
-
-    case Elektrine.Auth.RateLimiter.check_rate_limit(rate_limit_key) do
-      {:ok, :allowed} ->
-        Elektrine.Auth.RateLimiter.record_failed_attempt(rate_limit_key)
-
+    case allow_search_request(socket, :submit) do
+      :ok ->
         if String.length(query) < 2 do
-          {:noreply,
-           socket
-           |> assign(:query, query)
-           |> assign(:results, [])
-           |> assign(:filtered_results, [])
-           |> assign(:total_count, 0)
-           |> assign(:show_suggestions, false)}
+          command_mode = String.starts_with?(query, ">")
+
+          if command_mode do
+            socket = perform_search(socket, query)
+            {:noreply, push_patch(socket, to: ~p"/search?q=#{query}")}
+          else
+            {:noreply,
+             socket
+             |> assign(:query, query)
+             |> assign(:results, [])
+             |> assign(:filtered_results, [])
+             |> assign(:total_count, 0)
+             |> assign(:show_suggestions, false)
+             |> assign(:command_mode, false)}
+          end
         else
           socket = perform_search(socket, query)
           {:noreply, push_patch(socket, to: ~p"/search?q=#{query}")}
         end
 
-      {:error, {:rate_limited, _retry_after, _reason}} ->
-        {:noreply, put_flash(socket, :error, "Too many search requests. Please slow down.")}
+      {:error, retry_after} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Too many search requests. Please slow down and try again in #{retry_after} seconds."
+         )}
     end
   end
 
   def handle_event("suggest", %{"value" => query}, socket) do
     query = String.trim(query)
 
-    # Rate limit: uses default (5 per minute, 10 per hour)
-    user_id = socket.assigns.current_user.id
-    rate_limit_key = "search_suggest:#{user_id}"
-
-    case Elektrine.Auth.RateLimiter.check_rate_limit(rate_limit_key) do
-      {:ok, :allowed} ->
-        Elektrine.Auth.RateLimiter.record_failed_attempt(rate_limit_key)
-
+    case allow_search_request(socket, :suggest) do
+      :ok ->
         socket =
           if String.length(query) >= 2 do
             # Perform live search as user types
@@ -78,21 +82,37 @@ defmodule ElektrineWeb.SearchLive do
             socket
             |> assign(:suggestions, suggestions)
             |> assign(:show_suggestions, suggestions != [])
+            |> assign(:command_mode, String.starts_with?(query, ">"))
           else
-            # Clear results for short queries
-            socket
-            |> assign(:query, query)
-            |> assign(:results, [])
-            |> assign(:filtered_results, [])
-            |> assign(:total_count, 0)
-            |> assign(:suggestions, [])
-            |> assign(:show_suggestions, false)
+            if String.starts_with?(query, ">") do
+              socket = perform_search(socket, query)
+              suggestions = Search.get_suggestions(socket.assigns.current_user, query, 8)
+
+              socket
+              |> assign(:suggestions, suggestions)
+              |> assign(:show_suggestions, suggestions != [])
+              |> assign(:command_mode, true)
+            else
+              # Clear results for short queries
+              socket
+              |> assign(:query, query)
+              |> assign(:results, [])
+              |> assign(:filtered_results, [])
+              |> assign(:total_count, 0)
+              |> assign(:suggestions, [])
+              |> assign(:show_suggestions, false)
+              |> assign(:command_mode, false)
+            end
           end
 
         {:noreply, socket}
 
-      {:error, {:rate_limited, _retry_after, _reason}} ->
-        {:noreply, put_flash(socket, :error, "Too many search requests. Please slow down.")}
+      {:error, _retry_after} ->
+        {:noreply,
+         socket
+         |> assign(:query, query)
+         |> assign(:show_suggestions, false)
+         |> assign(:suggestions, [])}
     end
   end
 
@@ -113,6 +133,8 @@ defmodule ElektrineWeb.SearchLive do
     socket
     |> assign(:loading, true)
     |> assign(:query, query)
+    |> assign(:command_mode, String.starts_with?(query, ">"))
+    |> assign(:active_filter, "all")
     |> then(fn socket ->
       search_results = Search.global_search(user, query, limit: 50)
 
@@ -138,224 +160,236 @@ defmodule ElektrineWeb.SearchLive do
     assign(socket, :filtered_results, filtered)
   end
 
+  defp allow_search_request(socket, event_type) do
+    user_id = socket.assigns.current_user.id
+    rate_limit_key = "search:#{event_type}:#{user_id}"
+
+    try do
+      SearchRateLimiter.allow_query(rate_limit_key)
+    rescue
+      ArgumentError -> :ok
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Search Header -->
-      <div class="card glass-card shadow-lg rounded-2xl mb-8">
-        <div class="card-body">
-          <h1 class="text-2xl sm:text-3xl font-bold text-base-content mb-6">Search</h1>
-          
-    <!-- Search Input -->
-          <div class="relative">
-            <form phx-submit="search" class="w-full">
-              <div class="flex gap-2 w-full">
-                <input
-                  type="text"
-                  name="query"
-                  value={@query}
-                  placeholder="Search messages, posts, discussions, federated, emails..."
-                  class="input input-bordered flex-1 rounded-xl"
-                  phx-keyup="suggest"
-                  phx-blur="clear_suggestions"
-                  phx-debounce="300"
-                  autocomplete="off"
-                  phx-value-query={@query}
-                />
-                <button type="submit" class="btn btn-primary">
-                  <.icon name="hero-magnifying-glass" class="h-5 w-5" />
-                  <span class="hidden sm:inline ml-1">Search</span>
-                </button>
-              </div>
-            </form>
-            
-    <!-- Search Suggestions -->
-            <%= if @show_suggestions and (@suggestions) != [] do %>
-              <div class="absolute top-full left-0 right-0 bg-base-100 border border-base-300 rounded-xl shadow-lg mt-2 z-50 overflow-hidden">
-                <%= for suggestion <- @suggestions do %>
-                  <div
-                    class="px-4 py-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-b-0"
-                    phx-click="search"
-                    phx-value-query={suggestion.text}
-                  >
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm text-base-content">{suggestion.text}</span>
-                      <span class="badge badge-ghost badge-sm">
-                        {format_suggestion_type(suggestion.type)}
-                      </span>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
-      
-    <!-- Loading State -->
-      <%= if @loading do %>
-        <div class="flex justify-center py-8">
-          <.spinner size="md" class="text-primary" />
-        </div>
-      <% end %>
-      
-    <!-- Search Results -->
-      <%= if not @loading and @query != "" do %>
-        <div class="mb-4">
-          <p class="text-sm text-base-content/70">
-            Found <span class="font-semibold text-base-content">{@total_count}</span>
-            results for "<span class="font-semibold text-base-content"><%= @query %></span>"
-          </p>
-        </div>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+      <.z_nav active_tab="search" />
 
-        <%= if (@results) != [] do %>
-          <!-- Filter Tabs -->
-          <div class="card glass-card shadow rounded-xl p-2 mb-4">
-            <div class="flex flex-wrap gap-2">
-              <button
-                phx-click="filter_results"
-                phx-value-type="all"
-                class={[
-                  "btn btn-sm",
-                  (@active_filter == "all" && "btn-primary") || "btn-ghost"
-                ]}
-              >
-                All ({length(@results)})
-              </button>
-              <%= for type <- get_available_types(@results) do %>
-                <button
-                  phx-click="filter_results"
-                  phx-value-type={type}
-                  class={[
-                    "btn btn-sm",
-                    (@active_filter == type && "btn-primary") || "btn-ghost"
-                  ]}
-                >
-                  {format_result_type(type)} ({count_by_type(@results, type)})
-                </button>
+      <div class="mx-auto max-w-4xl space-y-4">
+        <div class="card bg-base-100 shadow-sm border border-base-300">
+          <div class="card-body gap-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h1 class="text-2xl font-bold">Command Palette</h1>
+                <p class="text-sm opacity-70">
+                  Search people, messages, emails, communities, files, settings, and actions.
+                </p>
+              </div>
+              <span class="badge badge-ghost">Type `>` for actions</span>
+            </div>
+
+            <div class="relative" phx-click-away="clear_suggestions">
+              <form phx-submit="search" class="w-full">
+                <div class="join w-full">
+                  <label class="input input-bordered join-item flex-1 flex items-center gap-2">
+                    <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
+                    <input
+                      type="text"
+                      name="query"
+                      value={@query}
+                      placeholder="Search... or use > for commands"
+                      class="grow"
+                      phx-keyup="suggest"
+                      phx-debounce="350"
+                      autocomplete="off"
+                    />
+                  </label>
+                  <button type="submit" class="btn btn-neutral join-item">Go</button>
+                </div>
+              </form>
+
+              <%= if @show_suggestions and @suggestions != [] do %>
+                <div class="mt-2 rounded-lg border border-base-300 bg-base-100 shadow-md overflow-hidden max-h-80 overflow-y-auto">
+                  <%= for suggestion <- @suggestions do %>
+                    <button
+                      type="button"
+                      class="w-full text-left px-4 py-2.5 hover:bg-base-200 transition-colors border-b border-base-200 last:border-b-0"
+                      phx-click="search"
+                      phx-value-query={suggestion.text}
+                    >
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="text-sm truncate">{suggestion.text}</span>
+                        <span class="badge badge-ghost badge-sm shrink-0">
+                          {format_suggestion_type(suggestion.type)}
+                        </span>
+                      </div>
+                    </button>
+                  <% end %>
+                </div>
               <% end %>
             </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button class="btn btn-xs btn-ghost" phx-click="search" phx-value-query=">compose email">
+                Compose Email
+              </button>
+              <button class="btn btn-xs btn-ghost" phx-click="search" phx-value-query=">open chat">
+                Open Chat
+              </button>
+              <button
+                class="btn btn-xs btn-ghost"
+                phx-click="search"
+                phx-value-query=">open notifications"
+              >
+                Notifications
+              </button>
+              <button class="btn btn-xs btn-ghost" phx-click="search" phx-value-query="settings">
+                Settings
+              </button>
+            </div>
           </div>
+        </div>
 
-          <div class="space-y-3">
-            <%= for result <- @filtered_results do %>
-              <div class="card glass-card shadow rounded-xl hover:shadow-md transition-all">
-                <div class="card-body p-4">
-                  <div class="flex items-start justify-between">
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-2">
-                        <span class={"badge badge-sm " <> type_badge_class(result.type)}>
-                          {format_result_type(result.type)}
-                        </span>
-                        <%= if result.type == "federated" && result[:actor_domain] do %>
-                          <span class="badge badge-sm badge-ghost">
-                            {result.actor_domain}
-                          </span>
-                        <% end %>
-                      </div>
+        <%= if @loading do %>
+          <div class="flex justify-center py-8">
+            <.spinner size="md" class="text-primary" />
+          </div>
+        <% end %>
 
-                      <h3 class="font-semibold text-base mb-1 truncate">
-                        <a
-                          href={result.url}
-                          class="text-base-content hover:text-primary transition-colors"
-                        >
-                          {result.title}
-                        </a>
-                      </h3>
-
-                      <%= if result.type == "federated" && result[:actor_username] do %>
-                        <p class="text-xs text-secondary mb-1">
-                          @{result.actor_username}@{result[:actor_domain]}
-                        </p>
-                      <% end %>
-
-                      <%= if result.content do %>
-                        <p class="text-sm text-base-content/60 line-clamp-2 break-words">
-                          {result.content}
-                        </p>
-                      <% end %>
-                    </div>
-
-                    <div class="text-xs text-base-content/50 ml-4 whitespace-nowrap">
-                      {format_relative_time(result.updated_at)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <%= if not @loading and @query != "" do %>
+          <div class="flex items-center justify-between text-sm opacity-80">
+            <p>
+              <span class="font-semibold">{@total_count}</span>
+              result(s) for <span class="font-semibold">{@query}</span>
+            </p>
+            <%= if @command_mode do %>
+              <span class="badge badge-neutral badge-sm">Command mode</span>
             <% end %>
           </div>
-        <% else %>
-          <div class="card glass-card shadow-lg rounded-2xl">
-            <div class="card-body text-center py-12">
-              <.icon name="hero-magnifying-glass" class="h-12 w-12 mx-auto text-base-content/30 mb-4" />
-              <h3 class="text-lg font-semibold text-base-content/70 mb-2">No results found</h3>
-              <p class="text-sm text-base-content/50">
-                Try adjusting your search terms or browse by category
-              </p>
+
+          <%= if @results != [] do %>
+            <div class="rounded-lg border border-base-300 bg-base-100 p-2">
+              <div class="flex flex-wrap gap-2">
+                <button
+                  phx-click="filter_results"
+                  phx-value-type="all"
+                  class={[
+                    "btn btn-xs",
+                    if(@active_filter == "all", do: "btn-neutral", else: "btn-ghost")
+                  ]}
+                >
+                  All ({length(@results)})
+                </button>
+                <%= for type <- get_available_types(@results) do %>
+                  <button
+                    phx-click="filter_results"
+                    phx-value-type={type}
+                    class={[
+                      "btn btn-xs",
+                      if(@active_filter == type, do: "btn-neutral", else: "btn-ghost")
+                    ]}
+                  >
+                    {format_result_type(type)} ({count_by_type(@results, type)})
+                  </button>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-base-300 bg-base-100 divide-y divide-base-200">
+              <%= for result <- @filtered_results do %>
+                <.link
+                  navigate={result.url}
+                  class="flex items-start justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
+                >
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class={"badge badge-sm " <> type_badge_class(result.type)}>
+                        {format_result_type(result.type)}
+                      </span>
+                      <%= if result.type == "federated" && result[:actor_domain] do %>
+                        <span class="badge badge-ghost badge-sm">{result.actor_domain}</span>
+                      <% end %>
+                    </div>
+                    <p class="font-medium truncate">{result.title}</p>
+                    <%= if result.content do %>
+                      <p class="text-sm opacity-70 truncate">{result.content}</p>
+                    <% end %>
+                  </div>
+                  <div class="text-xs opacity-60 whitespace-nowrap">
+                    {format_relative_time(result.updated_at)}
+                  </div>
+                </.link>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="rounded-lg border border-base-300 bg-base-100 p-10 text-center">
+              <.icon name="hero-magnifying-glass" class="h-10 w-10 mx-auto opacity-30 mb-3" />
+              <p class="font-medium">No matches found</p>
+              <p class="text-sm opacity-70">Try a broader query or use `>` for commands.</p>
+            </div>
+          <% end %>
+        <% end %>
+
+        <%= if @query == "" and not @loading do %>
+          <div class="rounded-lg border border-base-300 bg-base-100 p-8 text-center">
+            <.icon name="hero-command-line" class="h-10 w-10 mx-auto opacity-40 mb-3" />
+            <h2 class="text-lg font-semibold mb-2">Global Search</h2>
+            <p class="text-sm opacity-70 mb-5">
+              Search everything or start a command with `>`.
+            </p>
+            <div class="flex flex-wrap justify-center gap-2">
+              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="@">
+                People
+              </button>
+              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="email">
+                Emails
+              </button>
+              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="community">
+                Communities
+              </button>
+              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query=">compose email">
+                Actions
+              </button>
             </div>
           </div>
         <% end %>
-      <% end %>
-      
-    <!-- Empty State -->
-      <%= if @query == "" and not @loading do %>
-        <div class="card glass-card shadow-lg rounded-2xl">
-          <div class="card-body text-center py-12">
-            <.icon name="hero-magnifying-glass" class="h-16 w-16 mx-auto text-base-content/30 mb-4" />
-            <h2 class="text-xl font-semibold text-base-content mb-2">Search Everything</h2>
-            <p class="text-base-content/60 mb-8">
-              Search across Chat, Timeline, Discussions, Federated Posts, and Emails
-            </p>
-            
-    <!-- Quick Search Categories -->
-            <div class="max-w-md mx-auto">
-              <h3 class="text-sm font-semibold text-base-content/60 mb-3">Quick Searches</h3>
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="@">
-                  <.icon name="hero-at-symbol" class="h-4 w-4" /> Mentions
-                </button>
-                <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="#">
-                  <.icon name="hero-hashtag" class="h-4 w-4" /> Hashtags
-                </button>
-                <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="discussion">
-                  <.icon name="hero-chat-bubble-bottom-center-text" class="h-4 w-4" /> Discussions
-                </button>
-                <button
-                  class="btn btn-sm btn-secondary btn-outline"
-                  phx-click="search"
-                  phx-value-query="mastodon"
-                >
-                  <.icon name="hero-globe-alt" class="h-4 w-4" /> Fediverse
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      <% end %>
+      </div>
     </div>
     """
   end
 
   # Helper functions for formatting
+  defp format_result_type("action"), do: "Action"
+  defp format_result_type("settings"), do: "Settings"
+  defp format_result_type("person"), do: "People"
   defp format_result_type("chat"), do: "Chat"
   defp format_result_type("timeline"), do: "Timeline"
   defp format_result_type("discussion"), do: "Discussion"
   defp format_result_type("community"), do: "Community"
   defp format_result_type("federated"), do: "Federated"
   defp format_result_type("email"), do: "Email"
+  defp format_result_type("file"), do: "File"
   defp format_result_type("mailbox"), do: "Mailbox"
   defp format_result_type(_), do: "Other"
 
+  defp format_suggestion_type("action"), do: "action"
+  defp format_suggestion_type("settings"), do: "settings"
+  defp format_suggestion_type("person"), do: "person"
   defp format_suggestion_type("email_domain"), do: "domain"
   defp format_suggestion_type(_), do: "other"
 
+  defp type_badge_class("action"), do: "badge-neutral"
+  defp type_badge_class("settings"), do: "badge-secondary"
+  defp type_badge_class("person"), do: "badge-info"
   defp type_badge_class("chat"), do: "badge-info"
   defp type_badge_class("timeline"), do: "badge-success"
   defp type_badge_class("discussion"), do: "badge-secondary"
   defp type_badge_class("community"), do: "badge-accent"
   defp type_badge_class("federated"), do: "badge-warning"
   defp type_badge_class("email"), do: "badge-primary"
+  defp type_badge_class("file"), do: "badge-warning"
   defp type_badge_class("mailbox"), do: "badge-primary"
   defp type_badge_class(_), do: "badge-neutral"
 

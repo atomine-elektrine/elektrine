@@ -6,7 +6,7 @@ defmodule ElektrineWeb.MobileChannel do
   use ElektrineWeb, :channel
   require Logger
 
-  alias Elektrine.{Accounts, Email, Notifications, Profiles, Social}
+  alias Elektrine.{Accounts, Email, Notifications, Profiles, Social, VPN}
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.PubSubTopics
 
@@ -17,6 +17,8 @@ defmodule ElektrineWeb.MobileChannel do
     # Subscribe to user-specific topics
     PubSubTopics.subscribe("user:#{user_id}")
     PubSubTopics.subscribe(PubSubTopics.user_notifications(user_id))
+    PubSubTopics.subscribe("user:#{user_id}:notification_count")
+    PubSubTopics.subscribe(PubSubTopics.user_vpn(user_id))
 
     # Subscribe to mailbox updates if user has a mailbox
     if mailbox = Email.get_user_mailbox(user_id) do
@@ -74,21 +76,37 @@ defmodule ElektrineWeb.MobileChannel do
       following_count: Profiles.get_following_count(user_id)
     })
 
+    push(socket, "vpn:counts", %{config_count: user_id |> VPN.list_user_configs() |> length()})
+
+    push(socket, "event:stream_ready", %{
+      sources: ["email", "notification", "chat", "social", "vpn"],
+      connected_at: DateTime.utc_now()
+    })
+
     {:noreply, socket}
   end
 
   # Handle new email received
   @impl true
   def handle_info({:new_email, message}, socket) do
-    push(socket, "email:new", %{
-      id: message.id,
-      from: message.from,
-      subject: message.subject,
-      preview: truncate_preview(message.text_body),
-      category: message.category,
-      has_attachments: message.has_attachments,
-      inserted_at: message.inserted_at
-    })
+    socket =
+      socket
+      |> push("email:new", %{
+        id: message.id,
+        from: message.from,
+        subject: message.subject,
+        preview: truncate_preview(message.text_body),
+        category: message.category,
+        has_attachments: message.has_attachments,
+        inserted_at: message.inserted_at
+      })
+      |> push_universal_event("email", "new", %{
+        title: email_title(message),
+        body: truncate_preview(message.subject),
+        url: "/email/view/#{message.hash || message.id}",
+        category: message.category,
+        message_id: message.id
+      })
 
     # Also update counts
     user_id = socket.assigns.user_id
@@ -104,14 +122,25 @@ defmodule ElektrineWeb.MobileChannel do
   # Handle email status updates
   @impl true
   def handle_info({:email_updated, message}, socket) do
-    push(socket, "email:updated", %{
-      id: message.id,
-      read: message.read,
-      archived: message.archived,
-      spam: message.spam,
-      deleted: message.deleted,
-      category: message.category
-    })
+    socket =
+      socket
+      |> push("email:updated", %{
+        id: message.id,
+        read: message.read,
+        archived: message.archived,
+        spam: message.spam,
+        deleted: message.deleted,
+        category: message.category
+      })
+      |> push_universal_event("email", "updated", %{
+        title: "Email updated",
+        body: "Message ##{message.id} status changed",
+        url: "/email/view/#{message.hash || message.id}",
+        message_id: message.id,
+        read: message.read,
+        archived: message.archived,
+        deleted: message.deleted
+      })
 
     {:noreply, socket}
   end
@@ -119,40 +148,103 @@ defmodule ElektrineWeb.MobileChannel do
   # Handle new notification
   @impl true
   def handle_info({:new_notification, notification}, socket) do
-    push(socket, "notification:new", format_notification(notification))
+    formatted = format_notification(notification)
+
+    socket =
+      socket
+      |> push("notification:new", formatted)
+      |> push_universal_event("notification", "new", %{
+        title: formatted.title,
+        body: formatted.body,
+        url: formatted.url,
+        notification_id: formatted.id,
+        type: formatted.type
+      })
+
     {:noreply, socket}
   end
 
   # Handle notification count updates
   @impl true
   def handle_info({:notification_count_updated, count}, socket) do
-    push(socket, "notification:count", %{count: count})
+    socket =
+      socket
+      |> push("notification:count", %{count: count})
+      |> push_universal_event("notification", "count_updated", %{
+        title: "Notification count updated",
+        body: "#{count} unread notification(s)",
+        url: "/notifications",
+        count: count
+      })
+
     {:noreply, socket}
   end
 
   # Handle all notifications read
   @impl true
   def handle_info(:all_notifications_read, socket) do
-    push(socket, "notification:count", %{count: 0})
+    socket =
+      socket
+      |> push("notification:count", %{count: 0})
+      |> push_universal_event("notification", "all_read", %{
+        title: "Notifications cleared",
+        body: "All notifications marked as read",
+        url: "/notifications",
+        count: 0
+      })
+
     {:noreply, socket}
   end
 
   # Chat message events
   @impl true
   def handle_info({:new_chat_message, message}, socket) do
-    push(socket, "chat:new_message", format_chat_message(message))
+    formatted = format_chat_message(message)
+
+    socket =
+      socket
+      |> push("chat:new_message", formatted)
+      |> push_universal_event("chat", "message_created", %{
+        title: "New chat message",
+        body: truncate_preview(formatted.content),
+        url: "/chat/#{formatted.conversation_id}",
+        conversation_id: formatted.conversation_id,
+        message_id: formatted.id
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:chat_message_updated, message}, socket) do
-    push(socket, "chat:message_updated", format_chat_message(message))
+    formatted = format_chat_message(message)
+
+    socket =
+      socket
+      |> push("chat:message_updated", formatted)
+      |> push_universal_event("chat", "message_updated", %{
+        title: "Chat message updated",
+        body: truncate_preview(formatted.content),
+        url: "/chat/#{formatted.conversation_id}",
+        conversation_id: formatted.conversation_id,
+        message_id: formatted.id
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:chat_message_deleted, message_id}, socket) do
-    push(socket, "chat:message_deleted", %{message_id: message_id})
+    socket =
+      socket
+      |> push("chat:message_deleted", %{message_id: message_id})
+      |> push_universal_event("chat", "message_deleted", %{
+        title: "Chat message deleted",
+        body: "Message ##{message_id} was removed",
+        url: "/chat",
+        message_id: message_id
+      })
+
     {:noreply, socket}
   end
 
@@ -218,19 +310,50 @@ defmodule ElektrineWeb.MobileChannel do
   # Handle new post from followed user
   @impl true
   def handle_info({:new_post, post}, socket) do
-    push(socket, "post:new", format_post(post))
+    formatted = format_post(post)
+
+    socket =
+      socket
+      |> push("post:new", formatted)
+      |> push_universal_event("social", "post_created", %{
+        title: "New post",
+        body: truncate_preview(formatted.content),
+        url: "/timeline/post/#{formatted.id}",
+        post_id: formatted.id
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:post_updated, post}, socket) do
-    push(socket, "post:updated", format_post(post))
+    formatted = format_post(post)
+
+    socket =
+      socket
+      |> push("post:updated", formatted)
+      |> push_universal_event("social", "post_updated", %{
+        title: "Post updated",
+        body: truncate_preview(formatted.content),
+        url: "/timeline/post/#{formatted.id}",
+        post_id: formatted.id
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:post_deleted, post_id}, socket) do
-    push(socket, "post:deleted", %{id: post_id})
+    socket =
+      socket
+      |> push("post:deleted", %{id: post_id})
+      |> push_universal_event("social", "post_deleted", %{
+        title: "Post deleted",
+        body: "Post ##{post_id} was removed",
+        url: "/timeline",
+        post_id: post_id
+      })
+
     {:noreply, socket}
   end
 
@@ -239,25 +362,66 @@ defmodule ElektrineWeb.MobileChannel do
         {:post_liked, %{post_id: post_id, user_id: liker_id, like_count: count}},
         socket
       ) do
-    push(socket, "post:liked", %{post_id: post_id, liker_id: liker_id, like_count: count})
+    socket =
+      socket
+      |> push("post:liked", %{post_id: post_id, liker_id: liker_id, like_count: count})
+      |> push_universal_event("social", "post_liked", %{
+        title: "Post liked",
+        body: "Post ##{post_id} now has #{count} like(s)",
+        url: "/timeline/post/#{post_id}",
+        post_id: post_id,
+        like_count: count
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:post_unliked, %{post_id: post_id, like_count: count}}, socket) do
-    push(socket, "post:unliked", %{post_id: post_id, like_count: count})
+    socket =
+      socket
+      |> push("post:unliked", %{post_id: post_id, like_count: count})
+      |> push_universal_event("social", "post_unliked", %{
+        title: "Post unliked",
+        body: "Post ##{post_id} now has #{count} like(s)",
+        url: "/timeline/post/#{post_id}",
+        post_id: post_id,
+        like_count: count
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:new_comment, comment}, socket) do
-    push(socket, "comment:new", format_comment(comment))
+    formatted = format_comment(comment)
+
+    socket =
+      socket
+      |> push("comment:new", formatted)
+      |> push_universal_event("social", "comment_created", %{
+        title: "New comment",
+        body: truncate_preview(formatted.content),
+        url: "/timeline/post/#{formatted.post_id}",
+        comment_id: formatted.id,
+        post_id: formatted.post_id
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:comment_deleted, comment_id}, socket) do
-    push(socket, "comment:deleted", %{id: comment_id})
+    socket =
+      socket
+      |> push("comment:deleted", %{id: comment_id})
+      |> push_universal_event("social", "comment_deleted", %{
+        title: "Comment deleted",
+        body: "Comment ##{comment_id} was removed",
+        url: "/timeline",
+        comment_id: comment_id
+      })
+
     {:noreply, socket}
   end
 
@@ -266,11 +430,20 @@ defmodule ElektrineWeb.MobileChannel do
         {:post_reposted, %{post_id: post_id, user_id: reposter_id, repost_count: count}},
         socket
       ) do
-    push(socket, "post:reposted", %{
-      post_id: post_id,
-      reposter_id: reposter_id,
-      repost_count: count
-    })
+    socket =
+      socket
+      |> push("post:reposted", %{
+        post_id: post_id,
+        reposter_id: reposter_id,
+        repost_count: count
+      })
+      |> push_universal_event("social", "post_reposted", %{
+        title: "Post reposted",
+        body: "Post ##{post_id} now has #{count} repost(s)",
+        url: "/timeline/post/#{post_id}",
+        post_id: post_id,
+        repost_count: count
+      })
 
     {:noreply, socket}
   end
@@ -279,17 +452,24 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_info({:new_follower, follower}, socket) do
     user_id = socket.assigns.user_id
 
-    push(socket, "follower:new", %{
-      id: follower.id,
-      username: follower.username,
-      display_name: follower.display_name,
-      avatar: follower.avatar_url
-    })
-
-    push(socket, "social:counts", %{
-      follower_count: Profiles.get_follower_count(user_id),
-      following_count: Profiles.get_following_count(user_id)
-    })
+    socket =
+      socket
+      |> push("follower:new", %{
+        id: follower.id,
+        username: follower.username,
+        display_name: follower.display_name,
+        avatar: follower.avatar_url
+      })
+      |> push("social:counts", %{
+        follower_count: Profiles.get_follower_count(user_id),
+        following_count: Profiles.get_following_count(user_id)
+      })
+      |> push_universal_event("social", "follower_added", %{
+        title: "New follower",
+        body: "@#{follower.username} started following you",
+        url: "/#{follower.handle || follower.username}",
+        follower_id: follower.id
+      })
 
     {:noreply, socket}
   end
@@ -297,39 +477,132 @@ defmodule ElektrineWeb.MobileChannel do
   @impl true
   def handle_info({:unfollowed, follower_id}, socket) do
     user_id = socket.assigns.user_id
-    push(socket, "follower:removed", %{id: follower_id})
 
-    push(socket, "social:counts", %{
-      follower_count: Profiles.get_follower_count(user_id),
-      following_count: Profiles.get_following_count(user_id)
-    })
+    socket =
+      socket
+      |> push("follower:removed", %{id: follower_id})
+      |> push("social:counts", %{
+        follower_count: Profiles.get_follower_count(user_id),
+        following_count: Profiles.get_following_count(user_id)
+      })
+      |> push_universal_event("social", "follower_removed", %{
+        title: "Follower removed",
+        body: "Follower ##{follower_id} is no longer following",
+        url: "/friends",
+        follower_id: follower_id
+      })
 
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:friend_request, request}, socket) do
-    push(socket, "friend_request:new", %{
-      id: request.id,
-      user_id: request.requester_id,
-      username: request.requester.username,
-      display_name: request.requester.display_name,
-      avatar: request.requester.avatar_url,
-      created_at: request.inserted_at
-    })
+    socket =
+      socket
+      |> push("friend_request:new", %{
+        id: request.id,
+        user_id: request.requester_id,
+        username: request.requester.username,
+        display_name: request.requester.display_name,
+        avatar: request.requester.avatar_url,
+        created_at: request.inserted_at
+      })
+      |> push_universal_event("social", "friend_request_received", %{
+        title: "Friend request",
+        body: "@#{request.requester.username} sent you a request",
+        url: "/friends?tab=requests",
+        request_id: request.id
+      })
 
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:friend_request_accepted, request}, socket) do
-    push(socket, "friend_request:accepted", %{id: request.id, user_id: request.recipient_id})
+    socket =
+      socket
+      |> push("friend_request:accepted", %{id: request.id, user_id: request.recipient_id})
+      |> push_universal_event("social", "friend_request_accepted", %{
+        title: "Friend request accepted",
+        body: "You are now connected",
+        url: "/friends",
+        request_id: request.id
+      })
+
     {:noreply, socket}
   end
 
   @impl true
   def handle_info({:social_notification, notification}, socket) do
-    push(socket, "notification:new", format_notification(notification))
+    formatted = format_notification(notification)
+
+    socket =
+      socket
+      |> push("notification:new", formatted)
+      |> push_universal_event("social", "notification", %{
+        title: formatted.title,
+        body: formatted.body,
+        url: formatted.url,
+        notification_id: formatted.id,
+        type: formatted.type
+      })
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:vpn_config_created, config}, socket) do
+    formatted = format_vpn_config(config)
+    count = socket.assigns.user_id |> VPN.list_user_configs() |> length()
+
+    socket =
+      socket
+      |> push("vpn:config_created", formatted)
+      |> push("vpn:counts", %{config_count: count})
+      |> push_universal_event("vpn", "config_created", %{
+        title: "VPN profile created",
+        body: "#{formatted.server_name} - #{formatted.allocated_ip}",
+        url: "/vpn",
+        config_id: formatted.id
+      })
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:vpn_config_updated, config}, socket) do
+    formatted = format_vpn_config(config)
+    count = socket.assigns.user_id |> VPN.list_user_configs() |> length()
+
+    socket =
+      socket
+      |> push("vpn:config_updated", formatted)
+      |> push("vpn:counts", %{config_count: count})
+      |> push_universal_event("vpn", "config_updated", %{
+        title: "VPN profile updated",
+        body: "#{formatted.server_name} - status #{formatted.status}",
+        url: "/vpn",
+        config_id: formatted.id
+      })
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:vpn_config_deleted, config_id}, socket) do
+    count = socket.assigns.user_id |> VPN.list_user_configs() |> length()
+
+    socket =
+      socket
+      |> push("vpn:config_deleted", %{id: config_id})
+      |> push("vpn:counts", %{config_count: count})
+      |> push_universal_event("vpn", "config_deleted", %{
+        title: "VPN profile removed",
+        body: "VPN config ##{config_id} was removed",
+        url: "/vpn",
+        config_id: config_id
+      })
+
     {:noreply, socket}
   end
 
@@ -554,6 +827,49 @@ defmodule ElektrineWeb.MobileChannel do
     |> String.trim()
     |> String.slice(0, 100)
   end
+
+  defp push_universal_event(socket, source, event, attrs) when is_map(attrs) do
+    payload =
+      attrs
+      |> Map.put_new(:id, event_id())
+      |> Map.put_new(:source, source)
+      |> Map.put_new(:event, event)
+      |> Map.put_new(:inserted_at, DateTime.utc_now())
+
+    push(socket, "event:new", payload)
+  end
+
+  defp push_universal_event(socket, source, event, _attrs) do
+    push_universal_event(socket, source, event, %{})
+  end
+
+  defp email_title(message) do
+    from = message.from |> to_string() |> String.trim()
+
+    if from == "" do
+      "New email"
+    else
+      "New email from #{from}"
+    end
+  end
+
+  defp event_id do
+    "evt_" <> Integer.to_string(System.unique_integer([:positive]))
+  end
+
+  defp format_vpn_config(config) do
+    %{
+      id: config.id,
+      server_name: vpn_server_name(config),
+      allocated_ip: config.allocated_ip,
+      status: config.status,
+      inserted_at: config.inserted_at,
+      updated_at: config.updated_at
+    }
+  end
+
+  defp vpn_server_name(%{vpn_server: %{name: name}}) when is_binary(name) and name != "", do: name
+  defp vpn_server_name(_), do: "VPN"
 
   defp format_notification(notification) do
     %{

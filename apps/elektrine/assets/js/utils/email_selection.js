@@ -46,15 +46,16 @@ export function handleSelectionKeyboard(e) {
  * Handle shift+click and checkbox clicks for message selection
  */
 export function handleSelectionClick(e) {
-  const messageCard = e.target.closest('[phx-click="toggle_message_selection_on_shift"]')
+  const messageCard = e.target.closest('.message-card[data-message-id]')
   if (messageCard && e.shiftKey) {
     e.preventDefault()
     e.stopPropagation()
-    const messageId = messageCard.getAttribute('phx-value-message_id')
+    const messageId = messageCard.getAttribute('data-message-id')
     const checkbox = document.getElementById(`message-checkbox-${messageId}`)
     if (checkbox) {
       checkbox.click()
     }
+    return
   }
 
   // Handle individual checkbox clicks for immediate visual feedback

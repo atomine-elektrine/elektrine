@@ -147,6 +147,8 @@ html[data-theme="dark"],
 :root {
   --grid-color: rgba(168, 85, 247, 0.12);
   --grid-x-color: rgba(168, 85, 247, 0.06);
+  --grid-glow-color: rgba(168, 85, 247, 0.22);
+  --grid-glow-x-color: rgba(168, 85, 247, 0.14);
 }
 
 /* Grid glow overlay - only brightens grid lines near cursor */
@@ -160,46 +162,95 @@ html[data-theme="dark"],
   z-index: 0;
   contain: strict;
   background-size: 40px 40px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(168,85,247,0.12)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(168,85,247,0.08)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(168,85,247,0.08)' stroke-width='1'/%3E%3C/svg%3E");
+  background-image:
+    linear-gradient(var(--grid-glow-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-glow-color) 1px, transparent 1px),
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 0.6px),
+      var(--grid-glow-x-color) 50%,
+      transparent calc(50% + 0.6px)
+    ),
+    linear-gradient(
+      -45deg,
+      transparent calc(50% - 0.6px),
+      var(--grid-glow-x-color) 50%,
+      transparent calc(50% + 0.6px)
+    );
+  opacity: var(--cursor-opacity, 0);
+  filter: saturate(1.1) brightness(1.2);
+  transition: opacity 180ms ease-out;
+  will-change: opacity, mask-image, -webkit-mask-image;
   mask-image: radial-gradient(
-    350px circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
-    rgba(0,0,0,0.5) 0%,
-    rgba(0,0,0,0.2) 40%,
-    transparent 70%
+    var(--cursor-radius, 340px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.58) 36%,
+    rgba(0, 0, 0, 0.30) 62%,
+    transparent 84%
   );
   -webkit-mask-image: radial-gradient(
-    350px circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
-    rgba(0,0,0,0.5) 0%,
-    rgba(0,0,0,0.2) 40%,
-    transparent 70%
+    var(--cursor-radius, 340px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.58) 36%,
+    rgba(0, 0, 0, 0.30) 62%,
+    transparent 84%
   );
 }
 
 body.bg-base-100 {
   background-color: oklch(var(--b1));
   background-size: 40px 40px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(168,85,247,0.12)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(168,85,247,0.06)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(168,85,247,0.06)' stroke-width='1'/%3E%3C/svg%3E");
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+    linear-gradient(
+      45deg,
+      transparent calc(50% - 0.6px),
+      var(--grid-x-color) 50%,
+      transparent calc(50% + 0.6px)
+    ),
+    linear-gradient(
+      -45deg,
+      transparent calc(50% - 0.6px),
+      var(--grid-x-color) 50%,
+      transparent calc(50% + 0.6px)
+    );
 }
 
 /* Grid color variants */
 body[data-grid="purple"], body.grid-purple {
   --grid-color: rgba(168, 85, 247, 0.06);
+  --grid-x-color: rgba(168, 85, 247, 0.04);
+  --grid-glow-color: rgba(168, 85, 247, 0.20);
+  --grid-glow-x-color: rgba(168, 85, 247, 0.12);
 }
 
 body[data-grid="cyan"], body.grid-cyan {
   --grid-color: rgba(6, 182, 212, 0.06);
+  --grid-x-color: rgba(6, 182, 212, 0.04);
+  --grid-glow-color: rgba(6, 182, 212, 0.20);
+  --grid-glow-x-color: rgba(6, 182, 212, 0.12);
 }
 
 body[data-grid="red"], body.grid-red {
   --grid-color: rgba(239, 68, 68, 0.06);
+  --grid-x-color: rgba(239, 68, 68, 0.04);
+  --grid-glow-color: rgba(239, 68, 68, 0.20);
+  --grid-glow-x-color: rgba(239, 68, 68, 0.12);
 }
 
 body[data-grid="green"], body.grid-green {
   --grid-color: rgba(34, 197, 94, 0.06);
+  --grid-x-color: rgba(34, 197, 94, 0.04);
+  --grid-glow-color: rgba(34, 197, 94, 0.20);
+  --grid-glow-x-color: rgba(34, 197, 94, 0.12);
 }
 
 body[data-grid="orange"], body.grid-orange {
   --grid-color: rgba(249, 115, 22, 0.06);
+  --grid-x-color: rgba(249, 115, 22, 0.04);
+  --grid-glow-color: rgba(249, 115, 22, 0.20);
+  --grid-glow-x-color: rgba(249, 115, 22, 0.12);
 }
 
 /* Apple-like glass card effect */
@@ -326,10 +377,16 @@ body[data-grid="orange"], body.grid-orange {
 
 body[data-grid="blue"], body.grid-blue {
   --grid-color: rgba(59, 130, 246, 0.06);
+  --grid-x-color: rgba(59, 130, 246, 0.04);
+  --grid-glow-color: rgba(59, 130, 246, 0.20);
+  --grid-glow-x-color: rgba(59, 130, 246, 0.12);
 }
 
 body[data-grid="pink"], body.grid-pink {
   --grid-color: rgba(236, 72, 153, 0.06);
+  --grid-x-color: rgba(236, 72, 153, 0.04);
+  --grid-glow-color: rgba(236, 72, 153, 0.20);
+  --grid-glow-x-color: rgba(236, 72, 153, 0.12);
 }
 
 .bg-grid {
@@ -422,5 +479,4 @@ body.has-blinkenlights #cursor-glow-overlay {
     drop-shadow(0 0 40px rgba(168, 85, 247, 0.3))
     drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
 }
-
 

@@ -808,20 +808,35 @@
                   <div
                     id={"message-#{message.id}"}
                     class={[
-                      "message-card p-3 sm:p-4 border rounded-lg transition-all duration-200 hover:shadow-md",
+                      "message-card relative p-3 sm:p-4 border rounded-lg transition-all duration-200 hover:shadow-md cursor-pointer",
                       get_message_classes(message, @current_tab),
                       message.reply_later_at && overdue?(message.reply_later_at) &&
                         "border-l-4 border-l-error bg-error/5"
                     ]}
-                    phx-click="toggle_message_selection_on_shift"
-                    phx-value-message_id={message.id}
+                    data-message-id={message.id}
                   >
+                    <.link
+                      navigate={
+                        if message.status == "draft" do
+                          ~p"/email/compose?#{[mode: "draft", draft_id: message.id, return_to: "drafts"]}"
+                        else
+                          ~p"/email/view/#{message.hash || message.id}?#{[return_to: @current_tab, filter: @current_filter]}"
+                        end
+                      }
+                      class="message-open-link absolute inset-0 z-10 rounded-lg"
+                      aria-label={
+                        if message.status == "draft",
+                          do: gettext("Edit draft"),
+                          else: gettext("View message")
+                      }
+                    >
+                    </.link>
                     <div class="flex items-start gap-3">
                       <!-- Checkbox -->
                       <input
                         type="checkbox"
                         id={"message-checkbox-#{message.id}"}
-                        class="checkbox checkbox-sm mt-1 flex-shrink-0"
+                        class="checkbox checkbox-sm mt-1 flex-shrink-0 relative z-20"
                         phx-click="toggle_message_selection"
                         phx-value-message_id={message.id}
                         checked={message.id in @selected_messages}
@@ -829,112 +844,115 @@
                       
 <!-- Message Content -->
                       <div class="flex-1 min-w-0">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 mb-1">
-                          <div class="flex items-center gap-2 min-w-0 flex-1">
-                            <!-- From/To -->
-                            <span class={[
-                              "text-sm truncate",
-                              if(message.status == "received" and !message.read,
-                                do: "font-bold",
-                                else: "font-medium"
-                              )
-                            ]}>
-                              <%= if @current_tab == "sent" do %>
-                                {gettext("To")}: {message.to}
-                              <% else %>
-                                {message.from}
-                              <% end %>
-                            </span>
-                            
-<!-- Indicators -->
-                            <div class="flex items-center gap-2">
-                              <%= if message.has_attachments do %>
-                                <div
-                                  class="flex items-center gap-1 text-base-content/60"
-                                  title={gettext("Has attachments")}
-                                >
-                                  <.icon name="hero-paper-clip" class="w-4 h-4" />
-                                  <%= if message.attachments && map_size(message.attachments) > 0 do %>
-                                    <span class="text-xs font-medium">
-                                      {map_size(message.attachments)}
-                                    </span>
-                                  <% end %>
-                                </div>
-                              <% end %>
-                              <%= if message.status == "received" and !message.read do %>
-                                <div class="w-2 h-2 bg-primary rounded-full flex-shrink-0"></div>
-                              <% end %>
-                            </div>
-                          </div>
-                          
-<!-- Date / Reply Later Badge -->
-                          <%= if message.reply_later_at do %>
-                            <div class="flex flex-col items-end gap-1">
-                              <div class={[
-                                "badge badge-sm font-semibold gap-1",
-                                reply_later_urgency_class(message.reply_later_at)
+                        <div class="block rounded-md -mx-1 px-1 py-1 mb-2">
+                          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 mb-1">
+                            <div class="flex items-center gap-2 min-w-0 flex-1">
+                              <!-- From/To -->
+                              <span class={[
+                                "text-sm truncate",
+                                if(message.status == "received" and !message.read,
+                                  do: "font-bold",
+                                  else: "font-medium"
+                                )
                               ]}>
-                                <%= if overdue?(message.reply_later_at) do %>
-                                  <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
+                                <%= if @current_tab == "sent" do %>
+                                  {gettext("To")}: {message.to}
                                 <% else %>
-                                  <.icon name="hero-arrow-uturn-left" class="w-3 h-3" />
+                                  {message.from}
                                 <% end %>
-                                {format_reply_later_relative(message.reply_later_at)}
+                              </span>
+                              
+<!-- Indicators -->
+                              <div class="flex items-center gap-2">
+                                <%= if message.has_attachments do %>
+                                  <div
+                                    class="flex items-center gap-1 text-base-content/60"
+                                    title={gettext("Has attachments")}
+                                  >
+                                    <.icon name="hero-paper-clip" class="w-4 h-4" />
+                                    <%= if message.attachments && map_size(message.attachments) > 0 do %>
+                                      <span class="text-xs font-medium">
+                                        {map_size(message.attachments)}
+                                      </span>
+                                    <% end %>
+                                  </div>
+                                <% end %>
+                                <%= if message.status == "received" and !message.read do %>
+                                  <div class="w-2 h-2 bg-primary rounded-full flex-shrink-0">
+                                  </div>
+                                <% end %>
                               </div>
-                              <span class="text-xs text-base-content/50">
+                            </div>
+                            
+<!-- Date / Reply Later Badge -->
+                            <%= if message.reply_later_at do %>
+                              <div class="flex flex-col items-end gap-1">
+                                <div class={[
+                                  "badge badge-sm font-semibold gap-1",
+                                  reply_later_urgency_class(message.reply_later_at)
+                                ]}>
+                                  <%= if overdue?(message.reply_later_at) do %>
+                                    <.icon name="hero-exclamation-triangle" class="w-3 h-3" />
+                                  <% else %>
+                                    <.icon name="hero-arrow-uturn-left" class="w-3 h-3" />
+                                  <% end %>
+                                  {format_reply_later_relative(message.reply_later_at)}
+                                </div>
+                                <span class="text-xs text-base-content/50">
+                                  <.local_time
+                                    datetime={message.reply_later_at}
+                                    format="datetime"
+                                    timezone={@timezone}
+                                    time_format={@time_format}
+                                  />
+                                </span>
+                              </div>
+                            <% else %>
+                              <span class="text-xs sm:text-sm text-base-content/60 whitespace-nowrap">
                                 <.local_time
-                                  datetime={message.reply_later_at}
+                                  datetime={message.inserted_at}
                                   format="datetime"
                                   timezone={@timezone}
                                   time_format={@time_format}
                                 />
                               </span>
-                            </div>
-                          <% else %>
-                            <span class="text-xs sm:text-sm text-base-content/60 whitespace-nowrap">
-                              <.local_time
-                                datetime={message.inserted_at}
-                                format="datetime"
-                                timezone={@timezone}
-                                time_format={@time_format}
-                              />
-                            </span>
-                          <% end %>
-                        </div>
-                        
-<!-- Subject -->
-                        <h3 class={[
-                          "text-sm mb-1 line-clamp-1 sm:line-clamp-none",
-                          if(message.status == "received" and !message.read,
-                            do: "font-semibold",
-                            else: "font-medium"
-                          )
-                        ]}>
-                          {decode_subject(message.subject)}
-                        </h3>
-                        
-<!-- Labels -->
-                        <%= if Ecto.assoc_loaded?(message.labels) && length(message.labels) > 0 do %>
-                          <div class="flex flex-wrap gap-1 mb-1">
-                            <%= for label <- message.labels do %>
-                              <span
-                                class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
-                                style={"background-color: #{label.color}20; color: #{label.color}"}
-                              >
-                                {label.name}
-                              </span>
                             <% end %>
                           </div>
-                        <% end %>
-                        
+                          
+<!-- Subject -->
+                          <h3 class={[
+                            "text-sm mb-1 line-clamp-1 sm:line-clamp-none",
+                            if(message.status == "received" and !message.read,
+                              do: "font-semibold",
+                              else: "font-medium"
+                            )
+                          ]}>
+                            {decode_subject(message.subject)}
+                          </h3>
+                          
+<!-- Labels -->
+                          <%= if Ecto.assoc_loaded?(message.labels) && length(message.labels) > 0 do %>
+                            <div class="flex flex-wrap gap-1 mb-1">
+                              <%= for label <- message.labels do %>
+                                <span
+                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+                                  style={"background-color: #{label.color}20; color: #{label.color}"}
+                                >
+                                  {label.name}
+                                </span>
+                              <% end %>
+                            </div>
+                          <% end %>
+                          
 <!-- Preview -->
-                        <p class="text-xs sm:text-sm text-base-content/60 line-clamp-2 mb-3">
-                          {email_preview(message)}
-                        </p>
+                          <p class="text-xs sm:text-sm text-base-content/60 line-clamp-2">
+                            {email_preview(message)}
+                          </p>
+                        </div>
                         
 <!-- Quick Actions -->
-                        <div class="flex flex-wrap items-center gap-2">
-                          <!-- Primary action - always visible -->
+                        <div class="flex flex-wrap items-center gap-2 relative z-20">
+                          <!-- Primary action -->
                           <%= if message.status == "draft" do %>
                             <.link
                               navigate={
@@ -943,15 +961,6 @@
                               class="btn btn-xs btn-primary min-h-[2rem]"
                             >
                               {gettext("Edit")}
-                            </.link>
-                          <% else %>
-                            <.link
-                              navigate={
-                                ~p"/email/view/#{message.hash || message.id}?#{[return_to: @current_tab, filter: @current_filter]}"
-                              }
-                              class="btn btn-xs btn-primary min-h-[2rem]"
-                            >
-                              {gettext("View")}
                             </.link>
                           <% end %>
                           
