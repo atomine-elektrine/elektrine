@@ -38,13 +38,10 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
     # Increment notification count
     new_count = (socket.assigns[:notification_count] || 0) + 1
 
-    # Show toast notification for federation notifications
+    # Show flash notification for federation notifications
     socket =
       if notification.type in ["like", "reply", "follow", "reaction", "boost"] do
-        push_event(socket, "show_notification", %{
-          message: notification.body || notification.title,
-          type: "info"
-        })
+        put_flash(socket, :info, notification.body || notification.title)
       else
         socket
       end

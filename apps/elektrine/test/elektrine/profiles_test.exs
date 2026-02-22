@@ -7,6 +7,8 @@ defmodule Elektrine.ProfilesTest do
 
   alias Elektrine.Profiles
   alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Repo
 
   describe "get_profile_by_handle/1" do
     test "returns profile for valid handle" do
@@ -260,5 +262,52 @@ defmodule Elektrine.ProfilesTest do
       user = AccountsFixtures.user_fixture()
       assert Profiles.get_following(user.id) == []
     end
+  end
+
+  describe "list_remote_followers/1" do
+    test "returns only accepted remote followers" do
+      user = AccountsFixtures.user_fixture()
+      accepted_actor = remote_actor_fixture("accepted")
+      pending_actor = remote_actor_fixture("pending")
+
+      {:ok, _} =
+        Profiles.create_remote_follow(
+          accepted_actor.id,
+          user.id,
+          false,
+          "https://remote.server/activities/follow/#{System.unique_integer([:positive])}"
+        )
+
+      {:ok, _} =
+        Profiles.create_remote_follow(
+          pending_actor.id,
+          user.id,
+          true,
+          "https://remote.server/activities/follow/#{System.unique_integer([:positive])}"
+        )
+
+      followers = Profiles.list_remote_followers(user.id)
+      follower_actor_ids = Enum.map(followers, & &1.remote_actor_id)
+
+      assert accepted_actor.id in follower_actor_ids
+      refute pending_actor.id in follower_actor_ids
+      assert length(follower_actor_ids) == 1
+    end
+  end
+
+  defp remote_actor_fixture(label) do
+    unique_id = System.unique_integer([:positive])
+    username = "#{label}_#{unique_id}"
+
+    %Actor{}
+    |> Actor.changeset(%{
+      uri: "https://remote.server/users/#{username}",
+      username: username,
+      domain: "remote.server",
+      inbox_url: "https://remote.server/users/#{username}/inbox",
+      public_key: "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
   end
 end

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.RecoveryEmailVerification
+  alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Developer
   alias Elektrine.Email
   alias Elektrine.Email.PGP
@@ -17,6 +18,22 @@ defmodule ElektrineWeb.UserSettingsLive do
   # Only need to override auth to require_authenticated_user (live_session uses maybe_authenticated_user)
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
 
+  @default_tab "profile"
+  @setting_tabs [
+    {"profile", "hero-user", :default},
+    {"security", "hero-shield-check", :default},
+    {"password-manager", "hero-lock-closed", :default},
+    {"privacy", "hero-lock-closed", :default},
+    {"preferences", "hero-cog-6-tooth", :default},
+    {"notifications", "hero-bell", :default},
+    {"federation", "hero-globe-alt", :default},
+    {"timeline", "hero-queue-list", :default},
+    {"email", "hero-envelope", :default},
+    {"developer", "hero-code-bracket", :default},
+    {"danger", "hero-exclamation-triangle", :danger}
+  ]
+  @valid_tabs Enum.map(@setting_tabs, fn {tab, _icon, _tone} -> tab end)
+
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
@@ -30,6 +47,11 @@ defmodule ElektrineWeb.UserSettingsLive do
      socket
      |> assign(:page_title, "Account Settings")
      |> assign(:user, user)
+     |> assign(
+       :bluesky_managed_enabled,
+       Application.get_env(:elektrine, :bluesky, [])
+       |> Keyword.get(:managed_enabled, false)
+     )
      |> assign(:changeset, Accounts.change_user(user, %{}))
      |> assign(:handle_changeset, Accounts.User.handle_changeset(user, %{}))
      # Loading states for each tab
@@ -78,11 +100,12 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_params(%{"tab" => tab}, _url, socket) do
-    socket = assign(socket, :selected_tab, tab)
+    selected_tab = normalize_selected_tab(tab)
+    socket = assign(socket, :selected_tab, selected_tab)
 
     # Trigger lazy loading for the selected tab when connected
     if connected?(socket) do
-      send(self(), {:load_tab_data, tab})
+      send(self(), {:load_tab_data, selected_tab})
     end
 
     {:noreply, socket}
@@ -91,11 +114,11 @@ defmodule ElektrineWeb.UserSettingsLive do
   @impl true
   def handle_params(_params, _url, socket) do
     # Default to profile tab if no tab specified
-    socket = assign(socket, :selected_tab, "profile")
+    socket = assign(socket, :selected_tab, @default_tab)
 
     # Trigger lazy loading for the profile tab when connected
     if connected?(socket) do
-      send(self(), {:load_tab_data, "profile"})
+      send(self(), {:load_tab_data, @default_tab})
     end
 
     {:noreply, socket}
@@ -255,7 +278,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  # For tabs that don't need special loading (privacy, preferences, notifications)
+  # For tabs that don't need special loading (privacy, preferences, notifications, federation)
   defp load_tab_data(socket, _tab), do: socket
 
   # =============================================================================
@@ -264,6 +287,8 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("change_tab", %{"tab" => tab}, socket) do
+    tab = normalize_selected_tab(tab)
+
     # Update URL with tab parameter so it persists on refresh
     {:noreply, push_patch(socket, to: ~p"/account?tab=#{tab}")}
   end
@@ -410,18 +435,8 @@ defmodule ElektrineWeb.UserSettingsLive do
         "activitypub_manually_approve_followers"
       ])
 
-    # Handle checkboxes - convert "true" string to boolean true, absence to false
-    checkbox_fields = [
-      "notify_on_new_follower",
-      "notify_on_direct_message",
-      "notify_on_mention",
-      "notify_on_reply",
-      "notify_on_like",
-      "notify_on_email_received",
-      "notify_on_discussion_reply",
-      "notify_on_comment",
-      "activitypub_manually_approve_followers"
-    ]
+    # Only coerce checkboxes for the active tab to avoid touching unrelated settings.
+    checkbox_fields = checkbox_fields_for_tab(socket.assigns.selected_tab)
 
     params_with_checkboxes =
       Enum.reduce(checkbox_fields, filtered_params, fn field, acc ->
@@ -496,6 +511,101 @@ defmodule ElektrineWeb.UserSettingsLive do
 
       save_user_settings(socket, user_params_with_avatar)
     end
+  end
+
+  @impl true
+  def handle_event("enable_bluesky_managed", %{"current_password" => current_password}, socket) do
+    user = socket.assigns.user
+
+    result =
+      if user.bluesky_enabled do
+        BlueskyManaged.reconnect_for_user(user, current_password)
+      else
+        case BlueskyManaged.reconnect_for_user(user, current_password) do
+          {:ok, _result} = ok ->
+            ok
+
+          {:error, :missing_identifier} ->
+            BlueskyManaged.enable_for_user(user, current_password)
+
+          {:error, {:create_session_failed, _status}} ->
+            BlueskyManaged.enable_for_user(user, current_password)
+
+          {:error, _reason} = error ->
+            error
+        end
+      end
+
+    case result do
+      {:ok, %{user: updated_user}} ->
+        refreshed_user = Accounts.get_user!(updated_user.id)
+
+        {:noreply,
+         socket
+         |> assign(:user, refreshed_user)
+         |> assign(:changeset, Accounts.change_user(refreshed_user, %{}))
+         |> notify_success("Bluesky managed account connected")}
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, bluesky_managed_error_message(reason))}
+    end
+  end
+
+  @impl true
+  def handle_event("enable_bluesky_managed", _params, socket) do
+    {:noreply, notify_error(socket, "Current password is required")}
+  end
+
+  @impl true
+  def handle_event("reconnect_bluesky_managed", %{"current_password" => current_password}, socket) do
+    user = socket.assigns.user
+
+    case BlueskyManaged.reconnect_for_user(user, current_password) do
+      {:ok, %{user: updated_user}} ->
+        refreshed_user = Accounts.get_user!(updated_user.id)
+
+        {:noreply,
+         socket
+         |> assign(:user, refreshed_user)
+         |> assign(:changeset, Accounts.change_user(refreshed_user, %{}))
+         |> notify_success("Bluesky managed account reconnected")}
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, bluesky_managed_error_message(reason))}
+    end
+  end
+
+  @impl true
+  def handle_event("reconnect_bluesky_managed", _params, socket) do
+    {:noreply, notify_error(socket, "Current password is required")}
+  end
+
+  @impl true
+  def handle_event(
+        "disconnect_bluesky_managed",
+        %{"current_password" => current_password},
+        socket
+      ) do
+    user = socket.assigns.user
+
+    case BlueskyManaged.disconnect_for_user(user, current_password) do
+      {:ok, updated_user} ->
+        refreshed_user = Accounts.get_user!(updated_user.id)
+
+        {:noreply,
+         socket
+         |> assign(:user, refreshed_user)
+         |> assign(:changeset, Accounts.change_user(refreshed_user, %{}))
+         |> notify_success("Bluesky managed account disconnected")}
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, bluesky_managed_error_message(reason))}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect_bluesky_managed", _params, socket) do
+    {:noreply, notify_error(socket, "Current password is required")}
   end
 
   def handle_event("toggle_subscription", %{"list_id" => list_id}, socket) do
@@ -976,6 +1086,15 @@ defmodule ElektrineWeb.UserSettingsLive do
     # Separate handle update from other updates
     {handle_param, other_params} = Map.pop(user_params_with_avatar, "handle")
 
+    # Bluesky linkage fields are provisioned by the managed flow only.
+    other_params_sanitized =
+      Map.drop(other_params, [
+        "bluesky_enabled",
+        "bluesky_identifier",
+        "bluesky_app_password",
+        "bluesky_pds_url"
+      ])
+
     # Update handle if changed
     handle_result =
       if handle_param && handle_param != socket.assigns.user.handle do
@@ -984,21 +1103,11 @@ defmodule ElektrineWeb.UserSettingsLive do
         {:ok, socket.assigns.user}
       end
 
-    # Handle checkboxes - convert "true" string to boolean true, absence to false
-    checkbox_fields = [
-      "notify_on_new_follower",
-      "notify_on_direct_message",
-      "notify_on_mention",
-      "notify_on_reply",
-      "notify_on_like",
-      "notify_on_email_received",
-      "notify_on_discussion_reply",
-      "notify_on_comment",
-      "activitypub_manually_approve_followers"
-    ]
+    # Only coerce checkboxes for the active tab to avoid touching unrelated settings.
+    checkbox_fields = checkbox_fields_for_tab(socket.assigns.selected_tab)
 
     other_params_with_checkboxes =
-      Enum.reduce(checkbox_fields, other_params, fn field, acc ->
+      Enum.reduce(checkbox_fields, other_params_sanitized, fn field, acc ->
         case Map.get(acc, field) do
           "true" -> Map.put(acc, field, true)
           nil -> Map.put(acc, field, false)
@@ -1013,8 +1122,15 @@ defmodule ElektrineWeb.UserSettingsLive do
         _ -> other_params_with_checkboxes
       end
 
+    # Keep existing app password when settings form leaves this field blank.
+    params_with_bluesky_password =
+      case Map.get(params_with_timezone, "bluesky_app_password") do
+        "" -> Map.delete(params_with_timezone, "bluesky_app_password")
+        _ -> params_with_timezone
+      end
+
     # Extract recovery_email to handle separately (needs special verification logic)
-    {recovery_email_param, final_params} = Map.pop(params_with_timezone, "recovery_email")
+    {recovery_email_param, final_params} = Map.pop(params_with_bluesky_password, "recovery_email")
 
     # Update other fields (excluding recovery_email)
     other_result =
@@ -1086,6 +1202,102 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
+  defp bluesky_managed_error_message(:invalid_credentials), do: "Current password is incorrect"
+  defp bluesky_managed_error_message(:already_enabled), do: "Bluesky is already enabled"
+  defp bluesky_managed_error_message(:managed_pds_disabled), do: "Managed Bluesky is disabled"
+  defp bluesky_managed_error_message(:user_not_found), do: "User account could not be found"
+
+  defp bluesky_managed_error_message(:current_password_required),
+    do: "Current password is required"
+
+  defp bluesky_managed_error_message(:missing_managed_domain),
+    do: "Managed Bluesky domain is not configured"
+
+  defp bluesky_managed_error_message(:missing_managed_admin_password),
+    do: "Managed Bluesky admin password is not configured"
+
+  defp bluesky_managed_error_message(:invalid_managed_service_url),
+    do: "Managed Bluesky service URL is invalid"
+
+  defp bluesky_managed_error_message(:missing_identifier),
+    do: "Managed Bluesky identifier is missing. Disconnect and reconnect to repair this account."
+
+  defp bluesky_managed_error_message(:missing_invite_code),
+    do: "Managed Bluesky did not return an invite code"
+
+  defp bluesky_managed_error_message(:missing_did),
+    do: "Managed Bluesky did not return an account DID"
+
+  defp bluesky_managed_error_message(:missing_handle),
+    do: "Managed Bluesky did not return an account handle"
+
+  defp bluesky_managed_error_message(:missing_access_jwt),
+    do: "Managed Bluesky did not return a session token"
+
+  defp bluesky_managed_error_message(:missing_app_password),
+    do: "Managed Bluesky did not return an app password"
+
+  defp bluesky_managed_error_message(:invalid_json),
+    do: "Managed Bluesky returned an invalid response"
+
+  defp bluesky_managed_error_message({:create_invite_code_failed, 401}),
+    do: "Managed Bluesky admin credentials are invalid"
+
+  defp bluesky_managed_error_message({:create_invite_code_failed, _status}),
+    do: "Managed Bluesky could not issue an invite code"
+
+  defp bluesky_managed_error_message({:create_account_failed, 409}),
+    do: "A managed Bluesky account for this handle already exists. Try reconnecting instead."
+
+  defp bluesky_managed_error_message({:create_account_failed, _status}),
+    do: "Managed Bluesky could not create your account"
+
+  defp bluesky_managed_error_message({:create_session_failed, 401}),
+    do:
+      "Could not authenticate with managed Bluesky. Ensure your account password matches your managed Bluesky password."
+
+  defp bluesky_managed_error_message({:create_session_failed, _status}),
+    do: "Could not reconnect managed Bluesky account"
+
+  defp bluesky_managed_error_message({:create_app_password_failed, _status}),
+    do: "Managed Bluesky could not issue an app password"
+
+  defp bluesky_managed_error_message({:http_error, reason}),
+    do: "Managed Bluesky service is unreachable (#{format_bluesky_http_reason(reason)})"
+
+  defp bluesky_managed_error_message({:banned, _reason}),
+    do: "This account is banned and cannot connect to managed Bluesky"
+
+  defp bluesky_managed_error_message({:suspended, _until, _reason}),
+    do: "This account is suspended and cannot connect to managed Bluesky"
+
+  defp bluesky_managed_error_message(%Ecto.Changeset{}),
+    do: "Managed Bluesky connected, but local account settings could not be saved"
+
+  defp bluesky_managed_error_message(_), do: "Could not update managed Bluesky connection"
+
+  defp format_bluesky_http_reason(reason) do
+    reason
+    |> inspect()
+    |> String.replace_prefix(":", "")
+  end
+
+  defp bluesky_profile_url(user) do
+    profile_id =
+      [user.bluesky_did, user.bluesky_identifier]
+      |> Enum.find(fn value -> is_binary(value) and String.trim(value) != "" end)
+      |> case do
+        value when is_binary(value) -> String.trim(value)
+        _ -> nil
+      end
+
+    if profile_id do
+      "https://bsky.app/profile/#{profile_id}"
+    else
+      nil
+    end
+  end
+
   # Helper to format changeset errors
   defp format_changeset_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
@@ -1110,6 +1322,66 @@ defmodule ElektrineWeb.UserSettingsLive do
     end)
     |> Enum.map_join("; ", & &1)
   end
+
+  defp normalize_selected_tab(tab) when tab in @valid_tabs, do: tab
+  defp normalize_selected_tab(_tab), do: @default_tab
+
+  defp setting_tabs, do: @setting_tabs
+
+  defp tab_label("profile"), do: gettext("Profile")
+  defp tab_label("security"), do: gettext("Security")
+  defp tab_label("password-manager"), do: gettext("Password Manager")
+  defp tab_label("privacy"), do: gettext("Privacy")
+  defp tab_label("preferences"), do: gettext("Preferences")
+  defp tab_label("notifications"), do: gettext("Notifications")
+  defp tab_label("federation"), do: gettext("Federation")
+  defp tab_label("timeline"), do: gettext("Timeline")
+  defp tab_label("email"), do: gettext("Email")
+  defp tab_label("developer"), do: gettext("Developer")
+  defp tab_label("danger"), do: gettext("Danger Zone")
+  defp tab_label(_), do: gettext("Settings")
+
+  defp tab_link_class(selected_tab, tab_id, tone) do
+    base =
+      "text-sm rounded-lg flex items-center gap-2 px-3 py-2 border transition-all duration-200"
+
+    active? = selected_tab == tab_id
+
+    case tone do
+      :danger ->
+        if active? do
+          "#{base} border-error/40 bg-error/10 text-error font-medium"
+        else
+          "#{base} border-transparent text-error/80 hover:text-error hover:bg-error/10 hover:border-error/25"
+        end
+
+      _ ->
+        if active? do
+          "#{base} border-primary/35 bg-base-200/70 text-base-content font-medium"
+        else
+          "#{base} border-transparent text-base-content/80 hover:text-base-content hover:bg-base-200/60 hover:border-base-300"
+        end
+    end
+  end
+
+  defp checkbox_fields_for_tab("notifications") do
+    [
+      "notify_on_new_follower",
+      "notify_on_direct_message",
+      "notify_on_mention",
+      "notify_on_reply",
+      "notify_on_like",
+      "notify_on_email_received",
+      "notify_on_discussion_reply",
+      "notify_on_comment"
+    ]
+  end
+
+  defp checkbox_fields_for_tab("federation") do
+    ["activitypub_manually_approve_followers"]
+  end
+
+  defp checkbox_fields_for_tab(_), do: []
 
   # Calculate days until handle can be changed
   def days_until_can_change_handle(user) do

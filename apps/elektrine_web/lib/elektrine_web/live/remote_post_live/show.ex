@@ -195,7 +195,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                       navigate={"/remote/#{reply_actor.username}@#{reply_actor.domain}"}
                       class="font-medium hover:underline"
                     >
-                      {reply_actor.display_name || reply_actor.username}
+                      {raw(
+                        render_display_name_with_emojis(
+                          reply_actor.display_name || reply_actor.username,
+                          reply_actor.domain
+                        )
+                      )}
                     </.link>
                   <% else %>
                     <span class="font-medium">{extract_username_from_uri(reply_author_uri)}</span>
@@ -325,7 +330,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                       navigate={"/remote/#{reply_actor.username}@#{reply_actor.domain}"}
                       class="text-sm font-medium hover:text-purple-600 transition-colors"
                     >
-                      {reply_actor.display_name || reply_actor.username}
+                      {raw(
+                        render_display_name_with_emojis(
+                          reply_actor.display_name || reply_actor.username,
+                          reply_actor.domain
+                        )
+                      )}
                     </.link>
                     <div class="text-xs opacity-50">
                       @{reply_actor.username}@{reply_actor.domain} · {if reply["published"],
@@ -990,7 +1000,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             "content" => reply.content,
             "published" => NaiveDateTime.to_iso8601(reply.inserted_at) <> "Z",
             "attributedTo" => actor_uri,
-            "inReplyTo" => reply.parent_activitypub_id || "#{base_url}/posts/#{message.id}",
+            "inReplyTo" =>
+              Map.get(reply, :parent_activitypub_id) || "#{base_url}/posts/#{message.id}",
             "_local" => is_local_reply,
             "_local_user" => local_user,
             "_local_message_id" => reply.id
@@ -3021,7 +3032,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         "attributedTo" => actor_uri,
         "content" => msg.content,
         "published" => NaiveDateTime.to_iso8601(msg.inserted_at) <> "Z",
-        "inReplyTo" => msg.parent_activitypub_id,
+        "inReplyTo" => Map.get(msg, :parent_activitypub_id),
         "likes" => %{"totalItems" => msg.like_count || 0},
         "_local" => is_local_reply,
         "_local_user" => local_user,

@@ -191,14 +191,27 @@ export const Turnstile = {
               form.appendChild(input)
             }
             input.value = token
+
+            const existingError = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
+            if (existingError) {
+              existingError.remove()
+            }
           },
           'error-callback': (errorCode) => {
             console.error('Turnstile error:', errorCode)
-            // Show user-friendly error
-            const errorDiv = document.createElement('div')
-            errorDiv.className = 'text-warning text-xs mt-1'
-            errorDiv.textContent = 'Verification unavailable. You may still submit the form.'
-            this.el.parentElement.appendChild(errorDiv)
+
+            const input = form.querySelector('input[name="cf-turnstile-response"]')
+            if (input) input.value = ''
+
+            const existingError = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
+            if (!existingError) {
+              // Show user-friendly error once to avoid repeated messages on retry loops
+              const errorDiv = document.createElement('div')
+              errorDiv.className = 'text-warning text-xs mt-1'
+              errorDiv.dataset.turnstileError = 'true'
+              errorDiv.textContent = 'Verification unavailable. You may still submit the form.'
+              this.el.parentElement.appendChild(errorDiv)
+            }
           },
           'expired-callback': () => {
             // Token expired, clear the hidden input

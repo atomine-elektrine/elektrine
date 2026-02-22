@@ -425,6 +425,7 @@ defmodule Elektrine.Messaging.Messages do
               Elektrine.Async.start(fn ->
                 preloaded = Repo.preload(updated_message, :sender)
                 Elektrine.ActivityPub.Outbox.federate_update(preloaded)
+                _ = Elektrine.Bluesky.OutboundWorker.enqueue_post_update(updated_message.id)
               end)
 
               preloaded_message = Repo.preload(updated_message, [:sender, :reply_to, :reactions])
@@ -465,6 +466,7 @@ defmodule Elektrine.Messaging.Messages do
               Elektrine.Async.start(fn ->
                 preloaded = Repo.preload(deleted_message, :sender)
                 Elektrine.ActivityPub.Outbox.federate_delete(preloaded)
+                _ = Elektrine.Bluesky.OutboundWorker.enqueue_post_delete(deleted_message.id)
               end)
 
               {:ok, deleted_message}

@@ -43,6 +43,35 @@ services:
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - uploads:/app/uploads
+      - app_data:/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
+  bluesky_pds:
+    image: ghcr.io/bluesky-social/pds:0.4
+    container_name: elektrine_bluesky_pds
+    profiles:
+      - bluesky
+    environment:
+      PDS_HOSTNAME: ${BLUESKY_MANAGED_DOMAIN:-bsky.local}
+      PDS_JWT_SECRET: ${BLUESKY_PDS_JWT_SECRET:-change-me}
+      PDS_ADMIN_PASSWORD: ${BLUESKY_MANAGED_ADMIN_PASSWORD:-change-me}
+      PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: ${BLUESKY_PDS_ROTATION_KEY_HEX:-}
+      PDS_DATA_DIRECTORY: /pds
+      PDS_BLOBSTORE_DISK_LOCATION: /pds/blocks
+      PDS_BLOB_UPLOAD_LIMIT: 52428800
+      PDS_DID_PLC_URL: "https://plc.directory"
+      PDS_BSKY_APP_VIEW_URL: "https://api.bsky.app"
+      PDS_BSKY_APP_VIEW_DID: "did:web:api.bsky.app"
+      PDS_REPORT_SERVICE_URL: "https://mod.bsky.app"
+      PDS_REPORT_SERVICE_DID: "did:plc:ar7c4by46qjdydhdevvrndac"
+      PDS_CRAWLERS: "https://bsky.network"
+      LOG_ENABLED: true
+    ports:
+      - "${BLUESKY_PDS_PORT:-3000}:3000"
+    volumes:
+      - bluesky_pds_data:/pds
     networks:
       - elektrine_network
     restart: unless-stopped
@@ -51,6 +80,8 @@ volumes:
   postgres_data:
   letsencrypt:
   uploads:
+  app_data:
+  bluesky_pds_data:
 
 networks:
   elektrine_network:

@@ -159,7 +159,7 @@ export const PasskeyAuth = {
     }
 
     // Handle click to start authentication
-    this.el.addEventListener('click', async () => {
+    this.handleClick = async () => {
       this.el.disabled = true
       try {
         // Request challenge from server
@@ -181,17 +181,23 @@ export const PasskeyAuth = {
       } finally {
         this.el.disabled = false
       }
-    })
+    }
+
+    this.el.addEventListener('click', this.handleClick)
   },
 
   async getChallenge() {
     return new Promise((resolve) => {
       // Set up one-time event handler for challenge response
-      const handleChallenge = (data) => {
-        this.removeHandleEvent('passkey_auth_challenge', handleChallenge)
+      const challengeRef = this.handleEvent('passkey_auth_challenge', (data) => {
+        this.removeHandleEvent(challengeRef)
+        if (this.challengeEventRef === challengeRef) {
+          this.challengeEventRef = null
+        }
         resolve(data)
-      }
-      this.handleEvent('passkey_auth_challenge', handleChallenge)
+      })
+
+      this.challengeEventRef = challengeRef
 
       // Request challenge
       this.pushEvent('get_passkey_challenge', {})
@@ -270,6 +276,17 @@ export const PasskeyAuth = {
 
     document.body.appendChild(form)
     form.submit()
+  },
+
+  destroyed() {
+    if (this.handleClick) {
+      this.el.removeEventListener('click', this.handleClick)
+    }
+
+    if (this.challengeEventRef) {
+      this.removeHandleEvent(this.challengeEventRef)
+      this.challengeEventRef = null
+    }
   }
 }
 
@@ -316,10 +333,13 @@ export const PasskeyConditionalUI = {
     }
 
     try {
+      this.abortController = new AbortController()
+
       // Use conditional mediation
       const credential = await navigator.credentials.get({
         publicKey,
-        mediation: 'conditional'
+        mediation: 'conditional',
+        signal: this.abortController.signal
       })
 
       if (credential) {
@@ -353,11 +373,15 @@ export const PasskeyConditionalUI = {
 
   async getConditionalChallenge() {
     return new Promise((resolve) => {
-      const handleChallenge = (data) => {
-        this.removeHandleEvent('passkey_conditional_challenge', handleChallenge)
+      const challengeRef = this.handleEvent('passkey_conditional_challenge', (data) => {
+        this.removeHandleEvent(challengeRef)
+        if (this.conditionalChallengeRef === challengeRef) {
+          this.conditionalChallengeRef = null
+        }
         resolve(data)
-      }
-      this.handleEvent('passkey_conditional_challenge', handleChallenge)
+      })
+
+      this.conditionalChallengeRef = challengeRef
       this.pushEvent('get_passkey_conditional_challenge', {})
     })
   },
@@ -394,9 +418,15 @@ export const PasskeyConditionalUI = {
   },
 
   destroyed() {
+    if (this.conditionalChallengeRef) {
+      this.removeHandleEvent(this.conditionalChallengeRef)
+      this.conditionalChallengeRef = null
+    }
+
     // Abort any pending conditional UI request
     if (this.abortController) {
       this.abortController.abort()
+      this.abortController = null
     }
   }
 }

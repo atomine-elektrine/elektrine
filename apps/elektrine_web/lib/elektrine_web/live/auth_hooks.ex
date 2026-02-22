@@ -3,9 +3,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
   import Phoenix.Component
   use ElektrineWeb, :verified_routes
 
-  # Flash helpers for hooks
-  defp notify_error(socket, message),
-    do: push_event(socket, "flash", %{type: "error", message: message})
+  # Flash helper for auth on-mount hooks
+  defp notify_error(socket, message), do: Phoenix.LiveView.put_flash(socket, :error, message)
 
   def on_mount(:require_authenticated_user, _params, session, socket) do
     socket = mount_current_user(socket, session)

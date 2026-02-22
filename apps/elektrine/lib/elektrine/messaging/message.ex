@@ -86,6 +86,9 @@ defmodule Elektrine.Messaging.Message do
     field :activitypub_id, :string
     # Text in DB (long URLs)
     field :activitypub_url, :string
+    # Text in DB (at://did/app.bsky.feed.post/rkey)
+    field :bluesky_uri, :string
+    field :bluesky_cid, :string
     field :federated, :boolean, default: false
     belongs_to :remote_actor, Elektrine.ActivityPub.Actor
 
@@ -154,6 +157,8 @@ defmodule Elektrine.Messaging.Message do
       :primary_url,
       :activitypub_id,
       :activitypub_url,
+      :bluesky_uri,
+      :bluesky_cid,
       :federated,
       :remote_actor_id,
       :content_warning,

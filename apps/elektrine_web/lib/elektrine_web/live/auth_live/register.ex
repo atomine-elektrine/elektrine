@@ -9,7 +9,7 @@ defmodule ElektrineWeb.AuthLive.Register do
   def mount(_params, session, socket) do
     changeset = Accounts.change_user_registration(%User{})
     invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
-    via_tor = session["via_tor"] || false
+    via_tor = via_tor_request?(socket, session)
     turnstile_config = Application.get_env(:elektrine, :turnstile)
     site_key = turnstile_config[:site_key]
 
@@ -24,6 +24,14 @@ defmodule ElektrineWeb.AuthLive.Register do
        via_tor: via_tor,
        turnstile_site_key: site_key
      )}
+  end
+
+  defp via_tor_request?(socket, session) do
+    session["via_tor"] ||
+      case socket.host_uri do
+        %URI{host: host} when is_binary(host) -> String.ends_with?(host, ".onion")
+        _ -> false
+      end
   end
 
   def render(assigns) do

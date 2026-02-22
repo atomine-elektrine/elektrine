@@ -27,6 +27,30 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     |> put_req_header("content-type", "application/json")
   end
 
+  defp spoof_alert_messages(mailbox_id) do
+    mailbox_id
+    |> Email.list_inbox_messages()
+    |> Enum.filter(&(&1.subject == "Security Alert: Email spoofing attempt detected"))
+  end
+
+  defp assert_spoof_alert_count(mailbox_id, expected_count, attempts \\ 20)
+
+  defp assert_spoof_alert_count(mailbox_id, expected_count, attempts) when attempts > 0 do
+    actual_count = mailbox_id |> spoof_alert_messages() |> length()
+
+    if actual_count == expected_count do
+      :ok
+    else
+      Process.sleep(25)
+      assert_spoof_alert_count(mailbox_id, expected_count, attempts - 1)
+    end
+  end
+
+  defp assert_spoof_alert_count(mailbox_id, expected_count, 0) do
+    actual_count = mailbox_id |> spoof_alert_messages() |> length()
+    assert actual_count == expected_count
+  end
+
   describe "mailing list email handling" do
     setup do
       # Create a user with a mailbox
@@ -513,14 +537,16 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   end
 
   describe "local-domain spoofing hardening" do
-    test "rejects unauthenticated local-domain sender", %{conn: conn} do
-      user = user_fixture()
-      _mailbox = mailbox_fixture(%{user_id: user.id, email: "victim@elektrine.com"})
+    test "rejects unauthenticated local-domain sender and sends spoof alert", %{conn: conn} do
+      local_part = "victim#{System.unique_integer([:positive])}"
+      user = user_fixture(%{username: local_part})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      spoofed_from = mailbox.email
 
       params = %{
-        "from" => "attacker@elektrine.com",
-        "to" => "victim@elektrine.com",
-        "rcpt_to" => "victim@elektrine.com",
+        "from" => spoofed_from,
+        "to" => spoofed_from,
+        "rcpt_to" => spoofed_from,
         "subject" => "Spoof attempt",
         "text_body" => "malicious",
         "message_id" => "spoof-#{System.system_time(:millisecond)}"
@@ -532,6 +558,34 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> post(~p"/api/haraka/inbound", params)
 
       assert json_response(conn, 403)["error"] == "Message rejected for security reasons"
+      assert_spoof_alert_count(mailbox.id, 1)
+    end
+
+    test "does not send spoof alert for non-spoof security rejection", %{conn: conn} do
+      local_part = "victim#{System.unique_integer([:positive])}"
+      user = user_fixture(%{username: local_part})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      sender = mailbox.email
+
+      params = %{
+        "from" => sender,
+        "to" => sender,
+        "rcpt_to" => sender,
+        "subject" => "Header tampering",
+        "text_body" => "malicious",
+        "authenticated" => true,
+        "raw" =>
+          "From: #{sender}\r\nFrom: attacker@example.com\r\nTo: #{sender}\r\nSubject: Header tampering\r\n\r\nbody",
+        "message_id" => "multi-from-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 403)["error"] == "Message rejected for security reasons"
+      assert_spoof_alert_count(mailbox.id, 0)
     end
 
     test "allows local-domain sender with authenticated submission marker", %{conn: conn} do

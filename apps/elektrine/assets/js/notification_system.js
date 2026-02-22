@@ -237,6 +237,38 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
 }
 
 /**
+ * Normalizes LiveView-style payloads into notification options and renders them.
+ * @param {Object} payload - Notification payload from push_event/window events
+ * @returns {HTMLElement|null}
+ */
+export function showNotificationFromPayload(payload = {}) {
+  const {
+    message,
+    type,
+    title,
+    duration,
+    persistent,
+    progress,
+    undoEvent,
+    undoData,
+    actions
+  } = payload
+
+  if (!message) return null
+
+  const options = {}
+  if (title) options.title = title
+  if (duration !== undefined) options.duration = duration
+  if (persistent) options.persistent = persistent
+  if (progress) options.progress = progress
+  if (undoEvent) options.undoEvent = undoEvent
+  if (undoData) options.undoData = undoData
+  if (actions && actions.length > 0) options.actions = actions
+
+  return showNotification(message, type || 'info', options)
+}
+
+/**
  * Show a loading notification that can be updated or dismissed
  * @param {string} message - Loading message
  * @param {Object} options - Additional options

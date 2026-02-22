@@ -38,6 +38,7 @@ import { NotificationVisibility } from './notification_visibility'
 import {
   CopyEmail,
   PreserveFocus,
+  FlashAutoDismiss,
   FlashMessage,
   CopyToClipboard,
   CopyButton,
@@ -149,6 +150,7 @@ export const Hooks = {
   // UI
   CopyEmail,
   PreserveFocus,
+  FlashAutoDismiss,
   FlashMessage,
   CopyToClipboard,
   CopyButton,

@@ -111,6 +111,15 @@ defmodule Elektrine.Accounts.User do
     field :activitypub_public_key, :string
     field :activitypub_manually_approve_followers, :boolean, default: true
 
+    # Bluesky Cross-posting
+    field :bluesky_enabled, :boolean, default: false
+    field :bluesky_identifier, :string
+    field :bluesky_app_password, :string
+    field :bluesky_did, :string
+    field :bluesky_pds_url, :string
+    field :bluesky_inbound_cursor, :string
+    field :bluesky_inbound_last_polled_at, :utc_datetime
+
     # PGP/OpenPGP Encryption
     field :pgp_public_key, :string
     field :pgp_key_id, :string
@@ -295,7 +304,11 @@ defmodule Elektrine.Accounts.User do
       :onboarding_completed,
       :onboarding_completed_at,
       :onboarding_step,
-      :activitypub_manually_approve_followers
+      :activitypub_manually_approve_followers,
+      :bluesky_enabled,
+      :bluesky_identifier,
+      :bluesky_app_password,
+      :bluesky_pds_url
     ])
     |> validate_length(:display_name, max: 100)
     |> validate_format(:recovery_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -336,6 +349,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_inclusion(:preferred_email_domain, ~w(elektrine.com z.org),
       message: "must be elektrine.com or z.org"
     )
+    |> validate_bluesky_settings()
   end
 
   @doc """
@@ -798,6 +812,65 @@ defmodule Elektrine.Accounts.User do
       username ->
         normalized = String.downcase(username)
         put_change(changeset, :username, normalized)
+    end
+  end
+
+  defp validate_bluesky_settings(changeset) do
+    changeset
+    |> normalize_optional_string(:bluesky_identifier)
+    |> normalize_optional_string(:bluesky_app_password)
+    |> normalize_optional_string(:bluesky_pds_url)
+    |> validate_length(:bluesky_identifier, max: 255)
+    |> validate_length(:bluesky_app_password, max: 255)
+    |> validate_length(:bluesky_pds_url, max: 255)
+    |> require_bluesky_credentials_when_enabled()
+  end
+
+  defp normalize_optional_string(changeset, field) do
+    case get_change(changeset, field) do
+      nil ->
+        changeset
+
+      value when is_binary(value) ->
+        value
+        |> String.trim()
+        |> case do
+          "" -> put_change(changeset, field, nil)
+          trimmed -> put_change(changeset, field, trimmed)
+        end
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp require_bluesky_credentials_when_enabled(changeset) do
+    if get_field(changeset, :bluesky_enabled) do
+      changeset
+      |> require_bluesky_identifier()
+      |> require_bluesky_app_password()
+    else
+      changeset
+    end
+  end
+
+  defp require_bluesky_identifier(changeset) do
+    case get_field(changeset, :bluesky_identifier) do
+      identifier when is_binary(identifier) and identifier != "" ->
+        changeset
+
+      _ ->
+        add_error(changeset, :bluesky_identifier, "is required when Bluesky is enabled")
+    end
+  end
+
+  defp require_bluesky_app_password(changeset) do
+    case get_field(changeset, :bluesky_app_password) do
+      password when is_binary(password) and password != "" ->
+        changeset
+
+      _ ->
+        add_error(changeset, :bluesky_app_password, "is required when Bluesky is enabled")
     end
   end
 

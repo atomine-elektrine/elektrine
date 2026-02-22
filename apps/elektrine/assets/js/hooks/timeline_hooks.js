@@ -526,6 +526,8 @@ export const SessionContextTracker = {
     this.sessionData = {
       liked_hashtags: [],
       liked_creators: [],
+      liked_local_creators: [],
+      liked_remote_creators: [],
       viewed_posts: [],
       total_interactions: 0,
       total_views: 0
@@ -537,9 +539,21 @@ export const SessionContextTracker = {
         this.sessionData.liked_hashtags.push(...data.hashtags)
         this.sessionData.liked_hashtags = [...new Set(this.sessionData.liked_hashtags)]
       }
-      if (data.creator_id && !this.sessionData.liked_creators.includes(data.creator_id)) {
-        this.sessionData.liked_creators.push(data.creator_id)
+
+      const localCreatorId =
+        data.sender_id || (data.creator_type === 'local' ? data.creator_id : null)
+      const remoteCreatorId =
+        data.remote_actor_id || (data.creator_type === 'remote' ? data.creator_id : null)
+
+      if (localCreatorId && !this.sessionData.liked_local_creators.includes(localCreatorId)) {
+        this.sessionData.liked_local_creators.push(localCreatorId)
       }
+      if (remoteCreatorId && !this.sessionData.liked_remote_creators.includes(remoteCreatorId)) {
+        this.sessionData.liked_remote_creators.push(remoteCreatorId)
+      }
+
+      // Legacy field for LiveViews that still read liked_creators.
+      this.sessionData.liked_creators = this.sessionData.liked_local_creators
       this.updateEngagementRate()
     })
 
@@ -560,6 +574,8 @@ export const SessionContextTracker = {
     this.pushEvent('update_session_context', {
       liked_hashtags: this.sessionData.liked_hashtags.slice(-20),
       liked_creators: this.sessionData.liked_creators.slice(-10),
+      liked_local_creators: this.sessionData.liked_local_creators.slice(-10),
+      liked_remote_creators: this.sessionData.liked_remote_creators.slice(-10),
       viewed_posts: this.sessionData.viewed_posts.slice(-50),
       engagement_rate: engagementRate
     })

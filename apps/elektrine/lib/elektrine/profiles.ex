@@ -401,6 +401,11 @@ defmodule Elektrine.Profiles do
         # Create notification for the followed user
         follower = Elektrine.Accounts.get_user!(follower_id)
         Elektrine.Notifications.notify_follow(followed_id, follower)
+
+        Elektrine.Async.run(fn ->
+          _ = Elektrine.Bluesky.OutboundWorker.enqueue_follow(follower_id, followed_id)
+        end)
+
         {:ok, follow}
 
       error ->
@@ -412,9 +417,22 @@ defmodule Elektrine.Profiles do
   Unfollow a user.
   """
   def unfollow_user(follower_id, followed_id) do
-    Follow
-    |> where([f], f.follower_id == ^follower_id and f.followed_id == ^followed_id)
-    |> Repo.delete_all()
+    result =
+      Follow
+      |> where([f], f.follower_id == ^follower_id and f.followed_id == ^followed_id)
+      |> Repo.delete_all()
+
+    case result do
+      {count, _} when count > 0 ->
+        Elektrine.Async.run(fn ->
+          _ = Elektrine.Bluesky.OutboundWorker.enqueue_unfollow(follower_id, followed_id)
+        end)
+
+        result
+
+      _ ->
+        result
+    end
   end
 
   @doc """
@@ -919,11 +937,14 @@ defmodule Elektrine.Profiles do
   end
 
   @doc """
-  Lists remote followers for a user (for sending activities).
+  Lists accepted remote followers for a user (for sending activities).
   """
   def list_remote_followers(user_id) do
     Follow
-    |> where([f], f.followed_id == ^user_id and not is_nil(f.remote_actor_id))
+    |> where(
+      [f],
+      f.followed_id == ^user_id and not is_nil(f.remote_actor_id) and f.pending == false
+    )
     |> Repo.all()
   end
 

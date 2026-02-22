@@ -79,9 +79,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.TrackingOperations do
   # Stores engagement patterns from the current session.
   def handle_event("update_session_context", params, socket) do
     # Store session context in socket assigns for use in next feed refresh
+    liked_creators = params["liked_creators"] || []
+    liked_local_creators = params["liked_local_creators"] || liked_creators
+
     session_context = %{
       liked_hashtags: params["liked_hashtags"] || [],
-      liked_creators: params["liked_creators"] || [],
+      liked_creators: liked_creators,
+      liked_local_creators: liked_local_creators,
+      liked_remote_creators: params["liked_remote_creators"] || [],
       viewed_posts: params["viewed_posts"] || [],
       engagement_rate: params["engagement_rate"] || 0.0
     }

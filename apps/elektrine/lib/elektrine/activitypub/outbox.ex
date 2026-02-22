@@ -9,6 +9,7 @@ defmodule Elektrine.ActivityPub.Outbox do
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Builder, Fetcher, Mentions, Publisher}
+  alias Elektrine.Bluesky.OutboundWorker
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.Poll
@@ -18,6 +19,12 @@ defmodule Elektrine.ActivityPub.Outbox do
   Called automatically when a user creates a public or followers-only post.
   """
   def federate_post(%Message{} = message) do
+    maybe_federate_activitypub(message)
+    maybe_federate_bluesky(message)
+    :ok
+  end
+
+  defp maybe_federate_activitypub(%Message{} = message) do
     with true <- federatable_post?(message),
          %{} = user <- activitypub_user(message.sender_id) do
       poll = maybe_poll_for_message(message)
@@ -43,6 +50,11 @@ defmodule Elektrine.ActivityPub.Outbox do
       publish_post_activity(message, create_activity, user, inbox_urls)
     end
 
+    :ok
+  end
+
+  defp maybe_federate_bluesky(%Message{} = message) do
+    _ = OutboundWorker.enqueue_mirror_post(message.id)
     :ok
   end
 

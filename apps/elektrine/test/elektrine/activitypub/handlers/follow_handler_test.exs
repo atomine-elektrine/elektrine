@@ -1,10 +1,14 @@
 defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
   use Elektrine.DataCase, async: true
 
+  import Ecto.Query
   import Elektrine.AccountsFixtures
 
   alias Elektrine.ActivityPub.Handlers.FollowHandler
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.{Activity, Actor}
+  alias Elektrine.Profiles
+  alias Elektrine.Repo
 
   describe "handle/3 - Follow activity" do
     setup do
@@ -40,6 +44,42 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
         FollowHandler.handle(activity, "https://remote.server/users/follower", nil)
 
       assert result == {:error, :handle_follow_failed}
+    end
+
+    test "keeps duplicate pending follow requests pending without auto-accepting", %{user: user} do
+      remote_actor =
+        remote_actor_fixture(%{
+          uri: "https://remote.server/users/pending-follower",
+          username: "pending_follower",
+          inbox_url: "https://remote.server/users/pending-follower/inbox"
+        })
+
+      {:ok, _follow} =
+        Profiles.create_remote_follow(
+          remote_actor.id,
+          user.id,
+          true,
+          "https://remote.server/activities/follow/original"
+        )
+
+      activity = %{
+        "type" => "Follow",
+        "id" => "https://remote.server/activities/follow/duplicate",
+        "actor" => remote_actor.uri,
+        "object" => "#{ActivityPub.instance_url()}/users/#{user.username}"
+      }
+
+      assert {:ok, :pending} = FollowHandler.handle(activity, remote_actor.uri, nil)
+
+      follow = Profiles.get_follow_by_remote_actor(remote_actor.id, user.id)
+      assert follow.pending == true
+
+      accept_count =
+        Activity
+        |> where([a], a.activity_type == "Accept")
+        |> Repo.aggregate(:count, :id)
+
+      assert accept_count == 0
     end
   end
 
@@ -126,5 +166,22 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
 
       assert result == {:error, :undo_follow_failed}
     end
+  end
+
+  defp remote_actor_fixture(attrs) do
+    unique_id = System.unique_integer([:positive])
+
+    defaults = %{
+      uri: "https://remote.server/users/follower#{unique_id}",
+      username: "follower#{unique_id}",
+      domain: "remote.server",
+      inbox_url: "https://remote.server/users/follower#{unique_id}/inbox",
+      public_key: "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    }
+
+    %Actor{}
+    |> Actor.changeset(Map.merge(defaults, attrs))
+    |> Repo.insert!()
   end
 end

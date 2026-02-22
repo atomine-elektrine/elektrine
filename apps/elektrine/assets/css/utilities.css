@@ -58,14 +58,18 @@
 }
 
 #chat-container .btn-error {
-  background-color: #dc2626 !important;
-  border-color: #dc2626 !important;
-  color: #ffffff !important;
+  background:
+    linear-gradient(135deg, rgba(220, 38, 38, 0.24), rgba(220, 38, 38, 0.1) 55%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(135deg, oklch(var(--b1) / 0.96), oklch(var(--b2) / 0.9)) !important;
+  border-color: rgba(220, 38, 38, 0.52) !important;
+  color: rgba(254, 226, 226, 0.98) !important;
 }
 
 #chat-container .btn-error:hover {
-  background-color: #b91c1c !important;
-  border-color: #b91c1c !important;
+  background:
+    linear-gradient(135deg, rgba(220, 38, 38, 0.32), rgba(220, 38, 38, 0.14) 55%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(135deg, oklch(var(--b1) / 0.96), oklch(var(--b2) / 0.9)) !important;
+  border-color: rgba(220, 38, 38, 0.64) !important;
 }
 
 #chat-container .hover\:text-error:hover {

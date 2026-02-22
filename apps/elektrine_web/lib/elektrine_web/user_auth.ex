@@ -411,20 +411,17 @@ defmodule ElektrineWeb.UserAuth do
       session_ip == current_ip ->
         conn
 
-      # IP changed - potential session hijacking detected
+      # IP changed - log and rebind to avoid false positives on dynamic proxy paths.
+      # Admins behind CDNs/Tor/mobile networks can legitimately present different
+      # client IPs between requests.
       true ->
         require Logger
 
         Logger.warning(
-          "SECURITY ALERT: Admin session IP mismatch detected for user #{user.id} (#{user.username}). Session IP: #{session_ip}, Current IP: #{current_ip}. Logging out user."
+          "SECURITY ALERT: Admin session IP mismatch detected for user #{user.id} (#{user.username}). Session IP: #{session_ip}, Current IP: #{current_ip}. Rebinding admin session IP."
         )
 
-        conn
-        |> put_flash(
-          :error,
-          "Your session was terminated due to suspicious activity. Please log in again."
-        )
-        |> log_out_user()
+        put_session(conn, :admin_session_ip, current_ip)
     end
   end
 end

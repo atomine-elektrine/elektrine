@@ -35,7 +35,8 @@ export const ActivityTracker = {
     });
     
     // Also track visibility changes
-    document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
+    this.boundHandleVisibilityChange = this.handleVisibilityChange.bind(this);
+    document.addEventListener('visibilitychange', this.boundHandleVisibilityChange);
     
     // Start the away timer
     this.resetAwayTimer();
@@ -57,6 +58,10 @@ export const ActivityTracker = {
     events.forEach(event => {
       document.removeEventListener(event, this.boundHandleActivity);
     });
+
+    if (this.boundHandleVisibilityChange) {
+      document.removeEventListener('visibilitychange', this.boundHandleVisibilityChange);
+    }
     
     if (this.awayTimeout) {
       clearTimeout(this.awayTimeout);
@@ -125,12 +130,21 @@ export const DeviceDetector = {
     
     // Listen for connection changes
     if (navigator.connection) {
-      navigator.connection.addEventListener('change', () => {
+      this.connectionHandler = () => {
         this.pushEvent("connection_changed", {
           type: navigator.connection.effectiveType,
           downlink: navigator.connection.downlink
         });
-      });
+      };
+
+      navigator.connection.addEventListener('change', this.connectionHandler);
+    }
+  },
+
+  destroyed() {
+    if (navigator.connection && this.connectionHandler) {
+      navigator.connection.removeEventListener('change', this.connectionHandler);
+      this.connectionHandler = null;
     }
   },
   

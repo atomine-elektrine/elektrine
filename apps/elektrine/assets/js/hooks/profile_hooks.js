@@ -197,13 +197,53 @@ export const StatusSelector = {
   mounted() {
     this.handleEvent("status_updated", ({ status }) => this.updateStatusUI(status))
 
+    this.formSubmitHandlers = new Map()
     const forms = this.el.querySelectorAll('form[action="/account/status"]')
     forms.forEach(form => {
-      form.addEventListener('submit', () => {
+      const handler = (e) => {
+        e.preventDefault()
+
         const statusInput = form.querySelector('input[name="status"]')
-        if (statusInput) this.updateStatusUI(statusInput.value)
-      })
+        const status = statusInput?.value
+        if (!status) return
+
+        this.updateStatusUI(status)
+        this.submitStatus(form, status)
+      }
+
+      form.addEventListener('submit', handler)
+      this.formSubmitHandlers.set(form, handler)
     })
+  },
+
+  destroyed() {
+    if (this.formSubmitHandlers) {
+      this.formSubmitHandlers.forEach((handler, form) => {
+        form.removeEventListener('submit', handler)
+      })
+      this.formSubmitHandlers.clear()
+    }
+  },
+
+  async submitStatus(form, status) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
+    const headers = csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
+
+    try {
+      await fetch(form.action, {
+        method: 'POST',
+        headers,
+        body: new FormData(form),
+        credentials: 'same-origin'
+      })
+
+      const idleDetector = document.getElementById('idle-detector')
+      if (idleDetector) {
+        idleDetector.dataset.userStatus = status
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error)
+    }
   },
 
   updateStatusUI(status) {
