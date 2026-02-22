@@ -4,8 +4,8 @@ defmodule Elektrine.Updates do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.PlatformUpdate
+  alias Elektrine.Repo
 
   @doc """
   Gets the latest updates for display on the homepage.

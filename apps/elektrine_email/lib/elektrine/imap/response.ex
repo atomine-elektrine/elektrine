@@ -125,8 +125,7 @@ defmodule Elektrine.IMAP.Response do
                nil
            end
          end))
-      |> Enum.reject(&is_nil/1)
-      |> Enum.reject(&(&1 == ""))
+      |> Enum.reject(&(&1 in [nil, ""]))
       |> Enum.join(" ")
 
     "* #{seq_num} FETCH (#{parts})"

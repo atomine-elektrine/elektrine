@@ -5,12 +5,12 @@ defmodule ElektrineWeb.DiscussionsLive.Router do
   """
 
   alias ElektrineWeb.DiscussionsLive.Operations.{
-    PostOperations,
-    ModerationOperations,
-    MemberOperations,
-    VotingOperations,
     FlairOperations,
-    UiOperations
+    MemberOperations,
+    ModerationOperations,
+    PostOperations,
+    UiOperations,
+    VotingOperations
   }
 
   @doc """

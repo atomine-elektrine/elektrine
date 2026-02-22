@@ -7,9 +7,9 @@ defmodule Elektrine.ActivityPub.Instances do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.ActivityPub.Instance
   alias Elektrine.ActivityPub.NodeInfoFetcherWorker
+  alias Elektrine.Repo
 
   @doc """
   Checks if a domain is reachable.

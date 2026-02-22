@@ -5,9 +5,9 @@ defmodule Elektrine.Email.Aliases do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Ecto.Multi
   alias Elektrine.Email.Alias
+  alias Elektrine.Repo
 
   @doc """
   Returns the list of email aliases for a user.

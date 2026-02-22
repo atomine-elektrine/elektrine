@@ -11,8 +11,8 @@ defmodule ElektrineWeb.DAV.AddressBookController do
 
   use ElektrineWeb, :controller
 
-  alias ElektrineWeb.DAV.{ResponseHelpers, Properties}
   alias Elektrine.Email.{Contacts, VCard}
+  alias ElektrineWeb.DAV.{Properties, ResponseHelpers}
 
   require Logger
 

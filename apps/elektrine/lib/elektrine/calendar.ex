@@ -5,8 +5,8 @@ defmodule Elektrine.Calendar do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Calendar.{Calendar, Event, ICalendar}
+  alias Elektrine.Repo
 
   # ===== CALENDARS =====
 

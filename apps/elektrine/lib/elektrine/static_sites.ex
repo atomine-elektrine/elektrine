@@ -5,9 +5,9 @@ defmodule Elektrine.StaticSites do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Profiles.StaticSiteFile
   alias Elektrine.Profiles.UserProfile
+  alias Elektrine.Repo
 
   require Logger
 

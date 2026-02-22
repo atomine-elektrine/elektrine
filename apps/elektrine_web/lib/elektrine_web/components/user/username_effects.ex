@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.User.UsernameEffects do
+  @moduledoc false
   use Phoenix.Component
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.Components.TrustLevelBadge

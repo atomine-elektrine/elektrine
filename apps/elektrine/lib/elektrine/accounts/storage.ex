@@ -5,9 +5,9 @@ defmodule Elektrine.Accounts.Storage do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
   alias Elektrine.Email.Message
+  alias Elektrine.Repo
 
   @doc """
   Calculates total storage used by a user across all sources.

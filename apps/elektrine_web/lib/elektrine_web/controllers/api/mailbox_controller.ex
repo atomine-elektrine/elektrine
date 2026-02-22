@@ -4,7 +4,7 @@ defmodule ElektrineWeb.API.MailboxController do
   """
   use ElektrineWeb, :controller
 
-  alias Elektrine.Email.{Mailboxes, Messages, Aliases}
+  alias Elektrine.Email.{Aliases, Mailboxes, Messages}
 
   action_fallback ElektrineWeb.FallbackController
 

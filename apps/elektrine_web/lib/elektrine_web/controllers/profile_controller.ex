@@ -32,7 +32,7 @@ defmodule ElektrineWeb.ProfileController do
   """
 
   use ElektrineWeb, :controller
-  alias Elektrine.{Accounts, Profiles, StaticSites, Social, Messaging, Friends}
+  alias Elektrine.{Accounts, Friends, Messaging, Profiles, Social, StaticSites}
 
   # Reserved usernames that conflict with routes
   @reserved_usernames [

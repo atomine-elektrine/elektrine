@@ -1,31 +1,18 @@
 defmodule Elektrine.Bluesky.Inbound do
-  @moduledoc """
-  Polls Bluesky notifications and mirrors inbound interactions back into Elektrine notifications.
-
-  Current behavior:
-  - Tracks reply/mention/quote/like/repost events targeting mirrored posts.
-  - Deduplicates events with `bluesky_inbound_events`.
-  - Creates local notifications for the owner of the related local post.
-  """
-
+  @moduledoc "Polls Bluesky notifications and mirrors inbound interactions back into Elektrine notifications.\n\nCurrent behavior:\n- Tracks reply/mention/quote/like/repost events targeting mirrored posts.\n- Deduplicates events with `bluesky_inbound_events`.\n- Creates local notifications for the owner of the related local post.\n"
   import Ecto.Query, warn: false
   require Logger
-
   alias Elektrine.Accounts.User
   alias Elektrine.Bluesky
   alias Elektrine.Bluesky.InboundEvent
   alias Elektrine.Messaging.Message
   alias Elektrine.Notifications
   alias Elektrine.Repo
-
   @default_limit 50
   @default_feed_limit 50
   @default_timeout_ms 12_000
   @supported_reasons ~w(reply mention quote like repost)
-
-  @doc """
-  Sync inbound Bluesky notifications for all users with Bluesky enabled.
-  """
+  @doc "Sync inbound Bluesky notifications for all users with Bluesky enabled.\n"
   def sync_enabled_users do
     if inbound_enabled?() do
       users = inbound_enabled_users()
@@ -63,9 +50,7 @@ defmodule Elektrine.Bluesky.Inbound do
     end
   end
 
-  @doc """
-  Sync inbound Bluesky notifications for a single user.
-  """
+  @doc "Sync inbound Bluesky notifications for a single user.\n"
   def sync_user(%User{} = user) do
     if inbound_enabled?() do
       with {:ok, session} <- Bluesky.session_for_user(user),
@@ -90,27 +75,20 @@ defmodule Elektrine.Bluesky.Inbound do
   defp inbound_enabled_users do
     from(u in User,
       where:
-        u.bluesky_enabled == true and
-          not is_nil(u.bluesky_identifier) and
+        u.bluesky_enabled == true and not is_nil(u.bluesky_identifier) and
           not is_nil(u.bluesky_app_password)
     )
     |> Repo.all()
   end
 
   defp list_notifications(session, cursor) do
-    params =
-      %{"limit" => Integer.to_string(inbound_limit())}
-      |> maybe_put_cursor(cursor)
+    params = %{"limit" => Integer.to_string(inbound_limit())} |> maybe_put_cursor(cursor)
 
     url =
       session.service_url <>
         "/xrpc/app.bsky.notification.listNotifications?" <> URI.encode_query(params)
 
-    headers = [
-      {"accept", "application/json"},
-      {"authorization", "Bearer " <> session.access_jwt}
-    ]
-
+    headers = [{"accept", "application/json"}, {"authorization", "Bearer " <> session.access_jwt}]
     timeout_ms = Keyword.get(bluesky_config(), :timeout_ms, @default_timeout_ms)
 
     case http_client().request(:get, url, headers, "", receive_timeout: timeout_ms) do
@@ -132,13 +110,14 @@ defmodule Elektrine.Bluesky.Inbound do
     Map.put(params, "cursor", cursor)
   end
 
-  defp maybe_put_cursor(params, _cursor), do: params
+  defp maybe_put_cursor(params, _cursor) do
+    params
+  end
 
   defp sync_feed_posts(user, session) do
     if feed_sync_enabled?() do
-      with {:ok, payload} <- list_timeline(session),
-           {:ok, result} <- process_feed_posts(user, payload["feed"] || []) do
-        {:ok, result}
+      with {:ok, payload} <- list_timeline(session) do
+        process_feed_posts(user, payload["feed"] || [])
       end
     else
       {:ok, %{synced_feed_posts: 0}}
@@ -147,16 +126,8 @@ defmodule Elektrine.Bluesky.Inbound do
 
   defp list_timeline(session) do
     params = %{"limit" => Integer.to_string(feed_limit())}
-
-    url =
-      session.service_url <>
-        "/xrpc/app.bsky.feed.getTimeline?" <> URI.encode_query(params)
-
-    headers = [
-      {"accept", "application/json"},
-      {"authorization", "Bearer " <> session.access_jwt}
-    ]
-
+    url = session.service_url <> "/xrpc/app.bsky.feed.getTimeline?" <> URI.encode_query(params)
+    headers = [{"accept", "application/json"}, {"authorization", "Bearer " <> session.access_jwt}]
     timeout_ms = Keyword.get(bluesky_config(), :timeout_ms, @default_timeout_ms)
 
     case http_client().request(:get, url, headers, "", receive_timeout: timeout_ms) do
@@ -194,21 +165,24 @@ defmodule Elektrine.Bluesky.Inbound do
     end)
   end
 
-  defp process_feed_posts(_user, _feed_items), do: {:ok, %{synced_feed_posts: 0}}
+  defp process_feed_posts(_user, _feed_items) do
+    {:ok, %{synced_feed_posts: 0}}
+  end
 
   defp process_feed_post(%User{} = user, feed_item) when is_map(feed_item) do
     with {:ok, post_uri} <- feed_post_uri(feed_item),
          {:ok, event_id} <- feed_event_id(post_uri),
-         {:ok, raw_feed_event} <- build_feed_event_payload(feed_item, post_uri),
-         :ok <- track_event(user.id, event_id, "feed_post", post_uri, raw_feed_event) do
-      :ok
+         {:ok, raw_feed_event} <- build_feed_event_payload(feed_item, post_uri) do
+      track_event(user.id, event_id, "feed_post", post_uri, raw_feed_event)
     else
       {:skip, reason} -> {:skip, reason}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp process_feed_post(_user, _feed_item), do: {:skip, :invalid_feed_item}
+  defp process_feed_post(_user, _feed_item) do
+    {:skip, :invalid_feed_item}
+  end
 
   defp feed_post_uri(feed_item) do
     case get_in(feed_item, ["post", "uri"]) do
@@ -250,7 +224,12 @@ defmodule Elektrine.Bluesky.Inbound do
            %{
              processed_events: acc.processed_events + 1,
              created_notifications:
-               acc.created_notifications + if(created_notification?, do: 1, else: 0)
+               acc.created_notifications +
+                 if created_notification? do
+                   1
+                 else
+                   0
+                 end
            }}
 
         {:skip, _reason} ->
@@ -266,8 +245,9 @@ defmodule Elektrine.Bluesky.Inbound do
     end)
   end
 
-  defp process_notifications(_user, _notifications),
-    do: {:ok, %{processed_events: 0, created_notifications: 0}}
+  defp process_notifications(_user, _notifications) do
+    {:ok, %{processed_events: 0, created_notifications: 0}}
+  end
 
   defp process_notification(%User{} = user, notification) when is_map(notification) do
     with {:ok, reason} <- extract_reason(notification),
@@ -284,7 +264,9 @@ defmodule Elektrine.Bluesky.Inbound do
     end
   end
 
-  defp process_notification(_user, _notification), do: {:skip, :invalid_notification}
+  defp process_notification(_user, _notification) do
+    {:skip, :invalid_notification}
+  end
 
   defp extract_reason(notification) do
     reason = notification["reason"]
@@ -325,10 +307,13 @@ defmodule Elektrine.Bluesky.Inbound do
   end
 
   defp ensure_message_owner(%Message{sender_id: sender_id}, user_id)
-       when is_integer(sender_id) and sender_id == user_id,
-       do: :ok
+       when is_integer(sender_id) and sender_id == user_id do
+    :ok
+  end
 
-  defp ensure_message_owner(_message, _user_id), do: {:skip, :subject_owned_by_another_user}
+  defp ensure_message_owner(_message, _user_id) do
+    {:skip, :subject_owned_by_another_user}
+  end
 
   defp track_event(user_id, event_id, reason, subject_uri, raw_notification) do
     metadata =
@@ -434,29 +419,31 @@ defmodule Elektrine.Bluesky.Inbound do
     end
   end
 
-  defp text_or_default(_value, default), do: default
+  defp text_or_default(_value, default) do
+    default
+  end
 
   defp bluesky_post_url("at://" <> rest) do
     case String.split(rest, "/") do
-      [repo, "app.bsky.feed.post", rkey | _] ->
-        "https://bsky.app/profile/#{repo}/post/#{rkey}"
-
-      _ ->
-        nil
+      [repo, "app.bsky.feed.post", rkey | _] -> "https://bsky.app/profile/#{repo}/post/#{rkey}"
+      _ -> nil
     end
   end
 
-  defp bluesky_post_url(uri) when is_binary(uri) and uri != "", do: uri
-  defp bluesky_post_url(_uri), do: nil
+  defp bluesky_post_url(uri) when is_binary(uri) and uri != "" do
+    uri
+  end
+
+  defp bluesky_post_url(_uri) do
+    nil
+  end
 
   defp update_poll_tracking(user_id, cursor) do
     updates =
       [bluesky_inbound_last_polled_at: DateTime.utc_now() |> DateTime.truncate(:second)]
       |> maybe_add_cursor_update(cursor)
 
-    from(u in User, where: u.id == ^user_id)
-    |> Repo.update_all(set: updates)
-
+    from(u in User, where: u.id == ^user_id) |> Repo.update_all(set: updates)
     :ok
   end
 
@@ -464,7 +451,9 @@ defmodule Elektrine.Bluesky.Inbound do
     Keyword.put(updates, :bluesky_inbound_cursor, cursor)
   end
 
-  defp maybe_add_cursor_update(updates, _cursor), do: updates
+  defp maybe_add_cursor_update(updates, _cursor) do
+    updates
+  end
 
   defp inbound_enabled? do
     Keyword.get(bluesky_config(), :inbound_enabled, false)
@@ -482,7 +471,9 @@ defmodule Elektrine.Bluesky.Inbound do
     max(1, Keyword.get(bluesky_config(), :inbound_feed_limit, @default_feed_limit))
   end
 
-  defp bluesky_config, do: Application.get_env(:elektrine, :bluesky, [])
+  defp bluesky_config do
+    Application.get_env(:elektrine, :bluesky, [])
+  end
 
   defp http_client do
     Keyword.get(bluesky_config(), :http_client, Elektrine.Bluesky.FinchClient)

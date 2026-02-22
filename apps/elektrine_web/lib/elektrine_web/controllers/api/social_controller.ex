@@ -4,12 +4,12 @@ defmodule ElektrineWeb.API.SocialController do
   """
   use ElektrineWeb, :controller
 
-  alias Elektrine.Social
-  alias Elektrine.Profiles
+  alias Elektrine.Accounts
   alias Elektrine.Friends
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages
-  alias Elektrine.Accounts
+  alias Elektrine.Profiles
+  alias Elektrine.Social
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
 
   action_fallback ElektrineWeb.FallbackController

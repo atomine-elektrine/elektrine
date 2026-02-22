@@ -1,9 +1,9 @@
 defmodule ElektrineWeb.ContactsLive.Index do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.Email.Contacts
   alias Elektrine.Email.Contact
   alias Elektrine.Email.ContactGroup
+  alias Elektrine.Email.Contacts
 
   import ElektrineWeb.ContactsLive.Operations.ContactOperations
 

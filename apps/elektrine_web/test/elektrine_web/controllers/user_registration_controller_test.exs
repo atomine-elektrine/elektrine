@@ -96,7 +96,7 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
 
       assert user2.username == username2
 
-      # Test 3-character username  
+      # Test 3-character username
       username3 = "xyz#{:rand.uniform(999_999)}"
 
       {:ok, user3} =

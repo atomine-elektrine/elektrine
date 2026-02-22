@@ -6,8 +6,8 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.Messaging.Message
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social
 

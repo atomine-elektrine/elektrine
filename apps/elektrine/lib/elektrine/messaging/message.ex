@@ -1,4 +1,5 @@
 defmodule Elektrine.Messaging.Message do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -498,7 +499,7 @@ defmodule Elektrine.Messaging.Message do
   @doc """
   Checks if a URL is likely an image URL based on extension or common patterns.
   """
-  def is_image_url?(url) when is_binary(url) do
+  def image_url?(url) when is_binary(url) do
     image_extensions = ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i
 
     String.match?(url, image_extensions) ||
@@ -507,7 +508,7 @@ defmodule Elektrine.Messaging.Message do
       String.contains?(url, "user-images.githubusercontent.com")
   end
 
-  def is_image_url?(_), do: false
+  def image_url?(_), do: false
 
   @doc """
   Extracts YouTube URL from content and converts to embed format.
@@ -700,7 +701,7 @@ defmodule Elektrine.Messaging.Message do
         # Validate all URLs are from trusted domains
         invalid_urls =
           Enum.filter(urls, fn url ->
-            not is_trusted_media_url?(url)
+            not trusted_media_url?(url)
           end)
 
         if invalid_urls != [] do
@@ -721,7 +722,7 @@ defmodule Elektrine.Messaging.Message do
         add_error(changeset, :content, "contains too many mentions")
 
       # Too many emojis
-      String.graphemes(content) |> Enum.count(&is_emoji?/1) > 50 ->
+      String.graphemes(content) |> Enum.count(&emoji?/1) > 50 ->
         add_error(changeset, :content, "contains too many emojis")
 
       true ->
@@ -729,7 +730,7 @@ defmodule Elektrine.Messaging.Message do
     end
   end
 
-  defp is_trusted_media_url?(url) do
+  defp trusted_media_url?(url) do
     # Allow local uploads (paths starting with /uploads/)
     cond do
       String.starts_with?(url, "/uploads/") ->
@@ -772,7 +773,7 @@ defmodule Elektrine.Messaging.Message do
     end
   end
 
-  defp is_emoji?(grapheme) do
+  defp emoji?(grapheme) do
     # Simple emoji detection - check for common emoji codepoints
     codepoint = String.to_charlist(grapheme) |> List.first()
     # Emoticons

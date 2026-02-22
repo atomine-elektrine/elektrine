@@ -5,8 +5,8 @@ defmodule Elektrine.Email.Search do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Email.{Mailbox, Message}
   alias Elektrine.Repo
-  alias Elektrine.Email.{Message, Mailbox}
 
   # Private helper to decrypt email messages
   defp decrypt_email_messages(messages, mailbox_id) when is_list(messages) do

@@ -10,7 +10,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
   import ElektrineWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.HtmlHelpers
 
-  alias Elektrine.{Social, Messaging}
+  alias Elektrine.{Messaging, Social}
   alias ElektrineWeb.DiscussionsLive.PostRouter
 
   @impl true
@@ -345,7 +345,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
     cond do
       diff < 60 -> "just now"
       diff < 3600 -> "#{div(diff, 60)}m ago"
-      diff < 86400 -> "#{div(diff, 3600)}h ago"
+      diff < 86_400 -> "#{div(diff, 3600)}h ago"
       diff < 604_800 -> "#{div(diff, 86400)}d ago"
       diff < 2_592_000 -> "#{div(diff, 604_800)}w ago"
       true -> "#{div(diff, 2_592_000)}mo ago"

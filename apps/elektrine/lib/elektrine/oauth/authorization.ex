@@ -11,10 +11,10 @@ defmodule Elektrine.OAuth.Authorization do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
   alias Elektrine.OAuth.App
   alias Elektrine.OAuth.Authorization
+  alias Elektrine.Repo
 
   @type t :: %__MODULE__{}
 

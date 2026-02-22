@@ -1,28 +1,19 @@
 defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
-  @moduledoc """
-  Handles voting operations (likes, dislikes, boosts) for timeline posts.
-  Extracted from TimelineLive.Index to improve code organization.
-  """
-
+  @moduledoc "Handles voting operations (likes, dislikes, boosts) for timeline posts.\nExtracted from TimelineLive.Index to improve code organization.\n"
   import Phoenix.LiveView
   import Phoenix.Component
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Social
   alias Elektrine.Utils.SafeConvert
   alias ElektrineWeb.TimelineLive.Operations.Helpers
-
   import ElektrineWeb.Live.Helpers.PostStateHelpers
-
-  # Like post handlers
 
   def handle_event("like_post", %{"post_id" => post_id}, socket) do
     handle_event("like_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
@@ -51,9 +42,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                |> put_flash(:error, "Failed to unlike post")}
           end
         else
-          # Check if currently downvoted - if so, we need to clear it and adjust score by +2
           currently_downvoted = Map.get(socket.assigns.user_downvotes, message_id, false)
-          score_adjustment = if currently_downvoted, do: 2, else: 1
+
+          score_adjustment =
+            if currently_downvoted do
+              2
+            else
+              1
+            end
 
           updated_socket =
             socket
@@ -63,21 +59,25 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             |> update_post_count(
               message_id,
               :dislike_count,
-              if(currently_downvoted, do: -1, else: 0)
+              if currently_downvoted do
+                -1
+              else
+                0
+              end
             )
             |> update_post_interaction(message_id, :liked, true, score_adjustment)
-            # Clear downvote state if was downvoted
-            |> (fn s ->
-                  if currently_downvoted,
-                    do: update_post_interaction(s, message_id, :downvoted, false, 0),
-                    else: s
-                end).()
+
+          updated_socket =
+            if currently_downvoted do
+              update_post_interaction(updated_socket, message_id, :downvoted, false, 0)
+            else
+              updated_socket
+            end
 
           case Social.like_post(user_id, message_id) do
             {:ok, _} ->
               Task.start(fn ->
                 Elektrine.Accounts.TrustLevel.increment_stat(user_id, :likes_given)
-
                 post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
                 message =
@@ -99,27 +99,35 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               {:noreply, updated_socket}
 
             {:error, _} ->
-              # Rollback - restore original state
-              {:noreply,
-               socket
-               |> update_user_like_status(message_id, false)
-               |> update_user_downvote_status(message_id, currently_downvoted)
-               |> update_post_count(message_id, :like_count, -1)
-               |> update_post_count(
-                 message_id,
-                 :dislike_count,
-                 if(currently_downvoted, do: 1, else: 0)
-               )
-               |> update_post_interaction(message_id, :liked, false, -score_adjustment)
-               |> (fn s ->
-                     if currently_downvoted,
-                       do: update_post_interaction(s, message_id, :downvoted, true, 0),
-                       else: s
-                   end).()
-               |> put_flash(:error, "Failed to like post")}
+              error_socket =
+                socket
+                |> update_user_like_status(message_id, false)
+                |> update_user_downvote_status(message_id, currently_downvoted)
+                |> update_post_count(message_id, :like_count, -1)
+                |> update_post_count(
+                  message_id,
+                  :dislike_count,
+                  if currently_downvoted do
+                    1
+                  else
+                    0
+                  end
+                )
+                |> update_post_interaction(message_id, :liked, false, -score_adjustment)
+
+              error_socket =
+                if currently_downvoted do
+                  update_post_interaction(error_socket, message_id, :downvoted, true, 0)
+                else
+                  error_socket
+                end
+
+              {:noreply, put_flash(error_socket, :error, "Failed to like post")}
           end
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
     end
   end
 
@@ -127,21 +135,16 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
     handle_event("like_post", params, socket)
   end
 
-  # Modal like toggle (for image modal)
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
     handle_event("like_post", %{"message_id" => post_id}, socket)
   end
-
-  # Downvote post handlers
 
   def handle_event("downvote_post", %{"post_id" => post_id}, socket) do
     handle_event("downvote_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("downvote_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
-    else
+    if socket.assigns[:current_user] do
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
       if message_id == :temp do
@@ -151,7 +154,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
         currently_downvoted = Map.get(socket.assigns.user_downvotes, message_id, false)
 
         if currently_downvoted do
-          # Already downvoted - remove the downvote (toggle off)
           updated_socket =
             socket
             |> update_user_downvote_status(message_id, false)
@@ -166,23 +168,36 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
           {:noreply, updated_socket}
         else
-          # Not downvoted - apply downvote
-          # Score adjustment: -1 for downvote, -2 if also removing an upvote
-          score_adjustment = if currently_liked, do: -2, else: -1
+          score_adjustment =
+            if currently_liked do
+              -2
+            else
+              -1
+            end
 
           updated_socket =
             socket
             |> update_user_like_status(message_id, false)
             |> update_user_downvote_status(message_id, true)
             |> update_post_count(message_id, :score, score_adjustment)
-            |> update_post_count(message_id, :like_count, if(currently_liked, do: -1, else: 0))
+            |> update_post_count(
+              message_id,
+              :like_count,
+              if currently_liked do
+                -1
+              else
+                0
+              end
+            )
             |> update_post_count(message_id, :dislike_count, 1)
             |> update_post_interaction(message_id, :downvoted, true, score_adjustment)
-            |> (fn s ->
-                  if currently_liked,
-                    do: update_post_interaction(s, message_id, :liked, false, 0),
-                    else: s
-                end).()
+
+          updated_socket =
+            if currently_liked do
+              update_post_interaction(updated_socket, message_id, :liked, false, 0)
+            else
+              updated_socket
+            end
 
           Task.start(fn ->
             Social.vote_on_message(socket.assigns.current_user.id, message_id, "down")
@@ -191,25 +206,22 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
           {:noreply, updated_socket}
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
     end
   end
-
-  # Undownvote post handlers
 
   def handle_event("undownvote_post", %{"post_id" => post_id}, socket) do
     handle_event("undownvote_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("undownvote_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:current_user] do
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
       if message_id == :temp do
         {:noreply, socket}
       else
-        # Un-downvoting adds 1 to score (removes the downvote penalty)
         updated_socket =
           socket
           |> update_user_downvote_status(message_id, false)
@@ -224,19 +236,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
         {:noreply, updated_socket}
       end
+    else
+      {:noreply, socket}
     end
   end
-
-  # Boost post handlers
 
   def handle_event("boost_post", %{"post_id" => post_id}, socket) do
     handle_event("boost_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
@@ -354,6 +364,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
           end
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
     end
   end
 
@@ -361,16 +373,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
     handle_event("boost_post", params, socket)
   end
 
-  # Save post handlers
-
   def handle_event("save_post", %{"post_id" => post_id}, socket) do
     handle_event("save_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
@@ -380,18 +388,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
         case Social.save_post(user_id, message_id) do
           {:ok, _} ->
             {:noreply,
-             socket
-             |> update_user_save_status(message_id, true)
-             |> put_flash(:info, "Saved")}
+             socket |> update_user_save_status(message_id, true) |> put_flash(:info, "Saved")}
 
           {:error, _changeset} ->
-            # Might already be saved
             {:noreply,
              socket
              |> update_user_save_status(message_id, true)
              |> put_flash(:info, "Already saved")}
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
     end
   end
 
@@ -400,9 +407,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
   end
 
   def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
@@ -420,35 +425,31 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             {:noreply, put_flash(socket, :error, "Failed to unsave")}
         end
       end
+    else
+      {:noreply, socket}
     end
   end
 
-  # Save RSS item handlers
-
   def handle_event("save_rss_item", %{"item_id" => item_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       item_id = SafeConvert.to_integer!(item_id, item_id)
 
       case Social.save_rss_item(user_id, item_id) do
         {:ok, _} ->
           {:noreply,
-           socket
-           |> update_rss_item_save_status(item_id, true)
-           |> put_flash(:info, "Saved")}
+           socket |> update_rss_item_save_status(item_id, true) |> put_flash(:info, "Saved")}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to save")}
       end
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("unsave_rss_item", %{"item_id" => item_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       item_id = SafeConvert.to_integer!(item_id, item_id)
 
@@ -462,28 +463,24 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to unsave")}
       end
+    else
+      {:noreply, socket}
     end
   end
-
-  # Quote post handlers
 
   def handle_event("quote_post", %{"post_id" => post_id}, socket) do
     handle_event("quote_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("quote_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
-    else
+    if socket.assigns[:current_user] do
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
       if message_id == :temp do
         {:noreply, socket}
       else
-        # Find the post to quote
         post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
-        # Also check in replies
         post =
           post ||
             socket.assigns.post_replies
@@ -501,6 +498,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
           {:noreply, put_flash(socket, :error, "Post not found")}
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
     end
   end
 
@@ -520,16 +519,13 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
   def handle_event("submit_quote", params, socket) do
     content = params["content"] || params["value"] || socket.assigns.quote_content || ""
 
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
-    else
+    if socket.assigns[:current_user] do
       user = socket.assigns.current_user
       quote_target = socket.assigns.quote_target_post
 
       if quote_target && String.trim(content) != "" do
         case Social.create_quote_post(user.id, quote_target.id, content) do
           {:ok, quote_post} ->
-            # Reload with associations
             import Ecto.Query
             preloads = MessagingMessages.timeline_post_preloads()
 
@@ -541,7 +537,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               |> Elektrine.Repo.one()
               |> Elektrine.Messaging.Message.decrypt_content()
 
-            # Update quote count on the quoted post
             updated_posts =
               Enum.map(socket.assigns.timeline_posts, fn post ->
                 if post.id == quote_target.id do
@@ -569,37 +564,35 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
       else
         {:noreply, put_flash(socket, :error, "Please add some content to your quote")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
     end
   end
 
-  # Poll voting handler
-
   def handle_event("vote_poll", params, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
-    else
+    if socket.assigns[:current_user] do
       poll_id = params["poll_id"] || params["poll-id"]
       option_id = params["option_id"] || params["option-id"]
-
       poll_id = SafeConvert.to_integer!(poll_id, poll_id)
       option_id = SafeConvert.to_integer!(option_id, option_id)
 
       case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
         {:ok, _vote} ->
-          # Find the message that contains this poll and reload it
           poll = Elektrine.Repo.get!(Elektrine.Social.Poll, poll_id)
           message_id = poll.message_id
 
-          # Reload the message with fresh poll data
           updated_message =
             Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
             |> Elektrine.Repo.preload(MessagingMessages.timeline_post_preloads(), force: true)
             |> Elektrine.Messaging.Message.decrypt_content()
 
-          # Update the post in timeline_posts
           updated_timeline_posts =
             Enum.map(socket.assigns.timeline_posts, fn post ->
-              if post.id == message_id, do: updated_message, else: post
+              if post.id == message_id do
+                updated_message
+              else
+                post
+              end
             end)
 
           {:noreply, assign(socket, :timeline_posts, updated_timeline_posts)}
@@ -613,15 +606,13 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to vote")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
     end
   end
 
-  # Emoji Reaction handler
-
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to react")}
-    else
+    if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
       message_id = SafeConvert.to_integer!(post_id, post_id)
 
@@ -630,17 +621,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
       else
         alias Elektrine.Messaging.Reactions
 
-        # Check if user already has this reaction in the database
         existing_reaction =
-          Elektrine.Repo.get_by(
-            Elektrine.Messaging.MessageReaction,
+          Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
             message_id: message_id,
             user_id: user_id,
             emoji: emoji
           )
 
         if existing_reaction do
-          # Remove the existing reaction
           case Reactions.remove_reaction(message_id, user_id, emoji) do
             {:ok, _} ->
               updated_reactions =
@@ -657,7 +645,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               {:noreply, socket}
           end
         else
-          # Add new reaction
           case Reactions.add_reaction(message_id, user_id, emoji) do
             {:ok, reaction} ->
               reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
@@ -672,6 +659,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
           end
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to react")}
     end
   end
 
@@ -682,7 +671,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
     updated =
       case action do
         :add ->
-          # Add the reaction to the list (if not already present)
           if Enum.any?(post_reactions, fn r ->
                r.emoji == reaction.emoji && r.user_id == reaction.user_id
              end) do
@@ -692,7 +680,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
           end
 
         :remove ->
-          # Remove the reaction from the list
           Enum.reject(post_reactions, fn r ->
             r.emoji == reaction.emoji && r.user_id == reaction.user_id
           end)
@@ -700,8 +687,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
     Map.put(current_reactions, message_id, updated)
   end
-
-  # Private helper functions
 
   defp update_user_like_status(socket, message_id, liked) do
     assign(socket, :user_likes, Map.put(socket.assigns.user_likes, message_id, liked))
@@ -713,7 +698,13 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
   defp update_post_interaction(socket, message_id, :liked, liked, delta) do
     post = Enum.find(socket.assigns.timeline_posts || [], fn p -> p.id == message_id end)
-    key = if post && post.activitypub_id, do: post.activitypub_id, else: to_string(message_id)
+
+    key =
+      if post && post.activitypub_id do
+        post.activitypub_id
+      else
+        to_string(message_id)
+      end
 
     current =
       Map.get(socket.assigns.post_interactions, key, %{
@@ -729,7 +720,13 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
   defp update_post_interaction(socket, message_id, :downvoted, downvoted, delta) do
     post = Enum.find(socket.assigns.timeline_posts || [], fn p -> p.id == message_id end)
-    key = if post && post.activitypub_id, do: post.activitypub_id, else: to_string(message_id)
+
+    key =
+      if post && post.activitypub_id do
+        post.activitypub_id
+      else
+        to_string(message_id)
+      end
 
     current =
       Map.get(socket.assigns.post_interactions, key, %{

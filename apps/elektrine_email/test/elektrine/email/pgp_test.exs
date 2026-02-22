@@ -1,9 +1,9 @@
 defmodule Elektrine.Email.PGPTest do
   use Elektrine.DataCase
 
+  alias Elektrine.Accounts
   alias Elektrine.Email.PGP
   alias Elektrine.Email.PgpKeyCache
-  alias Elektrine.Accounts
   alias Elektrine.Repo
 
   # Sample PGP public key for testing (minimal valid RSA key structure)
@@ -118,8 +118,7 @@ defmodule Elektrine.Email.PGPTest do
         |> Enum.drop_while(&(!String.starts_with?(&1, "-----BEGIN")))
         |> Enum.drop(1)
         |> Enum.take_while(&(!String.starts_with?(&1, "-----END")))
-        |> Enum.reject(&String.starts_with?(&1, "="))
-        |> Enum.reject(&(&1 == ""))
+        |> Enum.reject(&(&1 == "" || String.starts_with?(&1, "=")))
         |> Enum.join("")
 
       {:ok, decoded} = Base.decode64(content)

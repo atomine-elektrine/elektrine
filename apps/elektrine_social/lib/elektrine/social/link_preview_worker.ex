@@ -7,10 +7,10 @@ defmodule Elektrine.Social.LinkPreviewWorker do
   """
   use GenServer
 
-  alias Elektrine.Social.LinkPreviewJob
+  alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
   alias Elektrine.Social.LinkPreviewFetcher
-  alias Elektrine.Repo
+  alias Elektrine.Social.LinkPreviewJob
 
   import Ecto.Query
 

@@ -10,15 +10,15 @@ defmodule Elektrine.Messaging do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   # Delegate to sub-contexts
+  alias Elektrine.Messaging.ChatMessages
   alias Elektrine.Messaging.Conversations
   alias Elektrine.Messaging.Messages
-  alias Elektrine.Messaging.Reactions
   alias Elektrine.Messaging.Moderation
-  alias Elektrine.Messaging.ChatMessages
+  alias Elektrine.Messaging.Reactions
   alias Elektrine.Messaging.Servers
 
   ## Conversations - Delegate to Conversations context
@@ -178,7 +178,7 @@ defmodule Elektrine.Messaging do
   @doc """
   Checks if a user is the owner of a community.
   """
-  defdelegate is_community_owner?(conversation_id, user_id), to: Conversations
+  defdelegate community_owner?(conversation_id, user_id), to: Conversations
 
   @doc """
   Checks if a user has any community memberships (for loading skeleton optimization).
@@ -531,7 +531,7 @@ defmodule Elektrine.Messaging do
   @doc """
   Checks if a user is banned from a community.
   """
-  defdelegate is_user_banned?(community_id, user_id), to: Moderation
+  defdelegate user_banned?(community_id, user_id), to: Moderation
 
   @doc """
   Lists banned users for a community.

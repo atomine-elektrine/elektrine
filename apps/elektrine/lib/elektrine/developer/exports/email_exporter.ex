@@ -9,8 +9,8 @@ defmodule Elektrine.Developer.Exports.EmailExporter do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Message
+  alias Elektrine.Repo
 
   @doc """
   Exports all emails for a user.

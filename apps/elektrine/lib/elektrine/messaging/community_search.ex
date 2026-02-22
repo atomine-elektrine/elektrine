@@ -4,7 +4,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
   """
 
   import Ecto.Query
-  alias Elektrine.{Repo, ActivityPub}
+  alias Elektrine.{ActivityPub, Repo}
   alias Elektrine.Messaging.Conversation
   require Logger
 

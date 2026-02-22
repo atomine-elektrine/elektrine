@@ -4,8 +4,8 @@ defmodule Elektrine.Email.AttachmentStorage do
   """
 
   require Logger
-  alias ExAws.S3
   alias Elektrine.Telemetry.Events
+  alias ExAws.S3
 
   @doc """
   Uploads an email attachment to S3/R2 and returns the storage metadata.

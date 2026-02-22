@@ -1,9 +1,9 @@
 defmodule Elektrine.RSSTest do
   use Elektrine.DataCase
 
+  alias Elektrine.Accounts
   alias Elektrine.RSS
   alias Elektrine.RSS.Feed
-  alias Elektrine.Accounts
 
   describe "feeds" do
     setup do

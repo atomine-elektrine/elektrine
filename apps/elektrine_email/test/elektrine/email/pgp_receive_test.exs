@@ -4,9 +4,9 @@ defmodule Elektrine.Email.PGPReceiveTest do
   """
   use Elektrine.DataCase
 
+  alias Elektrine.Accounts
   alias Elektrine.Email
   alias Elektrine.Email.Receiver
-  alias Elektrine.Accounts
 
   # Sample PGP encrypted message (minimal structure for testing)
   @sample_pgp_message """
@@ -180,11 +180,11 @@ defmodule Elektrine.Email.PGPReceiveTest do
 
   describe "PGP content detection" do
     test "detects PGP encrypted message" do
-      assert is_pgp_encrypted?(@sample_pgp_message)
+      assert pgp_encrypted?(@sample_pgp_message)
     end
 
     test "detects PGP signed message" do
-      assert is_pgp_signed?(@sample_pgp_signed_message)
+      assert pgp_signed?(@sample_pgp_signed_message)
     end
 
     test "detects inline PGP content" do
@@ -192,15 +192,15 @@ defmodule Elektrine.Email.PGPReceiveTest do
     end
 
     test "returns false for plain text" do
-      refute is_pgp_encrypted?("Hello, this is a plain text message.")
+      refute pgp_encrypted?("Hello, this is a plain text message.")
     end
 
     test "returns false for nil" do
-      refute is_pgp_encrypted?(nil)
+      refute pgp_encrypted?(nil)
     end
 
     test "returns false for empty string" do
-      refute is_pgp_encrypted?("")
+      refute pgp_encrypted?("")
     end
   end
 
@@ -416,25 +416,25 @@ defmodule Elektrine.Email.PGPReceiveTest do
   end
 
   # Helper functions for PGP content detection
-  defp is_pgp_encrypted?(nil), do: false
-  defp is_pgp_encrypted?(""), do: false
+  defp pgp_encrypted?(nil), do: false
+  defp pgp_encrypted?(""), do: false
 
-  defp is_pgp_encrypted?(text) when is_binary(text) do
+  defp pgp_encrypted?(text) when is_binary(text) do
     String.contains?(text, "-----BEGIN PGP MESSAGE-----") and
       String.contains?(text, "-----END PGP MESSAGE-----")
   end
 
-  defp is_pgp_signed?(nil), do: false
-  defp is_pgp_signed?(""), do: false
+  defp pgp_signed?(nil), do: false
+  defp pgp_signed?(""), do: false
 
-  defp is_pgp_signed?(text) when is_binary(text) do
+  defp pgp_signed?(text) when is_binary(text) do
     String.contains?(text, "-----BEGIN PGP SIGNED MESSAGE-----") or
       (String.contains?(text, "-----BEGIN PGP SIGNATURE-----") and
          String.contains?(text, "-----END PGP SIGNATURE-----"))
   end
 
   defp has_pgp_content?(text) when is_binary(text) and text != "" do
-    is_pgp_encrypted?(text) or is_pgp_signed?(text) or
+    pgp_encrypted?(text) or pgp_signed?(text) or
       String.contains?(text, "-----BEGIN PGP PUBLIC KEY BLOCK-----")
   end
 

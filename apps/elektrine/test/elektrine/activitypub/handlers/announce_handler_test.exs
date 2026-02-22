@@ -3,8 +3,8 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
 
   import Elektrine.AccountsFixtures
 
-  alias Elektrine.ActivityPub.Handlers.AnnounceHandler
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Handlers.AnnounceHandler
 
   describe "handle/3 - Announce activity" do
     setup do

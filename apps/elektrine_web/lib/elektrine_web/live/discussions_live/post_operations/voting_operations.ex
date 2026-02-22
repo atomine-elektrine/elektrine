@@ -6,8 +6,8 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.VotingOperations do
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
 
-  alias Elektrine.Social
   alias Elektrine.Messaging.Messages
+  alias Elektrine.Social
 
   def handle_event("vote", %{"message_id" => message_id, "type" => vote_type}, socket) do
     if socket.assigns.current_user do
@@ -184,8 +184,8 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.VotingOperations do
   # Helper function
   defp get_post_with_replies_expanded(post_id, community_id, expanded_threads) do
     import Ecto.Query
-    alias Elektrine.Repo
     alias Elektrine.Messaging.Message
+    alias Elektrine.Repo
 
     post =
       from(m in Message,
@@ -207,8 +207,8 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.VotingOperations do
 
   defp get_threaded_replies_with_expansion(parent_id, community_id, depth, expanded_threads) do
     import Ecto.Query
-    alias Elektrine.Repo
     alias Elektrine.Messaging.Message
+    alias Elektrine.Repo
 
     direct_replies =
       from(m in Message,

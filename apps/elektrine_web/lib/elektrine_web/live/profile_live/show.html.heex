@@ -772,7 +772,7 @@
             <%= if @current_user && @current_user.id != @user.id do %>
               <% # Determine button text color based on accent color luminance
               btn_accent = (@profile && @profile.accent_color) || "#22d3ee"
-              btn_text_color = if is_light_color(btn_accent), do: "#000000", else: "#ffffff" %>
+              btn_text_color = if light_color?(btn_accent), do: "#000000", else: "#ffffff" %>
               <div class="mb-4 flex gap-2 justify-center flex-wrap">
                 <!-- Friend Button -->
                 <%= cond do %>

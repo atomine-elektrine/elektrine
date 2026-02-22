@@ -1,16 +1,12 @@
 defmodule ElektrineWeb.ListLive.Index do
   use ElektrineWeb, :live_view
-
   alias Elektrine.Social
   import ElektrineWeb.Components.Platform.ZNav
-
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns[:current_user]
 
-    if !user do
-      {:ok, push_navigate(socket, to: ~p"/login")}
-    else
+    if user do
       lists = Social.list_user_lists(user.id)
       public_lists = Social.list_public_lists(limit: 20)
 
@@ -24,6 +20,8 @@ defmodule ElektrineWeb.ListLive.Index do
        |> assign(:new_list_name, "")
        |> assign(:new_list_description, "")
        |> assign(:search_query, "")}
+    else
+      {:ok, push_navigate(socket, to: ~p"/login")}
     end
   end
 
@@ -46,10 +44,7 @@ defmodule ElektrineWeb.ListLive.Index do
         Social.list_public_lists(limit: 20)
       end
 
-    {:noreply,
-     socket
-     |> assign(:search_query, query)
-     |> assign(:public_lists, public_lists)}
+    {:noreply, socket |> assign(:search_query, query) |> assign(:public_lists, public_lists)}
   end
 
   def handle_event("create_list", params, socket) do
@@ -98,11 +93,7 @@ defmodule ElektrineWeb.ListLive.Index do
         case Social.delete_list(list) do
           {:ok, _} ->
             lists = Social.list_user_lists(socket.assigns.current_user.id)
-
-            {:noreply,
-             socket
-             |> assign(:lists, lists)
-             |> put_flash(:info, "List deleted")}
+            {:noreply, socket |> assign(:lists, lists) |> put_flash(:info, "List deleted")}
 
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to delete list")}

@@ -1,4 +1,5 @@
 defmodule Elektrine.Accounts.User do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query, warn: false

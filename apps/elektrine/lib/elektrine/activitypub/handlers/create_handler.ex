@@ -35,7 +35,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   Public API for use by other handlers (e.g., AnnounceHandler).
   """
   def create_note(object, actor_uri) do
-    if is_poll_vote?(object) do
+    if poll_vote?(object) do
       handle_incoming_poll_vote(object, actor_uri)
     else
       create_regular_note(object, actor_uri)
@@ -117,7 +117,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
   # Private functions
 
-  defp is_poll_vote?(object) do
+  defp poll_vote?(object) do
     has_name = is_binary(object["name"]) && String.trim(object["name"]) != ""
     has_reply_to = object["inReplyTo"] != nil
     content = object["content"] || ""
@@ -658,15 +658,15 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     valid_scheme = uri.scheme in ["https", "http"]
     has_host = uri.host != nil
     not_localhost = uri.host && !String.contains?(uri.host, "localhost")
-    not_private_ip = uri.host && !is_private_ip?(uri.host)
-    is_media = is_media_url?(url)
+    not_private_ip = uri.host && !private_ip?(uri.host)
+    is_media = media_url?(url)
 
     valid_scheme && has_host && not_localhost && not_private_ip && is_media
   end
 
   defp valid_media_url?(_), do: false
 
-  defp is_media_url?(url) when is_binary(url) do
+  defp media_url?(url) when is_binary(url) do
     url_lower = String.downcase(url)
 
     has_media_extension =
@@ -684,9 +684,9 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     has_media_extension || is_known_media_host
   end
 
-  defp is_media_url?(_), do: false
+  defp media_url?(_), do: false
 
-  defp is_private_ip?(host) do
+  defp private_ip?(host) do
     String.starts_with?(host, ["127.", "192.168.", "10.", "0."]) ||
       Regex.match?(~r/^172\.(1[6-9]|2[0-9]|3[0-1])\./, host) ||
       String.starts_with?(host, ["::1", "fc00:", "fd00:", "fe80:", "::ffff:", "100.64."]) ||

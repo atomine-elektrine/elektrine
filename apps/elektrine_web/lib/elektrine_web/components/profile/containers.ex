@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.Profile.Containers do
+  @moduledoc false
   use Phoenix.Component
 
   @doc """

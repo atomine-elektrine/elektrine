@@ -257,7 +257,7 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
             <% end %>
           <% end %>
           
-          <!-- Content preview (only if no title) -->
+    <!-- Content preview (only if no title) -->
           <%= if @post.content && !@title do %>
             <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
               {raw(render_content_preview(@post.content, @post))}
@@ -404,9 +404,11 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
 
   # Delegate helper functions to PostUtilities
   defp extract_community_name(uri), do: PostUtilities.extract_community_name(uri)
+
   defp render_content_preview(content, source) do
     PostUtilities.render_content_preview(content, PostUtilities.get_instance_domain(source))
   end
+
   defp detect_external_link(post), do: PostUtilities.detect_external_link(post)
 
   defp format_reactions(reactions, user_id),

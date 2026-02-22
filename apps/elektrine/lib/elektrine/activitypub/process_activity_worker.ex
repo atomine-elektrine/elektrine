@@ -23,8 +23,8 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.Handler
   alias Elektrine.ActivityPub.DomainThrottler
+  alias Elektrine.ActivityPub.Handler
   alias Elektrine.Telemetry.Events
 
   # Deduplication window in seconds

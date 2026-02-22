@@ -3,8 +3,8 @@ defmodule Elektrine.Email.Templates do
   Context module for managing email templates.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Template
+  alias Elektrine.Repo
 
   @max_templates_per_user 50
 

@@ -5,8 +5,8 @@ defmodule Elektrine.Accounts.Blocking do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Accounts.{User, UserBlock}
+  alias Elektrine.Repo
 
   @doc """
   Blocks a user.

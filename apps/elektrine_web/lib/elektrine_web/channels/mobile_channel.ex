@@ -6,7 +6,7 @@ defmodule ElektrineWeb.MobileChannel do
   use ElektrineWeb, :channel
   require Logger
 
-  alias Elektrine.{Email, Notifications, Accounts, Social, Profiles}
+  alias Elektrine.{Accounts, Email, Notifications, Profiles, Social}
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.PubSubTopics
 

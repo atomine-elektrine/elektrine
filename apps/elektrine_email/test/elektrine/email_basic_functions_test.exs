@@ -5,8 +5,8 @@ defmodule Elektrine.EmailBasicFunctionsTest do
   """
 
   use Elektrine.DataCase
-  alias Elektrine.Email
   alias Elektrine.Accounts
+  alias Elektrine.Email
 
   describe "mailbox management" do
     setup do
@@ -324,7 +324,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       assert updated.read == true
       # Note: first_opened_at and opened_at may be set by track_open_changeset, not read_changeset
       # assert updated.first_opened_at
-      # assert updated.opened_at 
+      # assert updated.opened_at
       # assert updated.open_count == 1
     end
 
@@ -477,7 +477,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
 
       # tomorrow
       reply_time =
-        DateTime.utc_now() |> DateTime.add(86400, :second) |> DateTime.truncate(:second)
+        DateTime.utc_now() |> DateTime.add(86_400, :second) |> DateTime.truncate(:second)
 
       # Set reply later
       {:ok, updated} = Email.reply_later_message(message, reply_time, true)

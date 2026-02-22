@@ -140,8 +140,8 @@ defmodule ElektrineWeb.Admin.ModerationController do
   end
 
   def unsubscribe_stats(conn, params) do
-    alias Elektrine.Email.Unsubscribes
     alias Elektrine.Email.ListTypes
+    alias Elektrine.Email.Unsubscribes
 
     page = SafeConvert.parse_page(params)
     per_page = 50

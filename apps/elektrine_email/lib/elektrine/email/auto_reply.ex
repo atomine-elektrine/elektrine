@@ -40,7 +40,7 @@ defmodule Elektrine.Email.AutoReply do
     ])
     |> validate_required([:body, :user_id])
     |> validate_length(:subject, max: 200)
-    |> validate_length(:body, min: 1, max: 10000)
+    |> validate_length(:body, min: 1, max: 10_000)
     |> validate_date_range()
     |> foreign_key_constraint(:user_id)
     |> unique_constraint(:user_id)
@@ -87,11 +87,11 @@ defmodule Elektrine.Email.AutoReply do
         false
 
       # Don't reply to mailing lists if configured
-      auto_reply.exclude_mailing_lists && is_mailing_list?(message) ->
+      auto_reply.exclude_mailing_lists && mailing_list?(message) ->
         false
 
       # Only reply to contacts if configured
-      auto_reply.only_contacts && !is_contact?(message.from, user_id) ->
+      auto_reply.only_contacts && !contact?(message.from, user_id) ->
         false
 
       # Check if we already replied to this sender
@@ -99,11 +99,11 @@ defmodule Elektrine.Email.AutoReply do
         false
 
       # Don't reply to noreply addresses
-      is_noreply?(message.from) ->
+      noreply?(message.from) ->
         false
 
       # Don't reply to our own emails
-      is_own_email?(message.from, user_id) ->
+      own_email?(message.from, user_id) ->
         false
 
       true ->
@@ -111,12 +111,12 @@ defmodule Elektrine.Email.AutoReply do
     end
   end
 
-  defp is_mailing_list?(message) do
+  defp mailing_list?(message) do
     message.is_newsletter || message.category == "bulk_mail" ||
       (message.metadata && Map.has_key?(message.metadata, "list_id"))
   end
 
-  defp is_contact?(from_email, user_id) do
+  defp contact?(from_email, user_id) do
     email = extract_email(from_email)
     Elektrine.Email.Contacts.get_contact_by_email(user_id, email) != nil
   end
@@ -126,7 +126,7 @@ defmodule Elektrine.Email.AutoReply do
     Elektrine.Email.AutoReplies.has_replied_to?(user_id, email)
   end
 
-  defp is_noreply?(from_email) do
+  defp noreply?(from_email) do
     email = String.downcase(extract_email(from_email))
 
     String.contains?(email, "noreply") ||
@@ -135,7 +135,7 @@ defmodule Elektrine.Email.AutoReply do
       String.contains?(email, "mailer-daemon")
   end
 
-  defp is_own_email?(from_email, user_id) do
+  defp own_email?(from_email, user_id) do
     email = String.downcase(extract_email(from_email))
     user = Elektrine.Accounts.get_user!(user_id)
     mailbox = Elektrine.Email.get_user_mailbox(user_id)

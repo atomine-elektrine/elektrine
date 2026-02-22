@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.Chat.Call do
+  @moduledoc false
   use Phoenix.Component
   import ElektrineWeb.CoreComponents, only: [spinner: 1]
 

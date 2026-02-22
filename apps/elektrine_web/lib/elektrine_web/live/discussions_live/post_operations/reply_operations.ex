@@ -25,7 +25,7 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.ReplyOperations do
         Map.get(socket.assigns.post, :locked_at) ->
           {:noreply, notify_error(socket, "This thread is locked and cannot receive new replies")}
 
-        !community.is_public && !is_member?(community.id, user_id) ->
+        !community.is_public && !member?(community.id, user_id) ->
           {:noreply, notify_error(socket, "You must be a member of this community to reply")}
 
         String.trim(content) == "" ->
@@ -92,7 +92,7 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.ReplyOperations do
       user_id = socket.assigns.current_user.id
 
       cond do
-        !community.is_public && !is_member?(community.id, user_id) ->
+        !community.is_public && !member?(community.id, user_id) ->
           {:noreply, notify_error(socket, "You must be a member of this community to reply")}
 
         String.trim(content) == "" ->
@@ -154,7 +154,7 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.ReplyOperations do
 
   # Helper functions
 
-  defp is_member?(community_id, user_id) do
+  defp member?(community_id, user_id) do
     import Ecto.Query
 
     Elektrine.Repo.exists?(

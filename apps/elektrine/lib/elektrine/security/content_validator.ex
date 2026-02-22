@@ -87,7 +87,7 @@ defmodule Elektrine.Security.ContentValidator do
       case context do
         :chat -> 2000
         :timeline -> 4000
-        :discussion -> 10000
+        :discussion -> 10_000
         _ -> 2000
       end
 

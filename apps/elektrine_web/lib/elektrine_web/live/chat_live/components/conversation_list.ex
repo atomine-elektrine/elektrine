@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.ChatLive.Components.ConversationList do
+  @moduledoc false
   use ElektrineWeb, :live_component
 
   alias Elektrine.Messaging.{Conversation, Message}

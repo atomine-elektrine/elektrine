@@ -3,8 +3,8 @@ defmodule Elektrine.Email.AutoReplies do
   Context module for managing auto-reply/vacation responder settings.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.AutoReply
+  alias Elektrine.Repo
 
   require Logger
 

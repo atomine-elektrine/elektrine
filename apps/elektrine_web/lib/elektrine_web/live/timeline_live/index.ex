@@ -1,12 +1,10 @@
 defmodule ElektrineWeb.TimelineLive.Index do
   use ElektrineWeb, :live_view
-
   require Logger
-
   alias Elektrine.Messaging
-  alias Elektrine.Social
-  alias Elektrine.RSS
   alias Elektrine.PubSubTopics
+  alias Elektrine.RSS
+  alias Elektrine.Social
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineWeb.Components.Social.PostUtilities
   import ElektrineWeb.Components.Social.RSSItem
@@ -15,36 +13,34 @@ defmodule ElektrineWeb.TimelineLive.Index do
   import ElektrineWeb.Components.Social.ReplyItem
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Live.Helpers.PostStateHelpers
-
-  alias ElektrineWeb.TimelineLive.Router
   alias ElektrineWeb.TimelineLive.Operations.PostOperations
-
-  @remote_replies_poll_interval_ms 1_500
+  alias ElektrineWeb.TimelineLive.Router
+  @remote_replies_poll_interval_ms 1500
   @remote_replies_poll_max_attempts 6
-
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
-
-    # Set locale from session or user preference
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
-    friends = if user, do: Elektrine.Friends.list_friends(user.id), else: []
+    friends =
+      if user do
+        Elektrine.Friends.list_friends(user.id)
+      else
+        []
+      end
+
     friend_ids = Enum.map(friends, & &1.id)
 
     if connected?(socket) do
       if user do
-        # Subscribe to timeline updates for authenticated users
         PubSubTopics.subscribe(PubSubTopics.user_timeline(user.id))
         PubSubTopics.subscribe(PubSubTopics.timeline_all())
       end
 
-      # Subscribe to public timeline for all users
       PubSubTopics.subscribe(PubSubTopics.timeline_public())
     end
 
-    # Initialize with empty data - everything loads async after connection
     socket =
       socket
       |> assign(:page_title, "Timeline")
@@ -53,8 +49,14 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:timeline_posts, [])
       |> assign(:post_replies, %{})
       |> assign(:loading_remote_replies, MapSet.new())
-      |> assign(:current_filter, if(user, do: "all", else: "public"))
-      # all, mastodon, pixelfed, lemmy
+      |> assign(
+        :current_filter,
+        if user do
+          "all"
+        else
+          "public"
+        end
+      )
       |> assign(:software_filter, "all")
       |> assign(:suggested_follows, [])
       |> assign(:trending_hashtags, Social.get_trending_hashtags(limit: 10, days_back: 7))
@@ -115,32 +117,26 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:show_quote_modal, false)
       |> assign(:quote_target_post, nil)
       |> assign(:quote_content, "")
-      # Search within timeline
       |> assign(:search_query, "")
       |> assign(:show_mobile_filters, false)
-      # Draft support
       |> assign(:user_drafts, [])
       |> assign(:show_drafts_panel, false)
       |> assign(:editing_draft_id, nil)
       |> assign(:draft_auto_saved, false)
       |> assign(:draft_saving, false)
-      # Loading state - start as true, set to false when data loads
       |> assign(:loading_timeline, true)
 
-    # Allow image, video, and audio uploads for authenticated users
     socket =
       if user do
         allow_upload(socket, :timeline_attachments,
           accept: ~w(.jpg .jpeg .png .gif .webp .mp4 .webm .ogv .mov .mp3 .wav),
           max_entries: 4,
-          # 50MB to accommodate video/audio files
           max_file_size: 50_000_000
         )
       else
         socket
       end
 
-    # Load all data asynchronously after connection
     if connected?(socket) do
       send(self(), :load_timeline_data)
     end
@@ -150,24 +146,24 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    # Read filter from URL params, default to "all" for authenticated, "public" otherwise
-    filter = params["filter"] || if socket.assigns[:current_user], do: "all", else: "public"
+    filter =
+      params["filter"] ||
+        if socket.assigns[:current_user] do
+          "all"
+        else
+          "public"
+        end
+
     timeline_view = normalize_timeline_view(params["view"] || socket.assigns.timeline_filter)
 
-    # On initial load (loading_timeline is true), just set the filter
-    # The async :load_timeline_data handler will load the actual data
     cond do
       socket.assigns.loading_timeline ->
         {:noreply,
-         socket
-         |> assign(:current_filter, filter)
-         |> assign(:timeline_filter, timeline_view)}
+         socket |> assign(:current_filter, filter) |> assign(:timeline_filter, timeline_view)}
 
-      # Main URL filter changed (all/following/local/etc.) - requires full data reload.
       filter != socket.assigns.current_filter ->
         {:noreply, queue_timeline_reload(socket, filter, timeline_view)}
 
-      # Secondary timeline view changed (all/posts/replies/etc.) - apply locally.
       timeline_view != socket.assigns.timeline_filter ->
         updated_socket =
           socket
@@ -199,7 +195,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end
   end
 
-  # Load data when filter changes after initial load
   defp load_data_for_filter(socket, filter) do
     case allow_timeline_read(socket, :filter_reload) do
       :ok ->
@@ -225,9 +220,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
     cache_key = {filter, timeline_view}
 
     filter_context_socket =
-      socket
-      |> assign(:current_filter, filter)
-      |> assign(:timeline_filter, timeline_view)
+      socket |> assign(:current_filter, filter) |> assign(:timeline_filter, timeline_view)
 
     cached_special_view = Map.get(special_view_cache, cache_key)
 
@@ -243,21 +236,12 @@ defmodule ElektrineWeb.TimelineLive.Index do
         _ -> %{}
       end
 
-    # Keep a base timeline dataset for fast switching between non-special view modes.
-    # For special views we preserve the existing base, unless the source filter changed.
     base_timeline_posts =
       cond do
-        !view_requires_data_reload?(timeline_view) ->
-          posts
-
-        filter_changed ->
-          load_posts_for_filter(filter, user, "all")
-
-        socket.assigns.base_timeline_posts != [] ->
-          socket.assigns.base_timeline_posts
-
-        true ->
-          load_posts_for_filter(filter, user, "all")
+        !view_requires_data_reload?(timeline_view) -> posts
+        filter_changed -> load_posts_for_filter(filter, user, "all")
+        socket.assigns.base_timeline_posts != [] -> socket.assigns.base_timeline_posts
+        true -> load_posts_for_filter(filter, user, "all")
       end
 
     special_view_cache =
@@ -265,7 +249,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     queued_posts = queued_posts_for_active_filters(filter_context_socket)
 
-    # Load RSS items for relevant filters
     {rss_items, rss_saves} =
       cond do
         filter in ["rss", "all", "following"] && user ->
@@ -276,9 +259,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
           {items, saves_map}
 
         filter == "saved" && user ->
-          # Load saved RSS items for the saved filter
           items = Social.get_saved_rss_items(user.id, limit: 20)
-          # All items in saved view are saved
           saves_map = Enum.into(items, %{}, fn item -> {item.id, true} end)
           {items, saves_map}
 
@@ -349,22 +330,23 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     posts
     |> Enum.filter(fn post ->
-      post.federated && is_binary(post.activitypub_id)
-    end)
-    |> Enum.filter(fn post ->
-      ap_id = post.activitypub_id
-      lemmy_post? = PostUtilities.has_community_uri?(post)
-      has_top_replies? = Map.get(post_replies, post.id, []) != []
-
-      missing_lemmy_counts = lemmy_post? && !Map.has_key?(lemmy_counts, ap_id)
-      missing_remote_post_data = !lemmy_post? && !Map.has_key?(remote_post_data, ap_id)
-      missing_lemmy_top_comments = lemmy_post? && !has_top_replies?
-
-      missing_lemmy_counts || missing_remote_post_data || missing_lemmy_top_comments
+      if post.federated && is_binary(post.activitypub_id) do
+        ap_id = post.activitypub_id
+        lemmy_post? = PostUtilities.has_community_uri?(post)
+        has_top_replies? = Map.get(post_replies, post.id, []) != []
+        missing_lemmy_counts = lemmy_post? && !Map.has_key?(lemmy_counts, ap_id)
+        missing_remote_post_data = !lemmy_post? && !Map.has_key?(remote_post_data, ap_id)
+        missing_lemmy_top_comments = lemmy_post? && !has_top_replies?
+        missing_lemmy_counts || missing_remote_post_data || missing_lemmy_top_comments
+      else
+        false
+      end
     end)
   end
 
-  defp remote_posts_needing_fetch(_, _), do: []
+  defp remote_posts_needing_fetch(_, _) do
+    []
+  end
 
   defp timeline_remote_enrichment_enabled? do
     Application.get_env(:elektrine, :timeline_remote_enrichment, false)
@@ -389,7 +371,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     socket
   end
 
-  defp maybe_schedule_background_refresh(socket, _posts), do: socket
+  defp maybe_schedule_background_refresh(socket, _posts) do
+    socket
+  end
 
   defp maybe_schedule_reply_ingestion(socket, posts) when is_list(posts) do
     if connected?(socket) do
@@ -398,9 +382,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       message_ids =
         posts
         |> Enum.filter(&(&1.federated == true && is_integer(&1.id) && (&1.reply_count || 0) > 0))
-        |> Enum.reject(fn post ->
-          Map.get(existing_replies, post.id, []) != []
-        end)
+        |> Enum.reject(fn post -> Map.get(existing_replies, post.id, []) != [] end)
         |> Enum.map(& &1.id)
         |> Enum.take(20)
 
@@ -416,7 +398,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     socket
   end
 
-  defp maybe_schedule_reply_ingestion(socket, _posts), do: socket
+  defp maybe_schedule_reply_ingestion(socket, _posts) do
+    socket
+  end
 
   defp start_timeline_hydration(socket, posts, _filter, _timeline_view, _user)
        when not is_list(posts) or posts == [] do
@@ -443,11 +427,36 @@ defmodule ElektrineWeb.TimelineLive.Index do
       hydrated_state = %{
         post_replies: post_replies,
         post_reactions: get_post_reactions(posts),
-        user_likes: if(user_id, do: get_user_likes(user_id, all_messages), else: %{}),
-        user_follows: if(user_id, do: get_user_follows(user_id, all_messages), else: %{}),
-        pending_follows: if(user_id, do: get_pending_follows(user_id, all_messages), else: %{}),
-        user_boosts: if(user_id, do: get_user_boosts(user_id, all_messages), else: %{}),
-        user_saves: if(user_id, do: get_user_saves(user_id, all_messages), else: %{})
+        user_likes:
+          if user_id do
+            get_user_likes(user_id, all_messages)
+          else
+            %{}
+          end,
+        user_follows:
+          if user_id do
+            get_user_follows(user_id, all_messages)
+          else
+            %{}
+          end,
+        pending_follows:
+          if user_id do
+            get_pending_follows(user_id, all_messages)
+          else
+            %{}
+          end,
+        user_boosts:
+          if user_id do
+            get_user_boosts(user_id, all_messages)
+          else
+            %{}
+          end,
+        user_saves:
+          if user_id do
+            get_user_saves(user_id, all_messages)
+          else
+            %{}
+          end
       }
 
       send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
@@ -458,11 +467,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_event(event_name, params, socket) do
-    # Delegate ALL events to the router
     Router.route_event(event_name, params, socket)
   end
-
-  # All event handlers now in operation modules via Router
 
   @impl true
   def handle_info({:load_view_data, load_ref, filter, timeline_view}, socket) do
@@ -522,10 +528,13 @@ defmodule ElektrineWeb.TimelineLive.Index do
       loaded_socket
       |> assign(
         :user_drafts,
-        if(user, do: Elektrine.Social.Drafts.list_drafts(user.id, limit: 20), else: [])
+        if user do
+          Elektrine.Social.Drafts.list_drafts(user.id, limit: 20)
+        else
+          []
+        end
       )
 
-    # Load secondary data (suggested follows, friends) for authenticated users
     if user do
       send(self(), :load_secondary_data)
     end
@@ -536,8 +545,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
   @impl true
   def handle_info(:load_secondary_data, socket) do
     user = socket.assigns.current_user
-
-    # Load suggested follows and friends list after initial data loads
     suggested_follows = Social.get_suggested_follows(user.id, limit: 5)
     friends = Elektrine.Friends.list_friends(user.id)
     friend_ids = Enum.map(friends, & &1.id)
@@ -557,9 +564,11 @@ defmodule ElektrineWeb.TimelineLive.Index do
   @impl true
   def handle_info({:load_remote_data, posts}, socket) do
     posts_to_fetch =
-      if timeline_remote_enrichment_enabled?(),
-        do: remote_posts_needing_fetch(posts, socket),
-        else: []
+      if timeline_remote_enrichment_enabled?() do
+        remote_posts_needing_fetch(posts, socket)
+      else
+        []
+      end
 
     if posts_to_fetch == [] do
       {:noreply, socket}
@@ -595,7 +604,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
     if request_ref != socket.assigns.remote_data_request_ref do
       {:noreply, socket}
     else
-      # Merge Lemmy top comments into post_replies (keyed by post.id not activitypub_id)
       updated_post_replies =
         posts
         |> Enum.reduce(socket.assigns.post_replies, fn post, acc ->
@@ -630,7 +638,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info(:refresh_remote_counts, socket) do
-    # Per-socket polling has been replaced with background refresh workers.
     {:noreply, maybe_schedule_background_refresh(socket, socket.assigns.timeline_posts)}
   end
 
@@ -644,7 +651,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
-    # Update the post counts in real-time
     updated_posts =
       Enum.map(socket.assigns.timeline_posts, fn post ->
         if post.id == message_id do
@@ -659,10 +665,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
         end
       end)
 
-    {:noreply,
-     socket
-     |> assign(:timeline_posts, updated_posts)
-     |> apply_timeline_filter()}
+    {:noreply, socket |> assign(:timeline_posts, updated_posts) |> apply_timeline_filter()}
   end
 
   @impl true
@@ -672,31 +675,24 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   def handle_info({:remote_user_fetch_failed, _handle}, socket) do
     {:noreply,
-     socket
-     |> assign(:remote_user_loading, false)
-     |> put_flash(:error, "Could not find user")}
+     socket |> assign(:remote_user_loading, false) |> put_flash(:error, "Could not find user")}
   end
 
   def handle_info({:follow_accepted, remote_actor_id}, socket) do
-    # Move from pending to accepted
     updated_pending = Map.delete(socket.assigns.pending_follows, {:remote, remote_actor_id})
     updated_follows = Map.put(socket.assigns.user_follows, {:remote, remote_actor_id}, true)
 
     {:noreply,
-     socket
-     |> assign(:pending_follows, updated_pending)
-     |> assign(:user_follows, updated_follows)}
+     socket |> assign(:pending_follows, updated_pending) |> assign(:user_follows, updated_follows)}
   end
 
   @impl true
   def handle_info(:all_notifications_read, socket) do
-    # Reset notification count when all notifications are read
     {:noreply, assign(socket, :notification_count, 0)}
   end
 
   @impl true
   def handle_info(:notification_updated, socket) do
-    # Refresh notification count
     count =
       if socket.assigns.current_user do
         Elektrine.Notifications.get_unread_count(socket.assigns.current_user.id)
@@ -709,13 +705,11 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:notification_count_updated, count}, socket) do
-    # Update notification count
     {:noreply, assign(socket, :notification_count, count)}
   end
 
   @impl true
   def handle_info({:new_timeline_post, post}, socket) do
-    # Skip if this post is from the current user (already added optimistically)
     if socket.assigns[:current_user] && post.sender_id == socket.assigns.current_user.id do
       {:noreply, socket}
     else
@@ -726,32 +720,31 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:new_post_preloaded, :timeline, post_with_associations}, socket) do
-    # Update user_follows map for both local and federated posts
     updated_socket = socket
 
-    # Check local follow status
     updated_socket =
       if post_with_associations.sender_id && socket.assigns[:current_user] do
         follow_key = {:local, post_with_associations.sender_id}
 
-        if !Map.has_key?(socket.assigns.user_follows, follow_key) do
+        if Map.has_key?(socket.assigns.user_follows, follow_key) do
+          updated_socket
+        else
           is_following =
             Social.following?(socket.assigns.current_user.id, post_with_associations.sender_id)
 
           update(updated_socket, :user_follows, &Map.put(&1, follow_key, is_following))
-        else
-          updated_socket
         end
       else
         updated_socket
       end
 
-    # Check remote follow status (for federated posts)
     updated_socket =
       if post_with_associations.remote_actor_id && socket.assigns[:current_user] do
         follow_key = {:remote, post_with_associations.remote_actor_id}
 
-        if !Map.has_key?(socket.assigns.user_follows, follow_key) do
+        if Map.has_key?(socket.assigns.user_follows, follow_key) do
+          updated_socket
+        else
           is_following =
             Elektrine.Profiles.following_remote_actor?(
               socket.assigns.current_user.id,
@@ -759,23 +752,17 @@ defmodule ElektrineWeb.TimelineLive.Index do
             )
 
           update(updated_socket, :user_follows, &Map.put(&1, follow_key, is_following))
-        else
-          updated_socket
         end
       else
         updated_socket
       end
 
-    # Queue the new post instead of adding directly to avoid disrupting reading
-    # User can click "New posts" banner to load them
-    # Skip if already in queue or timeline, or if it doesn't match current filter
     post_id = post_with_associations.id
     already_queued = Enum.any?(updated_socket.assigns.queued_posts, fn p -> p.id == post_id end)
 
     already_in_timeline =
       Enum.any?(updated_socket.assigns.timeline_posts, fn p -> p.id == post_id end)
 
-    # Must match BOTH URL filter (current_filter) AND secondary filter (timeline_filter)
     matches_url_filter =
       post_matches_url_filter?(
         post_with_associations,
@@ -802,9 +789,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       if already_queued || already_in_timeline || !matches_filter do
         updated_socket
       else
-        update(updated_socket, :queued_posts, fn queued ->
-          [post_with_associations | queued]
-        end)
+        update(updated_socket, :queued_posts, fn queued -> [post_with_associations | queued] end)
       end
 
     {:noreply, updated_socket}
@@ -812,7 +797,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:new_public_post, post}, socket) do
-    # Skip if this post is from the current user (already added optimistically)
     if socket.assigns[:current_user] && post.sender_id == socket.assigns.current_user.id do
       {:noreply, socket}
     else
@@ -830,8 +814,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
         Social.get_direct_replies_for_posts([post_id], user_id: user_id, limit_per_post: 20)
         |> Map.get(post_id, [])
       else
-        Social.get_direct_replies_for_posts([post_id], limit_per_post: 20)
-        |> Map.get(post_id, [])
+        Social.get_direct_replies_for_posts([post_id], limit_per_post: 20) |> Map.get(post_id, [])
       end
 
     cond do
@@ -856,7 +839,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:new_post_preloaded, :public, post_with_associations}, socket) do
-    # Check if post matches current filter (both URL filter and timeline filter)
     matches_url_filter =
       post_matches_url_filter?(post_with_associations, socket.assigns.current_filter, socket)
 
@@ -869,15 +851,15 @@ defmodule ElektrineWeb.TimelineLive.Index do
     if !matches_url_filter || !matches_timeline_filter || !matches_software_filter do
       {:noreply, socket}
     else
-      # Update user_follows map for both local and federated posts (only for logged-in users)
       updated_socket =
         if socket.assigns[:current_user] do
-          # Check local follow status
           updated_socket =
             if post_with_associations.sender_id do
               follow_key = {:local, post_with_associations.sender_id}
 
-              if !Map.has_key?(socket.assigns.user_follows, follow_key) do
+              if Map.has_key?(socket.assigns.user_follows, follow_key) do
+                socket
+              else
                 is_following =
                   Social.following?(
                     socket.assigns.current_user.id,
@@ -885,18 +867,17 @@ defmodule ElektrineWeb.TimelineLive.Index do
                   )
 
                 update(socket, :user_follows, &Map.put(&1, follow_key, is_following))
-              else
-                socket
               end
             else
               socket
             end
 
-          # Check remote follow status (for federated posts)
           if post_with_associations.remote_actor_id do
             follow_key = {:remote, post_with_associations.remote_actor_id}
 
-            if !Map.has_key?(updated_socket.assigns.user_follows, follow_key) do
+            if Map.has_key?(updated_socket.assigns.user_follows, follow_key) do
+              updated_socket
+            else
               is_following =
                 Elektrine.Profiles.following_remote_actor?(
                   socket.assigns.current_user.id,
@@ -904,23 +885,16 @@ defmodule ElektrineWeb.TimelineLive.Index do
                 )
 
               update(updated_socket, :user_follows, &Map.put(&1, follow_key, is_following))
-            else
-              updated_socket
             end
           else
             updated_socket
           end
         else
-          # Anonymous user - skip follow status checks
           socket
         end
 
-      # Queue the new post instead of adding directly to avoid disrupting reading
-      # Skip if already in queue or timeline
       post_id = post_with_associations.id
-
-      already_queued =
-        Enum.any?(updated_socket.assigns.queued_posts, fn p -> p.id == post_id end)
+      already_queued = Enum.any?(updated_socket.assigns.queued_posts, fn p -> p.id == post_id end)
 
       already_in_timeline =
         Enum.any?(updated_socket.assigns.timeline_posts, fn p -> p.id == post_id end)
@@ -929,16 +903,13 @@ defmodule ElektrineWeb.TimelineLive.Index do
         {:noreply, updated_socket}
       else
         {:noreply,
-         update(updated_socket, :queued_posts, fn queued ->
-           [post_with_associations | queued]
-         end)}
+         update(updated_socket, :queued_posts, fn queued -> [post_with_associations | queued] end)}
       end
     end
   end
 
   @impl true
   def handle_info({:post_liked, %{message_id: message_id, like_count: like_count}}, socket) do
-    # Update like count in real-time for posts
     updated_posts =
       Enum.map(socket.assigns.timeline_posts, fn post ->
         if post.id == message_id do
@@ -948,7 +919,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
         end
       end)
 
-    # Also update replies if this is a reply
     updated_replies =
       Map.new(socket.assigns.post_replies, fn {post_id, replies} ->
         updated_reply_list =
@@ -983,13 +953,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:remote_replies_loaded, post_id, remote_replies}, socket) do
-    # Convert remote ActivityPub replies to a format compatible with the reply display
     converted_replies = convert_remote_replies_to_display_format(remote_replies)
-
-    # Merge into post_replies
     updated_post_replies = Map.put(socket.assigns.post_replies, post_id, converted_replies)
-
-    # Clear loading state
     loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
 
     {:noreply,
@@ -1000,7 +965,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:reply_count_updated, message_id, new_count}, socket) do
-    # Update the reply count for the specific post in the timeline
     updated_posts =
       Enum.map(socket.assigns.timeline_posts, fn post ->
         if post.id == message_id do
@@ -1010,24 +974,18 @@ defmodule ElektrineWeb.TimelineLive.Index do
         end
       end)
 
-    {:noreply,
-     socket
-     |> assign(:timeline_posts, updated_posts)
-     |> apply_timeline_filter()}
+    {:noreply, socket |> assign(:timeline_posts, updated_posts) |> apply_timeline_filter()}
   end
 
   @impl true
   def handle_info({:load_followed_user_posts, user_id}, socket) do
-    # Load posts from newly followed user in background
     current_user_id = socket.assigns.current_user.id
 
     new_user_posts =
       Social.get_user_timeline_posts(user_id, limit: 20, viewer_id: current_user_id)
 
-    # Merge new posts into timeline and sort by date
     updated_posts = merge_and_sort_posts(socket.assigns.timeline_posts, new_user_posts)
 
-    # Update user_likes for the new posts
     updated_user_likes =
       Map.merge(
         socket.assigns.user_likes,
@@ -1043,16 +1001,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:post_reaction_added, reaction}, socket) do
-    # Update post_reactions for live updates
     message_id = reaction.message_id
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})
     post_reactions = Map.get(current_reactions, message_id, [])
-
-    # Add reaction if not already present (avoid duplicates from own action)
-    already_present =
-      Enum.any?(post_reactions, fn r ->
-        r.id == reaction.id
-      end)
+    already_present = Enum.any?(post_reactions, fn r -> r.id == reaction.id end)
 
     updated_reactions =
       if already_present do
@@ -1066,19 +1018,16 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:post_reaction_removed, reaction}, socket) do
-    # Update post_reactions for live updates
     message_id = reaction.message_id
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})
     post_reactions = Map.get(current_reactions, message_id, [])
 
-    # Remove the reaction
     updated_post_reactions =
       Enum.reject(post_reactions, fn r ->
         r.emoji == reaction.emoji && r.user_id == reaction.user_id
       end)
 
     updated_reactions = Map.put(current_reactions, message_id, updated_post_reactions)
-
     {:noreply, assign(socket, :post_reactions, updated_reactions)}
   end
 
@@ -1098,7 +1047,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
     {:noreply, socket}
   end
 
-  # Helper to load posts based on filter
   defp load_posts_for_filter(filter, user, timeline_view) do
     case timeline_view do
       "replies" ->
@@ -1176,29 +1124,29 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     Task.start(fn ->
       post_with_associations =
-        Elektrine.Repo.preload(post, [
-          :sender,
-          :remote_actor,
-          :link_preview,
-          poll: [options: []]
-        ])
+        Elektrine.Repo.preload(post, [:sender, :remote_actor, :link_preview, poll: [options: []]])
 
       send(parent, {:new_post_preloaded, source, post_with_associations})
     end)
   end
 
-  # Helper functions
-  defp error_to_string(:too_large), do: "File is too large (max 50MB)"
+  defp error_to_string(:too_large) do
+    "File is too large (max 50MB)"
+  end
 
-  defp error_to_string(:not_accepted),
-    do:
-      "Invalid file type. Supported: Images (JPG, PNG, GIF, WEBP), Videos (MP4, WEBM, OGV, MOV), Audio (MP3, WAV)"
+  defp error_to_string(:not_accepted) do
+    "Invalid file type. Supported: Images (JPG, PNG, GIF, WEBP), Videos (MP4, WEBM, OGV, MOV), Audio (MP3, WAV)"
+  end
 
-  defp error_to_string(:too_many_files), do: "Maximum 4 files allowed"
-  defp error_to_string(_), do: "Upload error"
+  defp error_to_string(:too_many_files) do
+    "Maximum 4 files allowed"
+  end
+
+  defp error_to_string(_) do
+    "Upload error"
+  end
 
   defp merge_and_sort_posts(existing_posts, new_posts) do
-    # Combine posts, remove duplicates by ID, and sort by date
     (existing_posts ++ new_posts)
     |> Enum.uniq_by(& &1.id)
     |> Enum.sort_by(& &1.inserted_at, {:desc, NaiveDateTime})
@@ -1208,15 +1156,12 @@ defmodule ElektrineWeb.TimelineLive.Index do
     filtered_posts =
       case socket.assigns.timeline_filter do
         "posts" ->
-          # Show posts (not replies), excluding Lemmy community posts
           Enum.filter(socket.assigns.timeline_posts, fn post ->
-            is_nil(Map.get(post, :reply_to_id)) &&
-              !PostUtilities.has_community_uri?(post)
+            is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.has_community_uri?(post)
           end)
 
         "replies" ->
           Enum.filter(socket.assigns.timeline_posts, fn post ->
-            # Check both reply_to_id (local) and inReplyTo in metadata (federated)
             !is_nil(Map.get(post, :reply_to_id)) ||
               !is_nil(get_in(post.media_metadata, ["inReplyTo"]))
           end)
@@ -1229,14 +1174,12 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
             has_link_preview =
               match?(%Elektrine.Social.LinkPreview{}, link_preview) &&
-                link_preview.status == "success" &&
-                link_preview.image_url != nil
+                link_preview.status == "success" && link_preview.image_url != nil
 
             has_media_urls || has_link_preview
           end)
 
         "friends" ->
-          # Only show local posts from friends (federated posts don't have sender_id)
           Enum.filter(socket.assigns.timeline_posts, fn post ->
             post.sender_id && post.sender_id in socket.assigns.friend_ids
           end)
@@ -1251,23 +1194,17 @@ defmodule ElektrineWeb.TimelineLive.Index do
           end
 
         "trusted" ->
-          # Filter to show local posts from TL2+ users only
           Enum.filter(socket.assigns.timeline_posts, fn post ->
-            post.federated != true &&
-              (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
+            post.federated != true && (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
           end)
 
         "communities" ->
-          # Filter to show only posts from federated communities (Lemmy)
           Enum.filter(socket.assigns.timeline_posts, fn post ->
             PostUtilities.has_community_uri?(post)
           end)
 
         "federated" ->
-          # Show only federated posts from the fediverse (all types)
-          Enum.filter(socket.assigns.timeline_posts, fn post ->
-            post.federated == true
-          end)
+          Enum.filter(socket.assigns.timeline_posts, fn post -> post.federated == true end)
 
         "local" ->
           Enum.filter(socket.assigns.timeline_posts, fn post ->
@@ -1278,26 +1215,20 @@ defmodule ElektrineWeb.TimelineLive.Index do
           socket.assigns.timeline_posts
       end
 
-    # Also apply software filter if set
     filtered_posts = filter_posts_by_software(filtered_posts, socket.assigns.software_filter)
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
-
     assign(socket, :filtered_posts, filtered_posts)
   end
 
-  # Check if a post matches the URL-based filter (current_filter from URL params)
   defp post_matches_url_filter?(post, filter, socket) do
     case filter do
       "local" ->
-        # Local posts have a sender_id (local user) and no remote_actor_id
         !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
 
       "federated" ->
-        # Only federated posts
         post.federated == true
 
       "following" ->
-        # Posts from people the user follows
         if socket.assigns[:current_user] do
           cond do
             post.sender_id ->
@@ -1316,18 +1247,15 @@ defmodule ElektrineWeb.TimelineLive.Index do
           false
         end
 
-      # "all" and "public" and unknown - allow all posts (but filter replies)
       _ ->
         is_nil(Map.get(post, :reply_to_id)) && is_nil(get_in(post.media_metadata, ["inReplyTo"]))
     end
   end
 
-  # Check if a single post matches the current timeline filter
   defp post_matches_filter?(post, filter, socket) do
     case filter do
       "posts" ->
-        is_nil(Map.get(post, :reply_to_id)) &&
-          !PostUtilities.has_community_uri?(post)
+        is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.has_community_uri?(post)
 
       "replies" ->
         !is_nil(Map.get(post, :reply_to_id)) ||
@@ -1340,8 +1268,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
         has_link_preview =
           match?(%Elektrine.Social.LinkPreview{}, link_preview) &&
-            link_preview.status == "success" &&
-            link_preview.image_url != nil
+            link_preview.status == "success" && link_preview.image_url != nil
 
         has_media_urls || has_link_preview
 
@@ -1349,8 +1276,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
         post.sender_id && post.sender_id in socket.assigns.friend_ids
 
       "trusted" ->
-        post.federated != true &&
-          (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
+        post.federated != true && (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
 
       "communities" ->
         PostUtilities.has_community_uri?(post)
@@ -1359,11 +1285,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
         post.federated == true
 
       "local" ->
-        # Local posts have a sender_id (local user) and no remote_actor_id
         !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
 
       "following" ->
-        # For following filter, check if we follow the sender
         if socket.assigns[:current_user] do
           cond do
             post.sender_id ->
@@ -1382,11 +1306,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
           false
         end
 
-      # "all" filter - exclude replies to match DB query behavior
       "all" ->
         is_nil(Map.get(post, :reply_to_id)) && is_nil(get_in(post.media_metadata, ["inReplyTo"]))
 
-      # Unknown filters - allow all posts
       _ ->
         true
     end
@@ -1404,24 +1326,31 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end)
   end
 
-  defp post_matches_software_filter?(_post, "all"), do: true
+  defp post_matches_software_filter?(_post, "all") do
+    true
+  end
 
-  defp post_matches_software_filter?(post, "local"), do: post.federated != true
+  defp post_matches_software_filter?(post, "local") do
+    post.federated != true
+  end
 
   defp post_matches_software_filter?(post, software) when is_binary(software) do
     filter_posts_by_software([post], software) != []
   end
 
-  defp post_matches_software_filter?(_post, _), do: true
+  defp post_matches_software_filter?(_post, _) do
+    true
+  end
 
-  defp filter_posts_by_software(posts, "all"), do: posts
+  defp filter_posts_by_software(posts, "all") do
+    posts
+  end
 
   defp filter_posts_by_software(posts, "local") do
     Enum.filter(posts, fn post -> !post.federated end)
   end
 
   defp filter_posts_by_software(posts, software) do
-    # Collect unique domains from federated posts
     domains =
       posts
       |> Enum.filter(
@@ -1431,7 +1360,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> Enum.map(& &1.remote_actor.domain)
       |> Enum.uniq()
 
-    # Use batch lookup - much faster than individual lookups
     software_map = Elektrine.ActivityPub.Nodeinfo.get_software_batch(domains)
 
     Enum.filter(posts, fn post ->
@@ -1449,8 +1377,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end)
   end
 
-  # Match software with variants (e.g., Akkoma -> Pleroma, Calckey/Firefish -> Misskey)
-  defp software_matches?(nil, _), do: false
+  defp software_matches?(nil, _) do
+    false
+  end
 
   defp software_matches?(instance_sw, filter) do
     filter = String.downcase(filter)
@@ -1465,12 +1394,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   defp maybe_prioritize_non_community_posts(posts, socket) do
     if socket.assigns.current_filter in ["all", "following", "federated", "public"] &&
-         socket.assigns.timeline_filter == "all" &&
-         socket.assigns.software_filter == "all" do
+         socket.assigns.timeline_filter == "all" && socket.assigns.software_filter == "all" do
       {non_community, community} =
-        Enum.split_with(posts, fn post ->
-          !PostUtilities.has_community_uri?(post)
-        end)
+        Enum.split_with(posts, fn post -> !PostUtilities.has_community_uri?(post) end)
 
       non_community ++ community
     else
@@ -1478,34 +1404,28 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end
   end
 
-  # Convert remote ActivityPub replies to a format compatible with the reply display
   defp convert_remote_replies_to_display_format(remote_replies) do
-    remote_replies
-    |> Enum.map(&convert_single_remote_reply/1)
-    |> Enum.filter(&(&1 != nil))
+    remote_replies |> Enum.map(&convert_single_remote_reply/1) |> Enum.filter(&(&1 != nil))
   end
 
-  # Convert Lemmy top-comment API payloads into interactive local federated messages
-  # whenever possible. Falls back to read-only comment maps if materialization fails.
   defp materialize_lemmy_top_comments(post, comments) when is_list(comments) do
-    comments
-    |> Enum.map(&materialize_single_lemmy_comment(post, &1))
-    |> Enum.reject(&is_nil/1)
+    comments |> Enum.map(&materialize_single_lemmy_comment(post, &1)) |> Enum.reject(&is_nil/1)
   end
 
-  defp materialize_lemmy_top_comments(_post, _), do: []
+  defp materialize_lemmy_top_comments(_post, _) do
+    []
+  end
 
   defp materialize_single_lemmy_comment(post, %{ap_id: ap_id} = comment) when is_binary(ap_id) do
     case Messaging.get_message_by_activitypub_ref(ap_id) do
-      %Elektrine.Messaging.Message{} = existing ->
-        merge_lemmy_comment_counts(existing, comment)
-
-      nil ->
-        create_lemmy_comment_message(post, comment)
+      %Elektrine.Messaging.Message{} = existing -> merge_lemmy_comment_counts(existing, comment)
+      nil -> create_lemmy_comment_message(post, comment)
     end
   end
 
-  defp materialize_single_lemmy_comment(_post, comment), do: comment
+  defp materialize_single_lemmy_comment(_post, comment) do
+    comment
+  end
 
   defp create_lemmy_comment_message(post, %{ap_id: ap_id, actor_id: actor_uri} = comment)
        when is_binary(actor_uri) and actor_uri != "" do
@@ -1545,7 +1465,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end
   end
 
-  defp create_lemmy_comment_message(_post, comment), do: comment
+  defp create_lemmy_comment_message(_post, comment) do
+    comment
+  end
 
   defp merge_lemmy_comment_counts(%Elektrine.Messaging.Message{} = message, comment) do
     %{
@@ -1555,7 +1477,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     }
   end
 
-  defp parse_lemmy_published(nil), do: DateTime.utc_now()
+  defp parse_lemmy_published(nil) do
+    DateTime.utc_now()
+  end
 
   defp parse_lemmy_published(published) when is_binary(published) do
     case DateTime.from_iso8601(published) do
@@ -1564,21 +1488,20 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end
   end
 
-  defp parse_lemmy_published(_), do: DateTime.utc_now()
+  defp parse_lemmy_published(_) do
+    DateTime.utc_now()
+  end
 
   defp convert_single_remote_reply(reply_object) when is_map(reply_object) do
-    # Extract actor URI
     actor_uri = extract_actor_uri(reply_object)
     return_nil = fn -> nil end
 
     if is_binary(actor_uri) do
-      # Timeline rendering is local-first: never fetch remote actors in the read path.
       case Elektrine.ActivityPub.get_actor_by_uri(actor_uri) do
         nil ->
           return_nil.()
 
         remote_actor ->
-          # Parse the published date
           published =
             case reply_object["published"] do
               nil ->
@@ -1591,17 +1514,13 @@ defmodule ElektrineWeb.TimelineLive.Index do
                 end
             end
 
-          # Extract content (handle HTML content)
           content =
-            reply_object["content"] ||
-              extract_content_from_map(reply_object["contentMap"]) ||
-              ""
+            reply_object["content"] || extract_content_from_map(reply_object["contentMap"]) || ""
 
           fallback_avatar_url = extract_reply_avatar_fallback(reply_object)
 
           remote_actor =
-            if is_binary(fallback_avatar_url) &&
-                 fallback_avatar_url != "" &&
+            if is_binary(fallback_avatar_url) && fallback_avatar_url != "" &&
                  is_nil(remote_actor.avatar_url) do
               %{remote_actor | avatar_url: fallback_avatar_url}
             else
@@ -1617,7 +1536,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
               reply_object["id"]
             end
 
-          # Create a struct-like map compatible with the reply display
           %{
             id: interaction_id,
             activitypub_id: (local_message && local_message.activitypub_id) || reply_object["id"],
@@ -1652,7 +1570,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     end
   end
 
-  defp convert_single_remote_reply(_), do: nil
+  defp convert_single_remote_reply(_) do
+    nil
+  end
 
   defp allow_timeline_read(socket, action) do
     TimelineRateLimiter.allow_read(timeline_rate_limit_identifier(socket, action))
@@ -1668,7 +1588,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
     "liveview:#{action}:#{actor}"
   end
 
-  defp normalize_timeline_view(nil), do: "all"
+  defp normalize_timeline_view(nil) do
+    "all"
+  end
 
   defp normalize_timeline_view(view)
        when view in [
@@ -1683,32 +1605,43 @@ defmodule ElektrineWeb.TimelineLive.Index do
               "federated",
               "local",
               "following"
-            ],
-       do: view
-
-  defp normalize_timeline_view(_), do: "all"
-
-  defp extract_actor_uri(%{"attributedTo" => uri}) when is_binary(uri), do: uri
-  defp extract_actor_uri(%{"attributedTo" => [uri | _]}) when is_binary(uri), do: uri
-  defp extract_actor_uri(%{"attributedTo" => %{"id" => uri}}) when is_binary(uri), do: uri
-  defp extract_actor_uri(_), do: nil
-
-  defp extract_content_from_map(content_map) when is_map(content_map) do
-    content_map
-    |> Map.values()
-    |> Enum.find(&is_binary/1)
+            ] do
+    view
   end
 
-  defp extract_content_from_map(_), do: nil
+  defp normalize_timeline_view(_) do
+    "all"
+  end
+
+  defp extract_actor_uri(%{"attributedTo" => uri}) when is_binary(uri) do
+    uri
+  end
+
+  defp extract_actor_uri(%{"attributedTo" => [uri | _]}) when is_binary(uri) do
+    uri
+  end
+
+  defp extract_actor_uri(%{"attributedTo" => %{"id" => uri}}) when is_binary(uri) do
+    uri
+  end
+
+  defp extract_actor_uri(_) do
+    nil
+  end
+
+  defp extract_content_from_map(content_map) when is_map(content_map) do
+    content_map |> Map.values() |> Enum.find(&is_binary/1)
+  end
+
+  defp extract_content_from_map(_) do
+    nil
+  end
 
   defp extract_reply_avatar_fallback(reply_object) do
     mastodon_avatar =
       case Map.get(reply_object, "_mastodon_account") do
-        account when is_map(account) ->
-          Map.get(account, :avatar) || Map.get(account, "avatar")
-
-        _ ->
-          nil
+        account when is_map(account) -> Map.get(account, :avatar) || Map.get(account, "avatar")
+        _ -> nil
       end
 
     lemmy_avatar =
@@ -1723,7 +1656,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
     mastodon_avatar || lemmy_avatar
   end
 
-  # Extract media URLs from an ActivityPub object
   defp extract_media_urls(object) do
     case object["attachment"] do
       attachments when is_list(attachments) ->

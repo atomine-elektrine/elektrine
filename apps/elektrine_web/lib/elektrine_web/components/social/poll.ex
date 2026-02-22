@@ -115,7 +115,7 @@ defmodule ElektrineWeb.Components.Social.Poll do
     cond do
       diff < 0 -> "already closed"
       diff < 3600 -> "in #{div(diff, 60)} minutes"
-      diff < 86400 -> "in #{div(diff, 3600)} hours"
+      diff < 86_400 -> "in #{div(diff, 3600)} hours"
       diff < 604_800 -> "in #{div(diff, 86400)} days"
       true -> Calendar.strftime(datetime, "%b %d, %Y")
     end

@@ -5,7 +5,7 @@ defmodule Elektrine.Messaging.FederatedCommunities do
   """
 
   import Ecto.Query
-  alias Elektrine.{Repo, ActivityPub}
+  alias Elektrine.{ActivityPub, Repo}
   alias Elektrine.Messaging.{Conversation, Message}
   require Logger
 

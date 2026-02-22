@@ -1,46 +1,24 @@
 defmodule Elektrine.Email.Receiver do
-  @moduledoc """
-  Handles incoming email processing functionality.
-  """
-
+  @moduledoc "Handles incoming email processing functionality.\n"
   alias Elektrine.Email
-  alias Elektrine.Email.Mailbox
   alias Elektrine.Email.ForwardedMessage
+  alias Elektrine.Email.Mailbox
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
-
   require Logger
   require Sentry
 
-  @doc """
-  Processes an incoming email from a webhook.
-
-  This function is designed to be called by a webhook controller
-  that receives POST requests from the email server when a new
-  email is received.
-
-  ## Parameters
-
-    * `params` - The webhook payload from the email server
-
-  ## Returns
-
-    * `{:ok, message}` - If the email was processed successfully
-    * `{:error, reason}` - If there was an error
-  """
+  @doc "Processes an incoming email from a webhook.\n\nThis function is designed to be called by a webhook controller\nthat receives POST requests from the email server when a new\nemail is received.\n\n## Parameters\n\n  * `params` - The webhook payload from the email server\n\n## Returns\n\n  * `{:ok, message}` - If the email was processed successfully\n  * `{:error, reason}` - If there was an error\n"
   def process_incoming_email(params) do
     started_at = System.monotonic_time(:millisecond)
 
     try do
-      # Validate webhook authenticity
       with :ok <- validate_webhook(params),
            {:ok, mailbox} <- find_recipient_mailbox(params),
            :ok <- check_blocked_sender(mailbox.user_id, params),
            {:ok, message} <- store_incoming_message(mailbox.id, params) do
-        # Apply user's email filters
         message = apply_user_filters(message, mailbox.user_id)
 
-        # Send notification to any connected LiveViews
         if mailbox do
           Phoenix.PubSub.broadcast!(
             Elektrine.PubSub,
@@ -54,7 +32,6 @@ defmodule Elektrine.Email.Receiver do
             {:new_email, message}
           )
 
-          # Process auto-reply without breaking Ecto Sandbox ownership in tests.
           Elektrine.Async.run(fn -> Email.process_auto_reply(message, mailbox.user_id) end)
         end
 
@@ -74,7 +51,6 @@ defmodule Elektrine.Email.Receiver do
           {:error, :sender_blocked}
 
         {:error, reason} = error ->
-          # Report non-expected errors to Sentry
           if reason not in [
                :missing_recipient,
                :no_mailbox_found,
@@ -106,18 +82,13 @@ defmodule Elektrine.Email.Receiver do
 
         Sentry.capture_exception(e,
           stacktrace: __STACKTRACE__,
-          extra: %{
-            context: "email_receiver_processing",
-            from: params["from"],
-            to: params["to"]
-          }
+          extra: %{context: "email_receiver_processing", from: params["from"], to: params["to"]}
         )
 
         {:error, :processing_exception}
     end
   end
 
-  # Validates the webhook request authenticity
   defp validate_webhook(params) when is_map(params) do
     email_config = Application.get_env(:elektrine, :email, [])
 
@@ -125,8 +96,7 @@ defmodule Elektrine.Email.Receiver do
       System.get_env("EMAIL_RECEIVER_WEBHOOK_SECRET") ||
         Keyword.get(email_config, :receiver_webhook_secret)
 
-    allow_insecure =
-      Keyword.get(email_config, :allow_insecure_receiver_webhook, true)
+    allow_insecure = Keyword.get(email_config, :allow_insecure_receiver_webhook, true)
 
     case webhook_secret do
       secret when is_binary(secret) and secret != "" ->
@@ -147,16 +117,19 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  defp validate_webhook(_params), do: {:error, :invalid_webhook_payload}
+  defp validate_webhook(_params) do
+    {:error, :invalid_webhook_payload}
+  end
 
   defp secure_compare(left, right)
        when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
     Plug.Crypto.secure_compare(left, right)
   end
 
-  defp secure_compare(_left, _right), do: false
+  defp secure_compare(_left, _right) do
+    false
+  end
 
-  # Finds the mailbox for the recipient of this email
   defp find_recipient_mailbox(params) do
     find_recipient_mailbox(params, [])
   end
@@ -164,62 +137,41 @@ defmodule Elektrine.Email.Receiver do
   defp find_recipient_mailbox(params, forwarding_chain) do
     recipient = params["rcpt_to"] || params["to"]
 
-    unless recipient do
-      Logger.error("Missing recipient in webhook payload (keys=#{inspect(Map.keys(params))})")
-      {:error, :missing_recipient}
-    else
-      # Check if recipient is an alias first
+    if recipient do
       case Email.resolve_alias(recipient) do
-        # Alias forwards to another email address
         target_email when is_binary(target_email) ->
-          # Get alias record for tracking
           alias_record = Email.get_alias_by_email(recipient)
 
-          # Add to forwarding chain
           updated_chain =
             forwarding_chain ++
-              [
-                %{
-                  from: recipient,
-                  to: target_email,
-                  alias_id: alias_record && alias_record.id
-                }
-              ]
+              [%{from: recipient, to: target_email, alias_id: alias_record && alias_record.id}]
 
-          # Recursively resolve the target (in case it's also an alias)
           find_recipient_mailbox(Map.put(params, "rcpt_to", target_email), updated_chain)
 
-        # Alias exists but should deliver to alias owner's mailbox (no forwarding)
         :no_forward ->
           find_alias_owner_mailbox(recipient)
 
-        # Not an alias, proceed with normal mailbox lookup
         nil ->
-          # Record forwarded message if we went through forwarding
           if forwarding_chain != [] do
             record_forwarded_message(params, forwarding_chain, recipient)
           end
 
           find_direct_mailbox(recipient)
       end
+    else
+      Logger.error("Missing recipient in webhook payload (keys=#{inspect(Map.keys(params))})")
+      {:error, :missing_recipient}
     end
   end
 
-  # Records a forwarded message to the database for tracking
   defp record_forwarded_message(params, forwarding_chain, final_recipient) do
     first_hop = List.first(forwarding_chain)
 
-    # Convert forwarding chain to the format expected by the schema
     hops =
       Enum.map(forwarding_chain, fn hop ->
-        %{
-          "from" => hop[:from],
-          "to" => hop[:to],
-          "alias_id" => hop[:alias_id]
-        }
+        %{"from" => hop[:from], "to" => hop[:to], "alias_id" => hop[:alias_id]}
       end)
 
-    # Sanitize all fields to ensure valid UTF-8 for database
     attrs = %{
       message_id: params["message_id"],
       from_address: sanitize_address_header(params["from"] || params["mail_from"]),
@@ -240,68 +192,58 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Sanitize and decode email headers (subjects, from, etc.)
-  defp sanitize_header(nil), do: ""
-  defp sanitize_header(""), do: ""
+  defp sanitize_header(nil) do
+    ""
+  end
+
+  defp sanitize_header("") do
+    ""
+  end
 
   defp sanitize_header(header) when is_binary(header) do
-    # Use Mail library to decode RFC 2047 MIME headers, then sanitize UTF-8
     decoded = decode_mail_header(header)
     Elektrine.Email.Sanitizer.sanitize_utf8(decoded)
   end
 
-  # Sanitize and decode email address headers (from, to, cc)
-  # These may have format: "Display Name" <email@address.com>
-  defp sanitize_address_header(nil), do: ""
-  defp sanitize_address_header(""), do: ""
+  defp sanitize_address_header(nil) do
+    ""
+  end
+
+  defp sanitize_address_header("") do
+    ""
+  end
 
   defp sanitize_address_header(header) when is_binary(header) do
-    # Parse email address with display name
     case Regex.run(~r/^(.+?)\s*<([^>]+)>$/, String.trim(header)) do
       [_, display_name, email_address] ->
-        # Decode the display name part (may be RFC 2047 encoded)
         decoded_name = decode_mail_header(String.trim(display_name, "\""))
         sanitized_name = Elektrine.Email.Sanitizer.sanitize_utf8(decoded_name)
         sanitized_email = Elektrine.Email.Sanitizer.sanitize_utf8(email_address)
 
-        # Reconstruct: "Display Name" <email@address.com>
         if sanitized_name == sanitized_email or sanitized_name == "" do
-          # If display name same as email or empty, just use email
           sanitized_email
         else
           ~s("#{sanitized_name}" <#{sanitized_email}>)
         end
 
       _ ->
-        # No display name, just email address
         decoded = decode_mail_header(header)
         Elektrine.Email.Sanitizer.sanitize_utf8(decoded)
     end
   end
 
-  @doc """
-  Decode MIME-encoded headers (RFC 2047).
-  Handles: =?charset?encoding?text?= format and encoding issues.
-
-  This function is public so it can be reused by IMAP APPEND handling
-  to decode subjects from external email clients like Thunderbird.
-  """
+  @doc "Decode MIME-encoded headers (RFC 2047).\nHandles: =?charset?encoding?text?= format and encoding issues.\n\nThis function is public so it can be reused by IMAP APPEND handling\nto decode subjects from external email clients like Thunderbird.\n"
   def decode_mail_header(text) when is_binary(text) do
     cond do
-      # Check if it contains RFC 2047 encoding markers
       String.contains?(text, "=?") and String.contains?(text, "?=") ->
         decode_rfc2047_manual(text)
 
-      # Check if it looks like UTF-8 bytes interpreted as Latin-1
-      # This happens when email servers decode but use wrong charset
       looks_like_mojibake?(text) ->
         fix_mojibake(text)
 
-      # Already valid UTF-8, return as-is
       String.valid?(text) ->
         text
 
-      # Invalid UTF-8, try to fix it
       true ->
         case :unicode.characters_to_binary(text, :latin1, :utf8) do
           result when is_binary(result) -> result
@@ -310,54 +252,36 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Detect mojibake - UTF-8 bytes incorrectly decoded as Latin-1
-  # Common patterns: æ (0xE6), ã (0xE3), ç (0xE7) followed by control chars
   defp looks_like_mojibake?(text) do
-    # These patterns indicate UTF-8 bytes interpreted as Latin-1
-    # Chinese UTF-8 starts with 0xE4-0xE9 which appear as ä å æ ç è é in Latin-1
-    # Japanese/Korean patterns
-    # Check for sequences that are valid Latin-1 but likely mojibake
-    Regex.match?(~r/[æãçåäè][^\x20-\x7E]/, text) or
-      Regex.match?(~r/[ã][€-¿]/, text) or
+    Regex.match?(~r/[æãçåäè][^\x20-\x7E]/, text) or Regex.match?(~r/[ã][€-¿]/, text) or
       (String.valid?(text) and has_suspicious_latin1_sequences?(text))
   end
 
-  # Check for suspicious sequences that indicate mojibake
   defp has_suspicious_latin1_sequences?(text) do
-    # Count high-byte characters that are unlikely in real Latin-1 text
     high_byte_count =
-      text
-      |> String.to_charlist()
-      |> Enum.count(fn c -> c >= 0x80 and c <= 0xBF end)
+      text |> String.to_charlist() |> Enum.count(fn c -> c >= 128 and c <= 191 end)
 
-    # If we have many continuation bytes (0x80-0xBF), it's likely mojibake
     high_byte_count > 2 and high_byte_count > String.length(text) / 4
   end
 
-  # Fix mojibake by re-interpreting the Latin-1 bytes as UTF-8
   defp fix_mojibake(text) do
-    # Get the raw bytes (Latin-1 interpretation)
     bytes = :binary.bin_to_list(text)
 
-    # Re-interpret those bytes as UTF-8
     case :unicode.characters_to_binary(:erlang.list_to_binary(bytes), :utf8) do
       result when is_binary(result) ->
-        if String.valid?(result), do: result, else: text
+        if String.valid?(result) do
+          result
+        else
+          text
+        end
 
       _ ->
-        # If that doesn't work, return original
         text
     end
   end
 
-  # Manual RFC 2047 decoder
-  # Handles MIME encoded-word format: =?charset?encoding?encoded-text?=
   defp decode_rfc2047_manual(text) do
-    # RFC 2047 pattern - supports adjacent encoded words
     pattern = ~r/=\?([^?]+)\?([BQ])\?([^?]+)\?=/i
-
-    # First, remove linear whitespace between adjacent encoded words (RFC 2047 section 6.2)
-    # Adjacent encoded words should be concatenated without the whitespace
     normalized = Regex.replace(~r/\?=\s+=\?/, text, "?==?")
 
     Regex.replace(pattern, normalized, fn _, charset, encoding, encoded_text ->
@@ -365,77 +289,56 @@ defmodule Elektrine.Email.Receiver do
     end)
   end
 
-  # Decode a single RFC 2047 encoded word
   defp decode_encoded_word(charset, encoding, encoded_text) do
-    try do
-      decoded_bytes =
-        case String.upcase(encoding) do
-          "B" ->
-            # Base64 encoding - handle padding issues
-            padded =
-              case rem(String.length(encoded_text), 4) do
-                0 -> encoded_text
-                2 -> encoded_text <> "=="
-                3 -> encoded_text <> "="
-                _ -> encoded_text
-              end
+    decoded_bytes =
+      case String.upcase(encoding) do
+        "B" ->
+          padded =
+            case rem(String.length(encoded_text), 4) do
+              0 -> encoded_text
+              2 -> encoded_text <> "=="
+              3 -> encoded_text <> "="
+              _ -> encoded_text
+            end
 
-            Base.decode64!(padded)
+          Base.decode64!(padded)
 
-          "Q" ->
-            # Quoted-printable encoding
-            encoded_text
-            |> String.replace("_", " ")
-            |> decode_quoted_printable()
+        "Q" ->
+          encoded_text |> String.replace("_", " ") |> decode_quoted_printable()
 
-          _ ->
-            encoded_text
-        end
+        _ ->
+          encoded_text
+      end
 
-      # Convert from the specified charset to UTF-8
-      convert_charset_to_utf8(decoded_bytes, String.downcase(charset))
-    rescue
-      e ->
-        Logger.warning("RFC 2047 decode failed for #{charset}/#{encoding}: #{inspect(e)}")
-        # Return original encoded form on error
-        "=?#{charset}?#{encoding}?#{encoded_text}?="
-    end
+    convert_charset_to_utf8(decoded_bytes, String.downcase(charset))
+  rescue
+    e ->
+      Logger.warning("RFC 2047 decode failed for #{charset}/#{encoding}: #{inspect(e)}")
+      "=?#{charset}?#{encoding}?#{encoded_text}?="
   end
 
-  # Decode quoted-printable encoding
   defp decode_quoted_printable(text) do
-    Regex.replace(~r/=([0-9A-F]{2})/i, text, fn _, hex ->
-      <<String.to_integer(hex, 16)>>
-    end)
+    Regex.replace(~r/=([0-9A-F]{2})/i, text, fn _, hex -> <<String.to_integer(hex, 16)>> end)
   end
 
-  # Convert bytes from various charsets to UTF-8
   defp convert_charset_to_utf8(bytes, charset) do
     result =
       case charset do
-        # UTF-8 variants
         c when c in ["utf-8", "utf8"] ->
           bytes
 
-        # ASCII variants
         c when c in ["us-ascii", "ascii"] ->
           bytes
 
-        # Latin/Western European
         c when c in ["iso-8859-1", "latin1", "latin-1"] ->
           :unicode.characters_to_binary(bytes, :latin1, :utf8)
 
-        # Windows-1252 (common in Windows emails, superset of Latin-1)
         c when c in ["windows-1252", "cp1252"] ->
           convert_windows1252_to_utf8(bytes)
 
-        # ISO-8859-15 (Latin-9, like Latin-1 but with Euro sign)
         "iso-8859-15" ->
           :unicode.characters_to_binary(bytes, :latin1, :utf8)
 
-        # For CJK charsets (GB2312, GBK, Shift_JIS, EUC-JP, EUC-KR, Big5)
-        # Erlang doesn't support these natively, so we try to interpret as UTF-8
-        # or return the bytes as-is if they're already valid UTF-8
         c
         when c in [
                "gb2312",
@@ -449,20 +352,17 @@ defmodule Elektrine.Email.Receiver do
                "iso-2022-kr",
                "big5"
              ] ->
-          # If bytes happen to be valid UTF-8, use them
           if String.valid?(bytes) do
             bytes
           else
-            # Can't convert without iconv, return with warning
             Logger.warning("Unsupported charset #{charset}, cannot convert to UTF-8")
-            # Try Latin-1 as last resort
+
             case :unicode.characters_to_binary(bytes, :latin1, :utf8) do
               r when is_binary(r) -> r
               _ -> bytes
             end
           end
 
-        # Unknown charset - assume UTF-8 or Latin-1
         _ ->
           if String.valid?(bytes) do
             bytes
@@ -474,7 +374,6 @@ defmodule Elektrine.Email.Receiver do
           end
       end
 
-    # Ensure result is binary
     case result do
       r when is_binary(r) -> r
       {:error, _, _} -> bytes
@@ -483,71 +382,41 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Convert Windows-1252 to UTF-8
-  # Windows-1252 special characters in 0x80-0x9F range (differ from Latin-1)
   @windows1252_map %{
-    # € Euro sign
-    0x80 => <<0xE2, 0x82, 0xAC>>,
-    # ‚ Single low-9 quote
-    0x82 => <<0xE2, 0x80, 0x9A>>,
-    # ƒ Latin small f with hook
-    0x83 => <<0xC6, 0x92>>,
-    # „ Double low-9 quote
-    0x84 => <<0xE2, 0x80, 0x9E>>,
-    # … Horizontal ellipsis
-    0x85 => <<0xE2, 0x80, 0xA6>>,
-    # † Dagger
-    0x86 => <<0xE2, 0x80, 0xA0>>,
-    # ‡ Double dagger
-    0x87 => <<0xE2, 0x80, 0xA1>>,
-    # ˆ Modifier circumflex
-    0x88 => <<0xCB, 0x86>>,
-    # ‰ Per mille sign
-    0x89 => <<0xE2, 0x80, 0xB0>>,
-    # Š Latin capital S with caron
-    0x8A => <<0xC5, 0xA0>>,
-    # ‹ Single left-pointing angle quote
-    0x8B => <<0xE2, 0x80, 0xB9>>,
-    # Œ Latin capital OE
-    0x8C => <<0xC5, 0x92>>,
-    # Ž Latin capital Z with caron
-    0x8E => <<0xC5, 0xBD>>,
-    # ' Left single quote
-    0x91 => <<0xE2, 0x80, 0x98>>,
-    # ' Right single quote
-    0x92 => <<0xE2, 0x80, 0x99>>,
-    # " Left double quote
-    0x93 => <<0xE2, 0x80, 0x9C>>,
-    # " Right double quote
-    0x94 => <<0xE2, 0x80, 0x9D>>,
-    # • Bullet
-    0x95 => <<0xE2, 0x80, 0xA2>>,
-    # – En dash
-    0x96 => <<0xE2, 0x80, 0x93>>,
-    # — Em dash
-    0x97 => <<0xE2, 0x80, 0x94>>,
-    # ˜ Small tilde
-    0x98 => <<0xCB, 0x9C>>,
-    # ™ Trade mark
-    0x99 => <<0xE2, 0x84, 0xA2>>,
-    # š Latin small s with caron
-    0x9A => <<0xC5, 0xA1>>,
-    # › Single right-pointing angle quote
-    0x9B => <<0xE2, 0x80, 0xBA>>,
-    # œ Latin small oe
-    0x9C => <<0xC5, 0x93>>,
-    # ž Latin small z with caron
-    0x9E => <<0xC5, 0xBE>>,
-    # Ÿ Latin capital Y with diaeresis
-    0x9F => <<0xC5, 0xB8>>
+    128 => <<226, 130, 172>>,
+    130 => <<226, 128, 154>>,
+    131 => <<198, 146>>,
+    132 => <<226, 128, 158>>,
+    133 => <<226, 128, 166>>,
+    134 => <<226, 128, 160>>,
+    135 => <<226, 128, 161>>,
+    136 => <<203, 134>>,
+    137 => <<226, 128, 176>>,
+    138 => <<197, 160>>,
+    139 => <<226, 128, 185>>,
+    140 => <<197, 146>>,
+    142 => <<197, 189>>,
+    145 => <<226, 128, 152>>,
+    146 => <<226, 128, 153>>,
+    147 => <<226, 128, 156>>,
+    148 => <<226, 128, 157>>,
+    149 => <<226, 128, 162>>,
+    150 => <<226, 128, 147>>,
+    151 => <<226, 128, 148>>,
+    152 => <<203, 156>>,
+    153 => <<226, 132, 162>>,
+    154 => <<197, 161>>,
+    155 => <<226, 128, 186>>,
+    156 => <<197, 147>>,
+    158 => <<197, 190>>,
+    159 => <<197, 184>>
   }
-
   defp convert_windows1252_to_utf8(bytes) do
     bytes
     |> :binary.bin_to_list()
     |> Enum.map(fn byte ->
       case Map.get(@windows1252_map, byte) do
-        nil when byte < 0x80 -> <<byte>>
+        nil when byte < 128 -> <<byte>>
         nil -> :unicode.characters_to_binary(<<byte>>, :latin1, :utf8)
         char -> char
       end
@@ -555,7 +424,6 @@ defmodule Elektrine.Email.Receiver do
     |> Enum.map_join("", & &1)
   end
 
-  # Find the mailbox for an alias that doesn't forward (delivers to alias owner)
   defp find_alias_owner_mailbox(alias_email) do
     case Email.get_alias_by_email(alias_email) do
       %Email.Alias{user_id: user_id} when is_integer(user_id) ->
@@ -574,22 +442,14 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Find direct mailbox (original logic)
   defp find_direct_mailbox(recipient) do
     import Ecto.Query
-
-    # First try exact email match
-    mailbox =
-      Mailbox
-      |> where(email: ^recipient)
-      |> Repo.one()
+    mailbox = Mailbox |> where(email: ^recipient) |> Repo.one()
 
     case mailbox do
       nil ->
-        # If no exact match, try to find by username across supported domains
         case find_mailbox_by_cross_domain_lookup(recipient) do
           nil ->
-            # Try to create mailbox if it's for a supported domain
             case auto_create_mailbox_if_valid(recipient) do
               {:ok, new_mailbox} ->
                 {:ok, new_mailbox}
@@ -604,7 +464,6 @@ defmodule Elektrine.Email.Receiver do
         end
 
       mailbox ->
-        # Check if existing mailbox has proper user association
         if is_nil(mailbox.user_id) do
           case fix_orphaned_mailbox(mailbox) do
             {:ok, fixed_mailbox} ->
@@ -612,7 +471,6 @@ defmodule Elektrine.Email.Receiver do
 
             {:error, reason} ->
               Logger.error("Failed to fix orphaned mailbox #{mailbox.email}: #{reason}")
-              # Use it anyway to avoid breaking email flow
               {:ok, mailbox}
           end
         else
@@ -621,7 +479,6 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Attempts to find a mailbox by looking up the username across all supported domains
   defp find_mailbox_by_cross_domain_lookup(email) do
     case extract_username_and_domain(email) do
       {username, domain} ->
@@ -630,14 +487,9 @@ defmodule Elektrine.Email.Receiver do
             ["elektrine.com", "z.org"]
 
         if domain in supported_domains do
-          # Try to find a mailbox for this username with any of the supported domains
           import Ecto.Query
-
           like_patterns = Enum.map(supported_domains, fn d -> "#{username}@#{d}" end)
-
-          Mailbox
-          |> where([m], m.email in ^like_patterns)
-          |> Repo.one()
+          Mailbox |> where([m], m.email in ^like_patterns) |> Repo.one()
         else
           nil
         end
@@ -647,7 +499,6 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Extracts username and domain from an email address
   defp extract_username_and_domain(email) do
     case String.split(email, "@") do
       [username, domain] -> {username, domain}
@@ -655,15 +506,10 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Stores the incoming message in the database
   defp store_incoming_message(mailbox_id, params) do
-    # Sanitize ALL header fields using Mail library for MIME decoding + UTF-8 sanitization
     sender_email = sanitize_address_header(params["from"] || params["mail_from"])
-
-    # Process attachments first (without data)
     attachments_metadata = prepare_attachments_metadata(params["attachments"])
 
-    # Base message attributes - sanitize all header fields
     message_attrs = %{
       "message_id" => params["message_id"] || "incoming-#{:rand.uniform(1_000_000)}",
       "from" => sender_email,
@@ -676,7 +522,7 @@ defmodule Elektrine.Email.Receiver do
       "html_body" => Elektrine.Email.Sanitizer.sanitize_utf8(params["html_body"] || ""),
       "status" => "received",
       "read" => false,
-      "spam" => is_spam?(params),
+      "spam" => spam?(params),
       "archived" => false,
       "mailbox_id" => mailbox_id,
       "metadata" => extract_metadata(params),
@@ -684,15 +530,13 @@ defmodule Elektrine.Email.Receiver do
       "has_attachments" => map_size(attachments_metadata) > 0
     }
 
-    # Apply automatic categorization if not spam
     message_attrs =
-      if not message_attrs["spam"] do
-        Email.categorize_message(message_attrs)
-      else
+      if message_attrs["spam"] do
         message_attrs
+      else
+        Email.categorize_message(message_attrs)
       end
 
-    # Allowlist of valid email message fields to prevent atom exhaustion DoS
     valid_message_keys = ~w(
       message_id from to cc bcc subject text_body html_body encrypted_text_body
       encrypted_html_body search_index status read spam archived deleted flagged
@@ -703,18 +547,14 @@ defmodule Elektrine.Email.Receiver do
       mailbox_id thread_id label_ids folder_id
     )
 
-    # Convert string keys to atoms for changeset - only allow known fields
     message_attrs =
       for {key, val} <- message_attrs, key in valid_message_keys, into: %{} do
         {String.to_existing_atom(key), val}
       end
 
-    # Create the message first
     case Email.create_message(message_attrs) do
       {:ok, message} ->
-        # Upload attachments to S3/R2 asynchronously to avoid blocking SMTP
         if params["attachments"] && params["attachments"] != [] do
-          # Spawn async task to upload to S3 - don't wait for it
           Elektrine.Async.run(fn ->
             Elektrine.Jobs.AttachmentUploader.upload_message_attachments(message.id)
           end)
@@ -727,17 +567,19 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Prepares attachment metadata without the actual data
-  defp prepare_attachments_metadata(nil), do: %{}
-  defp prepare_attachments_metadata([]), do: %{}
+  defp prepare_attachments_metadata(nil) do
+    %{}
+  end
+
+  defp prepare_attachments_metadata([]) do
+    %{}
+  end
 
   defp prepare_attachments_metadata(attachments) when is_list(attachments) do
     attachments
     |> Enum.with_index()
     |> Enum.reduce(%{}, fn {attachment, index}, acc ->
       attachment_id = "attachment_#{index}"
-
-      # Decode filename (may be RFC 2047 encoded)
       raw_filename = attachment["name"] || attachment["filename"] || "attachment_#{index}"
       decoded_filename = decode_attachment_filename(raw_filename)
 
@@ -758,19 +600,23 @@ defmodule Elektrine.Email.Receiver do
     end)
   end
 
-  defp prepare_attachments_metadata(_), do: %{}
+  defp prepare_attachments_metadata(_) do
+    %{}
+  end
 
-  # Decode attachment filename (may be RFC 2047 encoded)
-  defp decode_attachment_filename(nil), do: "attachment"
-  defp decode_attachment_filename(""), do: "attachment"
+  defp decode_attachment_filename(nil) do
+    "attachment"
+  end
+
+  defp decode_attachment_filename("") do
+    "attachment"
+  end
 
   defp decode_attachment_filename(filename) when is_binary(filename) do
     decoded = decode_mail_header(filename)
     Elektrine.Email.Sanitizer.sanitize_utf8(decoded)
   end
 
-  # Extracts useful metadata from the webhook payload
-  # CRITICAL: Sanitize all string fields to prevent invalid UTF-8 in JSONB
   defp extract_metadata(params) do
     %{
       received_at: DateTime.utc_now() |> DateTime.to_iso8601(),
@@ -782,20 +628,18 @@ defmodule Elektrine.Email.Receiver do
     |> Enum.into(%{})
   end
 
-  # Sanitize a map of headers (recursively sanitize all string values)
-  defp sanitize_headers_map(nil), do: nil
-
-  defp sanitize_headers_map(headers) when is_map(headers) do
-    headers
-    |> Enum.map(fn {k, v} ->
-      {k, sanitize_metadata_value(v)}
-    end)
-    |> Map.new()
+  defp sanitize_headers_map(nil) do
+    nil
   end
 
-  defp sanitize_headers_map(_), do: nil
+  defp sanitize_headers_map(headers) when is_map(headers) do
+    headers |> Enum.map(fn {k, v} -> {k, sanitize_metadata_value(v)} end) |> Map.new()
+  end
 
-  # Sanitize any metadata value (handles strings, lists, maps, etc.)
+  defp sanitize_headers_map(_) do
+    nil
+  end
+
   defp sanitize_metadata_value(value) when is_binary(value) do
     Elektrine.Email.Sanitizer.sanitize_utf8(value)
   end
@@ -805,16 +649,14 @@ defmodule Elektrine.Email.Receiver do
   end
 
   defp sanitize_metadata_value(value) when is_map(value) do
-    value
-    |> Enum.map(fn {k, v} -> {k, sanitize_metadata_value(v)} end)
-    |> Map.new()
+    value |> Enum.map(fn {k, v} -> {k, sanitize_metadata_value(v)} end) |> Map.new()
   end
 
-  defp sanitize_metadata_value(value), do: value
+  defp sanitize_metadata_value(value) do
+    value
+  end
 
-  # Determines if the message is spam based on email server's spam headers
-  defp is_spam?(params) do
-    # Check legacy spam field for backwards compatibility
+  defp spam?(params) do
     case params["spam"] do
       true -> true
       "true" -> true
@@ -824,7 +666,6 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Auto-create mailbox for valid email addresses
   defp auto_create_mailbox_if_valid(email) do
     case extract_username_and_domain(email) do
       {username, domain} ->
@@ -833,7 +674,6 @@ defmodule Elektrine.Email.Receiver do
             ["elektrine.com", "z.org"]
 
         if domain in supported_domains do
-          # Try multiple user lookup strategies
           user = find_user_for_email(username, email)
 
           case user do
@@ -841,7 +681,6 @@ defmodule Elektrine.Email.Receiver do
               {:error, :user_not_found}
 
             user ->
-              # Create mailbox for this user with specific email
               case Email.create_mailbox(%{"email" => email, "user_id" => user.id}) do
                 {:ok, mailbox} ->
                   {:ok, mailbox}
@@ -860,15 +699,11 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Find user using multiple lookup strategies
   defp find_user_for_email(username, _full_email) do
     import Ecto.Query
 
-    # Strategy 1: Exact username match
     case Elektrine.Accounts.get_user_by_username(username) do
       nil ->
-        # Strategy 2: Look for user by email (in case they have different username)
-        # This helps when someone's username is different from their email prefix
         from(u in Elektrine.Accounts.User,
           where: fragment("LOWER(?)", u.username) == ^String.downcase(username),
           limit: 1
@@ -880,7 +715,6 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Fix a single orphaned mailbox by associating it with the correct user
   defp fix_orphaned_mailbox(mailbox) do
     case String.split(mailbox.email, "@") do
       [username, domain] ->
@@ -897,11 +731,8 @@ defmodule Elektrine.Email.Receiver do
               changeset = Elektrine.Email.Mailbox.changeset(mailbox, %{user_id: user.id})
 
               case Elektrine.Repo.update(changeset) do
-                {:ok, updated_mailbox} ->
-                  {:ok, updated_mailbox}
-
-                {:error, changeset} ->
-                  {:error, changeset.errors}
+                {:ok, updated_mailbox} -> {:ok, updated_mailbox}
+                {:error, changeset} -> {:error, changeset.errors}
               end
           end
         else
@@ -913,28 +744,22 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  # Checks if the sender is blocked by the user
   defp check_blocked_sender(user_id, params) do
     from_email = params["from"]
 
-    if Email.is_blocked?(user_id, from_email) do
+    if Email.blocked?(user_id, from_email) do
       {:error, :sender_blocked}
     else
       :ok
     end
   end
 
-  # Applies user's email filters to the message
   defp apply_user_filters(message, user_id) do
     actions = Email.apply_filters(user_id, message)
 
     case Email.execute_actions(message, actions) do
-      {:ok, updated_message} ->
-        updated_message
-
-      {:error, _reason} ->
-        # If filter execution fails, return original message
-        message
+      {:ok, updated_message} -> updated_message
+      {:error, _reason} -> message
     end
   end
 end

@@ -1,31 +1,21 @@
 defmodule ElektrineWeb.API.EmailController do
   use ElektrineWeb, :controller
-
   alias Elektrine.Email
-  alias Elektrine.Email.{Search, Messages, AttachmentStorage, Folders, Message}
-
-  action_fallback ElektrineWeb.FallbackController
+  alias Elektrine.Email.{AttachmentStorage, Folders, Message, Messages, Search}
+  action_fallback(ElektrineWeb.FallbackController)
   @default_page 1
   @default_limit 20
   @max_page_size 100
-
-  @doc """
-  GET /api/emails
-  Lists emails for the current user's mailbox
-  """
+  @doc ~s|GET /api/emails\nLists emails for the current user's mailbox\n|
   def index(conn, params) do
     user = conn.assigns[:current_user]
-
-    # Get user's primary mailbox
     mailbox = Email.get_user_mailbox(user.id)
 
     if mailbox do
       page = parse_positive_int(Map.get(params, "page"), @default_page)
       limit = parse_positive_int(Map.get(params, "limit"), @default_limit) |> min(@max_page_size)
-
       folder = Map.get(params, "folder", "inbox")
 
-      # Get paginated messages based on folder
       result =
         case folder do
           "inbox" ->
@@ -71,43 +61,27 @@ defmodule ElektrineWeb.API.EmailController do
         has_prev: result.has_prev
       })
     else
-      conn
-      |> put_status(:not_found)
-      |> json(%{error: "Mailbox not found"})
+      conn |> put_status(:not_found) |> json(%{error: "Mailbox not found"})
     end
   end
 
-  @doc """
-  GET /api/emails/:id
-  Gets a specific email by ID
-  """
+  @doc ~s|GET /api/emails/:id\nGets a specific email by ID\n|
   def show(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
     with_message_id(conn, id, fn message_id ->
       case Email.get_user_message(message_id, user.id) do
-        {:ok, message} ->
-          conn
-          |> put_status(:ok)
-          |> json(%{email: format_message(message)})
-
-        {:error, _reason} ->
-          email_not_found(conn)
-
-        nil ->
-          email_not_found(conn)
+        {:ok, message} -> conn |> put_status(:ok) |> json(%{email: format_message(message)})
+        {:error, _reason} -> email_not_found(conn)
+        nil -> email_not_found(conn)
       end
     end)
   end
 
-  @doc """
-  POST /api/emails/send
-  Sends a new email
-  """
+  @doc ~s|POST /api/emails/send\nSends a new email\n|
   def send_email(conn, %{"email" => email_params}) do
     user = conn.assigns[:current_user]
 
-    # Check rate limit before sending
     case Elektrine.Email.RateLimiter.check_rate_limit(user.id) do
       {:ok, _remaining} ->
         attempt_send_email(conn, user, email_params)
@@ -128,18 +102,14 @@ defmodule ElektrineWeb.API.EmailController do
         |> json(%{error: "Rate limit exceeded: maximum 1000 emails per day"})
 
       {:error, _reason} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "Rate limit exceeded"})
+        conn |> put_status(:too_many_requests) |> json(%{error: "Rate limit exceeded"})
     end
   end
 
   defp attempt_send_email(conn, user, email_params) do
-    # Get user's primary mailbox
     mailbox = Email.get_user_mailbox(user.id)
 
     if mailbox do
-      # Build email params
       params =
         %{
           from: mailbox.email,
@@ -152,12 +122,9 @@ defmodule ElektrineWeb.API.EmailController do
         |> Enum.reject(fn {_, v} -> is_nil(v) || v == "" end)
         |> Map.new()
 
-      # Send email using the Email.Sender module
       case Elektrine.Email.Sender.send_email(user.id, params) do
         {:ok, _message} ->
-          conn
-          |> put_status(:ok)
-          |> json(%{message: "Email sent successfully"})
+          conn |> put_status(:ok) |> json(%{message: "Email sent successfully"})
 
         {:error, reason} ->
           conn
@@ -165,23 +132,17 @@ defmodule ElektrineWeb.API.EmailController do
           |> json(%{error: "Failed to send email", reason: inspect(reason)})
       end
     else
-      conn
-      |> put_status(:not_found)
-      |> json(%{error: "Mailbox not found"})
+      conn |> put_status(:not_found) |> json(%{error: "Mailbox not found"})
     end
   end
 
-  @doc """
-  PUT /api/emails/:id
-  Updates an email (mark as read, archive, etc.)
-  """
+  @doc ~s|PUT /api/emails/:id\nUpdates an email (mark as read, archive, etc.)\n|
   def update(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]
 
     with_message_id(conn, id, fn message_id ->
       case Email.get_user_message(message_id, user.id) do
         {:ok, message} ->
-          # Update the message based on params
           result =
             cond do
               Map.has_key?(params, "read") && params["read"] == true ->
@@ -230,10 +191,7 @@ defmodule ElektrineWeb.API.EmailController do
     end)
   end
 
-  @doc """
-  DELETE /api/emails/:id
-  Deletes an email
-  """
+  @doc ~s|DELETE /api/emails/:id\nDeletes an email\n|
   def delete(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
@@ -242,9 +200,7 @@ defmodule ElektrineWeb.API.EmailController do
         {:ok, message} ->
           case Email.delete_message(message) do
             {:ok, _} ->
-              conn
-              |> put_status(:ok)
-              |> json(%{message: "Email deleted successfully"})
+              conn |> put_status(:ok) |> json(%{message: "Email deleted successfully"})
 
             {:error, _changeset} ->
               conn
@@ -261,19 +217,14 @@ defmodule ElektrineWeb.API.EmailController do
     end)
   end
 
-  @doc """
-  GET /api/emails/search
-  Searches emails by query string.
-  """
+  @doc ~s|GET /api/emails/search\nSearches emails by query string.\n|
   def search(conn, %{"q" => query} = params) do
     user = conn.assigns[:current_user]
     mailbox = Email.get_user_mailbox(user.id)
 
     if mailbox do
       page = parse_positive_int(params["page"], @default_page)
-      # Cap per_page at @max_page_size to prevent DoS via large result sets
       per_page = parse_positive_int(params["per_page"], @default_limit) |> min(@max_page_size)
-
       result = Search.search_messages(mailbox.id, query, page, per_page)
 
       conn
@@ -291,57 +242,33 @@ defmodule ElektrineWeb.API.EmailController do
         }
       })
     else
-      conn
-      |> put_status(:not_found)
-      |> json(%{error: "Mailbox not found"})
+      conn |> put_status(:not_found) |> json(%{error: "Mailbox not found"})
     end
   end
 
   def search(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Missing required parameter: q"})
+    conn |> put_status(:bad_request) |> json(%{error: "Missing required parameter: q"})
   end
 
-  @doc """
-  GET /api/emails/counts
-  Returns unread counts for all folders/categories.
-  """
+  @doc ~s|GET /api/emails/counts\nReturns unread counts for all folders/categories.\n|
   def counts(conn, _params) do
     user = conn.assigns[:current_user]
     mailbox = Email.get_user_mailbox(user.id)
 
     if mailbox do
       unread_counts = Messages.get_all_unread_counts(mailbox.id)
-
-      conn
-      |> put_status(:ok)
-      |> json(%{counts: unread_counts})
+      conn |> put_status(:ok) |> json(%{counts: unread_counts})
     else
-      conn
-      |> put_status(:not_found)
-      |> json(%{error: "Mailbox not found"})
+      conn |> put_status(:not_found) |> json(%{error: "Mailbox not found"})
     end
   end
 
-  @doc """
-  POST /api/emails/bulk
-  Performs bulk operations on multiple emails.
-
-  Params:
-    - ids: List of email IDs
-    - action: One of "mark_read", "mark_unread", "archive", "unarchive", "spam", "not_spam", "delete"
-  """
-  # Maximum number of IDs allowed in bulk operations to prevent DoS
+  @doc ~s|POST /api/emails/bulk\nPerforms bulk operations on multiple emails.\n\nParams:\n  - ids: List of email IDs\n  - action: One of \"mark_read\", \"mark_unread\", \"archive\", \"unarchive\", \"spam\", \"not_spam\", \"delete\"\n|
   @max_bulk_ids 100
-
   def bulk_action(conn, %{"ids" => ids, "action" => action}) when is_list(ids) do
     user = conn.assigns[:current_user]
-
-    # Limit to @max_bulk_ids to prevent DoS
     limited_ids = Enum.take(ids, @max_bulk_ids)
 
-    # Validate all IDs belong to user
     results =
       limited_ids
       |> Enum.map(&parse_int(&1, nil))
@@ -377,10 +304,7 @@ defmodule ElektrineWeb.API.EmailController do
     |> json(%{error: "Missing required parameters: ids (array), action (string)"})
   end
 
-  @doc """
-  GET /api/emails/:id/attachments
-  Lists attachments for an email.
-  """
+  @doc ~s|GET /api/emails/:id/attachments\nLists attachments for an email.\n|
   def list_attachments(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
@@ -388,10 +312,7 @@ defmodule ElektrineWeb.API.EmailController do
       case Email.get_user_message(message_id, user.id) do
         {:ok, message} ->
           attachments = format_attachments(message.attachments || %{})
-
-          conn
-          |> put_status(:ok)
-          |> json(%{attachments: attachments})
+          conn |> put_status(:ok) |> json(%{attachments: attachments})
 
         {:error, _reason} ->
           email_not_found(conn)
@@ -402,10 +323,7 @@ defmodule ElektrineWeb.API.EmailController do
     end)
   end
 
-  @doc """
-  GET /api/emails/:id/attachments/:attachment_id
-  Gets a presigned download URL for an attachment.
-  """
+  @doc ~s|GET /api/emails/:id/attachments/:attachment_id\nGets a presigned download URL for an attachment.\n|
   def attachment(conn, %{"id" => id, "attachment_id" => att_id}) do
     user = conn.assigns[:current_user]
 
@@ -416,9 +334,7 @@ defmodule ElektrineWeb.API.EmailController do
 
           case find_attachment(attachments, att_id) do
             nil ->
-              conn
-              |> put_status(:not_found)
-              |> json(%{error: "Attachment not found"})
+              conn |> put_status(:not_found) |> json(%{error: "Attachment not found"})
 
             attachment ->
               case AttachmentStorage.generate_presigned_url(attachment) do
@@ -448,23 +364,12 @@ defmodule ElektrineWeb.API.EmailController do
     end)
   end
 
-  @doc """
-  PUT /api/emails/:id/category
-  Updates the category of an email.
-
-  Params:
-    - category: One of "inbox", "feed", "ledger", "stack"
-  """
+  @doc ~s|PUT /api/emails/:id/category\nUpdates the category of an email.\n\nParams:\n  - category: One of \"inbox\", \"feed\", \"ledger\", \"stack\"\n|
   def update_category(conn, %{"id" => id, "category" => category}) do
     user = conn.assigns[:current_user]
-
     valid_categories = ["inbox", "feed", "ledger", "stack"]
 
-    if category not in valid_categories do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{error: "Invalid category. Must be one of: #{Enum.join(valid_categories, ", ")}"})
-    else
+    if category in valid_categories do
       with_message_id(conn, id, fn message_id ->
         case Email.get_user_message(message_id, user.id) do
           {:ok, message} ->
@@ -497,16 +402,14 @@ defmodule ElektrineWeb.API.EmailController do
             email_not_found(conn)
         end
       end)
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{error: "Invalid category. Must be one of: #{Enum.join(valid_categories, ", ")}"})
     end
   end
 
-  @doc """
-  PUT /api/emails/:id/reply-later
-  Sets or clears reply-later reminder for an email.
-
-  Params:
-    - reminder_at: ISO 8601 datetime string (or null to clear)
-  """
+  @doc ~s|PUT /api/emails/:id/reply-later\nSets or clears reply-later reminder for an email.\n\nParams:\n  - reminder_at: ISO 8601 datetime string (or null to clear)\n|
   def set_reply_later(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]
 
@@ -517,16 +420,11 @@ defmodule ElektrineWeb.API.EmailController do
 
           result =
             if is_nil(reminder_at) || reminder_at == "" do
-              # Clear reply later
               Folders.clear_reply_later(message)
             else
-              # Set reply later
               case DateTime.from_iso8601(reminder_at) do
-                {:ok, datetime, _offset} ->
-                  Folders.reply_later_message(message, datetime)
-
-                {:error, _} ->
-                  {:error, :invalid_datetime}
+                {:ok, datetime, _offset} -> Folders.reply_later_message(message, datetime)
+                {:error, _} -> {:error, :invalid_datetime}
               end
             end
 
@@ -559,26 +457,49 @@ defmodule ElektrineWeb.API.EmailController do
     end)
   end
 
-  # Private helpers
-
-  # Generic category update for inbox/stack
   defp move_to_category(message, category) do
-    message
-    |> Message.changeset(%{category: category})
-    |> Elektrine.Repo.update()
+    message |> Message.changeset(%{category: category}) |> Elektrine.Repo.update()
   end
 
-  defp perform_bulk_action(message, "mark_read"), do: Email.mark_as_read(message)
-  defp perform_bulk_action(message, "mark_unread"), do: Email.mark_as_unread(message)
-  defp perform_bulk_action(message, "archive"), do: Email.archive_message(message)
-  defp perform_bulk_action(message, "unarchive"), do: Email.unarchive_message(message)
-  defp perform_bulk_action(message, "spam"), do: Email.mark_as_spam(message)
-  defp perform_bulk_action(message, "not_spam"), do: Email.mark_as_not_spam(message)
-  defp perform_bulk_action(message, "delete"), do: Email.delete_message(message)
-  defp perform_bulk_action(_message, _action), do: {:error, :unknown_action}
+  defp perform_bulk_action(message, "mark_read") do
+    Email.mark_as_read(message)
+  end
 
-  defp parse_int(nil, default), do: default
-  defp parse_int(value, _default) when is_integer(value), do: value
+  defp perform_bulk_action(message, "mark_unread") do
+    Email.mark_as_unread(message)
+  end
+
+  defp perform_bulk_action(message, "archive") do
+    Email.archive_message(message)
+  end
+
+  defp perform_bulk_action(message, "unarchive") do
+    Email.unarchive_message(message)
+  end
+
+  defp perform_bulk_action(message, "spam") do
+    Email.mark_as_spam(message)
+  end
+
+  defp perform_bulk_action(message, "not_spam") do
+    Email.mark_as_not_spam(message)
+  end
+
+  defp perform_bulk_action(message, "delete") do
+    Email.delete_message(message)
+  end
+
+  defp perform_bulk_action(_message, _action) do
+    {:error, :unknown_action}
+  end
+
+  defp parse_int(nil, default) do
+    default
+  end
+
+  defp parse_int(value, _default) when is_integer(value) do
+    value
+  end
 
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
@@ -587,11 +508,21 @@ defmodule ElektrineWeb.API.EmailController do
     end
   end
 
-  defp parse_int(_, default), do: default
+  defp parse_int(_, default) do
+    default
+  end
 
-  defp parse_positive_int(nil, default), do: default
-  defp parse_positive_int(value, _default) when is_integer(value) and value > 0, do: value
-  defp parse_positive_int(value, default) when is_integer(value), do: default
+  defp parse_positive_int(nil, default) do
+    default
+  end
+
+  defp parse_positive_int(value, _default) when is_integer(value) and value > 0 do
+    value
+  end
+
+  defp parse_positive_int(value, default) when is_integer(value) do
+    default
+  end
 
   defp parse_positive_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
@@ -600,9 +531,13 @@ defmodule ElektrineWeb.API.EmailController do
     end
   end
 
-  defp parse_positive_int(_, default), do: default
+  defp parse_positive_int(_, default) do
+    default
+  end
 
-  defp parse_message_id(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp parse_message_id(value) when is_integer(value) and value > 0 do
+    {:ok, value}
+  end
 
   defp parse_message_id(value) when is_binary(value) do
     case Integer.parse(value) do
@@ -611,7 +546,9 @@ defmodule ElektrineWeb.API.EmailController do
     end
   end
 
-  defp parse_message_id(_), do: :error
+  defp parse_message_id(_) do
+    :error
+  end
 
   defp with_message_id(conn, id, fun) when is_function(fun, 1) do
     case parse_message_id(id) do
@@ -621,20 +558,21 @@ defmodule ElektrineWeb.API.EmailController do
   end
 
   defp invalid_email_id(conn) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Invalid email id"})
+    conn |> put_status(:bad_request) |> json(%{error: "Invalid email id"})
   end
 
   defp email_not_found(conn) do
-    conn
-    |> put_status(:not_found)
-    |> json(%{error: "Email not found"})
+    conn |> put_status(:not_found) |> json(%{error: "Email not found"})
   end
 
   defp format_attachments(attachments) when is_map(attachments) do
     Enum.map(attachments, fn {key, att} ->
-      attachment = if is_map(att), do: att, else: %{}
+      attachment =
+        if is_map(att) do
+          att
+        else
+          %{}
+        end
 
       %{
         id: attachment_field(attachment, "id", :id) || to_string(key),
@@ -649,7 +587,12 @@ defmodule ElektrineWeb.API.EmailController do
     attachments
     |> Enum.with_index()
     |> Enum.map(fn {att, idx} ->
-      attachment = if is_map(att), do: att, else: %{}
+      attachment =
+        if is_map(att) do
+          att
+        else
+          %{}
+        end
 
       %{
         id: attachment_field(attachment, "id", :id) || to_string(idx),
@@ -660,13 +603,20 @@ defmodule ElektrineWeb.API.EmailController do
     end)
   end
 
-  defp format_attachments(_), do: []
+  defp format_attachments(_) do
+    []
+  end
 
   defp find_attachment(attachments, att_id) when is_map(attachments) do
     target_id = to_string(att_id)
 
     Enum.find_value(attachments, fn {key, att} ->
-      attachment = if is_map(att), do: att, else: nil
+      attachment =
+        if is_map(att) do
+          att
+        else
+          nil
+        end
 
       if attachment do
         attachment_id = attachment_field(attachment, "id", :id) || to_string(key)
@@ -685,8 +635,6 @@ defmodule ElektrineWeb.API.EmailController do
   defp find_attachment(attachments, att_id) when is_list(attachments) do
     target_id = to_string(att_id)
 
-    # Try to find by id field first
-    # Fallback to index-based lookup
     Enum.find(attachments, fn att ->
       id = attachment_field(att, "id", :id)
       to_string(id) == target_id
@@ -697,15 +645,18 @@ defmodule ElektrineWeb.API.EmailController do
       end
   end
 
-  defp find_attachment(_, _), do: nil
+  defp find_attachment(_, _) do
+    nil
+  end
 
   defp attachment_field(attachment, string_key, atom_key) when is_map(attachment) do
     Map.get(attachment, string_key) || Map.get(attachment, atom_key)
   end
 
-  defp attachment_field(_, _, _), do: nil
+  defp attachment_field(_, _, _) do
+    nil
+  end
 
-  # Private helper to format message for JSON response
   defp format_message(message) do
     %{
       id: message.id,
@@ -729,14 +680,27 @@ defmodule ElektrineWeb.API.EmailController do
     }
   end
 
-  # Return raw category values for mobile API (mobile app handles display names)
-  # Legacy category mapping
-  defp format_category("paper_pile"), do: "feed"
-  # Legacy category mapping
-  defp format_category("important_stuff"), do: "ledger"
-  # Legacy category mapping
-  defp format_category("random_stuff"), do: "stack"
-  defp format_category(nil), do: "inbox"
-  defp format_category(category) when is_binary(category), do: category
-  defp format_category(_), do: "inbox"
+  defp format_category("paper_pile") do
+    "feed"
+  end
+
+  defp format_category("important_stuff") do
+    "ledger"
+  end
+
+  defp format_category("random_stuff") do
+    "stack"
+  end
+
+  defp format_category(nil) do
+    "inbox"
+  end
+
+  defp format_category(category) when is_binary(category) do
+    category
+  end
+
+  defp format_category(_) do
+    "inbox"
+  end
 end

@@ -1,28 +1,13 @@
 defmodule Elektrine.Bluesky.Managed do
-  @moduledoc """
-  Managed PDS account provisioning for Bluesky.
-
-  This path allows the instance to:
-  - Create invite codes with admin credentials
-  - Create a per-user PDS account
-  - Create an app password for bridge usage
-  - Persist Bluesky linkage fields to the local user account
-  """
-
+  @moduledoc "Managed PDS account provisioning for Bluesky.\n\nThis path allows the instance to:\n- Create invite codes with admin credentials\n- Create a per-user PDS account\n- Create an app password for bridge usage\n- Persist Bluesky linkage fields to the local user account\n"
   require Logger
-
   import Ecto.Query, warn: false
-
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
-
   @default_timeout_ms 12_000
-
-  @doc """
-  Provisions Bluesky for a local user on a managed PDS.
-  """
+  @doc "Provisions Bluesky for a local user on a managed PDS.\n"
   def enable_for_user(%User{} = user, current_password) when is_binary(current_password) do
     with :ok <- ensure_managed_enabled(),
          {:ok, _verified_user} <- Authentication.verify_user_password(user, current_password),
@@ -37,12 +22,7 @@ defmodule Elektrine.Bluesky.Managed do
          {:ok, app_password} <-
            create_app_password(service_url, session.access_jwt, user.username),
          {:ok, updated_user} <- persist_user_link(user, account, app_password, service_url) do
-      {:ok,
-       %{
-         user: updated_user,
-         did: account["did"],
-         handle: account["handle"]
-       }}
+      {:ok, %{user: updated_user, did: account["did"], handle: account["handle"]}}
     else
       {:error, reason} = error ->
         Logger.warning("Managed Bluesky enable failed for user #{user.id}: #{inspect(reason)}")
@@ -50,11 +30,11 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  def enable_for_user(%User{}, _current_password), do: {:error, :current_password_required}
+  def enable_for_user(%User{}, _current_password) do
+    {:error, :current_password_required}
+  end
 
-  @doc """
-  Reconnects (or refreshes) managed Bluesky credentials for a local user.
-  """
+  @doc "Reconnects (or refreshes) managed Bluesky credentials for a local user.\n"
   def reconnect_for_user(%User{} = user, current_password) when is_binary(current_password) do
     with :ok <- ensure_managed_enabled(),
          {:ok, _verified_user} <- Authentication.verify_user_password(user, current_password),
@@ -79,11 +59,11 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  def reconnect_for_user(%User{}, _current_password), do: {:error, :current_password_required}
+  def reconnect_for_user(%User{}, _current_password) do
+    {:error, :current_password_required}
+  end
 
-  @doc """
-  Disconnects managed Bluesky linkage for a local user.
-  """
+  @doc "Disconnects managed Bluesky linkage for a local user.\n"
   def disconnect_for_user(%User{} = user, current_password) when is_binary(current_password) do
     with {:ok, _verified_user} <- Authentication.verify_user_password(user, current_password),
          {1, _} <-
@@ -113,7 +93,9 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  def disconnect_for_user(%User{}, _current_password), do: {:error, :current_password_required}
+  def disconnect_for_user(%User{}, _current_password) do
+    {:error, :current_password_required}
+  end
 
   defp ensure_managed_enabled do
     if Keyword.get(bluesky_config(), :managed_enabled, false) do
@@ -128,7 +110,9 @@ defmodule Elektrine.Bluesky.Managed do
     {:error, :already_enabled}
   end
 
-  defp ensure_not_already_enabled(_user), do: :ok
+  defp ensure_not_already_enabled(_user) do
+    :ok
+  end
 
   defp managed_service_url do
     configured =
@@ -142,7 +126,12 @@ defmodule Elektrine.Bluesky.Managed do
     case Keyword.get(bluesky_config(), :managed_domain) do
       value when is_binary(value) ->
         domain = String.trim(value)
-        if domain == "", do: {:error, :missing_managed_domain}, else: {:ok, domain}
+
+        if domain == "" do
+          {:error, :missing_managed_domain}
+        else
+          {:ok, domain}
+        end
 
       _ ->
         {:error, :missing_managed_domain}
@@ -153,7 +142,12 @@ defmodule Elektrine.Bluesky.Managed do
     case Keyword.get(bluesky_config(), :managed_admin_password) do
       value when is_binary(value) ->
         password = String.trim(value)
-        if password == "", do: {:error, :missing_managed_admin_password}, else: {:ok, password}
+
+        if password == "" do
+          {:error, :missing_managed_admin_password}
+        else
+          {:ok, password}
+        end
 
       _ ->
         {:error, :missing_managed_admin_password}
@@ -161,11 +155,7 @@ defmodule Elektrine.Bluesky.Managed do
   end
 
   defp normalize_service_url(url) when is_binary(url) do
-    normalized =
-      url
-      |> String.trim()
-      |> maybe_add_scheme()
-      |> String.trim_trailing("/")
+    normalized = url |> String.trim() |> maybe_add_scheme() |> String.trim_trailing("/")
 
     case URI.parse(normalized) do
       %URI{scheme: scheme, host: host}
@@ -177,7 +167,9 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  defp normalize_service_url(_), do: {:error, :invalid_managed_service_url}
+  defp normalize_service_url(_) do
+    {:error, :invalid_managed_service_url}
+  end
 
   defp maybe_add_scheme(url) do
     if String.starts_with?(url, ["http://", "https://"]) do
@@ -194,9 +186,8 @@ defmodule Elektrine.Bluesky.Managed do
 
     with {:ok, response} <- request_json(:post, url, payload, headers),
          :ok <- require_success_status(response.status, :create_invite_code_failed),
-         {:ok, body} <- decode_json_body(response.body),
-         {:ok, code} <- map_fetch_string(body, "code", :missing_invite_code) do
-      {:ok, code}
+         {:ok, body} <- decode_json_body(response.body) do
+      map_fetch_string(body, "code", :missing_invite_code)
     end
   end
 
@@ -247,18 +238,17 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  defp extract_app_password(_), do: {:error, :missing_app_password}
+  defp extract_app_password(_) do
+    {:error, :missing_app_password}
+  end
 
   defp create_app_password_with_retry(url, headers, username, retries_left) do
-    payload = %{
-      "name" => app_password_name(username)
-    }
+    payload = %{"name" => app_password_name(username)}
 
     with {:ok, response} <- request_json(:post, url, payload, headers),
          :ok <- require_success_status(response.status, :create_app_password_failed),
-         {:ok, body} <- decode_json_body(response.body),
-         {:ok, app_password} <- extract_app_password(body) do
-      {:ok, app_password}
+         {:ok, body} <- decode_json_body(response.body) do
+      extract_app_password(body)
     else
       {:error, {:create_app_password_failed, 500}} when retries_left > 0 ->
         create_app_password_with_retry(url, headers, username, retries_left - 1)
@@ -280,10 +270,7 @@ defmodule Elektrine.Bluesky.Managed do
       end
       |> String.slice(0, 16)
 
-    suffix =
-      :erlang.unique_integer([:positive, :monotonic])
-      |> Integer.to_string(36)
-
+    suffix = :erlang.unique_integer([:positive, :monotonic]) |> Integer.to_string(36)
     "elektrine-#{base}-#{suffix}"
   end
 
@@ -355,23 +342,23 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  defp fallback_handle("did:" <> _did, username, handle_domain),
-    do: "#{username}.#{handle_domain}"
+  defp fallback_handle("did:" <> _did, username, handle_domain) do
+    "#{username}.#{handle_domain}"
+  end
 
-  defp fallback_handle(handle, _username, _handle_domain), do: handle
+  defp fallback_handle(handle, _username, _handle_domain) do
+    handle
+  end
 
   defp request_json(method, url, payload, extra_headers) do
-    headers =
-      [
-        {"content-type", "application/json"},
-        {"accept", "application/json"}
-        | extra_headers
-      ]
+    headers = [
+      {"content-type", "application/json"},
+      {"accept", "application/json"} | extra_headers
+    ]
 
     body = Jason.encode!(payload)
     timeout_ms = Keyword.get(bluesky_config(), :timeout_ms, @default_timeout_ms)
     request_opts = [receive_timeout: timeout_ms]
-
     request_with_retry(method, url, headers, body, request_opts)
   end
 
@@ -381,27 +368,38 @@ defmodule Elektrine.Bluesky.Managed do
         {:ok, response}
 
       {:error, reason} ->
-        cond do
-          retries_left > 0 and retryable_transport_closed?(reason) ->
-            request_with_retry(method, url, headers, body, opts, retries_left - 1)
-
-          true ->
-            {:error, {:http_error, reason}}
+        if retries_left > 0 and retryable_transport_closed?(reason) do
+          request_with_retry(method, url, headers, body, opts, retries_left - 1)
+        else
+          {:error, {:http_error, reason}}
         end
     end
   end
 
-  defp retryable_transport_closed?(%Mint.TransportError{reason: :closed}), do: true
-  defp retryable_transport_closed?(:closed), do: true
-  defp retryable_transport_closed?(_reason), do: false
+  defp retryable_transport_closed?(%Mint.TransportError{reason: :closed}) do
+    true
+  end
+
+  defp retryable_transport_closed?(:closed) do
+    true
+  end
+
+  defp retryable_transport_closed?(_reason) do
+    false
+  end
 
   defp managed_admin_headers(admin_password) do
     token = Base.encode64("admin:" <> admin_password)
     [{"authorization", "Basic " <> token}]
   end
 
-  defp require_success_status(status, _reason) when status in 200..299, do: :ok
-  defp require_success_status(status, reason), do: {:error, {reason, status}}
+  defp require_success_status(status, _reason) when status in 200..299 do
+    :ok
+  end
+
+  defp require_success_status(status, reason) do
+    {:error, {reason, status}}
+  end
 
   defp decode_json_body(body) when is_binary(body) do
     case Jason.decode(body) do
@@ -410,7 +408,9 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  defp decode_json_body(_), do: {:error, :invalid_json}
+  defp decode_json_body(_) do
+    {:error, :invalid_json}
+  end
 
   defp map_fetch_string(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
@@ -419,17 +419,20 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  defp map_fetch_string(_map, _key, reason), do: {:error, reason}
+  defp map_fetch_string(_map, _key, reason) do
+    {:error, reason}
+  end
 
   defp default_pds_email(user) do
     email_domain =
-      Application.get_env(:elektrine, :email, [])
-      |> Keyword.get(:domain, "elektrine.local")
+      Application.get_env(:elektrine, :email, []) |> Keyword.get(:domain, "elektrine.local")
 
     "#{user.username}@#{email_domain}"
   end
 
-  defp bluesky_config, do: Application.get_env(:elektrine, :bluesky, [])
+  defp bluesky_config do
+    Application.get_env(:elektrine, :bluesky, [])
+  end
 
   defp http_client do
     Keyword.get(bluesky_config(), :http_client, Elektrine.Bluesky.FinchClient)

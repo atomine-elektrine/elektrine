@@ -8,8 +8,8 @@ defmodule Elektrine.Jobs.StaleCallCleanup do
   """
 
   require Logger
-  alias Elektrine.Repo
   alias Elektrine.Calls.Call
+  alias Elektrine.Repo
   import Ecto.Query
 
   def run do

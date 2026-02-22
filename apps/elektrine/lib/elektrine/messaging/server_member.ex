@@ -1,4 +1,5 @@
 defmodule Elektrine.Messaging.ServerMember do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

@@ -1,8 +1,8 @@
 defmodule ElektrineWeb.PresenceTest do
   use Elektrine.DataCase
 
-  alias ElektrineWeb.Presence
   alias Elektrine.Accounts
+  alias ElektrineWeb.Presence
 
   describe "presence tracking" do
     test "can track user presence" do

@@ -5,15 +5,15 @@ defmodule ElektrineWeb.ChatLive.Router do
   """
 
   alias ElektrineWeb.ChatLive.Operations.{
-    MessageOperations,
+    CallOperations,
+    ContextMenuOperations,
     ConversationOperations,
+    DirectMessageOperations,
+    EmojiGifOperations,
     GroupChannelOperations,
     MemberOperations,
-    DirectMessageOperations,
-    CallOperations,
-    UIOperations,
-    ContextMenuOperations,
-    EmojiGifOperations
+    MessageOperations,
+    UIOperations
   }
 
   @doc """

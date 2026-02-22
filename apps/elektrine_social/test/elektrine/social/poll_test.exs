@@ -1,8 +1,8 @@
 defmodule Elektrine.Social.PollTest do
   use Elektrine.DataCase
 
-  alias Elektrine.Social
   alias Elektrine.{Accounts, Messaging}
+  alias Elektrine.Social
 
   describe "polls" do
     setup do

@@ -1,42 +1,25 @@
 defmodule Elektrine.Email.VCard do
-  @moduledoc """
-  vCard parser and generator for CardDAV support.
-  Supports vCard 3.0 (RFC 2426) and vCard 4.0 (RFC 6350).
-  """
-
+  @moduledoc "vCard parser and generator for CardDAV support.\nSupports vCard 3.0 (RFC 2426) and vCard 4.0 (RFC 6350).\n"
   alias Elektrine.Email.Contact
-
-  @doc """
-  Parse a vCard string into a map of contact fields.
-  """
+  @doc "Parse a vCard string into a map of contact fields.\n"
   def parse(vcard_string) when is_binary(vcard_string) do
-    # Validate that this looks like a vCard
-    unless String.contains?(String.upcase(vcard_string), "BEGIN:VCARD") do
-      {:error, :invalid_vcard}
-    else
-      # Unfold continuation lines (lines starting with space/tab are continuations)
+    if String.contains?(String.upcase(vcard_string), "BEGIN:VCARD") do
       unfolded = unfold_lines(vcard_string)
 
       lines =
-        String.split(unfolded, ~r/\r?\n/)
-        |> Enum.map(&String.trim/1)
-        |> Enum.reject(&(&1 == ""))
+        String.split(unfolded, ~r/\r?\n/) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 
-      # Parse each line into property name, params, and value
       parsed_lines = Enum.map(lines, &parse_line/1)
-
-      # Build contact map from parsed lines
       contact_map = build_contact_map(parsed_lines)
-
       {:ok, contact_map}
+    else
+      {:error, :invalid_vcard}
     end
   rescue
     e -> {:error, Exception.message(e)}
   end
 
-  @doc """
-  Generate a vCard string from a Contact struct or map.
-  """
+  @doc "Generate a vCard string from a Contact struct or map.\n"
   def generate(%Contact{} = contact) do
     generate(Map.from_struct(contact))
   end
@@ -54,7 +37,6 @@ defmodule Elektrine.Email.VCard do
       build_n_property(contact)
     ]
 
-    # Add optional single-value properties
     lines = maybe_add(lines, :nickname, contact, &"NICKNAME:#{escape_value(&1)}")
     lines = lines ++ build_email_properties(contact)
     lines = lines ++ build_tel_properties(contact)
@@ -70,22 +52,14 @@ defmodule Elektrine.Email.VCard do
     lines = lines ++ build_photo_property(contact)
     lines = maybe_add_geo(lines, contact)
     lines = lines ++ build_social_properties(contact)
-
-    # REV - revision timestamp
     rev = Map.get(contact, :revision) || DateTime.utc_now()
     lines = lines ++ ["REV:#{format_datetime(rev)}"]
-
     lines = lines ++ ["END:VCARD"]
-
-    # Fold long lines (per RFC)
     folded = Enum.map(lines, &fold_line/1)
-
     {:ok, Enum.join(folded, "\r\n") <> "\r\n"}
   end
 
-  @doc """
-  Generate a unique UID for a vCard.
-  """
+  @doc "Generate a unique UID for a vCard.\n"
   def generate_uid do
     uuid =
       :crypto.strong_rand_bytes(16)
@@ -94,8 +68,6 @@ defmodule Elektrine.Email.VCard do
 
     "#{uuid}@elektrine.com"
   end
-
-  # Private functions - optional field helpers
 
   defp maybe_add(lines, key, contact, formatter) do
     case Map.get(contact, key) do
@@ -136,23 +108,17 @@ defmodule Elektrine.Email.VCard do
     end
   end
 
-  # Private functions - parsing
-
   defp unfold_lines(text) do
-    # vCard line unfolding: lines starting with space or tab are continuations
-    text
-    |> String.replace(~r/\r?\n[ \t]/, "")
+    text |> String.replace(~r/\r?\n[ \t]/, "")
   end
 
   defp parse_line(line) do
-    # Parse "PROPERTY;PARAM=VALUE:content" format
     case String.split(line, ":", parts: 2) do
       [property_part, value] ->
         {property, params} = parse_property_and_params(property_part)
         {property, params, value}
 
       [_property_only] ->
-        # Line without value (malformed, but handle gracefully)
         {line, %{}, ""}
     end
   end
@@ -160,13 +126,7 @@ defmodule Elektrine.Email.VCard do
   defp parse_property_and_params(property_part) do
     parts = String.split(property_part, ";")
     property = List.first(parts) |> String.upcase()
-
-    params =
-      parts
-      |> Enum.drop(1)
-      |> Enum.map(&parse_param/1)
-      |> Map.new()
-
+    params = parts |> Enum.drop(1) |> Enum.map(&parse_param/1) |> Map.new()
     {property, params}
   end
 
@@ -242,14 +202,12 @@ defmodule Elektrine.Email.VCard do
           Map.put(acc, :revision, parse_datetime(value))
 
         _ ->
-          # Store unknown properties for round-trip
           acc
       end
     end)
   end
 
   defp parse_n_property(value, acc) do
-    # N format: family;given;additional;prefix;suffix
     parts = String.split(value, ";") |> Enum.map(&unescape_value/1)
 
     acc
@@ -263,27 +221,16 @@ defmodule Elektrine.Email.VCard do
   defp parse_email(value, params) do
     type = get_type(params, "other")
     pref = Map.has_key?(params, "PREF") || Map.get(params, "TYPE", "") =~ ~r/pref/i
-
-    %{
-      "type" => type,
-      "value" => unescape_value(value),
-      "primary" => pref
-    }
+    %{"type" => type, "value" => unescape_value(value), "primary" => pref}
   end
 
   defp parse_tel(value, params) do
     type = get_type(params, "other")
     pref = Map.has_key?(params, "PREF") || Map.get(params, "TYPE", "") =~ ~r/pref/i
-
-    %{
-      "type" => type,
-      "value" => unescape_value(value),
-      "primary" => pref
-    }
+    %{"type" => type, "value" => unescape_value(value), "primary" => pref}
   end
 
   defp parse_adr(value, params) do
-    # ADR format: pobox;extended;street;city;region;postal;country
     parts = String.split(value, ";") |> Enum.map(&unescape_value/1)
     type = get_type(params, "other")
 
@@ -321,9 +268,7 @@ defmodule Elektrine.Email.VCard do
         |> Map.put(:photo_content_type, normalize_photo_type(type))
 
       String.starts_with?(value, "http") ->
-        acc
-        |> Map.put(:photo_type, "url")
-        |> Map.put(:photo_data, value)
+        acc |> Map.put(:photo_type, "url") |> Map.put(:photo_data, value)
 
       true ->
         acc
@@ -345,10 +290,7 @@ defmodule Elektrine.Email.VCard do
   defp parse_geo(value, acc) do
     case String.split(value, ";") do
       [lat, lon] ->
-        Map.put(acc, :geo, %{
-          "latitude" => parse_float(lat),
-          "longitude" => parse_float(lon)
-        })
+        Map.put(acc, :geo, %{"latitude" => parse_float(lat), "longitude" => parse_float(lon)})
 
       _ ->
         acc
@@ -363,7 +305,6 @@ defmodule Elektrine.Email.VCard do
   end
 
   defp parse_date(value) do
-    # Handle various date formats: YYYY-MM-DD, YYYYMMDD, --MMDD
     cleaned = String.replace(value, "-", "")
 
     if String.length(cleaned) == 8 do
@@ -372,7 +313,6 @@ defmodule Elektrine.Email.VCard do
           date
 
         _ ->
-          # Try YYYYMMDD format
           year = String.slice(cleaned, 0..3)
           month = String.slice(cleaned, 4..5)
           day = String.slice(cleaned, 6..7)
@@ -388,13 +328,11 @@ defmodule Elektrine.Email.VCard do
   end
 
   defp parse_datetime(value) do
-    # Handle ISO 8601 formats
     case DateTime.from_iso8601(value) do
       {:ok, dt, _} ->
         dt
 
       _ ->
-        # Try basic format without separators
         case NaiveDateTime.from_iso8601(value) do
           {:ok, ndt} -> DateTime.from_naive!(ndt, "Etc/UTC")
           _ -> nil
@@ -405,13 +343,9 @@ defmodule Elektrine.Email.VCard do
   defp get_type(params, default) do
     type_value = Map.get(params, "TYPE", default)
 
-    # TYPE can be comma-separated list, take first relevant one
     types =
-      String.split(type_value, ",")
-      |> Enum.map(&String.trim/1)
-      |> Enum.map(&String.downcase/1)
+      String.split(type_value, ",") |> Enum.map(&String.trim/1) |> Enum.map(&String.downcase/1)
 
-    # Prefer work, home, cell, etc.
     Enum.find(types, default, fn t ->
       t in ["work", "home", "cell", "fax", "pager", "main", "other"]
     end)
@@ -431,7 +365,9 @@ defmodule Elektrine.Email.VCard do
     |> String.replace("\\\\", "\\")
   end
 
-  defp unescape_value(nil), do: nil
+  defp unescape_value(nil) do
+    nil
+  end
 
   defp escape_value(value) when is_binary(value) do
     value
@@ -441,7 +377,9 @@ defmodule Elektrine.Email.VCard do
     |> String.replace("\n", "\\n")
   end
 
-  defp escape_value(nil), do: ""
+  defp escape_value(nil) do
+    ""
+  end
 
   defp build_n_property(contact) do
     family = Map.get(contact, :last_name, "")
@@ -450,7 +388,6 @@ defmodule Elektrine.Email.VCard do
     prefix = Map.get(contact, :prefix, "")
     suffix = Map.get(contact, :suffix, "")
 
-    # If no structured name, try to parse from formatted name
     {family, given} =
       if family == "" && given == "" do
         parse_name(Map.get(contact, :formatted_name) || Map.get(contact, :name) || "")
@@ -458,10 +395,7 @@ defmodule Elektrine.Email.VCard do
         {family, given}
       end
 
-    parts =
-      [family, given, additional, prefix, suffix]
-      |> Enum.map(&(escape_value(&1) || ""))
-
+    parts = [family, given, additional, prefix, suffix] |> Enum.map(&(escape_value(&1) || ""))
     "N:#{Enum.join(parts, ";")}"
   end
 
@@ -476,7 +410,6 @@ defmodule Elektrine.Email.VCard do
   end
 
   defp build_email_properties(contact) do
-    # Check for both old single-email and new multi-email format
     emails = Map.get(contact, :emails, [])
     single_email = Map.get(contact, :email)
 
@@ -491,9 +424,14 @@ defmodule Elektrine.Email.VCard do
       type = Map.get(email, "type", Map.get(email, :type, "other"))
       value = Map.get(email, "value", Map.get(email, :value, ""))
       primary = Map.get(email, "primary", Map.get(email, :primary, false))
-
       params = ["TYPE=#{String.upcase(type)}"]
-      params = if primary, do: params ++ ["PREF"], else: params
+
+      params =
+        if primary do
+          params ++ ["PREF"]
+        else
+          params
+        end
 
       "EMAIL;#{Enum.join(params, ";")}:#{value}"
     end)
@@ -514,9 +452,14 @@ defmodule Elektrine.Email.VCard do
       type = Map.get(phone, "type", Map.get(phone, :type, "other"))
       value = Map.get(phone, "value", Map.get(phone, :value, ""))
       primary = Map.get(phone, "primary", Map.get(phone, :primary, false))
-
       params = ["TYPE=#{String.upcase(type)}"]
-      params = if primary, do: params ++ ["PREF"], else: params
+
+      params =
+        if primary do
+          params ++ ["PREF"]
+        else
+          params
+        end
 
       "TEL;#{Enum.join(params, ";")}:#{value}"
     end)
@@ -550,7 +493,6 @@ defmodule Elektrine.Email.VCard do
     Enum.map(urls, fn url ->
       type = Map.get(url, "type", Map.get(url, :type, "other"))
       value = Map.get(url, "value", Map.get(url, :value, ""))
-
       "URL;TYPE=#{String.upcase(type)}:#{value}"
     end)
   end
@@ -579,7 +521,6 @@ defmodule Elektrine.Email.VCard do
     Enum.map(social, fn profile ->
       type = Map.get(profile, "type", Map.get(profile, :type, "other"))
       value = Map.get(profile, "value", Map.get(profile, :value, ""))
-
       "X-SOCIALPROFILE;TYPE=#{type}:#{value}"
     end)
   end
@@ -588,7 +529,9 @@ defmodule Elektrine.Email.VCard do
     Date.to_iso8601(date)
   end
 
-  defp format_date(_), do: nil
+  defp format_date(_) do
+    nil
+  end
 
   defp format_datetime(%DateTime{} = dt) do
     dt
@@ -598,52 +541,45 @@ defmodule Elektrine.Email.VCard do
   end
 
   defp format_datetime(%NaiveDateTime{} = ndt) do
-    ndt
-    |> NaiveDateTime.truncate(:second)
-    |> NaiveDateTime.to_iso8601(:basic)
-    |> Kernel.<>("Z")
+    ndt |> NaiveDateTime.truncate(:second) |> NaiveDateTime.to_iso8601(:basic) |> Kernel.<>("Z")
   end
 
-  defp format_datetime(_), do: nil
+  defp format_datetime(_) do
+    nil
+  end
 
   defp fold_line(line) when byte_size(line) <= 75 do
     line
   end
 
   defp fold_line(line) do
-    # Fold lines longer than 75 bytes (RFC 5322)
-    do_fold(line, [])
-    |> Enum.reverse()
-    |> Enum.join("\r\n ")
+    do_fold(line, []) |> Enum.reverse() |> Enum.join("\r\n ")
   end
 
-  defp do_fold(<<>>, acc), do: acc
+  defp do_fold(<<>>, acc) do
+    acc
+  end
 
   defp do_fold(line, []) do
-    # First line can be 75 bytes
     {chunk, rest} = safe_split(line, 75)
     do_fold(rest, [chunk])
   end
 
   defp do_fold(line, acc) do
-    # Continuation lines can be 74 bytes (1 byte for leading space)
     {chunk, rest} = safe_split(line, 74)
     do_fold(rest, [chunk | acc])
   end
 
   defp safe_split(binary, max_bytes) do
-    # Split at byte boundary without breaking multi-byte UTF-8 characters
     if byte_size(binary) <= max_bytes do
       {binary, <<>>}
     else
-      # Find safe split point
       safe_point = find_safe_split(binary, max_bytes)
       {String.slice(binary, 0, safe_point), String.slice(binary, safe_point..-1//1)}
     end
   end
 
   defp find_safe_split(binary, max) do
-    # Work backwards from max to find valid UTF-8 boundary
     Enum.reduce_while(max..1//-1, max, fn pos, _acc ->
       chunk = :binary.part(binary, 0, pos)
 

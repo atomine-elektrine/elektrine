@@ -13,9 +13,9 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
 
   use ElektrineWeb, :controller
 
+  alias Elektrine.Accounts
   alias Elektrine.OAuth
   alias Elektrine.OAuth.Scopes
-  alias Elektrine.Accounts
 
   action_fallback(ElektrineWeb.MastodonAPI.FallbackController)
 

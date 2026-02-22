@@ -1,29 +1,17 @@
 defmodule ElektrineWeb.API.UserController do
   use ElektrineWeb, :controller
-
   alias Elektrine.Accounts
   alias ElektrineWeb.Plugs.APIAuth
-
-  action_fallback ElektrineWeb.FallbackController
-
-  @doc """
-  POST /api/users/register
-  Registers a new user
-  """
+  action_fallback(ElektrineWeb.FallbackController)
+  @doc "POST /api/users/register\nRegisters a new user\n"
   def register(conn, %{"user" => user_params}) do
-    # Extract username, email (optional), and password
     username = Map.get(user_params, "username")
     password = Map.get(user_params, "password")
-
-    # Get IP for rate limiting
     remote_ip = get_remote_ip(conn)
 
     if is_nil(username) or is_nil(password) do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{error: "Username and password are required"})
+      conn |> put_status(:bad_request) |> json(%{error: "Username and password are required"})
     else
-      # Check rate limit (use IP-based limiting for registration)
       case Elektrine.Auth.RateLimiter.check_rate_limit("register:#{remote_ip}") do
         {:ok, :allowed} ->
           attempt_registration(conn, username, password, remote_ip)
@@ -51,17 +39,13 @@ defmodule ElektrineWeb.API.UserController do
   end
 
   defp attempt_registration(conn, username, password, remote_ip) do
-    # Create user with minimal params
     case Accounts.create_user(%{
            username: username,
            password: password,
            password_confirmation: password
          }) do
       {:ok, user} ->
-        # Clear rate limit on successful registration
         Elektrine.Auth.RateLimiter.clear_limits("register:#{remote_ip}")
-
-        # Generate token
         {:ok, token} = APIAuth.generate_token(user.id)
 
         conn
@@ -81,7 +65,6 @@ defmodule ElektrineWeb.API.UserController do
         })
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        # Record failed attempt for rate limiting
         Elektrine.Auth.RateLimiter.record_attempt("register:#{remote_ip}")
 
         errors =
@@ -97,36 +80,27 @@ defmodule ElektrineWeb.API.UserController do
     end
   end
 
-  @doc """
-  GET /api/users/:id
-  Gets a user by ID
-  """
+  @doc "GET /api/users/:id\nGets a user by ID\n"
   def show(conn, %{"id" => id}) do
-    try do
-      user = Accounts.get_user!(id)
+    user = Accounts.get_user!(id)
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        user: %{
-          id: user.id,
-          username: user.username,
-          email: "#{user.username}@elektrine.com",
-          avatar: user.avatar,
-          is_admin: user.is_admin,
-          inserted_at: user.inserted_at,
-          updated_at: user.updated_at
-        }
-      })
-    rescue
-      Ecto.NoResultsError ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "User not found"})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      user: %{
+        id: user.id,
+        username: user.username,
+        email: "#{user.username}@elektrine.com",
+        avatar: user.avatar,
+        is_admin: user.is_admin,
+        inserted_at: user.inserted_at,
+        updated_at: user.updated_at
+      }
+    })
+  rescue
+    Ecto.NoResultsError -> conn |> put_status(:not_found) |> json(%{error: "User not found"})
   end
 
-  # Get remote IP with proxy header support
   defp get_remote_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)
   end

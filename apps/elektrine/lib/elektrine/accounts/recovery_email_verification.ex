@@ -7,8 +7,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   """
 
   import Swoosh.Email
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
   require Logger
 
   @token_validity_hours 24
@@ -398,7 +398,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   @doc """
   Checks if a user's recovery email is verified.
   """
-  def is_verified?(user_id) do
+  def verified?(user_id) do
     case Repo.get(User, user_id) do
       nil -> false
       user -> user.recovery_email_verified == true

@@ -3,8 +3,8 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandlerTest do
 
   import Elektrine.AccountsFixtures
 
-  alias Elektrine.ActivityPub.Handlers.FlagHandler
   alias Elektrine.Accounts
+  alias Elektrine.ActivityPub.Handlers.FlagHandler
 
   describe "handle/3" do
     setup do

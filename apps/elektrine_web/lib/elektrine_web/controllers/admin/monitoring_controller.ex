@@ -1,29 +1,29 @@
 defmodule ElektrineWeb.Admin.MonitoringController do
-  @moduledoc """
-  Controller for admin monitoring functions including active users,
-  IMAP/POP3 access tracking, and 2FA status management.
-  """
-
+  @moduledoc "Controller for admin monitoring functions including active users,\nIMAP/POP3 access tracking, and 2FA status management.\n"
   use ElektrineWeb, :controller
-
   alias Elektrine.{Accounts, Repo}
   import Ecto.Query
-
-  plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
-  plug :assign_timezone_and_format
+  plug(:put_layout, html: {ElektrineWeb.Layouts, :admin})
+  plug(:assign_timezone_and_format)
 
   defp assign_timezone_and_format(conn, _opts) do
     current_user = conn.assigns[:current_user]
 
     timezone =
-      if current_user && current_user.timezone, do: current_user.timezone, else: "Etc/UTC"
+      if current_user && current_user.timezone do
+        current_user.timezone
+      else
+        "Etc/UTC"
+      end
 
     time_format =
-      if current_user && current_user.time_format, do: current_user.time_format, else: "12"
+      if current_user && current_user.time_format do
+        current_user.time_format
+      else
+        "12"
+      end
 
-    conn
-    |> assign(:timezone, timezone)
-    |> assign(:time_format, time_format)
+    conn |> assign(:timezone, timezone) |> assign(:time_format, time_format)
   end
 
   def active_users(conn, params) do
@@ -32,7 +32,6 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     per_page = 20
     offset = (page - 1) * per_page
 
-    # Determine date range based on timeframe
     {cutoff_date, title} =
       case timeframe do
         "1h" -> {DateTime.add(DateTime.utc_now(), -1, :hour), "Last Hour"}
@@ -42,7 +41,6 @@ defmodule ElektrineWeb.Admin.MonitoringController do
         "never" -> {nil, "Never Logged In"}
       end
 
-    # Build query based on timeframe
     base_query =
       if timeframe == "never" do
         from(u in Accounts.User, where: is_nil(u.last_login_at))
@@ -50,10 +48,8 @@ defmodule ElektrineWeb.Admin.MonitoringController do
         from(u in Accounts.User, where: u.last_login_at >= ^cutoff_date)
       end
 
-    # Get total count
     total_count = Repo.aggregate(base_query, :count)
 
-    # Get paginated results
     active_users =
       base_query
       |> select([u], %{
@@ -89,14 +85,12 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     per_page = 20
     offset = (page - 1) * per_page
 
-    # Get total count
     total_count =
       Repo.aggregate(
         from(u in Accounts.User, where: not is_nil(u.last_imap_access)),
         :count
       )
 
-    # Get paginated users
     users =
       from(u in Accounts.User,
         where: not is_nil(u.last_imap_access),
@@ -131,14 +125,12 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     per_page = 20
     offset = (page - 1) * per_page
 
-    # Get total count
     total_count =
       Repo.aggregate(
         from(u in Accounts.User, where: not is_nil(u.last_pop3_access)),
         :count
       )
 
-    # Get paginated users
     users =
       from(u in Accounts.User,
         where: not is_nil(u.last_pop3_access),
@@ -173,12 +165,9 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     per_page = 20
     offset = (page - 1) * per_page
 
-    # Get total count first
     total_2fa_users =
-      from(u in Accounts.User, where: u.two_factor_enabled == true)
-      |> Repo.aggregate(:count)
+      from(u in Accounts.User, where: u.two_factor_enabled == true) |> Repo.aggregate(:count)
 
-    # Get paginated users with 2FA enabled and their secret status
     two_factor_users =
       from(u in Accounts.User,
         where: u.two_factor_enabled == true,
@@ -203,11 +192,9 @@ defmodule ElektrineWeb.Admin.MonitoringController do
       )
       |> Repo.aggregate(:count)
 
-    # Calculate pagination
     total_pages = ceil(total_2fa_users / per_page)
     page_range = pagination_range(page, total_pages)
 
-    # Get total counts
     stats = %{
       total_2fa_users: total_2fa_users,
       users_with_secrets: users_with_secrets,
@@ -224,15 +211,11 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     )
   end
 
-  @doc """
-  Shows system health status including CPU, memory, and Oban queue stats.
-  """
+  @doc "Shows system health status including CPU, memory, and Oban queue stats.\n"
   def system_health(conn, _params) do
     scheduler_count = :erlang.system_info(:schedulers_online)
     run_queue = :erlang.statistics(:run_queue)
     cpu_stress = run_queue / scheduler_count
-
-    # Memory stats
     memory = :erlang.memory()
 
     memory_mb = %{
@@ -242,10 +225,8 @@ defmodule ElektrineWeb.Admin.MonitoringController do
       binary: div(memory[:binary], 1024 * 1024)
     }
 
-    # Oban queue stats
     oban_stats = get_oban_stats()
 
-    # Domain throttler stats
     throttler_stats =
       try do
         Elektrine.ActivityPub.DomainThrottler.stats()
@@ -253,7 +234,6 @@ defmodule ElektrineWeb.Admin.MonitoringController do
         _ -> %{active_domains: 0, domains_in_backoff: 0, max_concurrent_per_domain: 2}
       end
 
-    # DB pool stats
     db_stats = get_db_pool_stats()
 
     health = %{
@@ -270,9 +250,7 @@ defmodule ElektrineWeb.Admin.MonitoringController do
       uptime_seconds: div(:erlang.statistics(:wall_clock) |> elem(0), 1000)
     }
 
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(health))
+    conn |> put_resp_content_type("application/json") |> send_resp(200, Jason.encode!(health))
   end
 
   defp health_status(cpu_stress, oban_available) do
@@ -286,37 +264,28 @@ defmodule ElektrineWeb.Admin.MonitoringController do
   end
 
   defp get_oban_stats do
-    try do
-      counts =
-        Repo.all(
-          from(j in "oban_jobs",
-            group_by: j.state,
-            select: {j.state, count(j.id)}
-          ),
-          timeout: 2000
-        )
-        |> Enum.into(%{})
+    counts =
+      Repo.all(from(j in "oban_jobs", group_by: j.state, select: {j.state, count(j.id)}),
+        timeout: 2000
+      )
+      |> Enum.into(%{})
 
-      %{
-        available: Map.get(counts, "available", 0),
-        executing: Map.get(counts, "executing", 0),
-        scheduled: Map.get(counts, "scheduled", 0),
-        retryable: Map.get(counts, "retryable", 0),
-        completed: Map.get(counts, "completed", 0),
-        discarded: Map.get(counts, "discarded", 0)
-      }
-    rescue
-      _ -> %{available: 0, executing: 0, scheduled: 0, retryable: 0, completed: 0, discarded: 0}
-    end
+    %{
+      available: Map.get(counts, "available", 0),
+      executing: Map.get(counts, "executing", 0),
+      scheduled: Map.get(counts, "scheduled", 0),
+      retryable: Map.get(counts, "retryable", 0),
+      completed: Map.get(counts, "completed", 0),
+      discarded: Map.get(counts, "discarded", 0)
+    }
+  rescue
+    _ -> %{available: 0, executing: 0, scheduled: 0, retryable: 0, completed: 0, discarded: 0}
   end
 
   defp get_db_pool_stats do
-    # Get pool size from config
     pool_size = Application.get_env(:elektrine, Elektrine.Repo)[:pool_size] || 10
     %{pool_size: pool_size}
   end
-
-  # Private helper functions
 
   defp pagination_range(_current_page, total_pages) when total_pages <= 7 do
     1..total_pages//1 |> Enum.to_list()
@@ -324,14 +293,9 @@ defmodule ElektrineWeb.Admin.MonitoringController do
 
   defp pagination_range(current_page, total_pages) do
     cond do
-      current_page <= 4 ->
-        1..7//1 |> Enum.to_list()
-
-      current_page >= total_pages - 3 ->
-        (total_pages - 6)..total_pages//1 |> Enum.to_list()
-
-      true ->
-        (current_page - 3)..(current_page + 3)//1 |> Enum.to_list()
+      current_page <= 4 -> 1..7//1 |> Enum.to_list()
+      current_page >= total_pages - 3 -> (total_pages - 6)..total_pages//1 |> Enum.to_list()
+      true -> (current_page - 3)..(current_page + 3)//1 |> Enum.to_list()
     end
   end
 end

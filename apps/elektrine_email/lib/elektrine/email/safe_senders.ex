@@ -3,8 +3,8 @@ defmodule Elektrine.Email.SafeSenders do
   Context module for managing safe/whitelisted email senders.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.SafeSender
+  alias Elektrine.Repo
 
   @doc """
   Lists all safe senders for a user.
@@ -95,7 +95,7 @@ defmodule Elektrine.Email.SafeSenders do
   @doc """
   Checks if an email address is from a safe sender.
   """
-  def is_safe?(user_id, from_email) when is_binary(from_email) do
+  def safe?(user_id, from_email) when is_binary(from_email) do
     email = extract_email(from_email) |> String.downcase()
     domain = extract_domain(email)
 
@@ -108,7 +108,7 @@ defmodule Elektrine.Email.SafeSenders do
     Repo.one(query) > 0
   end
 
-  def is_safe?(_, _), do: false
+  def safe?(_, _), do: false
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking safe sender changes.

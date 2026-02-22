@@ -1,4 +1,5 @@
 defmodule Elektrine.Messaging.FederationEvent do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

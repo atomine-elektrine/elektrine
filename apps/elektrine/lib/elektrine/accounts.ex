@@ -17,17 +17,17 @@ defmodule Elektrine.Accounts do
   import Ecto.Query, warn: false
   alias Elektrine.Repo
 
-  alias Elektrine.Accounts.User
   alias Elektrine.Accounts.InviteCode
   alias Elektrine.Accounts.InviteCodeUse
+  alias Elektrine.Accounts.User
   alias Elektrine.Accounts.UsernameHistory
 
   # Import sub-context modules for delegation
   alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.Blocking
-  alias Elektrine.Accounts.Muting
   alias Elektrine.Accounts.Moderation
   alias Elektrine.Accounts.MultiAccount
+  alias Elektrine.Accounts.Muting
   alias Elektrine.Accounts.Tracking
 
   require Logger
@@ -745,7 +745,7 @@ defmodule Elektrine.Accounts do
             {:ok, :allowed}
 
           # Check if requesting user follows target user
-          is_following?(requesting_user.id, target_user.id) ->
+          following?(requesting_user.id, target_user.id) ->
             {:ok, :allowed}
 
           # Default case
@@ -792,7 +792,7 @@ defmodule Elektrine.Accounts do
 
           "following" ->
             # Check if target user follows the requesting user
-            if is_following?(target_user.id, requesting_user.id) do
+            if following?(target_user.id, requesting_user.id) do
               {:ok, :allowed}
             else
               {:error, :privacy_restriction}
@@ -800,7 +800,7 @@ defmodule Elektrine.Accounts do
 
           "followers" ->
             # Check if requesting user follows the target user
-            if is_following?(requesting_user.id, target_user.id) do
+            if following?(requesting_user.id, target_user.id) do
               {:ok, :allowed}
             else
               {:error, :privacy_restriction}
@@ -808,8 +808,8 @@ defmodule Elektrine.Accounts do
 
           "mutual" ->
             # Check if both users follow each other
-            if is_following?(target_user.id, requesting_user.id) &&
-                 is_following?(requesting_user.id, target_user.id) do
+            if following?(target_user.id, requesting_user.id) &&
+                 following?(requesting_user.id, target_user.id) do
               {:ok, :allowed}
             else
               {:error, :privacy_restriction}
@@ -829,7 +829,7 @@ defmodule Elektrine.Accounts do
   @doc """
   Checks if a user is following another user.
   """
-  def is_following?(follower_id, followed_id) do
+  def following?(follower_id, followed_id) do
     # This assumes you have a follows/followers system.
     query =
       from f in "follows",

@@ -6,10 +6,10 @@ defmodule ElektrineWeb.DiscussionsLive.PostRouter do
   require Logger
 
   alias ElektrineWeb.DiscussionsLive.PostOperations.{
-    ReplyOperations,
-    VotingOperations,
     ModerationOperations,
-    UIOperations
+    ReplyOperations,
+    UIOperations,
+    VotingOperations
   }
 
   def route_event(event_name, params, socket) do

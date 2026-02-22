@@ -42,7 +42,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
       %DateTime{} ->
         now = DateTime.utc_now()
         diff_seconds = DateTime.diff(datetime, now)
-        diff_days = div(diff_seconds, 86400)
+        diff_days = div(diff_seconds, 86_400)
         diff_hours = div(diff_seconds, 3600)
 
         cond do
@@ -97,7 +97,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     end
   end
 
-  def is_overdue?(datetime) do
+  def overdue?(datetime) do
     case datetime do
       %DateTime{} ->
         DateTime.diff(datetime, DateTime.utc_now()) < 0

@@ -1,9 +1,10 @@
 defmodule ElektrineWeb.Plugs.LoadConflicts do
+  @moduledoc false
   import Plug.Conn
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
-  alias Elektrine.Email.{Mailbox, Alias}
+  alias Elektrine.Email.{Alias, Mailbox}
+  alias Elektrine.Repo
 
   def init(opts), do: opts
 

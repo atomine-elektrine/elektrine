@@ -3,8 +3,8 @@ defmodule Elektrine.Email.Labels do
   Context module for managing email labels/tags.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Label
+  alias Elektrine.Repo
 
   @max_labels_per_user 50
 

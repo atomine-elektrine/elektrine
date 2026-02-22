@@ -4,8 +4,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
-  alias Elektrine.ActivityPub.Handlers.LikeHandler
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Handlers.LikeHandler
 
   describe "handle/3 - Like activity" do
     setup do

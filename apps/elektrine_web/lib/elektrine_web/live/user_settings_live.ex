@@ -1,23 +1,18 @@
 defmodule ElektrineWeb.UserSettingsLive do
   use ElektrineWeb, :live_view
-
   alias Elektrine.Accounts
   alias Elektrine.Accounts.RecoveryEmailVerification
   alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Developer
   alias Elektrine.Email
+  alias Elektrine.Email.ListTypes
   alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Unsubscribes
-  alias Elektrine.Email.ListTypes
   alias Elektrine.PasswordManager
   alias Elektrine.PasswordManager.VaultEntry
   alias Elektrine.RSS
-
-  # NotificationCountHook and PresenceHook are provided by :main live_session in router
-  # Only need to override auth to require_authenticated_user (live_session uses maybe_authenticated_user)
-  on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
-
+  on_mount({ElektrineWeb.Live.AuthHooks, :require_authenticated_user})
   @default_tab "profile"
   @setting_tabs [
     {"profile", "hero-user", :default},
@@ -33,28 +28,27 @@ defmodule ElektrineWeb.UserSettingsLive do
     {"danger", "hero-exclamation-triangle", :danger}
   ]
   @valid_tabs Enum.map(@setting_tabs, fn {tab, _icon, _tone} -> tab end)
-
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
-    # Admins get higher upload limits - 50MB vs 5MB
-    avatar_limit = if user.is_admin, do: 50 * 1024 * 1024, else: 5 * 1024 * 1024
+    avatar_limit =
+      if user.is_admin do
+        50 * 1024 * 1024
+      else
+        5 * 1024 * 1024
+      end
 
-    # Only load essential data for initial render
-    # Tab-specific data will be loaded lazily when tabs are selected
     {:ok,
      socket
      |> assign(:page_title, "Account Settings")
      |> assign(:user, user)
      |> assign(
        :bluesky_managed_enabled,
-       Application.get_env(:elektrine, :bluesky, [])
-       |> Keyword.get(:managed_enabled, false)
+       Application.get_env(:elektrine, :bluesky, []) |> Keyword.get(:managed_enabled, false)
      )
      |> assign(:changeset, Accounts.change_user(user, %{}))
      |> assign(:handle_changeset, Accounts.User.handle_changeset(user, %{}))
-     # Loading states for each tab
      |> assign(:loading_profile, true)
      |> assign(:loading_security, true)
      |> assign(:loading_email, true)
@@ -62,7 +56,6 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:loading_password_manager, true)
      |> assign(:loading_developer, true)
      |> assign(:loading_danger, true)
-     # Initialize with empty/default data (will be loaded when tab is selected)
      |> assign(:pending_deletion, nil)
      |> assign(:mailboxes, [])
      |> assign(:aliases, [])
@@ -78,7 +71,6 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:password_manager_entries, [])
      |> assign(:password_manager_revealed_entries, %{})
      |> assign(:password_manager_form, password_manager_entry_form(user.id))
-     # Developer tab assigns
      |> assign(:api_tokens, [])
      |> assign(:webhooks, [])
      |> assign(:pending_exports, [])
@@ -103,7 +95,6 @@ defmodule ElektrineWeb.UserSettingsLive do
     selected_tab = normalize_selected_tab(tab)
     socket = assign(socket, :selected_tab, selected_tab)
 
-    # Trigger lazy loading for the selected tab when connected
     if connected?(socket) do
       send(self(), {:load_tab_data, selected_tab})
     end
@@ -113,20 +104,14 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_params(_params, _url, socket) do
-    # Default to profile tab if no tab specified
     socket = assign(socket, :selected_tab, @default_tab)
 
-    # Trigger lazy loading for the profile tab when connected
     if connected?(socket) do
       send(self(), {:load_tab_data, @default_tab})
     end
 
     {:noreply, socket}
   end
-
-  # =============================================================================
-  # Lazy Loading Tab Data
-  # =============================================================================
 
   @impl true
   def handle_info({:load_tab_data, tab}, socket) do
@@ -135,27 +120,21 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   def handle_info(_message, socket) do
-    # User settings runs under the shared :main live_session hooks, which can
-    # deliver PubSub messages this view does not need to process.
     {:noreply, socket}
   end
 
   defp load_tab_data(socket, "profile") do
     if socket.assigns.loading_profile do
       user = socket.assigns.user
-
-      # Load profile-related data in parallel
       pending_deletion_task = Task.async(fn -> Accounts.get_pending_deletion_request(user) end)
       mailboxes_task = Task.async(fn -> Email.get_user_mailboxes(user.id) end)
       aliases_task = Task.async(fn -> Email.list_aliases(user.id) end)
-
       pending_deletion = Task.await(pending_deletion_task)
       mailboxes = Task.await(mailboxes_task)
       aliases = Task.await(aliases_task)
 
       user_emails =
-        (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.alias_email))
-        |> Enum.uniq()
+        (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.alias_email)) |> Enum.uniq()
 
       socket
       |> assign(:pending_deletion, pending_deletion)
@@ -184,23 +163,18 @@ defmodule ElektrineWeb.UserSettingsLive do
   defp load_tab_data(socket, "email") do
     if socket.assigns.loading_email do
       user = socket.assigns.user
-
-      # Load email-related data in parallel
       lists_task = Task.async(fn -> ListTypes.subscribable_lists() end)
       lists_by_type_task = Task.async(fn -> ListTypes.lists_by_type() end)
       mailboxes_task = Task.async(fn -> Email.get_user_mailboxes(user.id) end)
       aliases_task = Task.async(fn -> Email.list_aliases(user.id) end)
-
       lists = Task.await(lists_task)
       lists_by_type = Task.await(lists_by_type_task)
       mailboxes = Task.await(mailboxes_task)
       aliases = Task.await(aliases_task)
 
       user_emails =
-        (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.alias_email))
-        |> Enum.uniq()
+        (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.alias_email)) |> Enum.uniq()
 
-      # Get unsubscribe status after we have list_ids
       list_ids = Enum.map(lists, & &1.id)
       unsubscribe_status = Unsubscribes.batch_check_unsubscribed(user_emails, list_ids)
 
@@ -221,10 +195,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     if socket.assigns.loading_timeline do
       user = socket.assigns.user
       rss_subscriptions = RSS.list_subscriptions(user.id)
-
-      socket
-      |> assign(:rss_subscriptions, rss_subscriptions)
-      |> assign(:loading_timeline, false)
+      socket |> assign(:rss_subscriptions, rss_subscriptions) |> assign(:loading_timeline, false)
     else
       socket
     end
@@ -245,12 +216,9 @@ defmodule ElektrineWeb.UserSettingsLive do
   defp load_tab_data(socket, "developer") do
     if socket.assigns.loading_developer do
       user = socket.assigns.user
-
-      # Load developer data in parallel
       api_tokens_task = Task.async(fn -> Developer.list_api_tokens(user.id) end)
       webhooks_task = Task.async(fn -> Developer.list_webhooks(user.id) end)
       pending_exports_task = Task.async(fn -> Developer.get_pending_exports(user.id) end)
-
       api_tokens = Task.await(api_tokens_task)
       webhooks = Task.await(webhooks_task)
       pending_exports = Task.await(pending_exports_task)
@@ -269,27 +237,19 @@ defmodule ElektrineWeb.UserSettingsLive do
     if socket.assigns.loading_danger do
       user = socket.assigns.user
       pending_deletion = Accounts.get_pending_deletion_request(user)
-
-      socket
-      |> assign(:pending_deletion, pending_deletion)
-      |> assign(:loading_danger, false)
+      socket |> assign(:pending_deletion, pending_deletion) |> assign(:loading_danger, false)
     else
       socket
     end
   end
 
-  # For tabs that don't need special loading (privacy, preferences, notifications, federation)
-  defp load_tab_data(socket, _tab), do: socket
-
-  # =============================================================================
-  # Form Event Handlers
-  # =============================================================================
+  defp load_tab_data(socket, _tab) do
+    socket
+  end
 
   @impl true
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     tab = normalize_selected_tab(tab)
-
-    # Update URL with tab parameter so it persists on refresh
     {:noreply, push_patch(socket, to: ~p"/account?tab=#{tab}")}
   end
 
@@ -297,7 +257,6 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_event("password_manager_validate", %{"entry" => params}, socket) do
     user = socket.assigns.current_user
     form = password_manager_entry_form(user.id, params, :validate)
-
     {:noreply, assign(socket, :password_manager_form, form)}
   end
 
@@ -358,13 +317,15 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("password_manager_hide", %{"id" => id}, socket) do
-    with {:ok, entry_id} <- parse_entry_id(id) do
-      {:noreply,
-       update(socket, :password_manager_revealed_entries, fn revealed_entries ->
-         Map.delete(revealed_entries, entry_id)
-       end)}
-    else
-      :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
+    case parse_entry_id(id) do
+      {:ok, entry_id} ->
+        {:noreply,
+         update(socket, :password_manager_revealed_entries, fn revealed_entries ->
+           Map.delete(revealed_entries, entry_id)
+         end)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid entry id")}
     end
   end
 
@@ -382,32 +343,24 @@ defmodule ElektrineWeb.UserSettingsLive do
        end)
        |> put_flash(:info, "Vault entry deleted")}
     else
-      :error ->
-        {:noreply, put_flash(socket, :error, "Invalid entry id")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Entry not found")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not delete entry")}
+      :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
+      {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Entry not found")}
+      {:error, _reason} -> {:noreply, put_flash(socket, :error, "Could not delete entry")}
     end
   end
 
   @impl true
   def handle_event("validate", %{"_target" => ["avatar"]}, socket) do
-    # Skip validation for avatar uploads
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("validate", %{"_target" => ["user", _field]}, socket) do
-    # Skip validation for individual checkbox changes - they'll be handled on save
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("validate", %{"user" => user_params}, socket) do
-    # Only validate the fields that are actually in our form
     filtered_params =
       Map.take(user_params, [
         "display_name",
@@ -435,7 +388,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         "activitypub_manually_approve_followers"
       ])
 
-    # Only coerce checkboxes for the active tab to avoid touching unrelated settings.
     checkbox_fields = checkbox_fields_for_tab(socket.assigns.selected_tab)
 
     params_with_checkboxes =
@@ -447,7 +399,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         end
       end)
 
-    # Handle empty timezone (auto-detect) by converting to nil
     final_params =
       case Map.get(params_with_checkboxes, "timezone") do
         "" -> Map.put(params_with_checkboxes, "timezone", nil)
@@ -455,29 +406,23 @@ defmodule ElektrineWeb.UserSettingsLive do
       end
 
     changeset =
-      socket.assigns.user
-      |> Accounts.change_user(final_params)
-      |> Map.put(:action, :validate)
+      socket.assigns.user |> Accounts.change_user(final_params) |> Map.put(:action, :validate)
 
     {:noreply, assign(socket, :changeset, changeset)}
   end
 
   @impl true
   def handle_event("save", params, socket) when params == %{} do
-    # Empty form submission (all checkboxes unchecked) - treat as all false
     handle_event("save", %{"user" => %{}}, socket)
   end
 
   @impl true
   def handle_event("save", %{"user" => user_params}, socket) do
-    # Check if uploads are still in progress
     {completed, in_progress} = uploaded_entries(socket, :avatar)
 
     if in_progress != [] do
-      # Uploads still in progress - wait for them to complete
       {:noreply, put_flash(socket, :error, "Please wait for the upload to complete")}
     else
-      # Handle avatar upload if present (only completed entries)
       user_params_with_avatar =
         if completed != [] do
           consume_uploaded_entries(socket, :avatar, fn %{path: path}, entry ->
@@ -609,16 +554,13 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   def handle_event("toggle_subscription", %{"list_id" => list_id}, socket) do
-    # Check if ANY email is currently subscribed to this list
     any_subscribed =
       Enum.any?(socket.assigns.user_emails, fn email ->
         !Unsubscribes.unsubscribed?(email, list_id)
       end)
 
-    # If any are subscribed, unsubscribe all. Otherwise, subscribe all.
     action =
       if any_subscribed do
-        # Unsubscribe all emails from this list
         Enum.each(socket.assigns.user_emails, fn email ->
           Unsubscribes.unsubscribe(email,
             list_id: list_id,
@@ -628,7 +570,6 @@ defmodule ElektrineWeb.UserSettingsLive do
 
         "Unsubscribed from"
       else
-        # Resubscribe all emails to this list
         Enum.each(socket.assigns.user_emails, fn email ->
           Unsubscribes.resubscribe(email, list_id)
         end)
@@ -636,7 +577,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         "Resubscribed to"
       end
 
-    # Rebuild status (single batch query)
     list_ids = Enum.map(socket.assigns.lists, & &1.id)
 
     unsubscribe_status =
@@ -652,12 +592,10 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("unsubscribe_all", %{"email" => email}, socket) do
-    # Unsubscribe from all subscribable lists
     Enum.each(socket.assigns.lists, fn list ->
       Unsubscribes.unsubscribe(email, list_id: list.id, user_id: socket.assigns.current_user.id)
     end)
 
-    # Rebuild status (single batch query)
     list_ids = Enum.map(socket.assigns.lists, & &1.id)
 
     unsubscribe_status =
@@ -671,12 +609,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("resubscribe_all", %{"email" => email}, socket) do
-    # Resubscribe to all lists
-    Enum.each(socket.assigns.lists, fn list ->
-      Unsubscribes.resubscribe(email, list.id)
-    end)
-
-    # Rebuild status (single batch query)
+    Enum.each(socket.assigns.lists, fn list -> Unsubscribes.resubscribe(email, list.id) end)
     list_ids = Enum.map(socket.assigns.lists, & &1.id)
 
     unsubscribe_status =
@@ -701,19 +634,13 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> notify_info("Verification email sent to your recovery email address.")}
 
       {:error, :already_verified} ->
-        {:noreply,
-         socket
-         |> notify_info("Your recovery email is already verified.")}
+        {:noreply, socket |> notify_info("Your recovery email is already verified.")}
 
       {:error, :no_recovery_email} ->
-        {:noreply,
-         socket
-         |> notify_error("Please add a recovery email address first.")}
+        {:noreply, socket |> notify_error("Please add a recovery email address first.")}
 
       {:error, _reason} ->
-        {:noreply,
-         socket
-         |> notify_error("Failed to send verification email. Please try again.")}
+        {:noreply, socket |> notify_error("Failed to send verification email. Please try again.")}
     end
   end
 
@@ -736,9 +663,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> notify_error("Invalid PGP key format. Please paste a valid ASCII-armored public key.")}
 
       {:error, _reason} ->
-        {:noreply,
-         socket
-         |> notify_error("Failed to upload PGP key. Please try again.")}
+        {:noreply, socket |> notify_error("Failed to upload PGP key. Please try again.")}
     end
   end
 
@@ -755,13 +680,10 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> notify_info("PGP key removed")}
 
       {:error, _reason} ->
-        {:noreply,
-         socket
-         |> notify_error("Failed to remove PGP key")}
+        {:noreply, socket |> notify_error("Failed to remove PGP key")}
     end
   end
 
-  # RSS Feed Management
   @impl true
   def handle_event("add_rss_feed", %{"url" => url}, socket) do
     url = String.trim(url)
@@ -773,10 +695,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
       case RSS.subscribe(socket.assigns.current_user.id, url) do
         {:ok, subscription} ->
-          # Trigger immediate fetch of the new feed
-          %{feed_id: subscription.feed_id}
-          |> Elektrine.RSS.FetchFeedWorker.new()
-          |> Oban.insert()
+          %{feed_id: subscription.feed_id} |> Elektrine.RSS.FetchFeedWorker.new() |> Oban.insert()
 
           {:noreply,
            socket
@@ -789,17 +708,14 @@ defmodule ElektrineWeb.UserSettingsLive do
         {:error, changeset} ->
           error =
             case changeset.errors[:feed_id] do
-              {_, [constraint: :unique, constraint_name: _]} ->
+              {_, constraint: :unique, constraint_name: _} ->
                 "You're already subscribed to this feed"
 
               _ ->
                 "Failed to add feed. Please check the URL."
             end
 
-          {:noreply,
-           socket
-           |> assign(:adding_feed, false)
-           |> assign(:rss_error, error)}
+          {:noreply, socket |> assign(:adding_feed, false) |> assign(:rss_error, error)}
       end
     end
   end
@@ -815,8 +731,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
     case RSS.unsubscribe(socket.assigns.current_user.id, feed_id) do
       {:ok, _} ->
-        subscriptions =
-          Enum.reject(socket.assigns.rss_subscriptions, &(&1.feed_id == feed_id))
+        subscriptions = Enum.reject(socket.assigns.rss_subscriptions, &(&1.feed_id == feed_id))
 
         {:noreply,
          socket
@@ -831,9 +746,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   @impl true
   def handle_event("toggle_rss_timeline", %{"subscription_id" => subscription_id}, socket) do
     subscription_id = String.to_integer(subscription_id)
-
-    subscription =
-      Enum.find(socket.assigns.rss_subscriptions, &(&1.id == subscription_id))
+    subscription = Enum.find(socket.assigns.rss_subscriptions, &(&1.id == subscription_id))
 
     if subscription do
       new_value = !subscription.show_in_timeline
@@ -842,7 +755,11 @@ defmodule ElektrineWeb.UserSettingsLive do
         {:ok, updated} ->
           subscriptions =
             Enum.map(socket.assigns.rss_subscriptions, fn s ->
-              if s.id == subscription_id, do: updated, else: s
+              if s.id == subscription_id do
+                updated
+              else
+                s
+              end
             end)
 
           {:noreply, assign(socket, :rss_subscriptions, subscriptions)}
@@ -854,10 +771,6 @@ defmodule ElektrineWeb.UserSettingsLive do
       {:noreply, socket}
     end
   end
-
-  # =============================================================================
-  # Developer Tab Event Handlers
-  # =============================================================================
 
   @impl true
   def handle_event("show_create_token_modal", _params, socket) do
@@ -873,10 +786,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("close_token_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_create_token_modal, false)
-     |> assign(:new_token, nil)}
+    {:noreply, socket |> assign(:show_create_token_modal, false) |> assign(:new_token, nil)}
   end
 
   @impl true
@@ -884,7 +794,6 @@ defmodule ElektrineWeb.UserSettingsLive do
     user = socket.assigns.current_user
     scopes = Map.get(token_params, "scopes", [])
 
-    # Parse expiration
     expires_at =
       case token_params["expires_in"] do
         "" ->
@@ -901,11 +810,7 @@ defmodule ElektrineWeb.UserSettingsLive do
           |> DateTime.truncate(:second)
       end
 
-    attrs = %{
-      name: token_params["name"],
-      scopes: scopes,
-      expires_at: expires_at
-    }
+    attrs = %{name: token_params["name"], scopes: scopes, expires_at: expires_at}
 
     case Developer.create_api_token(user.id, attrs) do
       {:ok, token} ->
@@ -964,11 +869,7 @@ defmodule ElektrineWeb.UserSettingsLive do
         _ -> []
       end
 
-    attrs = %{
-      name: webhook_params["name"],
-      url: webhook_params["url"],
-      events: events
-    }
+    attrs = %{name: webhook_params["name"], url: webhook_params["url"], events: events}
 
     case Developer.create_webhook(user.id, attrs) do
       {:ok, _webhook} ->
@@ -1054,18 +955,11 @@ defmodule ElektrineWeb.UserSettingsLive do
   @impl true
   def handle_event("export_data", %{"type" => export_type}, socket) do
     user = socket.assigns.current_user
-
-    attrs = %{
-      export_type: export_type,
-      format: "json"
-    }
+    attrs = %{export_type: export_type, format: "json"}
 
     case Developer.create_export(user.id, attrs) do
       {:ok, export} ->
-        # Enqueue background job to process export
-        %{export_id: export.id}
-        |> Elektrine.Developer.ExportWorker.new()
-        |> Oban.insert()
+        %{export_id: export.id} |> Elektrine.Developer.ExportWorker.new() |> Oban.insert()
 
         {:noreply,
          socket
@@ -1078,15 +972,9 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  # =============================================================================
-  # Helper Functions
-  # =============================================================================
-
   defp save_user_settings(socket, user_params_with_avatar) do
-    # Separate handle update from other updates
     {handle_param, other_params} = Map.pop(user_params_with_avatar, "handle")
 
-    # Bluesky linkage fields are provisioned by the managed flow only.
     other_params_sanitized =
       Map.drop(other_params, [
         "bluesky_enabled",
@@ -1095,7 +983,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         "bluesky_pds_url"
       ])
 
-    # Update handle if changed
     handle_result =
       if handle_param && handle_param != socket.assigns.user.handle do
         Accounts.update_user_handle(socket.assigns.user, handle_param)
@@ -1103,7 +990,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         {:ok, socket.assigns.user}
       end
 
-    # Only coerce checkboxes for the active tab to avoid touching unrelated settings.
     checkbox_fields = checkbox_fields_for_tab(socket.assigns.selected_tab)
 
     other_params_with_checkboxes =
@@ -1115,24 +1001,20 @@ defmodule ElektrineWeb.UserSettingsLive do
         end
       end)
 
-    # Handle empty timezone (auto-detect) by converting to nil
     params_with_timezone =
       case Map.get(other_params_with_checkboxes, "timezone") do
         "" -> Map.put(other_params_with_checkboxes, "timezone", nil)
         _ -> other_params_with_checkboxes
       end
 
-    # Keep existing app password when settings form leaves this field blank.
     params_with_bluesky_password =
       case Map.get(params_with_timezone, "bluesky_app_password") do
         "" -> Map.delete(params_with_timezone, "bluesky_app_password")
         _ -> params_with_timezone
       end
 
-    # Extract recovery_email to handle separately (needs special verification logic)
     {recovery_email_param, final_params} = Map.pop(params_with_bluesky_password, "recovery_email")
 
-    # Update other fields (excluding recovery_email)
     other_result =
       if map_size(final_params) > 0 do
         Accounts.update_user(socket.assigns.user, final_params)
@@ -1142,18 +1024,13 @@ defmodule ElektrineWeb.UserSettingsLive do
 
     case {handle_result, other_result} do
       {{:ok, _user1}, {:ok, _user2}} ->
-        # Reload user to get all updates
         updated_user = Accounts.get_user!(socket.assigns.user.id)
-
-        # Check if recovery email changed and needs verification
         old_recovery_email = socket.assigns.user.recovery_email
 
         {final_user, message} =
           if recovery_email_param && recovery_email_param != "" &&
                recovery_email_param != old_recovery_email do
-            # Recovery email changed, mark as unverified and send verification
             RecoveryEmailVerification.set_recovery_email(updated_user.id, recovery_email_param)
-            # Reload user again after setting recovery email
             reloaded_user = Accounts.get_user!(socket.assigns.user.id)
 
             {reloaded_user,
@@ -1162,7 +1039,6 @@ defmodule ElektrineWeb.UserSettingsLive do
             {updated_user, "Settings updated successfully"}
           end
 
-        # Refresh email data
         mailboxes = Email.get_user_mailboxes(final_user.id)
         aliases = Email.list_aliases(final_user.id)
 
@@ -1185,9 +1061,7 @@ defmodule ElektrineWeb.UserSettingsLive do
         {:noreply, assign(socket, :changeset, changeset)}
 
       _ ->
-        # Reload user just in case
         updated_user = Accounts.get_user!(socket.assigns.user.id)
-        # Refresh email data
         mailboxes = Email.get_user_mailboxes(updated_user.id)
         aliases = Email.list_aliases(updated_user.id)
 
@@ -1202,84 +1076,116 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  defp bluesky_managed_error_message(:invalid_credentials), do: "Current password is incorrect"
-  defp bluesky_managed_error_message(:already_enabled), do: "Bluesky is already enabled"
-  defp bluesky_managed_error_message(:managed_pds_disabled), do: "Managed Bluesky is disabled"
-  defp bluesky_managed_error_message(:user_not_found), do: "User account could not be found"
+  defp bluesky_managed_error_message(:invalid_credentials) do
+    "Current password is incorrect"
+  end
 
-  defp bluesky_managed_error_message(:current_password_required),
-    do: "Current password is required"
+  defp bluesky_managed_error_message(:already_enabled) do
+    "Bluesky is already enabled"
+  end
 
-  defp bluesky_managed_error_message(:missing_managed_domain),
-    do: "Managed Bluesky domain is not configured"
+  defp bluesky_managed_error_message(:managed_pds_disabled) do
+    "Managed Bluesky is disabled"
+  end
 
-  defp bluesky_managed_error_message(:missing_managed_admin_password),
-    do: "Managed Bluesky admin password is not configured"
+  defp bluesky_managed_error_message(:user_not_found) do
+    "User account could not be found"
+  end
 
-  defp bluesky_managed_error_message(:invalid_managed_service_url),
-    do: "Managed Bluesky service URL is invalid"
+  defp bluesky_managed_error_message(:current_password_required) do
+    "Current password is required"
+  end
 
-  defp bluesky_managed_error_message(:missing_identifier),
-    do: "Managed Bluesky identifier is missing. Disconnect and reconnect to repair this account."
+  defp bluesky_managed_error_message(:missing_managed_domain) do
+    "Managed Bluesky domain is not configured"
+  end
 
-  defp bluesky_managed_error_message(:missing_invite_code),
-    do: "Managed Bluesky did not return an invite code"
+  defp bluesky_managed_error_message(:missing_managed_admin_password) do
+    "Managed Bluesky admin password is not configured"
+  end
 
-  defp bluesky_managed_error_message(:missing_did),
-    do: "Managed Bluesky did not return an account DID"
+  defp bluesky_managed_error_message(:invalid_managed_service_url) do
+    "Managed Bluesky service URL is invalid"
+  end
 
-  defp bluesky_managed_error_message(:missing_handle),
-    do: "Managed Bluesky did not return an account handle"
+  defp bluesky_managed_error_message(:missing_identifier) do
+    "Managed Bluesky identifier is missing. Disconnect and reconnect to repair this account."
+  end
 
-  defp bluesky_managed_error_message(:missing_access_jwt),
-    do: "Managed Bluesky did not return a session token"
+  defp bluesky_managed_error_message(:missing_invite_code) do
+    "Managed Bluesky did not return an invite code"
+  end
 
-  defp bluesky_managed_error_message(:missing_app_password),
-    do: "Managed Bluesky did not return an app password"
+  defp bluesky_managed_error_message(:missing_did) do
+    "Managed Bluesky did not return an account DID"
+  end
 
-  defp bluesky_managed_error_message(:invalid_json),
-    do: "Managed Bluesky returned an invalid response"
+  defp bluesky_managed_error_message(:missing_handle) do
+    "Managed Bluesky did not return an account handle"
+  end
 
-  defp bluesky_managed_error_message({:create_invite_code_failed, 401}),
-    do: "Managed Bluesky admin credentials are invalid"
+  defp bluesky_managed_error_message(:missing_access_jwt) do
+    "Managed Bluesky did not return a session token"
+  end
 
-  defp bluesky_managed_error_message({:create_invite_code_failed, _status}),
-    do: "Managed Bluesky could not issue an invite code"
+  defp bluesky_managed_error_message(:missing_app_password) do
+    "Managed Bluesky did not return an app password"
+  end
 
-  defp bluesky_managed_error_message({:create_account_failed, 409}),
-    do: "A managed Bluesky account for this handle already exists. Try reconnecting instead."
+  defp bluesky_managed_error_message(:invalid_json) do
+    "Managed Bluesky returned an invalid response"
+  end
 
-  defp bluesky_managed_error_message({:create_account_failed, _status}),
-    do: "Managed Bluesky could not create your account"
+  defp bluesky_managed_error_message({:create_invite_code_failed, 401}) do
+    "Managed Bluesky admin credentials are invalid"
+  end
 
-  defp bluesky_managed_error_message({:create_session_failed, 401}),
-    do:
-      "Could not authenticate with managed Bluesky. Ensure your account password matches your managed Bluesky password."
+  defp bluesky_managed_error_message({:create_invite_code_failed, _status}) do
+    "Managed Bluesky could not issue an invite code"
+  end
 
-  defp bluesky_managed_error_message({:create_session_failed, _status}),
-    do: "Could not reconnect managed Bluesky account"
+  defp bluesky_managed_error_message({:create_account_failed, 409}) do
+    "A managed Bluesky account for this handle already exists. Try reconnecting instead."
+  end
 
-  defp bluesky_managed_error_message({:create_app_password_failed, _status}),
-    do: "Managed Bluesky could not issue an app password"
+  defp bluesky_managed_error_message({:create_account_failed, _status}) do
+    "Managed Bluesky could not create your account"
+  end
 
-  defp bluesky_managed_error_message({:http_error, reason}),
-    do: "Managed Bluesky service is unreachable (#{format_bluesky_http_reason(reason)})"
+  defp bluesky_managed_error_message({:create_session_failed, 401}) do
+    "Could not authenticate with managed Bluesky. Ensure your account password matches your managed Bluesky password."
+  end
 
-  defp bluesky_managed_error_message({:banned, _reason}),
-    do: "This account is banned and cannot connect to managed Bluesky"
+  defp bluesky_managed_error_message({:create_session_failed, _status}) do
+    "Could not reconnect managed Bluesky account"
+  end
 
-  defp bluesky_managed_error_message({:suspended, _until, _reason}),
-    do: "This account is suspended and cannot connect to managed Bluesky"
+  defp bluesky_managed_error_message({:create_app_password_failed, _status}) do
+    "Managed Bluesky could not issue an app password"
+  end
 
-  defp bluesky_managed_error_message(%Ecto.Changeset{}),
-    do: "Managed Bluesky connected, but local account settings could not be saved"
+  defp bluesky_managed_error_message({:http_error, reason}) do
+    "Managed Bluesky service is unreachable (#{format_bluesky_http_reason(reason)})"
+  end
 
-  defp bluesky_managed_error_message(_), do: "Could not update managed Bluesky connection"
+  defp bluesky_managed_error_message({:banned, _reason}) do
+    "This account is banned and cannot connect to managed Bluesky"
+  end
+
+  defp bluesky_managed_error_message({:suspended, _until, _reason}) do
+    "This account is suspended and cannot connect to managed Bluesky"
+  end
+
+  defp bluesky_managed_error_message(%Ecto.Changeset{}) do
+    "Managed Bluesky connected, but local account settings could not be saved"
+  end
+
+  defp bluesky_managed_error_message(_) do
+    "Could not update managed Bluesky connection"
+  end
 
   defp format_bluesky_http_reason(reason) do
-    reason
-    |> inspect()
-    |> String.replace_prefix(":", "")
+    reason |> inspect() |> String.replace_prefix(":", "")
   end
 
   defp bluesky_profile_url(user) do
@@ -1298,16 +1204,13 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  # Helper to format changeset errors
   defp format_changeset_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
         String.replace(acc, "%{#{key}}", to_string(value))
       end)
     end)
-    |> Enum.map(fn {field, errors} ->
-      "#{field}: #{Enum.join(errors, ", ")}"
-    end)
+    |> Enum.map(fn {field, errors} -> "#{field}: #{Enum.join(errors, ", ")}" end)
     |> Enum.map_join("; ", & &1)
   end
 
@@ -1323,23 +1226,65 @@ defmodule ElektrineWeb.UserSettingsLive do
     |> Enum.map_join("; ", & &1)
   end
 
-  defp normalize_selected_tab(tab) when tab in @valid_tabs, do: tab
-  defp normalize_selected_tab(_tab), do: @default_tab
+  defp normalize_selected_tab(tab) when tab in @valid_tabs do
+    tab
+  end
 
-  defp setting_tabs, do: @setting_tabs
+  defp normalize_selected_tab(_tab) do
+    @default_tab
+  end
 
-  defp tab_label("profile"), do: gettext("Profile")
-  defp tab_label("security"), do: gettext("Security")
-  defp tab_label("password-manager"), do: gettext("Password Manager")
-  defp tab_label("privacy"), do: gettext("Privacy")
-  defp tab_label("preferences"), do: gettext("Preferences")
-  defp tab_label("notifications"), do: gettext("Notifications")
-  defp tab_label("federation"), do: gettext("Federation")
-  defp tab_label("timeline"), do: gettext("Timeline")
-  defp tab_label("email"), do: gettext("Email")
-  defp tab_label("developer"), do: gettext("Developer")
-  defp tab_label("danger"), do: gettext("Danger Zone")
-  defp tab_label(_), do: gettext("Settings")
+  defp setting_tabs do
+    @setting_tabs
+  end
+
+  defp tab_label("profile") do
+    gettext("Profile")
+  end
+
+  defp tab_label("security") do
+    gettext("Security")
+  end
+
+  defp tab_label("password-manager") do
+    gettext("Password Manager")
+  end
+
+  defp tab_label("privacy") do
+    gettext("Privacy")
+  end
+
+  defp tab_label("preferences") do
+    gettext("Preferences")
+  end
+
+  defp tab_label("notifications") do
+    gettext("Notifications")
+  end
+
+  defp tab_label("federation") do
+    gettext("Federation")
+  end
+
+  defp tab_label("timeline") do
+    gettext("Timeline")
+  end
+
+  defp tab_label("email") do
+    gettext("Email")
+  end
+
+  defp tab_label("developer") do
+    gettext("Developer")
+  end
+
+  defp tab_label("danger") do
+    gettext("Danger Zone")
+  end
+
+  defp tab_label(_) do
+    gettext("Settings")
+  end
 
   defp tab_link_class(selected_tab, tab_id, tone) do
     base =
@@ -1381,9 +1326,10 @@ defmodule ElektrineWeb.UserSettingsLive do
     ["activitypub_manually_approve_followers"]
   end
 
-  defp checkbox_fields_for_tab(_), do: []
+  defp checkbox_fields_for_tab(_) do
+    []
+  end
 
-  # Calculate days until handle can be changed
   def days_until_can_change_handle(user) do
     if user.handle_changed_at do
       thirty_days_from_change = DateTime.add(user.handle_changed_at, 30 * 24 * 60 * 60, :second)
@@ -1394,17 +1340,33 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  # Helper functions for template
-  defp type_badge_class(:transactional), do: "badge-error"
-  defp type_badge_class(:marketing), do: "badge-primary"
-  defp type_badge_class(:notifications), do: "badge-info"
+  defp type_badge_class(:transactional) do
+    "badge-error"
+  end
 
-  defp format_type(:transactional), do: "Transactional"
-  defp format_type(:marketing), do: "Marketing"
-  defp format_type(:notifications), do: "Notifications"
+  defp type_badge_class(:marketing) do
+    "badge-primary"
+  end
 
-  # Format PGP fingerprint with spaces for readability (groups of 4)
-  def format_fingerprint(nil), do: ""
+  defp type_badge_class(:notifications) do
+    "badge-info"
+  end
+
+  defp format_type(:transactional) do
+    "Transactional"
+  end
+
+  defp format_type(:marketing) do
+    "Marketing"
+  end
+
+  defp format_type(:notifications) do
+    "Notifications"
+  end
+
+  def format_fingerprint(nil) do
+    ""
+  end
 
   def format_fingerprint(fingerprint) do
     fingerprint
@@ -1414,7 +1376,6 @@ defmodule ElektrineWeb.UserSettingsLive do
     |> Enum.map_join(" ", &Enum.join/1)
   end
 
-  # Compute WKD hash for username
   def wkd_hash(username) do
     PGP.wkd_hash(String.downcase(username))
   end
@@ -1435,21 +1396,23 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  defp parse_entry_id(_id), do: :error
+  defp parse_entry_id(_id) do
+    :error
+  end
 
-  defp password_manager_form_params(%Phoenix.HTML.Form{
-         source: %Ecto.Changeset{params: params}
-       })
+  defp password_manager_form_params(%Phoenix.HTML.Form{source: %Ecto.Changeset{params: params}})
        when is_map(params) do
     Map.drop(params, ["user_id"])
   end
 
-  defp password_manager_form_params(_form), do: %{}
+  defp password_manager_form_params(_form) do
+    %{}
+  end
 
   defp generate_password(length \\ 24) do
-    lowercase = Enum.to_list(?a..?z)
-    uppercase = Enum.to_list(?A..?Z)
-    digits = Enum.to_list(?0..?9)
+    lowercase = Enum.to_list(97..122)
+    uppercase = Enum.to_list(65..90)
+    digits = Enum.to_list(48..57)
     symbols = ~c"!@#$%^&*()-_=+"
 
     required = [
@@ -1460,12 +1423,16 @@ defmodule ElektrineWeb.UserSettingsLive do
     ]
 
     all_chars = lowercase ++ uppercase ++ digits ++ symbols
-    random_chars = for _ <- 1..max(length - length(required), 0), do: random_char(all_chars)
 
-    (required ++ random_chars)
-    |> Enum.shuffle()
-    |> List.to_string()
+    random_chars =
+      for _ <- 1..max(length - length(required), 0) do
+        random_char(all_chars)
+      end
+
+    (required ++ random_chars) |> Enum.shuffle() |> List.to_string()
   end
 
-  defp random_char(charlist), do: Enum.at(charlist, :rand.uniform(length(charlist)) - 1)
+  defp random_char(charlist) do
+    Enum.at(charlist, :rand.uniform(length(charlist)) - 1)
+  end
 end

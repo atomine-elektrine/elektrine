@@ -5,9 +5,9 @@ defmodule Elektrine.Email.MessageOperationsTest do
   import Elektrine.EmailFixtures
 
   alias Elektrine.Email
-  alias Elektrine.Email.Messages
   alias Elektrine.Email.CustomFolders
   alias Elektrine.Email.Labels
+  alias Elektrine.Email.Messages
 
   describe "message flag updates" do
     setup do

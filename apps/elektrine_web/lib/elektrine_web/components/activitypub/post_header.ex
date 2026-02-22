@@ -1,4 +1,5 @@
 defmodule ElektrineWeb.Components.ActivityPub.PostHeader do
+  @moduledoc false
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers

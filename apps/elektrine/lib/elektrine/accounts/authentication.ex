@@ -1,36 +1,12 @@
 defmodule Elektrine.Accounts.Authentication do
-  @moduledoc """
-  Authentication context for user authentication, password management, and 2FA.
-  Handles password verification, 2FA setup/verification, app passwords, and password recovery.
-  """
-
+  @moduledoc ~s|Authentication context for user authentication, password management, and 2FA.\nHandles password verification, 2FA setup/verification, app passwords, and password recovery.\n|
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
-  alias Elektrine.Accounts.{User, TwoFactor, AppPassword}
+  alias Elektrine.Accounts.{AppPassword, TwoFactor, User}
   alias Elektrine.Email.Mailbox
-
+  alias Elektrine.Repo
   require Logger
 
-  ## Password Authentication
-
-  @doc """
-  Authenticates a user by username and password.
-
-  Returns `{:ok, user}` if the username and password are valid,
-  or `{:error, :invalid_credentials}` if the username or password are invalid.
-
-  ## Examples
-
-      iex> authenticate_user("username", "correct_password")
-      {:ok, %User{}}
-
-      iex> authenticate_user("username", "wrong_password")
-      {:error, :invalid_credentials}
-
-      iex> authenticate_user("nonexistent", "any_password")
-      {:error, :invalid_credentials}
-
-  """
+  @doc ~s|Authenticates a user by username and password.\n\nReturns `{:ok, user}` if the username and password are valid,\nor `{:error, :invalid_credentials}` if the username or password are invalid.\n\n## Examples\n\n    iex> authenticate_user(\"username\", \"correct_password\")\n    {:ok, %User{}}\n\n    iex> authenticate_user(\"username\", \"wrong_password\")\n    {:error, :invalid_credentials}\n\n    iex> authenticate_user(\"nonexistent\", \"any_password\")\n    {:error, :invalid_credentials}\n\n|
   def authenticate_user(username, password) when is_binary(username) and is_binary(password) do
     user = get_user_by_username_case_insensitive(username)
 
@@ -45,14 +21,12 @@ defmodule Elektrine.Accounts.Authentication do
         {:error, {:suspended, user.suspended_until, user.suspension_reason}}
 
       verify_password_hash(password, user.password_hash) ->
-        # Rehash with Argon2 if the current hash is bcrypt
-        if is_bcrypt_hash?(user.password_hash) do
+        if bcrypt_hash?(user.password_hash) do
           user
           |> User.password_changeset(%{password: password, password_confirmation: password})
           |> Repo.update()
         end
 
-        # Check for expired suspensions and auto-unsuspend
         if user.suspended && user.suspended_until &&
              DateTime.compare(user.suspended_until, DateTime.utc_now()) == :lt do
           Elektrine.Accounts.Moderation.unsuspend_user(user)
@@ -65,11 +39,7 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Verifies password for an existing user without re-querying the database.
-  Use this when you already have the user struct loaded.
-  Returns {:ok, user} if password is valid, {:error, reason} otherwise.
-  """
+  @doc ~s|Verifies password for an existing user without re-querying the database.\nUse this when you already have the user struct loaded.\nReturns {:ok, user} if password is valid, {:error, reason} otherwise.\n|
   def verify_user_password(%User{} = user, password) when is_binary(password) do
     cond do
       user.banned ->
@@ -86,19 +56,21 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  # Detects hash type and verifies password
   defp verify_password_hash(password, hash) do
-    if is_bcrypt_hash?(hash),
-      do: Bcrypt.verify_pass(password, hash),
-      else: Argon2.verify_pass(password, hash)
+    if bcrypt_hash?(hash) do
+      Bcrypt.verify_pass(password, hash)
+    else
+      Argon2.verify_pass(password, hash)
+    end
   end
 
-  # Simple heuristic to detect bcrypt hashes which start with "$2" or "$2a$"
-  defp is_bcrypt_hash?(hash) when is_binary(hash) do
+  defp bcrypt_hash?(hash) when is_binary(hash) do
     String.starts_with?(hash, ["$2", "$2a$", "$2b$", "$2y$"])
   end
 
-  defp is_bcrypt_hash?(_), do: false
+  defp bcrypt_hash?(_) do
+    false
+  end
 
   defp user_suspended?(%User{} = user) do
     user.suspended &&
@@ -106,65 +78,35 @@ defmodule Elektrine.Accounts.Authentication do
          DateTime.compare(user.suspended_until, DateTime.utc_now()) == :gt)
   end
 
-  @doc """
-  Updates a user's password.
-
-  ## Examples
-
-      iex> update_user_password(user, %{password: "new password", password_confirmation: "new password"})
-      {:ok, %User{}}
-
-      iex> update_user_password(user, %{password: "invalid"})
-      {:error, %Ecto.Changeset{}}
-
-  """
+  @doc ~s|Updates a user's password.\n\n## Examples\n\n    iex> update_user_password(user, %{password: \"new password\", password_confirmation: \"new password\"})\n    {:ok, %User{}}\n\n    iex> update_user_password(user, %{password: \"invalid\"})\n    {:error, %Ecto.Changeset{}}\n\n|
   def update_user_password(%User{} = user, attrs) do
-    user
-    |> User.password_changeset(attrs)
-    |> Repo.update()
+    user |> User.password_changeset(attrs) |> Repo.update()
   end
 
-  @doc """
-  Returns an `%Ecto.Changeset{}` for tracking user password changes.
-  """
+  @doc ~s|Returns an `%Ecto.Changeset{}` for tracking user password changes.\n|
   def change_user_password(%User{} = user, attrs \\ %{}) do
     User.password_changeset(user, attrs)
   end
 
-  ## Two-Factor Authentication
-
-  @doc """
-  Initiates 2FA setup for a user by generating a secret and backup codes.
-
-  Returns the secret and provisioning URI for QR code generation.
-  """
+  @doc ~s|Initiates 2FA setup for a user by generating a secret and backup codes.\n\nReturns the secret and provisioning URI for QR code generation.\n|
   def initiate_two_factor_setup(%User{} = user) do
-    try do
-      secret = TwoFactor.generate_secret()
-      {plain_codes, hashed_codes} = TwoFactor.generate_backup_codes()
-      provisioning_uri = TwoFactor.generate_provisioning_uri(secret, user.username)
+    secret = TwoFactor.generate_secret()
+    {plain_codes, hashed_codes} = TwoFactor.generate_backup_codes()
+    provisioning_uri = TwoFactor.generate_provisioning_uri(secret, user.username)
 
-      # Return plain codes to show user, hashed codes for storage
-      {:ok,
-       %{
-         secret: secret,
-         # Show these to user once
-         plain_backup_codes: plain_codes,
-         # Store these in database
-         hashed_backup_codes: hashed_codes,
-         provisioning_uri: provisioning_uri
-       }}
-    rescue
-      _ -> {:error, :setup_failed}
-    end
+    {:ok,
+     %{
+       secret: secret,
+       plain_backup_codes: plain_codes,
+       hashed_backup_codes: hashed_codes,
+       provisioning_uri: provisioning_uri
+     }}
+  rescue
+    _ -> {:error, :setup_failed}
   end
 
-  @doc """
-  Enables 2FA for a user after verifying the TOTP code.
-  Expects hashed_backup_codes (not plain codes) for storage.
-  """
+  @doc ~s|Enables 2FA for a user after verifying the TOTP code.\nExpects hashed_backup_codes (not plain codes) for storage.\n|
   def enable_two_factor(%User{} = user, secret, hashed_backup_codes, totp_code) do
-    # Check database connectivity first
     db_check =
       try do
         case Repo.query("SELECT 1", []) do
@@ -184,8 +126,12 @@ defmodule Elektrine.Accounts.Authentication do
     case db_check do
       :ok ->
         if TwoFactor.verify_totp(secret, totp_code) do
-          # Encode secret as Base64 for UTF-8 database storage
-          encoded_secret = if is_binary(secret), do: Base.encode64(secret), else: secret
+          encoded_secret =
+            if is_binary(secret) do
+              Base.encode64(secret)
+            else
+              secret
+            end
 
           changeset =
             User.enable_two_factor_changeset(user, %{
@@ -193,14 +139,10 @@ defmodule Elektrine.Accounts.Authentication do
               two_factor_backup_codes: hashed_backup_codes
             })
 
-          if !changeset.valid? do
-            Logger.error("2FA changeset errors: #{inspect(changeset.errors)}")
-            {:error, :invalid_changeset}
-          else
+          if changeset.valid? do
             try do
               case Repo.update(changeset) do
                 {:ok, updated_user} ->
-                  # Verify the update actually worked
                   case Repo.reload(updated_user) do
                     nil ->
                       Logger.error("2FA: User reload failed after update")
@@ -219,6 +161,9 @@ defmodule Elektrine.Accounts.Authentication do
                 Logger.error("2FA: Database update exception: #{inspect(exception)}")
                 {:error, :database_update_exception}
             end
+          else
+            Logger.error("2FA changeset errors: #{inspect(changeset.errors)}")
+            {:error, :invalid_changeset}
           end
         else
           {:error, :invalid_totp_code}
@@ -230,25 +175,17 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Disables 2FA for a user.
-  """
+  @doc ~s|Disables 2FA for a user.\n|
   def disable_two_factor(%User{} = user) do
-    user
-    |> User.disable_two_factor_changeset()
-    |> Repo.update()
+    user |> User.disable_two_factor_changeset() |> Repo.update()
   end
 
-  @doc """
-  Verifies a 2FA code (TOTP or backup code) for a user.
-  """
+  @doc ~s|Verifies a 2FA code (TOTP or backup code) for a user.\n|
   def verify_two_factor_code(%User{two_factor_enabled: true} = user, code) do
-    # Decode Base64 secret for verification
     decoded_secret =
       if is_binary(user.two_factor_secret) do
         case Base.decode64(user.two_factor_secret) do
           {:ok, secret} -> secret
-          # Fallback for existing non-encoded secrets
           :error -> user.two_factor_secret
         end
       else
@@ -262,11 +199,7 @@ defmodule Elektrine.Accounts.Authentication do
       user.two_factor_backup_codes != nil ->
         case TwoFactor.verify_backup_code(user.two_factor_backup_codes, code) do
           {:ok, remaining_codes} ->
-            # Update user with remaining backup codes
-            user
-            |> User.update_backup_codes_changeset(remaining_codes)
-            |> Repo.update()
-
+            user |> User.update_backup_codes_changeset(remaining_codes) |> Repo.update()
             {:ok, :backup_code}
 
           {:error, :invalid} ->
@@ -282,17 +215,12 @@ defmodule Elektrine.Accounts.Authentication do
     {:error, :two_factor_not_enabled}
   end
 
-  @doc """
-  Verifies a TOTP code ONLY (not backup codes) for a user.
-  This is used for sensitive operations like disabling 2FA where backup codes should not be allowed.
-  """
+  @doc ~s|Verifies a TOTP code ONLY (not backup codes) for a user.\nThis is used for sensitive operations like disabling 2FA where backup codes should not be allowed.\n|
   def verify_totp_only(%User{two_factor_enabled: true} = user, code) do
-    # Decode Base64 secret for verification
     decoded_secret =
       if is_binary(user.two_factor_secret) do
         case Base.decode64(user.two_factor_secret) do
           {:ok, secret} -> secret
-          # Fallback for existing non-encoded secrets
           :error -> user.two_factor_secret
         end
       else
@@ -310,21 +238,12 @@ defmodule Elektrine.Accounts.Authentication do
     {:error, :two_factor_not_enabled}
   end
 
-  @doc """
-  Regenerates backup codes for a user with 2FA enabled.
-  Returns {:ok, {updated_user, plain_backup_codes}} so user can save them.
-  """
+  @doc ~s|Regenerates backup codes for a user with 2FA enabled.\nReturns {:ok, {updated_user, plain_backup_codes}} so user can save them.\n|
   def regenerate_backup_codes(%User{two_factor_enabled: true} = user) do
     {plain_codes, hashed_codes} = TwoFactor.generate_backup_codes()
-
-    result =
-      user
-      # Store hashed codes
-      |> User.update_backup_codes_changeset(hashed_codes)
-      |> Repo.update()
+    result = user |> User.update_backup_codes_changeset(hashed_codes) |> Repo.update()
 
     case result do
-      # Return plain codes to show user
       {:ok, updated_user} -> {:ok, {updated_user, plain_codes}}
       error -> error
     end
@@ -334,39 +253,23 @@ defmodule Elektrine.Accounts.Authentication do
     {:error, :two_factor_not_enabled}
   end
 
-  @doc """
-  Admin function to reset a user's 2FA (disable and clear all 2FA data).
-  """
+  @doc ~s|Admin function to reset a user's 2FA (disable and clear all 2FA data).\n|
   def admin_reset_2fa(user) do
-    user
-    |> User.admin_2fa_reset_changeset()
-    |> Repo.update()
+    user |> User.admin_2fa_reset_changeset() |> Repo.update()
   end
 
-  ## App Passwords
-
-  @doc """
-  Lists all app passwords for a user.
-  """
+  @doc ~s|Lists all app passwords for a user.\n|
   def list_app_passwords(user_id) do
-    AppPassword
-    |> where(user_id: ^user_id)
-    |> order_by(desc: :inserted_at)
-    |> Repo.all()
+    AppPassword |> where(user_id: ^user_id) |> order_by(desc: :inserted_at) |> Repo.all()
   end
 
-  @doc """
-  Creates a new app password for a user.
-  Returns {:ok, app_password} with the raw token attached, or {:error, changeset}.
-  """
+  @doc ~s|Creates a new app password for a user.\nReturns {:ok, app_password} with the raw token attached, or {:error, changeset}.\n|
   def create_app_password(user_id, attrs) do
     attrs = Map.put(attrs, :user_id, user_id)
-
     changeset = AppPassword.create_changeset(attrs)
 
     case Repo.insert(changeset) do
       {:ok, app_password} ->
-        # Attach the raw token from the changeset
         token = changeset.changes[:token]
         {:ok, %{app_password | token: token}}
 
@@ -375,9 +278,7 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Deletes an app password.
-  """
+  @doc ~s|Deletes an app password.\n|
   def delete_app_password(app_password_id, user_id) do
     AppPassword
     |> where(id: ^app_password_id, user_id: ^user_id)
@@ -388,15 +289,8 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Authenticates a user with an app password.
-  Returns:
-    - {:ok, user} if valid
-    - {:error, :user_not_found} if user doesn't exist
-    - {:error, {:invalid_token, user}} if user exists but token is invalid
-  """
+  @doc ~s|Authenticates a user with an app password.\nReturns:\n  - {:ok, user} if valid\n  - {:error, :user_not_found} if user doesn't exist\n  - {:error, {:invalid_token, user}} if user exists but token is invalid\n|
   def authenticate_with_app_password(username, token) do
-    # Clean the token (remove spaces/dashes if any)
     clean_token = String.replace(token, ~r/[\s-]/, "")
 
     case get_user_by_username_or_email(username) do
@@ -411,10 +305,7 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Verifies an app password token for a user.
-  Updates last used timestamp if valid.
-  """
+  @doc ~s|Verifies an app password token for a user.\nUpdates last used timestamp if valid.\n|
   def verify_app_password(user_id, token, ip_address \\ nil) do
     token_hash = AppPassword.hash_token(token)
 
@@ -427,12 +318,7 @@ defmodule Elektrine.Accounts.Authentication do
         {:error, :invalid_token}
 
       app_password ->
-        # Update last used info
-        {:ok, updated} =
-          app_password
-          |> AppPassword.update_last_used(ip_address)
-          |> Repo.update()
-
+        {:ok, updated} = app_password |> AppPassword.update_last_used(ip_address) |> Repo.update()
         {:ok, updated}
     end
   end
@@ -447,15 +333,17 @@ defmodule Elektrine.Accounts.Authentication do
           domain = String.downcase(domain)
 
           user =
-            cond do
-              domain in ["elektrine.com", "z.org"] ->
-                get_user_by_username_case_insensitive(username)
-
-              true ->
-                get_user_by_mailbox_email(normalized_identifier)
+            if domain in ["elektrine.com", "z.org"] do
+              get_user_by_username_case_insensitive(username)
+            else
+              get_user_by_mailbox_email(normalized_identifier)
             end
 
-          if user, do: {:ok, user}, else: {:error, :not_found}
+          if user do
+            {:ok, user}
+          else
+            {:error, :not_found}
+          end
 
         _ ->
           {:error, :not_found}
@@ -478,29 +366,18 @@ defmodule Elektrine.Accounts.Authentication do
     |> Repo.one()
   end
 
-  # Case-insensitive username lookup
   defp get_user_by_username_case_insensitive(username) when is_binary(username) do
     User
     |> where([u], fragment("lower(?)", u.username) == ^String.downcase(username))
     |> Repo.one()
   end
 
-  ## Password Recovery
-
-  @doc """
-  Updates a user's recovery email.
-  """
+  @doc ~s|Updates a user's recovery email.\n|
   def update_recovery_email(%User{} = user, attrs) do
-    user
-    |> User.recovery_email_changeset(attrs)
-    |> Repo.update()
+    user |> User.recovery_email_changeset(attrs) |> Repo.update()
   end
 
-  @doc """
-  Initiates a password reset by generating a token and sending email.
-  Returns {:ok, user} if successful, even if no recovery email is set.
-  If multiple users have the same recovery email, sends reset emails to all of them.
-  """
+  @doc ~s|Initiates a password reset by generating a token and sending email.\nReturns {:ok, user} if successful, even if no recovery email is set.\nIf multiple users have the same recovery email, sends reset emails to all of them.\n|
   def initiate_password_reset(username_or_email) when is_binary(username_or_email) do
     users =
       case String.contains?(username_or_email, "@") do
@@ -516,32 +393,25 @@ defmodule Elektrine.Accounts.Authentication do
 
     case users do
       [] ->
-        # No users found - return success to avoid username enumeration
         {:ok, :user_not_found}
 
       users_list ->
-        # Process each user
         results =
           Enum.map(users_list, fn user ->
             case user do
               %User{is_admin: true} ->
-                # SECURITY: Block password reset for admin accounts
                 Logger.error(
                   "SECURITY ALERT: Attempted password reset for admin user: #{user.username}"
                 )
 
-                # Skip admin users silently
                 {:ok, :admin_blocked}
 
               %User{recovery_email: recovery_email, recovery_email_verified: true}
               when not is_nil(recovery_email) ->
                 token = generate_password_reset_token()
 
-                case user
-                     |> User.password_reset_changeset(token)
-                     |> Repo.update() do
+                case user |> User.password_reset_changeset(token) |> Repo.update() do
                   {:ok, updated_user} ->
-                    # Send password reset email
                     send_password_reset_email(updated_user, token)
                     {:ok, updated_user}
 
@@ -551,50 +421,38 @@ defmodule Elektrine.Accounts.Authentication do
 
               %User{recovery_email: recovery_email, recovery_email_verified: verified}
               when not is_nil(recovery_email) and verified != true ->
-                # User has recovery email but it's not verified
                 {:error, :recovery_email_not_verified}
 
               %User{} ->
-                # User exists but no recovery email set
                 {:error, :no_recovery_email}
             end
           end)
 
-        # Return success if at least one email was sent successfully
         if Enum.any?(results, fn
              {:ok, %User{}} -> true
              _ -> false
            end) do
           {:ok, :emails_sent}
         else
-          # All failed or were blocked
           {:ok, :user_not_found}
         end
     end
   end
 
-  @doc """
-  Gets all users by recovery email (returns a list to handle potential duplicates).
-  """
+  @doc ~s|Gets all users by recovery email (returns a list to handle potential duplicates).\n|
   def get_users_by_recovery_email(email) when is_binary(email) do
-    from(u in User, where: u.recovery_email == ^email)
-    |> Repo.all()
+    from(u in User, where: u.recovery_email == ^email) |> Repo.all()
   end
 
-  @doc """
-  Gets a user by password reset token.
-  """
+  @doc ~s|Gets a user by password reset token.\n|
   def get_user_by_password_reset_token(token) when is_binary(token) do
     Repo.get_by(User, password_reset_token: token)
   end
 
-  @doc """
-  Resets a user's password using a valid token.
-  """
+  @doc ~s|Resets a user's password using a valid token.\n|
   def reset_password_with_token(token, attrs) when is_binary(token) do
     case get_user_by_password_reset_token(token) do
       %User{is_admin: true} = user ->
-        # SECURITY: Block password reset completion for admin accounts
         Logger.error(
           "SECURITY ALERT: Attempted password reset completion for admin user: #{user.username}"
         )
@@ -603,9 +461,7 @@ defmodule Elektrine.Accounts.Authentication do
 
       %User{} = user ->
         if User.valid_password_reset_token?(user) do
-          user
-          |> User.password_reset_with_token_changeset(attrs)
-          |> Repo.update()
+          user |> User.password_reset_with_token_changeset(attrs) |> Repo.update()
         else
           {:error, :invalid_token}
         end
@@ -615,13 +471,10 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Validates a password reset token without using it.
-  """
+  @doc ~s|Validates a password reset token without using it.\n|
   def validate_password_reset_token(token) when is_binary(token) do
     case get_user_by_password_reset_token(token) do
       %User{is_admin: true} = user ->
-        # SECURITY: Block password reset token validation for admin accounts
         Logger.error(
           "SECURITY ALERT: Attempted password reset token validation for admin user: #{user.username}"
         )
@@ -640,18 +493,12 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
-  @doc """
-  Clears a password reset token.
-  """
+  @doc ~s|Clears a password reset token.\n|
   def clear_password_reset_token(%User{} = user) do
-    user
-    |> User.clear_password_reset_changeset()
-    |> Repo.update()
+    user |> User.clear_password_reset_changeset() |> Repo.update()
   end
 
-  @doc """
-  Returns users whose passwords are older than the specified number of days.
-  """
+  @doc ~s|Returns users whose passwords are older than the specified number of days.\n|
   def get_users_with_old_passwords(max_days) when is_integer(max_days) do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-max_days, :day)
 
@@ -663,9 +510,7 @@ defmodule Elektrine.Accounts.Authentication do
     |> Repo.all()
   end
 
-  @doc """
-  Returns the count of users whose passwords are older than the specified number of days.
-  """
+  @doc ~s|Returns the count of users whose passwords are older than the specified number of days.\n|
   def count_users_with_old_passwords(max_days) when is_integer(max_days) do
     cutoff_date = DateTime.utc_now() |> DateTime.add(-max_days, :day)
 
@@ -675,16 +520,10 @@ defmodule Elektrine.Accounts.Authentication do
     |> Repo.aggregate(:count)
   end
 
-  @doc """
-  Admin function to reset a user's password with a new temporary password.
-  """
+  @doc ~s|Admin function to reset a user's password with a new temporary password.\n|
   def admin_reset_password(user, attrs) do
-    user
-    |> User.admin_password_reset_changeset(attrs)
-    |> Repo.update()
+    user |> User.admin_password_reset_changeset(attrs) |> Repo.update()
   end
-
-  # Private helper functions
 
   defp generate_password_reset_token do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
@@ -692,16 +531,14 @@ defmodule Elektrine.Accounts.Authentication do
 
   defp send_password_reset_email(%User{recovery_email: recovery_email} = user, token)
        when not is_nil(recovery_email) do
-    try do
-      # Use the existing email infrastructure
-      Elektrine.UserNotifier.password_reset_instructions(user, token)
-      |> Elektrine.Mailer.deliver()
-    rescue
-      e ->
-        Logger.error("Failed to send password reset email: #{inspect(e)}")
-        {:error, :email_failed}
-    end
+    Elektrine.UserNotifier.password_reset_instructions(user, token) |> Elektrine.Mailer.deliver()
+  rescue
+    e ->
+      Logger.error("Failed to send password reset email: #{inspect(e)}")
+      {:error, :email_failed}
   end
 
-  defp send_password_reset_email(_, _), do: {:error, :no_recovery_email}
+  defp send_password_reset_email(_, _) do
+    {:error, :no_recovery_email}
+  end
 end

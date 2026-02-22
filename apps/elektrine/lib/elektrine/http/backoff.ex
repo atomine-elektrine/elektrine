@@ -1,52 +1,17 @@
 defmodule Elektrine.HTTP.Backoff do
-  @moduledoc """
-  HTTP client-side backoff handling for respecting remote server rate limits.
-
-  This module tracks rate-limited hosts and prevents hammering servers that
-  have returned 429 (Too Many Requests) or 503 (Service Unavailable) responses.
-
-  Based on Akkoma's implementation for federation compatibility.
-
-  ## Usage
-
-      # Wrap HTTP requests
-      case Elektrine.HTTP.Backoff.get(url) do
-        {:ok, response} -> handle_response(response)
-        {:error, :backoff} -> # Host is rate-limited, try later
-        {:error, reason} -> # Other error
-      end
-
-      # Or check before making request
-      if Elektrine.HTTP.Backoff.should_backoff?(host) do
-        {:error, :rate_limited}
-      else
-        make_request(url)
-      end
-  """
-
+  @moduledoc "HTTP client-side backoff handling for respecting remote server rate limits.\n\nThis module tracks rate-limited hosts and prevents hammering servers that\nhave returned 429 (Too Many Requests) or 503 (Service Unavailable) responses.\n\nBased on Akkoma's implementation for federation compatibility.\n\n## Usage\n\n    # Wrap HTTP requests\n    case Elektrine.HTTP.Backoff.get(url) do\n      {:ok, response} -> handle_response(response)\n      {:error, :backoff} -> # Host is rate-limited, try later\n      {:error, reason} -> # Other error\n    end\n\n    # Or check before making request\n    if Elektrine.HTTP.Backoff.should_backoff?(host) do\n      {:error, :rate_limited}\n    else\n      make_request(url)\n    end\n"
   use GenServer
   require Logger
-
   @table :http_backoff_cache
-  # 5 minutes default
   @default_backoff_seconds 300
-  # 1 hour max
   @max_backoff_seconds 3600
   @cleanup_interval :timer.minutes(5)
-
-  # Client API
-
-  @doc """
-  Starts the backoff tracker.
-  """
+  @doc "Starts the backoff tracker.\n"
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc """
-  Makes an HTTP GET request with backoff handling.
-  Returns {:error, :backoff} if the host is currently rate-limited.
-  """
+  @doc "Makes an HTTP GET request with backoff handling.\nReturns {:error, :backoff} if the host is currently rate-limited.\n"
   def get(url, headers \\ [], opts \\ []) do
     uri = URI.parse(url)
     host = uri.host
@@ -60,9 +25,7 @@ defmodule Elektrine.HTTP.Backoff do
     end
   end
 
-  @doc """
-  Makes an HTTP POST request with backoff handling.
-  """
+  @doc "Makes an HTTP POST request with backoff handling.\n"
   def post(url, body, headers \\ [], opts \\ []) do
     uri = URI.parse(url)
     host = uri.host
@@ -76,10 +39,10 @@ defmodule Elektrine.HTTP.Backoff do
     end
   end
 
-  @doc """
-  Checks if we should back off from making requests to the given host.
-  """
-  def should_backoff?(nil), do: false
+  @doc "Checks if we should back off from making requests to the given host.\n"
+  def should_backoff?(nil) do
+    false
+  end
 
   def should_backoff?(host) when is_binary(host) do
     case :ets.lookup(@table, host) do
@@ -92,9 +55,7 @@ defmodule Elektrine.HTTP.Backoff do
     end
   end
 
-  @doc """
-  Marks a host as rate-limited for the specified duration.
-  """
+  @doc "Marks a host as rate-limited for the specified duration.\n"
   def set_backoff(host, seconds \\ @default_backoff_seconds) when is_binary(host) do
     seconds = min(seconds, @max_backoff_seconds)
     backoff_until = System.system_time(:second) + seconds
@@ -103,18 +64,13 @@ defmodule Elektrine.HTTP.Backoff do
     :ok
   end
 
-  @doc """
-  Clears backoff for a host (e.g., after successful request).
-  """
+  @doc "Clears backoff for a host (e.g., after successful request).\n"
   def clear_backoff(host) when is_binary(host) do
     :ets.delete(@table, host)
     :ok
   end
 
-  @doc """
-  Gets the remaining backoff time for a host in seconds.
-  Returns 0 if not rate-limited.
-  """
+  @doc "Gets the remaining backoff time for a host in seconds.\nReturns 0 if not rate-limited.\n"
   def get_backoff_remaining(host) when is_binary(host) do
     case :ets.lookup(@table, host) do
       [{^host, backoff_until}] ->
@@ -126,9 +82,7 @@ defmodule Elektrine.HTTP.Backoff do
     end
   end
 
-  @doc """
-  Lists all currently rate-limited hosts.
-  """
+  @doc "Lists all currently rate-limited hosts.\n"
   def list_rate_limited do
     now = System.system_time(:second)
 
@@ -139,16 +93,10 @@ defmodule Elektrine.HTTP.Backoff do
     end)
   end
 
-  # Server callbacks
-
   @impl true
   def init(_opts) do
-    # Create ETS table for fast lookups
     :ets.new(@table, [:set, :public, :named_table, read_concurrency: true])
-
-    # Schedule periodic cleanup
     schedule_cleanup()
-
     {:ok, %{}}
   end
 
@@ -159,12 +107,9 @@ defmodule Elektrine.HTTP.Backoff do
     {:noreply, state}
   end
 
-  # Private functions
-
   defp do_request(method, url, body, headers, opts) do
     timeout = Keyword.get(opts, :timeout, 15_000)
     recv_timeout = Keyword.get(opts, :recv_timeout, 15_000)
-
     request = Finch.build(method, url, headers, body)
 
     case Finch.request(request, Elektrine.Finch,
@@ -178,7 +123,6 @@ defmodule Elektrine.HTTP.Backoff do
 
   defp handle_response(host, {:ok, %Finch.Response{status: status, headers: headers} = response})
        when status in [429, 503] do
-    # Rate limited or service unavailable - set backoff
     backoff_seconds = parse_retry_after(headers)
     set_backoff(host, backoff_seconds)
     {:ok, response}
@@ -186,13 +130,11 @@ defmodule Elektrine.HTTP.Backoff do
 
   defp handle_response(host, {:ok, %Finch.Response{status: status} = response})
        when status >= 200 and status < 300 do
-    # Success - clear any existing backoff
     clear_backoff(host)
     {:ok, response}
   end
 
   defp handle_response(_host, {:ok, response}) do
-    # Other responses - don't modify backoff state
     {:ok, response}
   end
 
@@ -200,11 +142,7 @@ defmodule Elektrine.HTTP.Backoff do
     {:error, reason}
   end
 
-  @doc """
-  Parses the Retry-After header to determine backoff duration.
-  Supports both seconds format and HTTP-date format.
-  Also checks X-RateLimit-Reset header.
-  """
+  @doc "Parses the Retry-After header to determine backoff duration.\nSupports both seconds format and HTTP-date format.\nAlso checks X-RateLimit-Reset header.\n"
   def parse_retry_after(headers) do
     headers_map = headers_to_map(headers)
 
@@ -221,29 +159,23 @@ defmodule Elektrine.HTTP.Backoff do
   end
 
   defp headers_to_map(headers) do
-    headers
-    |> Enum.map(fn {k, v} -> {String.downcase(k), v} end)
-    |> Map.new()
+    headers |> Enum.map(fn {k, v} -> {String.downcase(k), v} end) |> Map.new()
   end
 
   defp parse_retry_after_value(value) when is_binary(value) do
     case Integer.parse(value) do
-      {seconds, ""} ->
-        # Value is in seconds
-        min(seconds, @max_backoff_seconds)
-
-      _ ->
-        # Try parsing as HTTP-date
-        parse_http_date(value)
+      {seconds, ""} -> min(seconds, @max_backoff_seconds)
+      _ -> parse_http_date(value)
     end
   end
 
-  defp parse_retry_after_value(_), do: @default_backoff_seconds
+  defp parse_retry_after_value(_) do
+    @default_backoff_seconds
+  end
 
   defp parse_rate_limit_reset(value) when is_binary(value) do
     case Integer.parse(value) do
       {timestamp, ""} ->
-        # Unix timestamp
         now = System.system_time(:second)
         seconds = max(0, timestamp - now)
         min(seconds, @max_backoff_seconds)
@@ -253,28 +185,24 @@ defmodule Elektrine.HTTP.Backoff do
     end
   end
 
-  defp parse_rate_limit_reset(_), do: @default_backoff_seconds
+  defp parse_rate_limit_reset(_) do
+    @default_backoff_seconds
+  end
 
   defp parse_http_date(date_string) do
-    # Try to parse HTTP-date format: "Wed, 21 Oct 2015 07:28:00 GMT"
-    # Using Erlang's :httpd_util.convert_request_date/1 which handles RFC 1123 dates
-    try do
-      case :httpd_util.convert_request_date(String.to_charlist(date_string)) do
-        {{year, month, day}, {hour, minute, second}} ->
-          {:ok, datetime} =
-            NaiveDateTime.new(year, month, day, hour, minute, second)
+    case :httpd_util.convert_request_date(String.to_charlist(date_string)) do
+      {{year, month, day}, {hour, minute, second}} ->
+        {:ok, datetime} = NaiveDateTime.new(year, month, day, hour, minute, second)
+        {:ok, utc_datetime} = DateTime.from_naive(datetime, "Etc/UTC")
+        now = DateTime.utc_now()
+        diff = DateTime.diff(utc_datetime, now, :second)
+        min(max(0, diff), @max_backoff_seconds)
 
-          {:ok, utc_datetime} = DateTime.from_naive(datetime, "Etc/UTC")
-          now = DateTime.utc_now()
-          diff = DateTime.diff(utc_datetime, now, :second)
-          min(max(0, diff), @max_backoff_seconds)
-
-        :bad_date ->
-          @default_backoff_seconds
-      end
-    rescue
-      _ -> @default_backoff_seconds
+      :bad_date ->
+        @default_backoff_seconds
     end
+  rescue
+    _ -> @default_backoff_seconds
   end
 
   defp schedule_cleanup do

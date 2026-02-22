@@ -3,8 +3,8 @@ defmodule Elektrine.Email.FiltersTest do
 
   import Elektrine.AccountsFixtures
 
-  alias Elektrine.Email.Filters
   alias Elektrine.Email.Filter
+  alias Elektrine.Email.Filters
 
   describe "filter CRUD operations" do
     setup do
@@ -629,7 +629,7 @@ defmodule Elektrine.Email.FiltersTest do
     end
 
     test "handles very long field values" do
-      long_subject = String.duplicate("a", 10000)
+      long_subject = String.duplicate("a", 10_000)
 
       filter = %Filter{
         conditions: %{

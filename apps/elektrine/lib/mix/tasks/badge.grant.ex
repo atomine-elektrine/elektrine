@@ -23,7 +23,7 @@ defmodule Mix.Tasks.Badge.Grant do
 
   use Mix.Task
   import Ecto.Query
-  alias Elektrine.{Repo, Accounts, Profiles}
+  alias Elektrine.{Accounts, Profiles, Repo}
 
   @requirements ["app.repo"]
 

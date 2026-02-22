@@ -46,7 +46,7 @@ defmodule ElektrineWeb.UserSocket do
            "user socket",
            token,
            # 24 hours
-           max_age: 86400
+           max_age: 86_400
          ) do
       {:ok, user_id} -> {:ok, user_id}
       {:error, reason} -> {:error, reason}

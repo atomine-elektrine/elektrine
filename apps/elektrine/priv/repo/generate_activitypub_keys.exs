@@ -4,9 +4,9 @@
 require Logger
 import Ecto.Query
 
-alias Elektrine.Repo
 alias Elektrine.Accounts.User
 alias Elektrine.ActivityPub.HTTPSignature
+alias Elektrine.Repo
 
 # Find all users without ActivityPub keys
 users_without_keys =

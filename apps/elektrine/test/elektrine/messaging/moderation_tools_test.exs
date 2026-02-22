@@ -1,9 +1,9 @@
 defmodule Elektrine.Messaging.ModerationToolsTest do
   use Elektrine.DataCase
 
-  alias Elektrine.Messaging.ModerationTools
-  alias Elektrine.Messaging
   alias Elektrine.Accounts
+  alias Elektrine.Messaging
+  alias Elektrine.Messaging.ModerationTools
 
   defp create_community(owner_id, name) do
     %Elektrine.Messaging.Conversation{}

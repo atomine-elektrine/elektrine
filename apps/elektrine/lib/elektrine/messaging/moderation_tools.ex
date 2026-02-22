@@ -6,12 +6,12 @@ defmodule Elektrine.Messaging.ModerationTools do
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
-    Message,
-    UserWarning,
-    ModeratorNote,
     AutoModRule,
+    Conversation,
+    Message,
+    ModeratorNote,
     UserPostTimestamp,
-    Conversation
+    UserWarning
   }
 
   # ====== THREAD LOCKING ======

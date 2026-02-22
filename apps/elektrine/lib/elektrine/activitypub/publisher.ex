@@ -6,9 +6,9 @@ defmodule Elektrine.ActivityPub.Publisher do
   require Logger
   import Ecto.Query
 
+  alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.HTTPSignature
-  alias Elektrine.Accounts.User
 
   @doc """
   Publishes an activity to remote inboxes.

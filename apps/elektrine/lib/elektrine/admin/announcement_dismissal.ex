@@ -1,4 +1,5 @@
 defmodule Elektrine.Admin.AnnouncementDismissal do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

@@ -100,7 +100,7 @@ defmodule Elektrine.ActivityPub.MRF.HellthreadPolicy do
     # Don't count public addresses or followers collections
     recipients
     |> Enum.reject(fn uri ->
-      is_public_address?(uri) || is_followers_collection?(uri)
+      public_address?(uri) || followers_collection?(uri)
     end)
     |> length()
   end
@@ -116,7 +116,7 @@ defmodule Elektrine.ActivityPub.MRF.HellthreadPolicy do
 
   defp count_mention_tags(_), do: 0
 
-  defp is_public_address?(uri) when is_binary(uri) do
+  defp public_address?(uri) when is_binary(uri) do
     uri in [
       "https://www.w3.org/ns/activitystreams#Public",
       "as:Public",
@@ -124,13 +124,13 @@ defmodule Elektrine.ActivityPub.MRF.HellthreadPolicy do
     ]
   end
 
-  defp is_public_address?(_), do: false
+  defp public_address?(_), do: false
 
-  defp is_followers_collection?(uri) when is_binary(uri) do
+  defp followers_collection?(uri) when is_binary(uri) do
     String.ends_with?(uri, "/followers")
   end
 
-  defp is_followers_collection?(_), do: false
+  defp followers_collection?(_), do: false
 
   defp get_config do
     Application.get_env(:elektrine, :mrf_hellthread, [])

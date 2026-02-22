@@ -404,8 +404,7 @@ defmodule ElektrineWeb.DAV.ResponseHelpers do
       # Only convert to atom if it's a known WebDAV property
       Map.get(@valid_webdav_props, prop)
     end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(&(&1 in [:prop, :propfind, :multistatus]))
+    |> Enum.reject(&(is_nil(&1) || &1 in [:prop, :propfind, :multistatus]))
     |> Enum.uniq()
   end
 

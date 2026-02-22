@@ -1,16 +1,7 @@
 defmodule Elektrine.Messaging.Federation do
-  @moduledoc """
-  Lightweight federation support for Discord-style messaging servers.
-
-  This module now supports both:
-  - snapshot sync (coarse-grained)
-  - real-time event sync with per-stream sequencing and idempotency
-  - optional relay-routed transport for outbound HTTP federation traffic
-  """
-
+  @moduledoc "Lightweight federation support for Discord-style messaging servers.\n\nThis module now supports both:\n- snapshot sync (coarse-grained)\n- real-time event sync with per-stream sequencing and idempotency\n- optional relay-routed transport for outbound HTTP federation traffic\n"
   import Ecto.Query, warn: false
   require Logger
-
   alias Elektrine.ActivityPub
   alias Elektrine.Async
 
@@ -25,20 +16,13 @@ defmodule Elektrine.Messaging.Federation do
   }
 
   alias Elektrine.Repo
-
   @clock_skew_seconds 300
-
-  @doc """
-  Returns true when messaging federation is enabled.
-  """
+  @doc "Returns true when messaging federation is enabled.\n"
   def enabled? do
-    federation_config()
-    |> Keyword.get(:enabled, false)
+    federation_config() |> Keyword.get(:enabled, false)
   end
 
-  @doc """
-  Returns normalized peer configs.
-  """
+  @doc "Returns normalized peer configs.\n"
   def peers do
     federation_config()
     |> Keyword.get(:peers, [])
@@ -46,9 +30,7 @@ defmodule Elektrine.Messaging.Federation do
     |> Enum.reject(&is_nil/1)
   end
 
-  @doc """
-  Returns the peer config for incoming requests by domain.
-  """
+  @doc "Returns the peer config for incoming requests by domain.\n"
   def incoming_peer(domain) when is_binary(domain) do
     normalized = String.downcase(domain)
 
@@ -57,16 +39,12 @@ defmodule Elektrine.Messaging.Federation do
     end)
   end
 
-  @doc """
-  Returns outgoing-enabled peers.
-  """
+  @doc "Returns outgoing-enabled peers.\n"
   def outgoing_peers do
     Enum.filter(peers(), & &1.allow_outgoing)
   end
 
-  @doc """
-  Public discovery document for cross-domain federation bootstrap.
-  """
+  @doc "Public discovery document for cross-domain federation bootstrap.\n"
   def local_discovery_document do
     base_url = ActivityPub.instance_url()
     official_relays = discovery_official_relays()
@@ -74,10 +52,7 @@ defmodule Elektrine.Messaging.Federation do
     %{
       "version" => 1,
       "domain" => ActivityPub.instance_domain(),
-      "identity" => %{
-        "algorithm" => "hmac-sha256",
-        "current_key_id" => local_identity_key_id()
-      },
+      "identity" => %{"algorithm" => "hmac-sha256", "current_key_id" => local_identity_key_id()},
       "features" => %{
         "event_federation" => true,
         "snapshot_sync" => true,
@@ -99,9 +74,7 @@ defmodule Elektrine.Messaging.Federation do
     }
   end
 
-  @doc """
-  Builds the canonical string that gets signed for federation requests.
-  """
+  @doc "Builds the canonical string that gets signed for federation requests.\n"
   def signature_payload(
         domain,
         method,
@@ -115,47 +88,35 @@ defmodule Elektrine.Messaging.Federation do
       String.downcase(to_string(method || "")),
       canonical_path(request_path),
       canonical_query_string(query_string),
-      to_string(timestamp || "")
-      |> String.trim(),
+      to_string(timestamp || "") |> String.trim(),
       canonical_content_digest(content_digest)
     ]
     |> Enum.join("\n")
   end
 
-  @doc """
-  Computes the URL-safe base64 SHA-256 digest for a request body.
-  """
+  @doc "Computes the URL-safe base64 SHA-256 digest for a request body.\n"
   def body_digest(body) when is_binary(body) do
-    :crypto.hash(:sha256, body)
-    |> Base.url_encode64(padding: false)
+    :crypto.hash(:sha256, body) |> Base.url_encode64(padding: false)
   end
 
-  def body_digest(_), do: body_digest("")
+  def body_digest(_) do
+    body_digest("")
+  end
 
-  @doc """
-  Signs a payload with HMAC SHA-256.
-  """
+  @doc "Signs a payload with HMAC SHA-256.\n"
   def sign_payload(payload, secret) when is_binary(secret) and is_binary(payload) do
-    hmac_raw(secret, payload)
-    |> Base.url_encode64(padding: false)
+    hmac_raw(secret, payload) |> Base.url_encode64(padding: false)
   end
 
-  @doc """
-  Validates timestamp freshness.
-  """
+  @doc "Validates timestamp freshness.\n"
   def valid_timestamp?(timestamp) when is_binary(timestamp) do
     case Integer.parse(timestamp) do
-      {ts, ""} ->
-        abs(System.system_time(:second) - ts) <= @clock_skew_seconds
-
-      _ ->
-        false
+      {ts, ""} -> abs(System.system_time(:second) - ts) <= @clock_skew_seconds
+      _ -> false
     end
   end
 
-  @doc """
-  Verifies an incoming signature for the request using a raw secret.
-  """
+  @doc "Verifies an incoming signature for the request using a raw secret.\n"
   def verify_signature(secret, domain, method, request_path, query_string, timestamp, signature)
       when is_binary(secret) and is_binary(signature) do
     verify_signature(
@@ -196,10 +157,7 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  @doc """
-  Verifies an incoming signature using a normalized peer config and optional key id.
-  Supports key rotation by accepting any configured incoming key for the peer.
-  """
+  @doc "Verifies an incoming signature using a normalized peer config and optional key id.\nSupports key rotation by accepting any configured incoming key for the peer.\n"
   def verify_signature(
         peer,
         domain,
@@ -252,9 +210,7 @@ defmodule Elektrine.Messaging.Federation do
     end)
   end
 
-  @doc """
-  Builds headers for an outgoing signed federation request.
-  """
+  @doc "Builds headers for an outgoing signed federation request.\n"
   def signed_headers(peer, method, request_path, query_string \\ "", body \\ "") do
     timestamp = Integer.to_string(System.system_time(:second))
     domain = ActivityPub.instance_domain()
@@ -275,9 +231,7 @@ defmodule Elektrine.Messaging.Federation do
     ]
   end
 
-  @doc """
-  Builds a federated snapshot for a local server.
-  """
+  @doc "Builds a federated snapshot for a local server.\n"
   def build_server_snapshot(server_id, opts \\ []) do
     messages_per_channel = Keyword.get(opts, :messages_per_channel, 25)
 
@@ -304,9 +258,7 @@ defmodule Elektrine.Messaging.Federation do
           |> Repo.all()
           |> Enum.reverse()
           |> ChatMessage.decrypt_messages()
-          |> Enum.map(fn message ->
-            message_payload(message, channel)
-          end)
+          |> Enum.map(fn message -> message_payload(message, channel) end)
         end)
 
       {:ok,
@@ -323,9 +275,7 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  @doc """
-  Imports a federated server snapshot from a trusted remote domain.
-  """
+  @doc "Imports a federated server snapshot from a trusted remote domain.\n"
   def import_server_snapshot(payload, remote_domain) when is_binary(remote_domain) do
     with :ok <- validate_snapshot_payload(payload, remote_domain) do
       Repo.transaction(fn ->
@@ -342,13 +292,7 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  @doc """
-  Processes a single incoming real-time federation event.
-
-  Guarantees:
-  - idempotency by global event_id
-  - in-order application per origin_domain + stream_id
-  """
+  @doc "Processes a single incoming real-time federation event.\n\nGuarantees:\n- idempotency by global event_id\n- in-order application per origin_domain + stream_id\n"
   def receive_event(payload, remote_domain) when is_binary(remote_domain) do
     with :ok <- validate_event_payload(payload, remote_domain) do
       Repo.transaction(fn ->
@@ -387,9 +331,7 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  @doc """
-  Attempts automatic gap recovery by fetching a trusted remote snapshot.
-  """
+  @doc "Attempts automatic gap recovery by fetching a trusted remote snapshot.\n"
   def recover_sequence_gap(payload, remote_domain) when is_binary(remote_domain) do
     with %{} = peer <- incoming_peer(remote_domain),
          {:ok, remote_server_id} <- infer_remote_server_id(payload),
@@ -398,35 +340,24 @@ defmodule Elektrine.Messaging.Federation do
          :ok <- store_stream_position(remote_domain, payload["stream_id"], payload["sequence"]) do
       {:ok, :recovered}
     else
-      nil ->
-        {:error, :unknown_peer}
-
-      {:error, reason} ->
-        {:error, reason}
-
-      _ ->
-        {:error, :recovery_failed}
+      nil -> {:error, :unknown_peer}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :recovery_failed}
     end
   end
 
-  @doc """
-  Pushes a local server snapshot to all configured outgoing peers.
-  """
+  @doc "Pushes a local server snapshot to all configured outgoing peers.\n"
   def push_server_snapshot(server_id) do
     if enabled?() do
       with {:ok, snapshot} <- build_server_snapshot(server_id) do
-        Enum.each(outgoing_peers(), fn peer ->
-          push_snapshot_to_peer(peer, snapshot)
-        end)
+        Enum.each(outgoing_peers(), fn peer -> push_snapshot_to_peer(peer, snapshot) end)
       end
     end
 
     :ok
   end
 
-  @doc """
-  Publishes a real-time server upsert event.
-  """
+  @doc "Publishes a real-time server upsert event.\n"
   def publish_server_upsert(server_id) do
     if enabled?() do
       with {:ok, event} <- build_server_upsert_event(server_id) do
@@ -437,9 +368,7 @@ defmodule Elektrine.Messaging.Federation do
     :ok
   end
 
-  @doc """
-  Publishes a real-time message.create event.
-  """
+  @doc "Publishes a real-time message.create event.\n"
   def publish_message_created(%ChatMessage{} = message) do
     if enabled?() do
       with {:ok, event} <- build_message_created_event(message) do
@@ -457,9 +386,7 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  @doc """
-  Backward-compatible trigger used by existing call sites.
-  """
+  @doc "Backward-compatible trigger used by existing call sites.\n"
   def maybe_push_for_conversation(conversation_id) do
     if enabled?() do
       Async.start(fn -> publish_latest_message_event(conversation_id) end)
@@ -468,9 +395,7 @@ defmodule Elektrine.Messaging.Federation do
     :ok
   end
 
-  @doc """
-  Backward-compatible trigger used by existing call sites.
-  """
+  @doc "Backward-compatible trigger used by existing call sites.\n"
   def maybe_push_for_server(server_id) do
     if enabled?() do
       Async.start(fn -> publish_server_upsert(server_id) end)
@@ -479,9 +404,7 @@ defmodule Elektrine.Messaging.Federation do
     :ok
   end
 
-  @doc """
-  Processes one outbox row and attempts delivery to pending peers with bounded concurrency.
-  """
+  @doc "Processes one outbox row and attempts delivery to pending peers with bounded concurrency.\n"
   def process_outbox_event(outbox_event_id) when is_integer(outbox_event_id) do
     Repo.transaction(fn ->
       outbox =
@@ -515,17 +438,14 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  @doc """
-  Enqueues due pending outbox events for processing.
-  """
+  @doc "Enqueues due pending outbox events for processing.\n"
   def enqueue_due_outbox_events(limit \\ 500) do
     now = DateTime.utc_now()
 
     outbox_event_ids =
       from(o in FederationOutboxEvent,
         where:
-          o.status == "pending" and o.attempt_count < o.max_attempts and
-            o.next_retry_at <= ^now,
+          o.status == "pending" and o.attempt_count < o.max_attempts and o.next_retry_at <= ^now,
         order_by: [asc: o.next_retry_at, asc: o.id],
         limit: ^limit,
         select: o.id
@@ -536,9 +456,7 @@ defmodule Elektrine.Messaging.Federation do
     length(outbox_event_ids)
   end
 
-  @doc """
-  Runs retention for federation event and outbox tables.
-  """
+  @doc "Runs retention for federation event and outbox tables.\n"
   def run_retention do
     archive_old_events()
     prune_old_outbox_rows()
@@ -550,54 +468,34 @@ defmodule Elektrine.Messaging.Federation do
     server = payload["server"] || %{}
 
     cond do
-      payload["version"] != 1 ->
-        {:error, :unsupported_version}
-
-      origin_domain != remote_domain ->
-        {:error, :origin_domain_mismatch}
-
-      !is_map(server) ->
-        {:error, :invalid_server_payload}
-
-      !is_binary(server["id"]) or !is_binary(server["name"]) ->
-        {:error, :invalid_server_payload}
-
-      true ->
-        :ok
+      payload["version"] != 1 -> {:error, :unsupported_version}
+      origin_domain != remote_domain -> {:error, :origin_domain_mismatch}
+      !is_map(server) -> {:error, :invalid_server_payload}
+      !is_binary(server["id"]) or !is_binary(server["name"]) -> {:error, :invalid_server_payload}
+      true -> :ok
     end
   end
 
-  defp validate_snapshot_payload(_payload, _remote_domain), do: {:error, :invalid_payload}
+  defp validate_snapshot_payload(_payload, _remote_domain) do
+    {:error, :invalid_payload}
+  end
 
   defp validate_event_payload(payload, remote_domain) when is_map(payload) do
     cond do
-      payload["version"] != 1 ->
-        {:error, :unsupported_version}
-
-      payload["origin_domain"] != remote_domain ->
-        {:error, :origin_domain_mismatch}
-
-      !is_binary(payload["event_id"]) ->
-        {:error, :invalid_event_id}
-
-      !is_binary(payload["event_type"]) ->
-        {:error, :invalid_event_type}
-
-      !is_binary(payload["stream_id"]) ->
-        {:error, :invalid_stream_id}
-
-      parse_int(payload["sequence"], 0) <= 0 ->
-        {:error, :invalid_sequence}
-
-      !is_map(payload["data"] || %{}) ->
-        {:error, :invalid_event_payload}
-
-      true ->
-        :ok
+      payload["version"] != 1 -> {:error, :unsupported_version}
+      payload["origin_domain"] != remote_domain -> {:error, :origin_domain_mismatch}
+      !is_binary(payload["event_id"]) -> {:error, :invalid_event_id}
+      !is_binary(payload["event_type"]) -> {:error, :invalid_event_type}
+      !is_binary(payload["stream_id"]) -> {:error, :invalid_stream_id}
+      parse_int(payload["sequence"], 0) <= 0 -> {:error, :invalid_sequence}
+      !is_map(payload["data"] || %{}) -> {:error, :invalid_event_payload}
+      true -> :ok
     end
   end
 
-  defp validate_event_payload(_, _), do: {:error, :invalid_payload}
+  defp validate_event_payload(_, _) do
+    {:error, :invalid_payload}
+  end
 
   defp claim_event_id(payload, remote_domain) do
     inserted_now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
@@ -617,12 +515,13 @@ defmodule Elektrine.Messaging.Federation do
     ]
 
     {count, _} =
-      Repo.insert_all(FederationEvent, attrs,
-        on_conflict: :nothing,
-        conflict_target: [:event_id]
-      )
+      Repo.insert_all(FederationEvent, attrs, on_conflict: :nothing, conflict_target: [:event_id])
 
-    if count == 1, do: :new, else: :duplicate
+    if count == 1 do
+      :new
+    else
+      :duplicate
+    end
   end
 
   defp check_sequence(payload, remote_domain) do
@@ -636,17 +535,17 @@ defmodule Elektrine.Messaging.Federation do
       )
       |> Repo.one()
 
-    last_sequence = if position, do: position.last_sequence, else: 0
+    last_sequence =
+      if position do
+        position.last_sequence
+      else
+        0
+      end
 
     cond do
-      incoming_sequence <= last_sequence ->
-        :stale
-
-      incoming_sequence > last_sequence + 1 ->
-        {:error, :sequence_gap}
-
-      true ->
-        :ok
+      incoming_sequence <= last_sequence -> :stale
+      incoming_sequence > last_sequence + 1 -> {:error, :sequence_gap}
+      true -> :ok
     end
   end
 
@@ -696,7 +595,9 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp apply_event(_, _, _), do: {:error, :unsupported_event_type}
+  defp apply_event(_, _, _) do
+    {:error, :unsupported_event_type}
+  end
 
   defp build_server_upsert_event(server_id) do
     with %Server{} = server <- Repo.get(Server, server_id),
@@ -726,7 +627,13 @@ defmodule Elektrine.Messaging.Federation do
   defp build_message_created_event(%ChatMessage{} = message) do
     message = Repo.preload(message, [:sender, conversation: [:server]])
     conversation = message.conversation
-    server = if conversation, do: conversation.server, else: nil
+
+    server =
+      if conversation do
+        conversation.server
+      else
+        nil
+      end
 
     cond do
       is_nil(conversation) or is_nil(server) ->
@@ -765,10 +672,7 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp enqueue_outbox_event(event) do
-    peer_domains =
-      outgoing_peers()
-      |> Enum.map(& &1.domain)
-      |> Enum.uniq()
+    peer_domains = outgoing_peers() |> Enum.map(& &1.domain) |> Enum.uniq()
 
     if peer_domains == [] do
       :ok
@@ -790,9 +694,7 @@ defmodule Elektrine.Messaging.Federation do
         partition_month: outbox_partition_month(now)
       }
 
-      case %FederationOutboxEvent{}
-           |> FederationOutboxEvent.changeset(attrs)
-           |> Repo.insert() do
+      case %FederationOutboxEvent{} |> FederationOutboxEvent.changeset(attrs) |> Repo.insert() do
         {:ok, outbox_event} ->
           _ = FederationOutboxWorker.enqueue(outbox_event.id)
           :ok
@@ -846,12 +748,17 @@ defmodule Elektrine.Messaging.Federation do
         exhausted = attempt_count >= outbox.max_attempts
         backoff_seconds = outbox_backoff_seconds(attempt_count)
         next_retry_at = DateTime.add(DateTime.utc_now(), backoff_seconds, :second)
-        status = if exhausted, do: "failed", else: "pending"
+
+        status =
+          if exhausted do
+            "failed"
+          else
+            "pending"
+          end
 
         error_reason =
           failed_domains
-          |> Enum.map(fn {domain, reason} -> "#{domain}: #{inspect(reason)}" end)
-          |> Enum.join("; ")
+          |> Enum.map_join("; ", fn {domain, reason} -> "#{domain}: #{inspect(reason)}" end)
 
         outbox
         |> FederationOutboxEvent.changeset(%{
@@ -863,16 +770,18 @@ defmodule Elektrine.Messaging.Federation do
         })
         |> Repo.update()
 
-        if exhausted, do: :failed, else: :pending_retry
+        if exhausted do
+          :failed
+        else
+          :pending_retry
+        end
       end
     end
   end
 
   defp pending_domains(outbox) do
     delivered = MapSet.new(outbox.delivered_domains || [])
-
-    outbox.target_domains
-    |> Enum.reject(&MapSet.member?(delivered, &1))
+    outbox.target_domains |> Enum.reject(&MapSet.member?(delivered, &1))
   end
 
   defp deliver_outbox_domains(event_payload, domains) do
@@ -918,12 +827,11 @@ defmodule Elektrine.Messaging.Federation do
     url = outbound_events_url(peer)
     body = Jason.encode!(event)
     headers = signed_headers(peer, "POST", path, "", body)
-
     request = Finch.build(:post, url, headers, body)
 
     case Finch.request(request, Elektrine.Finch,
            receive_timeout: delivery_timeout_ms(),
-           pool_timeout: 5_000
+           pool_timeout: 5000
          ) do
       {:ok, %Finch.Response{status: status}} when status in 200..299 ->
         :ok
@@ -941,12 +849,11 @@ defmodule Elektrine.Messaging.Federation do
     url = outbound_sync_url(peer)
     body = Jason.encode!(snapshot)
     headers = signed_headers(peer, "POST", path, "", body)
-
     request = Finch.build(:post, url, headers, body)
 
     case Finch.request(request, Elektrine.Finch,
            receive_timeout: delivery_timeout_ms(),
-           pool_timeout: 5_000
+           pool_timeout: 5000
          ) do
       {:ok, %Finch.Response{status: status}} when status in 200..299 ->
         :ok
@@ -971,7 +878,7 @@ defmodule Elektrine.Messaging.Federation do
 
     case Finch.request(request, Elektrine.Finch,
            receive_timeout: delivery_timeout_ms(),
-           pool_timeout: 5_000
+           pool_timeout: 5000
          ) do
       {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 ->
         case Jason.decode(body) do
@@ -1004,15 +911,8 @@ defmodule Elektrine.Messaging.Federation do
     }
 
     case Repo.get_by(Server, federation_id: server_payload["id"]) do
-      nil ->
-        %Server{}
-        |> Server.changeset(attrs)
-        |> Repo.insert()
-
-      server ->
-        server
-        |> Server.changeset(attrs)
-        |> Repo.update()
+      nil -> %Server{} |> Server.changeset(attrs) |> Repo.insert()
+      server -> server |> Server.changeset(attrs) |> Repo.update()
     end
   end
 
@@ -1039,19 +939,14 @@ defmodule Elektrine.Messaging.Federation do
     }
 
     case Repo.get_by(Conversation, type: "channel", federated_source: channel_id) do
-      nil ->
-        %Conversation{}
-        |> Conversation.channel_changeset(attrs)
-        |> Repo.insert()
-
-      channel ->
-        channel
-        |> Conversation.changeset(attrs)
-        |> Repo.update()
+      nil -> %Conversation{} |> Conversation.channel_changeset(attrs) |> Repo.insert()
+      channel -> channel |> Conversation.changeset(attrs) |> Repo.update()
     end
   end
 
-  defp upsert_single_mirror_channel(_server, _), do: {:error, :invalid_channel}
+  defp upsert_single_mirror_channel(_server, _) do
+    {:error, :invalid_channel}
+  end
 
   defp upsert_mirror_messages(channel_map, messages, remote_domain) when is_list(messages) do
     Enum.each(messages, fn payload ->
@@ -1078,8 +973,7 @@ defmodule Elektrine.Messaging.Federation do
 
       true ->
         media_metadata =
-          (payload["media_metadata"] || %{})
-          |> Map.put("remote_sender", payload["sender"] || %{})
+          (payload["media_metadata"] || %{}) |> Map.put("remote_sender", payload["sender"] || %{})
 
         attrs = %{
           conversation_id: channel.id,
@@ -1093,9 +987,7 @@ defmodule Elektrine.Messaging.Federation do
           is_federated_mirror: true
         }
 
-        %ChatMessage{}
-        |> ChatMessage.changeset(attrs)
-        |> Repo.insert()
+        %ChatMessage{} |> ChatMessage.changeset(attrs) |> Repo.insert()
     end
   end
 
@@ -1125,15 +1017,8 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp next_outbound_sequence(stream_id) do
-    sql = """
-    INSERT INTO messaging_federation_stream_counters (stream_id, next_sequence, inserted_at, updated_at)
-    VALUES ($1, 2, NOW(), NOW())
-    ON CONFLICT (stream_id)
-    DO UPDATE
-      SET next_sequence = messaging_federation_stream_counters.next_sequence + 1,
-          updated_at = NOW()
-    RETURNING next_sequence - 1
-    """
+    sql =
+      "INSERT INTO messaging_federation_stream_counters (stream_id, next_sequence, inserted_at, updated_at)\nVALUES ($1, 2, NOW(), NOW())\nON CONFLICT (stream_id)\nDO UPDATE\n  SET next_sequence = messaging_federation_stream_counters.next_sequence + 1,\n      updated_at = NOW()\nRETURNING next_sequence - 1\n"
 
     case Ecto.Adapters.SQL.query(Repo, sql, [stream_id]) do
       {:ok, %{rows: [[sequence]]}} when is_integer(sequence) -> sequence
@@ -1141,8 +1026,13 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp server_stream_id(server_id), do: "server:" <> server_federation_id(server_id)
-  defp channel_stream_id(channel_id), do: "channel:" <> channel_federation_id(channel_id)
+  defp server_stream_id(server_id) do
+    "server:" <> server_federation_id(server_id)
+  end
+
+  defp channel_stream_id(channel_id) do
+    "channel:" <> channel_federation_id(channel_id)
+  end
 
   defp server_payload(server) do
     %{
@@ -1190,9 +1080,7 @@ defmodule Elektrine.Messaging.Federation do
   defp incoming_secrets_for_key_id(peer, key_id) do
     case normalize_optional_string(key_id) do
       nil ->
-        peer.keys
-        |> Enum.map(& &1.secret)
-        |> Enum.reject(&is_nil/1)
+        peer.keys |> Enum.map(& &1.secret) |> Enum.reject(&is_nil/1)
 
       requested_key_id ->
         peer.keys
@@ -1202,7 +1090,9 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp truncate(nil), do: ""
+  defp truncate(nil) do
+    ""
+  end
 
   defp truncate(body) when is_binary(body) do
     if byte_size(body) > 180 do
@@ -1212,14 +1102,21 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp truncate(body), do: inspect(body)
+  defp truncate(body) do
+    inspect(body)
+  end
 
-  defp normalize_message_type(type) when type in ["text", "image", "file", "voice", "system"],
-    do: type
+  defp normalize_message_type(type) when type in ["text", "image", "file", "voice", "system"] do
+    type
+  end
 
-  defp normalize_message_type(_), do: "text"
+  defp normalize_message_type(_) do
+    "text"
+  end
 
-  defp canonical_path(nil), do: "/"
+  defp canonical_path(nil) do
+    "/"
+  end
 
   defp canonical_path(path) when is_binary(path) do
     trimmed = String.trim(path)
@@ -1231,13 +1128,25 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp canonical_path(path), do: canonical_path(to_string(path))
+  defp canonical_path(path) do
+    canonical_path(to_string(path))
+  end
 
-  defp canonical_query_string(nil), do: ""
-  defp canonical_query_string(query) when is_binary(query), do: String.trim(query)
-  defp canonical_query_string(query), do: to_string(query)
+  defp canonical_query_string(nil) do
+    ""
+  end
 
-  defp canonical_content_digest(nil), do: body_digest("")
+  defp canonical_query_string(query) when is_binary(query) do
+    String.trim(query)
+  end
+
+  defp canonical_query_string(query) do
+    to_string(query)
+  end
+
+  defp canonical_content_digest(nil) do
+    body_digest("")
+  end
 
   defp canonical_content_digest(content_digest) when is_binary(content_digest) do
     case String.trim(content_digest) do
@@ -1246,8 +1155,9 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp canonical_content_digest(content_digest),
-    do: canonical_content_digest(to_string(content_digest))
+  defp canonical_content_digest(content_digest) do
+    canonical_content_digest(to_string(content_digest))
+  end
 
   defp hmac_raw(secret, payload) do
     :crypto.mac(:hmac, :sha256, secret, payload)
@@ -1265,7 +1175,9 @@ defmodule Elektrine.Messaging.Federation do
     "#{ActivityPub.instance_url()}/federation/messaging/messages/#{message_id}"
   end
 
-  defp format_sender(nil), do: nil
+  defp format_sender(nil) do
+    nil
+  end
 
   defp format_sender(sender) do
     %{
@@ -1276,11 +1188,21 @@ defmodule Elektrine.Messaging.Federation do
     }
   end
 
-  defp format_created_at(nil), do: nil
-  defp format_created_at(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
-  defp format_created_at(%NaiveDateTime{} = datetime), do: NaiveDateTime.to_iso8601(datetime)
+  defp format_created_at(nil) do
+    nil
+  end
 
-  defp parse_int(value, _default) when is_integer(value), do: value
+  defp format_created_at(%DateTime{} = datetime) do
+    DateTime.to_iso8601(datetime)
+  end
+
+  defp format_created_at(%NaiveDateTime{} = datetime) do
+    NaiveDateTime.to_iso8601(datetime)
+  end
+
+  defp parse_int(value, _default) when is_integer(value) do
+    value
+  end
 
   defp parse_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
@@ -1289,22 +1211,18 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp parse_int(_, default), do: default
+  defp parse_int(_, default) do
+    default
+  end
 
   defp infer_remote_server_id(payload) when is_map(payload) do
-    server_id_from_data =
-      get_in(payload, ["data", "server", "id"])
-      |> extract_trailing_integer()
-
+    server_id_from_data = get_in(payload, ["data", "server", "id"]) |> extract_trailing_integer()
     stream_id = payload["stream_id"]
 
     server_id_from_stream =
       case stream_id do
-        "server:" <> server_federation_id ->
-          extract_trailing_integer(server_federation_id)
-
-        _ ->
-          nil
+        "server:" <> server_federation_id -> extract_trailing_integer(server_federation_id)
+        _ -> nil
       end
 
     case server_id_from_data || server_id_from_stream do
@@ -1313,9 +1231,13 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp infer_remote_server_id(_), do: {:error, :cannot_infer_snapshot_server_id}
+  defp infer_remote_server_id(_) do
+    {:error, :cannot_infer_snapshot_server_id}
+  end
 
-  defp extract_trailing_integer(nil), do: nil
+  defp extract_trailing_integer(nil) do
+    nil
+  end
 
   defp extract_trailing_integer(value) when is_binary(value) do
     value
@@ -1334,11 +1256,12 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp extract_trailing_integer(_), do: nil
+  defp extract_trailing_integer(_) do
+    nil
+  end
 
   defp delivery_concurrency do
-    federation_config()
-    |> Keyword.get(:delivery_concurrency, 6)
+    federation_config() |> Keyword.get(:delivery_concurrency, 6)
   end
 
   defp outbound_events_url(peer) do
@@ -1364,22 +1287,18 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp delivery_timeout_ms do
-    federation_config()
-    |> Keyword.get(:delivery_timeout_ms, 12_000)
+    federation_config() |> Keyword.get(:delivery_timeout_ms, 12_000)
   end
 
   defp outbox_max_attempts do
-    federation_config()
-    |> Keyword.get(:outbox_max_attempts, 8)
+    federation_config() |> Keyword.get(:outbox_max_attempts, 8)
   end
 
   defp outbox_base_backoff_seconds do
-    federation_config()
-    |> Keyword.get(:outbox_base_backoff_seconds, 5)
+    federation_config() |> Keyword.get(:outbox_base_backoff_seconds, 5)
   end
 
   defp outbox_backoff_seconds(attempt_count) do
-    # Exponential backoff capped at 15 minutes.
     base = outbox_base_backoff_seconds()
     trunc(min(base * :math.pow(2, max(attempt_count - 1, 0)), 900))
   end
@@ -1394,42 +1313,11 @@ defmodule Elektrine.Messaging.Federation do
       |> DateTime.add(-event_retention_days() * 86_400, :second)
       |> DateTime.truncate(:second)
 
-    sql = """
-    INSERT INTO messaging_federation_events_archive (
-      event_id,
-      origin_domain,
-      event_type,
-      stream_id,
-      sequence,
-      payload,
-      received_at,
-      partition_month,
-      inserted_at
-    )
-    SELECT
-      event_id,
-      origin_domain,
-      event_type,
-      stream_id,
-      sequence,
-      payload,
-      received_at,
-      date_trunc('month', inserted_at)::date,
-      inserted_at
-    FROM messaging_federation_events
-    WHERE inserted_at < $1
-    ON CONFLICT (event_id) DO NOTHING
-    """
+    sql =
+      "INSERT INTO messaging_federation_events_archive (\n  event_id,\n  origin_domain,\n  event_type,\n  stream_id,\n  sequence,\n  payload,\n  received_at,\n  partition_month,\n  inserted_at\n)\nSELECT\n  event_id,\n  origin_domain,\n  event_type,\n  stream_id,\n  sequence,\n  payload,\n  received_at,\n  date_trunc('month', inserted_at)::date,\n  inserted_at\nFROM messaging_federation_events\nWHERE inserted_at < $1\nON CONFLICT (event_id) DO NOTHING\n"
 
     _ = Ecto.Adapters.SQL.query(Repo, sql, [cutoff])
-
-    {_deleted, _} =
-      Repo.delete_all(
-        from(e in FederationEvent,
-          where: e.inserted_at < ^cutoff
-        )
-      )
-
+    {_deleted, _} = Repo.delete_all(from(e in FederationEvent, where: e.inserted_at < ^cutoff))
     :ok
   end
 
@@ -1450,13 +1338,11 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp event_retention_days do
-    federation_config()
-    |> Keyword.get(:event_retention_days, 14)
+    federation_config() |> Keyword.get(:event_retention_days, 14)
   end
 
   defp outbox_retention_days do
-    federation_config()
-    |> Keyword.get(:outbox_retention_days, 30)
+    federation_config() |> Keyword.get(:outbox_retention_days, 30)
   end
 
   defp federation_config do
@@ -1464,9 +1350,7 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp local_identity_key_id do
-    federation_config()
-    |> Keyword.get(:identity_key_id, "default")
-    |> to_string()
+    federation_config() |> Keyword.get(:identity_key_id, "default") |> to_string()
   end
 
   defp official_relay_operator do
@@ -1484,7 +1368,12 @@ defmodule Elektrine.Messaging.Federation do
 
   defp normalize_discovery_relay(relay) when is_binary(relay) do
     url = normalize_optional_string(relay)
-    if is_binary(url), do: %{"url" => url}, else: nil
+
+    if is_binary(url) do
+      %{"url" => url}
+    else
+      nil
+    end
   end
 
   defp normalize_discovery_relay(relay) when is_map(relay) do
@@ -1495,7 +1384,13 @@ defmodule Elektrine.Messaging.Federation do
 
     if is_binary(url) do
       relay_doc = %{"url" => url}
-      relay_doc = if is_binary(name), do: Map.put(relay_doc, "name", name), else: relay_doc
+
+      relay_doc =
+        if is_binary(name) do
+          Map.put(relay_doc, "name", name)
+        else
+          relay_doc
+        end
 
       relay_doc =
         if is_binary(websocket_url) do
@@ -1504,24 +1399,27 @@ defmodule Elektrine.Messaging.Federation do
           relay_doc
         end
 
-      if is_binary(region), do: Map.put(relay_doc, "region", region), else: relay_doc
+      if is_binary(region) do
+        Map.put(relay_doc, "region", region)
+      else
+        relay_doc
+      end
     else
       nil
     end
   end
 
-  defp normalize_discovery_relay(_), do: nil
+  defp normalize_discovery_relay(_) do
+    nil
+  end
 
   defp normalize_relay_operator_label(value) do
     value
     |> to_string()
     |> String.trim()
     |> case do
-      "" ->
-        "Community-operated"
-
-      label ->
-        label
+      "" -> "Community-operated"
+      label -> label
     end
   end
 
@@ -1532,37 +1430,41 @@ defmodule Elektrine.Messaging.Federation do
     keys = normalize_peer_keys(value_from(peer, :keys, []), shared_secret)
 
     normalized_base_url =
-      if is_binary(base_url), do: String.trim_trailing(base_url, "/"), else: nil
-
-    cond do
-      !is_binary(domain) or !is_binary(normalized_base_url) or Enum.empty?(keys) ->
+      if is_binary(base_url) do
+        String.trim_trailing(base_url, "/")
+      else
         nil
+      end
 
-      true ->
-        %{
-          domain: domain,
-          base_url: normalized_base_url,
-          shared_secret: shared_secret,
-          keys: keys,
-          active_outbound_key_id: resolve_active_outbound_key_id(peer, keys),
-          allow_incoming: value_from(peer, :allow_incoming, true) == true,
-          allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
-          event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
-          sync_endpoint: normalize_optional_string(value_from(peer, :sync_endpoint)),
-          snapshot_endpoint_template:
-            normalize_optional_string(value_from(peer, :snapshot_endpoint_template))
-        }
+    if !is_binary(domain) or !is_binary(normalized_base_url) or Enum.empty?(keys) do
+      nil
+    else
+      %{
+        domain: domain,
+        base_url: normalized_base_url,
+        shared_secret: shared_secret,
+        keys: keys,
+        active_outbound_key_id: resolve_active_outbound_key_id(peer, keys),
+        allow_incoming: value_from(peer, :allow_incoming, true) == true,
+        allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
+        event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
+        sync_endpoint: normalize_optional_string(value_from(peer, :sync_endpoint)),
+        snapshot_endpoint_template:
+          normalize_optional_string(value_from(peer, :snapshot_endpoint_template))
+      }
     end
   end
 
-  defp normalize_peer(peer) when is_list(peer), do: normalize_peer(Map.new(peer))
-  defp normalize_peer(_), do: nil
+  defp normalize_peer(peer) when is_list(peer) do
+    normalize_peer(Map.new(peer))
+  end
+
+  defp normalize_peer(_) do
+    nil
+  end
 
   defp normalize_peer_keys(keys, shared_secret) when is_list(keys) do
-    normalized =
-      keys
-      |> Enum.map(&normalize_single_peer_key/1)
-      |> Enum.reject(&is_nil/1)
+    normalized = keys |> Enum.map(&normalize_single_peer_key/1) |> Enum.reject(&is_nil/1)
 
     if Enum.empty?(normalized) and is_binary(shared_secret) do
       [%{id: "legacy", secret: shared_secret, active_outbound: true}]
@@ -1575,51 +1477,52 @@ defmodule Elektrine.Messaging.Federation do
     [%{id: "legacy", secret: shared_secret, active_outbound: true}]
   end
 
-  defp normalize_peer_keys(_, _), do: []
+  defp normalize_peer_keys(_, _) do
+    []
+  end
 
-  defp normalize_single_peer_key(key) when is_list(key),
-    do: normalize_single_peer_key(Map.new(key))
+  defp normalize_single_peer_key(key) when is_list(key) do
+    normalize_single_peer_key(Map.new(key))
+  end
 
   defp normalize_single_peer_key(key) when is_map(key) do
     id = value_from(key, :id)
     secret = value_from(key, :secret)
 
     if is_binary(id) and is_binary(secret) do
-      %{
-        id: id,
-        secret: secret,
-        active_outbound: value_from(key, :active_outbound, false) == true
-      }
+      %{id: id, secret: secret, active_outbound: value_from(key, :active_outbound, false) == true}
     else
       nil
     end
   end
 
-  defp normalize_single_peer_key(_), do: nil
+  defp normalize_single_peer_key(_) do
+    nil
+  end
 
   defp resolve_active_outbound_key_id(peer, keys) do
     configured = normalize_optional_string(value_from(peer, :active_outbound_key_id))
 
     cond do
-      is_binary(configured) and Enum.any?(keys, &(&1.id == configured)) ->
-        configured
-
-      key = Enum.find(keys, & &1.active_outbound) ->
-        key.id
-
-      true ->
-        keys
-        |> List.first()
-        |> Map.get(:id)
+      is_binary(configured) and Enum.any?(keys, &(&1.id == configured)) -> configured
+      key = Enum.find(keys, & &1.active_outbound) -> key.id
+      true -> keys |> List.first() |> Map.get(:id)
     end
   end
 
   defp normalize_optional_string(value) when is_binary(value) do
     trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
+
+    if trimmed == "" do
+      nil
+    else
+      trimmed
+    end
   end
 
-  defp normalize_optional_string(_), do: nil
+  defp normalize_optional_string(_) do
+    nil
+  end
 
   defp value_from(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, Atom.to_string(key), default))

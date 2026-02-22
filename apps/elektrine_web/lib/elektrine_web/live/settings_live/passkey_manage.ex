@@ -4,8 +4,8 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
   """
   use ElektrineWeb, :live_view
 
-  alias Elektrine.Accounts.Passkeys
   alias Elektrine.Accounts.PasskeyCredential
+  alias Elektrine.Accounts.Passkeys
 
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
 

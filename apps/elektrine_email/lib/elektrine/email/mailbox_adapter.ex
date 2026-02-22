@@ -4,8 +4,8 @@ defmodule Elektrine.Email.MailboxAdapter do
   Temporary mailbox functionality has been removed for security.
   """
 
-  alias Elektrine.Email.Message
   alias Elektrine.Email.Mailbox
+  alias Elektrine.Email.Message
   alias Elektrine.Repo
   import Ecto.Query
 

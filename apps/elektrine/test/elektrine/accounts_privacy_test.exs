@@ -2,12 +2,11 @@ defmodule Elektrine.AccountsPrivacyTest do
   use Elektrine.DataCase, async: true
 
   alias Elektrine.Accounts
-  import Elektrine.AccountsFixtures
 
   describe "privacy settings" do
     setup do
-      user = user_fixture()
-      other_user = user_fixture()
+      user = create_user()
+      other_user = create_user()
       {:ok, user: user, other_user: other_user}
     end
 
@@ -46,10 +45,10 @@ defmodule Elektrine.AccountsPrivacyTest do
 
   describe "can_view_profile?/2" do
     setup do
-      public_user = user_fixture(%{profile_visibility: "public"})
-      followers_only_user = user_fixture(%{profile_visibility: "followers"})
-      private_user = user_fixture(%{profile_visibility: "private"})
-      viewer = user_fixture()
+      public_user = create_user(%{profile_visibility: "public"})
+      followers_only_user = create_user(%{profile_visibility: "followers"})
+      private_user = create_user(%{profile_visibility: "private"})
+      viewer = create_user()
 
       {:ok,
        public_user: public_user,
@@ -90,10 +89,10 @@ defmodule Elektrine.AccountsPrivacyTest do
 
   describe "can_add_to_group?/2" do
     setup do
-      everyone_user = user_fixture(%{allow_group_adds_from: "everyone"})
-      followers_only_user = user_fixture(%{allow_group_adds_from: "followers"})
-      nobody_user = user_fixture(%{allow_group_adds_from: "nobody"})
-      requester = user_fixture()
+      everyone_user = create_user(%{allow_group_adds_from: "everyone"})
+      followers_only_user = create_user(%{allow_group_adds_from: "followers"})
+      nobody_user = create_user(%{allow_group_adds_from: "nobody"})
+      requester = create_user()
 
       {:ok,
        everyone_user: everyone_user,
@@ -129,10 +128,10 @@ defmodule Elektrine.AccountsPrivacyTest do
 
   describe "can_send_direct_message?/2" do
     setup do
-      everyone_user = user_fixture(%{allow_direct_messages_from: "everyone"})
-      followers_only_user = user_fixture(%{allow_direct_messages_from: "followers"})
-      nobody_user = user_fixture(%{allow_direct_messages_from: "nobody"})
-      sender = user_fixture()
+      everyone_user = create_user(%{allow_direct_messages_from: "everyone"})
+      followers_only_user = create_user(%{allow_direct_messages_from: "followers"})
+      nobody_user = create_user(%{allow_direct_messages_from: "nobody"})
+      sender = create_user()
 
       {:ok,
        everyone_user: everyone_user,
@@ -168,10 +167,10 @@ defmodule Elektrine.AccountsPrivacyTest do
 
   describe "can_mention?/2" do
     setup do
-      everyone_user = user_fixture(%{allow_mentions_from: "everyone"})
-      followers_only_user = user_fixture(%{allow_mentions_from: "followers"})
-      nobody_user = user_fixture(%{allow_mentions_from: "nobody"})
-      mentioner = user_fixture()
+      everyone_user = create_user(%{allow_mentions_from: "everyone"})
+      followers_only_user = create_user(%{allow_mentions_from: "followers"})
+      nobody_user = create_user(%{allow_mentions_from: "nobody"})
+      mentioner = create_user()
 
       {:ok,
        everyone_user: everyone_user,
@@ -202,6 +201,35 @@ defmodule Elektrine.AccountsPrivacyTest do
       # After following, mentioner can mention user
       {:ok, _} = Elektrine.Profiles.follow_user(mentioner.id, user.id)
       assert {:ok, :allowed} = Accounts.can_mention?(user, mentioner)
+    end
+  end
+
+  defp create_user(attrs \\ %{}) do
+    privacy_keys = [
+      :profile_visibility,
+      :allow_group_adds_from,
+      :allow_direct_messages_from,
+      :allow_mentions_from
+    ]
+
+    {privacy_attrs, user_attrs} = Map.split(attrs, privacy_keys)
+
+    base_attrs = %{
+      username: "user#{System.unique_integer([:positive])}",
+      password: "hello world!",
+      password_confirmation: "hello world!"
+    }
+
+    {:ok, user} =
+      base_attrs
+      |> Map.merge(user_attrs)
+      |> Accounts.create_user()
+
+    if map_size(privacy_attrs) > 0 do
+      {:ok, user} = Accounts.update_user(user, privacy_attrs)
+      user
+    else
+      user
     end
   end
 end

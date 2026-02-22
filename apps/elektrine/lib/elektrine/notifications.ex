@@ -6,8 +6,8 @@ defmodule Elektrine.Notifications do
   require Logger
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Notifications.Notification
+  alias Elektrine.Repo
 
   @doc """
   Creates a notification.

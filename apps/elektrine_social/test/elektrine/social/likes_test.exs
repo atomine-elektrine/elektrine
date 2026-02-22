@@ -1,8 +1,8 @@
 defmodule Elektrine.Social.LikesTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.Social.Likes
   alias Elektrine.Repo
+  alias Elektrine.Social.Likes
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 

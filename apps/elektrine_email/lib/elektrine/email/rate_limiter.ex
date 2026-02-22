@@ -117,7 +117,7 @@ defmodule Elektrine.Email.RateLimiter do
 
     minute_count = count_recent(attempts, now, 60)
     hour_count = count_recent(attempts, now, 3600)
-    day_count = count_recent(attempts, now, 86400)
+    day_count = count_recent(attempts, now, 86_400)
 
     cond do
       minute_count >= minute_limit ->
@@ -261,7 +261,7 @@ defmodule Elektrine.Email.RateLimiter do
     recipients = get_recipients(user_id)
 
     # Count unique recipients in last 24 hours
-    day_cutoff = now - 86400
+    day_cutoff = now - 86_400
 
     recent_recipients =
       recipients
@@ -307,7 +307,7 @@ defmodule Elektrine.Email.RateLimiter do
 
       [{^user_id, recipients}] ->
         # Add new recipient and filter old ones (keep last 24 hours)
-        cutoff = now - 86400
+        cutoff = now - 86_400
         filtered = Enum.filter(recipients, fn {_email, ts} -> ts > cutoff end)
         new_recipients = [{normalized, now} | filtered]
         :ets.insert(@recipient_table, {user_id, new_recipients})
@@ -328,7 +328,7 @@ defmodule Elektrine.Email.RateLimiter do
 
       [{^user_id, attempts}] ->
         # Add new attempt and filter old ones (keep last 24 hours)
-        cutoff = now - 86400
+        cutoff = now - 86_400
         filtered = Enum.filter(attempts, fn ts -> ts > cutoff end)
         new_attempts = [now | filtered]
         :ets.insert(@table_name, {user_id, new_attempts})
@@ -357,7 +357,7 @@ defmodule Elektrine.Email.RateLimiter do
     attempts = get_attempts(user_id)
     recipients = get_recipients(user_id)
 
-    day_cutoff = now - 86400
+    day_cutoff = now - 86_400
 
     unique_recipients =
       recipients
@@ -381,10 +381,10 @@ defmodule Elektrine.Email.RateLimiter do
           limit: hour_limit,
           remaining: max(0, hour_limit - count_recent(attempts, now, 3600))
         },
-        86400 => %{
-          count: count_recent(attempts, now, 86400),
+        86_400 => %{
+          count: count_recent(attempts, now, 86_400),
           limit: day_limit,
-          remaining: max(0, day_limit - count_recent(attempts, now, 86400))
+          remaining: max(0, day_limit - count_recent(attempts, now, 86_400))
         }
       },
       recipients: %{
@@ -403,9 +403,9 @@ defmodule Elektrine.Email.RateLimiter do
 
     %{
       daily: %{
-        sent: status.attempts[86400].count,
-        limit: status.attempts[86400].limit,
-        remaining: status.attempts[86400].remaining
+        sent: status.attempts[86_400].count,
+        limit: status.attempts[86_400].limit,
+        remaining: status.attempts[86_400].remaining
       },
       hourly: %{
         sent: status.attempts[3600].count,
@@ -480,7 +480,7 @@ defmodule Elektrine.Email.RateLimiter do
   defp cleanup_expired_entries do
     now = System.system_time(:second)
     # Keep 2 days of data
-    cutoff = now - 86400 * 2
+    cutoff = now - 86_400 * 2
 
     # Clean up attempt records
     :ets.tab2list(@table_name)

@@ -109,10 +109,10 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     post = assigns.post
 
     # Determine if this is a reply
-    is_reply = PostUtilities.is_reply?(post)
+    is_reply = PostUtilities.reply?(post)
 
     # Determine if this is a gallery post
-    is_gallery_post = PostUtilities.is_gallery_post?(post)
+    is_gallery_post = PostUtilities.gallery_post?(post)
 
     # Determine click event
     click_event = assigns.click_event || PostUtilities.get_post_click_event(post)
@@ -725,9 +725,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             </div>
             <%= if @reply_content do %>
               <div class="mt-2 text-sm opacity-70 line-clamp-3 break-words pl-6">
-                {raw(
-                  PostUtilities.render_content_preview(@reply_content, @reply_instance_domain)
-                )}
+                {raw(PostUtilities.render_content_preview(@reply_content, @reply_instance_domain))}
               </div>
             <% else %>
               <%= if @in_reply_to_url && !@has_resolved_reply do %>
@@ -958,7 +956,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           phx-click="stop_propagation"
         >
           <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-          <%= if PostUtilities.is_reply?(@post) do %>
+          <%= if PostUtilities.reply?(@post) do %>
             View full thread on {if @post.remote_actor,
               do: @post.remote_actor.domain,
               else: "original instance"}
@@ -1087,8 +1085,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         <%= for {media_url, idx} <- Enum.with_index(@media_urls) do %>
           <% full_url = Elektrine.Uploads.attachment_url(media_url)
           alt_text = Map.get(@alt_texts, to_string(idx), "Posted media")
-          is_video = is_video_url?(full_url)
-          is_audio = is_audio_url?(full_url) %>
+          is_video = video_url?(full_url)
+          is_audio = audio_url?(full_url) %>
           <%= cond do %>
             <% is_video -> %>
               <video src={full_url} controls preload="metadata" class="rounded-lg max-h-96 w-full">
@@ -1748,8 +1746,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   # Compact layout for dense feeds
   defp render_compact_layout(assigns) do
     post = assigns.post
-    is_reply = PostUtilities.is_reply?(post)
-    is_gallery_post = PostUtilities.is_gallery_post?(post)
+    is_reply = PostUtilities.reply?(post)
+    is_gallery_post = PostUtilities.gallery_post?(post)
     click_event = assigns.click_event || PostUtilities.get_post_click_event(post)
 
     {display_like_count, display_comment_count} =
@@ -1845,7 +1843,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   # Helper functions - delegate to PostUtilities where possible
   defp extract_community_name(uri), do: PostUtilities.extract_community_name_simple(uri)
 
-  defp is_video_url?(url), do: PostUtilities.is_video_url?(url)
+  defp video_url?(url), do: PostUtilities.video_url?(url)
 
-  defp is_audio_url?(url), do: PostUtilities.is_audio_url?(url)
+  defp audio_url?(url), do: PostUtilities.audio_url?(url)
 end

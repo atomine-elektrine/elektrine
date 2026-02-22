@@ -1,28 +1,17 @@
 defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
-  @moduledoc """
-  Social operations for timeline interactions including following users,
-  previewing remote users, and managing private discussions.
-  """
-
+  @moduledoc "Social operations for timeline interactions including following users,\npreviewing remote users, and managing private discussions.\n"
   import Phoenix.LiveView
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
-
-  use Phoenix.VerifiedRoutes,
-    endpoint: ElektrineWeb.Endpoint,
-    router: ElektrineWeb.Router
-
+  use Phoenix.VerifiedRoutes, endpoint: ElektrineWeb.Endpoint, router: ElektrineWeb.Router
   require Logger
-
-  alias Elektrine.Social
-  alias Elektrine.Profiles
   alias Elektrine.ActivityPub
+  alias Elektrine.Profiles
+  alias Elektrine.Social
   alias ElektrineWeb.TimelineLive.Operations.Helpers
 
   def handle_event("follow_suggested_user", %{"user_id" => user_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
-    else
+    if socket.assigns[:current_user] do
       current_user_id = socket.assigns.current_user.id
       user_id = String.to_integer(user_id)
 
@@ -59,26 +48,27 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
           {:noreply,
            put_flash(socket, :error, "Couldn't follow this user right now. Please try again.")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
     end
   end
 
   def handle_event("refresh_suggestions", _params, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, socket}
-    else
+    if socket.assigns[:current_user] do
       new_suggestions = Social.get_suggested_follows(socket.assigns.current_user.id, limit: 5)
 
       {:noreply,
        socket
        |> assign(:suggested_follows, new_suggestions)
        |> put_flash(:info, "Suggestions refreshed!")}
+    else
+      {:noreply, socket}
     end
   end
 
   def handle_event("toggle_follow", %{"user_id" => user_id}, socket) do
     user_id = String.to_integer(user_id)
     current_user_id = socket.assigns.current_user.id
-
     currently_following = Map.get(socket.assigns.user_follows, {:local, user_id}, false)
 
     if currently_following do
@@ -109,7 +99,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
             |> put_flash(:info, "Now following user.")
 
           send(self(), {:load_followed_user_posts, user_id})
-
           {:noreply, updated_socket}
 
         {:error, _} ->
@@ -128,11 +117,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
 
       Task.start(fn ->
         case parse_and_fetch_remote_user(remote_handle) do
-          {:ok, actor} ->
-            send(lv_pid, {:remote_user_fetched, actor})
-
-          {:error, _reason} ->
-            send(lv_pid, {:remote_user_fetch_failed, remote_handle})
+          {:ok, actor} -> send(lv_pid, {:remote_user_fetched, actor})
+          {:error, _reason} -> send(lv_pid, {:remote_user_fetch_failed, remote_handle})
         end
       end)
 
@@ -147,8 +133,19 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
 
       case Profiles.follow_remote_actor(current_user.id, actor.id) do
         {:ok, _follow} ->
-          actor_type = if actor.actor_type == "Group", do: "community", else: "user"
-          handle_prefix = if actor.actor_type == "Group", do: "!", else: "@"
+          actor_type =
+            if actor.actor_type == "Group" do
+              "community"
+            else
+              "user"
+            end
+
+          handle_prefix =
+            if actor.actor_type == "Group" do
+              "!"
+            else
+              "@"
+            end
 
           {:noreply,
            socket
@@ -161,7 +158,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
           {:noreply,
            notify_info(
              socket,
-             "You're already following this #{if actor.actor_type == "Group", do: "community", else: "user"}"
+             "You're already following this #{if actor.actor_type == "Group" do
+               "community"
+             else
+               "user"
+             end}"
            )}
 
         {:error, reason} ->
@@ -176,9 +177,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
   def handle_event("toggle_follow_remote", %{"remote_actor_id" => remote_actor_id}, socket) do
     current_user = socket.assigns.current_user
 
-    if !current_user do
-      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
-    else
+    if current_user do
       remote_actor_id = String.to_integer(remote_actor_id)
 
       currently_following =
@@ -259,6 +258,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
              |> put_flash(:error, "Failed to follow user")}
         end
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
     end
   end
 
@@ -275,8 +276,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
          ) do
       {:ok, dm_conversation} ->
         {:noreply,
-         socket
-         |> push_navigate(to: ~p"/chat/#{dm_conversation.hash || dm_conversation.id}")}
+         socket |> push_navigate(to: ~p"/chat/#{dm_conversation.hash || dm_conversation.id}")}
 
       {:error, :rate_limited} ->
         {:noreply,
@@ -294,26 +294,20 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
 
   defp parse_and_fetch_remote_user(remote_handle) do
     handle =
-      remote_handle
-      |> String.trim_leading("@")
-      |> String.trim_leading("!")
-      |> String.trim()
+      remote_handle |> String.trim_leading("@") |> String.trim_leading("!") |> String.trim()
 
     case String.split(handle, "@") do
       [username, domain] when username != "" and domain != "" ->
         acct = "#{username}@#{domain}"
 
-        with {:ok, actor_uri} <- ActivityPub.Fetcher.webfinger_lookup(acct),
-             {:ok, actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-          {:ok, actor}
-        else
+        case ActivityPub.Fetcher.webfinger_lookup(acct) do
+          {:ok, actor_uri} ->
+            ActivityPub.get_or_fetch_actor(actor_uri)
+
           {:error, _} ->
             case ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
-              {:ok, actor_uri} ->
-                ActivityPub.get_or_fetch_actor(actor_uri)
-
-              error ->
-                error
+              {:ok, actor_uri} -> ActivityPub.get_or_fetch_actor(actor_uri)
+              error -> error
             end
         end
 

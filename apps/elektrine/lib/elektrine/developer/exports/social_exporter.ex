@@ -8,10 +8,10 @@ defmodule Elektrine.Developer.Exports.SocialExporter do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Messaging.Message
-  alias Elektrine.Social.PostLike
   alias Elektrine.Profiles.Follow
+  alias Elektrine.Repo
+  alias Elektrine.Social.PostLike
 
   @doc """
   Exports all social data for a user.

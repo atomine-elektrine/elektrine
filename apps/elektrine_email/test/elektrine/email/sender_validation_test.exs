@@ -4,9 +4,9 @@ defmodule Elektrine.Email.SenderValidationTest do
   """
 
   use Elektrine.DataCase
-  alias Elektrine.Email.Sender
   alias Elektrine.Accounts
   alias Elektrine.Email
+  alias Elektrine.Email.Sender
 
   describe "recipient validation" do
     setup do

@@ -3,8 +3,8 @@ defmodule Elektrine.Email.CustomFolders do
   Context module for managing custom email folders.
   """
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Email.Folder
+  alias Elektrine.Repo
 
   @max_folders_per_user 25
 

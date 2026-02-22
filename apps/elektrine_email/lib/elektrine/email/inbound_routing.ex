@@ -5,11 +5,11 @@ defmodule Elektrine.Email.InboundRouting do
 
   import Ecto.Query, warn: false
 
+  alias Elektrine.Accounts.User
   alias Elektrine.Email
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.Message
   alias Elektrine.Repo
-  alias Elektrine.Accounts.User
 
   @doc """
   Resolves an inbound recipient to either:

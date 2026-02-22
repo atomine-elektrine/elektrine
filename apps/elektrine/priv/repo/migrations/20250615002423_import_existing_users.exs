@@ -1,8 +1,8 @@
 defmodule Elektrine.Repo.Migrations.ImportExistingUsers do
   use Ecto.Migration
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   def up do
     # Read user data from environment variable

@@ -4,8 +4,8 @@ defmodule Elektrine.Accounts.BlockedUsersCache do
   """
 
   import Ecto.Query
-  alias Elektrine.Repo
   alias Elektrine.Accounts.User
+  alias Elektrine.Repo
 
   @cache_ttl :timer.minutes(5)
 

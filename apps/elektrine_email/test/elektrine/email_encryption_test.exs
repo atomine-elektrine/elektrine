@@ -1,7 +1,7 @@
 defmodule Elektrine.EmailEncryptionTest do
   use Elektrine.DataCase, async: false
 
-  alias Elektrine.{Email, Accounts, Repo}
+  alias Elektrine.{Accounts, Email, Repo}
   alias Elektrine.Email.Message
 
   setup do

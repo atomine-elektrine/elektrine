@@ -7,10 +7,10 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   import Ecto.Query
   require Logger
 
-  alias Elektrine.Repo
-  alias Elektrine.Social.{PostLike, PostBoost}
-  alias Elektrine.Profiles.Follow
   alias Elektrine.Messaging.MessageReaction
+  alias Elektrine.Profiles.Follow
+  alias Elektrine.Repo
+  alias Elektrine.Social.{PostBoost, PostLike}
   alias Elektrine.Social.SavedItem
 
   @doc """

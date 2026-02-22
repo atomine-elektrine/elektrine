@@ -1,46 +1,33 @@
 defmodule ElektrineWeb.OverviewLive.Index do
   use ElektrineWeb, :live_view
-
   require Logger
-
-  alias Elektrine.{Social, Messaging}
+  alias Elektrine.{Email, Friends, Messaging, Notifications, Profiles, Social, VPN}
   alias Elektrine.Social.Recommendations
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.TimelinePost
   import ElektrineWeb.Live.Helpers.PostStateHelpers
-
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)
   @feed_load_timeout_ms 12_000
-  @stats_load_timeout_ms 8_000
-
+  @stats_load_timeout_ms 8000
+  @dashboard_load_timeout_ms 10_000
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
 
-    # Require authentication for personalized overview
-    if !user do
-      {:ok,
-       socket
-       |> put_flash(:error, "Please sign in to view your personalized overview")
-       |> push_navigate(to: ~p"/login")}
-    else
-      # Set locale from session or user preference
+    if user do
       locale = session["locale"] || (user && user.locale) || "en"
       Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
       if connected?(socket) do
-        # Subscribe to all activity
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:all")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "gallery:all")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussions:all")
-
-        # Trigger async data loading after mount
         send(self(), :load_feed_data)
         send(self(), :load_stats_data)
+        send(self(), :load_dashboard_data)
       end
 
-      # Get user timezone and time format preference
       timezone = user.timezone || "Etc/UTC"
       time_format = user.time_format || "12"
 
@@ -62,22 +49,27 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:time_format, time_format)
        |> assign(:loading_feed, true)
        |> assign(:loading_stats, true)
+       |> assign(:loading_dashboard, true)
+       |> assign(:dashboard, default_dashboard())
+       |> assign(:dashboard_last_refreshed_at, nil)
        |> assign(:data_loaded, false)
        |> assign(:show_image_modal, false)
        |> assign(:modal_image_url, nil)
        |> assign(:modal_images, [])
        |> assign(:modal_image_index, 0)
        |> assign(:modal_post, nil)}
+    else
+      {:ok,
+       socket
+       |> put_flash(:error, "Please sign in to view your personalized overview")
+       |> push_navigate(to: ~p"/login")}
     end
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
-    # Read filter from URL params
     filter = normalize_filter(params["filter"])
 
-    # If data is already loaded, update filtered posts immediately
-    # Otherwise, just set the filter (data will be loaded async)
     socket =
       if socket.assigns.data_loaded do
         socket
@@ -93,14 +85,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @impl true
   def handle_event("set_filter", %{"filter" => filter}, socket) do
     filter = normalize_filter(filter)
-    # Use push_patch to update URL so browser back button works
     {:noreply, push_patch(socket, to: ~p"/overview?filter=#{filter}")}
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
-    else
+    if socket.assigns[:current_user] do
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
           user_id = socket.assigns.current_user.id
@@ -149,18 +138,17 @@ defmodule ElektrineWeb.OverviewLive.Index do
         :error ->
           {:noreply, put_flash(socket, :error, "Invalid post id")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
     end
   end
 
-  # Modal like toggle (for image modal)
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
     handle_event("like_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
-    if !socket.assigns[:current_user] do
-      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
-    else
+    if socket.assigns[:current_user] do
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
           user_id = socket.assigns.current_user.id
@@ -209,6 +197,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
         :error ->
           {:noreply, put_flash(socket, :error, "Invalid post id")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
     end
   end
 
@@ -219,16 +209,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
         post_type = params["type"] || (post && post.post_type)
 
         cond do
-          # Federated post - navigate to remote post view
           post && post.federated && post.activitypub_id ->
             {:noreply,
              push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(post.activitypub_id)}")}
 
-          # Local timeline post
           post_type == "post" ->
             {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
 
-          # Gallery post - use remote post page with activitypub_id if available
           post_type == "gallery" ->
             path =
               if post && post.activitypub_id do
@@ -239,7 +226,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
             {:noreply, push_navigate(socket, to: path)}
 
-          # Discussion post
           post_type == "discussion" && post ->
             conversation =
               if Ecto.assoc_loaded?(post.conversation) do
@@ -255,7 +241,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
               {:noreply, socket}
             end
 
-          # Fallback - default to timeline post
           true ->
             {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
         end
@@ -294,7 +279,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   def handle_event("show_reply_form", %{"message_id" => message_id}, socket) do
-    # Navigate to the post page to reply
     case parse_positive_int(message_id) do
       {:ok, message_id} ->
         post = Enum.find(socket.assigns.all_posts, &(&1.id == message_id))
@@ -312,11 +296,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   def handle_event("stop_propagation", _params, socket) do
-    # Prevents event from bubbling up to card click
     {:noreply, socket}
   end
 
-  # Image Modal Events
   def handle_event(
         "open_image_modal",
         %{"images" => images_json, "index" => index} = params,
@@ -373,9 +355,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       new_url = Enum.at(socket.assigns.modal_images, new_index)
 
       {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
+       socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
     else
       {:noreply, socket}
     end
@@ -389,15 +369,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
       new_url = Enum.at(socket.assigns.modal_images, new_index)
 
       {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
+       socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
     else
       {:noreply, socket}
     end
   end
 
-  # Navigate to next/previous post with media (scroll up/down in modal)
   def handle_event("next_media_post", _params, socket) do
     navigate_to_media_post(socket, :next)
   end
@@ -406,7 +383,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
     navigate_to_media_post(socket, :prev)
   end
 
-  # Additional handlers for timeline_post component
   def handle_event("view_post", %{"message_id" => message_id}, socket) do
     case parse_positive_int(message_id) do
       {:ok, message_id} ->
@@ -582,7 +558,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
     {:noreply, put_flash(socket, :error, "Admin actions not available here")}
   end
 
-  # Dwell time tracking events
   def handle_event("record_dwell_time", params, socket) do
     user = socket.assigns[:current_user]
 
@@ -644,7 +619,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   def handle_event("update_session_context", params, socket) do
-    # Store session context in socket assigns for use in next feed refresh
     liked_creators = params["liked_creators"] || []
     liked_local_creators = params["liked_local_creators"] || liked_creators
 
@@ -660,9 +634,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
     {:noreply, assign(socket, :session_context, session_context)}
   end
 
-  # Catch-all for empty/unknown events (some clicks in timeline_post trigger empty events)
-  def handle_event("", _params, socket), do: {:noreply, socket}
-  def handle_event(_event, _params, socket), do: {:noreply, socket}
+  def handle_event("", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event(_event, _params, socket) do
+    {:noreply, socket}
+  end
 
   defp navigate_to_media_post(socket, direction) do
     modal_post = socket.assigns[:modal_post]
@@ -671,20 +649,17 @@ defmodule ElektrineWeb.OverviewLive.Index do
     if is_nil(modal_post) or Enum.empty?(posts) do
       {:noreply, socket}
     else
-      # Find posts with media
       media_posts =
         Enum.filter(posts, fn post ->
           media_urls = post.media_urls || []
           media_urls != []
         end)
 
-      # Find current post index in media_posts
       current_index = Enum.find_index(media_posts, fn post -> post.id == modal_post.id end)
 
       if is_nil(current_index) do
         {:noreply, socket}
       else
-        # Calculate new index
         total = length(media_posts)
 
         new_index =
@@ -734,17 +709,32 @@ defmodule ElektrineWeb.OverviewLive.Index do
       end)
     end
 
-    {:noreply,
-     socket
-     |> update(:all_posts, update_fn)
-     |> update(:filtered_all_posts, update_fn)}
+    {:noreply, socket |> update(:all_posts, update_fn) |> update(:filtered_all_posts, update_fn)}
   end
 
-  # Async data loading handlers
-  def handle_info(:load_feed_data, socket) do
+  def handle_info(:load_dashboard_data, socket) do
     user = socket.assigns.current_user
 
-    # Get personalized recommendation feed (For You algorithm)
+    case load_with_timeout(
+           :dashboard_data,
+           fn -> build_dashboard_data(user) end,
+           @dashboard_load_timeout_ms
+         ) do
+      {:ok, dashboard} ->
+        {:noreply,
+         socket
+         |> assign(:dashboard, dashboard)
+         |> assign(:loading_dashboard, false)
+         |> assign(:dashboard_last_refreshed_at, DateTime.utc_now())}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket |> assign(:dashboard, default_dashboard()) |> assign(:loading_dashboard, false)}
+    end
+  end
+
+  def handle_info(:load_feed_data, socket) do
+    user = socket.assigns.current_user
     session_context = socket.assigns[:session_context] || %{}
 
     personalized_result =
@@ -766,10 +756,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
           load_with_timeout(
             :public_feed_fallback,
             fn ->
-              Social.get_public_timeline(user_id: user.id, limit: 50)
-              |> build_feed_state(user.id)
+              Social.get_public_timeline(user_id: user.id, limit: 50) |> build_feed_state(user.id)
             end,
-            5_000
+            5000
           )
 
         case fallback_result do
@@ -829,15 +818,512 @@ defmodule ElektrineWeb.OverviewLive.Index do
     {:noreply, socket}
   end
 
-  # Helper functions
-  # Get user likes as a map for timeline_post component
   defp get_user_likes_map(user_id, posts) do
     get_user_likes(user_id, posts)
   end
 
-  # Get user boosts as a map for timeline_post component
   defp get_user_boosts_map(user_id, posts) do
     get_user_boosts(user_id, posts)
+  end
+
+  defp default_dashboard do
+    %{
+      inbox_messages: [],
+      inbox_unread_count: 0,
+      chat_unread_count: 0,
+      notifications_unread_count: 0,
+      pending_friend_requests_count: 0,
+      pending_follow_requests_count: 0,
+      vpn_config_count: 0,
+      tasks: [],
+      alerts: [],
+      quick_actions: quick_actions(),
+      recent_activity: []
+    }
+  end
+
+  defp quick_actions do
+    [
+      %{
+        id: "compose_email",
+        label: "Compose Email",
+        detail: "Start a new message",
+        href: ~p"/email/compose?return_to=overview",
+        icon: "hero-pencil-square",
+        tone: "primary"
+      },
+      %{
+        id: "inbox",
+        label: "Open Inbox",
+        detail: "Review unread mail",
+        href: ~p"/email?tab=inbox&filter=unread",
+        icon: "hero-envelope",
+        tone: "neutral"
+      },
+      %{
+        id: "chat",
+        label: "Open Chat",
+        detail: "Jump into conversations",
+        href: ~p"/chat",
+        icon: "hero-chat-bubble-left-right",
+        tone: "neutral"
+      },
+      %{
+        id: "timeline",
+        label: "Post to Timeline",
+        detail: "Share an update",
+        href: ~p"/timeline",
+        icon: "hero-rectangle-stack",
+        tone: "neutral"
+      },
+      %{
+        id: "search",
+        label: "Global Search",
+        detail: "Find people, posts, and messages",
+        href: ~p"/search",
+        icon: "hero-magnifying-glass",
+        tone: "neutral"
+      },
+      %{
+        id: "vpn",
+        label: "VPN",
+        detail: "Manage your WireGuard configs",
+        href: ~p"/vpn",
+        icon: "hero-shield-check",
+        tone: "neutral"
+      }
+    ]
+  end
+
+  defp build_dashboard_data(user) do
+    mailbox = Email.get_user_mailbox(user.id)
+
+    {inbox_messages, inbox_unread_count, reply_later_count} =
+      if mailbox do
+        {Email.list_inbox_messages(mailbox.id, 5, 0), Email.unread_inbox_count(mailbox.id),
+         Email.unread_reply_later_count(mailbox.id)}
+      else
+        {[], 0, 0}
+      end
+
+    chat_unread_count = Messaging.get_unread_count(user.id)
+    recent_conversations = Messaging.list_conversations(user.id, limit: 3)
+    notifications_unread_count = Notifications.get_unread_count(user.id)
+    recent_notifications = Notifications.list_notifications(user.id, limit: 8)
+    pending_friend_requests = Friends.list_pending_requests(user.id)
+    pending_follow_requests = Profiles.get_pending_follow_requests(user.id)
+    vpn_configs = VPN.list_user_configs(user.id)
+    recent_posts = Social.get_user_timeline_posts(user.id, limit: 3)
+    pending_friend_requests_count = length(pending_friend_requests)
+    pending_follow_requests_count = length(pending_follow_requests)
+    vpn_config_count = length(vpn_configs)
+
+    tasks =
+      build_dashboard_tasks(
+        inbox_unread_count,
+        reply_later_count,
+        chat_unread_count,
+        pending_friend_requests_count,
+        pending_follow_requests_count,
+        vpn_config_count
+      )
+
+    alerts =
+      build_dashboard_alerts(
+        inbox_unread_count,
+        notifications_unread_count,
+        chat_unread_count,
+        pending_follow_requests_count
+      )
+
+    %{
+      inbox_messages: inbox_messages,
+      inbox_unread_count: inbox_unread_count,
+      chat_unread_count: chat_unread_count,
+      notifications_unread_count: notifications_unread_count,
+      pending_friend_requests_count: pending_friend_requests_count,
+      pending_follow_requests_count: pending_follow_requests_count,
+      vpn_config_count: vpn_config_count,
+      tasks: tasks,
+      alerts: alerts,
+      quick_actions: quick_actions(),
+      recent_activity:
+        build_recent_activity(
+          inbox_messages,
+          recent_conversations,
+          recent_posts,
+          recent_notifications,
+          vpn_configs
+        )
+    }
+  end
+
+  defp build_dashboard_tasks(
+         inbox_unread_count,
+         reply_later_count,
+         chat_unread_count,
+         pending_friend_requests_count,
+         pending_follow_requests_count,
+         vpn_config_count
+       ) do
+    [
+      if inbox_unread_count > 0 do
+        %{
+          id: "review_inbox",
+          title: "Review unread inbox",
+          detail: "#{inbox_unread_count} message(s) waiting",
+          href: ~p"/email?tab=inbox&filter=unread",
+          icon: "hero-envelope",
+          priority: "high"
+        }
+      end,
+      if reply_later_count > 0 do
+        %{
+          id: "reply_later",
+          title: "Handle boomerang reminders",
+          detail: "#{reply_later_count} follow-up reminder(s)",
+          href: ~p"/email?tab=inbox&filter=boomerang",
+          icon: "hero-arrow-uturn-left",
+          priority: "medium"
+        }
+      end,
+      if pending_friend_requests_count > 0 do
+        %{
+          id: "friend_requests",
+          title: "Respond to friend requests",
+          detail: "#{pending_friend_requests_count} pending request(s)",
+          href: ~p"/friends?tab=requests",
+          icon: "hero-user-plus",
+          priority: "medium"
+        }
+      end,
+      if pending_follow_requests_count > 0 do
+        %{
+          id: "follow_requests",
+          title: "Review fediverse follows",
+          detail: "#{pending_follow_requests_count} remote request(s)",
+          href: ~p"/friends?tab=requests",
+          icon: "hero-globe-americas",
+          priority: "high"
+        }
+      end,
+      if chat_unread_count > 0 do
+        %{
+          id: "chat_unread",
+          title: "Catch up on chat",
+          detail: "#{chat_unread_count} unread chat message(s)",
+          href: ~p"/chat",
+          icon: "hero-chat-bubble-left-right",
+          priority: "medium"
+        }
+      end,
+      if vpn_config_count == 0 do
+        %{
+          id: "vpn_setup",
+          title: "Create your first VPN config",
+          detail: "Protect your traffic before browsing",
+          href: ~p"/vpn",
+          icon: "hero-shield-check",
+          priority: "low"
+        }
+      end
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp build_dashboard_alerts(
+         inbox_unread_count,
+         notifications_unread_count,
+         chat_unread_count,
+         pending_follow_requests_count
+       ) do
+    [
+      if pending_follow_requests_count > 0 do
+        %{
+          id: "fediverse_follow_requests",
+          title: "Pending fediverse follow approvals",
+          detail: "#{pending_follow_requests_count} request(s) are waiting",
+          href: ~p"/friends?tab=requests",
+          icon: "hero-globe-americas",
+          level: "high"
+        }
+      end,
+      if notifications_unread_count >= 15 do
+        %{
+          id: "notification_backlog",
+          title: "Notification backlog building up",
+          detail: "#{notifications_unread_count} unread notifications",
+          href: ~p"/notifications",
+          icon: "hero-bell-alert",
+          level: "medium"
+        }
+      end,
+      if inbox_unread_count >= 25 do
+        %{
+          id: "inbox_backlog",
+          title: "Inbox backlog is growing",
+          detail: "#{inbox_unread_count} unread inbox messages",
+          href: ~p"/email?tab=inbox&filter=unread",
+          icon: "hero-envelope",
+          level: "medium"
+        }
+      end,
+      if chat_unread_count >= 20 do
+        %{
+          id: "chat_backlog",
+          title: "Chat backlog is growing",
+          detail: "#{chat_unread_count} unread chat messages",
+          href: ~p"/chat",
+          icon: "hero-chat-bubble-left-right",
+          level: "low"
+        }
+      end
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp build_recent_activity(
+         inbox_messages,
+         recent_conversations,
+         recent_posts,
+         recent_notifications,
+         vpn_configs
+       ) do
+    email_items =
+      inbox_messages
+      |> Enum.take(3)
+      |> Enum.map(fn message ->
+        %{
+          id: "email-#{message.id}",
+          app: "Email",
+          title: inbox_subject(message),
+          detail: "From #{inbox_sender(message.from)}",
+          href: ~p"/email/view/#{message.hash || message.id}",
+          icon: "hero-envelope",
+          at: message.inserted_at
+        }
+      end)
+
+    chat_items =
+      recent_conversations
+      |> Enum.take(3)
+      |> Enum.map(fn conversation ->
+        %{
+          id: "chat-#{conversation.id}",
+          app: "Chat",
+          title: conversation_label(conversation),
+          detail: String.capitalize(conversation.type || "conversation"),
+          href: ~p"/chat/#{conversation.hash || conversation.id}",
+          icon: "hero-chat-bubble-left-right",
+          at: conversation.last_message_at || conversation.updated_at || conversation.inserted_at
+        }
+      end)
+
+    social_items =
+      recent_posts
+      |> Enum.take(3)
+      |> Enum.map(fn post ->
+        %{
+          id: "social-#{post.id}",
+          app: "Social",
+          title: social_post_title(post),
+          detail: "Timeline update",
+          href: ~p"/timeline/post/#{post.id}",
+          icon: "hero-rectangle-stack",
+          at: post.inserted_at
+        }
+      end)
+
+    notification_items =
+      recent_notifications
+      |> Enum.take(3)
+      |> Enum.map(fn notification ->
+        %{
+          id: "notification-#{notification.id}",
+          app: notification_activity_app(notification),
+          title: trim_or(notification.title, "Notification"),
+          detail: notification_activity_detail(notification),
+          href: normalize_internal_path(notification.url),
+          icon: notification_activity_icon(notification),
+          at: notification.inserted_at
+        }
+      end)
+
+    vpn_items =
+      case Enum.max_by(vpn_configs, &sort_datetime(&1.updated_at || &1.inserted_at), fn -> nil end) do
+        nil ->
+          []
+
+        config ->
+          [
+            %{
+              id: "vpn-#{config.id}",
+              app: "VPN",
+              title: "VPN profile ready",
+              detail: trim_or(config.vpn_server && config.vpn_server.name, "WireGuard config"),
+              href: ~p"/vpn",
+              icon: "hero-shield-check",
+              at: config.updated_at || config.inserted_at
+            }
+          ]
+      end
+
+    (email_items ++ chat_items ++ social_items ++ notification_items ++ vpn_items)
+    |> Enum.sort_by(&sort_datetime(&1.at), :desc)
+    |> Enum.take(10)
+  end
+
+  defp trim_or(value, fallback) when is_binary(value) do
+    value = String.trim(value)
+
+    if value == "" do
+      fallback
+    else
+      value
+    end
+  end
+
+  defp trim_or(_value, fallback) do
+    fallback
+  end
+
+  defp inbox_subject(%{subject: subject}) when is_binary(subject) do
+    subject |> trim_or("(No subject)") |> truncate_text(72)
+  end
+
+  defp inbox_subject(_) do
+    "(No subject)"
+  end
+
+  defp inbox_sender(from) do
+    from |> trim_or("Unknown sender") |> extract_sender_name() |> truncate_text(42)
+  end
+
+  defp extract_sender_name(from) when is_binary(from) do
+    case Regex.run(~r/^(.+?)\s*<(.+)>$/, from) do
+      [_, name, _email] -> name |> String.trim() |> String.trim("\"") |> trim_or(from)
+      _ -> from
+    end
+  end
+
+  defp extract_sender_name(from) do
+    from
+  end
+
+  defp truncate_text(text, max_length) when is_binary(text) and max_length > 1 do
+    if String.length(text) > max_length do
+      if max_length <= 3 do
+        String.slice(text, 0, max_length)
+      else
+        String.slice(text, 0, max_length - 3) <> "..."
+      end
+    else
+      text
+    end
+  end
+
+  defp truncate_text(_text, _max_length) do
+    ""
+  end
+
+  defp conversation_label(conversation) do
+    name = trim_or(conversation.name, "")
+
+    cond do
+      name != "" -> name
+      conversation.type == "dm" -> "Direct message"
+      true -> "Conversation ##{conversation.id}"
+    end
+  end
+
+  defp social_post_title(post) do
+    trim_or(post.title || post.content, "New social post") |> truncate_text(72)
+  end
+
+  defp notification_activity_app(notification) do
+    case {notification.type, notification.source_type} do
+      {"email_received", _} -> "Email"
+      {_, "message"} -> "Chat"
+      {_, "post"} -> "Social"
+      {_, "discussion"} -> "Social"
+      {"follow", _} -> "Social"
+      {"mention", _} -> "Social"
+      _ -> "Alerts"
+    end
+  end
+
+  defp notification_activity_icon(notification) do
+    case notification.type do
+      "email_received" -> "hero-envelope"
+      "new_message" -> "hero-chat-bubble-left-right"
+      "reply" -> "hero-chat-bubble-left"
+      "follow" -> "hero-user-plus"
+      "mention" -> "hero-at-symbol"
+      "like" -> "hero-heart"
+      _ -> "hero-bell"
+    end
+  end
+
+  defp notification_activity_detail(notification) do
+    trim_or(notification.body, "Recent update") |> truncate_text(90)
+  end
+
+  defp normalize_internal_path(path) when is_binary(path) do
+    path = String.trim(path)
+
+    if String.starts_with?(path, "/") do
+      path
+    else
+      ~p"/notifications"
+    end
+  end
+
+  defp normalize_internal_path(_) do
+    ~p"/notifications"
+  end
+
+  defp sort_datetime(%DateTime{} = datetime) do
+    DateTime.to_unix(datetime)
+  end
+
+  defp sort_datetime(%NaiveDateTime{} = datetime) do
+    DateTime.from_naive!(datetime, "Etc/UTC") |> DateTime.to_unix()
+  end
+
+  defp sort_datetime(_) do
+    0
+  end
+
+  defp quick_action_button_class("primary") do
+    "btn btn-sm btn-secondary"
+  end
+
+  defp quick_action_button_class(_tone) do
+    "btn btn-sm btn-ghost border border-base-300"
+  end
+
+  defp task_priority_badge_class("high") do
+    "badge badge-error badge-xs"
+  end
+
+  defp task_priority_badge_class("medium") do
+    "badge badge-warning badge-xs"
+  end
+
+  defp task_priority_badge_class(_priority) do
+    "badge badge-ghost badge-xs"
+  end
+
+  defp alert_level_badge_class("high") do
+    "badge badge-error badge-xs"
+  end
+
+  defp alert_level_badge_class("medium") do
+    "badge badge-warning badge-xs"
+  end
+
+  defp alert_level_badge_class(_level) do
+    "badge badge-info badge-xs"
   end
 
   defp filtered_posts(posts, "timeline", _assigns) do
@@ -856,16 +1342,25 @@ defmodule ElektrineWeb.OverviewLive.Index do
     Enum.filter(posts, fn post -> post.sender_id == user.id end)
   end
 
-  defp filtered_posts(posts, _, _assigns), do: posts
+  defp filtered_posts(posts, _, _assigns) do
+    posts
+  end
 
-  defp normalize_filter(filter) when is_binary(filter) and filter in @allowed_filters, do: filter
-  defp normalize_filter(_), do: @default_filter
+  defp normalize_filter(filter) when is_binary(filter) and filter in @allowed_filters do
+    filter
+  end
+
+  defp normalize_filter(_) do
+    @default_filter
+  end
 
   defp base_posts_for_filter("my_posts", %{current_user: user}) do
     get_user_own_posts(user.id)
   end
 
-  defp base_posts_for_filter(_filter, %{all_posts: posts}), do: posts
+  defp base_posts_for_filter(_filter, %{all_posts: posts}) do
+    posts
+  end
 
   defp prepend_new_post(socket, post) do
     socket = update(socket, :all_posts, fn posts -> [post | posts] end)
@@ -883,7 +1378,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
-  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+  defp parse_positive_int(value) when is_integer(value) and value > 0 do
+    {:ok, value}
+  end
 
   defp parse_positive_int(value) when is_binary(value) do
     case Integer.parse(value) do
@@ -892,9 +1389,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
-  defp parse_positive_int(_), do: :error
+  defp parse_positive_int(_) do
+    :error
+  end
 
-  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0 do
+    value
+  end
 
   defp parse_non_negative_int(value, default) when is_binary(value) do
     case Integer.parse(value) do
@@ -903,7 +1404,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
-  defp parse_non_negative_int(_, default), do: default
+  defp parse_non_negative_int(_, default) do
+    default
+  end
 
   defp assign_feed_data(socket, feed_data) do
     posts =
@@ -924,11 +1427,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp build_feed_state(all_posts, user_id) do
-    # Get user likes and boosts as maps for timeline_post component
     user_likes = get_user_likes_map(user_id, all_posts)
     user_boosts = get_user_boosts_map(user_id, all_posts)
-
-    # Get user follows
     user_follows = get_user_follows(user_id, all_posts)
     pending_follows = get_pending_follows(user_id, all_posts)
 
@@ -942,13 +1442,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp default_platform_stats do
-    %{
-      posts_today: 0,
-      posts_this_week: 0,
-      active_users: 0,
-      top_post_today: nil,
-      top_creators: []
-    }
+    %{posts_today: 0, posts_this_week: 0, active_users: 0, top_post_today: nil, top_creators: []}
   end
 
   defp default_personal_stats do
@@ -987,42 +1481,34 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
-  # Get platform-wide statistics
   defp get_platform_stats do
     import Ecto.Query
-
-    # Posts created today
     today_start = NaiveDateTime.utc_now() |> NaiveDateTime.beginning_of_day()
 
     posts_today =
       from(m in Messaging.Message,
         where:
-          m.post_type in ["post", "gallery", "discussion"] and
-            m.inserted_at > ^today_start and
+          m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
             is_nil(m.deleted_at),
         select: count(m.id)
       )
       |> Elektrine.Repo.one() || 0
 
-    # Posts this week
     week_start = NaiveDateTime.utc_now() |> NaiveDateTime.add(-7 * 24 * 60 * 60)
 
     posts_this_week =
       from(m in Messaging.Message,
         where:
-          m.post_type in ["post", "gallery", "discussion"] and
-            m.inserted_at > ^week_start and
+          m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^week_start and
             is_nil(m.deleted_at),
         select: count(m.id)
       )
       |> Elektrine.Repo.one() || 0
 
-    # Active users (posted in last 24 hours)
     active_users =
       from(m in Messaging.Message,
         where:
-          m.post_type in ["post", "gallery", "discussion"] and
-            m.inserted_at > ^today_start and
+          m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
             is_nil(m.deleted_at),
         select: m.sender_id,
         distinct: true
@@ -1030,26 +1516,21 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> Elektrine.Repo.all()
       |> length()
 
-    # Most liked post today
     top_post_today =
       from(m in Messaging.Message,
         where:
-          m.post_type in ["post", "gallery", "discussion"] and
-            m.inserted_at > ^today_start and
-            m.visibility == "public" and
-            is_nil(m.deleted_at),
+          m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
+            m.visibility == "public" and is_nil(m.deleted_at),
         order_by: [desc: m.like_count],
         limit: 1,
         preload: [sender: [:profile]]
       )
       |> Elektrine.Repo.one()
 
-    # Top creators this week (by post count)
     top_creators =
       from(m in Messaging.Message,
         where:
-          m.post_type in ["post", "gallery", "discussion"] and
-            m.inserted_at > ^week_start and
+          m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^week_start and
             is_nil(m.deleted_at),
         group_by: m.sender_id,
         order_by: [desc: count(m.id)],
@@ -1070,22 +1551,18 @@ defmodule ElektrineWeb.OverviewLive.Index do
     }
   end
 
-  # Get personal user statistics
   defp get_personal_stats(user_id) do
     import Ecto.Query
 
-    # Total posts across all types
     total_posts =
       from(m in Messaging.Message,
         where:
-          m.sender_id == ^user_id and
-            m.post_type in ["post", "gallery", "discussion"] and
+          m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
             is_nil(m.deleted_at),
         select: count(m.id)
       )
       |> Elektrine.Repo.one() || 0
 
-    # Posts by type
     timeline_posts =
       from(m in Messaging.Message,
         where: m.sender_id == ^user_id and m.post_type == "post" and is_nil(m.deleted_at),
@@ -1107,27 +1584,22 @@ defmodule ElektrineWeb.OverviewLive.Index do
       )
       |> Elektrine.Repo.one() || 0
 
-    # Total likes received
     total_likes =
       from(m in Messaging.Message,
         where:
-          m.sender_id == ^user_id and
-            m.post_type in ["post", "gallery", "discussion"] and
+          m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
             is_nil(m.deleted_at),
         select: sum(m.like_count)
       )
       |> Elektrine.Repo.one() || 0
 
-    # Follower/following counts
     followers = Elektrine.Profiles.get_follower_count(user_id)
     following = Elektrine.Profiles.get_following_count(user_id)
 
-    # Most liked post
     top_post =
       from(m in Messaging.Message,
         where:
-          m.sender_id == ^user_id and
-            m.post_type in ["post", "gallery", "discussion"] and
+          m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
             is_nil(m.deleted_at),
         order_by: [desc: m.like_count],
         limit: 1,
@@ -1147,14 +1619,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
     }
   end
 
-  # Get user's own posts (for "My Posts" filter)
   defp get_user_own_posts(user_id) do
     import Ecto.Query
 
     from(m in Messaging.Message,
       where:
-        m.sender_id == ^user_id and
-          m.post_type in ["post", "gallery", "discussion"] and
+        m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
           is_nil(m.deleted_at),
       order_by: [desc: m.inserted_at],
       limit: 50,

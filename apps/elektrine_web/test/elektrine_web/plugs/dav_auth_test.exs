@@ -3,9 +3,9 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
   import Plug.Test
   import Plug.Conn
 
-  alias ElektrineWeb.Plugs.DAVAuth
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
+  alias ElektrineWeb.Plugs.DAVAuth
 
   # Helper to create a test user
   defp create_test_user(attrs \\ %{}) do

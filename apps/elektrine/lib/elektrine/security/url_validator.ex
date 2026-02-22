@@ -40,7 +40,7 @@ defmodule Elektrine.Security.URLValidator do
   defp validate_uri(%URI{scheme: scheme, host: host} = uri)
        when scheme in ["http", "https"] and is_binary(host) do
     with :ok <- validate_host(host),
-         false <- is_dangerous_port?(uri) do
+         false <- dangerous_port?(uri) do
       :ok
     else
       true ->
@@ -52,14 +52,17 @@ defmodule Elektrine.Security.URLValidator do
   end
 
   defp validate_uri(%URI{scheme: nil}), do: {:error, :missing_scheme}
-  defp validate_uri(%URI{scheme: scheme}) when scheme not in ["http", "https"], do: {:error, :invalid_scheme}
+
+  defp validate_uri(%URI{scheme: scheme}) when scheme not in ["http", "https"],
+    do: {:error, :invalid_scheme}
+
   defp validate_uri(_), do: {:error, :invalid_url}
 
   defp validate_host(host) when is_binary(host) do
     normalized_host = normalize_host(host)
 
     cond do
-      is_private_ip?(normalized_host) ->
+      private_ip?(normalized_host) ->
         {:error, :private_ip}
 
       is_private_domain?(normalized_host) ->
@@ -93,7 +96,7 @@ defmodule Elektrine.Security.URLValidator do
   @doc """
   Checks if a host is a private/internal IP address.
   """
-  def is_private_ip?(host) when is_binary(host) do
+  def private_ip?(host) when is_binary(host) do
     host = normalize_host(host)
 
     case parse_address(host) do
@@ -110,7 +113,7 @@ defmodule Elektrine.Security.URLValidator do
     end
   end
 
-  def is_private_ip?(_), do: false
+  def private_ip?(_), do: false
 
   defp normalize_host(host) do
     host
@@ -358,19 +361,19 @@ defmodule Elektrine.Security.URLValidator do
     3306,
     5432,
     6379,
-    27017,
+    27_017,
     9200,
     9300,
-    11211,
+    11_211,
     2379,
     2380
   ]
 
-  defp is_dangerous_port?(%URI{port: nil}), do: false
-  defp is_dangerous_port?(%URI{port: 80}), do: false
-  defp is_dangerous_port?(%URI{port: 443}), do: false
-  defp is_dangerous_port?(%URI{port: 8080}), do: false
-  defp is_dangerous_port?(%URI{port: 8443}), do: false
-  defp is_dangerous_port?(%URI{port: port}) when port in @dangerous_ports, do: true
-  defp is_dangerous_port?(_), do: false
+  defp dangerous_port?(%URI{port: nil}), do: false
+  defp dangerous_port?(%URI{port: 80}), do: false
+  defp dangerous_port?(%URI{port: 443}), do: false
+  defp dangerous_port?(%URI{port: 8080}), do: false
+  defp dangerous_port?(%URI{port: 8443}), do: false
+  defp dangerous_port?(%URI{port: port}) when port in @dangerous_ports, do: true
+  defp dangerous_port?(_), do: false
 end

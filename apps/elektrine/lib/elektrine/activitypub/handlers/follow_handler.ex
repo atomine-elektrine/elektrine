@@ -1,23 +1,15 @@
 defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
-  @moduledoc """
-  Handles Follow, Accept, and Reject ActivityPub activities.
-  """
-
+  @moduledoc "Handles Follow, Accept, and Reject ActivityPub activities.\n"
   require Logger
-
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Builder, Publisher, Relay}
   alias Elektrine.Profiles
-
-  @doc """
-  Handles an incoming Follow activity.
-  """
+  @doc "Handles an incoming Follow activity.\n"
   def handle(
         %{"id" => follow_id, "actor" => actor_uri, "object" => object_uri},
         actor_uri,
         _target_user
       ) do
-    # Get or fetch the remote actor (create mock in dev for testing)
     remote_actor_result =
       if Application.get_env(:elektrine, :env) == :dev do
         case ActivityPub.get_or_fetch_actor(actor_uri) do
@@ -25,7 +17,6 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
             {:ok, actor}
 
           {:error, _} ->
-            # Create and save a minimal mock actor for testing
             uri = URI.parse(actor_uri)
 
             Elektrine.Repo.insert(
@@ -46,37 +37,31 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
         ActivityPub.get_or_fetch_actor(actor_uri)
       end
 
-    with {:ok, remote_actor} <- remote_actor_result do
-      # Check if target is our relay actor (dynamic URL check)
-      relay_url = Relay.relay_actor_id()
+    case remote_actor_result do
+      {:ok, remote_actor} ->
+        relay_url = Relay.relay_actor_id()
 
-      cond do
-        # Target is our relay actor - relays following us
-        object_uri == relay_url ->
-          Logger.info("Relay #{actor_uri} wants to follow our relay")
-          # Auto-accept relay follows - send Accept back
-          {:ok, relay_actor} = Relay.get_or_create_relay_actor()
-          send_relay_accept(relay_actor, remote_actor, follow_id)
-          {:ok, :relay_follow_accepted}
+        cond do
+          object_uri == relay_url ->
+            Logger.info("Relay #{actor_uri} wants to follow our relay")
+            {:ok, relay_actor} = Relay.get_or_create_relay_actor()
+            send_relay_accept(relay_actor, remote_actor, follow_id)
+            {:ok, :relay_follow_accepted}
 
-        # Check if target is a local Group actor (community)
-        group_actor = ActivityPub.get_local_group_actor_by_uri(object_uri) ->
-          handle_group_follow(remote_actor, group_actor, follow_id, actor_uri)
+          group_actor = ActivityPub.get_local_group_actor_by_uri(object_uri) ->
+            handle_group_follow(remote_actor, group_actor, follow_id, actor_uri)
 
-        # Default to user follow
-        true ->
-          handle_user_follow(remote_actor, object_uri, follow_id, actor_uri)
-      end
-    else
+          true ->
+            handle_user_follow(remote_actor, object_uri, follow_id, actor_uri)
+        end
+
       error ->
         Logger.error("Failed to handle follow: #{inspect(error)}")
         {:error, :handle_follow_failed}
     end
   end
 
-  @doc """
-  Handles an incoming Accept activity for a Follow.
-  """
+  @doc "Handles an incoming Accept activity for a Follow.\n"
   def handle_accept(
         %{"object" => %{"type" => "Follow", "id" => follow_id}} = _activity,
         actor_uri,
@@ -86,26 +71,18 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
       "FollowHandler: Received Accept with Follow object, id=#{follow_id}, actor=#{actor_uri}"
     )
 
-    # First check if this is a relay subscription Accept
     case Relay.handle_accept(follow_id) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_accepted}
 
       {:error, :subscription_not_found} ->
-        # Try matching by actor URI (some relays send Accept from their actor)
         case Relay.handle_accept_from_actor(actor_uri) do
-          {:ok, _subscription} ->
-            {:ok, :relay_subscription_accepted}
-
-          {:error, :subscription_not_found} ->
-            # Not a relay, check for regular user follow
-            handle_user_accept(follow_id)
+          {:ok, _subscription} -> {:ok, :relay_subscription_accepted}
+          {:error, :subscription_not_found} -> handle_user_accept(follow_id)
         end
     end
   end
 
-  # Handle Accept where object is just a string (the Follow activity ID)
-  # Some relay implementations send Accept with just the object ID as a string
   def handle_accept(
         %{"object" => follow_id} = _activity,
         actor_uri,
@@ -116,27 +93,22 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
       "FollowHandler: Received Accept with string object=#{follow_id}, actor=#{actor_uri}"
     )
 
-    # Check if this is a relay subscription Accept
     case Relay.handle_accept(follow_id) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_accepted}
 
       {:error, :subscription_not_found} ->
-        # Try matching by actor URI
         case Relay.handle_accept_from_actor(actor_uri) do
-          {:ok, _subscription} ->
-            {:ok, :relay_subscription_accepted}
-
-          {:error, :subscription_not_found} ->
-            # Not a relay, check for regular user follow
-            handle_user_accept(follow_id)
+          {:ok, _subscription} -> {:ok, :relay_subscription_accepted}
+          {:error, :subscription_not_found} -> handle_user_accept(follow_id)
         end
     end
   end
 
-  def handle_accept(_activity, _actor_uri, _target_user), do: {:ok, :unhandled}
+  def handle_accept(_activity, _actor_uri, _target_user) do
+    {:ok, :unhandled}
+  end
 
-  # Helper for handling user follow accepts
   defp handle_user_accept(follow_id) do
     case ActivityPub.get_activity_by_id(follow_id) do
       nil ->
@@ -161,21 +133,17 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     end
   end
 
-  @doc """
-  Handles an incoming Reject activity for a Follow.
-  """
+  @doc "Handles an incoming Reject activity for a Follow.\n"
   def handle_reject(
         %{"object" => %{"type" => "Follow", "id" => follow_id}},
         _actor_uri,
         _target_user
       ) do
-    # First check if this is a relay subscription Reject
     case Relay.handle_reject(follow_id) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_rejected}
 
       {:error, :subscription_not_found} ->
-        # Not a relay, check for regular user follow
         case ActivityPub.get_activity_by_id(follow_id) do
           nil ->
             {:ok, :unknown_follow}
@@ -191,29 +159,30 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     end
   end
 
-  def handle_reject(_activity, _actor_uri, _target_user), do: {:ok, :unhandled}
+  def handle_reject(_activity, _actor_uri, _target_user) do
+    {:ok, :unhandled}
+  end
 
-  @doc """
-  Handles Undo Follow activity.
-  """
+  @doc "Handles Undo Follow activity.\n"
   def handle_undo(%{"object" => followed_uri}, actor_uri) when is_binary(followed_uri) do
-    with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-      case ActivityPub.get_local_group_actor_by_uri(followed_uri) do
-        nil ->
-          case get_local_user_from_uri(followed_uri) do
-            {:ok, followed_user} ->
-              Profiles.delete_remote_follow(remote_actor.id, followed_user.id)
-              {:ok, :unfollowed}
+    case ActivityPub.get_or_fetch_actor(actor_uri) do
+      {:ok, remote_actor} ->
+        case ActivityPub.get_local_group_actor_by_uri(followed_uri) do
+          nil ->
+            case get_local_user_from_uri(followed_uri) do
+              {:ok, followed_user} ->
+                Profiles.delete_remote_follow(remote_actor.id, followed_user.id)
+                {:ok, :unfollowed}
 
-            {:error, _} ->
-              {:ok, :target_not_found}
-          end
+              {:error, _} ->
+                {:ok, :target_not_found}
+            end
 
-        group_actor ->
-          ActivityPub.delete_group_follow(remote_actor.id, group_actor.id)
-          {:ok, :unfollowed}
-      end
-    else
+          group_actor ->
+            ActivityPub.delete_group_follow(remote_actor.id, group_actor.id)
+            {:ok, :unfollowed}
+        end
+
       {:error, reason} ->
         Logger.warning("Failed to process Undo Follow from #{actor_uri}: #{inspect(reason)}")
         {:error, :undo_follow_failed}
@@ -231,8 +200,6 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     {:ok, :invalid}
   end
 
-  # Private functions
-
   defp handle_user_follow(remote_actor, object_uri, follow_id, _actor_uri) do
     case get_local_user_from_uri(object_uri) do
       {:ok, followed_user} ->
@@ -240,7 +207,6 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
 
         if existing_follow do
           if existing_follow.pending do
-            # Keep pending requests pending until explicitly approved by the local user.
             {:ok, :pending}
           else
             send_accept(followed_user, remote_actor, existing_follow)

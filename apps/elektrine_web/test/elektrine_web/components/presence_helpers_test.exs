@@ -30,7 +30,7 @@ defmodule ElektrineWeb.Components.Presence.HelpersTest do
     test "returns days for < 1 week" do
       now = System.system_time(:second)
       # 2 days ago
-      last_seen = now - 2 * 86400
+      last_seen = now - 2 * 86_400
 
       assert PresenceHelpers.format_last_seen("offline", last_seen) == "Last seen 2d ago"
     end
@@ -38,7 +38,7 @@ defmodule ElektrineWeb.Components.Presence.HelpersTest do
     test "returns 'a while ago' for > 1 week" do
       now = System.system_time(:second)
       # 10 days ago
-      last_seen = now - 10 * 86400
+      last_seen = now - 10 * 86_400
 
       assert PresenceHelpers.format_last_seen("offline", last_seen) == "Last seen a while ago"
     end

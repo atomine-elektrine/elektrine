@@ -159,7 +159,7 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
     cond do
       seconds < 60 -> "#{seconds} seconds"
       seconds < 3600 -> "#{div(seconds, 60)} minutes"
-      seconds < 86400 -> "#{div(seconds, 3600)} hours"
+      seconds < 86_400 -> "#{div(seconds, 3600)} hours"
       true -> "#{div(seconds, 86400)} days"
     end
   end

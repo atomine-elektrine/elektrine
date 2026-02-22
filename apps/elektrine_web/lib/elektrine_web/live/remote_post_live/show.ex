@@ -3,8 +3,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
-  alias ElektrineWeb.Live.PostInteractions
   alias Elektrine.Social
+  alias ElektrineWeb.Live.PostInteractions
 
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.HtmlHelpers
@@ -1431,7 +1431,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
          |> assign(:mastodon_counts, nil)}
 
       # Mastodon-compatible posts
-      Elektrine.ActivityPub.MastodonApi.is_mastodon_compatible?(%{activitypub_id: post_id}) ->
+      Elektrine.ActivityPub.MastodonApi.mastodon_compatible?(%{activitypub_id: post_id}) ->
         mastodon_counts = Elektrine.ActivityPub.MastodonApi.fetch_status_counts(post_id)
 
         # Update local message counts if they're higher

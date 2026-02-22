@@ -2,11 +2,11 @@ defmodule ElektrineWeb.ChatLive.Index do
   use ElektrineWeb, :live_view
   require Logger
 
-  alias Elektrine.Messaging, as: Messaging
-  alias Elektrine.Messaging.Message
-  alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Accounts.User
   alias Elektrine.Constants
+  alias Elektrine.Messaging, as: Messaging
+  alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Messaging.Message
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.Social.ContentJourney

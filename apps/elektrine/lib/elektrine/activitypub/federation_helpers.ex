@@ -6,9 +6,9 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
   require Logger
   import Ecto.Query
 
-  alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{Builder, Publisher, Fetcher}
   alias Elektrine.Accounts
+  alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.{Builder, Fetcher, Publisher}
   alias Elektrine.Profiles
   alias Elektrine.Repo
 

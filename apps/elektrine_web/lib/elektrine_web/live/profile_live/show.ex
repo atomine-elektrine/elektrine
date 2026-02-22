@@ -4,14 +4,9 @@ defmodule ElektrineWeb.ProfileLive.Show do
   import ElektrineWeb.Components.Profile.Containers
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
-  alias Elektrine.{Accounts, Profiles, Social, Messaging}
-
+  alias Elektrine.{Accounts, Messaging, Profiles, Social}
   @impl true
   def mount(%{"handle" => handle}, session, socket) do
-    # current_user is already set by AuthHooks.maybe_authenticated_user
-    # Don't manually verify tokens - let the auth hooks handle it
-    # Validate handle is valid UTF-8 and reasonable format before querying
-    # This prevents PostgreSQL errors from malformed URL encodings like %C0
     if !String.valid?(handle) or String.length(handle) > 100 or handle =~ ~r/[\x00-\x1f]/ do
       {:ok,
        socket
@@ -28,14 +23,22 @@ defmodule ElektrineWeb.ProfileLive.Show do
   defp mount_with_valid_handle(handle, session, socket) do
     user = Accounts.get_user_by_username_or_handle(handle)
 
-    # Preload profile for username effects
-    user = if user, do: Elektrine.Repo.preload(user, :profile), else: nil
+    user =
+      if user do
+        Elektrine.Repo.preload(user, :profile)
+      else
+        nil
+      end
 
     if user do
-      # Check profile visibility
       current_user = socket.assigns[:current_user]
 
-      viewer_id = if current_user, do: current_user.id, else: nil
+      viewer_id =
+        if current_user do
+          current_user.id
+        else
+          nil
+        end
 
       can_view =
         if viewer_id do
@@ -44,26 +47,13 @@ defmodule ElektrineWeb.ProfileLive.Show do
             {:error, _} -> false
           end
         else
-          # Not logged in - can only view public profiles
           user.profile_visibility == "public"
         end
 
-      if !can_view do
-        # Profile is private/restricted - show error page
-        {:ok,
-         socket
-         |> assign(:page_title, "#{user.handle || user.username} • Elektrine")
-         |> assign(:user, user)
-         |> assign(:profile, nil)
-         |> assign(:is_private, true)
-         |> assign(:current_user, current_user), layout: false}
-      else
-        # Profile can be viewed - continue with normal flow
-        # Get or create profile for view tracking
+      if can_view do
         profile =
           case Profiles.get_user_profile(user.id) do
             nil ->
-              # Create minimal profile for view tracking
               case Profiles.upsert_user_profile(user.id, %{
                      display_name: user.handle || user.username
                    }) do
@@ -75,12 +65,9 @@ defmodule ElektrineWeb.ProfileLive.Show do
               prof
           end
 
-        # Track profile view with proper deduplication (24-hour cooldown per viewer)
         if connected?(socket) do
           viewer_user_id = current_user && current_user.id
           viewer_session_id = session["_csrf_token"]
-
-          # Get connection metadata
           {ip_address, user_agent, referer} = get_connection_metadata(socket)
 
           Profiles.track_profile_view(user.id,
@@ -92,16 +79,12 @@ defmodule ElektrineWeb.ProfileLive.Show do
           )
         end
 
-        # Subscribe to follow updates and profile changes for this user (only when connected)
         if connected?(socket) do
           Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:follows")
           Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:profile")
-
-          # Trigger async data loading
           send(self(), {:load_profile_data, user.id, profile})
         end
 
-        # Get profile links or default links (needed immediately for layout)
         links =
           if profile && match?([_ | _], profile.links) do
             profile.links
@@ -116,12 +99,10 @@ defmodule ElektrineWeb.ProfileLive.Show do
             ]
           end
 
-        # Check if this is a custom profile
         is_custom =
           profile != nil &&
             (profile.links != nil || profile.description != nil || profile.background_url != nil)
 
-        # Get user's sequential number (needed immediately)
         user_number = Accounts.get_user_number(user)
 
         {:ok,
@@ -165,12 +146,16 @@ defmodule ElektrineWeb.ProfileLive.Show do
          |> assign(:modal_image_index, 0)
          |> assign(:modal_post, nil)
          |> assign(:loading_profile, true), layout: false}
+      else
+        {:ok,
+         socket
+         |> assign(:page_title, "#{user.handle || user.username} • Elektrine")
+         |> assign(:user, user)
+         |> assign(:profile, nil)
+         |> assign(:is_private, true)
+         |> assign(:current_user, current_user), layout: false}
       end
-
-      # End of privacy check case
     else
-      # User not found - show 404 instead of redirecting
-      # Redirecting to "/" causes loops on subdomains (maxfield.z.org -> / -> /maxfield -> loop)
       {:ok,
        socket
        |> assign(:page_title, "Not Found")
@@ -186,20 +171,14 @@ defmodule ElektrineWeb.ProfileLive.Show do
     current_user = socket.assigns[:current_user]
     profile_user = socket.assigns.user
 
-    if !current_user do
-      {:noreply, push_navigate(socket, to: ~p"/login")}
-    else
-      # Get current state
+    if current_user do
       is_currently_following = socket.assigns.is_following
 
-      # Perform the action and get new state
       {new_is_following, new_follower_count} =
         if is_currently_following do
-          # Unfollow
           Profiles.unfollow_user(current_user.id, profile_user.id)
           count = Profiles.get_follower_count(profile_user.id)
 
-          # Broadcast to others
           Phoenix.PubSub.broadcast_from(
             Elektrine.PubSub,
             self(),
@@ -209,12 +188,10 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
           {false, count}
         else
-          # Follow
           case Profiles.follow_user(current_user.id, profile_user.id) do
             {:ok, _follow} ->
               count = Profiles.get_follower_count(profile_user.id)
 
-              # Broadcast to others
               Phoenix.PubSub.broadcast_from(
                 Elektrine.PubSub,
                 self(),
@@ -225,18 +202,12 @@ defmodule ElektrineWeb.ProfileLive.Show do
               {true, count}
 
             {:error, _} ->
-              # Keep current state on error
               {is_currently_following, socket.assigns.follower_count}
           end
         end
 
-      # Update socket with new state - using Map.merge to ensure all assigns are updated
-      new_assigns = %{
-        is_following: new_is_following,
-        follower_count: new_follower_count
-      }
+      new_assigns = %{is_following: new_is_following, follower_count: new_follower_count}
 
-      # Add flash message
       flash_message =
         if new_is_following != is_currently_following do
           if new_is_following do
@@ -252,13 +223,17 @@ defmodule ElektrineWeb.ProfileLive.Show do
         socket
         |> Phoenix.Component.assign(new_assigns)
         |> then(fn s ->
-          if flash_message, do: put_flash(s, :info, flash_message), else: s
+          if flash_message do
+            put_flash(s, :info, flash_message)
+          else
+            s
+          end
         end)
 
-      # Small delay to prevent race conditions with rapid clicking
       Process.sleep(10)
-
       {:noreply, updated_socket}
+    else
+      {:noreply, push_navigate(socket, to: ~p"/login")}
     end
   end
 
@@ -286,20 +261,15 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
   @impl true
   def handle_event("close_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_followers, false)
-     |> assign(:show_following, false)}
+    {:noreply, socket |> assign(:show_followers, false) |> assign(:show_following, false)}
   end
 
   def handle_event("unfollow_remote", %{"remote-actor-id" => remote_actor_id}, socket) do
     current_user = socket.assigns.current_user
 
     if current_user do
-      # Unfollow the remote actor
       case Profiles.unfollow_remote_actor(current_user.id, String.to_integer(remote_actor_id)) do
         {:ok, :unfollowed} ->
-          # Refresh the following list
           following = Profiles.get_following(current_user.id, limit: 50)
           following_count = Profiles.get_following_count(current_user.id)
 
@@ -321,10 +291,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
     current_user = socket.assigns.current_user
 
     if current_user do
-      # Unfollow the local user
       Profiles.unfollow_user(current_user.id, String.to_integer(followed_id))
-
-      # Refresh the following list
       following = Profiles.get_following(current_user.id, limit: 50)
       following_count = Profiles.get_following_count(current_user.id)
 
@@ -343,9 +310,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
     current_user = socket.assigns[:current_user]
     target_user_id = String.to_integer(user_id)
 
-    if !current_user do
-      {:noreply, push_navigate(socket, to: ~p"/login")}
-    else
+    if current_user do
       case Elektrine.Friends.send_friend_request(current_user.id, target_user_id) do
         {:ok, _request} ->
           friend_status =
@@ -363,6 +328,8 @@ defmodule ElektrineWeb.ProfileLive.Show do
           error_message = Elektrine.Privacy.privacy_error_message(reason)
           {:noreply, put_flash(socket, :error, error_message)}
       end
+    else
+      {:noreply, push_navigate(socket, to: ~p"/login")}
     end
   end
 
@@ -371,7 +338,6 @@ defmodule ElektrineWeb.ProfileLive.Show do
     current_user = socket.assigns[:current_user]
     requester_id = String.to_integer(user_id)
 
-    # Get the pending request from the friend_status
     case socket.assigns.friend_status.pending_request do
       %{id: request_id} ->
         case Elektrine.Friends.accept_friend_request(request_id, current_user.id) do
@@ -382,7 +348,6 @@ defmodule ElektrineWeb.ProfileLive.Show do
             {:noreply, assign(socket, :friend_status, friend_status)}
 
           {:error, :privacy_settings_changed} ->
-            # Refresh friend status to show updated state
             friend_status =
               Elektrine.Friends.get_relationship_status(current_user.id, requester_id)
 
@@ -408,10 +373,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   def handle_event("cancel_friend_request", %{"user_id" => user_id}, socket) do
     current_user = socket.assigns[:current_user]
     target_user_id = String.to_integer(user_id)
-
-    # Get sent requests and find the right one
     sent_requests = Elektrine.Friends.list_sent_requests(current_user.id)
-
     request = Enum.find(sent_requests, fn r -> r.recipient_id == target_user_id end)
 
     case request do
@@ -497,7 +459,6 @@ defmodule ElektrineWeb.ProfileLive.Show do
      |> put_flash(:info, "Profile link copied to clipboard!")}
   end
 
-  # Image Modal Events
   def handle_event(
         "open_image_modal",
         %{"images" => images_json, "index" => index} = params,
@@ -543,9 +504,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
       new_url = Enum.at(socket.assigns.modal_images, new_index)
 
       {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
+       socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
     else
       {:noreply, socket}
     end
@@ -559,9 +518,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
       new_url = Enum.at(socket.assigns.modal_images, new_index)
 
       {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
+       socket |> assign(:modal_image_index, new_index) |> assign(:modal_image_url, new_url)}
     else
       {:noreply, socket}
     end
@@ -582,20 +539,16 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
   @impl true
   def handle_info({:follower_added, _user_id}, socket) do
-    # Someone else followed this user, update count
     {:noreply, update(socket, :follower_count, &(&1 + 1))}
   end
 
   @impl true
   def handle_info({:follower_removed, _user_id}, socket) do
-    # Someone else unfollowed this user, update count
     {:noreply, update(socket, :follower_count, &(&1 - 1))}
   end
 
-  # Handle new social module broadcasts
   @impl true
   def handle_info({:new_follower, %{follower_id: _follower_id}}, socket) do
-    # Someone followed this user, update count
     {:noreply, update(socket, :follower_count, &(&1 + 1))}
   end
 
@@ -606,53 +559,45 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
   @impl true
   def handle_info({:profile_updated, _user_id}, socket) do
-    # Reload profile when it's updated (already preloads links and widgets)
     profile = Profiles.get_user_profile(socket.assigns.user.id)
     {:noreply, assign(socket, :profile, profile)}
   end
 
-  # Async data loading handler
   @impl true
   def handle_info({:load_profile_data, user_id, profile}, socket) do
     current_user = socket.assigns[:current_user]
-    viewer_id = if current_user, do: current_user.id, else: nil
 
-    # Load posts data in parallel
+    viewer_id =
+      if current_user do
+        current_user.id
+      else
+        nil
+      end
+
     posts_task =
       Task.async(fn ->
-        {
-          Social.get_user_timeline_posts(user_id, limit: 5, viewer_id: viewer_id),
-          Social.get_pinned_posts(user_id, viewer_id: viewer_id),
-          Messaging.get_user_discussion_posts(user_id, limit: 5)
-        }
+        {Social.get_user_timeline_posts(user_id, limit: 5, viewer_id: viewer_id),
+         Social.get_pinned_posts(user_id, viewer_id: viewer_id),
+         Messaging.get_user_discussion_posts(user_id, limit: 5)}
       end)
 
-    # Load follow stats in parallel
     stats_task =
       Task.async(fn ->
-        {
-          Profiles.get_follower_count(user_id),
-          Profiles.get_following_count(user_id)
-        }
+        {Profiles.get_follower_count(user_id), Profiles.get_following_count(user_id)}
       end)
 
-    # Load relationship data
     relationship_task =
       Task.async(fn ->
         if current_user && current_user.id != user_id do
-          {
-            Profiles.following?(current_user.id, user_id),
-            Elektrine.Friends.get_relationship_status(current_user.id, user_id)
-          }
+          {Profiles.following?(current_user.id, user_id),
+           Elektrine.Friends.get_relationship_status(current_user.id, user_id)}
         else
           {false, %{are_friends: false, pending_request: false, sent_request: false}}
         end
       end)
 
-    # Load badges
     badges_task = Task.async(fn -> Profiles.list_visible_user_badges(user_id) end)
 
-    # Load Discord presence if enabled
     discord_task =
       Task.async(fn ->
         if profile && profile.show_discord_presence && profile.discord_user_id do
@@ -662,7 +607,6 @@ defmodule ElektrineWeb.ProfileLive.Show do
         end
       end)
 
-    # Await all tasks
     {timeline_posts, pinned_posts, discussion_posts} = Task.await(posts_task, 10_000)
     {follower_count, following_count} = Task.await(stats_task, 5000)
     {is_following, friend_status} = Task.await(relationship_task, 5000)
@@ -688,8 +632,6 @@ defmodule ElektrineWeb.ProfileLive.Show do
     {:noreply, socket}
   end
 
-  # Private helper functions
-
   defp hex_to_rgb("#" <> hex) do
     {r, _} = Integer.parse(String.slice(hex, 0, 2), 16)
     {g, _} = Integer.parse(String.slice(hex, 2, 2), 16)
@@ -697,9 +639,10 @@ defmodule ElektrineWeb.ProfileLive.Show do
     {r, g, b}
   end
 
-  defp hex_to_rgb(_hex), do: {0, 0, 0}
+  defp hex_to_rgb(_hex) do
+    {0, 0, 0}
+  end
 
-  # Lighten a color by a factor (0.0 to 1.0)
   defp lighten_color(hex, factor) do
     {r, g, b} = hex_to_rgb(hex)
     new_r = min(255, round(r + (255 - r) * factor))
@@ -712,32 +655,23 @@ defmodule ElektrineWeb.ProfileLive.Show do
       String.pad_leading(Integer.to_string(new_b, 16), 2, "0")
   end
 
-  # Check if a color is light (needs dark text for contrast)
-  # Uses relative luminance formula: 0.2126*R + 0.7152*G + 0.0722*B
-  defp is_light_color(hex) do
+  defp light_color?(hex) do
     {r, g, b} = hex_to_rgb(hex)
-    # Normalize to 0-1 range and calculate luminance
     luminance = 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255)
     luminance > 0.5
   end
 
   defp get_connection_metadata(socket) do
-    # Extract metadata from socket if available
-    # LiveView doesn't have direct access to conn, so these may be nil
     ip_address =
-      get_connect_params(socket)["remote_ip"] ||
-        get_connect_params(socket)["x_real_ip"] ||
+      get_connect_params(socket)["remote_ip"] || get_connect_params(socket)["x_real_ip"] ||
         "unknown"
 
     user_agent =
-      get_connect_params(socket)["user_agent"] ||
-        get_connect_params(socket)["_user_agent"] ||
+      get_connect_params(socket)["user_agent"] || get_connect_params(socket)["_user_agent"] ||
         "unknown"
 
     referer =
-      get_connect_params(socket)["referer"] ||
-        get_connect_params(socket)["_referer"] ||
-        nil
+      get_connect_params(socket)["referer"] || get_connect_params(socket)["_referer"] || nil
 
     {to_string(ip_address), to_string(user_agent), referer}
   end

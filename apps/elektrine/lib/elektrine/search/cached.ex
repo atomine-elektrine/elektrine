@@ -4,8 +4,8 @@ defmodule Elektrine.Search.Cached do
   Provides fast access to search results and recent searches.
   """
 
-  alias Elektrine.Email
   alias Elektrine.AppCache
+  alias Elektrine.Email
 
   @doc """
   Performs cached email search with pagination.

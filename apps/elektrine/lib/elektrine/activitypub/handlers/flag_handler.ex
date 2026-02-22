@@ -21,9 +21,9 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandler do
 
   require Logger
 
+  alias Elektrine.Accounts
   alias Elektrine.ActivityPub
   alias Elektrine.Reports
-  alias Elektrine.Accounts
 
   @doc """
   Handles an incoming Flag (report) activity.
@@ -102,7 +102,7 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandler do
     Enum.reduce(objects, {[], []}, fn object_uri, {users, content} ->
       uri = normalize_uri(object_uri)
 
-      if is_user_uri?(uri), do: {[uri | users], content}, else: {users, [uri | content]}
+      if user_uri?(uri), do: {[uri | users], content}, else: {users, [uri | content]}
     end)
   end
 
@@ -110,9 +110,9 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandler do
   defp normalize_uri(%{"id" => id}), do: id
   defp normalize_uri(_), do: nil
 
-  defp is_user_uri?(nil), do: false
+  defp user_uri?(nil), do: false
 
-  defp is_user_uri?(uri) do
+  defp user_uri?(uri) do
     base_url = ActivityPub.instance_url()
     String.starts_with?(uri, "#{base_url}/users/")
   end

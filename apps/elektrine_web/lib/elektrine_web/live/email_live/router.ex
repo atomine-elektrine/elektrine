@@ -6,15 +6,15 @@ defmodule ElektrineWeb.EmailLive.Router do
   require Logger
 
   alias ElektrineWeb.EmailLive.Operations.{
-    NavigationOperations,
-    SearchOperations,
-    SelectionOperations,
-    BulkOperations,
     AliasOperations,
-    ReplyLaterOperations,
-    MessageOperations,
+    BulkOperations,
     ComposeOperations,
-    ContactOperations
+    ContactOperations,
+    MessageOperations,
+    NavigationOperations,
+    ReplyLaterOperations,
+    SearchOperations,
+    SelectionOperations
   }
 
   def route_event(event_name, params, socket) do

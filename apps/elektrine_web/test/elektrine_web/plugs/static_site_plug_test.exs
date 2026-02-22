@@ -2,8 +2,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   # Must be async: false for the plug to see test database data
   use ElektrineWeb.ConnCase, async: false
 
-  alias Elektrine.{StaticSites, Profiles}
   alias Elektrine.AccountsFixtures
+  alias Elektrine.{Profiles, StaticSites}
 
   setup do
     user = AccountsFixtures.user_fixture()

@@ -5,8 +5,8 @@ defmodule Elektrine.Accounts.Moderation do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.{AccountDeletionRequest, User}
   alias Elektrine.Repo
-  alias Elektrine.Accounts.{User, AccountDeletionRequest}
 
   require Logger
 

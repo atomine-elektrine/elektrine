@@ -5,8 +5,8 @@ defmodule Elektrine.Accounts.Muting do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Repo
   alias Elektrine.Accounts.{User, UserMute}
+  alias Elektrine.Repo
 
   @doc """
   Mutes a user. If a mute already exists, updates notification muting preference.

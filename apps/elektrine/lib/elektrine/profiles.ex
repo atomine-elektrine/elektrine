@@ -7,12 +7,12 @@ defmodule Elektrine.Profiles do
   alias Elektrine.Repo
 
   alias Elektrine.Profiles.{
-    UserProfile,
+    Follow,
     ProfileLink,
+    ProfileView,
     ProfileWidget,
     UserBadge,
-    Follow,
-    ProfileView
+    UserProfile
   }
 
   alias Elektrine.Accounts.User

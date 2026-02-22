@@ -1,22 +1,15 @@
 defmodule Elektrine.IMAP.Commands do
-  @moduledoc """
-  IMAP command processing and handling.
-  Implements all IMAP4rev1 commands and extensions (IDLE, UIDPLUS, etc).
-  """
-
+  @moduledoc "IMAP command processing and handling.\nImplements all IMAP4rev1 commands and extensions (IDLE, UIDPLUS, etc).\n"
   require Logger
   alias Elektrine.Constants
-  alias Elektrine.IMAP.{Helpers, Response}
   alias Elektrine.Email.AttachmentStorage
+  alias Elektrine.IMAP.{Helpers, Response}
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
-
-  # Security limits
   @max_message_size Constants.imap_max_message_size()
   @max_idle_per_ip Constants.imap_max_idle_per_ip()
   @idle_timeout_ms Constants.imap_idle_timeout_ms()
   @idle_stale_grace_ms 60_000
-
   @authenticated_capabilities [
     "IMAP4rev1",
     "UIDPLUS",
@@ -33,9 +26,7 @@ defmodule Elektrine.IMAP.Commands do
     "XLIST",
     "STATUS=SIZE"
   ]
-
   @unauthenticated_capabilities ["AUTH=PLAIN", "AUTH=LOGIN" | @authenticated_capabilities]
-
   @system_folders [
     {"INBOX", "\\HasNoChildren"},
     {"Sent", "\\HasNoChildren \\Sent"},
@@ -43,7 +34,6 @@ defmodule Elektrine.IMAP.Commands do
     {"Trash", "\\HasNoChildren \\Trash"},
     {"Spam", "\\HasNoChildren \\Junk"}
   ]
-
   @doc false
   def capability_string(state \\ :not_authenticated)
 
@@ -55,12 +45,9 @@ defmodule Elektrine.IMAP.Commands do
     Enum.join(@authenticated_capabilities, " ")
   end
 
-  # Command processing entry point
-
   @doc "Process IMAP command"
   def process_command(tag, cmd, args, state) do
     case String.upcase(cmd) do
-      # Universal commands (any state)
       "CAPABILITY" ->
         handle_capability(tag, state)
 
@@ -73,7 +60,6 @@ defmodule Elektrine.IMAP.Commands do
       "ID" ->
         handle_id(tag, args, state)
 
-      # Not authenticated state commands
       "STARTTLS" when state.state == :not_authenticated ->
         handle_starttls(tag, state)
 
@@ -83,7 +69,6 @@ defmodule Elektrine.IMAP.Commands do
       "LOGIN" when state.state == :not_authenticated ->
         handle_login(tag, args, state)
 
-      # Authenticated state commands
       "SELECT" when state.state in [:authenticated, :selected] ->
         handle_select(tag, args, state)
 
@@ -132,7 +117,6 @@ defmodule Elektrine.IMAP.Commands do
       "GETQUOTA" when state.state in [:authenticated, :selected] ->
         handle_getquota(tag, args, state)
 
-      # Selected state commands
       "UID" when state.state == :selected ->
         handle_uid(tag, args, state)
 
@@ -169,13 +153,10 @@ defmodule Elektrine.IMAP.Commands do
       "IDLE" when state.state == :selected ->
         handle_idle(tag, state)
 
-      # Unrecognized command
       _ ->
         handle_unrecognized(tag, cmd, state)
     end
   end
-
-  # Not authenticated commands
 
   defp handle_capability(tag, state) do
     Helpers.send_response(state.socket, "* CAPABILITY #{capability_string(state.state)}")
@@ -184,14 +165,11 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_starttls(tag, state) do
-    # TLS is handled by the proxy (Fly.io), so we inform the client that
-    # STARTTLS is not available on this connection (already secure or not needed)
     Helpers.send_response(state.socket, "#{tag} NO STARTTLS not available (use port 993 for TLS)")
     {:continue, state}
   end
 
   defp handle_noop_any_state(tag, state) do
-    # NOOP in any state - just refresh if we have a selected folder
     if state.state == :selected && state.mailbox && state.selected_folder do
       {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
 
@@ -232,9 +210,6 @@ defmodule Elektrine.IMAP.Commands do
         end
 
       "LOGIN" ->
-        # AUTH=LOGIN is a legacy authentication mechanism used by some clients
-        # It sends username and password as separate base64-encoded strings
-        # "Username:" in base64
         Helpers.send_response(state.socket, "+ VXNlcm5hbWU6")
 
         case :gen_tcp.recv(state.socket, 0, 60_000) do
@@ -242,7 +217,6 @@ defmodule Elektrine.IMAP.Commands do
             username =
               username_data |> to_string() |> String.trim() |> Base.decode64!() |> String.trim()
 
-            # "Password:" in base64
             Helpers.send_response(state.socket, "+ UGFzc3dvcmQ6")
 
             case :gen_tcp.recv(state.socket, 0, 60_000) do
@@ -289,16 +263,11 @@ defmodule Elektrine.IMAP.Commands do
     {:logout, state}
   end
 
-  # Authenticated state commands
-
   defp handle_select(tag, args, state) do
     folder = String.trim(args || "", "\"")
     {:ok, messages} = load_folder_messages(state.mailbox, folder)
-
     unseen_count = Helpers.count_unseen(messages)
     first_unseen = find_first_unseen(messages)
-
-    # Send mailbox information in the order clients expect
     Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
     Helpers.send_response(state.socket, "* #{unseen_count} RECENT")
 
@@ -325,17 +294,14 @@ defmodule Elektrine.IMAP.Commands do
 
     Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
     Helpers.send_response(state.socket, "#{tag} OK [READ-WRITE] SELECT completed")
-
     {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
   end
 
   defp handle_examine(tag, args, state) do
     folder = String.trim(args || "", "\"")
     {:ok, messages} = load_folder_messages(state.mailbox, folder)
-
     _unseen_count = Helpers.count_unseen(messages)
     first_unseen = find_first_unseen(messages)
-
     Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
     Helpers.send_response(state.socket, "* 0 RECENT")
 
@@ -362,14 +328,12 @@ defmodule Elektrine.IMAP.Commands do
 
     Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
     Helpers.send_response(state.socket, "#{tag} OK [READ-ONLY] EXAMINE completed")
-
     {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
   end
 
   defp find_first_unseen(messages) do
     case Enum.find_index(messages, fn msg -> !msg.read end) do
       nil -> 0
-      # IMAP uses 1-based indexing
       idx -> idx + 1
     end
   end
@@ -445,8 +409,6 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_id(tag, _args, state) do
-    # ID command - server identification (RFC 2971)
-    # Respond with server info regardless of client's ID data
     Helpers.send_response(
       state.socket,
       "* ID (\"name\" \"Elektrine\" \"version\" \"1.0\" \"vendor\" \"Elektrine\" \"support-url\" \"https://elektrine.com\")"
@@ -457,37 +419,28 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_xlist(tag, args, state) do
-    # XLIST is Gmail's legacy LIST extension - same as LIST but with Gmail-style flags
     handle_list(tag, args, state)
   end
 
   defp handle_getquotaroot(tag, args, state) do
-    # QUOTA extension - return quota information
     folder = String.trim(args || "INBOX", "\"")
     Helpers.send_response(state.socket, "* QUOTAROOT \"#{folder}\" \"\"")
-    # 0 used of 1GB
     Helpers.send_response(state.socket, "* QUOTA \"\" (STORAGE 0 1048576)")
     Helpers.send_response(state.socket, "#{tag} OK GETQUOTAROOT completed")
     {:continue, state}
   end
 
   defp handle_getquota(tag, _args, state) do
-    # Return quota for root
-    # 0 used of 1GB
     Helpers.send_response(state.socket, "* QUOTA \"\" (STORAGE 0 1048576)")
     Helpers.send_response(state.socket, "#{tag} OK GETQUOTA completed")
     {:continue, state}
   end
 
   defp handle_sort(tag, args, state) do
-    # SORT extension - server-side sorting
-    # Parse sort criteria and charset from args
-    # Format: (CRITERIA...) CHARSET SEARCH-CRITERIA
     case parse_sort_args(args) do
       {:ok, sort_criteria, _charset, search_criteria} ->
         max_sequence = length(state.messages)
 
-        # Filter messages by search criteria
         matching =
           state.messages
           |> Enum.with_index(1)
@@ -495,16 +448,12 @@ defmodule Elektrine.IMAP.Commands do
             Helpers.matches_search_criteria?(msg, search_criteria, sequence_number, max_sequence)
           end)
 
-        # Sort by criteria
         sorted = sort_messages(matching, sort_criteria)
-
-        # Return UIDs
         uids = Enum.map_join(sorted, " ", fn {msg, _idx} -> msg.id end)
         Helpers.send_response(state.socket, "* SORT #{uids}")
         Helpers.send_response(state.socket, "#{tag} OK SORT completed")
 
       {:error, _} ->
-        # Fallback - return all UIDs unsorted
         uids = Enum.map_join(state.messages, " ", & &1.id)
         Helpers.send_response(state.socket, "* SORT #{uids}")
         Helpers.send_response(state.socket, "#{tag} OK SORT completed")
@@ -513,7 +462,9 @@ defmodule Elektrine.IMAP.Commands do
     {:continue, state}
   end
 
-  defp parse_sort_args(nil), do: {:error, :missing_args}
+  defp parse_sort_args(nil) do
+    {:error, :missing_args}
+  end
 
   defp parse_sort_args(args) do
     case Regex.run(~r/\(([^)]+)\)\s+(\S+)\s*(.*)/i, args) do
@@ -530,7 +481,6 @@ defmodule Elektrine.IMAP.Commands do
       Enum.map(criteria, fn crit ->
         case String.upcase(crit) do
           "DATE" -> msg.inserted_at
-          # Handle separately
           "REVERSE" -> nil
           "FROM" -> msg.from || ""
           "TO" -> msg.to || ""
@@ -547,9 +497,7 @@ defmodule Elektrine.IMAP.Commands do
     extensions = String.split(args || "", " ") |> Enum.reject(&(&1 == ""))
 
     enabled =
-      Enum.filter(extensions, fn ext ->
-        String.upcase(ext) in ["UIDPLUS", "IDLE", "UNSELECT"]
-      end)
+      Enum.filter(extensions, fn ext -> String.upcase(ext) in ["UIDPLUS", "IDLE", "UNSELECT"] end)
 
     if enabled != [] do
       Helpers.send_response(state.socket, "* ENABLED #{Enum.join(enabled, " ")}")
@@ -654,7 +602,14 @@ defmodule Elektrine.IMAP.Commands do
     custom_folder_rows =
       Enum.map(custom_folders, fn folder ->
         has_children = Enum.any?(custom_folders, &(&1.parent_id == folder.id))
-        attrs = if has_children, do: "\\HasChildren", else: "\\HasNoChildren"
+
+        attrs =
+          if has_children do
+            "\\HasChildren"
+          else
+            "\\HasNoChildren"
+          end
+
         {folder.name, attrs}
       end)
 
@@ -663,10 +618,7 @@ defmodule Elektrine.IMAP.Commands do
 
   defp system_folder_name?(folder_name) when is_binary(folder_name) do
     normalized = String.upcase(String.trim(folder_name))
-
-    Enum.any?(@system_folders, fn {name, _attrs} ->
-      String.upcase(name) == normalized
-    end)
+    Enum.any?(@system_folders, fn {name, _attrs} -> String.upcase(name) == normalized end)
   end
 
   defp parse_folder_name_argument(args) do
@@ -676,11 +628,8 @@ defmodule Elektrine.IMAP.Commands do
 
       trimmed ->
         case Regex.run(~r/"([^"]+)"/, trimmed) do
-          [_, folder_name] ->
-            {:ok, String.trim(folder_name)}
-
-          _ ->
-            {:ok, trimmed |> String.trim("\"") |> String.trim()}
+          [_, folder_name] -> {:ok, String.trim(folder_name)}
+          _ -> {:ok, trimmed |> String.trim("\"") |> String.trim()}
         end
     end
   end
@@ -694,22 +643,16 @@ defmodule Elektrine.IMAP.Commands do
 
       _ ->
         case String.split(trimmed, ~r/\s+/, parts: 2) do
-          [old_name, new_name] ->
-            {:ok, String.trim(old_name, "\""), String.trim(new_name, "\"")}
-
-          _ ->
-            {:error, :invalid_rename_args}
+          [old_name, new_name] -> {:ok, String.trim(old_name, "\""), String.trim(new_name, "\"")}
+          _ -> {:error, :invalid_rename_args}
         end
     end
   end
 
   defp duplicate_folder_name_error?(%Ecto.Changeset{errors: errors}) do
     Enum.any?(errors, fn
-      {:name, {_message, metadata}} ->
-        metadata[:constraint] == :unique
-
-      _ ->
-        false
+      {:name, {_message, metadata}} -> metadata[:constraint] == :unique
+      _ -> false
     end)
   end
 
@@ -732,7 +675,6 @@ defmodule Elektrine.IMAP.Commands do
       {:ok, folder, items} ->
         {:ok, messages} = load_folder_messages(state.mailbox, folder)
 
-        # Build STATUS response with requested items
         status_items =
           Enum.map(items, fn item ->
             case String.upcase(item) do
@@ -768,17 +710,17 @@ defmodule Elektrine.IMAP.Commands do
         if Map.has_key?(msg, :text_body) and msg.text_body != nil do
           msg
         else
-          # Only select the fields needed for size calculation to avoid loading large JSONB fields
           import Ecto.Query
 
           query =
-            from m in Elektrine.Email.Message,
+            from(m in Elektrine.Email.Message,
               where: m.id == ^msg.id,
               select: %{
                 id: m.id,
                 encrypted_text_body: m.encrypted_text_body,
                 encrypted_html_body: m.encrypted_html_body
               }
+            )
 
           case Elektrine.Repo.one(query) do
             nil -> %{text_body: "", html_body: ""}
@@ -793,15 +735,12 @@ defmodule Elektrine.IMAP.Commands do
   defp handle_append(tag, args, state) do
     case Helpers.parse_append_args(args) do
       {:ok, folder, _flags, size, is_literal_plus} ->
-        # For non-synchronizing literals (LITERAL+), don't send continuation response
-        # The client is already sending data
         unless is_literal_plus do
           Helpers.send_response(state.socket, "+ Ready for literal data")
         end
 
         case receive_literal_data(state.socket, size) do
           {:ok, data} ->
-            # Store with timeout to prevent hangs
             store_result =
               try do
                 :timer.tc(fn -> store_append_message(state.mailbox, folder, data) end)
@@ -820,8 +759,6 @@ defmodule Elektrine.IMAP.Commands do
                   end)
                 end
 
-                # Send untagged response with UID if folder is currently selected
-                # This helps clients like Thunderbird know the message was added
                 if String.upcase(folder) == String.upcase(state.selected_folder || "") do
                   {:ok, fresh_messages} =
                     load_folder_messages(state.mailbox, state.selected_folder)
@@ -863,8 +800,6 @@ defmodule Elektrine.IMAP.Commands do
     {:continue, state}
   end
 
-  # Selected state commands
-
   defp handle_uid(tag, args, state) do
     case String.split(args || "", " ", parts: 2) do
       [subcommand, subargs] ->
@@ -899,7 +834,6 @@ defmodule Elektrine.IMAP.Commands do
         end
 
       [subcommand] ->
-        # Handle commands without additional args
         case String.upcase(subcommand) do
           "EXPUNGE" ->
             handle_uid_expunge(tag, nil, state)
@@ -916,7 +850,6 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_uid_sort(tag, args, state) do
-    # UID SORT - same as SORT but returns UIDs
     case parse_sort_args(args) do
       {:ok, sort_criteria, _charset, search_criteria} ->
         max_sequence = length(state.messages)
@@ -943,12 +876,7 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_uid_thread(tag, _args, state) do
-    # UID THREAD - return flat thread structure (simplified - no actual threading)
-    # Format: THREAD (uid1)(uid2)(uid3)...
-    threads =
-      state.messages
-      |> Enum.map_join("", fn msg -> "(#{msg.id})" end)
-
+    threads = state.messages |> Enum.map_join("", fn msg -> "(#{msg.id})" end)
     Helpers.send_response(state.socket, "* THREAD #{threads}")
     Helpers.send_response(state.socket, "#{tag} OK UID THREAD completed")
     {:continue, state}
@@ -969,7 +897,6 @@ defmodule Elektrine.IMAP.Commands do
     seq_list = Enum.join(matching_sequence_numbers, " ")
     Helpers.send_response(state.socket, "* SEARCH #{seq_list}")
     Helpers.send_response(state.socket, "#{tag} OK SEARCH completed")
-
     {:continue, state}
   end
 
@@ -1072,10 +999,8 @@ defmodule Elektrine.IMAP.Commands do
               Response.apply_flag_operation(msg, operation, flags, state.selected_folder)
 
             update_message_flags(msg, new_flags, state.mailbox)
-
             flags_str = Response.format_flags(new_flags)
             Helpers.send_response(state.socket, "* #{seq_num} FETCH (FLAGS (#{flags_str}))")
-
             Map.put(acc, msg.id, message_updates_from_flags(msg, new_flags))
           end)
 
@@ -1135,19 +1060,13 @@ defmodule Elektrine.IMAP.Commands do
     else
       session_id = Helpers.generate_session_id()
       track_idle_connection(state.client_ip, session_id)
-
-      # Store session_id in Process dictionary for cleanup on crash
       Process.put(:imap_idle_session_id, session_id)
-
       mailbox_topic = "mailbox:#{state.mailbox.id}"
       Phoenix.PubSub.subscribe(Elektrine.PubSub, mailbox_topic)
-
       Helpers.send_response(state.socket, "+ idling")
-
       idle_start = System.monotonic_time(:millisecond)
       idle_state = %{state | idle_start: idle_start, idle_session_id: session_id}
 
-      # Ensure cleanup happens even if idle_loop crashes
       try do
         result =
           case idle_loop(idle_state, idle_start) do
@@ -1175,8 +1094,6 @@ defmodule Elektrine.IMAP.Commands do
     Helpers.send_response(state.socket, "#{tag} BAD Command not recognized")
     {:continue, state}
   end
-
-  # UID command handlers
 
   defp handle_uid_fetch(tag, args, state) do
     case Helpers.parse_fetch_args(args) do
@@ -1228,7 +1145,6 @@ defmodule Elektrine.IMAP.Commands do
     uid_list = Enum.join(matching_uids, " ")
     Helpers.send_response(state.socket, "* SEARCH #{uid_list}")
     Helpers.send_response(state.socket, "#{tag} OK UID SEARCH completed")
-
     {:continue, state}
   end
 
@@ -1285,7 +1201,6 @@ defmodule Elektrine.IMAP.Commands do
           end)
 
           Helpers.send_response(state.socket, "#{tag} OK UID MOVE completed")
-
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
           {:continue, %{state | messages: fresh_messages}}
         else
@@ -1339,7 +1254,6 @@ defmodule Elektrine.IMAP.Commands do
               Response.apply_flag_operation(msg, operation, flags, state.selected_folder)
 
             update_message_flags(msg, new_flags, state.mailbox)
-
             flags_str = Response.format_flags(new_flags)
 
             Helpers.send_response(
@@ -1373,8 +1287,6 @@ defmodule Elektrine.IMAP.Commands do
         {:continue, state}
     end
   end
-
-  # Authentication helper
 
   defp do_authenticate(tag, username, password, state) do
     ip_string = state.client_ip
@@ -1429,7 +1341,6 @@ defmodule Elektrine.IMAP.Commands do
 
       {:error, {:ip, :blocked}} ->
         Logger.warning("IMAP blocked IP: ip=#{ip_string} user=#{Helpers.redact_email(username)}")
-
         MailTelemetry.auth(:imap, :rate_limited, %{ratelimit: :ip_blocked, source: :login})
         Helpers.send_response(state.socket, "#{tag} NO IP temporarily blocked")
         {:logout, state}
@@ -1470,8 +1381,7 @@ defmodule Elektrine.IMAP.Commands do
 
   defp maybe_alert_auth_failure_pressure(ip_string, username) do
     ip_failures =
-      Elektrine.IMAP.RateLimiter.get_status(ip_string)
-      |> get_in([:attempts, 60, :count]) || 0
+      Elektrine.IMAP.RateLimiter.get_status(ip_string) |> get_in([:attempts, 60, :count]) || 0
 
     account_failures = MailAuthRateLimiter.failure_count(:imap, username)
 
@@ -1482,11 +1392,9 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  # Optimized auth: queries user only ONCE (user is returned even on app password failure)
   defp authenticate_user(username, password) do
     case Elektrine.Accounts.authenticate_with_app_password(username, password) do
       {:ok, user} ->
-        # App password auth succeeded
         Elektrine.Accounts.record_imap_access(user.id)
 
         case get_or_create_mailbox(user) do
@@ -1495,7 +1403,6 @@ defmodule Elektrine.IMAP.Commands do
         end
 
       {:error, {:invalid_token, user}} ->
-        # App password failed but we have the user - try regular password
         try_regular_password_auth(user, password)
 
       {:error, :user_not_found} ->
@@ -1505,10 +1412,8 @@ defmodule Elektrine.IMAP.Commands do
 
   defp try_regular_password_auth(user, password) do
     if has_2fa_enabled?(user) do
-      # 2FA users must use app passwords for IMAP
       {:error, :requires_app_password}
     else
-      # Verify password without re-querying user
       case Elektrine.Accounts.verify_user_password(user, password) do
         {:ok, _user} ->
           Elektrine.Accounts.record_imap_access(user.id)
@@ -1535,8 +1440,6 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  # Message operations
-
   defp load_folder_messages(mailbox, folder) do
     folder_normalized = String.upcase(folder)
 
@@ -1553,15 +1456,14 @@ defmodule Elektrine.IMAP.Commands do
     {:ok, messages}
   end
 
-  defp load_custom_folder_messages(%{user_id: nil}, _folder_name), do: []
+  defp load_custom_folder_messages(%{user_id: nil}, _folder_name) do
+    []
+  end
 
   defp load_custom_folder_messages(mailbox, folder_name) do
     case find_custom_folder_by_name(mailbox.user_id, folder_name) do
-      nil ->
-        []
-
-      folder ->
-        Elektrine.Email.list_messages_for_imap_custom_folder(mailbox.id, folder.id)
+      nil -> []
+      folder -> Elektrine.Email.list_messages_for_imap_custom_folder(mailbox.id, folder.id)
     end
   end
 
@@ -1631,17 +1533,12 @@ defmodule Elektrine.IMAP.Commands do
       Enum.map(deleted_with_sequence, fn {_msg, sequence_number} -> sequence_number end)
 
     remaining = Enum.reject(messages, fn msg -> msg.deleted || false end)
-
-    Enum.each(deleted, fn msg ->
-      Elektrine.Email.delete_message(msg.id, mailbox.id)
-    end)
+    Enum.each(deleted, fn msg -> Elektrine.Email.delete_message(msg.id, mailbox.id) end)
 
     expunge_sequence_numbers =
       deleted_sequence_numbers
       |> Enum.with_index()
-      |> Enum.map(fn {sequence_number, removed_before} ->
-        sequence_number - removed_before
-      end)
+      |> Enum.map(fn {sequence_number, removed_before} -> sequence_number - removed_before end)
 
     {expunge_sequence_numbers, remaining}
   end
@@ -1657,7 +1554,6 @@ defmodule Elektrine.IMAP.Commands do
     end)
 
     remaining = Enum.reject(all_messages, fn msg -> MapSet.member?(uids_to_expunge, msg.id) end)
-
     {sequence_numbers, remaining}
   end
 
@@ -1694,7 +1590,6 @@ defmodule Elektrine.IMAP.Commands do
 
             case Elektrine.Email.create_message(message_attrs) do
               {:ok, new_msg} ->
-                # Broadcast to webmail for real-time sync
                 Phoenix.PubSub.broadcast(
                   Elektrine.PubSub,
                   "mailbox:#{mailbox.id}",
@@ -1757,13 +1652,11 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  # APPEND helpers
-
   defp receive_literal_data(socket, size) do
     if size > @max_message_size do
       {:error, :message_too_large}
     else
-      :inet.setopts(socket, [{:packet, :raw}, {:active, false}])
+      :inet.setopts(socket, packet: :raw, active: false)
 
       result =
         try do
@@ -1773,8 +1666,7 @@ defmodule Elektrine.IMAP.Commands do
             Logger.error("IMAP APPEND: Exception during receive: #{inspect(e)}")
             {:error, :receive_exception}
         after
-          # Always restore packet mode even if there's an error
-          :inet.setopts(socket, [{:packet, :line}, {:active, false}])
+          :inet.setopts(socket, packet: :line, active: false)
         end
 
       result
@@ -1785,25 +1677,25 @@ defmodule Elektrine.IMAP.Commands do
     remaining = total_size - received_so_far
 
     if remaining <= 0 do
-      # Read and validate the trailing CRLF
-      case :gen_tcp.recv(socket, 2, 5_000) do
-        # Handle both string and charlist formats
-        {:ok, data} when data == "\r\n" or data == [13, 10] ->
+      case :gen_tcp.recv(socket, 2, 5000) do
+        {:ok, data} when data == "\r\n" or data == ~c"\r\n" ->
           {:ok, to_string(acc)}
 
         {:ok, other} ->
-          # Convert to binary and check
-          other_bin = if is_list(other), do: :erlang.list_to_binary(other), else: other
+          other_bin =
+            if is_list(other) do
+              :erlang.list_to_binary(other)
+            else
+              other
+            end
 
           if other_bin == "\r\n" do
             {:ok, to_string(acc)}
           else
-            # Proceed anyway with received data
             {:ok, to_string(acc)}
           end
 
         {:error, _reason} ->
-          # Proceed anyway with received data
           {:ok, to_string(acc)}
       end
     else
@@ -1811,10 +1703,15 @@ defmodule Elektrine.IMAP.Commands do
 
       case :gen_tcp.recv(socket, chunk_size, 60_000) do
         {:ok, chunk_raw} ->
-          chunk = if is_list(chunk_raw), do: :erlang.list_to_binary(chunk_raw), else: chunk_raw
+          chunk =
+            if is_list(chunk_raw) do
+              :erlang.list_to_binary(chunk_raw)
+            else
+              chunk_raw
+            end
+
           new_acc = acc <> chunk
           new_received = received_so_far + byte_size(chunk)
-
           receive_literal_chunks(socket, total_size, new_acc, new_received)
 
         {:error, reason} ->
@@ -1834,8 +1731,6 @@ defmodule Elektrine.IMAP.Commands do
           {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, ""}
       end
 
-    # Check if parsing failed (indicated by parse error subject)
-    # Decode RFC 2047 encoded subjects (e.g., =?utf-8?b?...?= from Thunderbird)
     raw_subject = Map.get(headers, "subject", "(No Subject)")
     subject = Elektrine.Email.Receiver.decode_mail_header(raw_subject)
 
@@ -1871,12 +1766,17 @@ defmodule Elektrine.IMAP.Commands do
             _ -> "received"
           end
 
-        # Decode RFC 2047 encoded headers for display names (e.g., from Thunderbird)
         from_value =
           headers |> Map.get("from", "") |> Elektrine.Email.Receiver.decode_mail_header()
 
         to_value = headers |> Map.get("to", "") |> Elektrine.Email.Receiver.decode_mail_header()
-        category = if status == "sent", do: nil, else: "inbox"
+
+        category =
+          if status == "sent" do
+            nil
+          else
+            "inbox"
+          end
 
         message_attrs = %{
           message_id:
@@ -1915,9 +1815,6 @@ defmodule Elektrine.IMAP.Commands do
             message_attrs
           end
 
-        # Check for duplicates by message-id to prevent double storage
-        # This prevents Thunderbird from creating duplicates when it both sends via SMTP
-        # and then APPENDs a copy to Sent folder
         existing = Elektrine.Email.get_message_by_id(message_attrs.message_id, mailbox.id)
 
         if existing do
@@ -1942,7 +1839,6 @@ defmodule Elektrine.IMAP.Commands do
 
           case Elektrine.Email.create_message(message_attrs) do
             {:ok, message} ->
-              # Broadcast to webmail for real-time sync
               Phoenix.PubSub.broadcast(
                 Elektrine.PubSub,
                 "mailbox:#{mailbox.id}",
@@ -1960,55 +1856,60 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  # Public wrapper for external use - now using Mail library
   def parse_email_data(data) do
-    try do
-      # Use Mail library to parse RFC2822 email
-      message = Mail.Parsers.RFC2822.parse(data)
+    message = Mail.Parsers.RFC2822.parse(data)
 
-      # Convert to old format for backwards compatibility
-      headers =
-        message.headers
-        |> Enum.into(%{}, fn {k, v} -> {to_string(k), stringify_header_value(v)} end)
+    headers =
+      message.headers
+      |> Enum.into(%{}, fn {k, v} -> {to_string(k), stringify_header_value(v)} end)
 
-      body = message.body || ""
+    body = message.body || ""
+    {headers, body}
+  rescue
+    e in MatchError ->
+      data_preview = String.slice(data, 0, 200)
+      Logger.error("Failed to parse email data. Preview: #{inspect(data_preview)}")
+      Logger.error("Parse error: #{inspect(e)}")
+      {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, data}
+  end
 
-      {headers, body}
-    rescue
-      e in MatchError ->
-        # Log the actual data that failed to parse
-        data_preview = String.slice(data, 0, 200)
-        Logger.error("Failed to parse email data. Preview: #{inspect(data_preview)}")
-        Logger.error("Parse error: #{inspect(e)}")
+  defp stringify_header_value(value) when is_binary(value) do
+    value
+  end
 
-        # Return minimal headers to avoid crash
-        {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, data}
+  defp stringify_header_value({name, email}) when is_binary(name) and is_binary(email) do
+    if name && String.trim(name) != "" do
+      "#{name} <#{email}>"
+    else
+      email
     end
   end
 
-  # Convert Mail library header values to strings
-  # Mail headers can be strings, lists, tuples, or lists with tuples
-  defp stringify_header_value(value) when is_binary(value), do: value
-
-  defp stringify_header_value({name, email}) when is_binary(name) and is_binary(email) do
-    if name && String.trim(name) != "", do: "#{name} <#{email}>", else: email
+  defp stringify_header_value({email}) when is_binary(email) do
+    email
   end
 
-  defp stringify_header_value({email}) when is_binary(email), do: email
-  defp stringify_header_value([first | _rest]) when is_binary(first), do: first
+  defp stringify_header_value([first | _rest]) when is_binary(first) do
+    first
+  end
 
   defp stringify_header_value([first | rest]) when is_tuple(first) do
-    # List of tuples - join them
-    [first | rest]
-    |> Enum.map_join(", ", &stringify_header_value/1)
+    [first | rest] |> Enum.map_join(", ", &stringify_header_value/1)
   end
 
-  defp stringify_header_value(value) when is_list(value), do: inspect(value)
-  defp stringify_header_value(value) when is_tuple(value), do: inspect(value)
-  defp stringify_header_value(value), do: to_string(value)
+  defp stringify_header_value(value) when is_list(value) do
+    inspect(value)
+  end
+
+  defp stringify_header_value(value) when is_tuple(value) do
+    inspect(value)
+  end
+
+  defp stringify_header_value(value) do
+    to_string(value)
+  end
 
   def extract_text_body(_body, _headers, message \\ nil) do
-    # If message is provided, use it; otherwise we can't extract properly
     if message do
       case Mail.get_text(message) do
         %Mail.Message{body: text_body} -> text_body
@@ -2020,7 +1921,6 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   def extract_html_body(_body, _headers, message \\ nil) do
-    # If message is provided, use it; otherwise we can't extract properly
     if message do
       case Mail.get_html(message) do
         %Mail.Message{body: html_body} -> html_body
@@ -2032,7 +1932,6 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   def extract_attachments(_body, _headers, message \\ nil) do
-    # If message is provided, use it; otherwise we can't extract properly
     if message do
       extract_attachments_from_message(message)
     else
@@ -2040,9 +1939,7 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  # Extract attachments from a Mail.Message struct
   defp extract_attachments_from_message(message) do
-    # Walk through all parts looking for attachments
     {attachments, _counter} = walk_parts(message, %{}, 0)
     attachments
   end
@@ -2054,7 +1951,6 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp walk_parts(%Mail.Message{} = message, acc, counter) do
-    # Check if this part is an attachment
     if Mail.Message.is_attachment?(message) do
       filename = get_attachment_filename(message)
       content_type = get_content_type(message)
@@ -2063,10 +1959,14 @@ defmodule Elektrine.IMAP.Commands do
         "filename" => filename,
         "content_type" => content_type,
         "data" => message.body || "",
-        "size" => if(message.body, do: byte_size(message.body), else: 0)
+        "size" =>
+          if message.body do
+            byte_size(message.body)
+          else
+            0
+          end
       }
 
-      # Add content_id if present
       attachment_map =
         case Mail.Message.get_header(message, :content_id) do
           nil -> attachment_map
@@ -2080,27 +1980,24 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp get_attachment_filename(message) do
-    # Try to get filename from content-disposition header
     case Mail.Message.get_header(message, :content_disposition) do
       nil ->
-        "attachment_#{:rand.uniform(10000)}"
+        "attachment_#{:rand.uniform(10_000)}"
 
-      # Handle parsed list with tuples (e.g., ["attachment", {"filename", "file.png"}])
       disposition when is_list(disposition) ->
         Enum.find_value(disposition, fn
           {"filename", filename} when is_binary(filename) -> filename
           _ -> nil
-        end) || "attachment_#{:rand.uniform(10000)}"
+        end) || "attachment_#{:rand.uniform(10_000)}"
 
-      # Handle raw string disposition header
       disposition when is_binary(disposition) ->
         case Regex.run(~r/filename[*]?=\s*"?([^";]+)"?/i, disposition) do
           [_, filename] -> filename
-          _ -> "attachment_#{:rand.uniform(10000)}"
+          _ -> "attachment_#{:rand.uniform(10_000)}"
         end
 
       _ ->
-        "attachment_#{:rand.uniform(10000)}"
+        "attachment_#{:rand.uniform(10_000)}"
     end
   end
 
@@ -2204,20 +2101,15 @@ defmodule Elektrine.IMAP.Commands do
     case String.split(part, ~r/\r?\n\r?\n/, parts: 2) do
       [part_headers_str, content] ->
         part_headers = parse_part_headers(part_headers_str)
-
         content_disposition = Map.get(part_headers, "content-disposition", "")
         content_type = Map.get(part_headers, "content-type", "")
         content_id = Map.get(part_headers, "content-id", "")
-
         is_multipart = String.contains?(content_type, "multipart/")
 
         if is_multipart do
           case Regex.run(~r/boundary[=:]?\s*"?([^"\s;]+)"?/i, content_type) do
-            [_, nested_boundary] ->
-              {:multipart, nested_boundary, content}
-
-            _ ->
-              :not_attachment
+            [_, nested_boundary] -> {:multipart, nested_boundary, content}
+            _ -> :not_attachment
           end
         else
           is_text_part =
@@ -2232,7 +2124,7 @@ defmodule Elektrine.IMAP.Commands do
           if !is_text_part and is_attachment and String.trim(content) != "" do
             filename =
               extract_filename(content_disposition, content_type) ||
-                "attachment_#{:rand.uniform(10000)}"
+                "attachment_#{:rand.uniform(10_000)}"
 
             is_base64 = String.contains?(part_headers_str, "base64")
 
@@ -2243,7 +2135,12 @@ defmodule Elektrine.IMAP.Commands do
                 String.trim(content)
               end
 
-            encoding = if is_base64, do: "base64", else: nil
+            encoding =
+              if is_base64 do
+                "base64"
+              else
+                nil
+              end
 
             cid =
               if content_id != "" do
@@ -2386,7 +2283,9 @@ defmodule Elektrine.IMAP.Commands do
     |> Enum.into(%{})
   end
 
-  defp replace_cid_with_data_urls(nil, _attachments), do: nil
+  defp replace_cid_with_data_urls(nil, _attachments) do
+    nil
+  end
 
   defp replace_cid_with_data_urls(html_body, attachments) do
     Enum.reduce(attachments, html_body, fn {_attachment_id, attachment}, html ->
@@ -2416,10 +2315,8 @@ defmodule Elektrine.IMAP.Commands do
 
           content_type = attachment["content_type"] || "application/octet-stream"
           clean_content_type = content_type |> String.split(";") |> List.first() |> String.trim()
-
           base64_data = Base.encode64(data)
           data_url = "data:#{clean_content_type};base64,#{base64_data}"
-
           cid_pattern = "cid:#{attachment["content_id"]}"
           String.replace(html, cid_pattern, data_url)
         else
@@ -2431,18 +2328,15 @@ defmodule Elektrine.IMAP.Commands do
     end)
   end
 
-  # IDLE loop
-
   defp idle_loop(state, start_time) do
     elapsed = System.monotonic_time(:millisecond) - start_time
     timeout = max(1000, @idle_timeout_ms - elapsed)
-
-    :inet.setopts(state.socket, [{:active, :once}])
+    :inet.setopts(state.socket, active: :once)
 
     receive do
       {:tcp, _socket, data} ->
         command = data |> to_string() |> String.trim() |> String.upcase()
-        :inet.setopts(state.socket, [{:active, false}])
+        :inet.setopts(state.socket, active: false)
 
         if command == "DONE" do
           {:done, state}
@@ -2473,12 +2367,10 @@ defmodule Elektrine.IMAP.Commands do
         end
     after
       timeout ->
-        :inet.setopts(state.socket, [{:active, false}])
+        :inet.setopts(state.socket, active: false)
         {:timeout, state}
     end
   end
-
-  # IDLE connection tracking
 
   defp count_idle_connections(ip) do
     if :ets.whereis(:imap_idle_connections) != :undefined do
@@ -2561,11 +2453,8 @@ defmodule Elektrine.IMAP.Commands do
 
   defp normalize_idle_sessions(sessions, now) do
     Enum.map(sessions, fn
-      {session_id, started_at} when is_integer(started_at) ->
-        {session_id, started_at}
-
-      session_id ->
-        {session_id, now}
+      {session_id, started_at} when is_integer(started_at) -> {session_id, started_at}
+      session_id -> {session_id, now}
     end)
   end
 
@@ -2577,12 +2466,9 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  # Honeypot detection
-
   defp track_invalid_command(ip, _command) do
     if :ets.whereis(:imap_invalid_commands) != :undefined do
       now = System.system_time(:second)
-
       table_size = :ets.info(:imap_invalid_commands, :size)
       max_tracked_ips = 10_000
 

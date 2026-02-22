@@ -1,23 +1,13 @@
 defmodule Elektrine.Bluesky do
-  @moduledoc """
-  Mirrors local public timeline posts to Bluesky (ATProto).
-
-  This bridge is intentionally best-effort:
-  - It never raises to callers.
-  - Failures are logged and skipped.
-  - ActivityPub delivery remains independent.
-  """
-
+  @moduledoc "Mirrors local public timeline posts to Bluesky (ATProto).\n\nThis bridge is intentionally best-effort:\n- It never raises to callers.\n- Failures are logged and skipped.\n- ActivityPub delivery remains independent.\n"
   import Ecto.Query, warn: false
   require Logger
-
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Uploads
-
   @post_collection "app.bsky.feed.post"
   @like_collection "app.bsky.feed.like"
   @repost_collection "app.bsky.feed.repost"
@@ -35,7 +25,7 @@ defmodule Elektrine.Bluesky do
   @default_timeout_ms 12_000
   @max_reply_depth 20
   @max_embed_images 4
-  @max_alt_text_chars 1_000
+  @max_alt_text_chars 1000
   @max_external_title_chars 100
   @max_external_description_chars 300
   @max_facets 30
@@ -46,10 +36,7 @@ defmodule Elektrine.Bluesky do
     "gallery-attachments/",
     "uploads/"
   ]
-
-  @doc """
-  Mirrors a local message to Bluesky when all bridge requirements are met.
-  """
+  @doc "Mirrors a local message to Bluesky when all bridge requirements are met.\n"
   def mirror_post(%Message{} = message) do
     with :ok <- ensure_bridge_enabled(),
          :ok <- ensure_mirrorable_message(message),
@@ -59,9 +46,8 @@ defmodule Elektrine.Bluesky do
          {:ok, session} <- session_for_user(user),
          {:ok, record} <- build_record(message, text, reply_payload, session),
          {:ok, published} <-
-           create_record(session.service_url, session.access_jwt, session.did, record),
-         :ok <- persist_message_mapping(message.id, published) do
-      :ok
+           create_record(session.service_url, session.access_jwt, session.did, record) do
+      persist_message_mapping(message.id, published)
     else
       {:skip, reason} ->
         {:skipped, reason}
@@ -72,9 +58,7 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  @doc """
-  Updates an already mirrored Bluesky post after a local edit.
-  """
+  @doc "Updates an already mirrored Bluesky post after a local edit.\n"
   def mirror_post_update(%Message{} = message) do
     with :ok <- ensure_bridge_enabled(),
          :ok <- ensure_updatable_message(message),
@@ -93,9 +77,8 @@ defmodule Elektrine.Bluesky do
              parsed_uri.collection,
              parsed_uri.rkey,
              record
-           ),
-         :ok <- persist_message_mapping_update(message.id, published) do
-      :ok
+           ) do
+      persist_message_mapping_update(message.id, published)
     else
       {:skip, reason} ->
         {:skipped, reason}
@@ -109,25 +92,21 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  @doc """
-  Deletes an already mirrored Bluesky post after a local delete.
-  """
+  @doc "Deletes an already mirrored Bluesky post after a local delete.\n"
   def mirror_post_delete(%Message{} = message) do
     with :ok <- ensure_bridge_enabled(),
          :ok <- ensure_deletable_message(message),
          {:ok, user} <- fetch_sender(message.sender_id),
          {:ok, session} <- session_for_user(user),
          {:ok, parsed_uri} <- parse_at_uri(message.bluesky_uri),
-         :ok <- ensure_collection(parsed_uri.collection, @post_collection),
-         :ok <-
-           delete_record(
-             session.service_url,
-             session.access_jwt,
-             parsed_uri.repo,
-             parsed_uri.collection,
-             parsed_uri.rkey
-           ) do
-      :ok
+         :ok <- ensure_collection(parsed_uri.collection, @post_collection) do
+      delete_record(
+        session.service_url,
+        session.access_jwt,
+        parsed_uri.repo,
+        parsed_uri.collection,
+        parsed_uri.rkey
+      )
     else
       {:skip, reason} ->
         {:skipped, reason}
@@ -141,9 +120,7 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  @doc """
-  Mirrors a local like on a mirrored post to Bluesky.
-  """
+  @doc "Mirrors a local like on a mirrored post to Bluesky.\n"
   def mirror_like(message_id, user_id) when is_integer(message_id) and is_integer(user_id) do
     with :ok <- ensure_bridge_enabled(),
          {:ok, message} <- fetch_mirrored_subject_message(message_id),
@@ -170,27 +147,22 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  @doc """
-  Mirrors a local unlike by deleting the matching Bluesky like record.
-  """
+  @doc "Mirrors a local unlike by deleting the matching Bluesky like record.\n"
   def mirror_unlike(message_id, user_id) when is_integer(message_id) and is_integer(user_id) do
     with :ok <- ensure_bridge_enabled(),
          {:ok, message} <- fetch_mirrored_subject_message(message_id),
          {:ok, user} <- fetch_user(user_id),
          {:ok, session} <- session_for_user(user),
          {:ok, parsed_subject} <- parse_at_uri(message.bluesky_uri),
-         {:ok, like_uri} <- find_subject_record_uri(session, @like_collection, parsed_subject.uri),
-         :ok <- maybe_delete_record_by_uri(session, @like_collection, like_uri) do
-      :ok
+         {:ok, like_uri} <- find_subject_record_uri(session, @like_collection, parsed_subject.uri) do
+      maybe_delete_record_by_uri(session, @like_collection, like_uri)
     else
       {:skip, reason} -> {:skipped, reason}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  @doc """
-  Mirrors a local repost on a mirrored post to Bluesky.
-  """
+  @doc "Mirrors a local repost on a mirrored post to Bluesky.\n"
   def mirror_repost(message_id, user_id) when is_integer(message_id) and is_integer(user_id) do
     with :ok <- ensure_bridge_enabled(),
          {:ok, message} <- fetch_mirrored_subject_message(message_id),
@@ -217,9 +189,7 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  @doc """
-  Mirrors a local unrepost by deleting the matching Bluesky repost record.
-  """
+  @doc "Mirrors a local unrepost by deleting the matching Bluesky repost record.\n"
   def mirror_unrepost(message_id, user_id) when is_integer(message_id) and is_integer(user_id) do
     with :ok <- ensure_bridge_enabled(),
          {:ok, message} <- fetch_mirrored_subject_message(message_id),
@@ -227,18 +197,15 @@ defmodule Elektrine.Bluesky do
          {:ok, session} <- session_for_user(user),
          {:ok, parsed_subject} <- parse_at_uri(message.bluesky_uri),
          {:ok, repost_uri} <-
-           find_subject_record_uri(session, @repost_collection, parsed_subject.uri),
-         :ok <- maybe_delete_record_by_uri(session, @repost_collection, repost_uri) do
-      :ok
+           find_subject_record_uri(session, @repost_collection, parsed_subject.uri) do
+      maybe_delete_record_by_uri(session, @repost_collection, repost_uri)
     else
       {:skip, reason} -> {:skipped, reason}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  @doc """
-  Mirrors a local follow relationship to Bluesky.
-  """
+  @doc "Mirrors a local follow relationship to Bluesky.\n"
   def mirror_follow(follower_id, followed_id)
       when is_integer(follower_id) and is_integer(followed_id) do
     with :ok <- ensure_bridge_enabled(),
@@ -246,8 +213,7 @@ defmodule Elektrine.Bluesky do
          {:ok, followed} <- fetch_user(followed_id),
          {:ok, session} <- session_for_user(follower),
          {:ok, followed_did} <- resolve_follow_target_did(followed, session),
-         {:ok, existing_uri} <-
-           find_follow_record_uri(session, @follow_collection, followed_did),
+         {:ok, existing_uri} <- find_follow_record_uri(session, @follow_collection, followed_did),
          {:ok, _published} <-
            maybe_create_subject_record(
              session,
@@ -266,9 +232,7 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  @doc """
-  Mirrors a local unfollow by deleting the matching Bluesky follow record.
-  """
+  @doc "Mirrors a local unfollow by deleting the matching Bluesky follow record.\n"
   def mirror_unfollow(follower_id, followed_id)
       when is_integer(follower_id) and is_integer(followed_id) do
     with :ok <- ensure_bridge_enabled(),
@@ -276,18 +240,15 @@ defmodule Elektrine.Bluesky do
          {:ok, followed} <- fetch_user(followed_id),
          {:ok, session} <- session_for_user(follower),
          {:ok, followed_did} <- resolve_follow_target_did(followed, session),
-         {:ok, follow_uri} <- find_follow_record_uri(session, @follow_collection, followed_did),
-         :ok <- maybe_delete_record_by_uri(session, @follow_collection, follow_uri) do
-      :ok
+         {:ok, follow_uri} <- find_follow_record_uri(session, @follow_collection, followed_did) do
+      maybe_delete_record_by_uri(session, @follow_collection, follow_uri)
     else
       {:skip, reason} -> {:skipped, reason}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  @doc """
-  Creates a Bluesky session for a configured local user.
-  """
+  @doc "Creates a Bluesky session for a configured local user.\n"
   def session_for_user(%User{} = user) do
     with :ok <- ensure_bridge_enabled(),
          :ok <- ensure_user_enabled(user),
@@ -310,68 +271,39 @@ defmodule Elektrine.Bluesky do
 
   defp ensure_mirrorable_message(%Message{} = message) do
     cond do
-      message.visibility != "public" ->
-        {:skip, :not_public}
-
-      message.federated ->
-        {:skip, :remote_message}
-
-      message.post_type == "message" ->
-        {:skip, :not_timeline_post}
-
-      is_nil(message.sender_id) ->
-        {:skip, :missing_sender}
-
-      is_binary(message.bluesky_uri) and message.bluesky_uri != "" ->
-        {:skip, :already_mirrored}
-
-      true ->
-        :ok
+      message.visibility != "public" -> {:skip, :not_public}
+      message.federated -> {:skip, :remote_message}
+      message.post_type == "message" -> {:skip, :not_timeline_post}
+      is_nil(message.sender_id) -> {:skip, :missing_sender}
+      is_binary(message.bluesky_uri) and message.bluesky_uri != "" -> {:skip, :already_mirrored}
+      true -> :ok
     end
   end
 
   defp ensure_updatable_message(%Message{} = message) do
     cond do
-      message.visibility != "public" ->
-        {:skip, :not_public}
-
-      message.federated ->
-        {:skip, :remote_message}
-
-      message.post_type == "message" ->
-        {:skip, :not_timeline_post}
-
-      is_nil(message.sender_id) ->
-        {:skip, :missing_sender}
-
-      not (is_binary(message.bluesky_uri) and message.bluesky_uri != "") ->
-        {:skip, :not_mirrored}
-
-      not is_nil(message.deleted_at) ->
-        {:skip, :already_deleted}
-
-      true ->
-        :ok
+      message.visibility != "public" -> {:skip, :not_public}
+      message.federated -> {:skip, :remote_message}
+      message.post_type == "message" -> {:skip, :not_timeline_post}
+      is_nil(message.sender_id) -> {:skip, :missing_sender}
+      not (is_binary(message.bluesky_uri) and message.bluesky_uri != "") -> {:skip, :not_mirrored}
+      not is_nil(message.deleted_at) -> {:skip, :already_deleted}
+      true -> :ok
     end
   end
 
   defp ensure_deletable_message(%Message{} = message) do
     cond do
-      message.federated ->
-        {:skip, :remote_message}
-
-      is_nil(message.sender_id) ->
-        {:skip, :missing_sender}
-
-      not (is_binary(message.bluesky_uri) and message.bluesky_uri != "") ->
-        {:skip, :not_mirrored}
-
-      true ->
-        :ok
+      message.federated -> {:skip, :remote_message}
+      is_nil(message.sender_id) -> {:skip, :missing_sender}
+      not (is_binary(message.bluesky_uri) and message.bluesky_uri != "") -> {:skip, :not_mirrored}
+      true -> :ok
     end
   end
 
-  defp fetch_sender(nil), do: {:skip, :missing_sender}
+  defp fetch_sender(nil) do
+    {:skip, :missing_sender}
+  end
 
   defp fetch_sender(sender_id) do
     case Repo.get(User, sender_id) do
@@ -387,17 +319,31 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp fetch_user(_), do: {:skip, :user_not_found}
+  defp fetch_user(_) do
+    {:skip, :user_not_found}
+  end
 
-  defp ensure_user_enabled(%User{bluesky_enabled: true}), do: :ok
-  defp ensure_user_enabled(_), do: {:skip, :user_not_enabled}
+  defp ensure_user_enabled(%User{bluesky_enabled: true}) do
+    :ok
+  end
+
+  defp ensure_user_enabled(_) do
+    {:skip, :user_not_enabled}
+  end
 
   defp require_user_value(value, reason) when is_binary(value) do
     trimmed = String.trim(value)
-    if trimmed == "", do: {:error, reason}, else: {:ok, trimmed}
+
+    if trimmed == "" do
+      {:error, reason}
+    else
+      {:ok, trimmed}
+    end
   end
 
-  defp require_user_value(_value, reason), do: {:error, reason}
+  defp require_user_value(_value, reason) do
+    {:error, reason}
+  end
 
   defp service_url_for(%User{bluesky_pds_url: user_pds_url}) do
     configured = Keyword.get(bluesky_config(), :service_url, "https://bsky.social")
@@ -405,11 +351,7 @@ defmodule Elektrine.Bluesky do
   end
 
   defp normalize_service_url(url) when is_binary(url) do
-    url =
-      url
-      |> String.trim()
-      |> ensure_url_scheme()
-      |> String.trim_trailing("/")
+    url = url |> String.trim() |> ensure_url_scheme() |> String.trim_trailing("/")
 
     case URI.parse(url) do
       %URI{scheme: scheme, host: host}
@@ -421,7 +363,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp normalize_service_url(_), do: {:error, :invalid_service_url}
+  defp normalize_service_url(_) do
+    {:error, :invalid_service_url}
+  end
 
   defp ensure_url_scheme(url) do
     if String.starts_with?(url, ["http://", "https://"]) do
@@ -448,7 +392,6 @@ defmodule Elektrine.Bluesky do
         {:ok, clamp_text(String.trim(message.primary_url))}
 
       is_list(message.media_urls) and message.media_urls != [] ->
-        # Bluesky allows image-only posts as long as the text field exists.
         {:ok, ""}
 
       true ->
@@ -456,13 +399,29 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp cw_prefix(nil), do: nil
-  defp cw_prefix(""), do: nil
-  defp cw_prefix(value), do: "[CW] " <> String.trim(value)
+  defp cw_prefix(nil) do
+    nil
+  end
 
-  defp title_prefix(nil), do: nil
-  defp title_prefix(""), do: nil
-  defp title_prefix(value), do: String.trim(value)
+  defp cw_prefix("") do
+    nil
+  end
+
+  defp cw_prefix(value) do
+    "[CW] " <> String.trim(value)
+  end
+
+  defp title_prefix(nil) do
+    nil
+  end
+
+  defp title_prefix("") do
+    nil
+  end
+
+  defp title_prefix(value) do
+    String.trim(value)
+  end
 
   defp clamp_text(text) do
     max_chars = max(1, Keyword.get(bluesky_config(), :max_chars, @default_max_chars))
@@ -498,24 +457,47 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp maybe_put_reply(record, nil), do: record
-  defp maybe_put_reply(record, reply), do: Map.put(record, "reply", reply)
-  defp maybe_put_facets(record, []), do: record
-  defp maybe_put_facets(record, nil), do: record
-  defp maybe_put_facets(record, facets), do: Map.put(record, "facets", facets)
-  defp maybe_put_embed(record, nil), do: record
-  defp maybe_put_embed(record, embed), do: Map.put(record, "embed", embed)
+  defp maybe_put_reply(record, nil) do
+    record
+  end
 
-  defp maybe_build_facets(text, _session) when not is_binary(text), do: {:ok, []}
-  defp maybe_build_facets("", _session), do: {:ok, []}
+  defp maybe_put_reply(record, reply) do
+    Map.put(record, "reply", reply)
+  end
+
+  defp maybe_put_facets(record, []) do
+    record
+  end
+
+  defp maybe_put_facets(record, nil) do
+    record
+  end
+
+  defp maybe_put_facets(record, facets) do
+    Map.put(record, "facets", facets)
+  end
+
+  defp maybe_put_embed(record, nil) do
+    record
+  end
+
+  defp maybe_put_embed(record, embed) do
+    Map.put(record, "embed", embed)
+  end
+
+  defp maybe_build_facets(text, _session) when not is_binary(text) do
+    {:ok, []}
+  end
+
+  defp maybe_build_facets("", _session) do
+    {:ok, []}
+  end
 
   defp maybe_build_facets(text, session) do
     link_candidates = extract_link_candidates(text)
     link_ranges = Enum.map(link_candidates, &{&1.byte_start, &1.byte_end})
-
     mention_candidates = extract_mention_candidates(text, link_ranges)
     mention_ranges = Enum.map(mention_candidates, &{&1.byte_start, &1.byte_end})
-
     hashtag_candidates = extract_hashtag_candidates(text, link_ranges ++ mention_ranges)
 
     {mention_facets, _cache} =
@@ -524,16 +506,8 @@ defmodule Elektrine.Bluesky do
 
         if is_binary(did) and did != "" do
           facet = %{
-            "index" => %{
-              "byteStart" => candidate.byte_start,
-              "byteEnd" => candidate.byte_end
-            },
-            "features" => [
-              %{
-                "$type" => @facet_mention_type,
-                "did" => did
-              }
-            ]
+            "index" => %{"byteStart" => candidate.byte_start, "byteEnd" => candidate.byte_end},
+            "features" => [%{"$type" => @facet_mention_type, "did" => did}]
           }
 
           {[facet | acc], next_cache}
@@ -542,13 +516,8 @@ defmodule Elektrine.Bluesky do
         end
       end)
 
-    facets =
-      link_facets(link_candidates) ++ mention_facets ++ hashtag_facets(hashtag_candidates)
-
-    {:ok,
-     facets
-     |> Enum.sort_by(&get_in(&1, ["index", "byteStart"]))
-     |> Enum.take(@max_facets)}
+    facets = link_facets(link_candidates) ++ mention_facets ++ hashtag_facets(hashtag_candidates)
+    {:ok, facets |> Enum.sort_by(&get_in(&1, ["index", "byteStart"])) |> Enum.take(@max_facets)}
   end
 
   defp extract_link_candidates(text) do
@@ -568,11 +537,7 @@ defmodule Elektrine.Bluesky do
 
           true ->
             [
-              %{
-                byte_start: byte_start,
-                byte_end: byte_start + trimmed_len,
-                url: trimmed_url
-              }
+              %{byte_start: byte_start, byte_end: byte_start + trimmed_len, url: trimmed_url}
               | acc
             ]
         end
@@ -596,7 +561,9 @@ defmodule Elektrine.Bluesky do
     |> String.trim_trailing(":")
   end
 
-  defp trim_trailing_url_punctuation(_url), do: ""
+  defp trim_trailing_url_punctuation(_url) do
+    ""
+  end
 
   defp valid_absolute_http_url?(url) when is_binary(url) do
     case URI.parse(url) do
@@ -609,7 +576,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp valid_absolute_http_url?(_url), do: false
+  defp valid_absolute_http_url?(_url) do
+    false
+  end
 
   defp extract_mention_candidates(text, occupied_ranges) do
     Regex.scan(~r/@([A-Za-z0-9][A-Za-z0-9._-]{0,62})/u, text, return: :index, capture: :all)
@@ -658,33 +627,23 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp preceding_character(_text, byte_start) when byte_start <= 0, do: nil
+  defp preceding_character(_text, byte_start) when byte_start <= 0 do
+    nil
+  end
 
   defp preceding_character(text, byte_start) when is_binary(text) and byte_start > 0 do
-    text
-    |> binary_part(0, byte_start)
-    |> String.last()
+    text |> binary_part(0, byte_start) |> String.last()
   end
 
   defp overlaps_any?({start_a, end_a}, ranges) do
-    Enum.any?(ranges, fn {start_b, end_b} ->
-      start_a < end_b and end_a > start_b
-    end)
+    Enum.any?(ranges, fn {start_b, end_b} -> start_a < end_b and end_a > start_b end)
   end
 
   defp link_facets(candidates) do
     Enum.map(candidates, fn candidate ->
       %{
-        "index" => %{
-          "byteStart" => candidate.byte_start,
-          "byteEnd" => candidate.byte_end
-        },
-        "features" => [
-          %{
-            "$type" => @facet_link_type,
-            "uri" => candidate.url
-          }
-        ]
+        "index" => %{"byteStart" => candidate.byte_start, "byteEnd" => candidate.byte_end},
+        "features" => [%{"$type" => @facet_link_type, "uri" => candidate.url}]
       }
     end)
   end
@@ -692,16 +651,8 @@ defmodule Elektrine.Bluesky do
   defp hashtag_facets(candidates) do
     Enum.map(candidates, fn candidate ->
       %{
-        "index" => %{
-          "byteStart" => candidate.byte_start,
-          "byteEnd" => candidate.byte_end
-        },
-        "features" => [
-          %{
-            "$type" => @facet_tag_type,
-            "tag" => candidate.tag
-          }
-        ]
+        "index" => %{"byteStart" => candidate.byte_start, "byteEnd" => candidate.byte_end},
+        "features" => [%{"$type" => @facet_tag_type, "tag" => candidate.tag}]
       }
     end)
   end
@@ -719,13 +670,16 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp resolve_mention_did(handle, _session) when not is_binary(handle), do: nil
-  defp resolve_mention_did("", _session), do: nil
+  defp resolve_mention_did(handle, _session) when not is_binary(handle) do
+    nil
+  end
+
+  defp resolve_mention_did("", _session) do
+    nil
+  end
 
   defp resolve_mention_did(handle, session) do
-    local_user =
-      Repo.get_by(User, handle: handle) ||
-        Repo.get_by(User, username: handle)
+    local_user = Repo.get_by(User, handle: handle) || Repo.get_by(User, username: handle)
 
     cond do
       match?(%User{bluesky_did: did} when is_binary(did) and did != "", local_user) ->
@@ -777,50 +731,48 @@ defmodule Elektrine.Bluesky do
       media_urls
       |> Enum.with_index()
       |> Enum.reduce(%{images: [], video: nil, external: nil}, fn {media_source, index}, acc ->
-        cond do
-          media_kind(guess_media_type(media_source)) == :other ->
-            maybe_add_external_from_source(message, media_source, index, acc)
+        if media_kind(guess_media_type(media_source)) == :other do
+          maybe_add_external_from_source(message, media_source, index, acc)
+        else
+          case fetch_media_binary(media_source) do
+            {:ok, binary, content_type} ->
+              case media_kind(content_type) do
+                :image ->
+                  maybe_add_image_blob(
+                    message,
+                    session,
+                    media_source,
+                    index,
+                    binary,
+                    content_type,
+                    acc
+                  )
 
-          true ->
-            case fetch_media_binary(media_source) do
-              {:ok, binary, content_type} ->
-                case media_kind(content_type) do
-                  :image ->
-                    maybe_add_image_blob(
-                      message,
-                      session,
-                      media_source,
-                      index,
-                      binary,
-                      content_type,
-                      acc
-                    )
+                :video ->
+                  maybe_add_video_blob(
+                    message,
+                    session,
+                    media_source,
+                    index,
+                    binary,
+                    content_type,
+                    acc
+                  )
 
-                  :video ->
-                    maybe_add_video_blob(
-                      message,
-                      session,
-                      media_source,
-                      index,
-                      binary,
-                      content_type,
-                      acc
-                    )
+                :other ->
+                  maybe_add_external_from_source(message, media_source, index, acc)
+              end
 
-                  :other ->
-                    maybe_add_external_from_source(message, media_source, index, acc)
-                end
+            {:skip, _reason} ->
+              maybe_add_external_from_source(message, media_source, index, acc)
 
-              {:skip, _reason} ->
-                maybe_add_external_from_source(message, media_source, index, acc)
+            {:error, reason} ->
+              Logger.warning(
+                "Bluesky media embed skipped for message #{message.id} at index #{index}: #{inspect(reason)}"
+              )
 
-              {:error, reason} ->
-                Logger.warning(
-                  "Bluesky media embed skipped for message #{message.id} at index #{index}: #{inspect(reason)}"
-                )
-
-                acc
-            end
+              acc
+          end
         end
       end)
 
@@ -842,7 +794,9 @@ defmodule Elektrine.Bluesky do
     {:ok, embed}
   end
 
-  defp maybe_build_media_embed(_message, _session), do: {:ok, nil}
+  defp maybe_build_media_embed(_message, _session) do
+    {:ok, nil}
+  end
 
   defp maybe_add_image_blob(
          %Message{} = message,
@@ -858,11 +812,7 @@ defmodule Elektrine.Bluesky do
     else
       case upload_blob(service_url, access_jwt, binary, content_type) do
         {:ok, blob} ->
-          image = %{
-            "image" => blob,
-            "alt" => media_alt_text(message, media_source, index)
-          }
-
+          image = %{"image" => blob, "alt" => media_alt_text(message, media_source, index)}
           %{acc | images: [image | images]}
 
         {:error, reason} ->
@@ -918,21 +868,14 @@ defmodule Elektrine.Bluesky do
       acc
     else
       case external_uri_for_media_source(media_source) do
-        {:ok, uri} ->
-          %{acc | external: build_external_embed(uri, message, media_source, index)}
-
-        _ ->
-          acc
+        {:ok, uri} -> %{acc | external: build_external_embed(uri, message, media_source, index)}
+        _ -> acc
       end
     end
   end
 
   defp build_record_with_media_embed(record_embed, media_embed) do
-    %{
-      "$type" => @record_with_media_embed_type,
-      "record" => record_embed,
-      "media" => media_embed
-    }
+    %{"$type" => @record_with_media_embed_type, "record" => record_embed, "media" => media_embed}
   end
 
   defp maybe_build_link_embed(%Message{primary_url: primary_url} = message)
@@ -946,25 +889,25 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp maybe_build_link_embed(_message), do: {:ok, nil}
+  defp maybe_build_link_embed(_message) do
+    {:ok, nil}
+  end
 
   defp maybe_build_quote_embed(%Message{quoted_message_id: quoted_message_id})
        when is_integer(quoted_message_id) do
     case Messaging.get_message(quoted_message_id) do
       %Message{bluesky_uri: uri, bluesky_cid: cid}
       when is_binary(uri) and uri != "" and is_binary(cid) and cid != "" ->
-        {:ok,
-         %{
-           "$type" => @record_embed_type,
-           "record" => %{"uri" => uri, "cid" => cid}
-         }}
+        {:ok, %{"$type" => @record_embed_type, "record" => %{"uri" => uri, "cid" => cid}}}
 
       _ ->
         {:ok, nil}
     end
   end
 
-  defp maybe_build_quote_embed(_message), do: {:ok, nil}
+  defp maybe_build_quote_embed(_message) do
+    {:ok, nil}
+  end
 
   defp build_external_embed(uri, message, media_source, index) do
     %{
@@ -982,14 +925,10 @@ defmodule Elektrine.Bluesky do
       if is_binary(message.title) and String.trim(message.title) != "" do
         String.trim(message.title)
       else
-        media_source
-        |> to_string()
-        |> source_display_name()
+        media_source |> to_string() |> source_display_name()
       end
 
-    title
-    |> String.slice(0, @max_external_title_chars)
-    |> blank_to_default("Shared link")
+    title |> String.slice(0, @max_external_title_chars) |> blank_to_default("Shared link")
   end
 
   defp external_description_for(%Message{} = message) do
@@ -1004,10 +943,16 @@ defmodule Elektrine.Bluesky do
   end
 
   defp blank_to_default(value, default) when is_binary(value) do
-    if String.trim(value) == "", do: default, else: value
+    if String.trim(value) == "" do
+      default
+    else
+      value
+    end
   end
 
-  defp blank_to_default(_value, default), do: default
+  defp blank_to_default(_value, default) do
+    default
+  end
 
   defp source_display_name(source) when is_binary(source) do
     with {:ok, normalized} <- normalize_external_uri(source),
@@ -1020,15 +965,13 @@ defmodule Elektrine.Bluesky do
         basename -> basename
       end
     else
-      _ ->
-        source
-        |> String.split("/")
-        |> List.last()
-        |> to_string()
+      _ -> source |> String.split("/") |> List.last() |> to_string()
     end
   end
 
-  defp source_display_name(source), do: to_string(source)
+  defp source_display_name(source) do
+    to_string(source)
+  end
 
   defp external_uri_for_media_source(media_source) do
     cond do
@@ -1042,16 +985,19 @@ defmodule Elektrine.Bluesky do
         normalize_external_uri(ActivityPub.instance_url() <> media_source)
 
       true ->
-        media_source
-        |> Uploads.attachment_url()
-        |> normalize_external_uri()
+        media_source |> Uploads.attachment_url() |> normalize_external_uri()
     end
   rescue
     _ -> {:skip, :external_uri_unavailable}
   end
 
-  defp normalize_external_uri(nil), do: {:skip, :missing_external_uri}
-  defp normalize_external_uri(""), do: {:skip, :missing_external_uri}
+  defp normalize_external_uri(nil) do
+    {:skip, :missing_external_uri}
+  end
+
+  defp normalize_external_uri("") do
+    {:skip, :missing_external_uri}
+  end
 
   defp normalize_external_uri(uri) when is_binary(uri) do
     uri = String.trim(uri)
@@ -1064,21 +1010,34 @@ defmodule Elektrine.Bluesky do
         {:ok, ActivityPub.instance_url() <> uri}
 
       String.starts_with?(uri, ["http://", "https://"]) ->
-        if valid_absolute_http_url?(uri), do: {:ok, uri}, else: {:skip, :invalid_external_uri}
+        if valid_absolute_http_url?(uri) do
+          {:ok, uri}
+        else
+          {:skip, :invalid_external_uri}
+        end
 
       true ->
         candidate = "https://" <> uri
 
-        if valid_absolute_http_url?(candidate),
-          do: {:ok, candidate},
-          else: {:skip, :invalid_external_uri}
+        if valid_absolute_http_url?(candidate) do
+          {:ok, candidate}
+        else
+          {:skip, :invalid_external_uri}
+        end
     end
   end
 
-  defp normalize_external_uri(_), do: {:skip, :invalid_external_uri}
+  defp normalize_external_uri(_) do
+    {:skip, :invalid_external_uri}
+  end
 
-  defp fetch_media_binary(source) when not is_binary(source), do: {:skip, :invalid_media_source}
-  defp fetch_media_binary(""), do: {:skip, :empty_media_source}
+  defp fetch_media_binary(source) when not is_binary(source) do
+    {:skip, :invalid_media_source}
+  end
+
+  defp fetch_media_binary("") do
+    {:skip, :empty_media_source}
+  end
 
   defp fetch_media_binary(source) do
     source = String.trim(source)
@@ -1125,36 +1084,37 @@ defmodule Elektrine.Bluesky do
     _ -> {:skip, :unsupported_media_source}
   end
 
-  defp fetch_media_binary_from_url({:file, path, fallback_content_type}, _fallback_guess),
-    do: read_media_from_file(path, fallback_content_type)
+  defp fetch_media_binary_from_url({:file, path, fallback_content_type}, _fallback_guess) do
+    read_media_from_file(path, fallback_content_type)
+  end
 
   defp fetch_media_binary_from_url({:ok, url}, fallback_guess) do
     fetch_media_binary_from_url(url, fallback_guess)
   end
 
-  defp fetch_media_binary_from_url({:skip, reason}, _fallback_guess), do: {:skip, reason}
+  defp fetch_media_binary_from_url({:skip, reason}, _fallback_guess) do
+    {:skip, reason}
+  end
 
-  defp fetch_media_binary_from_url(url, fallback_guess)
-       when is_binary(url) and url != "" do
+  defp fetch_media_binary_from_url(url, fallback_guess) when is_binary(url) and url != "" do
     headers = [{"accept", "*/*"}]
 
     with {:ok, %Finch.Response{} = response} <- request_raw(:get, url, headers, ""),
          :ok <- require_success_status(response.status, :media_fetch_failed) do
       content_type =
-        response.headers
-        |> response_content_type()
-        |> maybe_fallback_content_type(fallback_guess)
+        response.headers |> response_content_type() |> maybe_fallback_content_type(fallback_guess)
 
       {:ok, response.body, content_type}
     end
   end
 
-  defp fetch_media_binary_from_url(_url, _fallback_guess), do: {:skip, :invalid_media_source}
+  defp fetch_media_binary_from_url(_url, _fallback_guess) do
+    {:skip, :invalid_media_source}
+  end
 
   defp read_media_from_file(path, fallback_content_type) do
-    with {:ok, binary} <- File.read(path) do
-      {:ok, binary, fallback_content_type}
-    else
+    case File.read(path) do
+      {:ok, binary} -> {:ok, binary, fallback_content_type}
       {:error, reason} -> {:error, {:media_read_failed, reason}}
     end
   end
@@ -1169,20 +1129,14 @@ defmodule Elektrine.Bluesky do
   end
 
   defp local_media_path_for(source) do
-    adapter =
-      Application.get_env(:elektrine, :uploads, [])
-      |> Keyword.get(:adapter, :local)
+    adapter = Application.get_env(:elektrine, :uploads, []) |> Keyword.get(:adapter, :local)
 
     if adapter == :local and local_media_key?(source) do
       uploads_dir =
         Application.get_env(:elektrine, :uploads, [])
         |> Keyword.get(:uploads_dir, "priv/static/uploads")
 
-      normalized =
-        source
-        |> String.trim_leading("/")
-        |> String.trim_leading("uploads/")
-
+      normalized = source |> String.trim_leading("/") |> String.trim_leading("uploads/")
       {:ok, Path.join(uploads_dir, normalized), guess_media_type(source)}
     else
       :error
@@ -1193,7 +1147,9 @@ defmodule Elektrine.Bluesky do
     Enum.any?(@local_media_prefixes, &String.starts_with?(source, &1))
   end
 
-  defp local_media_key?(_source), do: false
+  defp local_media_key?(_source) do
+    false
+  end
 
   defp media_alt_text(%Message{media_metadata: media_metadata}, media_source, index) do
     alt_texts =
@@ -1204,20 +1160,19 @@ defmodule Elektrine.Bluesky do
       end
 
     alt_value =
-      Map.get(alt_texts, to_string(index)) ||
-        Map.get(alt_texts, index) ||
+      Map.get(alt_texts, to_string(index)) || Map.get(alt_texts, index) ||
         Map.get(alt_texts, media_source)
 
     normalize_alt_text(alt_value)
   end
 
   defp normalize_alt_text(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> String.slice(0, @max_alt_text_chars)
+    value |> String.trim() |> String.slice(0, @max_alt_text_chars)
   end
 
-  defp normalize_alt_text(_value), do: ""
+  defp normalize_alt_text(_value) do
+    ""
+  end
 
   defp response_content_type(headers) when is_list(headers) do
     headers
@@ -1234,10 +1189,17 @@ defmodule Elektrine.Bluesky do
     end)
   end
 
-  defp response_content_type(_headers), do: nil
+  defp response_content_type(_headers) do
+    nil
+  end
 
-  defp maybe_fallback_content_type(nil, fallback), do: fallback || "application/octet-stream"
-  defp maybe_fallback_content_type(content_type, _fallback), do: content_type
+  defp maybe_fallback_content_type(nil, fallback) do
+    fallback || "application/octet-stream"
+  end
+
+  defp maybe_fallback_content_type(content_type, _fallback) do
+    content_type
+  end
 
   defp normalize_content_type(value) when is_binary(value) do
     value
@@ -1248,18 +1210,24 @@ defmodule Elektrine.Bluesky do
     |> String.downcase()
   end
 
-  defp normalize_content_type(_value), do: "application/octet-stream"
+  defp normalize_content_type(_value) do
+    "application/octet-stream"
+  end
 
-  defp media_kind("image/" <> _rest), do: :image
-  defp media_kind("video/" <> _rest), do: :video
-  defp media_kind(_content_type), do: :other
+  defp media_kind("image/" <> _rest) do
+    :image
+  end
+
+  defp media_kind("video/" <> _rest) do
+    :video
+  end
+
+  defp media_kind(_content_type) do
+    :other
+  end
 
   defp guess_media_type(value) when is_binary(value) do
-    normalized =
-      value
-      |> String.downcase()
-      |> String.split("?")
-      |> List.first()
+    normalized = value |> String.downcase() |> String.split("?") |> List.first()
 
     cond do
       String.ends_with?(normalized, [".jpg", ".jpeg"]) -> "image/jpeg"
@@ -1284,9 +1252,13 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp guess_media_type(_value), do: "application/octet-stream"
+  defp guess_media_type(_value) do
+    "application/octet-stream"
+  end
 
-  defp maybe_build_reply_payload(nil), do: {:ok, nil}
+  defp maybe_build_reply_payload(nil) do
+    {:ok, nil}
+  end
 
   defp maybe_build_reply_payload(reply_to_id) do
     case Messaging.get_message(reply_to_id) do
@@ -1294,22 +1266,20 @@ defmodule Elektrine.Bluesky do
       when is_binary(uri) and uri != "" and is_binary(cid) and cid != "" ->
         parent_ref = %{"uri" => uri, "cid" => cid}
         root_ref = find_root_reference(parent, parent_ref)
-
-        {:ok,
-         %{
-           "root" => root_ref,
-           "parent" => parent_ref
-         }}
+        {:ok, %{"root" => root_ref, "parent" => parent_ref}}
 
       _ ->
         {:skip, :reply_parent_not_mirrored}
     end
   end
 
-  defp find_root_reference(_message, current_ref, depth) when depth >= @max_reply_depth,
-    do: current_ref
+  defp find_root_reference(_message, current_ref, depth) when depth >= @max_reply_depth do
+    current_ref
+  end
 
-  defp find_root_reference(%Message{reply_to_id: nil}, current_ref, _depth), do: current_ref
+  defp find_root_reference(%Message{reply_to_id: nil}, current_ref, _depth) do
+    current_ref
+  end
 
   defp find_root_reference(%Message{reply_to_id: reply_to_id}, current_ref, depth) do
     case Messaging.get_message(reply_to_id) do
@@ -1323,7 +1293,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp find_root_reference(message, current_ref), do: find_root_reference(message, current_ref, 0)
+  defp find_root_reference(message, current_ref) do
+    find_root_reference(message, current_ref, 0)
+  end
 
   defp create_session(service_url, identifier, password) do
     url = service_url <> "/xrpc/com.atproto.server.createSession"
@@ -1340,13 +1312,7 @@ defmodule Elektrine.Bluesky do
 
   defp create_record(service_url, access_jwt, did, record, collection \\ @post_collection) do
     url = service_url <> "/xrpc/com.atproto.repo.createRecord"
-
-    payload = %{
-      repo: did,
-      collection: collection,
-      record: record
-    }
-
+    payload = %{repo: did, collection: collection, record: record}
     headers = [{"authorization", "Bearer " <> access_jwt}]
 
     with {:ok, %Finch.Response{} = response} <- request_json(:post, url, payload, headers),
@@ -1369,22 +1335,14 @@ defmodule Elektrine.Bluesky do
 
     with {:ok, %Finch.Response{} = response} <- request_raw(:post, url, headers, binary),
          :ok <- require_success_status(response.status, :upload_blob_failed),
-         {:ok, body} <- decode_json_body(response.body),
-         {:ok, blob} <- map_fetch_map(body, "blob", :missing_blob) do
-      {:ok, blob}
+         {:ok, body} <- decode_json_body(response.body) do
+      map_fetch_map(body, "blob", :missing_blob)
     end
   end
 
   defp put_record(service_url, access_jwt, repo, collection, rkey, record) do
     url = service_url <> "/xrpc/com.atproto.repo.putRecord"
-
-    payload = %{
-      repo: repo,
-      collection: collection,
-      rkey: rkey,
-      record: record
-    }
-
+    payload = %{repo: repo, collection: collection, rkey: rkey, record: record}
     headers = [{"authorization", "Bearer " <> access_jwt}]
 
     with {:ok, %Finch.Response{} = response} <- request_json(:post, url, payload, headers),
@@ -1398,18 +1356,11 @@ defmodule Elektrine.Bluesky do
 
   defp delete_record(service_url, access_jwt, repo, collection, rkey) do
     url = service_url <> "/xrpc/com.atproto.repo.deleteRecord"
-
-    payload = %{
-      repo: repo,
-      collection: collection,
-      rkey: rkey
-    }
-
+    payload = %{repo: repo, collection: collection, rkey: rkey}
     headers = [{"authorization", "Bearer " <> access_jwt}]
 
-    with {:ok, %Finch.Response{} = response} <- request_json(:post, url, payload, headers),
-         :ok <- require_success_status(response.status, :delete_record_failed) do
-      :ok
+    with {:ok, %Finch.Response{} = response} <- request_json(:post, url, payload, headers) do
+      require_success_status(response.status, :delete_record_failed)
     end
   end
 
@@ -1422,13 +1373,8 @@ defmodule Elektrine.Bluesky do
       }
       |> maybe_put_cursor_param(cursor)
 
-    url =
-      service_url <> "/xrpc/com.atproto.repo.listRecords?" <> URI.encode_query(params)
-
-    headers = [
-      {"accept", "application/json"},
-      {"authorization", "Bearer " <> access_jwt}
-    ]
+    url = service_url <> "/xrpc/com.atproto.repo.listRecords?" <> URI.encode_query(params)
+    headers = [{"accept", "application/json"}, {"authorization", "Bearer " <> access_jwt}]
 
     with {:ok, %Finch.Response{} = response} <- request_raw(:get, url, headers, ""),
          :ok <- require_success_status(response.status, :list_records_failed),
@@ -1442,18 +1388,17 @@ defmodule Elektrine.Bluesky do
     Map.put(params, "cursor", cursor)
   end
 
-  defp maybe_put_cursor_param(params, _cursor), do: params
+  defp maybe_put_cursor_param(params, _cursor) do
+    params
+  end
 
   defp request_json(method, url, payload, extra_headers \\ []) do
-    headers =
-      [
-        {"content-type", "application/json"},
-        {"accept", "application/json"}
-        | extra_headers
-      ]
+    headers = [
+      {"content-type", "application/json"},
+      {"accept", "application/json"} | extra_headers
+    ]
 
     body = Jason.encode!(payload)
-
     request_raw(method, url, headers, body)
   end
 
@@ -1461,16 +1406,18 @@ defmodule Elektrine.Bluesky do
     timeout_ms = Keyword.get(bluesky_config(), :timeout_ms, @default_timeout_ms)
 
     case http_client().request(method, url, headers, body, receive_timeout: timeout_ms) do
-      {:ok, %Finch.Response{} = response} ->
-        {:ok, response}
-
-      {:error, reason} ->
-        {:error, {:http_error, reason}}
+      {:ok, %Finch.Response{} = response} -> {:ok, response}
+      {:error, reason} -> {:error, {:http_error, reason}}
     end
   end
 
-  defp require_success_status(status, _reason) when status in 200..299, do: :ok
-  defp require_success_status(status, reason), do: {:error, {reason, status}}
+  defp require_success_status(status, _reason) when status in 200..299 do
+    :ok
+  end
+
+  defp require_success_status(status, reason) do
+    {:error, {reason, status}}
+  end
 
   defp decode_json_body(body) when is_binary(body) do
     case Jason.decode(body) do
@@ -1479,7 +1426,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp decode_json_body(_), do: {:error, :invalid_json}
+  defp decode_json_body(_) do
+    {:error, :invalid_json}
+  end
 
   defp map_fetch_string(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
@@ -1488,7 +1437,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp map_fetch_string(_map, _key, reason), do: {:error, reason}
+  defp map_fetch_string(_map, _key, reason) do
+    {:error, reason}
+  end
 
   defp map_fetch_map(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
@@ -1497,7 +1448,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp map_fetch_map(_map, _key, reason), do: {:error, reason}
+  defp map_fetch_map(_map, _key, reason) do
+    {:error, reason}
+  end
 
   defp map_fetch_list(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
@@ -1506,7 +1459,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp map_fetch_list(_map, _key, reason), do: {:error, reason}
+  defp map_fetch_list(_map, _key, reason) do
+    {:error, reason}
+  end
 
   defp fetch_mirrored_subject_message(message_id) when is_integer(message_id) do
     case Repo.get(Message, message_id) do
@@ -1522,7 +1477,9 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp fetch_mirrored_subject_message(_), do: {:skip, :message_not_found}
+  defp fetch_mirrored_subject_message(_) do
+    {:skip, :message_not_found}
+  end
 
   defp parse_at_uri("at://" <> rest) do
     case String.split(rest, "/", parts: 3) do
@@ -1534,10 +1491,17 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp parse_at_uri(_value), do: {:error, :invalid_at_uri}
+  defp parse_at_uri(_value) do
+    {:error, :invalid_at_uri}
+  end
 
-  defp ensure_collection(collection, expected) when collection == expected, do: :ok
-  defp ensure_collection(_collection, _expected), do: {:error, :unexpected_collection}
+  defp ensure_collection(collection, expected) when collection == expected do
+    :ok
+  end
+
+  defp ensure_collection(_collection, _expected) do
+    {:error, :unexpected_collection}
+  end
 
   defp maybe_create_subject_record(_session, _collection, existing_uri, _record)
        when is_binary(existing_uri) and existing_uri != "" do
@@ -1585,24 +1549,26 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp maybe_delete_record_by_uri(_session, _collection, nil), do: :ok
+  defp maybe_delete_record_by_uri(_session, _collection, nil) do
+    :ok
+  end
 
   defp maybe_delete_record_by_uri(session, collection, uri) when is_binary(uri) do
     with {:ok, parsed} <- parse_at_uri(uri),
-         :ok <- ensure_collection(parsed.collection, collection),
-         :ok <-
-           delete_record(
-             session.service_url,
-             session.access_jwt,
-             parsed.repo,
-             parsed.collection,
-             parsed.rkey
-           ) do
-      :ok
+         :ok <- ensure_collection(parsed.collection, collection) do
+      delete_record(
+        session.service_url,
+        session.access_jwt,
+        parsed.repo,
+        parsed.collection,
+        parsed.rkey
+      )
     end
   end
 
-  defp maybe_delete_record_by_uri(_session, _collection, _uri), do: {:error, :invalid_record_uri}
+  defp maybe_delete_record_by_uri(_session, _collection, _uri) do
+    {:error, :invalid_record_uri}
+  end
 
   defp resolve_follow_target_did(%User{} = followed, session) do
     cond do
@@ -1647,9 +1613,8 @@ defmodule Elektrine.Bluesky do
 
         with {:ok, %Finch.Response{} = response} <- request_raw(:get, url, headers, ""),
              :ok <- require_success_status(response.status, :resolve_handle_failed),
-             {:ok, body} <- decode_json_body(response.body),
-             {:ok, did} <- map_fetch_string(body, "did", :missing_did) do
-          {:ok, did}
+             {:ok, body} <- decode_json_body(response.body) do
+          map_fetch_string(body, "did", :missing_did)
         end
     end
   end
@@ -1669,21 +1634,20 @@ defmodule Elektrine.Bluesky do
   end
 
   defp persist_user_did(user_id, did) when is_integer(user_id) and is_binary(did) and did != "" do
-    from(u in User, where: u.id == ^user_id)
-    |> Repo.update_all(set: [bluesky_did: did])
-
+    from(u in User, where: u.id == ^user_id) |> Repo.update_all(set: [bluesky_did: did])
     :ok
   end
 
-  defp persist_user_did(_user_id, _did), do: :ok
+  defp persist_user_did(_user_id, _did) do
+    :ok
+  end
 
-  defp format_created_at(nil),
-    do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+  defp format_created_at(nil) do
+    DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+  end
 
   defp format_created_at(%DateTime{} = datetime) do
-    datetime
-    |> DateTime.truncate(:second)
-    |> DateTime.to_iso8601()
+    datetime |> DateTime.truncate(:second) |> DateTime.to_iso8601()
   end
 
   defp format_created_at(datetime) do
@@ -1693,7 +1657,9 @@ defmodule Elektrine.Bluesky do
     |> DateTime.to_iso8601()
   end
 
-  defp bluesky_config, do: Application.get_env(:elektrine, :bluesky, [])
+  defp bluesky_config do
+    Application.get_env(:elektrine, :bluesky, [])
+  end
 
   defp http_client do
     Keyword.get(bluesky_config(), :http_client, Elektrine.Bluesky.FinchClient)

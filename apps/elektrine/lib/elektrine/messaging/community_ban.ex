@@ -1,4 +1,5 @@
 defmodule Elektrine.Messaging.CommunityBan do
+  @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 

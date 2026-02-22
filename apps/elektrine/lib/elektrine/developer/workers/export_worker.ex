@@ -14,7 +14,7 @@ defmodule Elektrine.Developer.ExportWorker do
 
   alias Elektrine.Developer
   alias Elektrine.Developer.DataExport
-  alias Elektrine.Developer.Exports.{EmailExporter, SocialExporter, ChatExporter, AccountExporter}
+  alias Elektrine.Developer.Exports.{AccountExporter, ChatExporter, EmailExporter, SocialExporter}
 
   # Export directory - configurable via :elektrine, :export_dir
   defp export_dir, do: Application.get_env(:elektrine, :export_dir, "/tmp/elektrine/exports")

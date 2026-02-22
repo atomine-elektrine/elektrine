@@ -167,7 +167,7 @@ defmodule ElektrineWeb.Components.Social.RSSItem do
     cond do
       diff < 60 -> "just now"
       diff < 3600 -> "#{div(diff, 60)}m"
-      diff < 86400 -> "#{div(diff, 3600)}h"
+      diff < 86_400 -> "#{div(diff, 3600)}h"
       diff < 604_800 -> "#{div(diff, 86400)}d"
       true -> Calendar.strftime(datetime, "%b %d")
     end

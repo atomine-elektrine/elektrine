@@ -11,8 +11,8 @@ defmodule Elektrine.Accounts.TrustLevel do
   """
 
   import Ecto.Query
+  alias Elektrine.Accounts.{TrustLevelLog, User, UserActivityStats}
   alias Elektrine.Repo
-  alias Elektrine.Accounts.{User, UserActivityStats, TrustLevelLog}
   require Logger
 
   @levels %{

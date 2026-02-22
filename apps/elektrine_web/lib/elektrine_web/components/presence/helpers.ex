@@ -20,12 +20,12 @@ defmodule ElektrineWeb.Components.Presence.Helpers do
         minutes = div(diff_seconds, 60)
         "Last seen #{minutes}m ago"
 
-      diff_seconds < 86400 ->
+      diff_seconds < 86_400 ->
         hours = div(diff_seconds, 3600)
         "Last seen #{hours}h ago"
 
       diff_seconds < 604_800 ->
-        days = div(diff_seconds, 86400)
+        days = div(diff_seconds, 86_400)
         "Last seen #{days}d ago"
 
       true ->

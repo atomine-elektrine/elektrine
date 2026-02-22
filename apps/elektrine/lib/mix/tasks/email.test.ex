@@ -1,4 +1,5 @@
 defmodule Mix.Tasks.Email.Test do
+  @moduledoc false
   use Mix.Task
   require Logger
 

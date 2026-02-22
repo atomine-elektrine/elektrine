@@ -4,9 +4,9 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
   import Ecto.Query
   import Elektrine.AccountsFixtures
 
-  alias Elektrine.ActivityPub.Handlers.FollowHandler
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Activity, Actor}
+  alias Elektrine.ActivityPub.Handlers.FollowHandler
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
