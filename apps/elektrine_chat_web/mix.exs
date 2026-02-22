@@ -31,7 +31,7 @@ defmodule ElektrineChatWeb.MixProject do
       {:phoenix, "== 1.8.3"},
       {:phoenix_ecto, "== 4.7.0"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.23"},
+      {:phoenix_live_view, "== 1.1.24"},
       {:jason, "== 1.4.4"},
       {:elektrine, in_umbrella: true},
       {:elektrine_chat, in_umbrella: true}
