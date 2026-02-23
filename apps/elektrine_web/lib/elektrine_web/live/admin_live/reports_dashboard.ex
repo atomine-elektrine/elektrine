@@ -451,9 +451,9 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
       
     <!-- Report Details Modal -->
       <%= if @selected_report do %>
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="modal modal-open">
           <div
-            class="bg-base-100 rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            class="modal-box card glass-card max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto"
             phx-click-away="close_report_modal"
           >
             <div class="p-6">

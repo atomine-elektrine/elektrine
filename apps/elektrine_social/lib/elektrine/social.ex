@@ -743,12 +743,30 @@ defmodule Elektrine.Social do
         notify_mentions(validated_content, user_id, message.id)
         broadcast_timeline_post(message)
         maybe_federate_timeline_post(message)
+        emit_post_created_webhook(message, user_id)
         reloaded_message = Repo.preload(message, [:link_preview, :hashtags, sender: :profile])
         {:ok, %{reloaded_message | like_count: 0, reply_count: 0, share_count: 0}}
 
       error ->
         error
     end
+  end
+
+  defp emit_post_created_webhook(message, user_id) do
+    payload = %{
+      post_id: message.id,
+      conversation_id: message.conversation_id,
+      post_type: message.post_type,
+      visibility: message.visibility,
+      title: message.title,
+      content_preview: String.slice(message.content || "", 0, 280),
+      inserted_at: message.inserted_at
+    }
+
+    _ = Elektrine.Developer.deliver_event(user_id, "post.created", payload)
+    :ok
+  rescue
+    _ -> :ok
   end
 
   defp blocked_user_ids(nil), do: []

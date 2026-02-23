@@ -21,6 +21,9 @@ defmodule Elektrine.Uploads do
     image/png
     image/gif
     image/webp
+    image/heic
+    image/heif
+    image/avif
     video/mp4
     video/webm
     video/ogg
@@ -40,7 +43,7 @@ defmodule Elektrine.Uploads do
     application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
     text/plain
   ]
-  @chat_attachment_extensions ~w[.jpg .jpeg .png .gif .webp .mp4 .webm .ogv .mov .mp3 .wav .m4a .aac .flac .pdf .doc .docx .xls .xlsx .txt]
+  @chat_attachment_extensions ~w[.jpg .jpeg .png .gif .webp .heic .heif .avif .mp4 .webm .ogv .mov .mp3 .wav .m4a .aac .flac .pdf .doc .docx .xls .xlsx .txt]
   @max_chat_attachment_size Constants.max_chat_attachment_size()
   @background_mime_types ~w[
     image/jpeg
@@ -1042,6 +1045,18 @@ defmodule Elektrine.Uploads do
 
   defp extension_for_content_type("image/gif") do
     ".gif"
+  end
+
+  defp extension_for_content_type("image/heic") do
+    ".heic"
+  end
+
+  defp extension_for_content_type("image/heif") do
+    ".heif"
+  end
+
+  defp extension_for_content_type("image/avif") do
+    ".avif"
   end
 
   defp extension_for_content_type(_) do

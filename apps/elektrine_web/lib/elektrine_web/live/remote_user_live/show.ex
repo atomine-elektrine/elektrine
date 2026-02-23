@@ -4,6 +4,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
+  alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.{Repo, Social}
   alias ElektrineWeb.Live.PostInteractions
@@ -50,6 +51,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       |> assign(:sort_by, "hot")
       |> assign(:lemmy_counts, %{})
       |> assign(:mastodon_counts, %{})
+      |> assign(:community_stats, %{members: 0, posts: 0})
       |> assign(:show_image_upload_modal, false)
       |> assign(:pending_media_urls, [])
       |> assign(:pending_media_alt_texts, %{})
@@ -165,6 +167,14 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       )
     end
 
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
+    end
+
+    if connected?(socket) && remote_actor.actor_type == "Group" do
+      send(self(), :load_community_stats)
+    end
+
     # Load instance metadata (nodeinfo) for display
     instance_info =
       Instances.get_instance_with_metadata(remote_actor.domain, fetch_if_stale: true)
@@ -175,6 +185,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     |> assign(:is_following, is_following)
     |> assign(:is_pending, is_pending)
     |> assign(:instance_info, instance_info)
+    |> assign(:community_stats, initial_community_stats(remote_actor))
     |> assign(:actor_loading, false)
   end
 
@@ -331,6 +342,34 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  def handle_info(:load_community_stats, socket) do
+    case socket.assigns.remote_actor do
+      %{actor_type: "Group"} = remote_actor ->
+        pid = self()
+
+        Task.start(fn ->
+          stats = fetch_group_stats(remote_actor)
+          send(pid, {:community_stats_loaded, stats})
+        end)
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_info({:community_stats_loaded, %{} = stats}, socket) do
+    current = socket.assigns[:community_stats] || %{members: 0, posts: 0}
+
+    merged_stats = %{
+      members: max(current[:members] || 0, stats[:members] || 0),
+      posts: max(current[:posts] || 0, stats[:posts] || 0)
+    }
+
+    {:noreply, assign(socket, :community_stats, merged_stats)}
+  end
+
   def handle_info({:outbox_loaded, outbox_posts, local_ap_ids, remote_actor}, socket) do
     # Filter to unique posts
     unique_outbox_posts =
@@ -434,6 +473,78 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   def handle_info({:replies_loaded_for_posts, post_replies}, socket) do
     current_replies = socket.assigns.post_replies || %{}
     {:noreply, assign(socket, :post_replies, Map.merge(current_replies, post_replies))}
+  end
+
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    updated_local_posts =
+      Enum.map(socket.assigns.local_posts || [], fn post ->
+        if post.id == message_id do
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+        else
+          post
+        end
+      end)
+
+    updated_modal_post =
+      case socket.assigns[:modal_post] do
+        %{id: ^message_id} = post ->
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+
+        post ->
+          post
+      end
+
+    updated_lemmy_counts =
+      case Enum.find(updated_local_posts, &(&1.id == message_id)) do
+        %{activitypub_id: activitypub_id} when is_binary(activitypub_id) ->
+          existing = Map.get(socket.assigns.lemmy_counts || %{}, activitypub_id, %{})
+
+          Map.put(
+            socket.assigns.lemmy_counts || %{},
+            activitypub_id,
+            existing
+            |> Map.put(:score, counts.like_count)
+            |> Map.put(:comments, counts.reply_count)
+          )
+
+        _ ->
+          socket.assigns.lemmy_counts || %{}
+      end
+
+    updated_mastodon_counts =
+      case Enum.find(updated_local_posts, &(&1.id == message_id)) do
+        %{activitypub_id: activitypub_id} when is_binary(activitypub_id) ->
+          existing = Map.get(socket.assigns.mastodon_counts || %{}, activitypub_id, %{})
+
+          Map.put(
+            socket.assigns.mastodon_counts || %{},
+            activitypub_id,
+            existing
+            |> Map.put(:favourites_count, counts.like_count)
+            |> Map.put(:reblogs_count, counts.share_count)
+            |> Map.put(:replies_count, counts.reply_count)
+          )
+
+        _ ->
+          socket.assigns.mastodon_counts || %{}
+      end
+
+    {:noreply,
+     socket
+     |> assign(:local_posts, updated_local_posts)
+     |> assign(:modal_post, updated_modal_post)
+     |> assign(:lemmy_counts, updated_lemmy_counts)
+     |> assign(:mastodon_counts, updated_mastodon_counts)}
   end
 
   # Handle follow acceptance - update button state without refresh
@@ -1648,6 +1759,43 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  defp initial_community_stats(%{actor_type: "Group", metadata: metadata}) do
+    metadata = metadata || %{}
+
+    %{
+      members: get_follower_count(metadata),
+      posts: get_status_count(metadata)
+    }
+  end
+
+  defp initial_community_stats(_), do: %{members: 0, posts: 0}
+
+  defp fetch_group_stats(%{domain: domain, username: username, metadata: metadata}) do
+    metadata = metadata || %{}
+    metadata_stats = initial_community_stats(%{actor_type: "Group", metadata: metadata})
+
+    followers_collection_count = fetch_collection_count(metadata["followers"])
+    outbox_collection_count = fetch_collection_count(metadata["outbox"])
+    lemmy_stats = LemmyApi.fetch_community_counts(domain, username) || %{}
+
+    %{
+      members:
+        Enum.max([
+          metadata_stats.members || 0,
+          followers_collection_count,
+          lemmy_stats[:members] || 0
+        ]),
+      posts:
+        Enum.max([
+          metadata_stats.posts || 0,
+          outbox_collection_count,
+          lemmy_stats[:posts] || 0
+        ])
+    }
+  end
+
+  defp fetch_group_stats(_), do: %{members: 0, posts: 0}
+
   # Helper functions - delegating to shared APHelpers module
 
   defp format_activitypub_date(date), do: APHelpers.format_activitypub_date(date)
@@ -1655,6 +1803,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp get_collection_total_items(coll), do: APHelpers.get_collection_total(coll)
   defp get_follower_count(meta), do: APHelpers.get_follower_count(meta)
   defp get_following_count(meta), do: APHelpers.get_following_count(meta)
+  defp get_status_count(meta), do: APHelpers.get_status_count(meta)
   defp extract_username_from_uri(uri), do: APHelpers.extract_username_from_uri(uri)
 
   defp load_post_interactions(posts, user_id),

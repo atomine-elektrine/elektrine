@@ -1,9 +1,9 @@
-<div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pb-2">
+<div class="social-page-wrap">
   <!-- Z Platform Navigation -->
   <.z_nav active_tab="timeline" />
   
 <!-- Back Button -->
-  <div class="mb-4">
+  <div class="social-page-toolbar">
     <.link href={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
     </.link>
@@ -14,7 +14,7 @@
     <div
       id="trending-hashtags-marquee"
       phx-update="ignore"
-      class="hidden overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
+      class="social-page-card hidden overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
     >
       <div class="flex items-center gap-2">
         <.icon name="hero-fire" class="w-4 h-4 text-orange-500 flex-shrink-0" />
@@ -40,7 +40,7 @@
     </div>
   <% end %>
 
-  <div class="w-full">
+  <div class="social-page-rail w-full">
     <!-- Left Sidebar (Hidden on mobile) -->
     <div class="hidden">
       <div class="p-4">
@@ -94,7 +94,7 @@
     <div class="w-full min-w-0">
       <div>
         <!-- Main Post -->
-        <div class="card border border-base-300 rounded-lg mb-6">
+        <div class="card social-page-card border border-base-300 rounded-lg mb-6">
           <div class="card-body p-6">
             <!-- Post Header -->
             <div class="flex items-center gap-3 mb-4">
@@ -482,68 +482,34 @@
             
 <!-- Post Actions + Emoji Reactions -->
             <div class="flex flex-wrap items-center gap-2 pt-4 mt-4 border-t border-base-200">
-              <%= if @current_user do %>
-                <!-- Like Button -->
+              <.post_actions
+                post_id={@post.id}
+                value_name="message_id"
+                current_user={@current_user}
+                is_liked={@liked_by_user}
+                like_count={@post.like_count}
+                comment_count={@total_reply_count}
+                quote_count={@post.quote_count || 0}
+                on_comment="toggle_reply_form"
+                on_quote="quote_post"
+                show_boost={false}
+                show_save={false}
+                size={:sm}
+              />
+
+              <%= if @current_user && @post.sender && @post.sender.id != @current_user.id do %>
                 <button
-                  phx-click="like_post"
-                  class={[
-                    "btn btn-ghost btn-sm",
-                    @liked_by_user && "text-red-500"
-                  ]}
-                >
-                  <.icon
-                    name={if @liked_by_user, do: "hero-heart-solid", else: "hero-heart"}
-                    class={[
-                      "w-5 h-5 mr-2",
-                      @liked_by_user && "text-red-500"
-                    ]}
-                  />
-                  {@post.like_count}
-                </button>
-                
-<!-- Reply Button -->
-                <button
-                  phx-click="toggle_reply_form"
-                  class="btn btn-ghost btn-sm"
-                >
-                  <.icon name="hero-chat-bubble-left" class="w-5 h-5 mr-2" />
-                  {@total_reply_count}
-                </button>
-                
-<!-- Continue in Chat (for others' posts - local only) -->
-                <%= if @post.sender && @post.sender.id != @current_user.id do %>
-                  <button
-                    phx-click="discuss_privately"
-                    phx-value-message_id={@post.id}
-                    phx-value-target_user_id={@post.sender.id}
-                    class="btn btn-ghost btn-sm"
-                    title="Start a private conversation about this post"
-                  >
-                    <.icon name="hero-chat-bubble-left-right" class="w-5 h-5 mr-2" /> Chat
-                  </button>
-                <% end %>
-                
-<!-- Quote Button -->
-                <button
-                  phx-click="quote_post"
+                  phx-click="discuss_privately"
                   phx-value-message_id={@post.id}
+                  phx-value-target_user_id={@post.sender.id}
                   class="btn btn-ghost btn-sm"
-                  title="Quote this post"
+                  title="Start a private conversation about this post"
                 >
-                  <.icon name="hero-chat-bubble-bottom-center-text" class="w-5 h-5 mr-2" /> Quote
+                  <.icon name="hero-chat-bubble-left-right" class="w-5 h-5 mr-2" /> Chat
                 </button>
-              <% else %>
-                <!-- Show stats for unauthenticated users -->
-                <div class="flex items-center gap-4">
-                  <div class="flex items-center gap-2 opacity-70">
-                    <.icon name="hero-heart" class="w-5 h-5" />
-                    <span>{@post.like_count}</span>
-                  </div>
-                  <div class="flex items-center gap-2 opacity-70">
-                    <.icon name="hero-chat-bubble-left" class="w-5 h-5" />
-                    <span>{@total_reply_count}</span>
-                  </div>
-                </div>
+              <% end %>
+
+              <%= if !@current_user do %>
                 <.link href={~p"/login"} class="btn btn-secondary btn-sm ml-auto">
                   Sign in to interact
                 </.link>
@@ -567,7 +533,7 @@
         
 <!-- Reply Form -->
         <%= if @show_reply_form && @current_user do %>
-          <div class="card border border-base-300 rounded-lg mb-6">
+          <div class="card social-page-card border border-base-300 rounded-lg mb-6">
             <div class="card-body p-4">
               <div class="flex items-start gap-3 mb-3">
                 <div class="w-10 h-10">
@@ -638,40 +604,28 @@
                 </div>
               <% end %>
 
-              <.form for={%{}} phx-submit="create_reply" class="space-y-4">
-                <textarea
-                  name="content"
-                  placeholder="Post your reply..."
-                  class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
-                  style="min-height: 4rem; max-height: 15rem;"
-                  rows="4"
-                  phx-change="update_reply_content"
-                  phx-hook="AutoExpandTextarea"
-                  phx-update="ignore"
-                  id="timeline-post-reply-textarea"
-                  required
-                ><%= @reply_content %></textarea>
-
-                <div class="flex gap-2 justify-end items-center">
-                  <span class={[
-                    "text-xs",
-                    String.length(@reply_content || "") < 3 && "text-error",
-                    String.length(@reply_content || "") >= 3 && "text-success"
-                  ]}>
-                    {String.length(@reply_content || "")}/3 min
-                  </span>
-                  <button type="button" phx-click="toggle_reply_form" class="btn btn-ghost btn-sm">
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn btn-secondary btn-sm"
-                    disabled={String.length(@reply_content || "") < 3}
-                  >
-                    <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Reply
-                  </button>
-                </div>
-              </.form>
+              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                wrapper_class=""
+                content={@reply_content}
+                textarea_id="timeline-post-reply-textarea"
+                placeholder="Post your reply..."
+                textarea_class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+                textarea_style="min-height: 4rem; max-height: 15rem;"
+                rows={4}
+                on_submit="create_reply"
+                on_change="update_reply_content"
+                on_cancel="toggle_reply_form"
+                cancel_class="btn btn-ghost btn-sm"
+                submit_class="btn btn-secondary btn-sm"
+                submit_label="Reply"
+                submit_icon="hero-paper-airplane"
+                submit_disable_with="Posting..."
+                form_class="space-y-4"
+                textarea_hook="AutoExpandTextarea"
+                textarea_update="ignore"
+                content_min={3}
+                show_counter={true}
+              />
             </div>
           </div>
         <% end %>
@@ -781,11 +735,11 @@
 <!-- Quote Modal -->
   <%= if @show_quote_modal && @quote_target_post do %>
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      class="modal modal-open p-4"
       phx-click="close_quote_modal"
     >
       <div
-        class="bg-base-100 rounded-lg shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
         phx-click="stop_propagation"
         phx-window-keydown="close_quote_modal"
         phx-key="Escape"

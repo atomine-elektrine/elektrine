@@ -80,6 +80,14 @@ defmodule Elektrine.PubSubTopics do
   def user_status(user_id), do: "user:#{user_id}:status"
 
   @doc """
+  Shared topic for global user presence updates.
+
+  This is used by the legacy Phoenix Presence tracker and federated ARBP
+  presence fanout so LiveViews can consume a single presence bus.
+  """
+  def users_presence, do: "users"
+
+  @doc """
   Topic for global announcements.
   """
   def announcements, do: "announcements:all"

@@ -1,4 +1,4 @@
-<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+<div class="social-page-wrap">
   <%= if is_nil(@remote_actor) do %>
     <!-- Loading state when actor hasn't been fetched yet -->
     <.z_nav active_tab="timeline" />
@@ -35,7 +35,7 @@
     } />
     
 <!-- Back Button -->
-    <div class="mb-4">
+    <div class="social-page-toolbar">
       <%= if @remote_actor.actor_type == "Group" do %>
         <.link navigate={~p"/communities"} class="btn btn-ghost btn-sm gap-2">
           <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Communities
@@ -50,7 +50,7 @@
     <%= if @remote_actor.actor_type == "Group" do %>
       <!-- COMMUNITY VIEW (Lemmy-style) -->
     <!-- Community Header Banner -->
-      <div class="card border border-base-300 rounded-lg overflow-hidden mb-4">
+      <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden mb-4">
         <!-- Cover Photo -->
         <div class="h-32 sm:h-40 relative">
           <%= if @remote_actor.header_url do %>
@@ -153,25 +153,115 @@
         <div class="flex-1 min-w-0">
           <!-- Create Post Card -->
           <%= if @current_user do %>
-            <div class="card border border-base-300 rounded-lg p-4 mb-4">
-              <div class="flex items-center gap-3">
-                <.user_avatar user={@current_user} size="sm" />
-                <button
-                  phx-click="toggle_create_post"
-                  class="flex-1 input input-bordered text-left text-base-content/50 cursor-pointer hover:border-secondary transition-colors"
-                >
-                  Create a post...
-                </button>
-                <button phx-click="toggle_create_post" class="btn btn-secondary btn-sm">
-                  <.icon name="hero-pencil-square" class="w-4 h-4" />
-                </button>
-              </div>
+            <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-4">
+              <%= if @show_create_post do %>
+                <div class="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h3 class="font-semibold text-base">
+                      Create Post in {raw(
+                        render_display_name_with_emojis(
+                          @remote_actor.display_name || @remote_actor.username,
+                          @remote_actor.domain
+                        )
+                      )}
+                    </h3>
+                    <p class="text-xs opacity-60">Post will federate to this community.</p>
+                  </div>
+                  <button
+                    type="button"
+                    phx-click="toggle_create_post"
+                    class="btn btn-ghost btn-sm btn-circle"
+                    aria-label="Close create post form"
+                  >
+                    <.icon name="hero-x-mark" class="w-4 h-4" />
+                  </button>
+                </div>
+
+                <.form for={%{}} phx-submit="submit_post" class="space-y-4">
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">Title (optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      placeholder="An interesting title"
+                      class="input input-bordered w-full"
+                      phx-change="update_post_title"
+                      value={@post_title}
+                    />
+                  </div>
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text">Content</span>
+                    </label>
+                    <textarea
+                      name="content"
+                      placeholder="What's on your mind?"
+                      class="textarea textarea-bordered w-full"
+                      rows="5"
+                      phx-change="update_post_content"
+                    ><%= @post_content %></textarea>
+                  </div>
+
+                  <%= if !Enum.empty?(@pending_media_urls) do %>
+                    <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
+                      <.icon name="hero-photo" class="w-5 h-5 text-secondary" />
+                      <span class="text-sm">{length(@pending_media_urls)} file(s) attached</span>
+                      <button
+                        type="button"
+                        phx-click="clear_pending_images"
+                        class="btn btn-ghost btn-xs ml-auto"
+                      >
+                        <.icon name="hero-x-mark" class="w-4 h-4" />
+                      </button>
+                    </div>
+                  <% end %>
+
+                  <div class="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      phx-click="open_image_upload"
+                      class="btn btn-ghost btn-sm"
+                      title="Add media"
+                    >
+                      <.icon name="hero-photo" class="w-5 h-5" /> Add Media
+                    </button>
+
+                    <div class="flex items-center gap-2">
+                      <button type="button" phx-click="toggle_create_post" class="btn btn-ghost">
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        class="btn btn-secondary"
+                        phx-disable-with="Posting..."
+                      >
+                        <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Post
+                      </button>
+                    </div>
+                  </div>
+                </.form>
+              <% else %>
+                <div class="flex items-center gap-3">
+                  <.user_avatar user={@current_user} size="sm" />
+                  <button
+                    phx-click="toggle_create_post"
+                    class="flex-1 input input-bordered text-left text-base-content/50 cursor-pointer hover:border-secondary transition-colors"
+                  >
+                    Create a post...
+                  </button>
+                  <button phx-click="toggle_create_post" class="btn btn-secondary btn-sm">
+                    <.icon name="hero-pencil-square" class="w-4 h-4" />
+                  </button>
+                </div>
+              <% end %>
             </div>
           <% end %>
           
 <!-- Sort Controls -->
           <%= if !@loading && (!Enum.empty?(@timeline_posts) || !Enum.empty?(@local_posts)) do %>
-            <div class="flex items-center gap-2 mb-4 bg-base-200 border border-base-300 rounded-lg p-2">
+            <div class="social-page-card flex items-center gap-2 mb-4 bg-base-200 border border-base-300 rounded-lg p-2">
               <span class="text-sm font-medium opacity-70 px-2">Sort:</span>
               <div class="flex gap-1 flex-wrap">
                 <button
@@ -242,7 +332,7 @@
             <% end %>
 
             <%= if !@loading && Enum.empty?(sorted_posts) && !@error do %>
-              <div class="card border border-base-300 rounded-lg text-center py-12 px-4">
+              <div class="card social-page-card border border-base-300 rounded-lg text-center py-12 px-4">
                 <.icon name="hero-inbox" class="w-16 h-16 mx-auto mb-4 opacity-30" />
                 <p class="opacity-70">No posts yet</p>
                 <p class="text-sm opacity-50 mt-2">Be the first to post in this community!</p>
@@ -318,6 +408,10 @@
                 # Detect external link submission
                 external_link =
                   cond do
+                    # Prefer stored primary URL when available
+                    is_binary(post.primary_url) && String.trim(post.primary_url) != "" ->
+                      post.primary_url
+
                     # Check metadata first
                     is_map(post.media_metadata) && post.media_metadata["external_link"] ->
                       post.media_metadata["external_link"]
@@ -333,9 +427,22 @@
 
                     true ->
                       nil
+                  end
+
+                post_title =
+                  cond do
+                    is_binary(post.title) && String.trim(post.title) != "" ->
+                      post.title
+
+                    is_binary(post.media_metadata["name"]) &&
+                        String.trim(post.media_metadata["name"]) != "" ->
+                      post.media_metadata["name"]
+
+                    true ->
+                      nil
                   end %>
                 <article class={[
-                  "card border border-base-300 rounded-lg overflow-hidden",
+                  "card social-page-card border border-base-300 rounded-lg overflow-hidden",
                   if(is_reply, do: "border-l-4 border-l-secondary/50", else: "")
                 ]}>
                   <div
@@ -385,10 +492,14 @@
                     <% else %>
                       <%= if external_link do %>
                         <a
+                          id={
+                            "post-external-thumb-#{URI.encode_www_form(post.activitypub_id || to_string(post.id))}"
+                          }
                           href={external_link}
                           target="_blank"
                           rel="noopener noreferrer"
                           class="w-20 h-20 flex-shrink-0 m-2 bg-base-200 rounded flex items-center justify-center hover:bg-base-300 transition-colors"
+                          phx-hook="StopPropagation"
                         >
                           <.icon name="hero-link" class="w-8 h-8 text-primary" />
                         </a>
@@ -406,16 +517,20 @@
                       <% end %>
                       
 <!-- Title -->
-                      <%= if post.media_metadata["name"] do %>
+                      <%= if post_title do %>
                         <%= if external_link do %>
                           <a
+                            id={
+                              "post-external-title-#{URI.encode_www_form(post.activitypub_id || to_string(post.id))}"
+                            }
                             href={external_link}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="block"
+                            phx-hook="StopPropagation"
                           >
                             <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-primary flex items-center gap-1">
-                              {post.media_metadata["name"]}
+                              {post_title}
                               <.icon
                                 name="hero-arrow-top-right-on-square"
                                 class="w-3 h-3 flex-shrink-0"
@@ -424,16 +539,21 @@
                           </a>
                         <% else %>
                           <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-secondary">
-                            {post.media_metadata["name"]}
+                            {post_title}
                           </h3>
                         <% end %>
                       <% end %>
                       
 <!-- Content preview -->
-                      <%= if post.content && !post.media_metadata["name"] do %>
+                      <%= if is_binary(post.content) && String.trim(post.content) != "" && !post_title do %>
                         <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
                           {raw(render_remote_bio(post.content, @remote_actor.domain))}
                         </div>
+                      <% end %>
+
+                      <%= if !has_image && !post_title &&
+                              (!is_binary(post.content) || String.trim(post.content) == "") do %>
+                        <div class="text-sm opacity-60 italic mb-1">Post content unavailable</div>
                       <% end %>
 
                       <%= if has_poll do %>
@@ -501,11 +621,14 @@
                         <span>{display_comment_count} comments</span>
                         <%= if post.activitypub_url do %>
                           <a
+                            id={
+                              "post-external-meta-#{URI.encode_www_form(post.activitypub_id || to_string(post.id))}"
+                            }
                             href={post.activitypub_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="hover:text-primary ml-auto"
-                            phx-click="stop_propagation"
+                            phx-hook="StopPropagation"
                           >
                             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
                           </a>
@@ -571,7 +694,7 @@
                   post["quoteUrl"] || post["_misskey_quote"] ||
                     get_in(post, ["pleroma", "quote_uri"]) %>
                 <article class={[
-                  "card border border-base-300 rounded-lg overflow-hidden",
+                  "card social-page-card border border-base-300 rounded-lg overflow-hidden",
                   if(is_reply_outbox, do: "border-l-4 border-l-secondary/50", else: "")
                 ]}>
                   <div
@@ -632,10 +755,12 @@
                     <% else %>
                       <%= if external_link_outbox do %>
                         <a
+                          id={"outbox-external-thumb-#{URI.encode_www_form(post["id"] || "unknown")}"}
                           href={external_link_outbox}
                           target="_blank"
                           rel="noopener noreferrer"
                           class="w-20 h-20 flex-shrink-0 m-2 bg-base-200 rounded flex items-center justify-center hover:bg-base-300 transition-colors"
+                          phx-hook="StopPropagation"
                         >
                           <.icon name="hero-link" class="w-8 h-8 text-primary" />
                         </a>
@@ -656,10 +781,12 @@
                       <%= if post["name"] do %>
                         <%= if external_link_outbox do %>
                           <a
+                            id={"outbox-external-title-#{URI.encode_www_form(post["id"] || "unknown")}"}
                             href={external_link_outbox}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="block"
+                            phx-hook="StopPropagation"
                           >
                             <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-primary flex items-center gap-1">
                               {post["name"]}
@@ -677,10 +804,16 @@
                       <% end %>
                       
 <!-- Content preview (only if no title) -->
-                      <%= if post["content"] && !post["name"] do %>
+                      <%= if is_binary(post["content"]) && String.trim(post["content"]) != "" &&
+                              !post["name"] do %>
                         <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
                           {raw(render_remote_bio(post["content"], @remote_actor.domain))}
                         </div>
+                      <% end %>
+
+                      <%= if !image_url && !post["name"] &&
+                              (!is_binary(post["content"]) || String.trim(post["content"]) == "") do %>
+                        <div class="text-sm opacity-60 italic mb-1">Post content unavailable</div>
                       <% end %>
                       
 <!-- Poll display -->
@@ -697,11 +830,12 @@
 
                       <%= if is_binary(quote_url) do %>
                         <a
+                          id={"outbox-quote-link-#{URI.encode_www_form(post["id"] || "unknown")}"}
                           href={quote_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           class="mt-2 mb-2 p-2 rounded border border-base-300 bg-base-100/60 inline-flex items-center gap-2 text-xs hover:border-primary transition-colors"
-                          phx-click="stop_propagation"
+                          phx-hook="StopPropagation"
                         >
                           <.icon name="hero-chat-bubble-oval-left-ellipsis" class="w-3 h-3" />
                           <span class="truncate max-w-[22rem]">Quoted post</span>
@@ -712,8 +846,9 @@
 <!-- Link preview for external link submissions -->
                       <%= if external_link_outbox do %>
                         <div
+                          id={"outbox-link-preview-#{URI.encode_www_form(post["id"] || "unknown")}"}
                           class="text-xs text-primary truncate mb-1"
-                          phx-click="stop_propagation"
+                          phx-hook="StopPropagation"
                         >
                           <a
                             href={external_link_outbox}
@@ -736,11 +871,12 @@
                         <span>{loaded_reply_count} comments</span>
                         <%= if post["url"] do %>
                           <a
+                            id={"outbox-external-meta-#{URI.encode_www_form(post["id"] || "unknown")}"}
                             href={post["url"]}
                             target="_blank"
                             rel="noopener noreferrer"
                             class="hover:text-primary ml-auto"
-                            phx-click="stop_propagation"
+                            phx-hook="StopPropagation"
                           >
                             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
                           </a>
@@ -802,32 +938,22 @@
                       class="border-t border-base-300 p-3 bg-base-50"
                       phx-click="stop_propagation"
                     >
-                      <.form for={%{}} phx-submit="submit_reply" class="space-y-2">
-                        <textarea
-                          name="content"
-                          placeholder="Write your comment..."
-                          class="textarea textarea-bordered textarea-sm w-full"
-                          rows="3"
-                          phx-change="update_reply_content"
-                          required
-                        ><%= @reply_content %></textarea>
-                        <div class="flex gap-2 justify-end">
-                          <button
-                            type="button"
-                            phx-click="cancel_reply"
-                            class="btn btn-ghost btn-sm"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            class="btn btn-secondary btn-sm"
-                            phx-disable-with="Posting..."
-                          >
-                            Comment
-                          </button>
-                        </div>
-                      </.form>
+                      <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                        wrapper_class=""
+                        click_stop={true}
+                        content={@reply_content}
+                        placeholder="Write your comment..."
+                        textarea_class="textarea textarea-bordered textarea-sm w-full"
+                        rows={3}
+                        on_submit="submit_reply"
+                        on_change="update_reply_content"
+                        on_cancel="cancel_reply"
+                        cancel_class="btn btn-ghost btn-sm"
+                        submit_class="btn btn-secondary btn-sm"
+                        submit_label="Comment"
+                        submit_disable_with="Posting..."
+                        form_class="space-y-2"
+                      />
                     </div>
                   <% end %>
                 </article>
@@ -841,7 +967,7 @@
 <!-- Sidebar -->
         <div class="w-full lg:w-80 flex-shrink-0 space-y-4">
           <!-- About Community -->
-          <div class="card border border-base-300 rounded-lg overflow-hidden">
+          <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
             <div class="px-4 py-3 border-b border-base-300">
               <h3 class="font-semibold">About Community</h3>
             </div>
@@ -857,14 +983,13 @@
               <div class="grid grid-cols-2 gap-4 py-3 border-y border-base-300">
                 <div class="text-center">
                   <div class="text-lg font-bold">
-                    {get_follower_count(@remote_actor.metadata)}
+                    {@community_stats.members}
                   </div>
                   <div class="text-xs opacity-70">Members</div>
                 </div>
                 <div class="text-center">
                   <div class="text-lg font-bold">
-                    {@remote_actor.metadata["statuses_count"] ||
-                      @remote_actor.metadata["statusesCount"] || 0}
+                    {@community_stats.posts}
                   </div>
                   <div class="text-xs opacity-70">Posts</div>
                 </div>
@@ -906,7 +1031,7 @@
           
 <!-- Community Rules (if available in metadata) -->
           <%= if @remote_actor.metadata["attributedTo"] do %>
-            <div class="card border border-base-300 rounded-lg overflow-hidden">
+            <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold">Moderators</h3>
               </div>
@@ -925,7 +1050,7 @@
           
 <!-- Profile Fields -->
           <%= if @remote_actor.metadata["attachment"] && is_list(@remote_actor.metadata["attachment"]) do %>
-            <div class="card border border-base-300 rounded-lg overflow-hidden">
+            <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold">Info</h3>
               </div>
@@ -1007,7 +1132,7 @@
         <!-- Main Profile Column -->
         <div class="flex-1 min-w-0 max-w-3xl">
           <!-- Mastodon-style Header -->
-          <div class="bg-base-200 border border-base-300 rounded-lg overflow-hidden mb-6">
+          <div class="social-page-card bg-base-200 border border-base-300 rounded-lg overflow-hidden mb-6">
             <!-- Cover Photo -->
             <div class="h-48 sm:h-60 relative">
               <%= if @remote_actor.header_url do %>
@@ -1148,12 +1273,9 @@
                   <span class="font-bold">{get_following_count(@remote_actor.metadata)}</span>
                   <span class="opacity-70">Following</span>
                 </div>
-                <%= if @remote_actor.metadata["statuses_count"] || @remote_actor.metadata["statusesCount"] do %>
+                <%= if get_status_count(@remote_actor.metadata) > 0 do %>
                   <div>
-                    <span class="font-bold">
-                      {@remote_actor.metadata["statuses_count"] ||
-                        @remote_actor.metadata["statusesCount"]}
-                    </span>
+                    <span class="font-bold">{get_status_count(@remote_actor.metadata)}</span>
                     <span class="opacity-70">Posts</span>
                   </div>
                 <% end %>
@@ -1187,7 +1309,7 @@
           
 <!-- Timeline Posts -->
           <div
-            class="bg-base-200 border border-base-300 rounded-lg overflow-hidden"
+            class="social-page-card bg-base-200 border border-base-300 rounded-lg overflow-hidden"
             phx-hook="InfiniteScroll"
             id="remote-profile-infinite-scroll-person"
             data-offset="500"
@@ -1419,11 +1541,12 @@
 
                   <%= if is_binary(quote_url) do %>
                     <a
+                      id={"timeline-quote-link-#{URI.encode_www_form(post["id"] || "unknown")}"}
                       href={quote_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="mb-3 p-2 rounded border border-base-300 bg-base-100/60 inline-flex items-center gap-2 text-xs hover:border-primary transition-colors"
-                      phx-click="stop_propagation"
+                      phx-hook="StopPropagation"
                     >
                       <.icon name="hero-chat-bubble-oval-left-ellipsis" class="w-3 h-3" />
                       <span class="truncate max-w-[22rem]">Quoted post</span>
@@ -1525,7 +1648,7 @@
       <!-- Right Sidebar - Media Gallery -->
         <%= if !Enum.empty?(all_media) do %>
           <div class="hidden lg:block w-72 flex-shrink-0 space-y-4">
-            <div class="card border border-base-300 rounded-lg overflow-hidden sticky top-36 self-start">
+            <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden sticky top-36 self-start">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold flex items-center gap-2">
                   <.icon name="hero-photo" class="w-4 h-4" /> Media
@@ -1642,87 +1765,6 @@
     </div>
     <form method="dialog" class="modal-backdrop" phx-click="close_quote_modal">
       <button type="button">close</button>
-    </form>
-  </div>
-<% end %>
-
-<!-- Create Post Modal -->
-<%= if @show_create_post && @current_user && @remote_actor do %>
-  <div class="modal modal-open">
-    <div class="modal-box max-w-2xl">
-      <h3 class="font-bold text-lg mb-4">
-        Create Post in {raw(
-          render_display_name_with_emojis(
-            @remote_actor.display_name || @remote_actor.username,
-            @remote_actor.domain
-          )
-        )}
-      </h3>
-      <.form for={%{}} phx-submit="submit_post" class="space-y-4">
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Title (optional)</span>
-          </label>
-          <input
-            type="text"
-            name="title"
-            placeholder="An interesting title"
-            class="input input-bordered w-full"
-            phx-change="update_post_title"
-            value={@post_title}
-          />
-        </div>
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Content</span>
-          </label>
-          <textarea
-            name="content"
-            placeholder="What's on your mind?"
-            class="textarea textarea-bordered w-full"
-            rows="5"
-            phx-change="update_post_content"
-          ><%= @post_content %></textarea>
-        </div>
-        
-<!-- Media Preview -->
-        <%= if !Enum.empty?(@pending_media_urls) do %>
-          <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
-            <.icon name="hero-photo" class="w-5 h-5 text-secondary" />
-            <span class="text-sm">{length(@pending_media_urls)} file(s) attached</span>
-            <button
-              type="button"
-              phx-click="clear_pending_images"
-              class="btn btn-ghost btn-xs ml-auto"
-            >
-              <.icon name="hero-x-mark" class="w-4 h-4" />
-            </button>
-          </div>
-        <% end %>
-
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            phx-click="open_image_upload"
-            class="btn btn-ghost btn-sm"
-            title="Add media"
-          >
-            <.icon name="hero-photo" class="w-5 h-5" /> Add Media
-          </button>
-        </div>
-
-        <div class="modal-action">
-          <button type="button" phx-click="toggle_create_post" class="btn btn-ghost">
-            Cancel
-          </button>
-          <button type="submit" class="btn btn-secondary" phx-disable-with="Posting...">
-            <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Post
-          </button>
-        </div>
-      </.form>
-    </div>
-    <form method="dialog" class="modal-backdrop" phx-click="toggle_create_post">
-      <button>close</button>
     </form>
   </div>
 <% end %>

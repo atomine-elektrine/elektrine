@@ -54,14 +54,14 @@ function tick() {
   }
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const positionLerp = reducedMotion ? 1 : 0.2
-  const radiusLerp = reducedMotion ? 1 : 0.14
-  const opacityLerp = reducedMotion ? 1 : state.hovering ? 0.22 : 0.12
+  const radiusLerp = reducedMotion ? 1 : 0.18
+  const opacityLerp = reducedMotion ? 1 : state.hovering ? 0.28 : 0.16
 
-  const dx = state.targetX - state.currentX
-  const dy = state.targetY - state.currentY
-  state.currentX += dx * positionLerp
-  state.currentY += dy * positionLerp
+  // Keep the glow anchored to the pointer to avoid a trailing/laggy feel.
+  if (state.targetX !== OFFSCREEN && state.targetY !== OFFSCREEN) {
+    state.currentX = state.targetX
+    state.currentY = state.targetY
+  }
 
   const targetRadius = BASE_RADIUS + clamp(state.velocity * 2, 0, RADIUS_BOOST)
   state.radius += (targetRadius - state.radius) * radiusLerp
@@ -73,20 +73,23 @@ function tick() {
   applyOverlayState()
 
   const isSettled =
-    Math.abs(dx) < 0.5 &&
-    Math.abs(dy) < 0.5 &&
+    Math.abs(state.targetX - state.currentX) < 0.01 &&
+    Math.abs(state.targetY - state.currentY) < 0.01 &&
     Math.abs(targetOpacity - state.opacity) < 0.01 &&
     Math.abs(targetRadius - state.radius) < 0.5
 
-  if (isSettled && !state.hovering) {
-    state.currentX = OFFSCREEN
-    state.currentY = OFFSCREEN
-    state.targetX = OFFSCREEN
-    state.targetY = OFFSCREEN
-    state.velocity = 0
-    state.radius = BASE_RADIUS
-    state.opacity = 0
-    applyOverlayState()
+  if (isSettled) {
+    if (!state.hovering) {
+      state.currentX = OFFSCREEN
+      state.currentY = OFFSCREEN
+      state.targetX = OFFSCREEN
+      state.targetY = OFFSCREEN
+      state.velocity = 0
+      state.radius = BASE_RADIUS
+      state.opacity = 0
+      applyOverlayState()
+    }
+
     rafId = null
     return
   }
@@ -100,26 +103,36 @@ function ensureAnimationFrame() {
   }
 }
 
-function updateCursorPosition(e) {
+function activateAt(x, y, velocity = 0) {
   if (!overlay) return
 
   if (state.targetX !== OFFSCREEN && state.targetY !== OFFSCREEN) {
-    state.velocity = Math.hypot(e.clientX - state.targetX, e.clientY - state.targetY)
+    state.velocity = Math.max(velocity, Math.hypot(x - state.targetX, y - state.targetY))
   } else {
-    state.velocity = 0
+    state.velocity = velocity
   }
 
-  state.targetX = e.clientX
-  state.targetY = e.clientY
+  state.targetX = x
+  state.targetY = y
   state.hovering = true
 
-  // Avoid sliding in from off-screen on first move.
-  if (state.currentX === OFFSCREEN || state.currentY === OFFSCREEN) {
-    state.currentX = state.targetX
-    state.currentY = state.targetY
-  }
+  // Sync immediately so the glow never appears one frame behind the cursor.
+  state.currentX = state.targetX
+  state.currentY = state.targetY
+  applyOverlayState()
 
   ensureAnimationFrame()
+}
+
+function updateCursorPosition(e) {
+  if (!overlay) return
+
+  const velocity =
+    state.targetX !== OFFSCREEN && state.targetY !== OFFSCREEN
+      ? Math.hypot(e.clientX - state.targetX, e.clientY - state.targetY)
+      : 0
+
+  activateAt(e.clientX, e.clientY, velocity)
 }
 
 function handleMouseLeave() {
@@ -127,9 +140,24 @@ function handleMouseLeave() {
   ensureAnimationFrame()
 }
 
+function handleMouseEnter(e) {
+  activateAt(e.clientX, e.clientY, 0)
+}
+
+function handleMouseDown(e) {
+  // Keep glow active while clicking controls even if no move event follows.
+  activateAt(e.clientX, e.clientY, 8)
+}
+
 function handleWindowBlur() {
   state.hovering = false
   ensureAnimationFrame()
+}
+
+function handleWindowFocus() {
+  if (state.targetX !== OFFSCREEN && state.targetY !== OFFSCREEN) {
+    activateAt(state.targetX, state.targetY, 0)
+  }
 }
 
 export function initCursorGlow() {
@@ -146,7 +174,10 @@ export function initCursorGlow() {
   applyOverlayState()
   document.addEventListener('mousemove', updateCursorPosition, { passive: true })
   document.addEventListener('mouseleave', handleMouseLeave, { passive: true })
+  document.addEventListener('mouseenter', handleMouseEnter, { passive: true })
+  document.addEventListener('mousedown', handleMouseDown, { passive: true })
   window.addEventListener('blur', handleWindowBlur, { passive: true })
+  window.addEventListener('focus', handleWindowFocus, { passive: true })
   initialized = true
 }
 
@@ -155,7 +186,10 @@ export function destroyCursorGlow() {
 
   document.removeEventListener('mousemove', updateCursorPosition)
   document.removeEventListener('mouseleave', handleMouseLeave)
+  document.removeEventListener('mouseenter', handleMouseEnter)
+  document.removeEventListener('mousedown', handleMouseDown)
   window.removeEventListener('blur', handleWindowBlur)
+  window.removeEventListener('focus', handleWindowFocus)
 
   if (overlay && overlay.parentNode) {
     overlay.parentNode.removeChild(overlay)

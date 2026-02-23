@@ -79,7 +79,7 @@ defmodule ElektrineWeb.MobileChannel do
     push(socket, "vpn:counts", %{config_count: user_id |> VPN.list_user_configs() |> length()})
 
     push(socket, "event:stream_ready", %{
-      sources: ["email", "notification", "chat", "social", "vpn"],
+      sources: ["email", "notification", "chat", "social", "vpn", "calendar", "password_manager"],
       connected_at: DateTime.utc_now()
     })
 

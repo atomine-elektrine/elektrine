@@ -4,15 +4,18 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
 
   Required headers:
   - x-elektrine-federation-domain
-  - x-elektrine-federation-key-id (optional during rotation fallback)
+  - x-elektrine-federation-key-id
   - x-elektrine-federation-timestamp
   - x-elektrine-federation-content-digest
+  - x-arblarg-request-id
+  - x-arblarg-signature-algorithm (must be ed25519)
   - x-elektrine-federation-signature
   """
 
   import Plug.Conn
   require Logger
 
+  alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation
 
   def init(opts), do: opts
@@ -33,6 +36,8 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
     key_id = get_req_header(conn, "x-elektrine-federation-key-id") |> List.first()
     timestamp = get_req_header(conn, "x-elektrine-federation-timestamp") |> List.first()
     content_digest = get_req_header(conn, "x-elektrine-federation-content-digest") |> List.first()
+    request_id = get_req_header(conn, "x-arblarg-request-id") |> List.first()
+    signature_algorithm = get_req_header(conn, "x-arblarg-signature-algorithm") |> List.first()
     signature = get_req_header(conn, "x-elektrine-federation-signature") |> List.first()
     raw_body = conn.assigns[:raw_body] || ""
     computed_digest = Federation.body_digest(raw_body)
@@ -47,6 +52,18 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
 
       !is_binary(content_digest) ->
         reject(conn, :missing_content_digest)
+
+      !is_binary(key_id) ->
+        reject(conn, :missing_key_id)
+
+      !is_binary(request_id) ->
+        reject(conn, :missing_request_id)
+
+      !is_binary(signature_algorithm) ->
+        reject(conn, :missing_signature_algorithm)
+
+      String.downcase(String.trim(signature_algorithm)) != ArblargSDK.signature_algorithm() ->
+        reject(conn, :invalid_signature_algorithm)
 
       !is_binary(signature) ->
         reject(conn, :missing_signature)
@@ -68,16 +85,34 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
         conn.query_string || "",
         timestamp,
         content_digest,
+        request_id,
         key_id,
         signature
       ) ->
         reject(conn, :invalid_signature)
+
+      match?(
+        {:error, :replayed_request},
+        Federation.claim_request_nonce(
+          domain,
+          key_id,
+          conn.method,
+          conn.request_path,
+          conn.query_string || "",
+          timestamp,
+          content_digest,
+          request_id,
+          signature
+        )
+      ) ->
+        reject(conn, :replayed_request)
 
       true ->
         conn
         |> assign(:federation_peer, peer)
         |> assign(:federation_peer_domain, domain)
         |> assign(:federation_peer_key_id, key_id)
+        |> assign(:federation_request_id, request_id)
         |> assign(:federation_content_digest, content_digest)
     end
   end

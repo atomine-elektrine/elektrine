@@ -365,7 +365,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       is_binary(in_reply_to) ->
         %{
           "inReplyTo" => in_reply_to,
-          "inReplyToAuthor" => extract_author_from_url(in_reply_to)
+          "inReplyToAuthor" => extract_reply_author(in_reply_to, object["tag"])
         }
 
       # Object with id
@@ -373,7 +373,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         author =
           in_reply_to["attributedTo"] ||
             in_reply_to["actor"] ||
-            extract_author_from_url(in_reply_to["id"])
+            extract_reply_author(in_reply_to["id"], object["tag"])
 
         %{
           "inReplyTo" => in_reply_to["id"],
@@ -389,31 +389,111 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   # Extract author handle from URL (fallback)
   defp extract_author_from_url(url) when is_binary(url) do
     case URI.parse(url) do
-      %{host: host} when is_binary(host) -> "someone on #{host}"
-      _ -> nil
+      %{host: host, path: path} when is_binary(host) and is_binary(path) ->
+        case extract_username_from_path(path) do
+          username when is_binary(username) ->
+            "@#{username}@#{host}"
+
+          _ ->
+            case extract_post_id_from_path(path) do
+              post_id when is_binary(post_id) -> "post #{post_id} on #{host}"
+              _ -> "a post on #{host}"
+            end
+        end
+
+      %{host: host} when is_binary(host) ->
+        "a post on #{host}"
+
+      _ ->
+        nil
     end
   end
 
   defp extract_author_from_url(_), do: nil
 
+  defp extract_reply_author(in_reply_to_url, tags) when is_binary(in_reply_to_url) do
+    extract_reply_author_from_tags(tags, in_reply_to_url) ||
+      extract_author_from_url(in_reply_to_url)
+  end
+
+  defp extract_reply_author(_, _), do: nil
+
+  defp extract_reply_author_from_tags(tags, in_reply_to_url) when is_list(tags) do
+    handles =
+      tags
+      |> Enum.filter(fn tag -> is_map(tag) && tag["type"] == "Mention" end)
+      |> Enum.map(&mention_tag_to_handle/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    case handles do
+      [] ->
+        nil
+
+      handles ->
+        reply_host = extract_host_from_url(in_reply_to_url)
+
+        if is_binary(reply_host) do
+          Enum.find(handles, fn handle ->
+            String.ends_with?(String.downcase(handle), "@#{String.downcase(reply_host)}")
+          end) || hd(handles)
+        else
+          hd(handles)
+        end
+    end
+  end
+
+  defp extract_reply_author_from_tags(_, _), do: nil
+
+  defp mention_tag_to_handle(tag) when is_map(tag) do
+    name = tag["name"]
+    href = tag["href"]
+    host = extract_host_from_url(href)
+
+    cond do
+      is_binary(name) ->
+        normalize_mention_name(name, host) || extract_author_from_url(href)
+
+      is_binary(href) ->
+        extract_author_from_url(href)
+
+      true ->
+        nil
+    end
+  end
+
+  defp mention_tag_to_handle(_), do: nil
+
+  defp normalize_mention_name(name, host) when is_binary(name) do
+    cleaned = String.trim(name)
+
+    cond do
+      Regex.match?(~r/^@[^@\s]+@[^@\s]+$/, cleaned) ->
+        cleaned
+
+      Regex.match?(~r/^@[^@\s]+$/, cleaned) && is_binary(host) ->
+        "#{cleaned}@#{host}"
+
+      true ->
+        nil
+    end
+  end
+
+  defp normalize_mention_name(_, _), do: nil
+
+  defp extract_host_from_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %{host: host} when is_binary(host) and host != "" -> host
+      _ -> nil
+    end
+  end
+
+  defp extract_host_from_url(_), do: nil
+
   # Normalize author to a display string
   defp normalize_author(author) when is_binary(author) do
     if String.starts_with?(author, "http") do
-      # It's a URL, try to extract username
-      case URI.parse(author) do
-        %{host: host, path: path} when is_binary(path) ->
-          # Try to get username from path like /users/username or /@username
-          case String.split(path, "/") |> Enum.filter(&(&1 != "")) do
-            [_, username | _] when is_binary(username) ->
-              "@#{String.replace_prefix(username, "@", "")}@#{host}"
-
-            _ ->
-              "someone on #{host}"
-          end
-
-        _ ->
-          author
-      end
+      extract_author_from_url(author) || author
     else
       author
     end
@@ -421,6 +501,95 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
   defp normalize_author(%{"id" => id}), do: normalize_author(id)
   defp normalize_author(_), do: nil
+
+  defp extract_username_from_path(path) when is_binary(path) do
+    case path_segments(path) do
+      ["users", username | _] ->
+        sanitize_identifier(username)
+
+      ["u", username | _] ->
+        sanitize_identifier(username)
+
+      ["profile", username | _] ->
+        sanitize_identifier(username)
+
+      ["accounts", username | _] ->
+        sanitize_identifier(username)
+
+      [segment | _] ->
+        if String.starts_with?(segment, "@") do
+          sanitize_identifier(segment)
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp extract_username_from_path(_), do: nil
+
+  defp extract_post_id_from_path(path) when is_binary(path) do
+    candidate =
+      case path_segments(path) do
+        ["users", _username, "statuses", post_id | _] ->
+          post_id
+
+        ["notice", post_id | _] ->
+          post_id
+
+        ["objects", post_id | _] ->
+          post_id
+
+        ["posts", post_id | _] ->
+          post_id
+
+        ["post", post_id | _] ->
+          post_id
+
+        ["comment", post_id | _] ->
+          post_id
+
+        ["comments", post_id | _] ->
+          post_id
+
+        ["activities", post_id | _] ->
+          post_id
+
+        [first, post_id | _] ->
+          if String.starts_with?(first, "@"), do: post_id, else: nil
+
+        _ ->
+          nil
+      end
+
+    sanitize_identifier(candidate)
+  end
+
+  defp extract_post_id_from_path(_), do: nil
+
+  defp path_segments(path) when is_binary(path) do
+    path
+    |> String.split("/", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp sanitize_identifier(value) when is_binary(value) do
+    value
+    |> URI.decode()
+    |> String.trim()
+    |> String.trim_leading("@")
+    |> String.split(["?", "#"], parts: 2)
+    |> List.first()
+    |> case do
+      "" -> nil
+      sanitized -> sanitized
+    end
+  end
+
+  defp sanitize_identifier(_), do: nil
 
   # Extract a short content preview from the parent post if available
   defp extract_reply_content_preview(%{"content" => content}) when is_binary(content) do

@@ -7,6 +7,7 @@ defmodule ElektrineWeb.ChatLive.Index do
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Messaging.Message
+  alias Elektrine.Uploads
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.Social.ContentJourney
@@ -18,6 +19,7 @@ defmodule ElektrineWeb.ChatLive.Index do
 
   # Import operation modules
   alias ElektrineWeb.ChatLive.Operations.Helpers
+  alias ElektrineWeb.ChatLive.HandleFormatter
   alias ElektrineWeb.ChatLive.State
 
   @impl true
@@ -45,6 +47,10 @@ defmodule ElektrineWeb.ChatLive.Index do
     # This returns cached data instantly if available, only hits DB on cache miss
     cached_conversations = get_cached_conversations(user.id)
     cached_unread = get_cached_unread_count(user.id)
+    cached_servers = Messaging.list_servers(user.id)
+
+    filtered_cached_conversations =
+      Helpers.scope_conversations_to_server(cached_conversations, nil)
 
     # Initialize with cached data to prevent flicker
     socket =
@@ -59,11 +65,13 @@ defmodule ElektrineWeb.ChatLive.Index do
       |> assign(:conversation, %State.Conversation{
         list: cached_conversations,
         selected: nil,
-        filtered: cached_conversations,
+        filtered: filtered_cached_conversations,
         last_message_read_status: %{},
         unread_count: cached_unread,
         unread_counts: %{}
       })
+      |> assign(:joined_servers, cached_servers)
+      |> assign(:active_server_id, nil)
       |> assign(:moderation, %State.Moderation{})
       |> assign(:browse, %State.Browse{})
       |> assign(:profile, %State.Profile{})
@@ -71,9 +79,24 @@ defmodule ElektrineWeb.ChatLive.Index do
       |> assign(:uploaded_files, [])
       |> assign(:can_send_messages, true)
       |> allow_upload(:chat_attachments,
-        accept: ~w(.jpg .jpeg .png .gif .webp .pdf .doc .docx .xls .xlsx .txt),
+        accept: ~w(.jpg .jpeg .png .gif .webp .heic .heif .avif .pdf .doc .docx .xls .xlsx .txt),
         max_entries: 5,
         max_file_size: chat_attachment_limit
+      )
+      |> allow_upload(:server_icon_upload,
+        accept: ~w(.jpg .jpeg .png .gif .webp),
+        max_entries: 1,
+        max_file_size: 5 * 1024 * 1024
+      )
+      |> allow_upload(:group_avatar_upload,
+        accept: ~w(.jpg .jpeg .png .gif .webp),
+        max_entries: 1,
+        max_file_size: 5 * 1024 * 1024
+      )
+      |> allow_upload(:channel_avatar_upload,
+        accept: ~w(.jpg .jpeg .png .gif .webp),
+        max_entries: 1,
+        max_file_size: 5 * 1024 * 1024
       )
       |> assign(:user_token, Helpers.generate_user_token(user.id))
       |> assign(:show_mobile_search, false)
@@ -95,10 +118,12 @@ defmodule ElektrineWeb.ChatLive.Index do
       |> assign(:modal_images, [])
       |> assign(:modal_image_index, 0)
       |> assign(:modal_post, nil)
+      |> assign(:public_server_search_results, [])
       |> assign(:public_group_search_results, [])
       |> assign(:public_channel_search_results, [])
       |> assign(:custom_emojis, load_custom_emojis())
       |> assign(:federation_preview, build_federation_preview())
+      |> assign(:federation_presence, %{})
       |> assign(
         :loading_conversations,
         !Enum.empty?(cached_conversations) || Messaging.user_has_conversations?(user.id)
@@ -152,20 +177,20 @@ defmodule ElektrineWeb.ChatLive.Index do
         {:error, :not_public_channel} ->
           {:noreply,
            socket
-           |> notify_error("This is a private conversation - you need an invitation to join")
+           |> notify_error("This is a private group or channel - you need an invitation to join")
            |> push_navigate(to: ~p"/chat")}
 
         {:error, _} ->
           {:noreply,
            socket
-           |> notify_error("Unable to join conversation")
+           |> notify_error("Unable to join this conversation")
            |> push_navigate(to: ~p"/chat")}
       end
     else
       # Invalid conversation identifier
       {:noreply,
        socket
-       |> notify_error("Invalid conversation link")
+       |> notify_error("Invalid chat invite link")
        |> push_navigate(to: ~p"/chat")}
     end
   end
@@ -188,6 +213,9 @@ defmodule ElektrineWeb.ChatLive.Index do
       # Use lightweight loader - messages are loaded separately
       case Messaging.get_conversation_for_chat!(conversation_id, socket.assigns.current_user.id) do
         {:ok, conversation} ->
+          target_server_id =
+            conversation_server_id(conversation) || socket.assigns[:active_server_id]
+
           # If accessed by ID instead of hash, redirect to hash URL
           if conversation_identifier != conversation.hash && conversation.hash do
             {:noreply,
@@ -224,7 +252,6 @@ defmodule ElektrineWeb.ChatLive.Index do
             messages =
               data.messages
               |> Enum.reverse()
-              |> Elektrine.Messaging.Message.decrypt_messages()
 
             message_data = data
 
@@ -274,6 +301,9 @@ defmodule ElektrineWeb.ChatLive.Index do
               current_member &&
                 Elektrine.Messaging.ConversationMember.can_send_messages?(current_member)
 
+            active_server_id = target_server_id
+            federation_presence = presence_map_for_server(active_server_id)
+
             # Build socket with updated assigns
             # Start with empty read_status - it will be loaded async
             updated_socket =
@@ -281,8 +311,17 @@ defmodule ElektrineWeb.ChatLive.Index do
               |> assign(:conversation, %{
                 socket.assigns.conversation
                 | selected: conversation,
-                  unread_counts: updated_unread_counts
+                  unread_counts: updated_unread_counts,
+                  filtered:
+                    refresh_conversation_filter(
+                      socket.assigns.conversation.list,
+                      socket.assigns.search.conversation_query,
+                      socket.assigns.current_user.id,
+                      active_server_id
+                    )
               })
+              |> assign(:active_server_id, active_server_id)
+              |> assign(:federation_presence, federation_presence)
               |> assign(:messages, messages)
               |> assign(:message, %{
                 socket.assigns.message
@@ -312,21 +351,24 @@ defmodule ElektrineWeb.ChatLive.Index do
         {:error, :not_found} ->
           {:noreply,
            socket
-           |> notify_error("Conversation not found")
+           |> notify_error("Chat not found")
            |> push_navigate(to: ~p"/chat")}
       end
     else
       # Invalid conversation identifier
       {:noreply,
        socket
-       |> notify_error("Invalid conversation")
+       |> notify_error("Invalid chat")
        |> push_navigate(to: ~p"/chat")}
     end
   end
 
   def handle_params(_params, _url, socket) do
     # Clear selected conversation when navigating to /chat without a conversation_id
-    {:noreply, assign(socket, :conversation, %{socket.assigns.conversation | selected: nil})}
+    {:noreply,
+     socket
+     |> assign(:conversation, %{socket.assigns.conversation | selected: nil})
+     |> assign(:federation_presence, presence_map_for_server(socket.assigns[:active_server_id]))}
   end
 
   @impl true
@@ -358,17 +400,25 @@ defmodule ElektrineWeb.ChatLive.Index do
 
     # Calculate read status for last messages
     last_message_read_status = Helpers.calculate_last_message_read_status(conversations, user.id)
+    joined_servers = Messaging.list_servers(user.id)
 
     {:noreply,
      socket
      |> assign(:conversation, %{
        socket.assigns.conversation
        | list: conversations,
-         filtered: conversations,
+         filtered:
+           refresh_conversation_filter(
+             conversations,
+             socket.assigns.search.conversation_query,
+             user.id,
+             socket.assigns[:active_server_id]
+           ),
          last_message_read_status: last_message_read_status,
          unread_count: unread_count,
          unread_counts: unread_counts
      })
+     |> assign(:joined_servers, joined_servers)
      |> assign(:loading_conversations, false)}
   end
 
@@ -388,7 +438,11 @@ defmodule ElektrineWeb.ChatLive.Index do
   # Handle messages from components
   def handle_info({:search_users, query}, socket) do
     if String.length(query) >= 2 do
-      results = Messaging.search_users(query, socket.assigns.current_user.id)
+      results =
+        query
+        |> Messaging.search_users(socket.assigns.current_user.id)
+        |> maybe_add_remote_dm_search_result(query)
+
       {:noreply, assign(socket, :search_results, results)}
     else
       {:noreply, assign(socket, :search_results, [])}
@@ -407,7 +461,47 @@ defmodule ElektrineWeb.ChatLive.Index do
      |> assign(:ui, updated_ui)}
   end
 
-  def handle_info({:start_dm, user_id_str}, socket) do
+  def handle_info({:start_dm, %{"remote_handle" => remote_handle}}, socket)
+      when is_binary(remote_handle) and remote_handle != "" do
+    current_user_id = socket.assigns.current_user.id
+
+    case Messaging.create_remote_dm_conversation(current_user_id, remote_handle) do
+      {:ok, conversation} ->
+        {:noreply,
+         socket
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
+         |> assign(:search, %{socket.assigns.search | query: "", results: []})
+         |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+
+      {:error, :invalid_remote_handle} ->
+        {:noreply, notify_error(socket, "Use handle format user@domain")}
+
+      {:error, :unknown_peer} ->
+        {:noreply, notify_error(socket, "That domain is not configured as a federation peer")}
+
+      {:error, :rate_limited} ->
+        {:noreply,
+         socket
+         |> notify_error(
+           "You are creating too many conversations. Please wait a moment and try again."
+         )
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
+
+      {:error, reason} ->
+        error_message = Elektrine.Privacy.privacy_error_message(reason)
+
+        {:noreply,
+         socket
+         |> notify_error(error_message)
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_profile_modal, false))}
+    end
+  end
+
+  def handle_info({:start_dm, %{"user_id" => user_id_str}}, socket) do
+    handle_info({:start_dm, user_id_str}, socket)
+  end
+
+  def handle_info({:start_dm, user_id_str}, socket) when is_binary(user_id_str) do
     user_id = String.to_integer(user_id_str)
     current_user_id = socket.assigns.current_user.id
 
@@ -450,19 +544,27 @@ defmodule ElektrineWeb.ChatLive.Index do
   end
 
   def handle_info({:show_create_channel}, socket) do
-    updated_ui =
-      socket.assigns.ui
-      |> Map.put(:show_channel_modal, true)
-      |> Map.put(:show_group_modal, false)
-      |> Map.put(:show_new_chat, false)
+    case selected_server_id(socket) do
+      nil ->
+        {:noreply,
+         socket
+         |> notify_error("Select a server first, then create channels inside it")}
 
-    {:noreply,
-     socket
-     |> assign(:ui, updated_ui)}
+      _server_id ->
+        updated_ui =
+          socket.assigns.ui
+          |> Map.put(:show_channel_modal, true)
+          |> Map.put(:show_group_modal, false)
+          |> Map.put(:show_new_chat, false)
+
+        {:noreply,
+         socket
+         |> assign(:ui, updated_ui)}
+    end
   end
 
   def handle_info({:show_browse_modal}, socket) do
-    public_channels = Messaging.list_public_channels()
+    public_servers = Messaging.list_public_servers(socket.assigns.current_user.id)
     public_groups = Messaging.list_public_groups()
 
     updated_ui =
@@ -478,20 +580,28 @@ defmodule ElektrineWeb.ChatLive.Index do
      |> assign(:search, %{socket.assigns.search | browse_query: ""})
      |> assign(:browse, %{
        socket.assigns.browse
-       | tab: "channels",
-         public_channels: public_channels,
+       | tab: "servers",
+         public_servers: public_servers,
+         public_channels: [],
          public_groups: public_groups,
-         filtered_channels: public_channels,
+         filtered_servers: public_servers,
+         filtered_channels: [],
          filtered_groups: public_groups
      })}
   end
 
   def handle_info({:close_group_modal}, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_group_modal, false))}
+    {:noreply,
+     socket
+     |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
+     |> clear_upload_entries(:group_avatar_upload)}
   end
 
   def handle_info({:close_channel_modal}, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_channel_modal, false))}
+    {:noreply,
+     socket
+     |> assign(:ui, Map.put(socket.assigns.ui, :show_channel_modal, false))
+     |> clear_upload_entries(:channel_avatar_upload)}
   end
 
   def handle_info({:create_group, group_params, selected_users}, socket) do
@@ -502,44 +612,50 @@ defmodule ElektrineWeb.ChatLive.Index do
     if String.trim(name) != "" and selected_users != [] do
       member_ids = Enum.map(selected_users, & &1.id)
 
-      case Messaging.create_group_conversation(
-             socket.assigns.current_user.id,
-             %{
-               name: String.trim(name),
-               description: String.trim(description),
-               is_public: is_public
-             },
-             member_ids
-           ) do
-        {:ok, conversation} ->
-          {:noreply,
-           socket
-           |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
-           |> assign(:form, %{socket.assigns.form | selected_users: []})
-           |> assign(:search, %{socket.assigns.search | query: "", results: []})
-           |> notify_info("Group created successfully!")
-           |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+      with {:ok, avatar_url} <- consume_entity_image_upload(socket, :group_avatar_upload) do
+        case Messaging.create_group_conversation(
+               socket.assigns.current_user.id,
+               %{
+                 name: String.trim(name),
+                 description: String.trim(description),
+                 avatar_url: avatar_url,
+                 is_public: is_public
+               },
+               member_ids
+             ) do
+          {:ok, conversation} ->
+            {:noreply,
+             socket
+             |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
+             |> assign(:form, %{socket.assigns.form | selected_users: []})
+             |> assign(:search, %{socket.assigns.search | query: "", results: []})
+             |> notify_info("Group created successfully!")
+             |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
 
-        {:ok, conversation, failed_count} ->
-          {:noreply,
-           socket
-           |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
-           |> assign(:form, %{socket.assigns.form | selected_users: []})
-           |> assign(:search, %{socket.assigns.search | query: "", results: []})
-           |> notify_warning(
-             "Group created but #{failed_count} user(s) could not be added due to their privacy settings"
-           )
-           |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+          {:ok, conversation, failed_count} ->
+            {:noreply,
+             socket
+             |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
+             |> assign(:form, %{socket.assigns.form | selected_users: []})
+             |> assign(:search, %{socket.assigns.search | query: "", results: []})
+             |> notify_warning(
+               "Group created but #{failed_count} user(s) could not be added due to their privacy settings"
+             )
+             |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
 
-        {:error, :group_limit_exceeded} ->
-          {:noreply,
-           socket
-           |> notify_error("You've reached the maximum limit of 20 groups")}
+          {:error, :group_limit_exceeded} ->
+            {:noreply,
+             socket
+             |> notify_error("You've reached the maximum limit of 20 groups")}
 
-        {:error, _changeset} ->
-          {:noreply,
-           socket
-           |> notify_error("Failed to create group. Please try again.")}
+          {:error, _changeset} ->
+            {:noreply,
+             socket
+             |> notify_error("Failed to create group. Please try again.")}
+        end
+      else
+        {:error, reason} ->
+          {:noreply, notify_error(socket, reason)}
       end
     else
       {:noreply,
@@ -551,28 +667,37 @@ defmodule ElektrineWeb.ChatLive.Index do
   def handle_info({:create_channel, channel_params}, socket) do
     name = Map.get(channel_params, "name", "")
     description = Map.get(channel_params, "description", "")
-    is_public = Map.get(channel_params, "is_public") == "true"
+    topic = Map.get(channel_params, "channel_topic", "")
+    is_private = parse_checkbox_value(Map.get(channel_params, "is_private"))
 
-    if String.trim(name) != "" do
-      case Messaging.create_channel(
-             socket.assigns.current_user.id,
-             %{
-               name: String.trim(name),
-               description: String.trim(description),
-               is_public: is_public
-             }
-           ) do
-        {:ok, conversation} ->
+    with server_id when is_integer(server_id) <- selected_server_id(socket),
+         true <- String.trim(name) != "",
+         {:ok, avatar_url} <- consume_entity_image_upload(socket, :channel_avatar_upload) do
+      attrs = %{
+        name: String.trim(name),
+        description: normalize_optional_text(description),
+        channel_topic: normalize_optional_text(topic),
+        avatar_url: avatar_url,
+        is_public: !is_private
+      }
+
+      case Messaging.create_server_channel(server_id, socket.assigns.current_user.id, attrs) do
+        {:ok, channel} ->
           {:noreply,
            socket
            |> assign(:ui, Map.put(socket.assigns.ui, :show_channel_modal, false))
            |> notify_info("Channel created successfully!")
-           |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+           |> push_navigate(to: ~p"/chat/#{channel.hash || channel.id}")}
 
-        {:error, :channel_limit_exceeded} ->
+        {:error, :unauthorized} ->
           {:noreply,
            socket
-           |> notify_error("You've reached the maximum limit of 10 channels")}
+           |> notify_error("You don't have permission to create channels in this server")}
+
+        {:error, :not_found} ->
+          {:noreply,
+           socket
+           |> notify_error("Server not found")}
 
         {:error, _changeset} ->
           {:noreply,
@@ -580,9 +705,18 @@ defmodule ElektrineWeb.ChatLive.Index do
            |> notify_error("Failed to create channel. Please try again.")}
       end
     else
-      {:noreply,
-       socket
-       |> notify_error("Please provide a channel name.")}
+      nil ->
+        {:noreply,
+         socket
+         |> notify_error("Select a server first, then create channels inside it")}
+
+      false ->
+        {:noreply,
+         socket
+         |> notify_error("Please provide a channel name.")}
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, reason)}
     end
   end
 
@@ -658,7 +792,7 @@ defmodule ElektrineWeb.ChatLive.Index do
   def handle_info({:react_to_message, message_id_str, emoji}, socket) do
     message_id = String.to_integer(message_id_str)
 
-    case Messaging.add_reaction(message_id, socket.assigns.current_user.id, emoji) do
+    case Messaging.add_chat_reaction(message_id, socket.assigns.current_user.id, emoji) do
       {:ok, _reaction} -> {:noreply, socket}
       {:error, _} -> {:noreply, socket}
     end
@@ -900,14 +1034,11 @@ defmodule ElektrineWeb.ChatLive.Index do
   end
 
   def handle_info({:added_to_conversation, %{conversation_id: _conversation_id}}, socket) do
-    # Refresh conversations list to show the new conversation
-    all_conversations = Messaging.list_conversations(socket.assigns.current_user.id)
-    conversations = Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
+    {:noreply, maybe_schedule_conversation_refresh(socket, 50)}
+  end
 
-    {:noreply,
-     socket
-     |> assign(:conversations, conversations)
-     |> assign(:filtered_conversations, conversations)}
+  def handle_info({:conversation_activity, %{conversation_id: _conversation_id}}, socket) do
+    {:noreply, maybe_schedule_conversation_refresh(socket, 50)}
   end
 
   def handle_info({:member_left, %{user_id: _user_id, conversation_id: conversation_id}}, socket) do
@@ -991,17 +1122,16 @@ defmodule ElektrineWeb.ChatLive.Index do
     last_message_read_status =
       Helpers.calculate_last_message_read_status(conversations, socket.assigns.current_user.id)
 
+    joined_servers = Messaging.list_servers(socket.assigns.current_user.id)
+
     # Re-filter conversations if search is active
     filtered_conversations =
-      if socket.assigns.search.conversation_query != "" do
-        Helpers.filter_conversations(
-          conversations,
-          socket.assigns.search.conversation_query,
-          socket.assigns.current_user.id
-        )
-      else
-        conversations
-      end
+      refresh_conversation_filter(
+        conversations,
+        socket.assigns.search.conversation_query,
+        socket.assigns.current_user.id,
+        socket.assigns[:active_server_id]
+      )
 
     {:noreply,
      socket
@@ -1013,6 +1143,7 @@ defmodule ElektrineWeb.ChatLive.Index do
          unread_counts: unread_counts,
          last_message_read_status: last_message_read_status
      })
+     |> assign(:joined_servers, joined_servers)
      |> assign(:refresh_conversations_scheduled, false)}
   end
 
@@ -1292,6 +1423,129 @@ defmodule ElektrineWeb.ChatLive.Index do
     # Remove deleted message from the list
     messages = Enum.reject(socket.assigns.messages, fn msg -> msg.id == message_id end)
     {:noreply, assign(socket, :messages, messages)}
+  end
+
+  def handle_info({:chat_reaction_added, message_id, reaction}, socket) do
+    messages =
+      Enum.map(socket.assigns.messages, fn message ->
+        if message.id == message_id do
+          existing_reactions = Map.get(message, :reactions, []) || []
+
+          already_exists =
+            Enum.any?(existing_reactions, fn existing ->
+              existing.emoji == reaction.emoji and
+                existing.user_id == reaction.user_id and
+                existing.remote_actor_id == reaction.remote_actor_id
+            end)
+
+          updated_reactions =
+            if already_exists, do: existing_reactions, else: existing_reactions ++ [reaction]
+
+          %{message | reactions: updated_reactions}
+        else
+          message
+        end
+      end)
+
+    {:noreply, assign(socket, :messages, messages)}
+  end
+
+  def handle_info({:chat_reaction_removed, message_id, user_id, emoji}, socket) do
+    messages =
+      Enum.map(socket.assigns.messages, fn message ->
+        if message.id == message_id do
+          reactions =
+            (Map.get(message, :reactions, []) || [])
+            |> Enum.reject(fn reaction ->
+              reaction.emoji == emoji and reaction.user_id == user_id
+            end)
+
+          %{message | reactions: reactions}
+        else
+          message
+        end
+      end)
+
+    {:noreply, assign(socket, :messages, messages)}
+  end
+
+  def handle_info({:chat_reaction_removed, message_id, _user_id, emoji, remote_actor_id}, socket) do
+    messages =
+      Enum.map(socket.assigns.messages, fn message ->
+        if message.id == message_id do
+          reactions =
+            (Map.get(message, :reactions, []) || [])
+            |> Enum.reject(fn reaction ->
+              reaction.emoji == emoji and reaction.remote_actor_id == remote_actor_id
+            end)
+
+          %{message | reactions: reactions}
+        else
+          message
+        end
+      end)
+
+    {:noreply, assign(socket, :messages, messages)}
+  end
+
+  def handle_info({:chat_remote_read_receipt, receipt}, socket) when is_map(receipt) do
+    message_id = receipt[:message_id] || receipt["message_id"]
+
+    if is_integer(message_id) and Enum.any?(socket.assigns.messages, &(&1.id == message_id)) do
+      current_read_status = socket.assigns.message.read_status || %{}
+      current_readers = Map.get(current_read_status, message_id, [])
+
+      remote_reader = %{
+        user_id: nil,
+        remote_actor_id: receipt[:remote_actor_id] || receipt["remote_actor_id"],
+        username: receipt[:username] || receipt["username"] || "@remote",
+        avatar: receipt[:avatar] || receipt["avatar"]
+      }
+
+      updated_readers =
+        current_readers
+        |> Enum.reject(fn reader ->
+          is_integer(reader[:remote_actor_id]) and
+            reader[:remote_actor_id] == remote_reader.remote_actor_id
+        end)
+        |> Kernel.++([remote_reader])
+
+      updated_read_status = Map.put(current_read_status, message_id, updated_readers)
+
+      {:noreply,
+       assign(socket, :message, %{socket.assigns.message | read_status: updated_read_status})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:federation_presence_update, payload}, socket) when is_map(payload) do
+    server_id = payload[:server_id] || payload["server_id"]
+
+    if is_integer(server_id) and socket.assigns[:active_server_id] == server_id do
+      remote_actor_id = payload[:remote_actor_id] || payload["remote_actor_id"]
+
+      if is_integer(remote_actor_id) do
+        existing = socket.assigns[:federation_presence] || %{}
+
+        presence_entry = %{
+          remote_actor_id: remote_actor_id,
+          handle: payload[:handle] || payload["handle"] || "@remote",
+          label: payload[:label] || payload["label"] || "@remote",
+          avatar_url: payload[:avatar_url] || payload["avatar_url"],
+          status: payload[:status] || payload["status"] || "offline",
+          activities: payload[:activities] || payload["activities"] || [],
+          updated_at: payload[:updated_at] || payload["updated_at"] || DateTime.utc_now()
+        }
+
+        {:noreply,
+         assign(socket, :federation_presence, Map.put(existing, remote_actor_id, presence_entry))}
+      else
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:message_pinned, message}, socket) do
@@ -1627,7 +1881,8 @@ defmodule ElektrineWeb.ChatLive.Index do
             refresh_conversation_filter(
               sorted_conversations,
               socket.assigns.search.conversation_query,
-              socket.assigns.current_user.id
+              socket.assigns.current_user.id,
+              socket.assigns[:active_server_id]
             )
       })
     else
@@ -1635,12 +1890,17 @@ defmodule ElektrineWeb.ChatLive.Index do
     end
   end
 
-  defp refresh_conversation_filter(conversations, query, current_user_id)
-       when is_binary(query) and query != "" do
-    Helpers.filter_conversations(conversations, query, current_user_id)
-  end
+  defp refresh_conversation_filter(conversations, query, current_user_id, active_server_id) do
+    scoped_conversations = Helpers.scope_conversations_to_server(conversations, active_server_id)
 
-  defp refresh_conversation_filter(conversations, _query, _current_user_id), do: conversations
+    case String.trim(query || "") do
+      "" ->
+        scoped_conversations
+
+      search_query ->
+        Helpers.filter_conversations(scoped_conversations, search_query, current_user_id)
+    end
+  end
 
   defp get_cached_conversations(user_id) do
     case Elektrine.AppCache.get_conversations(user_id, fn ->
@@ -1742,6 +2002,54 @@ defmodule ElektrineWeb.ChatLive.Index do
   defdelegate user_reacted?(reactions, emoji, user_id), to: Helpers
   defdelegate linkify_urls(text), to: Helpers
 
+  defp route_label(conversation, current_user_id) do
+    name = Helpers.conversation_name(conversation, current_user_id) |> to_string()
+
+    case conversation do
+      %{type: "channel"} ->
+        name
+        |> String.trim()
+        |> case do
+          "" -> "#channel"
+          "#" <> _ = prefixed -> prefixed
+          trimmed -> "#" <> trimmed
+        end
+
+      _ ->
+        name
+    end
+  end
+
+  defp conversation_type_label("group"), do: "Group"
+  defp conversation_type_label("channel"), do: "Channel"
+  defp conversation_type_label("dm"), do: "Direct Message"
+
+  defp conversation_type_label(type) when is_binary(type),
+    do: type |> String.replace("_", " ") |> String.capitalize()
+
+  defp conversation_type_label(_), do: "Chat"
+
+  defp conversation_type_label_lower(type), do: conversation_type_label(type) |> String.downcase()
+
+  defp protocol_conversation_type("dm"), do: "Direct Messages"
+  defp protocol_conversation_type("group"), do: "Groups"
+  defp protocol_conversation_type("channel"), do: "Channels"
+
+  defp protocol_conversation_type(type) when is_binary(type) do
+    type
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
+  defp protocol_conversation_type(_), do: "Chats"
+
+  defp remote_conversation?(conversation) when is_map(conversation) do
+    Map.get(conversation, :is_federated_mirror, false) ||
+      Messaging.remote_dm_conversation?(conversation)
+  end
+
+  defp remote_conversation?(_), do: false
+
   # Helper to get display content for either Message or ChatMessage structs
   # Use __struct__ field matching to avoid cyclic dependency issues at compile time
   defp message_display_content(%{__struct__: Elektrine.Messaging.Message} = msg),
@@ -1751,6 +2059,57 @@ defmodule ElektrineWeb.ChatLive.Index do
     do: ChatMessage.display_content(msg)
 
   defp message_display_content(_), do: ""
+
+  defp message_sender(message) when is_map(message) do
+    case Map.get(message, :sender) do
+      %Ecto.Association.NotLoaded{} ->
+        %{}
+
+      sender when is_map(sender) ->
+        sender
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp message_sender(_), do: %{}
+
+  defp sender_name(%Ecto.Association.NotLoaded{}), do: HandleFormatter.handle(nil)
+  defp sender_name(sender) when is_map(sender), do: HandleFormatter.handle(sender)
+  defp sender_name(_), do: HandleFormatter.handle(nil)
+
+  defp message_sender_name(message), do: message |> message_sender() |> sender_name()
+
+  defp message_sender_tag(message), do: "@" <> message_sender_name(message)
+
+  defp user_at_handle(user), do: HandleFormatter.at_handle(user)
+  defp user_domain(user), do: HandleFormatter.domain(user)
+
+  defp local_sender_id(message) when is_map(message) do
+    case Map.get(message, :sender_id) do
+      id when is_integer(id) -> id
+      _ -> nil
+    end
+  end
+
+  defp local_sender_id(_), do: nil
+
+  defp local_sender?(message), do: is_integer(local_sender_id(message))
+
+  defp sender_timeout?(message, timeout_status) when is_map(timeout_status) do
+    case local_sender_id(message) do
+      id when is_integer(id) -> Map.get(timeout_status, id, false)
+      _ -> false
+    end
+  end
+
+  defp sender_timeout?(_message, _timeout_status), do: false
+
+  defp sender_loaded?(%Ecto.Association.NotLoaded{}), do: false
+  defp sender_loaded?(nil), do: false
+  defp sender_loaded?(sender) when is_map(sender), do: true
+  defp sender_loaded?(_), do: false
 
   # Load custom emojis that are visible in the picker
   defp load_custom_emojis do
@@ -1763,6 +2122,165 @@ defmodule ElektrineWeb.ChatLive.Index do
   end
 
   defp filter_custom_emojis(emojis, _), do: emojis
+
+  defp selected_server_id(socket) do
+    case socket.assigns.conversation.selected do
+      %{server_id: server_id} when is_integer(server_id) ->
+        server_id
+
+      _ ->
+        case socket.assigns[:active_server_id] do
+          server_id when is_integer(server_id) -> server_id
+          _ -> nil
+        end
+    end
+  end
+
+  defp conversation_server_id(%{server_id: server_id}) when is_integer(server_id), do: server_id
+  defp conversation_server_id(_), do: nil
+
+  defp presence_map_for_server(server_id) when is_integer(server_id) do
+    server_id
+    |> Messaging.list_server_presence_states()
+    |> Map.new(fn state ->
+      {state.remote_actor_id, state}
+    end)
+  end
+
+  defp presence_map_for_server(_), do: %{}
+
+  defp remote_presence_online_count(presence_map) when is_map(presence_map) do
+    presence_map
+    |> Map.values()
+    |> Enum.count(fn state ->
+      status = state[:status] || state["status"]
+      status in ["online", "idle", "dnd"]
+    end)
+  end
+
+  defp remote_presence_online_count(_), do: 0
+
+  defp normalize_optional_text(nil), do: nil
+
+  defp normalize_optional_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_optional_text(_), do: nil
+
+  defp parse_checkbox_value(value) when is_list(value) do
+    Enum.any?(value, &parse_checkbox_value/1)
+  end
+
+  defp parse_checkbox_value(value) do
+    value in [true, "true", "on", "1", 1]
+  end
+
+  defp consume_entity_image_upload(socket, upload_name) do
+    upload_results =
+      consume_uploaded_entries(socket, upload_name, fn %{path: path}, entry ->
+        upload = %Plug.Upload{
+          path: path,
+          content_type: entry.client_type,
+          filename: entry.client_name
+        }
+
+        case Uploads.upload_avatar(upload, socket.assigns.current_user.id) do
+          {:ok, metadata} ->
+            {:ok, %{ok: true, url: Uploads.avatar_url(metadata.key)}}
+
+          {:error, reason} ->
+            {:ok, %{ok: false, reason: reason}}
+        end
+      end)
+
+    case Enum.find(upload_results, &(!&1.ok)) do
+      %{reason: reason} ->
+        {:error, upload_error_message(reason)}
+
+      nil ->
+        uploaded_url =
+          upload_results
+          |> Enum.find_value(fn
+            %{ok: true, url: url} when is_binary(url) and url != "" -> url
+            _ -> nil
+          end)
+
+        {:ok, uploaded_url}
+    end
+  end
+
+  defp clear_upload_entries(socket, upload_name) do
+    refs =
+      case socket.assigns[:uploads] && socket.assigns.uploads[upload_name] do
+        %{entries: entries} when is_list(entries) -> Enum.map(entries, & &1.ref)
+        _ -> []
+      end
+
+    Enum.reduce(refs, socket, fn ref, acc ->
+      cancel_upload(acc, upload_name, ref)
+    end)
+  end
+
+  defp upload_error_message({_, message}) when is_binary(message), do: message
+
+  defp upload_error_message(reason) do
+    "Image upload failed: #{inspect(reason)}"
+  end
+
+  defp maybe_add_remote_dm_search_result(results, query)
+       when is_list(results) and is_binary(query) do
+    case normalize_remote_dm_handle_query(query) do
+      {:ok, remote_handle} ->
+        already_present? =
+          Enum.any?(results, fn user ->
+            user_handle = Map.get(user, :handle) || Map.get(user, "handle")
+            String.downcase(to_string(user_handle || "")) == remote_handle
+          end)
+
+        if already_present? do
+          results
+        else
+          [remote_dm_search_result(remote_handle) | results]
+        end
+
+      :error ->
+        results
+    end
+  end
+
+  defp maybe_add_remote_dm_search_result(results, _query), do: results
+
+  defp normalize_remote_dm_handle_query(handle) when is_binary(handle) do
+    normalized =
+      handle
+      |> String.trim()
+      |> String.trim_leading("@")
+      |> String.downcase()
+
+    case Regex.run(~r/^([a-z0-9_]{1,64})@([a-z0-9.-]+\.[a-z]{2,})$/, normalized) do
+      [_, username, domain] -> {:ok, "#{username}@#{domain}"}
+      _ -> :error
+    end
+  end
+
+  defp normalize_remote_dm_handle_query(_), do: :error
+
+  defp remote_dm_search_result(remote_handle) do
+    [username, _domain] = String.split(remote_handle, "@", parts: 2)
+
+    %{
+      id: nil,
+      username: username,
+      handle: remote_handle,
+      display_name: "@#{remote_handle}",
+      avatar: nil,
+      remote_handle: remote_handle
+    }
+  end
 
   defp get_emojis_for_category("Smileys"),
     do:

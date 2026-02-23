@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/moderation.action.recorded",
+  "title": "Arblarg moderation.action.recorded payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "action"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "target",
+        "actor",
+        "occurred_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "timeout",
+            "kick",
+            "ban",
+            "unban",
+            "message_delete",
+            "role_update"
+          ]
+        },
+        "target": {
+          "type": "object"
+        },
+        "actor": {
+          "type": "object"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

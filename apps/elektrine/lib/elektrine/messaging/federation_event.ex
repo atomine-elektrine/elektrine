@@ -4,7 +4,9 @@ defmodule Elektrine.Messaging.FederationEvent do
   import Ecto.Changeset
 
   schema "messaging_federation_events" do
+    field :protocol_version, :string
     field :event_id, :string
+    field :idempotency_key, :string
     field :origin_domain, :string
     field :event_type, :string
     field :stream_id, :string
@@ -19,7 +21,9 @@ defmodule Elektrine.Messaging.FederationEvent do
   def changeset(event, attrs) do
     event
     |> cast(attrs, [
+      :protocol_version,
       :event_id,
+      :idempotency_key,
       :origin_domain,
       :event_type,
       :stream_id,
@@ -28,7 +32,9 @@ defmodule Elektrine.Messaging.FederationEvent do
       :received_at
     ])
     |> validate_required([
+      :protocol_version,
       :event_id,
+      :idempotency_key,
       :origin_domain,
       :event_type,
       :stream_id,
@@ -38,5 +44,8 @@ defmodule Elektrine.Messaging.FederationEvent do
     ])
     |> validate_number(:sequence, greater_than: 0)
     |> unique_constraint(:event_id)
+    |> unique_constraint(:idempotency_key,
+      name: :messaging_federation_events_origin_idempotency_unique
+    )
   end
 end

@@ -2,7 +2,7 @@ defmodule ElektrineWeb.ChatLive.Components.ConversationList do
   @moduledoc false
   use ElektrineWeb, :live_component
 
-  alias Elektrine.Messaging.{Conversation, Message}
+  alias Elektrine.Messaging.{ChatMessage, Conversation, Message}
 
   def render(assigns) do
     ~H"""
@@ -54,9 +54,9 @@ defmodule ElektrineWeb.ChatLive.Components.ConversationList do
               <% last_message = List.first(conversation.messages) %>
               <p class="text-sm opacity-70 truncate">
                 <%= if last_message.sender_id == @current_user.id do %>
-                  You: {Message.display_content(last_message)}
+                  You: {message_display_content(last_message)}
                 <% else %>
-                  {Message.display_content(last_message)}
+                  {message_display_content(last_message)}
                 <% end %>
               </p>
             <% else %>
@@ -75,8 +75,8 @@ defmodule ElektrineWeb.ChatLive.Components.ConversationList do
       <%= if @conversations == [] do %>
         <div class="text-center p-8">
           <.icon name="hero-chat-bubble-left-right" class="w-12 h-12 mx-auto opacity-50 mb-4" />
-          <p class="opacity-70">No conversations yet</p>
-          <p class="text-sm opacity-50">Start a new chat to begin messaging</p>
+          <p class="opacity-70">No chats yet</p>
+          <p class="text-sm opacity-50">Start a direct message, create a group, or make a channel</p>
         </div>
       <% end %>
     </div>
@@ -90,4 +90,12 @@ defmodule ElektrineWeb.ChatLive.Components.ConversationList do
   defp conversation_name(conversation, current_user_id) do
     Conversation.display_name(conversation, current_user_id)
   end
+
+  defp message_display_content(%Message{} = message), do: Message.display_content(message)
+  defp message_display_content(%ChatMessage{} = message), do: ChatMessage.display_content(message)
+
+  defp message_display_content(message) when is_map(message),
+    do: Map.get(message, :content, "") || ""
+
+  defp message_display_content(_), do: ""
 end

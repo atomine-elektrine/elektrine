@@ -60,9 +60,9 @@ kill_signal = 'SIGTERM'
     soft_limit = 400
 
 [[vm]]
-  memory = '4gb'
+  memory = '2gb'
   cpu_kind = 'shared'
-  cpus = 8
+  cpus = 4
 
 # Single volume for runtime data
 [[mounts]]

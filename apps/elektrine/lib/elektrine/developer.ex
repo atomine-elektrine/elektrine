@@ -380,9 +380,19 @@ defmodule Elektrine.Developer do
   Marks an export as completed.
   """
   def complete_export(%DataExport{} = export, file_path, file_size, item_count) do
-    export
-    |> DataExport.complete_changeset(file_path, file_size, item_count)
-    |> Repo.update()
+    result =
+      export
+      |> DataExport.complete_changeset(file_path, file_size, item_count)
+      |> Repo.update()
+
+    case result do
+      {:ok, completed_export} = ok ->
+        maybe_emit_export_completed_webhook(completed_export)
+        ok
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -451,5 +461,21 @@ defmodule Elektrine.Developer do
     |> order_by([e], desc: e.inserted_at)
     |> limit(5)
     |> Repo.all()
+  end
+
+  defp maybe_emit_export_completed_webhook(%DataExport{} = export) do
+    payload = %{
+      export_id: export.id,
+      type: export.export_type,
+      format: export.format,
+      file_size: export.file_size,
+      item_count: export.item_count,
+      completed_at: export.completed_at
+    }
+
+    _ = deliver_event(export.user_id, "export.completed", payload)
+    :ok
+  rescue
+    _ -> :ok
   end
 end

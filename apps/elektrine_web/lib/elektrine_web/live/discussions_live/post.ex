@@ -91,6 +91,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{community_id}")
                   # Subscribe to message-specific updates for likes
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "message:#{post_id}")
+                  Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
                 end
 
                 # Get related posts
@@ -146,7 +147,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
 
                   {:ok,
                    socket
-                   |> assign(:page_title, "#{post.title || "Discussion"} in !#{community_slug}")
+                   |> assign(:page_title, "#{resolved_post_title(post)} in !#{community_slug}")
                    |> assign(:post_reactions, post_reactions)
                    |> assign(:user_votes, user_votes)
                    |> assign(:community_slug, community_slug)
@@ -439,6 +440,35 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
   end
 
   defp collect_all_reply_ids(_), do: []
+
+  defp update_threaded_reply_counts(threaded_replies, message_id, counts)
+       when is_list(threaded_replies) do
+    Enum.map(threaded_replies, fn
+      %{reply: reply, children: children} = node ->
+        updated_reply =
+          if reply.id == message_id do
+            %{
+              reply
+              | like_count: counts.like_count,
+                share_count: counts.share_count,
+                reply_count: counts.reply_count
+            }
+          else
+            reply
+          end
+
+        %{
+          node
+          | reply: updated_reply,
+            children: update_threaded_reply_counts(children, message_id, counts)
+        }
+
+      node ->
+        node
+    end)
+  end
+
+  defp update_threaded_reply_counts(threaded_replies, _message_id, _counts), do: threaded_replies
 
   def render_threaded_replies(threaded_replies, assigns) do
     Phoenix.HTML.raw(
@@ -920,6 +950,43 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
   end
 
   @impl true
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    updated_post =
+      if socket.assigns.post.id == message_id do
+        %{
+          socket.assigns.post
+          | like_count: counts.like_count,
+            share_count: counts.share_count,
+            reply_count: counts.reply_count
+        }
+      else
+        socket.assigns.post
+      end
+
+    updated_replies = update_threaded_reply_counts(socket.assigns.replies, message_id, counts)
+
+    updated_related_posts =
+      Enum.map(socket.assigns.related_posts, fn post ->
+        if post.id == message_id do
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+        else
+          post
+        end
+      end)
+
+    {:noreply,
+     socket
+     |> assign(:post, updated_post)
+     |> assign(:replies, updated_replies)
+     |> assign(:related_posts, updated_related_posts)}
+  end
+
+  @impl true
   def handle_info({:message_link_preview_updated, message}, socket) do
     # The message already has the link_preview preloaded from the broadcast
     # Update the post if it's the one being viewed
@@ -1045,6 +1112,17 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
   end
 
   # Build meta description from discussion post
+  defp resolved_post_title(post) do
+    case Map.get(post, :title) do
+      title when is_binary(title) ->
+        title = String.trim(title)
+        if title == "", do: "Discussion", else: title
+
+      _ ->
+        "Discussion"
+    end
+  end
+
   defp build_post_description(post, community) do
     author = "@#{post.sender.handle || post.sender.username}"
     content = post.content || ""

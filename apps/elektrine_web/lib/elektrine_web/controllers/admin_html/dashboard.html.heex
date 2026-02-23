@@ -290,17 +290,27 @@
     <div class="card-body">
       <div class="flex justify-between items-center mb-4">
         <h2 class="card-title">
-          <.icon name="hero-globe-alt" class="w-5 h-5" /> Federation
+          <.icon name="hero-globe-alt" class="w-5 h-5" /> Federation Protocols
         </h2>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
+          <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-ghost btn-sm">
+            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Arblarg
+          </.link>
+          <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-ghost btn-sm">
+            <.icon name="hero-link" class="w-4 h-4" /> Bluesky
+          </.link>
           <.link navigate={~p"/pripyat/relays"} class="btn btn-ghost btn-sm">
             <.icon name="hero-signal" class="w-4 h-4" /> Relays
           </.link>
           <.link navigate={~p"/pripyat/federation"} class="btn btn-primary btn-sm">
-            Manage
+            ActivityPub
           </.link>
         </div>
       </div>
+      <p class="text-sm opacity-70 mb-4">
+        These metrics are from ActivityPub. Use the Arblarg and Bluesky buttons above for their
+        protocol-specific controls.
+      </p>
       <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div class="stat bg-base-200 rounded p-3">
           <div class="stat-title text-xs">Remote Actors</div>

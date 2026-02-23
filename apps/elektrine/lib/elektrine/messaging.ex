@@ -14,8 +14,9 @@ defmodule Elektrine.Messaging do
   alias Elektrine.Repo
 
   # Delegate to sub-contexts
-  alias Elektrine.Messaging.ChatMessages
+  alias Elektrine.Messaging.{ChatMessages, Conversation}
   alias Elektrine.Messaging.Conversations
+  alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Messages
   alias Elektrine.Messaging.Moderation
   alias Elektrine.Messaging.Reactions
@@ -58,6 +59,22 @@ defmodule Elektrine.Messaging do
   Creates a direct message conversation between two users.
   """
   defdelegate create_dm_conversation(user1_id, user2_id), to: Conversations
+
+  @doc """
+  Creates or gets a direct message conversation with a remote `user@domain` handle.
+  """
+  defdelegate create_remote_dm_conversation(local_user_id, remote_handle, attrs \\ %{}),
+    to: Conversations
+
+  @doc """
+  Returns true when a conversation is a federated remote DM.
+  """
+  defdelegate remote_dm_conversation?(conversation), to: Conversations
+
+  @doc """
+  Returns normalized remote DM handle for a federated DM conversation.
+  """
+  defdelegate remote_dm_handle(conversation), to: Conversations
 
   @doc """
   Checks if user can create more conversations of the given type.
@@ -203,6 +220,16 @@ defmodule Elektrine.Messaging do
   defdelegate list_servers(user_id, opts \\ []), to: Servers
 
   @doc """
+  Lists federated remote presence states for a server.
+  """
+  defdelegate list_server_presence_states(server_id), to: Federation
+
+  @doc """
+  Lists public servers the user can discover and join.
+  """
+  defdelegate list_public_servers(user_id, opts \\ []), to: Servers
+
+  @doc """
   Gets a server with channels for a user.
   """
   defdelegate get_server(server_id, user_id), to: Servers
@@ -232,37 +259,75 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a text message in a conversation.
   """
-  defdelegate create_text_message(
-                conversation_id,
-                sender_id,
-                content,
-                reply_to_id \\ nil,
-                opts \\ []
-              ),
-              to: Messages
+  def create_text_message(conversation_id, sender_id, content, reply_to_id \\ nil, opts \\ []) do
+    if chat_conversation_type?(conversation_id) do
+      chat_opts =
+        if is_nil(reply_to_id),
+          do: opts,
+          else: Keyword.put(opts, :reply_to_id, reply_to_id)
+
+      ChatMessages.create_text_message(conversation_id, sender_id, content, chat_opts)
+    else
+      Messages.create_text_message(conversation_id, sender_id, content, reply_to_id, opts)
+    end
+  end
 
   @doc """
   Creates a media message in a conversation.
   """
-  defdelegate create_media_message(
-                conversation_id,
-                sender_id,
-                media_urls,
-                content \\ nil,
-                media_metadata \\ %{}
-              ),
-              to: Messages
+  def create_media_message(
+        conversation_id,
+        sender_id,
+        media_urls,
+        content \\ nil,
+        media_metadata \\ %{}
+      ) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.create_media_message(
+        conversation_id,
+        sender_id,
+        media_urls,
+        content,
+        media_metadata
+      )
+    else
+      Messages.create_media_message(
+        conversation_id,
+        sender_id,
+        media_urls,
+        content,
+        media_metadata
+      )
+    end
+  end
 
   @doc """
   Creates a voice message in a conversation.
   """
-  defdelegate create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type),
-    to: Messages
+  def create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.create_voice_message(
+        conversation_id,
+        sender_id,
+        audio_url,
+        duration,
+        mime_type
+      )
+    else
+      Messages.create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type)
+    end
+  end
 
   @doc """
   Creates a system message in a conversation.
   """
-  defdelegate create_system_message(conversation_id, content, metadata \\ %{}), to: Messages
+  def create_system_message(conversation_id, content, metadata \\ %{}) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.create_system_message(conversation_id, content)
+    else
+      Messages.create_system_message(conversation_id, content, metadata)
+    end
+  end
 
   @doc """
   Edits a message.
@@ -282,69 +347,197 @@ defmodule Elektrine.Messaging do
   @doc """
   Get messages for a conversation with pagination support.
   """
-  defdelegate get_conversation_messages(conversation_id, user_id, opts \\ []), to: Messages
+  def get_conversation_messages(conversation_id, user_id, opts \\ []) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.get_conversation_messages(conversation_id, user_id, opts)
+    else
+      Messages.get_conversation_messages(conversation_id, user_id, opts)
+    end
+  end
 
   @doc """
   Gets messages for a conversation with pagination.
   """
-  defdelegate get_messages(conversation_id, user_id, opts \\ []), to: Messages
+  def get_messages(conversation_id, user_id, opts \\ []) do
+    case get_conversation_member(conversation_id, user_id) do
+      nil ->
+        {:error, :unauthorized}
+
+      _member ->
+        if chat_conversation_type?(conversation_id) do
+          messages =
+            ChatMessages.get_messages(conversation_id, Keyword.put(opts, :user_id, user_id))
+
+          {:ok, messages}
+        else
+          Messages.get_messages(conversation_id, user_id, opts)
+        end
+    end
+  end
 
   @doc """
   Searches messages within a specific conversation.
   """
-  defdelegate search_messages_in_conversation(conversation_id, user_id, query, opts \\ []),
-    to: Messages
+  def search_messages_in_conversation(conversation_id, user_id, query, opts \\ []) do
+    case get_conversation_member(conversation_id, user_id) do
+      nil ->
+        {:error, :unauthorized}
+
+      _member ->
+        if chat_conversation_type?(conversation_id) do
+          {:ok,
+           ChatMessages.search_messages(
+             conversation_id,
+             query,
+             Keyword.put(opts, :user_id, user_id)
+           )}
+        else
+          Messages.search_messages_in_conversation(conversation_id, user_id, query, opts)
+        end
+    end
+  end
 
   @doc """
   Marks messages as read for a user in a conversation.
   """
-  defdelegate mark_as_read(conversation_id, user_id), to: Messages
+  def mark_as_read(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      latest_message_id =
+        ChatMessages.get_messages(conversation_id, limit: 1, user_id: user_id)
+        |> case do
+          [%{id: id} | _] -> id
+          _ -> nil
+        end
+
+      case ChatMessages.update_last_read_message(conversation_id, user_id, latest_message_id) do
+        {:ok, _} -> {:ok, :read}
+        error -> error
+      end
+    else
+      Messages.mark_as_read(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Updates the last read message for a user in a conversation.
   """
-  defdelegate update_last_read_message(conversation_id, user_id, message_id), to: Messages
+  def update_last_read_message(conversation_id, user_id, message_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.update_last_read_message(conversation_id, user_id, message_id)
+    else
+      Messages.update_last_read_message(conversation_id, user_id, message_id)
+    end
+  end
 
   @doc """
   Gets the last read message ID for a user in a conversation.
   """
-  defdelegate get_last_read_message_id(conversation_id, user_id), to: Messages
+  def get_last_read_message_id(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.get_last_read_message_id(conversation_id, user_id)
+    else
+      Messages.get_last_read_message_id(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Clears message history for a specific user.
   """
-  defdelegate clear_history_for_user(conversation_id, user_id), to: Messages
+  def clear_history_for_user(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.clear_history_for_user(conversation_id, user_id)
+    else
+      Messages.clear_history_for_user(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Gets users who have read a specific message.
   """
-  defdelegate get_message_readers(message_id, conversation_id), to: Messages
+  def get_message_readers(message_id, conversation_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.get_message_readers(message_id, conversation_id)
+    else
+      Messages.get_message_readers(message_id, conversation_id)
+    end
+  end
 
   @doc """
   Gets read status for messages in a conversation.
   """
-  defdelegate get_read_status_for_messages(message_ids, conversation_id), to: Messages
+  def get_read_status_for_messages(message_ids, conversation_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.get_read_status_for_messages(message_ids, conversation_id)
+    else
+      Messages.get_read_status_for_messages(message_ids, conversation_id)
+    end
+  end
 
   @doc """
   Gets read status for last messages across multiple conversations in a batch.
   """
-  defdelegate get_batch_last_message_read_status(message_info_list), to: Messages
+  def get_batch_last_message_read_status(message_info_list) do
+    if message_info_list == [] do
+      %{}
+    else
+      conversation_ids =
+        message_info_list |> Enum.map(fn {conversation_id, _, _} -> conversation_id end)
+
+      conversation_type_map = conversation_type_map(conversation_ids)
+
+      {chat_info, non_chat_info} =
+        Enum.split_with(message_info_list, fn {conversation_id, _message_id, _inserted_at} ->
+          Map.get(conversation_type_map, conversation_id) in ["dm", "group", "channel"]
+        end)
+
+      chat_result = ChatMessages.get_batch_last_message_read_status(chat_info)
+      non_chat_result = Messages.get_batch_last_message_read_status(non_chat_info)
+
+      Map.merge(non_chat_result, chat_result)
+    end
+  end
 
   @doc """
   Gets unread message count for a specific conversation and user.
   """
-  defdelegate get_conversation_unread_count(conversation_id, user_id), to: Messages
+  def get_conversation_unread_count(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatMessages.get_unread_count(conversation_id, user_id)
+    else
+      Messages.get_conversation_unread_count(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Gets unread message counts for multiple conversations in a single query.
   Returns a map of conversation_id => unread_count.
   """
-  defdelegate get_conversation_unread_counts(conversation_ids, user_id), to: Messages
+  def get_conversation_unread_counts(conversation_ids, user_id) do
+    if conversation_ids == [] do
+      %{}
+    else
+      type_map = conversation_type_map(conversation_ids)
+
+      {chat_ids, non_chat_ids} =
+        conversation_ids
+        |> Enum.uniq()
+        |> Enum.split_with(fn conversation_id ->
+          Map.get(type_map, conversation_id) in ["dm", "group", "channel"]
+        end)
+
+      chat_counts = ChatMessages.get_conversation_unread_counts(chat_ids, user_id)
+      non_chat_counts = Messages.get_conversation_unread_counts(non_chat_ids, user_id)
+
+      Map.merge(non_chat_counts, chat_counts)
+    end
+  end
 
   @doc """
   Gets unread message count for a user across all conversations.
   """
-  defdelegate get_unread_count(user_id), to: Messages
+  def get_unread_count(user_id) do
+    ChatMessages.get_total_unread_count(user_id)
+  end
 
   @doc """
   Pins a message in a community (moderators only).
@@ -611,6 +804,36 @@ defmodule Elektrine.Messaging do
       preload: [:profile]
     )
     |> Repo.all()
+  end
+
+  defp chat_conversation_type?(conversation_id) when is_integer(conversation_id) do
+    case conversation_type(conversation_id) do
+      "dm" -> true
+      "group" -> true
+      "channel" -> true
+      _ -> false
+    end
+  end
+
+  defp chat_conversation_type?(_), do: false
+
+  defp conversation_type(conversation_id) do
+    from(c in Conversation,
+      where: c.id == ^conversation_id,
+      select: c.type
+    )
+    |> Repo.one()
+  end
+
+  defp conversation_type_map(conversation_ids) when is_list(conversation_ids) do
+    conversation_ids = Enum.uniq(conversation_ids)
+
+    from(c in Conversation,
+      where: c.id in ^conversation_ids,
+      select: {c.id, c.type}
+    )
+    |> Repo.all()
+    |> Map.new()
   end
 
   ## ActivityPub Federation - Delegate to Messages context

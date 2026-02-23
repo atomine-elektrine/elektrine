@@ -29,17 +29,21 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
     assigns = assign(assigns, :items, nav_items())
 
     ~H"""
-    <nav class="sticky top-16 z-40 mb-6 rounded-box border border-base-300 bg-base-100/90 backdrop-blur-sm shadow-sm">
-      <div class="flex items-center gap-1 overflow-x-auto px-2 py-2 sm:px-3">
-        <%= for item <- @items do %>
-          <.link href={item.href} class={tab_class(@active_tab, item.id)}>
-            <.icon
-              name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
-              class="h-4 w-4 sm:mr-1.5"
-            />
-            <span class="hidden sm:inline">{item.label}</span>
-          </.link>
-        <% end %>
+    <nav class="sticky top-16 z-40 mb-6 -mx-4 sm:-mx-6 lg:-mx-8">
+      <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="rounded-box border border-base-300 bg-base-100/90 backdrop-blur-sm shadow-sm">
+          <div class="flex items-center gap-1 overflow-x-auto px-2 py-2 sm:px-3">
+            <%= for item <- @items do %>
+              <.link href={item.href} class={tab_class(@active_tab, item.id)}>
+                <.icon
+                  name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
+                  class="h-4 w-4 sm:mr-1.5"
+                />
+                <span class="hidden sm:inline">{item.label}</span>
+              </.link>
+            <% end %>
+          </div>
+        </div>
       </div>
     </nav>
     """
@@ -109,6 +113,20 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         href: ~p"/email",
         icon: "hero-envelope",
         active_icon: "hero-envelope-solid"
+      },
+      %{
+        id: "calendar",
+        label: gettext("Calendar"),
+        href: ~p"/calendar",
+        icon: "hero-calendar-days",
+        active_icon: "hero-calendar-days-solid"
+      },
+      %{
+        id: "password_manager",
+        label: gettext("Vault"),
+        href: ~p"/account/password-manager",
+        icon: "hero-key",
+        active_icon: "hero-key-solid"
       },
       %{
         id: "vpn",

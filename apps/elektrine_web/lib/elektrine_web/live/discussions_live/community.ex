@@ -66,6 +66,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{community_id}")
         # Subscribe to discussion activity for live updates
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussion:#{community_id}")
+        Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
 
         # Trigger async data loading
         send(self(), {:load_community_data, community_id, is_moderator})
@@ -270,6 +271,43 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
       end)
 
     {:noreply, assign(socket, :discussion_posts, updated_posts)}
+  end
+
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    update_fn = fn posts ->
+      Enum.map(posts, fn post ->
+        if post.id == message_id do
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+        else
+          post
+        end
+      end)
+    end
+
+    updated_modal_post =
+      case socket.assigns[:modal_post] do
+        %{id: ^message_id} = post ->
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+
+        post ->
+          post
+      end
+
+    {:noreply,
+     socket
+     |> update(:discussion_posts, update_fn)
+     |> update(:pinned_posts, update_fn)
+     |> assign(:modal_post, updated_modal_post)}
   end
 
   def handle_info({:message_link_preview_updated, message}, socket) do
@@ -601,6 +639,24 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
 
   defp error_to_string(:too_many_files), do: "Maximum 4 images allowed"
   defp error_to_string(_), do: "Upload error"
+
+  defp display_discussion_title(post) do
+    case Map.get(post, :title) do
+      title when is_binary(title) ->
+        title = String.trim(title)
+        if title == "", do: "Untitled discussion", else: title
+
+      _ ->
+        "Untitled discussion"
+    end
+  end
+
+  defp has_explicit_discussion_title?(post) do
+    case Map.get(post, :title) do
+      title when is_binary(title) -> String.trim(title) != ""
+      _ -> false
+    end
+  end
 
   # Helper for templates - generates SEO-friendly discussion URL
   defp generate_discussion_url(community, post) do

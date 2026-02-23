@@ -13,7 +13,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
     if socket.assigns[:current_user] && socket.assigns.current_user.is_admin do
       {:ok,
        socket
-       |> assign(:page_title, "Federation Management")
+       |> assign(:page_title, "ActivityPub Federation")
        |> assign(:active_tab, "instances")
        |> assign(:search_query, "")
        |> assign(:show_policy_modal, false)
@@ -381,23 +381,42 @@ defmodule ElektrineWeb.AdminLive.Federation do
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold">Federation Management</h1>
-          <p class="text-sm opacity-70 mt-1">Manage MRF policies for remote instances</p>
+          <h1 class="text-xl sm:text-2xl font-bold">ActivityPub Federation</h1>
+          <p class="text-sm opacity-70 mt-1">
+            Moderate remote ActivityPub instances, actors, and activities. This does not control
+            Arblarg chat federation or Bluesky bridge credentials.
+          </p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
+          <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+            <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
+          </.link>
+          <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+            <.icon name="hero-link" class="w-4 h-4" />
+            <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
+          </.link>
           <.link navigate={~p"/pripyat/relays"} class="btn btn-sm btn-ghost">
             <.icon name="hero-signal" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Relays</span>
+            <span class="hidden sm:inline ml-1">ActivityPub Relays</span>
           </.link>
           <button phx-click="show_add_block_modal" class="btn btn-sm btn-secondary">
             <.icon name="hero-plus" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Add Instance</span>
+            <span class="hidden sm:inline ml-1">Add Policy</span>
           </button>
           <button phx-click="refresh" class="btn btn-sm btn-ghost">
             <.icon name="hero-arrow-path" class="w-4 h-4" />
             <span class="hidden sm:inline ml-1">Refresh</span>
           </button>
         </div>
+      </div>
+
+      <div class="alert bg-base-200 border border-base-300 mb-6">
+        <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
+        <span class="text-sm">
+          Use this page for ActivityPub trust and safety policy. For Arblarg chat server peering use
+          Messaging Federation, and for ATProto mirror health use Bluesky Bridge.
+        </span>
       </div>
       
     <!-- Stats Cards -->
@@ -483,7 +502,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
           phx-value-tab="instances"
           class={["tab", @active_tab == "instances" && "tab-active"]}
         >
-          <.icon name="hero-server-stack" class="w-4 h-4 mr-1" /> Instances
+          <.icon name="hero-server-stack" class="w-4 h-4 mr-1" /> Instance Policies
         </button>
         <button
           phx-click="switch_tab"
@@ -517,23 +536,35 @@ defmodule ElektrineWeb.AdminLive.Federation do
               name="query"
               value={@search_query}
               placeholder={
-                if @active_tab == "actors",
-                  do: "Search actors by username or domain...",
-                  else: "Search instances..."
+                case @active_tab do
+                  "actors" -> "Search actors by username or domain..."
+                  "instances" -> "Search instances or reasons..."
+                  _ -> "Search instances or reasons..."
+                end
               }
               class="input input-bordered join-item flex-1"
               phx-debounce="300"
+              disabled={@active_tab in ["domains", "activity"]}
             />
-            <button type="submit" class="btn btn-primary join-item">
+            <button
+              type="submit"
+              class="btn btn-primary join-item"
+              disabled={@active_tab in ["domains", "activity"]}
+            >
               <.icon name="hero-magnifying-glass" class="w-4 h-4" />
             </button>
           </div>
-          <%= if @search_query != "" do %>
+          <%= if @search_query != "" && @active_tab not in ["domains", "activity"] do %>
             <button type="button" phx-click="clear_search" class="btn btn-ghost">
               <.icon name="hero-x-mark" class="w-4 h-4" />
             </button>
           <% end %>
         </form>
+        <%= if @active_tab in ["domains", "activity"] do %>
+          <p class="text-xs opacity-60 mt-2">
+            Search filters only the Instance Policies and Remote Actors tabs.
+          </p>
+        <% end %>
       </div>
       
     <!-- Content based on active tab -->
@@ -569,7 +600,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
     <div class="card glass-card shadow">
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
-          <.icon name="hero-server-stack" class="w-5 h-5" /> Managed Instances
+          <.icon name="hero-server-stack" class="w-5 h-5" /> ActivityPub Instance Policies
           <span class="badge badge-neutral">{length(@instances)}</span>
         </h2>
 
@@ -649,9 +680,9 @@ defmodule ElektrineWeb.AdminLive.Federation do
         <% else %>
           <div class="text-center py-12">
             <.icon name="hero-server-stack" class="w-12 h-12 mx-auto opacity-30 mb-4" />
-            <p class="opacity-70">No managed instances</p>
+            <p class="opacity-70">No ActivityPub instance policies configured</p>
             <p class="text-sm opacity-50 mt-1">
-              Add instances to apply MRF policies
+              Add an instance to apply MRF moderation controls
             </p>
           </div>
         <% end %>
@@ -682,7 +713,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
     <div class="modal modal-open">
       <div class="modal-box max-w-2xl">
         <h3 class="font-bold text-lg mb-4">
-          <.icon name="hero-cog-6-tooth" class="w-5 h-5 inline mr-2" /> MRF Policies for
+          <.icon name="hero-cog-6-tooth" class="w-5 h-5 inline mr-2" /> ActivityPub MRF Policies for
           <span class="font-mono">{@instance.domain}</span>
         </h3>
 
@@ -845,7 +876,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
     <div class="modal modal-open">
       <div class="modal-box max-w-2xl">
         <h3 class="font-bold text-lg mb-4">
-          <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Add Instance with MRF Policies
+          <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Add ActivityPub Instance Policy
         </h3>
 
         <form phx-submit="add_instance">

@@ -119,6 +119,20 @@ defmodule ElektrineWeb.Layouts do
     end
   end
 
+  @doc ~s|Returns true when the current page should use full-width main content.\n|
+  def full_width_main?(assigns) do
+    path = get_current_path(assigns)
+
+    socket_view =
+      case assigns[:socket] do
+        %{view: view} when not is_nil(view) -> to_string(view)
+        _ -> ""
+      end
+
+    (is_binary(path) and String.starts_with?(path, "/chat")) or
+      String.contains?(socket_view, "ChatLive")
+  end
+
   defp determine_grid_from_path(assigns) do
     path = get_current_path(assigns)
 

@@ -20,6 +20,7 @@ defmodule Elektrine.Search do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.{AuditLog, Notifications}
   alias Elektrine.Repo
 
   @doc """
@@ -532,6 +533,52 @@ defmodule Elektrine.Search do
     end
   end
 
+  @doc """
+  Lists command palette actions, optionally filtered by PAT scopes.
+  """
+  def list_actions(opts \\ []) do
+    scopes = Keyword.get(opts, :scopes, []) |> normalize_scopes()
+    strict_scopes? = Keyword.get(opts, :enforce_scopes, false)
+
+    action_entries()
+    |> Enum.filter(&action_allowed?(&1, scopes, strict_scopes?))
+    |> Enum.sort_by(&(-&1.relevance))
+  end
+
+  @doc """
+  Executes a command palette action.
+
+  Supports command strings (for example `>open chat`) and action ids.
+  """
+  def execute_action(user, command_or_id, opts \\ [])
+
+  def execute_action(nil, _command_or_id, _opts), do: {:error, :unauthorized}
+
+  def execute_action(user, command_or_id, opts) do
+    normalized = normalize_command_query(command_or_id)
+
+    if normalized == "" do
+      {:error, :unknown_action}
+    else
+      scopes = Keyword.get(opts, :scopes, []) |> normalize_scopes()
+      strict_scopes? = Keyword.get(opts, :enforce_scopes, false)
+
+      case resolve_action(normalized) do
+        nil ->
+          {:error, :unknown_action}
+
+        action ->
+          if action_allowed?(action, scopes, strict_scopes?) do
+            result = run_action(user, action)
+            audit_action_execution(user, action, result, opts)
+            result
+          else
+            {:error, :insufficient_scope}
+          end
+      end
+    end
+  end
+
   defp normalize_command_query(query) when is_binary(query) do
     query
     |> String.trim()
@@ -541,6 +588,16 @@ defmodule Elektrine.Search do
   end
 
   defp normalize_command_query(_), do: ""
+
+  defp normalize_scopes(scopes) when is_list(scopes) do
+    scopes
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> MapSet.new()
+  end
+
+  defp normalize_scopes(_), do: MapSet.new()
 
   defp entry_matches?(_entry, ""), do: true
 
@@ -559,6 +616,10 @@ defmodule Elektrine.Search do
         id: "action_compose_email",
         type: "action",
         title: "Compose Email",
+        command: "compose email",
+        aliases: ["new email", "send email"],
+        execution: :navigate,
+        required_scopes: ["write:email"],
         content: "Start a new email message",
         url: "/email/compose?return_to=search",
         updated_at: DateTime.utc_now(),
@@ -569,6 +630,10 @@ defmodule Elektrine.Search do
         id: "action_open_chat",
         type: "action",
         title: "Open Chat",
+        command: "open chat",
+        aliases: ["chat"],
+        execution: :navigate,
+        required_scopes: ["read:chat"],
         content: "Jump into your conversations",
         url: "/chat",
         updated_at: DateTime.utc_now(),
@@ -579,6 +644,10 @@ defmodule Elektrine.Search do
         id: "action_open_notifications",
         type: "action",
         title: "Open Notifications",
+        command: "open notifications",
+        aliases: ["notifications", "alerts"],
+        execution: :navigate,
+        required_scopes: ["read:account"],
         content: "Review unread alerts",
         url: "/notifications",
         updated_at: DateTime.utc_now(),
@@ -586,9 +655,28 @@ defmodule Elektrine.Search do
         keywords: ["alerts", "notifications", "activity"]
       },
       %{
+        id: "action_mark_all_notifications_read",
+        type: "action",
+        title: "Mark Notifications Read",
+        command: "mark notifications read",
+        aliases: ["clear notifications", "read all notifications"],
+        execution: :operation,
+        operation: :mark_notifications_read,
+        required_scopes: ["write:account"],
+        content: "Mark all notifications as read",
+        url: "/notifications",
+        updated_at: DateTime.utc_now(),
+        relevance: 1.05,
+        keywords: ["notification", "read", "clear", "inbox zero"]
+      },
+      %{
         id: "action_open_vpn",
         type: "action",
         title: "Open VPN",
+        command: "open vpn",
+        aliases: ["vpn"],
+        execution: :navigate,
+        required_scopes: ["read:account"],
         content: "Manage your WireGuard profiles",
         url: "/vpn",
         updated_at: DateTime.utc_now(),
@@ -599,6 +687,10 @@ defmodule Elektrine.Search do
         id: "action_open_overview",
         type: "action",
         title: "Open Overview",
+        command: "open overview",
+        aliases: ["overview", "home"],
+        execution: :navigate,
+        required_scopes: ["read:account"],
         content: "Go back to your home dashboard",
         url: "/overview",
         updated_at: DateTime.utc_now(),
@@ -606,6 +698,82 @@ defmodule Elektrine.Search do
         keywords: ["overview", "home", "dashboard"]
       }
     ]
+  end
+
+  defp resolve_action(normalized_command) do
+    action_entries()
+    |> Enum.find(fn action ->
+      action_commands =
+        [action[:id], action[:command], action[:title]]
+        |> Kernel.++(action[:aliases] || [])
+        |> Enum.map(&normalize_command_query/1)
+
+      normalized_command in action_commands
+    end)
+  end
+
+  defp action_allowed?(action, scopes, strict_scopes?) do
+    required_scopes = action[:required_scopes] || []
+
+    cond do
+      required_scopes == [] ->
+        true
+
+      not strict_scopes? and MapSet.size(scopes) == 0 ->
+        true
+
+      true ->
+        Enum.all?(required_scopes, &MapSet.member?(scopes, &1))
+    end
+  end
+
+  defp run_action(_user, %{execution: :navigate} = action) do
+    {:ok,
+     %{
+       action_id: action.id,
+       mode: :navigate,
+       url: action.url,
+       message: action.content
+     }}
+  end
+
+  defp run_action(user, %{execution: :operation, operation: :mark_notifications_read} = action) do
+    :ok = Notifications.mark_all_as_read(user.id)
+
+    {:ok,
+     %{
+       action_id: action.id,
+       mode: :operation,
+       message: "Marked all notifications as read",
+       url: action.url
+     }}
+  end
+
+  defp run_action(_user, _action), do: {:error, :unknown_action}
+
+  defp audit_action_execution(user, action, result, opts) do
+    status =
+      case result do
+        {:ok, _} -> "ok"
+        {:error, reason} -> "error:#{reason}"
+      end
+
+    _ =
+      AuditLog.log(user.id, "search_action.execute", "search_action",
+        details: %{
+          action_id: action.id,
+          command: action[:command],
+          mode: to_string(action[:execution]),
+          status: status,
+          source: opts[:source] || "search"
+        },
+        ip_address: opts[:ip_address],
+        user_agent: opts[:user_agent]
+      )
+
+    :ok
+  rescue
+    _ -> :ok
   end
 
   defp setting_entries do

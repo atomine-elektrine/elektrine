@@ -48,6 +48,36 @@ defmodule ElektrineWeb.API.ServerControllerTest do
       assert is_list(response["servers"])
       assert Enum.any?(response["servers"], &(&1["name"] == "alpha"))
     end
+
+    test "supports discover scope for joinable public servers", %{
+      conn: conn,
+      token: token,
+      user: user
+    } do
+      owner = AccountsFixtures.user_fixture()
+
+      {:ok, joined_server} = Messaging.create_server(owner.id, %{name: "joined", is_public: true})
+      {:ok, _member} = Messaging.join_server(joined_server.id, user.id)
+
+      {:ok, discoverable_server} =
+        Messaging.create_server(owner.id, %{name: "discover-me", is_public: true})
+
+      conn =
+        conn
+        |> auth_conn(token)
+        |> get("/api/servers?scope=discover")
+
+      response = json_response(conn, 200)
+
+      assert Enum.any?(response["servers"], &(&1["name"] == "discover-me"))
+      refute Enum.any?(response["servers"], &(&1["name"] == "joined"))
+
+      discovered =
+        Enum.find(response["servers"], &(&1["id"] == discoverable_server.id))
+
+      assert discovered["origin_domain"] in [nil, ""]
+      assert discovered["is_federated_mirror"] == false
+    end
   end
 
   describe "POST /api/servers/:server_id/join" do

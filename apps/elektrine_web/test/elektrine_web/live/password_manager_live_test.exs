@@ -29,6 +29,9 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/password-manager")
 
+    assert has_element?(view, "nav a[href=\"/overview\"]")
+    assert has_element?(view, "nav a[href=\"/account/password-manager\"]")
+
     view
     |> form("#vault-entry-form", %{
       "entry" => %{

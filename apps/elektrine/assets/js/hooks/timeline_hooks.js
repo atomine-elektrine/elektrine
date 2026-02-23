@@ -23,7 +23,9 @@ export const PostClick = {
   mounted() {
     this.handleClick = (e) => {
       if (e.target.closest('a, button, label, .dropdown, details')) return
-      if (e.target.closest('[phx-click]')) return
+
+      const closestPhxClick = e.target.closest('[phx-click]')
+      if (closestPhxClick && closestPhxClick !== this.el) return
 
       const selection = window.getSelection()
       if (selection && selection.toString().length > 0) return

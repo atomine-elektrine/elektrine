@@ -187,12 +187,29 @@ defmodule Elektrine.Messaging.Conversation do
   @doc """
   Returns display name for the conversation from a user's perspective.
   """
-  def display_name(%__MODULE__{type: "dm", members: members}, current_user_id) do
+  def display_name(%__MODULE__{type: "dm", members: members}, current_user_id)
+      when is_list(members) do
     case Enum.find(members, fn member ->
            member.user_id != current_user_id and is_nil(member.left_at)
          end) do
       %{user: user} -> user.display_name || user.username
       nil -> "Unknown User"
+    end
+  end
+
+  def display_name(
+        %__MODULE__{type: "dm", federated_source: federated_source, name: name},
+        _current_user_id
+      ) do
+    cond do
+      is_binary(name) and String.trim(name) != "" ->
+        name
+
+      is_binary(federated_source) and String.starts_with?(federated_source, "arbp:dm:") ->
+        "@" <> String.replace_prefix(federated_source, "arbp:dm:", "")
+
+      true ->
+        "Unknown User"
     end
   end
 
@@ -203,13 +220,19 @@ defmodule Elektrine.Messaging.Conversation do
   @doc """
   Returns the avatar URL for the conversation from a user's perspective.
   """
-  def avatar_url(%__MODULE__{type: "dm", members: members}, current_user_id) do
+  def avatar_url(%__MODULE__{type: "dm", members: members}, current_user_id)
+      when is_list(members) do
     case Enum.find(members, fn member ->
            member.user_id != current_user_id and is_nil(member.left_at)
          end) do
       %{user: user} -> user.avatar
       nil -> nil
     end
+  end
+
+  def avatar_url(%__MODULE__{type: "dm", avatar_url: avatar_url}, _current_user_id)
+      when is_binary(avatar_url) and avatar_url != "" do
+    avatar_url
   end
 
   def avatar_url(%__MODULE__{avatar_url: avatar_url}, _current_user_id) do

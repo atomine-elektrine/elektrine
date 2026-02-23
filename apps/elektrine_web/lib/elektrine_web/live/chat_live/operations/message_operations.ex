@@ -27,7 +27,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
         )
 
       older_messages =
-        data.messages |> Enum.reverse() |> Elektrine.Messaging.Message.decrypt_messages()
+        Enum.reverse(data.messages)
 
       message_data = data
       new_messages = older_messages ++ socket.assigns.messages
@@ -72,7 +72,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
         )
 
       newer_messages =
-        data.messages |> Enum.reverse() |> Elektrine.Messaging.Message.decrypt_messages()
+        Enum.reverse(data.messages)
 
       message_data = data
       new_messages = socket.assigns.messages ++ newer_messages
@@ -105,7 +105,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
   def handle_event("send_message", %{"message" => message_content}, socket) do
     trimmed_content = String.trim(message_content)
 
-    uploaded_files =
+    upload_results =
       consume_uploaded_entries(socket, :chat_attachments, fn %{path: path}, entry ->
         user_id = socket.assigns.current_user.id
 
@@ -126,9 +126,24 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
              }}
 
           {:error, _reason} ->
-            {:postpone, :error}
+            {:ok, %{upload_error: true, name: entry.client_name}}
         end
       end)
+
+    {failed_uploads, uploaded_files} =
+      Enum.split_with(upload_results, fn upload ->
+        Map.get(upload, :upload_error, false)
+      end)
+
+    socket =
+      if failed_uploads != [] do
+        notify_error(
+          socket,
+          "One or more attachments failed to upload. Try a supported image format (JPG, PNG, WEBP, HEIC, AVIF) or a smaller file."
+        )
+      else
+        socket
+      end
 
     case maybe_apply_slash_command(trimmed_content, uploaded_files, socket) do
       {:halt, socket} ->
@@ -250,15 +265,21 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                         socket.assigns.current_user.id
                       )
 
+                    scoped_conversations =
+                      Helpers.scope_conversations_to_server(
+                        sorted_conversations,
+                        socket.assigns[:active_server_id]
+                      )
+
                     filtered_conversations =
                       if socket.assigns.search.conversation_query != "" do
                         Helpers.filter_conversations(
-                          sorted_conversations,
+                          scoped_conversations,
                           socket.assigns.search.conversation_query,
                           socket.assigns.current_user.id
                         )
                       else
-                        sorted_conversations
+                        scoped_conversations
                       end
 
                     updated_messages =
@@ -413,7 +434,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
        ) do
       {:noreply, notify_error(socket, "You are currently timed out and cannot react to messages")}
     else
-      case Messaging.add_reaction(message_id, socket.assigns.current_user.id, emoji) do
+      case Messaging.add_chat_reaction(message_id, socket.assigns.current_user.id, emoji) do
         {:ok, _reaction} -> {:noreply, socket}
         {:error, _} -> {:noreply, socket}
       end
@@ -424,7 +445,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
     if socket.assigns.current_user do
       message_id = String.to_integer(message_id)
 
-      case Messaging.delete_message(message_id, socket.assigns.current_user.id) do
+      case Messaging.delete_chat_message(message_id, socket.assigns.current_user.id) do
         {:ok, _deleted_message} ->
           {:noreply,
            socket
@@ -458,7 +479,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
     if Helpers.conversation_admin_socket?(socket) do
       message_id = String.to_integer(message_id)
 
-      case Messaging.admin_delete_message(message_id, socket.assigns.current_user) do
+      case Messaging.delete_chat_message(message_id, socket.assigns.current_user.id, true) do
         {:ok, deleted_message} ->
           conversation_id =
             socket.assigns.conversation.selected && socket.assigns.conversation.selected.id
@@ -505,6 +526,19 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
 
   def handle_event("validate_upload", _params, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("cancel_upload", %{"ref" => ref, "upload_name" => upload_name}, socket) do
+    upload_atom =
+      case upload_name do
+        "chat_attachments" -> :chat_attachments
+        "server_icon_upload" -> :server_icon_upload
+        "group_avatar_upload" -> :group_avatar_upload
+        "channel_avatar_upload" -> :channel_avatar_upload
+        _ -> :chat_attachments
+      end
+
+    {:noreply, cancel_upload(socket, upload_atom, ref)}
   end
 
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do

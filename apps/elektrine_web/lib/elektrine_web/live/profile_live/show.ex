@@ -82,6 +82,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
         if connected?(socket) do
           Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:follows")
           Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:profile")
+          Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
           send(self(), {:load_profile_data, user.id, profile})
         end
 
@@ -625,6 +626,45 @@ defmodule ElektrineWeb.ProfileLive.Show do
      |> assign(:user_badges, user_badges)
      |> assign(:discord_data, discord_data)
      |> assign(:loading_profile, false)}
+  end
+
+  @impl true
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    update_fn = fn posts ->
+      Enum.map(posts, fn post ->
+        if post.id == message_id do
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+        else
+          post
+        end
+      end)
+    end
+
+    updated_modal_post =
+      case socket.assigns[:modal_post] do
+        %{id: ^message_id} = post ->
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+
+        post ->
+          post
+      end
+
+    {:noreply,
+     socket
+     |> update(:user_timeline_posts, update_fn)
+     |> update(:pinned_posts, update_fn)
+     |> update(:user_discussion_posts, update_fn)
+     |> assign(:modal_post, updated_modal_post)}
   end
 
   @impl true

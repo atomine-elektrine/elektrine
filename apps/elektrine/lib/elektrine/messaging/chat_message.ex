@@ -372,7 +372,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   end
 
   defp determine_media_type(media_urls) do
-    if Enum.any?(media_urls, &String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp)$/i)) do
+    if Enum.any?(media_urls, &String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i)) do
       "image"
     else
       "file"

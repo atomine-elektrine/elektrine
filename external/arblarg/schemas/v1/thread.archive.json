@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/thread.archive",
+  "title": "Arblarg thread.archive payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "thread_id",
+    "archived_at",
+    "actor"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "thread_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "archived_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "object"
+    }
+  }
+}

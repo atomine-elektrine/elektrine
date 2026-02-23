@@ -651,8 +651,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
-    updated_posts =
-      Enum.map(socket.assigns.timeline_posts, fn post ->
+    update_fn = fn posts ->
+      Enum.map(posts, fn post ->
         if post.id == message_id do
           %{
             post
@@ -664,8 +664,49 @@ defmodule ElektrineWeb.TimelineLive.Index do
           post
         end
       end)
+    end
 
-    {:noreply, socket |> assign(:timeline_posts, updated_posts) |> apply_timeline_filter()}
+    updated_timeline_posts = update_fn.(socket.assigns.timeline_posts)
+    updated_base_posts = update_fn.(socket.assigns.base_timeline_posts || [])
+
+    updated_cache =
+      Enum.reduce(socket.assigns.special_view_cache || %{}, %{}, fn {key, entry}, acc ->
+        updated_entry =
+          entry
+          |> Map.update(:posts, [], fn
+            posts when is_list(posts) -> update_fn.(posts)
+            posts -> posts
+          end)
+
+        Map.put(acc, key, updated_entry)
+      end)
+
+    message_post =
+      Enum.find(updated_timeline_posts, fn post -> post.id == message_id end) ||
+        Enum.find(updated_base_posts, fn post -> post.id == message_id end)
+
+    updated_lemmy_counts =
+      if message_post && is_binary(message_post.activitypub_id) do
+        existing = Map.get(socket.assigns.lemmy_counts || %{}, message_post.activitypub_id, %{})
+
+        Map.put(
+          socket.assigns.lemmy_counts || %{},
+          message_post.activitypub_id,
+          existing
+          |> Map.put(:score, counts.like_count)
+          |> Map.put(:comments, counts.reply_count)
+        )
+      else
+        socket.assigns.lemmy_counts || %{}
+      end
+
+    {:noreply,
+     socket
+     |> assign(:timeline_posts, updated_timeline_posts)
+     |> assign(:base_timeline_posts, updated_base_posts)
+     |> assign(:special_view_cache, updated_cache)
+     |> assign(:lemmy_counts, updated_lemmy_counts)
+     |> apply_timeline_filter()}
   end
 
   @impl true

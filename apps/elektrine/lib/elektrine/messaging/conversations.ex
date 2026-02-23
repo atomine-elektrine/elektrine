@@ -1,17 +1,22 @@
 defmodule Elektrine.Messaging.Conversations do
   @moduledoc "Context for managing conversations - creation, updates, membership, and discovery.\n"
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
+    ChatMessage,
+    ChatUserHiddenMessage,
     Conversation,
     ConversationMember,
+    Federation,
     Message,
     RateLimiter,
     UserHiddenMessage
   }
 
   alias Elektrine.Accounts.User
+  @remote_dm_source_prefix "arbp:dm:"
   @doc "Returns the list of conversations for a user.\n"
   def list_conversations(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
@@ -27,13 +32,38 @@ defmodule Elektrine.Messaging.Conversations do
       )
 
     conversations = Repo.all(query)
-    conversation_ids = Enum.map(conversations, & &1.id)
 
-    latest_messages =
+    chat_conversation_ids =
+      conversations
+      |> Enum.filter(&(&1.type in ["dm", "group", "channel"]))
+      |> Enum.map(& &1.id)
+
+    non_chat_conversation_ids =
+      conversations
+      |> Enum.reject(&(&1.type in ["dm", "group", "channel"]))
+      |> Enum.map(& &1.id)
+
+    latest_chat_messages =
+      from(m in ChatMessage,
+        left_join: h in ChatUserHiddenMessage,
+        on: h.chat_message_id == m.id and h.user_id == ^user_id,
+        where:
+          m.conversation_id in ^chat_conversation_ids and is_nil(m.deleted_at) and is_nil(h.id),
+        distinct: m.conversation_id,
+        order_by: [asc: m.conversation_id, desc: m.inserted_at],
+        preload: [sender: [:profile]]
+      )
+      |> Repo.all()
+      |> ChatMessage.decrypt_messages()
+      |> Enum.group_by(& &1.conversation_id)
+
+    latest_non_chat_messages =
       from(m in Message,
         left_join: h in UserHiddenMessage,
         on: h.message_id == m.id and h.user_id == ^user_id,
-        where: m.conversation_id in ^conversation_ids and is_nil(m.deleted_at) and is_nil(h.id),
+        where:
+          m.conversation_id in ^non_chat_conversation_ids and is_nil(m.deleted_at) and
+            is_nil(h.id),
         distinct: m.conversation_id,
         order_by: [asc: m.conversation_id, desc: m.inserted_at],
         preload: [sender: [:profile]]
@@ -41,6 +71,8 @@ defmodule Elektrine.Messaging.Conversations do
       |> Repo.all()
       |> Message.decrypt_messages()
       |> Enum.group_by(& &1.conversation_id)
+
+    latest_messages = Map.merge(latest_non_chat_messages, latest_chat_messages)
 
     Enum.map(conversations, fn conversation ->
       messages = Map.get(latest_messages, conversation.id, [])
@@ -215,6 +247,89 @@ defmodule Elektrine.Messaging.Conversations do
       {:error, :rate_limited}
     end
   end
+
+  @doc "Creates or gets a cross-instance DM conversation for a remote ARBP handle.\n"
+  def create_remote_dm_conversation(local_user_id, remote_handle, attrs \\ %{}) do
+    with :ok <- ensure_dm_creation_allowed(local_user_id),
+         {:ok, recipient} <- normalize_remote_dm_handle(remote_handle),
+         :ok <- ensure_remote_recipient_domain(local_user_id, recipient),
+         %{} <- Federation.outgoing_peer(recipient.domain) do
+      remote_source = remote_dm_source(recipient.handle)
+      display_name = remote_dm_display_name(attrs, recipient)
+      avatar_url = remote_dm_avatar_url(attrs)
+
+      existing_remote_dm =
+        from(c in Conversation,
+          join: cm in ConversationMember,
+          on: c.id == cm.conversation_id,
+          where:
+            c.type == "dm" and c.federated_source == ^remote_source and
+              cm.user_id == ^local_user_id and is_nil(cm.left_at),
+          limit: 1
+        )
+
+      case Repo.one(existing_remote_dm) do
+        %Conversation{} = conversation ->
+          {:ok, conversation}
+
+        nil ->
+          RateLimiter.record_dm_creation(local_user_id)
+
+          Repo.transaction(fn ->
+            {:ok, conversation} =
+              %Conversation{}
+              |> Conversation.dm_changeset(%{
+                creator_id: local_user_id,
+                name: display_name,
+                avatar_url: avatar_url,
+                federated_source: remote_source
+              })
+              |> Repo.insert()
+
+            {:ok, _} = add_member_to_conversation(conversation.id, local_user_id)
+            update_member_count(conversation.id)
+            conversation
+          end)
+      end
+    else
+      {:redirect_local_dm, remote_user_id} ->
+        create_dm_conversation(local_user_id, remote_user_id)
+
+      nil ->
+        {:error, :unknown_peer}
+
+      {:error, _} = error ->
+        error
+
+      false ->
+        {:error, :rate_limited}
+    end
+  end
+
+  @doc "Returns true when a conversation is a remote federated DM.\n"
+  def remote_dm_conversation?(%Conversation{type: "dm", federated_source: source})
+      when is_binary(source) do
+    String.starts_with?(source, @remote_dm_source_prefix)
+  end
+
+  def remote_dm_conversation?(_), do: false
+
+  @doc "Returns normalized remote DM handle for federated DM conversations.\n"
+  def remote_dm_handle(%Conversation{} = conversation) do
+    if remote_dm_conversation?(conversation) do
+      conversation.federated_source
+      |> String.replace_prefix(@remote_dm_source_prefix, "")
+      |> normalize_remote_dm_handle()
+      |> case do
+        {:ok, recipient} -> recipient.handle
+        _ -> nil
+      end
+    else
+      nil
+    end
+  end
+
+  def remote_dm_handle(_), do: nil
 
   @doc "Checks if user can create more conversations of the given type.\nReturns :ok if allowed, {:error, :limit_exceeded} otherwise.\n"
   def check_creation_limit(user_id, type) do
@@ -841,4 +956,67 @@ defmodule Elektrine.Messaging.Conversations do
         {:updated, count}
     end
   end
+
+  defp normalize_remote_dm_handle(handle) when is_binary(handle) do
+    normalized =
+      handle
+      |> String.trim()
+      |> String.trim_leading("@")
+      |> String.downcase()
+
+    case Regex.run(~r/^([a-z0-9_]{1,64})@([a-z0-9.-]+\.[a-z]{2,})$/, normalized) do
+      [_, username, domain] ->
+        {:ok, %{username: username, domain: domain, handle: "#{username}@#{domain}"}}
+
+      _ ->
+        {:error, :invalid_remote_handle}
+    end
+  end
+
+  defp normalize_remote_dm_handle(_), do: {:error, :invalid_remote_handle}
+
+  defp remote_dm_source(handle), do: @remote_dm_source_prefix <> handle
+
+  defp ensure_dm_creation_allowed(user_id) do
+    if RateLimiter.can_create_dm?(user_id), do: :ok, else: {:error, :rate_limited}
+  end
+
+  defp ensure_remote_recipient_domain(_local_user_id, recipient) do
+    if local_domain?(recipient.domain) do
+      case Accounts.get_user_by_username(recipient.username) do
+        nil -> {:error, :user_not_found}
+        user -> {:redirect_local_dm, user.id}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp local_domain?(domain) when is_binary(domain) do
+    String.downcase(domain) == Federation.local_domain()
+  end
+
+  defp local_domain?(_), do: false
+
+  defp remote_dm_display_name(attrs, recipient) when is_map(attrs) do
+    display_name =
+      attrs[:display_name] ||
+        attrs["display_name"] ||
+        attrs[:name] ||
+        attrs["name"]
+
+    if is_binary(display_name) and String.trim(display_name) != "" do
+      String.trim(display_name)
+    else
+      "@" <> recipient.handle
+    end
+  end
+
+  defp remote_dm_display_name(_attrs, recipient), do: "@" <> recipient.handle
+
+  defp remote_dm_avatar_url(attrs) when is_map(attrs) do
+    attrs[:avatar_url] || attrs["avatar_url"]
+  end
+
+  defp remote_dm_avatar_url(_), do: nil
 end

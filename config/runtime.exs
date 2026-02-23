@@ -54,7 +54,7 @@ end
 
 # Lightweight messaging federation runtime configuration
 messaging_federation_enabled =
-  case System.get_env("MESSAGING_FEDERATION_ENABLED", "false") do
+  case System.get_env("MESSAGING_FEDERATION_ENABLED", "true") do
     value when value in ["1", "true", "TRUE", "yes", "YES"] -> true
     _ -> false
   end
@@ -78,6 +78,28 @@ messaging_federation_identity_key_id =
   case System.get_env("MESSAGING_FEDERATION_IDENTITY_KEY_ID") do
     nil -> "default"
     "" -> "default"
+    value -> value
+  end
+
+messaging_federation_identity_keys =
+  case System.get_env("MESSAGING_FEDERATION_IDENTITY_KEYS_JSON") do
+    nil ->
+      []
+
+    "" ->
+      []
+
+    json ->
+      case Jason.decode(json) do
+        {:ok, keys} when is_list(keys) -> keys
+        _ -> []
+      end
+  end
+
+messaging_federation_identity_shared_secret =
+  case System.get_env("MESSAGING_FEDERATION_IDENTITY_SHARED_SECRET") do
+    nil -> nil
+    "" -> nil
     value -> value
   end
 
@@ -119,6 +141,25 @@ parse_int_env = fn env_name, default ->
   end
 end
 
+parse_bool_env = fn env_name, default ->
+  case System.get_env(env_name) do
+    nil ->
+      default
+
+    "" ->
+      default
+
+    value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] ->
+      true
+
+    value when value in ["0", "false", "FALSE", "no", "NO", "off", "OFF"] ->
+      false
+
+    _ ->
+      default
+  end
+end
+
 messaging_federation_delivery_concurrency =
   parse_int_env.("MESSAGING_FEDERATION_DELIVERY_CONCURRENCY", 6)
 
@@ -137,11 +178,49 @@ messaging_federation_event_retention_days =
 messaging_federation_outbox_retention_days =
   parse_int_env.("MESSAGING_FEDERATION_OUTBOX_RETENTION_DAYS", 30)
 
+messaging_federation_clock_skew_seconds =
+  parse_int_env.("MESSAGING_FEDERATION_CLOCK_SKEW_SECONDS", 300)
+
+messaging_federation_conformance_core_passed =
+  parse_bool_env.("MESSAGING_FEDERATION_CONFORMANCE_CORE_PASSED", true)
+
+messaging_federation_conformance_ext_roles_passed =
+  parse_bool_env.("MESSAGING_FEDERATION_CONFORMANCE_EXT_ROLES_PASSED", true)
+
+messaging_federation_conformance_ext_permissions_passed =
+  parse_bool_env.("MESSAGING_FEDERATION_CONFORMANCE_EXT_PERMISSIONS_PASSED", true)
+
+messaging_federation_conformance_ext_threads_passed =
+  parse_bool_env.("MESSAGING_FEDERATION_CONFORMANCE_EXT_THREADS_PASSED", true)
+
+messaging_federation_conformance_ext_presence_passed =
+  parse_bool_env.("MESSAGING_FEDERATION_CONFORMANCE_EXT_PRESENCE_PASSED", true)
+
+messaging_federation_conformance_ext_moderation_passed =
+  parse_bool_env.("MESSAGING_FEDERATION_CONFORMANCE_EXT_MODERATION_PASSED", true)
+
+messaging_federation_conformance_extensions = %{
+  "urn:arbp:ext:roles:1" => messaging_federation_conformance_ext_roles_passed,
+  "urn:arbp:ext:permissions:1" => messaging_federation_conformance_ext_permissions_passed,
+  "urn:arbp:ext:threads:1" => messaging_federation_conformance_ext_threads_passed,
+  "urn:arbp:ext:presence:1" => messaging_federation_conformance_ext_presence_passed,
+  "urn:arbp:ext:moderation:1" => messaging_federation_conformance_ext_moderation_passed
+}
+
+messaging_federation_allow_insecure_http_transport =
+  parse_bool_env.("MESSAGING_FEDERATION_ALLOW_INSECURE_HTTP_TRANSPORT", false)
+
 config :elektrine, :messaging_federation,
   enabled: messaging_federation_enabled,
   identity_key_id: messaging_federation_identity_key_id,
+  identity_keys: messaging_federation_identity_keys,
+  identity_shared_secret: messaging_federation_identity_shared_secret,
   official_relay_operator: messaging_federation_official_relay_operator,
   official_relays: messaging_federation_official_relays,
+  conformance_core_passed: messaging_federation_conformance_core_passed,
+  conformance_extensions: messaging_federation_conformance_extensions,
+  clock_skew_seconds: messaging_federation_clock_skew_seconds,
+  allow_insecure_http_transport: messaging_federation_allow_insecure_http_transport,
   delivery_concurrency: messaging_federation_delivery_concurrency,
   delivery_timeout_ms: messaging_federation_delivery_timeout_ms,
   outbox_max_attempts: messaging_federation_outbox_max_attempts,
