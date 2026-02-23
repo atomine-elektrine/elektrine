@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/message.delete",
+  "title": "Arblarg message.delete payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "message_id"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

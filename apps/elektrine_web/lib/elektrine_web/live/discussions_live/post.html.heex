@@ -316,25 +316,24 @@
               </div>
               
 <!-- Post Title -->
-              <%= if @post.title do %>
-                <h1 class="text-2xl font-bold mb-1 break-words leading-tight">
-                  {@post.title}
-                  <%= if @post.auto_title do %>
-                    <span class="text-sm opacity-50 ml-2">(auto)</span>
-                  <% end %>
-                  <!-- Post type badges -->
-                  <%= cond do %>
-                    <% @post.post_type == "link" -> %>
-                      <span class="badge badge-info badge-sm ml-2">Link</span>
-                    <% @post.post_type == "poll" -> %>
-                      <span class="badge badge-success badge-sm ml-2">Poll</span>
-                    <% @post.message_type == "image" -> %>
-                      <span class="badge badge-warning badge-sm ml-2">Image</span>
-                    <% true -> %>
-                      <% nil %>
-                  <% end %>
-                </h1>
-              <% end %>
+              <% post_title = String.trim(@post.title || "") %>
+              <h1 class="text-2xl font-bold mb-1 break-words leading-tight">
+                {if post_title == "", do: "Untitled discussion", else: post_title}
+                <%= if @post.auto_title && post_title != "" do %>
+                  <span class="text-sm opacity-50 ml-2">(auto)</span>
+                <% end %>
+                <!-- Post type badges -->
+                <%= cond do %>
+                  <% @post.post_type == "link" -> %>
+                    <span class="badge badge-info badge-sm ml-2">Link</span>
+                  <% @post.post_type == "poll" -> %>
+                    <span class="badge badge-success badge-sm ml-2">Poll</span>
+                  <% @post.message_type == "image" -> %>
+                    <span class="badge badge-warning badge-sm ml-2">Image</span>
+                  <% true -> %>
+                    <% nil %>
+                <% end %>
+              </h1>
               
 <!-- Content Journey Trail -->
               <.content_journey message={@post} context="discussion" class="mb-3" />

@@ -27,7 +27,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   import Ecto.Query
 
   alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Messaging.{Message, Messages}
   alias Elektrine.Repo
 
   @batch_size 50
@@ -288,14 +288,22 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   defp refresh_lemmy_post(post, %{score: score, comments: comments}) do
     if counts_changed?(post, score, comments, 0) do
+      updated_counts = %{
+        like_count: max(score, post.like_count || 0),
+        reply_count: max(comments, post.reply_count || 0),
+        share_count: post.share_count || 0
+      }
+
       Repo.update_all(
         from(m in Message, where: m.id == ^post.id),
         set: [
-          like_count: max(score, post.like_count || 0),
-          reply_count: max(comments, post.reply_count || 0),
+          like_count: updated_counts.like_count,
+          reply_count: updated_counts.reply_count,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
+
+      Messages.broadcast_post_counts_updated(post.id, updated_counts)
     end
   end
 
@@ -319,15 +327,23 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          replies_count: rep
        }) do
     if counts_changed?(post, fav, rep, reb) do
+      updated_counts = %{
+        like_count: max(fav, post.like_count || 0),
+        reply_count: max(rep, post.reply_count || 0),
+        share_count: max(reb, post.share_count || 0)
+      }
+
       Repo.update_all(
         from(m in Message, where: m.id == ^post.id),
         set: [
-          like_count: max(fav, post.like_count || 0),
-          reply_count: max(rep, post.reply_count || 0),
-          share_count: max(reb, post.share_count || 0),
+          like_count: updated_counts.like_count,
+          reply_count: updated_counts.reply_count,
+          share_count: updated_counts.share_count,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
+
+      Messages.broadcast_post_counts_updated(post.id, updated_counts)
     end
   end
 
@@ -375,21 +391,29 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          share_count: shares
        }) do
     if counts_changed?(post, likes, replies, shares) do
+      updated_counts = %{
+        like_count: max(likes, post.like_count || 0),
+        reply_count: max(replies, post.reply_count || 0),
+        share_count: max(shares, post.share_count || 0)
+      }
+
       Repo.update_all(
         from(m in Message, where: m.id == ^id),
         set: [
-          like_count: max(likes, post.like_count || 0),
-          reply_count: max(replies, post.reply_count || 0),
-          share_count: max(shares, post.share_count || 0),
+          like_count: updated_counts.like_count,
+          reply_count: updated_counts.reply_count,
+          share_count: updated_counts.share_count,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
+
+      Messages.broadcast_post_counts_updated(id, updated_counts)
 
       Logger.debug(
         "Refreshed counts for #{ap_id}: likes=#{likes}, replies=#{replies}, shares=#{shares}"
       )
 
-      {:ok, %{like_count: likes, reply_count: replies, share_count: shares}}
+      {:ok, updated_counts}
     else
       {:ok,
        %{

@@ -12,7 +12,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
     if socket.assigns[:current_user] && socket.assigns.current_user.is_admin do
       {:ok,
        socket
-       |> assign(:page_title, "Relay Management")
+       |> assign(:page_title, "ActivityPub Relay Management")
        |> assign(:show_add_modal, false)
        |> assign(:relay_url, "")
        |> assign(:adding, false)
@@ -183,15 +183,23 @@ defmodule ElektrineWeb.AdminLive.Relays do
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold">Relay Management</h1>
+          <h1 class="text-xl sm:text-2xl font-bold">ActivityPub Relay Management</h1>
           <p class="text-sm opacity-70 mt-1">
             Subscribe to ActivityPub relays to discover content from other instances
           </p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
             <.icon name="hero-globe-alt" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Federation</span>
+            <span class="hidden sm:inline ml-1">ActivityPub Policies</span>
+          </.link>
+          <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+            <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
+          </.link>
+          <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+            <.icon name="hero-link" class="w-4 h-4" />
+            <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
           </.link>
           <button phx-click="show_add_modal" class="btn btn-sm btn-primary">
             <.icon name="hero-plus" class="w-4 h-4" />

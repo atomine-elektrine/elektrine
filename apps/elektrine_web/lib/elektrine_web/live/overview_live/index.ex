@@ -21,6 +21,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:all")
+        Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "gallery:all")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussions:all")
         send(self(), :load_feed_data)
@@ -710,6 +711,43 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
 
     {:noreply, socket |> update(:all_posts, update_fn) |> update(:filtered_all_posts, update_fn)}
+  end
+
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    update_fn = fn posts ->
+      Enum.map(posts, fn post ->
+        if post.id == message_id do
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+        else
+          post
+        end
+      end)
+    end
+
+    updated_modal_post =
+      case socket.assigns[:modal_post] do
+        %{id: ^message_id} = post ->
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+
+        post ->
+          post
+      end
+
+    {:noreply,
+     socket
+     |> update(:all_posts, update_fn)
+     |> update(:filtered_all_posts, update_fn)
+     |> assign(:modal_post, updated_modal_post)}
   end
 
   def handle_info(:load_dashboard_data, socket) do

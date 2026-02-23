@@ -112,6 +112,7 @@
                   id_prefix="hashtag-post"
                   show_follow_button={false}
                   show_admin_actions={@current_user && @current_user.is_admin}
+                  resolve_reply_refs={true}
                   on_image_click="open_image_modal"
                 />
               <% end %>

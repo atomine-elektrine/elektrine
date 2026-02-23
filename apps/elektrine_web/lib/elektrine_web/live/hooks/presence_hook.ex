@@ -10,6 +10,7 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
   """
   import Phoenix.LiveView
   import Phoenix.Component
+  alias Elektrine.PubSubTopics
 
   # Auto-away timeout in milliseconds (5 minutes) - must match JS
   @auto_away_timeout_ms 5 * 60 * 1000
@@ -40,7 +41,7 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
       user ->
         if connected?(socket) do
           # Subscribe to global presence updates
-          Phoenix.PubSub.subscribe(Elektrine.PubSub, "users")
+          Phoenix.PubSub.subscribe(Elektrine.PubSub, PubSubTopics.users_presence())
           # Subscribe to personal channel for status updates
           Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
 
@@ -53,23 +54,28 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
           # Generate a unique connection ID for multi-device tracking
           connection_id = generate_connection_id()
 
-          ElektrineWeb.Presence.track(self(), "users", to_string(user.id), %{
-            user_id: user.id,
-            username: user.username,
-            status: tracked_status,
-            status_message: user.status_message,
-            online_at: System.system_time(:second),
-            last_seen_at:
-              (user.last_seen_at && DateTime.to_unix(user.last_seen_at)) ||
-                System.system_time(:second),
-            # Multi-device tracking
-            connection_id: connection_id,
-            device_type: "desktop",
-            browser: nil,
-            # Auto-away tracking
-            auto_away: false,
-            last_activity_at: System.system_time(:second)
-          })
+          ElektrineWeb.Presence.track(
+            self(),
+            PubSubTopics.users_presence(),
+            to_string(user.id),
+            %{
+              user_id: user.id,
+              username: user.username,
+              status: tracked_status,
+              status_message: user.status_message,
+              online_at: System.system_time(:second),
+              last_seen_at:
+                (user.last_seen_at && DateTime.to_unix(user.last_seen_at)) ||
+                  System.system_time(:second),
+              # Multi-device tracking
+              connection_id: connection_id,
+              device_type: "desktop",
+              browser: nil,
+              # Auto-away tracking
+              auto_away: false,
+              last_activity_at: System.system_time(:second)
+            }
+          )
 
           # Start auto-away timer
           auto_away_ref = Process.send_after(self(), :check_auto_away, @auto_away_timeout_ms)
@@ -99,7 +105,7 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
         user_statuses =
           if is_connected do
             presence_map =
-              ElektrineWeb.Presence.list("users")
+              ElektrineWeb.Presence.list(PubSubTopics.users_presence())
               |> build_aggregated_user_statuses()
 
             # Ensure current user is in the map with their preferred status
@@ -274,9 +280,14 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
 
     if connected?(socket) do
       # Update presence with new status - mark as manually set, not auto-away
-      ElektrineWeb.Presence.update(self(), "users", to_string(user.id), fn meta ->
-        Map.merge(meta, %{status: new_status, auto_away: false})
-      end)
+      ElektrineWeb.Presence.update(
+        self(),
+        PubSubTopics.users_presence(),
+        to_string(user.id),
+        fn meta ->
+          Map.merge(meta, %{status: new_status, auto_away: false})
+        end
+      )
     end
 
     # Update local assigns
@@ -316,6 +327,16 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
       )
 
     {:halt, assign(socket, :user_statuses, user_statuses)}
+  end
+
+  defp handle_presence_info({:federation_presence_update, _payload}, socket) do
+    # Federation presence now rides the global presence bus.
+    # Let chat views consume it directly and swallow it elsewhere.
+    if Map.has_key?(socket.assigns, :federation_presence) do
+      {:cont, socket}
+    else
+      {:halt, socket}
+    end
   end
 
   # Handle auto-away timeout check
@@ -377,13 +398,18 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
       browser = params["browser"]
       timezone = params["timezone"]
 
-      ElektrineWeb.Presence.update(self(), "users", to_string(user.id), fn meta ->
-        Map.merge(meta, %{
-          device_type: device_type,
-          browser: browser,
-          timezone: timezone
-        })
-      end)
+      ElektrineWeb.Presence.update(
+        self(),
+        PubSubTopics.users_presence(),
+        to_string(user.id),
+        fn meta ->
+          Map.merge(meta, %{
+            device_type: device_type,
+            browser: browser,
+            timezone: timezone
+          })
+        end
+      )
 
       # Update socket assigns if timezone provided
       socket =
@@ -417,9 +443,14 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
         end
 
       # Update presence with activity timestamp
-      ElektrineWeb.Presence.update(self(), "users", to_string(user.id), fn meta ->
-        Map.merge(meta, %{last_activity_at: now})
-      end)
+      ElektrineWeb.Presence.update(
+        self(),
+        PubSubTopics.users_presence(),
+        to_string(user.id),
+        fn meta ->
+          Map.merge(meta, %{last_activity_at: now})
+        end
+      )
 
       {:halt, socket}
     else
@@ -439,9 +470,14 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
 
     if current_status == "online" do
       # Update presence metadata
-      ElektrineWeb.Presence.update(self(), "users", to_string(user.id), fn meta ->
-        Map.merge(meta, %{status: "away", auto_away: true})
-      end)
+      ElektrineWeb.Presence.update(
+        self(),
+        PubSubTopics.users_presence(),
+        to_string(user.id),
+        fn meta ->
+          Map.merge(meta, %{status: "away", auto_away: true})
+        end
+      )
 
       # Update user_statuses
       user_statuses =
@@ -465,13 +501,18 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
   defp clear_auto_away(socket, user) do
     if socket.assigns[:is_auto_away] do
       # Update presence metadata
-      ElektrineWeb.Presence.update(self(), "users", to_string(user.id), fn meta ->
-        Map.merge(meta, %{
-          status: "online",
-          auto_away: false,
-          last_activity_at: System.system_time(:second)
-        })
-      end)
+      ElektrineWeb.Presence.update(
+        self(),
+        PubSubTopics.users_presence(),
+        to_string(user.id),
+        fn meta ->
+          Map.merge(meta, %{
+            status: "online",
+            auto_away: false,
+            last_activity_at: System.system_time(:second)
+          })
+        end
+      )
 
       # Update user_statuses
       user_statuses =

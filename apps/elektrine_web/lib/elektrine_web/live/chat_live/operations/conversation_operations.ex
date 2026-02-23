@@ -20,28 +20,39 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
   end
 
   def handle_event("search_conversations", %{"value" => query}, socket) do
+    scoped_conversations =
+      ElektrineWeb.ChatLive.Operations.Helpers.scope_conversations_to_server(
+        socket.assigns.conversation.list,
+        socket.assigns[:active_server_id]
+      )
+
     filtered =
       if query == "" do
-        socket.assigns.conversation.list
+        scoped_conversations
       else
         ElektrineWeb.ChatLive.Operations.Helpers.filter_conversations(
-          socket.assigns.conversation.list,
+          scoped_conversations,
           query,
           socket.assigns.current_user.id
         )
       end
 
-    # Also search for users and public groups/channels when query is 2+ characters
-    {user_results, public_group_results, public_channel_results} =
+    # Also search for users and public servers/groups when query is 2+ characters
+    {user_results, public_server_results, public_group_results} =
       if String.length(query) >= 2 do
-        users = Accounts.search_users(query, socket.assigns.current_user.id)
+        users =
+          query
+          |> Accounts.search_users(socket.assigns.current_user.id)
+          |> maybe_add_remote_handle_result(query)
+
+        servers =
+          Messaging.list_public_servers(socket.assigns.current_user.id, query: query, limit: 10)
 
         public_conversations =
           Messaging.search_public_conversations(query, socket.assigns.current_user.id)
 
         groups = Enum.filter(public_conversations, &(&1.type == "group"))
-        channels = Enum.filter(public_conversations, &(&1.type == "channel"))
-        {users, groups, channels}
+        {users, servers, groups}
       else
         {[], [], []}
       end
@@ -54,8 +65,9 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
        | conversation_query: query,
          user_results: user_results
      })
+     |> assign(:public_server_search_results, public_server_results)
      |> assign(:public_group_search_results, public_group_results)
-     |> assign(:public_channel_search_results, public_channel_results)}
+     |> assign(:public_channel_search_results, [])}
   end
 
   def handle_event("clear_selection", _params, socket) do
@@ -68,7 +80,7 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
 
     case Messaging.pin_conversation(conversation_id, user_id) do
       {:ok, _} -> {:noreply, socket}
-      {:error, _} -> {:noreply, notify_error(socket, "Failed to pin conversation")}
+      {:error, _} -> {:noreply, notify_error(socket, "Failed to pin chat")}
     end
   end
 
@@ -78,7 +90,7 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
 
     case Messaging.unpin_conversation(conversation_id, user_id) do
       {:ok, _} -> {:noreply, socket}
-      {:error, _} -> {:noreply, notify_error(socket, "Failed to unpin conversation")}
+      {:error, _} -> {:noreply, notify_error(socket, "Failed to unpin chat")}
     end
   end
 
@@ -106,7 +118,7 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
         {:noreply,
          socket
          |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
-         |> notify_error("You are not a member of this conversation")}
+         |> notify_error("You are not a member of this chat")}
 
       {:error, _} ->
         {:noreply,
@@ -148,7 +160,7 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
         {:noreply,
          socket
          |> assign(:context_menu, %{socket.assigns.context_menu | conversation: nil})
-         |> notify_error("You are not a member of this conversation")}
+         |> notify_error("You are not a member of this chat")}
 
       {:error, _} ->
         {:noreply,
@@ -180,19 +192,40 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
 
   def handle_event("update_conversation", params, socket) do
     conversation = socket.assigns.conversation.selected
+    conversation_params = Map.get(params, "conversation", params)
+    name = Map.get(conversation_params, "name", conversation.name)
+    description = Map.get(conversation_params, "description", conversation.description)
 
-    case Messaging.update_conversation(conversation.id, %{
-           name: params["name"],
-           description: params["description"]
-         }) do
+    visibility_attrs =
+      cond do
+        conversation.type == "channel" and is_integer(conversation.server_id) ->
+          is_private = parse_checkbox_value(Map.get(conversation_params, "is_private"))
+          %{is_public: !is_private}
+
+        conversation.type in ["channel", "group"] ->
+          is_public = parse_checkbox_value(Map.get(conversation_params, "is_public"))
+          %{is_public: is_public}
+
+        true ->
+          %{}
+      end
+
+    attrs =
+      %{
+        name: normalize_optional_text(name),
+        description: normalize_optional_text(description)
+      }
+      |> Map.merge(visibility_attrs)
+
+    case Messaging.update_conversation(conversation, attrs) do
       {:ok, _} ->
         {:noreply,
          socket
          |> assign(:ui, Map.put(socket.assigns.ui, :show_edit_modal, false))
-         |> notify_info("Conversation updated")}
+         |> notify_info("Chat updated")}
 
       {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to update conversation")}
+        {:noreply, notify_error(socket, "Failed to update chat")}
     end
   end
 
@@ -205,10 +238,10 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
         {:noreply,
          socket
          |> push_patch(to: ~p"/chat")
-         |> notify_info("Conversation deleted")}
+         |> notify_info("Chat deleted")}
 
       {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to delete conversation")}
+        {:noreply, notify_error(socket, "Failed to delete chat")}
     end
   end
 
@@ -221,7 +254,7 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
     # Handle case when triggered without conversation_id (use selected conversation)
     case socket.assigns.conversation.selected do
       nil ->
-        {:noreply, notify_error(socket, "No conversation selected")}
+        {:noreply, notify_error(socket, "No chat selected")}
 
       conversation ->
         do_leave_conversation(conversation.id, socket)
@@ -237,7 +270,7 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
     share_url = "#{ElektrineWeb.Endpoint.url()}/chat/join/#{conversation.hash || conversation.id}"
 
     {:noreply,
-     push_event(socket, "copy_to_clipboard", %{text: share_url, type: "conversation link"})}
+     push_event(socket, "copy_to_clipboard", %{text: share_url, type: "chat invite link"})}
   end
 
   def handle_event("show_conversation_info", _params, socket) do
@@ -255,16 +288,86 @@ defmodule ElektrineWeb.ChatLive.Operations.ConversationOperations do
         {:noreply,
          socket
          |> push_patch(to: ~p"/chat")
-         |> notify_info("Left conversation")}
+         |> notify_info("Left chat")}
 
       {:error, :owner_must_transfer} ->
         {:noreply, notify_error(socket, "Transfer ownership before leaving")}
 
       {:error, :not_a_member} ->
-        {:noreply, notify_error(socket, "You are not a member of this conversation")}
+        {:noreply, notify_error(socket, "You are not a member of this chat")}
 
       {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to leave conversation")}
+        {:noreply, notify_error(socket, "Failed to leave chat")}
     end
+  end
+
+  defp maybe_add_remote_handle_result(results, query)
+       when is_list(results) and is_binary(query) do
+    case normalize_remote_handle(query) do
+      {:ok, remote_handle} ->
+        already_present? =
+          Enum.any?(results, fn user ->
+            user_handle = Map.get(user, :handle) || Map.get(user, "handle")
+            String.downcase(to_string(user_handle || "")) == remote_handle
+          end)
+
+        if already_present? do
+          results
+        else
+          [remote_search_result(remote_handle) | results]
+        end
+
+      :error ->
+        results
+    end
+  end
+
+  defp maybe_add_remote_handle_result(results, _query), do: results
+
+  defp normalize_remote_handle(handle) when is_binary(handle) do
+    normalized =
+      handle
+      |> String.trim()
+      |> String.trim_leading("@")
+      |> String.downcase()
+
+    case Regex.run(~r/^([a-z0-9_]{1,64})@([a-z0-9.-]+\.[a-z]{2,})$/, normalized) do
+      [_, username, domain] -> {:ok, "#{username}@#{domain}"}
+      _ -> :error
+    end
+  end
+
+  defp normalize_remote_handle(_), do: :error
+
+  defp remote_search_result(remote_handle) do
+    [username, _domain] = String.split(remote_handle, "@", parts: 2)
+
+    %{
+      id: nil,
+      username: username,
+      handle: remote_handle,
+      display_name: "@#{remote_handle}",
+      avatar: nil,
+      remote_handle: remote_handle
+    }
+  end
+
+  defp normalize_optional_text(nil), do: nil
+
+  defp normalize_optional_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_optional_text(value), do: value
+
+  defp parse_checkbox_value(value) when is_list(value) do
+    Enum.any?(value, &parse_checkbox_value/1)
+  end
+
+  defp parse_checkbox_value(value) do
+    value in [true, "true", "on", "1", 1]
   end
 end

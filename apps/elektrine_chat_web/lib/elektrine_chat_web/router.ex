@@ -13,6 +13,7 @@ defmodule ElektrineChatWeb.Router do
 
   pipeline :messaging_federation do
     plug ElektrineChatWeb.Plugs.MessagingFederationAuth
+    plug ElektrineChatWeb.Plugs.APIRateLimit
   end
 
   scope "/", ElektrineChatWeb do
@@ -29,9 +30,19 @@ defmodule ElektrineChatWeb.Router do
     get "/servers/:server_id/snapshot", MessagingFederationController, :snapshot
   end
 
+  scope "/federation/messaging/arblarg", ElektrineChatWeb do
+    pipe_through :api
+
+    get "/profiles", MessagingFederationController, :profiles
+    get "/:version/schemas/:name", MessagingFederationController, :schema
+  end
+
   scope "/.well-known", ElektrineChatWeb do
     pipe_through :api
 
+    get "/arblarg", MessagingFederationController, :well_known
+    get "/arblarg/:version", MessagingFederationController, :well_known_versioned
+    get "/elektrine", MessagingFederationController, :well_known
     get "/elektrine-messaging-federation", MessagingFederationController, :well_known
   end
 

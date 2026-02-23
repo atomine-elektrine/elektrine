@@ -1,0 +1,17 @@
+{
+  "name": "arbp-v1-http-request-signature",
+  "description": "Canonical HTTP request signature payload and signature for POST /federation/messaging/events",
+  "domain": "example.net",
+  "method": "POST",
+  "path": "/federation/messaging/events",
+  "query": "",
+  "timestamp": "1760000000",
+  "request_id": "req-vector-0001",
+  "body": "{\"event_id\":\"evt-vector-0001\",\"event_type\":\"message.create\",\"idempotency_key\":\"op-message-create-0001\",\"origin_domain\":\"example.net\",\"payload\":{\"channel\":{\"id\":\"https://example.net/federation/messaging/channels/1\",\"name\":\"general\"},\"message\":{\"channel_id\":\"https://example.net/federation/messaging/channels/1\",\"content\":\"hello golden vector\",\"id\":\"https://example.net/federation/messaging/messages/1\"},\"server\":{\"id\":\"https://example.net/federation/messaging/servers/1\",\"name\":\"Example\"}},\"protocol\":\"arblarg\",\"protocol_id\":\"arbp\",\"protocol_label\":\"arbp/1.0\",\"protocol_version\":\"1.0\",\"sent_at\":\"2026-02-22T12:34:56Z\",\"sequence\":42,\"stream_id\":\"channel:https://example.net/federation/messaging/channels/1\"}",
+  "signing_secret": "golden-vector-secret-v1",
+  "expected": {
+    "body_digest": "5KE10fXf7wNVuwlBSJSRZN4RURyp9hBFQDui8e08RV8",
+    "canonical_request_payload": "example.net\npost\n/federation/messaging/events\n\n1760000000\n5KE10fXf7wNVuwlBSJSRZN4RURyp9hBFQDui8e08RV8\nreq-vector-0001",
+    "signature": "Q4R3F5dS44C9gG9Y997vdN5J2KoY2N7_Dhf9nCNNu8KiXD-Q_IgMpSMh_zz3HlQgM-QmBU2-GSbw0p_DqUczCw"
+  }
+}

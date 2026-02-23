@@ -147,12 +147,22 @@
           </li>
           <li>
             <.link navigate={~p"/pripyat/federation"} class="rounded-lg py-3">
-              <.icon name="hero-globe-alt" class="w-5 h-5" /> Federation
+              <.icon name="hero-globe-alt" class="w-5 h-5" /> ActivityPub Policies
+            </.link>
+          </li>
+          <li>
+            <.link navigate={~p"/pripyat/messaging-federation"} class="rounded-lg py-3">
+              <.icon name="hero-chat-bubble-left-right" class="w-5 h-5" /> Arblarg Messaging
+            </.link>
+          </li>
+          <li>
+            <.link navigate={~p"/pripyat/bluesky-bridge"} class="rounded-lg py-3">
+              <.icon name="hero-link" class="w-5 h-5" /> Bluesky Bridge
             </.link>
           </li>
           <li>
             <.link navigate={~p"/pripyat/relays"} class="rounded-lg py-3">
-              <.icon name="hero-signal" class="w-5 h-5" /> Relays
+              <.icon name="hero-signal" class="w-5 h-5" /> ActivityPub Relays
             </.link>
           </li>
 
@@ -247,8 +257,12 @@
             <li><.link href={~p"/pripyat/updates"}>Platform Updates</.link></li>
             <li><.link href={~p"/pripyat/subscriptions"}>Subscriptions</.link></li>
             <li class="divider my-1"></li>
-            <li><.link navigate={~p"/pripyat/federation"}>Federation</.link></li>
-            <li><.link navigate={~p"/pripyat/relays"}>Relays</.link></li>
+            <li><.link navigate={~p"/pripyat/federation"}>ActivityPub Policies</.link></li>
+            <li>
+              <.link navigate={~p"/pripyat/messaging-federation"}>Arblarg Messaging</.link>
+            </li>
+            <li><.link navigate={~p"/pripyat/bluesky-bridge"}>Bluesky Bridge</.link></li>
+            <li><.link navigate={~p"/pripyat/relays"}>ActivityPub Relays</.link></li>
           </ul>
         </li>
       </ul>
@@ -274,6 +288,10 @@
             <option value={~p"/pripyat/reports"}>Reports</option>
             <option value={~p"/pripyat/vpn"}>VPN</option>
             <option value={~p"/pripyat/audit-logs"}>Audit Logs</option>
+            <option value={~p"/pripyat/federation"}>ActivityPub Policies</option>
+            <option value={~p"/pripyat/messaging-federation"}>Arblarg Messaging</option>
+            <option value={~p"/pripyat/bluesky-bridge"}>Bluesky Bridge</option>
+            <option value={~p"/pripyat/relays"}>ActivityPub Relays</option>
             <option value={~p"/pripyat/system-health"}>System Health</option>
           </select>
         </div>

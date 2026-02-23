@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/message.update",
+  "title": "Arblarg message.update payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "message"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "message": {
+      "type": "object",
+      "required": [
+        "id",
+        "channel_id",
+        "content"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "type": "string"
+        },
+        "edited_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

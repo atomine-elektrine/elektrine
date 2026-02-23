@@ -1577,9 +1577,10 @@ defmodule Elektrine.Messaging.Messages do
   defp activitypub_ref_variants(ref) do
     trimmed = String.trim(ref)
     without_fragment = trimmed |> String.split("#", parts: 2) |> hd()
-    without_trailing_slash = String.trim_trailing(without_fragment, "/")
+    without_query = without_fragment |> String.split("?", parts: 2) |> hd()
+    without_trailing_slash = String.trim_trailing(without_query, "/")
 
-    [trimmed, without_fragment, without_trailing_slash]
+    [trimmed, without_fragment, without_query, without_trailing_slash]
     |> Enum.reject(&(&1 in ["", nil]))
     |> Enum.uniq()
   end
@@ -2219,20 +2220,12 @@ defmodule Elektrine.Messaging.Messages do
             |> Ecto.Changeset.change(updates)
             |> Repo.update()
 
-            # Broadcast the update so all clients showing this post get updated
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "timeline:public",
-              {:post_counts_updated,
-               %{
-                 message_id: message.id,
-                 counts: %{
-                   like_count: Map.get(updates, :like_count, message.like_count || 0),
-                   share_count: message.share_count || 0,
-                   reply_count: Map.get(updates, :reply_count, message.reply_count || 0)
-                 }
-               }}
-            )
+            # Broadcast the update so all clients showing this post get updated.
+            broadcast_post_counts_updated(message.id, %{
+              like_count: Map.get(updates, :like_count, message.like_count || 0),
+              share_count: message.share_count || 0,
+              reply_count: Map.get(updates, :reply_count, message.reply_count || 0)
+            })
           end
 
           :ok
@@ -2245,4 +2238,33 @@ defmodule Elektrine.Messaging.Messages do
   end
 
   def sync_remote_counts(_), do: :ok
+
+  @doc """
+  Broadcasts canonical engagement counts for a post to timeline topics.
+  """
+  def broadcast_post_counts_updated(message_id, counts)
+      when is_integer(message_id) and is_map(counts) do
+    normalized_counts = %{
+      like_count: normalize_non_negative_count(Map.get(counts, :like_count)),
+      share_count: normalize_non_negative_count(Map.get(counts, :share_count)),
+      reply_count: normalize_non_negative_count(Map.get(counts, :reply_count))
+    }
+
+    payload = {:post_counts_updated, %{message_id: message_id, counts: normalized_counts}}
+
+    Phoenix.PubSub.broadcast(Elektrine.PubSub, "timeline:public", payload)
+
+    :ok
+  end
+
+  defp normalize_non_negative_count(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_non_negative_count(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, _} -> max(parsed, 0)
+      :error -> 0
+    end
+  end
+
+  defp normalize_non_negative_count(_), do: 0
 end

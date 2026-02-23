@@ -12,6 +12,8 @@ defmodule ElektrineWeb.GalleryLive.Index do
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
     if connected?(socket) do
+      PubSubTopics.subscribe(PubSubTopics.timeline_public())
+
       if user do
         PubSubTopics.subscribe("gallery:all")
       end
@@ -606,6 +608,42 @@ defmodule ElektrineWeb.GalleryLive.Index do
       end)
 
     {:noreply, socket |> assign(:gallery_posts, updated_posts) |> apply_gallery_filter()}
+  end
+
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    updated_posts =
+      Enum.map(socket.assigns.gallery_posts, fn post ->
+        if post.id == message_id do
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+        else
+          post
+        end
+      end)
+
+    updated_modal_post =
+      case socket.assigns[:modal_post] do
+        %{id: ^message_id} = post ->
+          %{
+            post
+            | like_count: counts.like_count,
+              share_count: counts.share_count,
+              reply_count: counts.reply_count
+          }
+
+        post ->
+          post
+      end
+
+    {:noreply,
+     socket
+     |> assign(:gallery_posts, updated_posts)
+     |> assign(:modal_post, updated_modal_post)
+     |> apply_gallery_filter()}
   end
 
   def handle_info(:load_gallery_data, socket) do

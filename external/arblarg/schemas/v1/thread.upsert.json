@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/thread.upsert",
+  "title": "Arblarg thread.upsert payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "thread"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "thread": {
+      "type": "object",
+      "required": [
+        "id",
+        "channel_id",
+        "name",
+        "state",
+        "owner"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "active",
+            "archived",
+            "locked"
+          ]
+        },
+        "owner": {
+          "type": "object"
+        },
+        "message_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "member_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

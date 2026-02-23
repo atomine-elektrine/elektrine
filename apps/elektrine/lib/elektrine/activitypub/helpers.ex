@@ -135,12 +135,18 @@ defmodule Elektrine.ActivityPub.Helpers do
   - `metadata["followers"]["totalItems"]` - collection format
   """
   def get_follower_count(metadata) when is_map(metadata) do
-    cond do
-      is_integer(metadata["followers_count"]) -> metadata["followers_count"]
-      is_integer(metadata["followersCount"]) -> metadata["followersCount"]
-      is_map(metadata["followers"]) -> metadata["followers"]["totalItems"] || 0
-      true -> 0
-    end
+    [
+      parse_count(metadata["followers_count"]),
+      parse_count(metadata["followersCount"]),
+      parse_count(metadata["subscriber_count"]),
+      parse_count(metadata["subscribers_count"]),
+      parse_count(metadata["subscribersCount"]),
+      parse_count(metadata["subscribers"]),
+      parse_count(metadata["member_count"]),
+      get_collection_total(metadata["followers"]),
+      get_collection_total(metadata["subscribers"])
+    ]
+    |> Enum.max(fn -> 0 end)
   end
 
   def get_follower_count(_), do: 0
@@ -149,12 +155,12 @@ defmodule Elektrine.ActivityPub.Helpers do
   Extracts following count from actor metadata.
   """
   def get_following_count(metadata) when is_map(metadata) do
-    cond do
-      is_integer(metadata["following_count"]) -> metadata["following_count"]
-      is_integer(metadata["followingCount"]) -> metadata["followingCount"]
-      is_map(metadata["following"]) -> metadata["following"]["totalItems"] || 0
-      true -> 0
-    end
+    [
+      parse_count(metadata["following_count"]),
+      parse_count(metadata["followingCount"]),
+      get_collection_total(metadata["following"])
+    ]
+    |> Enum.max(fn -> 0 end)
   end
 
   def get_following_count(_), do: 0
@@ -163,11 +169,16 @@ defmodule Elektrine.ActivityPub.Helpers do
   Extracts post/status count from actor metadata.
   """
   def get_status_count(metadata) when is_map(metadata) do
-    cond do
-      is_integer(metadata["statuses_count"]) -> metadata["statuses_count"]
-      is_integer(metadata["statusesCount"]) -> metadata["statusesCount"]
-      true -> 0
-    end
+    [
+      parse_count(metadata["statuses_count"]),
+      parse_count(metadata["statusesCount"]),
+      parse_count(metadata["posts_count"]),
+      parse_count(metadata["postsCount"]),
+      parse_count(metadata["post_count"]),
+      parse_count(metadata["published_count"]),
+      get_collection_total(metadata["outbox"])
+    ]
+    |> Enum.max(fn -> 0 end)
   end
 
   def get_status_count(_), do: 0

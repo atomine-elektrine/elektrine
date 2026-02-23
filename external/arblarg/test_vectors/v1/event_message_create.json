@@ -1,0 +1,39 @@
+{
+  "name": "arbp-v1-message-create-event-signature",
+  "description": "Canonical event signature payload and signature for a core message.create event",
+  "key_id": "golden-k1",
+  "public_key": "wUdDeaEmeCP8gGj3d6P0a7nmA0W_e1HVO42vvGqZmLk",
+  "signing_secret": "golden-vector-secret-v1",
+  "unsigned_envelope": {
+    "protocol": "arblarg",
+    "protocol_id": "arbp",
+    "protocol_label": "arbp/1.0",
+    "protocol_version": "1.0",
+    "event_type": "message.create",
+    "event_id": "evt-vector-0001",
+    "origin_domain": "example.net",
+    "stream_id": "channel:https://example.net/federation/messaging/channels/1",
+    "sequence": 42,
+    "sent_at": "2026-02-22T12:34:56Z",
+    "idempotency_key": "op-message-create-0001",
+    "payload": {
+      "server": {
+        "id": "https://example.net/federation/messaging/servers/1",
+        "name": "Example"
+      },
+      "channel": {
+        "id": "https://example.net/federation/messaging/channels/1",
+        "name": "general"
+      },
+      "message": {
+        "id": "https://example.net/federation/messaging/messages/1",
+        "channel_id": "https://example.net/federation/messaging/channels/1",
+        "content": "hello golden vector"
+      }
+    }
+  },
+  "expected": {
+    "canonical_event_payload": "arbp\n1.0\nmessage.create\nevt-vector-0001\nexample.net\nchannel:https://example.net/federation/messaging/channels/1\n42\n2026-02-22T12:34:56Z\nop-message-create-0001\n{\"channel\":{\"id\":\"https://example.net/federation/messaging/channels/1\",\"name\":\"general\"},\"message\":{\"channel_id\":\"https://example.net/federation/messaging/channels/1\",\"content\":\"hello golden vector\",\"id\":\"https://example.net/federation/messaging/messages/1\"},\"server\":{\"id\":\"https://example.net/federation/messaging/servers/1\",\"name\":\"Example\"}}",
+    "signature": "DLswjFisJf6up-XaBmHrnUzbjVDSPdU8u-XTeIBrF4W5TPIfzVBnWzcc-ujifUIZUsWOR_0vs6qiqqkKyhluAw"
+  }
+}

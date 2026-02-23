@@ -1030,6 +1030,38 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end
   end
 
+  def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
+    if message_present_in_feed?(socket, message_id) do
+      update_counts_fn = fn posts -> update_posts_with_counts(posts, message_id, counts) end
+
+      socket =
+        socket
+        |> Phoenix.Component.update(:trending_discussions, update_counts_fn)
+        |> Phoenix.Component.update(:filtered_discussions, update_counts_fn)
+        |> Phoenix.Component.update(:federated_discussions, update_counts_fn)
+        |> Phoenix.Component.update(:filtered_federated_discussions, update_counts_fn)
+        |> Phoenix.Component.update(:followed_community_posts, update_counts_fn)
+        |> Phoenix.Component.update(:filtered_community_posts, update_counts_fn)
+
+      updated_lemmy_counts =
+        update_lemmy_counts(socket.assigns.lemmy_counts || %{}, socket, message_id, counts)
+
+      sorted_filtered_community_posts =
+        sort_feed_posts(
+          socket.assigns.filtered_community_posts,
+          socket.assigns.feed_sort,
+          updated_lemmy_counts
+        )
+
+      {:noreply,
+       socket
+       |> assign(:lemmy_counts, updated_lemmy_counts)
+       |> assign(:filtered_community_posts, sorted_filtered_community_posts)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(:refresh_lemmy_cache, socket) do
     posts = socket.assigns.filtered_community_posts || []
 
@@ -1563,6 +1595,73 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
   defp sort_feed_posts(posts, _, _lemmy_counts) do
     posts
+  end
+
+  defp update_posts_with_counts(posts, message_id, counts) when is_list(posts) do
+    Enum.map(posts, fn post ->
+      if is_map(post) && Map.get(post, :id) == message_id do
+        post
+        |> maybe_put_count(:like_count, counts.like_count)
+        |> maybe_put_count(:share_count, counts.share_count)
+        |> maybe_put_count(:reply_count, counts.reply_count)
+      else
+        post
+      end
+    end)
+  end
+
+  defp update_posts_with_counts(posts, _message_id, _counts), do: posts
+
+  defp maybe_put_count(post, field, value) do
+    if Map.has_key?(post, field) do
+      Map.put(post, field, value)
+    else
+      post
+    end
+  end
+
+  defp update_lemmy_counts(lemmy_counts, socket, message_id, counts) do
+    post =
+      Enum.find(socket.assigns.followed_community_posts || [], fn candidate ->
+        candidate.id == message_id
+      end) ||
+        Enum.find(socket.assigns.federated_discussions || [], fn candidate ->
+          candidate.id == message_id
+        end)
+
+    activitypub_id = post && post.activitypub_id
+
+    if is_binary(activitypub_id) do
+      existing = Map.get(lemmy_counts, activitypub_id, %{})
+
+      Map.put(
+        lemmy_counts,
+        activitypub_id,
+        existing
+        |> Map.put(:score, counts.like_count)
+        |> Map.put(:comments, counts.reply_count)
+      )
+    else
+      lemmy_counts
+    end
+  end
+
+  defp message_present_in_feed?(socket, message_id) do
+    candidate_lists = [
+      socket.assigns.followed_community_posts,
+      socket.assigns.filtered_community_posts,
+      socket.assigns.federated_discussions,
+      socket.assigns.filtered_federated_discussions,
+      socket.assigns.trending_discussions,
+      socket.assigns.filtered_discussions
+    ]
+
+    Enum.any?(candidate_lists, fn posts ->
+      Enum.any?(posts || [], fn
+        post when is_map(post) -> Map.get(post, :id) == message_id
+        _ -> false
+      end)
+    end)
   end
 
   defp load_with_fallback(key, loader, fallback) when is_function(loader, 0) do

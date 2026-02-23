@@ -44,6 +44,41 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_post_counts(_), do: nil
 
   @doc """
+  Fetch member and post counts for a Lemmy community.
+
+  Returns `%{members: count, posts: count}` on success, or `nil` if the
+  community is not found or the instance is not Lemmy-compatible.
+  """
+  def fetch_community_counts(domain, community_name)
+      when is_binary(domain) and is_binary(community_name) do
+    api_url = "https://#{domain}/api/v3/community?name=#{URI.encode_www_form(community_name)}"
+    headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
+
+    case Finch.build(:get, api_url, headers)
+         |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        case Jason.decode(body) do
+          {:ok, %{"community_view" => %{"counts" => counts}}} ->
+            %{
+              members: parse_count(counts["subscribers"]),
+              posts: parse_count(counts["posts"])
+            }
+
+          _ ->
+            nil
+        end
+
+      {:ok, %Finch.Response{status: _status}} ->
+        nil
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  def fetch_community_counts(_, _), do: nil
+
+  @doc """
   Fetch counts for multiple Lemmy posts in parallel.
   Returns a map of activitypub_id => counts.
   Uses yield_many to avoid blocking on slow/failed requests.
@@ -306,4 +341,15 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         :error
     end
   end
+
+  defp parse_count(value) when is_integer(value), do: max(value, 0)
+
+  defp parse_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, _} -> max(parsed, 0)
+      :error -> 0
+    end
+  end
+
+  defp parse_count(_), do: 0
 end

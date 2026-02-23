@@ -35,13 +35,10 @@ defmodule ElektrineWeb.SearchLive do
 
     case allow_search_request(socket, :submit) do
       :ok ->
-        if String.length(query) < 2 do
-          command_mode = String.starts_with?(query, ">")
-
-          if command_mode do
-            socket = perform_search(socket, query)
-            {:noreply, push_patch(socket, to: ~p"/search?q=#{query}")}
-          else
+        if String.starts_with?(query, ">") do
+          handle_command_submit(socket, query)
+        else
+          if String.length(query) < 2 do
             {:noreply,
              socket
              |> assign(:query, query)
@@ -50,10 +47,10 @@ defmodule ElektrineWeb.SearchLive do
              |> assign(:total_count, 0)
              |> assign(:show_suggestions, false)
              |> assign(:command_mode, false)}
+          else
+            socket = perform_search(socket, query)
+            {:noreply, push_patch(socket, to: ~p"/search?q=#{query}")}
           end
-        else
-          socket = perform_search(socket, query)
-          {:noreply, push_patch(socket, to: ~p"/search?q=#{query}")}
         end
 
       {:error, retry_after} ->
@@ -125,6 +122,30 @@ defmodule ElektrineWeb.SearchLive do
      socket
      |> assign(:active_filter, filter_type)
      |> apply_search_filter()}
+  end
+
+  defp handle_command_submit(socket, query) do
+    case Search.execute_action(socket.assigns.current_user, query, source: "search_live") do
+      {:ok, %{mode: :navigate, url: url}} when is_binary(url) and url != "" ->
+        {:noreply, push_navigate(socket, to: url)}
+
+      {:ok, %{mode: :operation, message: message, url: url}}
+      when is_binary(url) and url != "" ->
+        {:noreply, socket |> put_flash(:info, message) |> push_navigate(to: url)}
+
+      {:ok, %{mode: :operation, message: message}} ->
+        {:noreply, socket |> put_flash(:info, message) |> perform_search(query)}
+
+      {:error, :unknown_action} ->
+        socket = perform_search(socket, query)
+        {:noreply, push_patch(socket, to: ~p"/search?q=#{query}")}
+
+      {:error, :insufficient_scope} ->
+        {:noreply, put_flash(socket, :error, "This action is not allowed for this token scope.")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Action could not be executed right now.")}
+    end
   end
 
   defp perform_search(socket, query) do

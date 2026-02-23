@@ -1,5 +1,5 @@
 <div
-  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2"
+  class="social-page-wrap"
   phx-hook="TimelineReply"
   id="timeline-container"
 >
@@ -11,7 +11,7 @@
     <div
       id="trending-hashtags-marquee"
       phx-update="ignore"
-      class="overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
+      class="social-page-card overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
     >
       <div class="flex items-center gap-2">
         <.icon name="hero-fire" class="w-4 h-4 text-orange-500 flex-shrink-0" />
@@ -67,7 +67,7 @@
     
 <!-- Collapsible filter panel -->
     <%= if @show_mobile_filters do %>
-      <div class="bg-base-200/50 rounded-xl p-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
+      <div class="social-page-card bg-base-200/50 rounded-xl p-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
         <!-- Primary filters -->
         <div class="grid grid-cols-3 gap-2">
           <%= if @current_user do %>
@@ -357,7 +357,7 @@
       <div
         id="timeline-left-sidebar"
         phx-hook="GlassCard"
-        class="card glass-card shadow-lg flex flex-col overflow-y-auto h-full"
+        class="card social-page-card glass-card shadow-lg flex flex-col overflow-y-auto h-full"
       >
         <div class="p-4">
           <!-- Post Composer Toggle -->
@@ -425,7 +425,7 @@
     
 <!-- Main Timeline -->
     <div
-      class="flex-1 min-w-0 max-w-full sm:max-w-full card glass-card shadow-lg"
+      class="flex-1 min-w-0 max-w-full sm:max-w-full card social-page-card glass-card shadow-lg"
       phx-hook="InfiniteScroll"
       id="timeline-infinite-scroll"
       data-glass-card="true"
@@ -1138,6 +1138,7 @@
                   post_interactions={@post_interactions}
                   reactions={Map.get(@post_reactions, post.id, [])}
                   replies={Map.get(@post_replies, post.id, [])}
+                  resolve_reply_refs={true}
                   on_image_click="open_image_modal"
                   source="timeline"
                 />
@@ -1159,6 +1160,7 @@
                   lemmy_counts={@lemmy_counts}
                   post_replies={@post_replies}
                   reactions={Map.get(@post_reactions, post.id, [])}
+                  resolve_reply_refs={true}
                   on_image_click="open_image_modal"
                   source="timeline"
                 />
@@ -1253,48 +1255,30 @@
                           </div>
                         <% end %>
 
-                        <.form for={%{}} phx-submit="create_timeline_reply" class="space-y-3">
-                          <input type="hidden" name="reply_to_id" value={@reply_to_post.id} />
-                          <textarea
-                            id={"reply-textarea-#{@reply_to_post.id}"}
-                            name="content"
-                            placeholder={gettext("Post your reply...")}
-                            class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
-                            style="min-height: 3rem; max-height: 15rem;"
-                            rows="3"
-                            phx-change="update_reply_content"
-                            phx-hook="AutoExpandTextarea"
-                            phx-update="ignore"
-                            phx-mounted={JS.focus()}
-                            required
-                          ><%= @reply_content %></textarea>
-
-                          <div class="flex gap-2 justify-end items-center">
-                            <span class={[
-                              "text-xs",
-                              String.length(@reply_content || "") < 3 && "text-error",
-                              String.length(@reply_content || "") >= 3 && "text-success"
-                            ]}>
-                              {String.length(@reply_content || "")}/3 min
-                            </span>
-                            <button
-                              type="button"
-                              phx-click="cancel_reply"
-                              class="btn btn-ghost btn-sm"
-                            >
-                              {gettext("Cancel")}
-                            </button>
-                            <button
-                              type="submit"
-                              class="btn btn-secondary btn-sm"
-                              phx-disable-with="Posting..."
-                              disabled={String.length(@reply_content || "") < 3}
-                            >
-                              <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" />
-                              {gettext("Reply")}
-                            </button>
-                          </div>
-                        </.form>
+                        <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                          wrapper_class=""
+                          content={@reply_content}
+                          hidden_fields={[{"reply_to_id", @reply_to_post.id}]}
+                          textarea_id={"reply-textarea-#{@reply_to_post.id}"}
+                          placeholder={gettext("Post your reply...")}
+                          textarea_class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+                          textarea_style="min-height: 3rem; max-height: 15rem;"
+                          rows={3}
+                          on_submit="create_timeline_reply"
+                          on_change="update_reply_content"
+                          on_cancel="cancel_reply"
+                          cancel_class="btn btn-ghost btn-sm"
+                          submit_class="btn btn-secondary btn-sm"
+                          submit_label={gettext("Reply")}
+                          submit_icon="hero-paper-airplane"
+                          submit_disable_with="Posting..."
+                          form_class="space-y-3"
+                          textarea_hook="AutoExpandTextarea"
+                          textarea_mounted={JS.focus()}
+                          textarea_update="ignore"
+                          content_min={3}
+                          show_counter={true}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1341,53 +1325,28 @@
                                 </span>
                               </div>
 
-                              <.form
-                                for={%{}}
-                                phx-submit="create_timeline_reply"
-                                class="space-y-2"
-                              >
-                                <input
-                                  type="hidden"
-                                  name="reply_to_id"
-                                  value={reply_target_id}
-                                />
-                                <textarea
-                                  name="content"
-                                  placeholder="Post your reply..."
-                                  class="textarea textarea-bordered textarea-sm w-full"
-                                  rows="2"
-                                  phx-change="update_reply_content"
-                                  phx-mounted={JS.focus()}
-                                  required
-                                ><%= @reply_content %></textarea>
-
-                                <div class="flex gap-2 justify-end items-center">
-                                  <span class={[
-                                    "text-xs",
-                                    String.length(@reply_content || "") < 3 && "text-error",
-                                    String.length(@reply_content || "") >= 3 &&
-                                      "text-success"
-                                  ]}>
-                                    {String.length(@reply_content || "")}/3
-                                  </span>
-                                  <button
-                                    type="button"
-                                    phx-click="cancel_reply"
-                                    class="btn btn-ghost btn-xs"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="submit"
-                                    class="btn btn-secondary btn-xs"
-                                    phx-disable-with="Posting..."
-                                    disabled={String.length(@reply_content || "") < 3}
-                                  >
-                                    <.icon name="hero-paper-airplane" class="w-3 h-3 mr-1" />
-                                    Reply
-                                  </button>
-                                </div>
-                              </.form>
+                              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                                wrapper_class=""
+                                content={@reply_content}
+                                hidden_fields={[{"reply_to_id", reply_target_id}]}
+                                placeholder="Post your reply..."
+                                textarea_class="textarea textarea-bordered textarea-sm w-full"
+                                rows={2}
+                                on_submit="create_timeline_reply"
+                                on_change="update_reply_content"
+                                on_cancel="cancel_reply"
+                                cancel_class="btn btn-ghost btn-xs"
+                                submit_class="btn btn-secondary btn-xs"
+                                submit_label="Reply"
+                                submit_icon="hero-paper-airplane"
+                                submit_icon_class="w-3 h-3 mr-1"
+                                submit_disable_with="Posting..."
+                                form_class="space-y-2"
+                                textarea_mounted={JS.focus()}
+                                content_min={3}
+                                counter_suffix=""
+                                show_counter={true}
+                              />
                             </div>
                           </div>
                         </div>
@@ -1702,11 +1661,11 @@
 <!-- Quote Modal -->
   <%= if @show_quote_modal && @quote_target_post do %>
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      class="modal modal-open p-4"
       phx-click="close_quote_modal"
     >
       <div
-        class="bg-base-100 rounded-lg shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
         phx-click="stop_propagation"
         phx-window-keydown="close_quote_modal"
         phx-key="Escape"

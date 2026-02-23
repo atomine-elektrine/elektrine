@@ -47,11 +47,11 @@ defmodule ElektrineWeb.ChatLive.Operations.UIOperations do
   end
 
   def handle_event("show_message_search", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_message_search, true))}
+    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_message_search_modal, true))}
   end
 
   def handle_event("hide_message_search", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_message_search, false))}
+    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_message_search_modal, false))}
   end
 
   def handle_event("ignore", _params, socket) do

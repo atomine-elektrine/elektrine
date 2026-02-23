@@ -97,6 +97,7 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
   attr :textarea_id, :string, default: nil
   attr :placeholder, :string, default: "Write your reply..."
   attr :textarea_class, :string, default: "textarea textarea-bordered w-full"
+  attr :textarea_style, :string, default: nil
   attr :rows, :integer, default: 3
   attr :on_submit, :string, default: "submit_reply"
   attr :on_change, :string, default: nil
@@ -113,24 +114,59 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
   attr :click_stop, :boolean, default: false
   attr :textarea_debounce, :string, default: nil
   attr :textarea_hook, :string, default: nil
+  attr :textarea_mounted, :any, default: nil
+  attr :textarea_update, :string, default: nil
   attr :required, :boolean, default: true
+  attr :hidden_fields, :list, default: []
+  attr :show_counter, :boolean, default: false
+  attr :content_min, :integer, default: nil
+  attr :counter_suffix, :string, default: " min"
 
   def inline_reply_form(assigns) do
+    content_length = String.length(assigns.content || "")
+
+    assigns =
+      assigns
+      |> assign(:content_length, content_length)
+      |> assign(
+        :submit_disabled,
+        is_integer(assigns.content_min) && content_length < assigns.content_min
+      )
+
     ~H"""
     <div class={@wrapper_class} phx-click={@click_stop && "stop_propagation"}>
       <.form for={%{}} phx-submit={@on_submit} class={@form_class}>
+        <%= for {name, value} <- @hidden_fields do %>
+          <input type="hidden" name={name} value={value} />
+        <% end %>
         <textarea
           id={@textarea_id}
           name={@textarea_name}
           placeholder={@placeholder}
           class={@textarea_class}
+          style={@textarea_style}
           rows={@rows}
           phx-change={@on_change}
           phx-debounce={@textarea_debounce}
           phx-hook={@textarea_hook}
+          phx-mounted={@textarea_mounted}
+          phx-update={@textarea_update}
           required={@required}
         ><%= @content %></textarea>
         <div class="flex gap-2 justify-end">
+          <%= if @show_counter do %>
+            <span class={[
+              "text-xs mr-auto",
+              @submit_disabled && "text-error",
+              !@submit_disabled && "text-success"
+            ]}>
+              <%= if is_integer(@content_min) do %>
+                {@content_length}/{@content_min}{@counter_suffix}
+              <% else %>
+                {@content_length}
+              <% end %>
+            </span>
+          <% end %>
           <button
             type="button"
             phx-click={@on_cancel}
@@ -142,6 +178,7 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
             type="submit"
             class={@submit_class}
             phx-disable-with={@submit_disable_with}
+            disabled={@submit_disabled}
           >
             <%= if @submit_icon do %>
               <.icon name={@submit_icon} class={@submit_icon_class} />

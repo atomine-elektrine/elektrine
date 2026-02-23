@@ -48,33 +48,11 @@ defmodule ElektrineWeb.Plugs.PATAuth do
   end
 
   def call(conn, opts) do
-    token = extract_token(conn)
-
-    cond do
-      # No token provided
-      is_nil(token) and opts.optional ->
-        conn
-
-      is_nil(token) ->
-        unauthorized(conn, "API token required")
-
-      # Token doesn't have correct prefix
-      not String.starts_with?(token, "ekt_") ->
-        # Fall through to other auth methods if optional
-        if opts.optional do
-          conn
-        else
-          unauthorized(conn, "Invalid token format")
-        end
-
-      # Verify token
-      true ->
-        case verify_and_authorize(token, opts, conn) do
-          {:ok, api_token} ->
+    case conn.assigns[:api_token] do
+      %ApiToken{} = api_token ->
+        case authorize_existing_token(api_token, opts) do
+          :ok ->
             conn
-            |> assign(:current_user, api_token.user)
-            |> assign(:api_token, api_token)
-            |> assign(:auth_method, :pat)
 
           {:error, reason} ->
             if opts.optional do
@@ -83,6 +61,53 @@ defmodule ElektrineWeb.Plugs.PATAuth do
               unauthorized(conn, error_message(reason))
             end
         end
+
+      _ ->
+        token = extract_token(conn)
+
+        cond do
+          # No token provided
+          is_nil(token) and opts.optional ->
+            conn
+
+          is_nil(token) ->
+            unauthorized(conn, "API token required")
+
+          # Token doesn't have correct prefix
+          not String.starts_with?(token, "ekt_") ->
+            # Fall through to other auth methods if optional
+            if opts.optional do
+              conn
+            else
+              unauthorized(conn, "Invalid token format")
+            end
+
+          # Verify token
+          true ->
+            case verify_and_authorize(token, opts, conn) do
+              {:ok, api_token} ->
+                conn
+                |> assign(:current_user, api_token.user)
+                |> assign(:api_token, api_token)
+                |> assign(:auth_method, :pat)
+
+              {:error, reason} ->
+                if opts.optional do
+                  conn
+                else
+                  unauthorized(conn, error_message(reason))
+                end
+            end
+        end
+    end
+  end
+
+  defp authorize_existing_token(_api_token, %{scopes: []}), do: :ok
+
+  defp authorize_existing_token(api_token, %{scopes: scopes, any: any?}) do
+    case check_scopes(api_token, scopes, any?) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 

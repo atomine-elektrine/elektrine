@@ -2,6 +2,7 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
   @moduledoc false
   use ElektrineWeb, :live_component
   import ElektrineWeb.Components.User.Avatar
+  alias ElektrineWeb.ChatLive.HandleFormatter
 
   attr :group_name, :string, default: ""
   attr :group_description, :string, default: ""
@@ -9,17 +10,18 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
   attr :search_query, :string, default: ""
   attr :search_results, :list, default: []
   attr :selected_users, :list, default: []
+  attr :uploads, :map, default: %{}
 
   def render(assigns) do
     ~H"""
-    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="modal modal-open">
       <div
-        class="bg-base-100 rounded-lg shadow-xl border border-base-300 p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
+        class="modal-box card glass-card p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
         phx-click-away="close_modal"
         phx-target={@myself}
       >
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-xl font-bold">Create Group</h2>
+          <h2 class="text-xl font-bold">Create Group Chat</h2>
           <button phx-click="close_modal" phx-target={@myself} class="btn btn-ghost btn-sm btn-circle">
             <.icon name="hero-x-mark" class="w-5 h-5" />
           </button>
@@ -34,7 +36,7 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
               type="text"
               name="group[name]"
               value={@group_name}
-              placeholder="Group name"
+              placeholder="Group chat name"
               class="input input-bordered w-full"
               phx-change="update_group_form"
               required
@@ -54,6 +56,53 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
               rows="2"
             >{@group_description}</textarea>
           </div>
+
+          <%= if @uploads[:group_avatar_upload] do %>
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Group Image</span>
+              </label>
+              <div class="flex items-center gap-3">
+                <%= if @uploads.group_avatar_upload.entries != [] do %>
+                  <% entry = List.first(@uploads.group_avatar_upload.entries) %>
+                  <div class="w-14 h-14 rounded-xl overflow-hidden bg-base-200 border border-base-300">
+                    <.live_img_preview entry={entry} class="w-full h-full object-cover" />
+                  </div>
+                <% else %>
+                  <div class="w-14 h-14 rounded-xl bg-base-200 border border-dashed border-base-300 flex items-center justify-center">
+                    <.icon name="hero-photo" class="w-6 h-6 text-base-content/60" />
+                  </div>
+                <% end %>
+                <label class="btn btn-ghost btn-sm">
+                  Choose Image
+                  <.live_file_input
+                    upload={@uploads.group_avatar_upload}
+                    class="hidden"
+                    phx-change="validate_upload"
+                    phx-target={@myself}
+                  />
+                </label>
+              </div>
+              <%= for entry <- @uploads.group_avatar_upload.entries do %>
+                <div class="mt-2 flex items-center gap-2 text-xs">
+                  <span class="truncate flex-1">{entry.client_name}</span>
+                  <progress class="progress progress-secondary w-28 h-2" value={entry.progress} max="100">
+                  </progress>
+                  <button
+                    type="button"
+                    phx-click="cancel_upload"
+                    phx-target="#chat-container"
+                    phx-value-ref={entry.ref}
+                    phx-value-upload_name="group_avatar_upload"
+                    class="btn btn-ghost btn-xs btn-circle"
+                    title="Remove image"
+                  >
+                    <.icon name="hero-x-mark" class="w-3 h-3" />
+                  </button>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
 
           <div>
             <label class="label cursor-pointer">
@@ -136,7 +185,7 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
                     <p class="font-medium text-sm">
                       {user.display_name || user.handle || user.username}
                     </p>
-                    <p class="text-xs opacity-70">@{user.handle || user.username}</p>
+                    <p class="text-xs opacity-70">{HandleFormatter.at_handle(user)}</p>
                   </div>
                 </div>
               <% end %>
@@ -146,7 +195,7 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
           <div class="flex gap-3 pt-4">
             <button
               type="submit"
-              class="btn btn-primary flex-1"
+              class="btn btn-secondary flex-1"
               disabled={length(@selected_users) == 0}
             >
               <.icon name="hero-users" class="w-4 h-4 mr-2" />
@@ -205,6 +254,10 @@ defmodule ElektrineWeb.ChatLive.Components.GroupModal do
     # Fallback for other form updates
     group_params = Map.get(params, "group", %{})
     send(self(), {:update_group_form, group_params})
+    {:noreply, socket}
+  end
+
+  def handle_event("validate_upload", _params, socket) do
     {:noreply, socket}
   end
 

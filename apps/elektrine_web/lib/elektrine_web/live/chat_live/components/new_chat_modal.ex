@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.ChatLive.Components.NewChatModal do
   @moduledoc false
   use ElektrineWeb, :live_component
+  alias ElektrineWeb.ChatLive.HandleFormatter
 
   def render(assigns) do
     ~H"""
@@ -13,7 +14,7 @@ defmodule ElektrineWeb.ChatLive.Components.NewChatModal do
           phx-target={@myself}
           class="btn btn-ghost btn-sm"
         >
-          <.icon name="hero-user" class="w-4 h-4" /> Direct
+          <.icon name="hero-user" class="w-4 h-4" /> Direct Message
         </button>
         <button
           phx-click="show_create_group"
@@ -44,7 +45,7 @@ defmodule ElektrineWeb.ChatLive.Components.NewChatModal do
       <%= if not @show_create_group and not @show_create_channel and not @show_browse_channels do %>
         <input
           type="text"
-          placeholder="Search users..."
+          placeholder="Search local users or user@domain..."
           value={@search_query}
           phx-keyup="search_users"
           phx-debounce="300"
@@ -60,7 +61,8 @@ defmodule ElektrineWeb.ChatLive.Components.NewChatModal do
               <div
                 class="flex items-center gap-3 p-3 hover:bg-base-200 cursor-pointer"
                 phx-click="start_dm"
-                phx-value-user_id={user.id}
+                phx-value-user_id={Map.get(user, :id)}
+                phx-value-remote_handle={Map.get(user, :remote_handle)}
                 phx-target={@myself}
               >
                 <div class="avatar">
@@ -78,7 +80,7 @@ defmodule ElektrineWeb.ChatLive.Components.NewChatModal do
                   <p class="font-medium text-sm">
                     {user.display_name || user.handle || user.username}
                   </p>
-                  <p class="text-xs opacity-70">@{user.handle || user.username}</p>
+                  <p class="text-xs opacity-70">{HandleFormatter.at_handle(user)}</p>
                 </div>
               </div>
             <% end %>
@@ -132,8 +134,8 @@ defmodule ElektrineWeb.ChatLive.Components.NewChatModal do
     {:noreply, socket}
   end
 
-  def handle_event("start_dm", %{"user_id" => user_id}, socket) do
-    send(self(), {:start_dm, user_id})
+  def handle_event("start_dm", params, socket) do
+    send(self(), {:start_dm, params})
     {:noreply, socket}
   end
 

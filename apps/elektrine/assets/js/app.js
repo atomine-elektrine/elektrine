@@ -27,7 +27,7 @@ import { initFormHelpers } from "./form_helpers"
 import { initEmailRaw } from "./email_raw"
 import { initTabSwitcher } from "./tab_switcher"
 import "./hashtag_links" // self-initializes
-import { initCursorGlow } from "./cursor_glow"
+import { initCursorGlow, destroyCursorGlow } from "./cursor_glow"
 import { initBlinkenlights, checkBlinkenlights } from "./blinkenlights"
 import { initAllGlassCards } from "./glass_card"
 import { initMarkdownEditor } from "./markdown_editor"
@@ -86,6 +86,7 @@ window.addEventListener("phx:page-loading-stop", () => {
   checkBlinkenlights()
   initProfileStatic()
   initAutoDismissFlashes()
+  syncCursorGlowForRoute()
 })
 
 // ============================================================================
@@ -177,6 +178,18 @@ function scheduleFlashAutoDismiss(flashEl) {
 window.dismissFlashElement = dismissFlashElement
 window.initAutoDismissFlashes = initAutoDismissFlashes
 
+function shouldEnableCursorGlow(pathname = window.location.pathname) {
+  return !/^\/chat(?:\/|$)/.test(pathname)
+}
+
+function syncCursorGlowForRoute() {
+  if (shouldEnableCursorGlow()) {
+    initCursorGlow()
+  } else {
+    destroyCursorGlow()
+  }
+}
+
 // ============================================================================
 // DOM Ready Initialization
 // ============================================================================
@@ -188,9 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigationHandlers()
   initClipboardHandlers()
   initAutoDismissFlashes()
+  syncCursorGlowForRoute()
 
   // Initialize UI modules
-  initCursorGlow()
   initBlinkenlights()
   initAllGlassCards()
   initMarkdownEditor()
@@ -241,7 +254,10 @@ window.addEventListener("focus", () => {
   if (!liveSocket.isConnected()) {
     liveSocket.connect()
   }
+  syncCursorGlowForRoute()
 })
+
+window.addEventListener("popstate", syncCursorGlowForRoute)
 
 // Expose for debugging
 // >> liveSocket.enableDebug()

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/envelope",
+  "title": "Arblarg Event Envelope",
+  "type": "object",
+  "required": [
+    "protocol",
+    "protocol_id",
+    "protocol_version",
+    "event_type",
+    "event_id",
+    "origin_domain",
+    "stream_id",
+    "sequence",
+    "sent_at",
+    "idempotency_key",
+    "payload",
+    "signature"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "arblarg"
+    },
+    "protocol_id": {
+      "type": "string",
+      "const": "arbp"
+    },
+    "protocol_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "message.create",
+        "urn:arbp:ext:bootstrap:1#server.upsert",
+        "message.update",
+        "message.delete",
+        "reaction.add",
+        "reaction.remove",
+        "read.receipt",
+        "urn:arbp:ext:roles:1#role.upsert",
+        "urn:arbp:ext:roles:1#role.assignment.upsert",
+        "urn:arbp:ext:permissions:1#overwrite.upsert",
+        "urn:arbp:ext:threads:1#thread.upsert",
+        "urn:arbp:ext:threads:1#thread.archive",
+        "urn:arbp:ext:presence:1#presence.update",
+        "urn:arbp:ext:moderation:1#action.recorded"
+      ]
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin_domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stream_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object"
+    },
+    "signature": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "key_id",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "const": "ed25519"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

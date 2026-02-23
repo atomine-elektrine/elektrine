@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/reaction.remove",
+  "title": "Arblarg reaction.remove payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "message_id",
+    "reaction"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reaction": {
+      "type": "object",
+      "required": [
+        "emoji",
+        "actor"
+      ],
+      "properties": {
+        "emoji": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

@@ -157,6 +157,12 @@ defmodule Elektrine.Social.Likes do
       hashtags: Enum.map(message.hashtags || [], & &1.normalized_name)
     }
 
+    Elektrine.Messaging.Messages.broadcast_post_counts_updated(like.message_id, %{
+      like_count: message.like_count || 0,
+      share_count: message.share_count || 0,
+      reply_count: message.reply_count || 0
+    })
+
     # Broadcast to timeline feeds if it's a timeline post OR federated post
     # Always use :post_liked event type (whether liking or unliking) for consistency
     if (message.conversation && message.conversation.type == "timeline") || message.federated do

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/read.receipt",
+  "title": "Arblarg read.receipt payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "message_id",
+    "actor",
+    "read_at"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "type": "object"
+    },
+    "read_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

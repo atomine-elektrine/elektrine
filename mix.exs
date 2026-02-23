@@ -14,6 +14,10 @@ defmodule ElektrineUmbrella.MixProject do
     ]
   end
 
+  def cli do
+    [preferred_envs: ["arbp.conformance": :test]]
+  end
+
   defp deps, do: []
 
   defp releases do

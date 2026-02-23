@@ -1,0 +1,55 @@
+{
+  "name": "arbp-v1-validation-error-cases",
+  "cases": [
+    {
+      "id": "unsupported_protocol_id",
+      "envelope": {
+        "protocol": "arblarg",
+        "protocol_id": "wrong",
+        "protocol_version": "1.0",
+        "event_type": "message.create",
+        "event_id": "evt-bad-1",
+        "origin_domain": "example.net",
+        "stream_id": "channel:https://example.net/federation/messaging/channels/1",
+        "sequence": 1,
+        "sent_at": "2026-02-22T12:34:56Z",
+        "idempotency_key": "bad-op-1",
+        "payload": {
+          "server": {},
+          "channel": {},
+          "message": {
+            "id": "m1",
+            "channel_id": "c1",
+            "content": "x"
+          }
+        }
+      },
+      "expected_error": "unsupported_protocol"
+    },
+    {
+      "id": "invalid_sequence",
+      "envelope": {
+        "protocol": "arblarg",
+        "protocol_id": "arbp",
+        "protocol_version": "1.0",
+        "event_type": "message.create",
+        "event_id": "evt-bad-2",
+        "origin_domain": "example.net",
+        "stream_id": "channel:https://example.net/federation/messaging/channels/1",
+        "sequence": 0,
+        "sent_at": "2026-02-22T12:34:56Z",
+        "idempotency_key": "bad-op-2",
+        "payload": {
+          "server": {},
+          "channel": {},
+          "message": {
+            "id": "m1",
+            "channel_id": "c1",
+            "content": "x"
+          }
+        }
+      },
+      "expected_error": "invalid_sequence"
+    }
+  ]
+}

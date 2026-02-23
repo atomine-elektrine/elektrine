@@ -145,10 +145,19 @@ defmodule ElektrineWeb.ChatLive.Router do
       "show_create_group" ->
         GroupChannelOperations.handle_event(event_name, params, socket)
 
+      "show_create_server" ->
+        GroupChannelOperations.handle_event(event_name, params, socket)
+
+      "hide_create_server" ->
+        GroupChannelOperations.handle_event(event_name, params, socket)
+
       "show_create_channel" ->
         GroupChannelOperations.handle_event(event_name, params, socket)
 
       "create_group" ->
+        GroupChannelOperations.handle_event(event_name, params, socket)
+
+      "create_server" ->
         GroupChannelOperations.handle_event(event_name, params, socket)
 
       "create_channel" ->
@@ -179,6 +188,12 @@ defmodule ElektrineWeb.ChatLive.Router do
         GroupChannelOperations.handle_event(event_name, params, socket)
 
       "join_channel" ->
+        GroupChannelOperations.handle_event(event_name, params, socket)
+
+      "join_server" ->
+        GroupChannelOperations.handle_event(event_name, params, socket)
+
+      "select_server" ->
         GroupChannelOperations.handle_event(event_name, params, socket)
 
       # Member Operations

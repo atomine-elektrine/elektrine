@@ -280,40 +280,26 @@ defmodule ElektrineWeb.TimelineLive.Post do
                 <% end %>
               </div>
 
-              <form phx-submit="create_reply" class="space-y-4">
-                <input type="hidden" name="reply_to_id" value={@reply.id} />
-                <textarea
-                  name="content"
-                  placeholder="Post your reply..."
-                  class="textarea textarea-bordered w-full"
-                  rows="3"
-                  value={@reply_content}
-                  phx-change="update_reply_content"
-                  phx-mounted={JS.focus()}
-                  required
-                ></textarea>
-
-                <div class="flex gap-2 justify-end items-center">
-                  <span class={[
-                    "text-xs",
-                    String.length(@reply_content || "") < 3 && "text-error",
-                    String.length(@reply_content || "") >= 3 && "text-success"
-                  ]}>
-                    {String.length(@reply_content || "")}/3 min
-                  </span>
-                  <button type="button" phx-click="cancel_reply_to_reply" class="btn btn-ghost btn-sm">
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn btn-secondary btn-sm"
-                    phx-disable-with="Posting..."
-                    disabled={String.length(@reply_content || "") < 3}
-                  >
-                    <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> Reply
-                  </button>
-                </div>
-              </form>
+              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                wrapper_class=""
+                content={@reply_content}
+                hidden_fields={[{"reply_to_id", @reply.id}]}
+                placeholder="Post your reply..."
+                textarea_class="textarea textarea-bordered w-full"
+                rows={3}
+                on_submit="create_reply"
+                on_change="update_reply_content"
+                on_cancel="cancel_reply_to_reply"
+                cancel_class="btn btn-ghost btn-sm"
+                submit_class="btn btn-secondary btn-sm"
+                submit_label="Reply"
+                submit_icon="hero-paper-airplane"
+                submit_disable_with="Posting..."
+                form_class="space-y-4"
+                textarea_mounted={JS.focus()}
+                content_min={3}
+                show_counter={true}
+              />
             </div>
           </div>
         </div>

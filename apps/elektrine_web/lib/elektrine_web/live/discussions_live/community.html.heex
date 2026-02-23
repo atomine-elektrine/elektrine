@@ -759,25 +759,23 @@
                             data-click-event="navigate_to_post"
                             data-id={post.id}
                           >
-                            <%= if post.title do %>
-                              <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
-                                {post.title}
-                                <%= if post.auto_title do %>
-                                  <span class="text-xs opacity-50 ml-2">(auto)</span>
-                                <% end %>
-                                <!-- Post type badges -->
-                                <%= cond do %>
-                                  <% post.post_type == "link" -> %>
-                                    <span class="badge badge-info badge-xs ml-2">Link</span>
-                                  <% post.post_type == "poll" -> %>
-                                    <span class="badge badge-success badge-xs ml-2">Poll</span>
-                                  <% post.message_type == "image" -> %>
-                                    <span class="badge badge-warning badge-xs ml-2">Image</span>
-                                  <% true -> %>
-                                    <% nil %>
-                                <% end %>
-                              </h3>
-                            <% end %>
+                            <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
+                              {display_discussion_title(post)}
+                              <%= if post.auto_title && has_explicit_discussion_title?(post) do %>
+                                <span class="text-xs opacity-50 ml-2">(auto)</span>
+                              <% end %>
+                              <!-- Post type badges -->
+                              <%= cond do %>
+                                <% post.post_type == "link" -> %>
+                                  <span class="badge badge-info badge-xs ml-2">Link</span>
+                                <% post.post_type == "poll" -> %>
+                                  <span class="badge badge-success badge-xs ml-2">Poll</span>
+                                <% post.message_type == "image" -> %>
+                                  <span class="badge badge-warning badge-xs ml-2">Image</span>
+                                <% true -> %>
+                                  <% nil %>
+                              <% end %>
+                            </h3>
 
                             <%= if post.shared_message_id && post.shared_message do %>
                               <!-- Cross-posted: Show comment + embedded post -->
@@ -1355,25 +1353,23 @@
                           data-click-event="navigate_to_post"
                           data-id={post.id}
                         >
-                          <%= if post.title do %>
-                            <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
-                              {post.title}
-                              <%= if post.auto_title do %>
-                                <span class="text-xs opacity-50 ml-2">(auto)</span>
-                              <% end %>
-                              <!-- Post type badges -->
-                              <%= cond do %>
-                                <% post.post_type == "link" -> %>
-                                  <span class="badge badge-info badge-xs ml-2">Link</span>
-                                <% post.post_type == "poll" -> %>
-                                  <span class="badge badge-success badge-xs ml-2">Poll</span>
-                                <% post.message_type == "image" -> %>
-                                  <span class="badge badge-warning badge-xs ml-2">Image</span>
-                                <% true -> %>
-                                  <% nil %>
-                              <% end %>
-                            </h3>
-                          <% end %>
+                          <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
+                            {display_discussion_title(post)}
+                            <%= if post.auto_title && has_explicit_discussion_title?(post) do %>
+                              <span class="text-xs opacity-50 ml-2">(auto)</span>
+                            <% end %>
+                            <!-- Post type badges -->
+                            <%= cond do %>
+                              <% post.post_type == "link" -> %>
+                                <span class="badge badge-info badge-xs ml-2">Link</span>
+                              <% post.post_type == "poll" -> %>
+                                <span class="badge badge-success badge-xs ml-2">Poll</span>
+                              <% post.message_type == "image" -> %>
+                                <span class="badge badge-warning badge-xs ml-2">Image</span>
+                              <% true -> %>
+                                <% nil %>
+                            <% end %>
+                          </h3>
 
                           <%= if post.shared_message_id && post.shared_message do %>
                             <!-- Cross-posted: Show comment + embedded post -->
@@ -1883,9 +1879,9 @@
                           <div class="badge badge-warning badge-sm">Pending Approval</div>
                         </div>
 
-                        <%= if post.title do %>
-                          <h4 class="font-semibold text-base-content mb-2">{post.title}</h4>
-                        <% end %>
+                        <h4 class="font-semibold text-base-content mb-2">
+                          {display_discussion_title(post)}
+                        </h4>
 
                         <div class="text-sm break-words line-clamp-4">
                           {post.content || ""}

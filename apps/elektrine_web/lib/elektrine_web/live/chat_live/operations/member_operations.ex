@@ -14,11 +14,11 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
   alias Elektrine.Messaging, as: Messaging
 
   def handle_event("show_add_members", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members, true))}
+    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members_modal, true))}
   end
 
   def handle_event("hide_add_members", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members, false))}
+    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))}
   end
 
   def handle_event("add_member_to_conversation", %{"user_id" => user_id}, socket) do
@@ -29,7 +29,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
       {:ok, _} ->
         {:noreply,
          socket
-         |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members, false))
+         |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))
          |> notify_info("Member added")}
 
       {:error, _} ->

@@ -68,9 +68,15 @@ defmodule ElektrineChatWeb.Plugs.APIRateLimit do
 
   # Use user_id if authenticated, otherwise fall back to IP
   defp get_identifier(conn) do
-    case conn.assigns[:current_user] do
-      %{id: user_id} -> "user:#{user_id}"
-      _ -> "ip:#{get_client_ip(conn)}"
+    case conn.assigns do
+      %{federation_peer_domain: domain} when is_binary(domain) ->
+        "federation:#{String.downcase(domain)}"
+
+      %{current_user: %{id: user_id}} ->
+        "user:#{user_id}"
+
+      _ ->
+        "ip:#{get_client_ip(conn)}"
     end
   end
 

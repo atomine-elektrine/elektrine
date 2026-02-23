@@ -14,6 +14,7 @@ defmodule ElektrineWeb.ChatLive.State do
               show_create_channel: false,
               show_group_modal: false,
               show_channel_modal: false,
+              show_server_modal: false,
               show_browse_channels: false,
               show_settings_modal: false,
               show_edit_modal: false,
@@ -114,11 +115,13 @@ defmodule ElektrineWeb.ChatLive.State do
 
   defmodule Browse do
     @moduledoc """
-    Browse channels/groups state.
+    Browse servers/channels/groups state.
     """
-    defstruct tab: "channels",
+    defstruct tab: "servers",
+              public_servers: [],
               public_channels: [],
               public_groups: [],
+              filtered_servers: [],
               filtered_channels: [],
               filtered_groups: []
   end

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/role.assignment.upsert",
+  "title": "Arblarg role.assignment.upsert payload",
+  "type": "object",
+  "required": [
+    "server",
+    "channel",
+    "assignment"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "assignment": {
+      "type": "object",
+      "required": [
+        "role_id",
+        "target",
+        "state"
+      ],
+      "properties": {
+        "role_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "object",
+          "required": [
+            "type",
+            "id"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "user",
+                "member"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "assigned",
+            "removed"
+          ]
+        }
+      }
+    }
+  }
+}

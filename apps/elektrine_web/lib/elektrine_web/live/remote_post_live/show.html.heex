@@ -1,9 +1,9 @@
-<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+<div class="social-page-wrap">
   <!-- Z Platform Navigation -->
   <.z_nav active_tab="timeline" />
   
 <!-- Back Buttons -->
-  <div class="mb-4 flex flex-wrap gap-2">
+  <div class="social-page-toolbar">
     <.link navigate={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
     </.link>
@@ -27,44 +27,71 @@
 
   <%= if @loading do %>
     <!-- Loading State with Skeleton -->
-    <div class="mx-auto max-w-3xl space-y-4">
-      <!-- Post skeleton -->
-      <div class="card border border-base-300 rounded-lg p-6">
-        <!-- Header skeleton -->
-        <div class="flex items-center gap-3 mb-4">
-          <div class="skeleton w-12 h-12 rounded-full"></div>
-          <div class="flex-1">
-            <div class="skeleton h-5 w-40 mb-2"></div>
-            <div class="skeleton h-4 w-32"></div>
+    <div class={
+      if @is_community_post, do: "flex flex-col lg:flex-row gap-6", else: "social-page-rail"
+    }>
+      <div class={if @is_community_post, do: "flex-1 min-w-0 space-y-4", else: "space-y-4"}>
+        <!-- Post skeleton -->
+        <div class="card social-page-card border border-base-300 rounded-lg p-6">
+          <!-- Header skeleton -->
+          <div class="flex items-center gap-3 mb-4">
+            <div class="skeleton w-12 h-12 rounded-full"></div>
+            <div class="flex-1">
+              <div class="skeleton h-5 w-40 mb-2"></div>
+              <div class="skeleton h-4 w-32"></div>
+            </div>
+          </div>
+          <!-- Title skeleton -->
+          <div class="skeleton h-8 w-3/4 mb-4"></div>
+          <!-- Content skeleton -->
+          <div class="space-y-2 mb-4">
+            <div class="skeleton h-4 w-full"></div>
+            <div class="skeleton h-4 w-full"></div>
+            <div class="skeleton h-4 w-5/6"></div>
+            <div class="skeleton h-4 w-4/6"></div>
+          </div>
+          <!-- Image placeholder skeleton -->
+          <div class="skeleton h-64 w-full rounded-lg mb-4"></div>
+          <!-- Actions skeleton -->
+          <div class="flex gap-4 pt-4 border-t border-base-300">
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-20"></div>
+            <div class="skeleton h-8 w-20"></div>
           </div>
         </div>
-        <!-- Title skeleton -->
-        <div class="skeleton h-8 w-3/4 mb-4"></div>
-        <!-- Content skeleton -->
-        <div class="space-y-2 mb-4">
-          <div class="skeleton h-4 w-full"></div>
-          <div class="skeleton h-4 w-full"></div>
-          <div class="skeleton h-4 w-5/6"></div>
-          <div class="skeleton h-4 w-4/6"></div>
-        </div>
-        <!-- Image placeholder skeleton -->
-        <div class="skeleton h-64 w-full rounded-lg mb-4"></div>
-        <!-- Actions skeleton -->
-        <div class="flex gap-4 pt-4 border-t border-base-300">
-          <div class="skeleton h-8 w-20"></div>
-          <div class="skeleton h-8 w-20"></div>
-          <div class="skeleton h-8 w-20"></div>
+        <!-- Comments section skeleton -->
+        <div class="card social-page-card border border-base-300 rounded-lg p-4">
+          <div class="skeleton h-6 w-32 mb-4"></div>
+          <div class="space-y-3">
+            <.reply_skeleton />
+            <.reply_skeleton />
+            <.reply_skeleton />
+          </div>
         </div>
       </div>
-      <!-- Comments section skeleton -->
-      <div class="card border border-base-300 rounded-lg p-4">
-        <div class="skeleton h-6 w-32 mb-4"></div>
-        <div class="space-y-3">
-          <.reply_skeleton />
-          <.reply_skeleton />
-          <.reply_skeleton />
+
+      <%= if @is_community_post do %>
+        <div class="w-full lg:w-80 flex-shrink-0">
+          <div class="card social-page-card border border-base-300 rounded-lg p-4">
+            <div class="space-y-4">
+              <div class="skeleton h-5 w-40"></div>
+              <div class="flex items-center gap-3">
+                <div class="skeleton w-12 h-12 rounded-lg"></div>
+                <div class="flex-1 space-y-2">
+                  <div class="skeleton h-4 w-2/3"></div>
+                  <div class="skeleton h-3 w-3/4"></div>
+                </div>
+              </div>
+              <div class="skeleton h-16 w-full"></div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="skeleton h-12 w-full"></div>
+                <div class="skeleton h-12 w-full"></div>
+              </div>
+              <div class="skeleton h-9 w-full"></div>
+            </div>
+          </div>
         </div>
-      </div>
+      <% end %>
     </div>
   <% else %>
     <%= if @load_error do %>
@@ -77,8 +104,8 @@
       <%= if @is_local_post && @local_message do %>
         <!-- Local Post Display -->
         <% sender = @local_message.sender %>
-        <div class="mx-auto max-w-3xl">
-          <article class="card border border-base-300 rounded-lg p-6 mb-6">
+        <div class="social-page-rail">
+          <article class="card social-page-card border border-base-300 rounded-lg p-6 mb-6">
             <!-- Post Header -->
             <div class="flex items-center gap-3 mb-4">
               <.link
@@ -274,7 +301,7 @@
           
 <!-- Comments Section -->
           <%= if length(@threaded_replies) > 0 do %>
-            <div class="card border border-base-300 rounded-lg p-4">
+            <div class="card social-page-card border border-base-300 rounded-lg p-4">
               <h3 class="font-bold mb-4 flex items-center gap-2">
                 Comments ({length(@replies)})
                 <button
@@ -294,7 +321,7 @@
               </div>
             </div>
           <% else %>
-            <div class="card border border-base-300 rounded-lg p-4">
+            <div class="card social-page-card border border-base-300 rounded-lg p-4">
               <div class="text-center py-4 text-base-content/60">
                 <%= if @replies_loading do %>
                   <div class="flex items-center justify-center gap-2">
@@ -321,12 +348,12 @@
         <%= if @remote_actor do %>
           <!-- Post Detail Container -->
           <div class={
-            if @community_actor, do: "flex flex-col lg:flex-row gap-6", else: "mx-auto max-w-3xl"
+            if @is_community_post, do: "flex flex-col lg:flex-row gap-6", else: "social-page-rail"
           }>
             <!-- Main Content -->
-            <div class={if @community_actor, do: "flex-1 min-w-0", else: ""}>
+            <div class={if @is_community_post, do: "flex-1 min-w-0", else: ""}>
               <!-- Main Post Card -->
-              <article class="card border border-base-300 rounded-lg p-6 mb-6">
+              <article class="card social-page-card border border-base-300 rounded-lg p-6 mb-6">
                 <div class={if @community_actor, do: "flex gap-3 sm:gap-4", else: ""}>
                   <!-- Voting Column (Reddit-style) - Only for community posts -->
                   <%= if @community_actor do %>
@@ -474,76 +501,16 @@
                     <% end %>
                     
 <!-- Post Content -->
-                    <% # Detect submitted link URL for link posts.
-                    # Prefer explicit link attachments and cached metadata over host heuristics.
-                    link_attachment =
-                      case @post["attachment"] do
-                        attachments when is_list(attachments) ->
-                          Enum.find(attachments, fn att ->
-                            att["type"] == "Link" && is_binary(att["href"]) &&
-                              String.trim(att["href"]) != ""
-                          end)
+                    <% submitted_url =
+                      detect_submitted_url(
+                        @post,
+                        @local_message,
+                        @remote_actor && @remote_actor.domain
+                      )
 
-                        _ ->
-                          nil
-                      end
-
-                    metadata_external_link =
-                      cond do
-                        @local_message && is_binary(@local_message.primary_url) &&
-                            String.trim(@local_message.primary_url) != "" ->
-                          @local_message.primary_url
-
-                        @local_message && is_map(@local_message.media_metadata) &&
-                          is_binary(@local_message.media_metadata["external_link"]) &&
-                            String.trim(@local_message.media_metadata["external_link"]) != "" ->
-                          @local_message.media_metadata["external_link"]
-
-                        true ->
-                          nil
-                      end
-
-                    # For servers that only expose submitted links via `url`,
-                    # treat it as external only when it's off-origin.
-                    url_field_external =
-                      cond do
-                        is_binary(@post["url"]) ->
-                          case URI.parse(@post["url"]) do
-                            %URI{host: host}
-                            when is_binary(host) and host != @remote_actor.domain ->
-                              @post["url"]
-
-                            _ ->
-                              nil
-                          end
-
-                        true ->
-                          nil
-                      end
-
-                    submitted_url =
-                      [
-                        link_attachment && link_attachment["href"],
-                        metadata_external_link,
-                        url_field_external
-                      ]
-                      |> Enum.find(fn url -> is_binary(url) && String.trim(url) != "" end)
-
-                    submitted_url =
-                      if is_binary(submitted_url) && submitted_url == @post["id"] do
-                        nil
-                      else
-                        submitted_url
-                      end
-
-                    submitted_url_host =
-                      case submitted_url && URI.parse(submitted_url) do
-                        %URI{host: host} when is_binary(host) -> host
-                        _ -> nil
-                      end
-
+                    submitted_url_host = submitted_url_host(submitted_url)
                     is_external_link = is_binary(submitted_url)
-                    link_domain = submitted_url_host %>
+                    link_domain = submitted_url_host || submitted_url %>
                     <div class={
                       if @post["sensitive"],
                         do: "blur-sm hover:blur-none transition-all",
@@ -564,7 +531,10 @@
                                 class="w-4 h-4 opacity-50 group-hover:opacity-100"
                               />
                             </h1>
-                            <div class="text-sm text-primary/70 mb-3">{link_domain}</div>
+                            <div class="text-sm text-primary/70 mb-3">
+                              <span class="font-medium">{link_domain}</span>
+                              <span class="block opacity-80 break-all">{submitted_url}</span>
+                            </div>
                           </a>
                         <% else %>
                           <h1 class="font-bold text-xl mb-3">{@post["name"]}</h1>
@@ -718,7 +688,6 @@
                             target="_blank"
                             rel="noopener noreferrer"
                             class="block"
-                            phx-click="stop_propagation"
                           >
                             <%= if @local_message.link_preview.image_url do %>
                               <div class="aspect-video bg-base-200">
@@ -1133,117 +1102,139 @@
             </div>
             
 <!-- Community Sidebar -->
-            <%= if @community_actor do %>
+            <%= if @is_community_post do %>
               <div class="w-full lg:w-80 flex-shrink-0 space-y-4">
-                <!-- About Community -->
-                <div class="card border border-base-300 rounded-lg overflow-hidden">
-                  <div class="px-4 py-3 border-b border-base-300">
-                    <h3 class="font-semibold">About Community</h3>
-                  </div>
-                  <div class="p-4 space-y-4">
-                    <!-- Community Header -->
-                    <div class="flex items-center gap-3">
-                      <.link
-                        navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
-                        class="flex-shrink-0"
-                      >
-                        <%= if @community_actor.avatar_url do %>
-                          <img
-                            src={@community_actor.avatar_url}
-                            alt={@community_actor.username}
-                            class="w-12 h-12 rounded-lg object-cover"
-                          />
-                        <% else %>
-                          <div class="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center">
-                            <.icon name="hero-user-group" class="w-6 h-6 text-secondary" />
-                          </div>
-                        <% end %>
-                      </.link>
-                      <div class="min-w-0">
+                <%= if @community_actor do %>
+                  <!-- About Community -->
+                  <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
+                    <div class="px-4 py-3 border-b border-base-300">
+                      <h3 class="font-semibold">About Community</h3>
+                    </div>
+                    <div class="p-4 space-y-4">
+                      <!-- Community Header -->
+                      <div class="flex items-center gap-3">
                         <.link
                           navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
-                          class="font-bold hover:underline"
+                          class="flex-shrink-0"
                         >
-                          {@community_actor.display_name || @community_actor.username}
+                          <%= if @community_actor.avatar_url do %>
+                            <img
+                              src={@community_actor.avatar_url}
+                              alt={@community_actor.username}
+                              class="w-12 h-12 rounded-lg object-cover"
+                            />
+                          <% else %>
+                            <div class="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center">
+                              <.icon name="hero-user-group" class="w-6 h-6 text-secondary" />
+                            </div>
+                          <% end %>
                         </.link>
-                        <div class="text-xs opacity-70">
-                          !{@community_actor.username}@{@community_actor.domain}
+                        <div class="min-w-0">
+                          <.link
+                            navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                            class="font-bold hover:underline"
+                          >
+                            {@community_actor.display_name || @community_actor.username}
+                          </.link>
+                          <div class="text-xs opacity-70">
+                            !{@community_actor.username}@{@community_actor.domain}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
+                      
 <!-- Description -->
-                    <%= if @community_actor.summary do %>
-                      <div class="text-sm leading-relaxed">
-                        {raw(render_remote_bio(@community_actor.summary, @community_actor.domain))}
-                      </div>
-                    <% end %>
-                    
+                      <%= if @community_actor.summary do %>
+                        <div class="text-sm leading-relaxed">
+                          {raw(
+                            render_remote_bio(@community_actor.summary, @community_actor.domain)
+                          )}
+                        </div>
+                      <% end %>
+                      
 <!-- Stats -->
-                    <div class="grid grid-cols-2 gap-4 py-3 border-y border-base-300">
-                      <div class="text-center">
-                        <div class="text-lg font-bold">
-                          {get_follower_count(@community_actor.metadata)}
+                      <div class="grid grid-cols-2 gap-4 py-3 border-y border-base-300">
+                        <div class="text-center">
+                          <div class="text-lg font-bold">
+                            {@community_stats.members}
+                          </div>
+                          <div class="text-xs opacity-70">Members</div>
                         </div>
-                        <div class="text-xs opacity-70">Members</div>
-                      </div>
-                      <div class="text-center">
-                        <div class="text-lg font-bold">
-                          {@community_actor.metadata["statuses_count"] ||
-                            @community_actor.metadata["statusesCount"] || 0}
+                        <div class="text-center">
+                          <div class="text-lg font-bold">
+                            {@community_stats.posts}
+                          </div>
+                          <div class="text-xs opacity-70">Posts</div>
                         </div>
-                        <div class="text-xs opacity-70">Posts</div>
                       </div>
-                    </div>
-                    
+                      
 <!-- Created -->
-                    <%= if @community_actor.published_at do %>
-                      <div class="text-sm">
-                        <span class="opacity-70">Created:</span>
-                        <span class="font-medium">
-                          {format_join_date(@community_actor.published_at)}
-                        </span>
-                      </div>
-                    <% end %>
-                    
+                      <%= if @community_actor.published_at do %>
+                        <div class="text-sm">
+                          <span class="opacity-70">Created:</span>
+                          <span class="font-medium">
+                            {format_join_date(@community_actor.published_at)}
+                          </span>
+                        </div>
+                      <% end %>
+                      
 <!-- Join Button -->
-                    <%= if @current_user do %>
-                      <button
-                        phx-click="toggle_follow_community"
-                        class={[
-                          "btn btn-sm w-full",
-                          cond do
-                            @is_following_community -> "btn-ghost"
-                            @is_pending_community -> "btn-ghost btn-disabled"
-                            true -> "btn-secondary"
-                          end
-                        ]}
-                      >
-                        <%= cond do %>
-                          <% @is_following_community -> %>
-                            Leave Community
-                          <% @is_pending_community -> %>
-                            <.spinner size="sm" class="mr-1" /> Pending...
-                          <% true -> %>
-                            Join Community
-                        <% end %>
-                      </button>
-                    <% end %>
-                    
+                      <%= if @current_user do %>
+                        <button
+                          phx-click="toggle_follow_community"
+                          class={[
+                            "btn btn-sm w-full",
+                            cond do
+                              @is_following_community -> "btn-ghost"
+                              @is_pending_community -> "btn-ghost btn-disabled"
+                              true -> "btn-secondary"
+                            end
+                          ]}
+                        >
+                          <%= cond do %>
+                            <% @is_following_community -> %>
+                              Leave Community
+                            <% @is_pending_community -> %>
+                              <.spinner size="sm" class="mr-1" /> Pending...
+                            <% true -> %>
+                              Join Community
+                          <% end %>
+                        </button>
+                      <% end %>
+                      
 <!-- View Community Link -->
-                    <.link
-                      navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
-                      class="btn btn-ghost btn-sm w-full"
-                    >
-                      <.icon name="hero-arrow-right" class="w-4 h-4" /> View All Posts
-                    </.link>
+                      <.link
+                        navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                        class="btn btn-ghost btn-sm w-full"
+                      >
+                        <.icon name="hero-arrow-right" class="w-4 h-4" /> View All Posts
+                      </.link>
+                    </div>
                   </div>
-                </div>
+                <% else %>
+                  <div class="card social-page-card border border-base-300 rounded-lg p-4">
+                    <div class="space-y-4">
+                      <div class="skeleton h-5 w-32"></div>
+                      <div class="flex items-center gap-3">
+                        <div class="skeleton w-12 h-12 rounded-lg"></div>
+                        <div class="flex-1 space-y-2">
+                          <div class="skeleton h-4 w-2/3"></div>
+                          <div class="skeleton h-3 w-3/4"></div>
+                        </div>
+                      </div>
+                      <div class="skeleton h-14 w-full"></div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="skeleton h-12 w-full"></div>
+                        <div class="skeleton h-12 w-full"></div>
+                      </div>
+                      <div class="skeleton h-9 w-full"></div>
+                    </div>
+                  </div>
+                <% end %>
               </div>
             <% end %>
           </div>
         <% else %>
-          <div class="mx-auto max-w-3xl">
+          <div class="social-page-rail">
             <div class="alert alert-error">
               <.icon name="hero-exclamation-circle" class="w-6 h-6" />
               <span>Post could not be loaded. Try opening it from timeline again.</span>

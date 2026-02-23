@@ -31,6 +31,29 @@ defmodule Elektrine.Messaging.Servers do
   end
 
   @doc """
+  Lists public servers the user can discover and join.
+  """
+  def list_public_servers(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    query = normalize_search_query(Keyword.get(opts, :query))
+
+    joined_server_ids_query =
+      from(sm in ServerMember,
+        where: sm.user_id == ^user_id and is_nil(sm.left_at),
+        select: sm.server_id
+      )
+
+    from(s in Server,
+      where: s.is_public == true and s.id not in subquery(joined_server_ids_query),
+      order_by: [desc: s.member_count, desc: s.last_activity_at, desc: s.inserted_at],
+      limit: ^limit,
+      preload: [:creator]
+    )
+    |> maybe_filter_discoverable_servers(query)
+    |> Repo.all()
+  end
+
+  @doc """
   Gets a server with channels for a user.
   """
   def get_server(server_id, user_id) do
@@ -159,12 +182,20 @@ defmodule Elektrine.Messaging.Servers do
 
     channel_attrs =
       attrs
-      |> Map.take([:name, :description, :avatar_url, :channel_topic, :channel_position])
+      |> Map.take([
+        :name,
+        :description,
+        :avatar_url,
+        :channel_topic,
+        :channel_position,
+        :is_public
+      ])
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
       |> Map.new()
       |> Map.put(:creator_id, creator_id)
       |> Map.put(:server_id, server_id)
-      |> Map.put(:is_public, false)
+      # Discord-style default: server channels are visible to all server members unless marked private.
+      |> Map.put_new(:is_public, true)
       |> Map.put_new(:name, "general")
       |> Map.put_new(:description, "Default server channel")
       |> Map.put_new(:channel_position, next_position)
@@ -272,4 +303,25 @@ defmodule Elektrine.Messaging.Servers do
     from(s in Server, where: s.id == ^server_id)
     |> Repo.update_all(set: [member_count: count])
   end
+
+  defp maybe_filter_discoverable_servers(query, nil), do: query
+
+  defp maybe_filter_discoverable_servers(query, search_term) do
+    pattern = "%#{search_term}%"
+
+    from(s in query,
+      where:
+        ilike(s.name, ^pattern) or ilike(s.description, ^pattern) or
+          ilike(s.origin_domain, ^pattern)
+    )
+  end
+
+  defp normalize_search_query(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_search_query(_), do: nil
 end

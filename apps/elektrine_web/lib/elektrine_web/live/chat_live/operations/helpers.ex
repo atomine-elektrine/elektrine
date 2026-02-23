@@ -5,7 +5,7 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
   """
 
   alias Elektrine.Messaging, as: Messaging
-  alias Elektrine.Messaging.{Conversation, Message}
+  alias Elektrine.Messaging.{ChatMessage, Conversation, Message}
 
   @doc """
   Get the display name for a conversation based on the current user.
@@ -22,9 +22,9 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
   def format_reactions(reactions) when is_list(reactions) do
     reactions
     |> Enum.group_by(& &1.emoji)
-    |> Enum.map(fn {emoji, reactions} ->
-      users = Enum.map(reactions, &(&1.user.handle || &1.user.username))
-      {emoji, length(reactions), users}
+    |> Enum.map(fn {emoji, grouped_reactions} ->
+      users = Enum.map(grouped_reactions, &reaction_actor_label/1)
+      {emoji, length(grouped_reactions), users}
     end)
   end
 
@@ -37,7 +37,7 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
 
   def user_reacted?(reactions, emoji, user_id) when is_list(reactions) do
     Enum.any?(reactions, fn reaction ->
-      reaction.emoji == emoji and reaction.user.id == user_id
+      reaction.emoji == emoji and reaction.user_id == user_id
     end)
   end
 
@@ -63,7 +63,7 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
         case conversation.messages do
           [last_message | _] ->
             last_message
-            |> Message.display_content()
+            |> message_display_content()
             |> String.downcase()
             |> String.contains?(search_term)
 
@@ -102,6 +102,28 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
       name_match or message_match or member_match
     end)
   end
+
+  @doc """
+  Scope visible channel conversations to the currently selected server.
+  DMs and group conversations stay visible across servers.
+  """
+  def scope_conversations_to_server(conversations, active_server_id)
+      when is_list(conversations) do
+    case active_server_id do
+      server_id when is_integer(server_id) ->
+        Enum.filter(conversations, fn conversation ->
+          conversation.type != "channel" or is_nil(conversation.server_id) or
+            conversation.server_id == server_id
+        end)
+
+      _ ->
+        Enum.filter(conversations, fn conversation ->
+          conversation.type != "channel" or is_nil(conversation.server_id)
+        end)
+    end
+  end
+
+  def scope_conversations_to_server(_conversations, _active_server_id), do: []
 
   @doc """
   Load timeout status for multiple users in a conversation.
@@ -365,10 +387,12 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
 
   # Find first message after a timestamp from other users
   defp find_first_unread_by_timestamp(messages, last_read_at, user_id) do
+    cutoff = to_naive_datetime(last_read_at)
+
     messages
     |> Enum.find(fn message ->
       message.sender_id != user_id &&
-        NaiveDateTime.compare(message.inserted_at, last_read_at) == :gt
+        compare_message_time(message.inserted_at, cutoff) == :gt
     end)
     |> case do
       nil -> nil
@@ -385,6 +409,53 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
       message -> message.id
     end
   end
+
+  defp reaction_actor_label(reaction) do
+    cond do
+      is_map(reaction.user) and not match?(%Ecto.Association.NotLoaded{}, reaction.user) ->
+        reaction.user.handle || reaction.user.username || "user"
+
+      is_map(reaction.remote_actor) and
+          not match?(%Ecto.Association.NotLoaded{}, reaction.remote_actor) ->
+        username = reaction.remote_actor.username || "remote"
+        domain = reaction.remote_actor.domain
+
+        if is_binary(domain) and domain != "" do
+          "#{username}@#{domain}"
+        else
+          username
+        end
+
+      true ->
+        "user"
+    end
+  end
+
+  defp message_display_content(%Message{} = message), do: Message.display_content(message)
+  defp message_display_content(%ChatMessage{} = message), do: ChatMessage.display_content(message)
+
+  defp message_display_content(message) when is_map(message),
+    do: Map.get(message, :content, "") || ""
+
+  defp message_display_content(_), do: ""
+
+  defp compare_message_time(_message_time, nil), do: :lt
+
+  defp compare_message_time(%NaiveDateTime{} = message_time, %NaiveDateTime{} = cutoff) do
+    NaiveDateTime.compare(message_time, cutoff)
+  end
+
+  defp compare_message_time(%DateTime{} = message_time, %NaiveDateTime{} = cutoff) do
+    message_time
+    |> DateTime.to_naive()
+    |> NaiveDateTime.compare(cutoff)
+  end
+
+  defp compare_message_time(_message_time, _cutoff), do: :lt
+
+  defp to_naive_datetime(%NaiveDateTime{} = datetime), do: datetime
+  defp to_naive_datetime(%DateTime{} = datetime), do: DateTime.to_naive(datetime)
+  defp to_naive_datetime(_), do: nil
 
   @doc """
   Calculate unread counts for each conversation using a single batch query.

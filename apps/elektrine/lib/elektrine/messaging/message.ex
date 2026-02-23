@@ -340,7 +340,7 @@ defmodule Elektrine.Messaging.Message do
         conversation_type \\ nil
       ) do
     message_type =
-      if Enum.any?(media_urls, &String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp)$/i)) do
+      if Enum.any?(media_urls, &String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i)) do
         "image"
       else
         "file"
@@ -476,7 +476,7 @@ defmodule Elektrine.Messaging.Message do
     url_regex = ~r/https?:\/\/[^\s<>"{}|\\^`\[\]]+/i
 
     # Common image extensions
-    image_extensions = ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i
+    image_extensions = ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif|svg|bmp|ico)$/i
 
     # Find all URLs
     Regex.scan(url_regex, content)
@@ -500,7 +500,7 @@ defmodule Elektrine.Messaging.Message do
   Checks if a URL is likely an image URL based on extension or common patterns.
   """
   def image_url?(url) when is_binary(url) do
-    image_extensions = ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?.*)?$/i
+    image_extensions = ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif|svg|bmp|ico)(\?.*)?$/i
 
     String.match?(url, image_extensions) ||
       String.contains?(url, ["imgur.com", "i.imgur.com", "giphy.com", "tenor.com"]) ||

@@ -126,6 +126,7 @@ defmodule Elektrine.Email.Sender do
           end
       end
 
+    maybe_emit_email_sent_webhook(user_id, params, result)
     emit_outbound_telemetry(:request, result, started_at, %{route: :auto})
     result
   end
@@ -223,6 +224,25 @@ defmodule Elektrine.Email.Sender do
     emit_outbound_telemetry(:delivery, result, started_at, %{route: routing_strategy})
     result
   end
+
+  defp maybe_emit_email_sent_webhook(user_id, params, {:ok, response}) do
+    payload = %{
+      from: params[:from] || params["from"],
+      to: parse_email_list(params[:to] || params["to"] || ""),
+      cc: parse_email_list(params[:cc] || params["cc"] || ""),
+      bcc_count: length(parse_email_list(params[:bcc] || params["bcc"] || "")),
+      subject: params[:subject] || params["subject"],
+      message_id: response[:message_id] || response["message_id"],
+      status: response[:status] || response["status"] || "sent"
+    }
+
+    _ = Elektrine.Developer.deliver_event(user_id, "email.sent", payload)
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp maybe_emit_email_sent_webhook(_user_id, _params, _result), do: :ok
 
   defp prepare_outbound_payload(params) do
     params

@@ -226,12 +226,24 @@ config :elektrine, :uploads,
   max_image_height: 2048
 
 # Messaging federation (Discord-lite, self-hosted peer sync)
-# Keep disabled by default; enable and configure peers in runtime config.
+# Enabled by default; configure peers and identity material in runtime config.
 config :elektrine, :messaging_federation,
-  enabled: false,
+  enabled: true,
   identity_key_id: "default",
+  identity_keys: [],
+  identity_shared_secret: nil,
   official_relay_operator: "Community-operated",
   official_relays: [],
+  conformance_core_passed: true,
+  conformance_extensions: %{
+    "urn:arbp:ext:roles:1" => true,
+    "urn:arbp:ext:permissions:1" => true,
+    "urn:arbp:ext:threads:1" => true,
+    "urn:arbp:ext:presence:1" => true,
+    "urn:arbp:ext:moderation:1" => true
+  },
+  clock_skew_seconds: 300,
+  allow_insecure_http_transport: false,
   delivery_concurrency: 6,
   delivery_timeout_ms: 12_000,
   outbox_max_attempts: 8,

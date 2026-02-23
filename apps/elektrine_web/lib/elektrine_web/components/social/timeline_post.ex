@@ -629,7 +629,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           }
 
         in_reply_to_author ->
-          %{name: in_reply_to_author, type: :federated}
+          normalize_reply_author_info(in_reply_to_author, in_reply_to_url)
 
         in_reply_to_url ->
           # Extract domain from URL as fallback
@@ -730,7 +730,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             <% else %>
               <%= if @in_reply_to_url && !@has_resolved_reply do %>
                 <div class="mt-1 text-xs opacity-50 pl-6">
-                  Click to view the original post
+                  Open original post
                 </div>
               <% end %>
             <% end %>
@@ -755,11 +755,14 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :on_image_click, :string, default: "open_image_modal"
 
   defp post_content(assigns) do
+    title = normalize_post_title(assigns.post.title)
+    assigns = assign(assigns, :title, title)
+
     ~H"""
     <!-- Title -->
-    <%= if @post.title do %>
+    <%= if @title do %>
       <h3 class="font-semibold text-lg mb-2 break-words leading-tight post-content">
-        {@post.title}
+        {@title}
         <%= if @post.auto_title do %>
           <span class="text-xs opacity-50 ml-2">(auto)</span>
         <% end %>
@@ -785,7 +788,11 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           </div>
         <% end %>
         <div
+          id={"quoted-post-#{@post.id}-#{@post.quoted_message_id}"}
           phx-click="stop_propagation"
+          phx-hook="PostClick"
+          data-click-event="navigate_to_embedded_post"
+          data-url={quoted_post_url(@post.quoted_message)}
           class="border border-base-300 rounded-lg p-3 bg-base-200/30 hover:bg-base-200/50 transition-colors"
         >
           <div class="flex items-center gap-2 mb-2">
@@ -1754,7 +1761,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
 
     # Get title from metadata if available
-    title = post.title || get_in(post.media_metadata || %{}, ["name"])
+    title = normalize_post_title(post.title || get_in(post.media_metadata || %{}, ["name"]))
 
     # Get thumbnail if available
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
@@ -1846,4 +1853,165 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   defp video_url?(url), do: PostUtilities.video_url?(url)
 
   defp audio_url?(url), do: PostUtilities.audio_url?(url)
+
+  defp quoted_post_url(%{federated: true, activitypub_id: activitypub_id})
+       when is_binary(activitypub_id) and activitypub_id != "" do
+    "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+  end
+
+  defp quoted_post_url(%{
+         id: message_id,
+         reply_to_id: reply_to_id,
+         conversation: %{type: "timeline"}
+       })
+       when not is_nil(reply_to_id),
+       do: "/timeline/post/#{reply_to_id}#message-#{message_id}"
+
+  defp quoted_post_url(%{id: message_id, conversation: %{type: "timeline"}}),
+    do: "/timeline/post/#{message_id}"
+
+  defp quoted_post_url(%{
+         id: message_id,
+         reply_to_id: reply_to_id,
+         conversation: %{type: "community", name: name}
+       })
+       when not is_nil(reply_to_id),
+       do: "/discussions/#{name}/post/#{reply_to_id}#message-#{message_id}"
+
+  defp quoted_post_url(%{id: message_id, conversation: %{type: "community", name: name}}),
+    do: "/discussions/#{name}/post/#{message_id}"
+
+  defp quoted_post_url(%{id: message_id, conversation: %{type: "chat", hash: hash}})
+       when is_binary(hash) and hash != "",
+       do: "/chat/#{hash}#message-#{message_id}"
+
+  defp quoted_post_url(%{id: message_id, conversation: %{type: "chat", id: conv_id}}),
+    do: "/chat/#{conv_id}#message-#{message_id}"
+
+  defp quoted_post_url(%{id: message_id}), do: "/timeline/post/#{message_id}"
+  defp quoted_post_url(_), do: "#"
+
+  defp normalize_post_title(title) when is_binary(title) do
+    title = String.trim(title)
+    if title == "", do: nil, else: title
+  end
+
+  defp normalize_post_title(_), do: nil
+
+  defp normalize_reply_author_info(author, in_reply_to_url) when is_binary(author) do
+    author = String.trim(author)
+    inferred_label = infer_reply_label_from_url(in_reply_to_url)
+
+    cond do
+      author == "" ->
+        %{name: "a post", type: :unknown}
+
+      String.starts_with?(author, "@") ->
+        %{name: author, type: :federated}
+
+      String.starts_with?(author, "someone on ") ->
+        %{
+          name:
+            inferred_label || "a post on " <> String.replace_prefix(author, "someone on ", ""),
+          type: :external
+        }
+
+      String.starts_with?(author, "a post on ") ->
+        %{name: inferred_label || author, type: :external}
+
+      String.starts_with?(author, "post ") && String.contains?(author, " on ") ->
+        %{name: author, type: :external}
+
+      String.starts_with?(author, "http://") || String.starts_with?(author, "https://") ->
+        %{name: infer_reply_label_from_url(author) || "a post", type: :external}
+
+      true ->
+        %{name: author, type: :federated}
+    end
+  end
+
+  defp normalize_reply_author_info(_, _), do: %{name: "a post", type: :unknown}
+
+  defp infer_reply_label_from_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %{host: host, path: path} when is_binary(host) and is_binary(path) ->
+        case infer_username_from_reply_path(path) do
+          username when is_binary(username) ->
+            "@#{username}@#{host}"
+
+          _ ->
+            case infer_post_id_from_reply_path(path) do
+              post_id when is_binary(post_id) -> "post #{post_id} on #{host}"
+              _ -> "a post on #{host}"
+            end
+        end
+
+      %{host: host} when is_binary(host) and host != "" ->
+        "a post on #{host}"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp infer_reply_label_from_url(_), do: nil
+
+  defp infer_username_from_reply_path(path) when is_binary(path) do
+    case reply_path_segments(path) do
+      ["users", username | _] ->
+        trim_reply_identifier(username)
+
+      ["u", username | _] ->
+        trim_reply_identifier(username)
+
+      [segment | _] ->
+        if String.starts_with?(segment, "@"), do: trim_reply_identifier(segment), else: nil
+
+      _ ->
+        nil
+    end
+  end
+
+  defp infer_username_from_reply_path(_), do: nil
+
+  defp infer_post_id_from_reply_path(path) when is_binary(path) do
+    candidate =
+      case reply_path_segments(path) do
+        ["users", _username, "statuses", post_id | _] -> post_id
+        ["notice", post_id | _] -> post_id
+        ["objects", post_id | _] -> post_id
+        ["posts", post_id | _] -> post_id
+        ["post", post_id | _] -> post_id
+        ["comments", post_id | _] -> post_id
+        ["comment", post_id | _] -> post_id
+        [first, post_id | _] -> if String.starts_with?(first, "@"), do: post_id, else: nil
+        _ -> nil
+      end
+
+    trim_reply_identifier(candidate)
+  end
+
+  defp infer_post_id_from_reply_path(_), do: nil
+
+  defp reply_path_segments(path) when is_binary(path) do
+    path
+    |> String.split("/", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp trim_reply_identifier(value) when is_binary(value) do
+    value
+    |> URI.decode()
+    |> String.trim()
+    |> String.trim_leading("@")
+    |> String.split(["?", "#"], parts: 2)
+    |> List.first()
+    |> case do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp trim_reply_identifier(_), do: nil
 end

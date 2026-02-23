@@ -66,6 +66,43 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
 
+  pipeline :api_pat_authenticated do
+    plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
+    plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
+  end
+
+  pipeline :api_pat_search_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth,
+      scopes: [
+        "read:account",
+        "read:email",
+        "read:chat",
+        "read:social",
+        "read:contacts",
+        "read:calendar"
+      ],
+      any: true
+    )
+  end
+
+  pipeline :api_pat_calendar_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:calendar", "write:calendar"], any: true)
+  end
+
+  pipeline :api_pat_calendar_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:calendar"])
+  end
+
+  pipeline :api_pat_account_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:account", "write:account"], any: true)
+  end
+
+  pipeline :api_pat_account_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:account"])
+  end
+
   pipeline :activitypub do
     # Custom plug that accepts any content type for ActivityPub federation
     plug(ElektrineWeb.Plugs.ActivityPubAccept)
@@ -78,6 +115,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :messaging_federation do
     plug(ElektrineWeb.Plugs.MessagingFederationAuth)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
   pipeline :dav do
@@ -165,10 +203,21 @@ defmodule ElektrineWeb.Router do
     get("/servers/:server_id/snapshot", MessagingFederationController, :snapshot)
   end
 
-  # Public well-known discovery for messaging federation identity/capabilities
+  # Public Arblarg schema registry
+  scope "/federation/messaging/arblarg", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/profiles", MessagingFederationController, :profiles)
+    get("/:version/schemas/:name", MessagingFederationController, :schema)
+  end
+
+  # Public well-known discovery for Arblarg messaging federation identity/capabilities
   scope "/.well-known", ElektrineWeb do
     pipe_through(:api)
 
+    get("/arblarg", MessagingFederationController, :well_known)
+    get("/arblarg/:version", MessagingFederationController, :well_known_versioned)
+    get("/elektrine", MessagingFederationController, :well_known)
     get("/elektrine-messaging-federation", MessagingFederationController, :well_known)
   end
 
@@ -619,6 +668,12 @@ defmodule ElektrineWeb.Router do
       # Federation management
       live("/federation", AdminLive.Federation, :index)
 
+      # Messaging federation management
+      live("/messaging-federation", AdminLive.MessagingFederation, :index)
+
+      # Bluesky bridge management
+      live("/bluesky-bridge", AdminLive.BlueskyBridge, :index)
+
       # Relay management
       live("/relays", AdminLive.Relays, :index)
 
@@ -884,6 +939,50 @@ defmodule ElektrineWeb.Router do
     post("/export", ExportController, :create)
     get("/export/:id", ExportController, :show)
     delete("/export/:id", ExportController, :delete)
+  end
+
+  # External PAT-authenticated API endpoints for integrations.
+  scope "/api/ext/search", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_search_read_scope])
+
+    get("/", GlobalSearchController, :index)
+    get("/actions", GlobalSearchController, :actions)
+    post("/actions/execute", GlobalSearchController, :execute)
+  end
+
+  scope "/api/ext/calendars", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_calendar_read_scope])
+
+    get("/", CalendarController, :index)
+    get("/:id/events", CalendarController, :events)
+  end
+
+  scope "/api/ext/calendars", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_calendar_write_scope])
+
+    post("/", CalendarController, :create)
+    post("/:id/events", CalendarController, :create_event)
+  end
+
+  scope "/api/ext/events", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_calendar_write_scope])
+
+    put("/:id", CalendarController, :update_event)
+    delete("/:id", CalendarController, :delete_event)
+  end
+
+  scope "/api/ext/password-manager", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
+
+    get("/entries", PasswordManagerController, :index)
+    get("/entries/:id", PasswordManagerController, :show)
+  end
+
+  scope "/api/ext/password-manager", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_account_write_scope])
+
+    post("/entries", PasswordManagerController, :create)
+    delete("/entries/:id", PasswordManagerController, :delete)
   end
 
   # Data Export Download (separate scope - token-based auth, no session needed)

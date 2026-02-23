@@ -10,13 +10,19 @@ defmodule ElektrineChatWeb.API.ServerController do
 
   @doc """
   GET /api/servers
-  Lists all servers for the current user.
+  Lists all servers for the current user. Supports `scope=discover` (or `discover=true`) for joinable public server discovery.
   """
   def index(conn, params) do
     user = conn.assigns[:current_user]
     limit = parse_int(params["limit"], 50)
+    query = params["query"]
 
-    servers = Messaging.list_servers(user.id, limit: limit)
+    servers =
+      if discover_scope?(params) do
+        Messaging.list_public_servers(user.id, limit: limit, query: query)
+      else
+        Messaging.list_servers(user.id, limit: limit)
+      end
 
     conn
     |> put_status(:ok)
@@ -194,6 +200,9 @@ defmodule ElektrineChatWeb.API.ServerController do
       is_public: server.is_public,
       member_count: server.member_count,
       creator_id: server.creator_id,
+      origin_domain: server.origin_domain,
+      federation_id: server.federation_id,
+      is_federated_mirror: server.is_federated_mirror,
       role: role,
       inserted_at: server.inserted_at,
       updated_at: server.updated_at
@@ -243,5 +252,15 @@ defmodule ElektrineChatWeb.API.ServerController do
       {int, _} -> int
       :error -> default
     end
+  end
+
+  defp discover_scope?(params) do
+    scope =
+      case params["scope"] do
+        value when is_binary(value) -> value |> String.trim() |> String.downcase()
+        _ -> nil
+      end
+
+    parse_bool(params["discover"], false) or scope in ["discover", "public"]
   end
 end

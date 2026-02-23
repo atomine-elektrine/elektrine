@@ -164,18 +164,27 @@ defmodule ElektrineWeb.Components.User.Avatar do
               {@rest}
             />
           <% else %>
-            <div
-              class={[
-                "bg-gradient-to-br from-purple-600 to-purple-800 text-white rounded-full relative",
-                avatar_size_classes(@size),
-                @class
-              ]}
-              {@rest}
-            >
-              <div class="absolute inset-0 flex items-center justify-center">
-                <.icon name="hero-user" class={"#{hero_icon_size(@size)} block"} />
+            <%= if is_binary(@conversation.avatar_url) and @conversation.avatar_url != "" do %>
+              <img
+                src={@conversation.avatar_url}
+                alt="conversation avatar"
+                class={["rounded-full object-cover", avatar_size_classes(@size), @class]}
+                {@rest}
+              />
+            <% else %>
+              <div
+                class={[
+                  "bg-gradient-to-br from-purple-600 to-purple-800 text-white rounded-full relative",
+                  avatar_size_classes(@size),
+                  @class
+                ]}
+                {@rest}
+              >
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <.icon name="hero-user" class={"#{hero_icon_size(@size)} block"} />
+                </div>
               </div>
-            </div>
+            <% end %>
           <% end %>
           <%= if status do %>
             <span class={[

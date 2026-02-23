@@ -55,6 +55,10 @@ defmodule Elektrine.Notifications do
           })
         end
 
+        Elektrine.Async.run(fn ->
+          maybe_emit_developer_webhook(notif, new_count)
+        end)
+
         {:ok, notif}
 
       {:error, changeset} = error ->
@@ -604,4 +608,37 @@ defmodule Elektrine.Notifications do
   defp build_content_url("post", post_id), do: "/timeline/post/#{post_id}"
   defp build_content_url("discussion", discussion_id), do: "/discussions/post/#{discussion_id}"
   defp build_content_url(_, _), do: "/"
+
+  defp maybe_emit_developer_webhook(%Notification{} = notif, unread_count) do
+    case notification_webhook_event(notif.type) do
+      nil ->
+        :ok
+
+      event ->
+        payload = %{
+          notification_id: notif.id,
+          type: notif.type,
+          title: notif.title,
+          body: notif.body,
+          url: notif.url,
+          source_type: notif.source_type,
+          source_id: notif.source_id,
+          actor_id: notif.actor_id,
+          unread_count: unread_count,
+          inserted_at: notif.inserted_at
+        }
+
+        _ = Elektrine.Developer.deliver_event(notif.user_id, event, payload)
+        :ok
+    end
+  rescue
+    _ -> :ok
+  end
+
+  defp notification_webhook_event("email_received"), do: "email.received"
+  defp notification_webhook_event("new_message"), do: "message.received"
+  defp notification_webhook_event("reply"), do: "message.received"
+  defp notification_webhook_event("like"), do: "post.liked"
+  defp notification_webhook_event("follow"), do: "follow.new"
+  defp notification_webhook_event(_), do: nil
 end

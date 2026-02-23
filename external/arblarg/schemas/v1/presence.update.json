@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "arbp://schemas/1.0/presence.update",
+  "title": "Arblarg presence.update payload",
+  "type": "object",
+  "required": [
+    "server",
+    "presence"
+  ],
+  "properties": {
+    "server": {
+      "type": "object"
+    },
+    "presence": {
+      "type": "object",
+      "required": [
+        "actor",
+        "status",
+        "updated_at"
+      ],
+      "properties": {
+        "actor": {
+          "type": "object"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "idle",
+            "dnd",
+            "offline",
+            "invisible"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "activities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}
