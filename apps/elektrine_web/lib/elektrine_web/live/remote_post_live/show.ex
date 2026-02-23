@@ -3,6 +3,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
+  alias Elektrine.Messaging
   alias Elektrine.Social
   alias ElektrineWeb.Live.PostInteractions
 
@@ -542,6 +543,9 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       |> assign(:modal_image_index, 0)
       |> assign(:modal_post, nil)
       |> assign(:post_reactions, %{})
+      |> assign(:in_reply_to, nil)
+      |> assign(:reply_parent, nil)
+      |> assign(:reply_parent_actor, nil)
       |> assign(:meta_description, nil)
       |> assign(:og_image, nil)
       |> assign(
@@ -584,6 +588,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
               :page_title,
               msg.title || "Post by @#{(msg.remote_actor && msg.remote_actor.username) || "user"}"
             )
+            |> assign_reply_parent_fallback(post_object, msg)
 
           nil ->
             socket
@@ -615,6 +620,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           send(self(), {:load_replies_for_cached, cached_msg})
           send(self(), {:load_platform_counts, decoded_post_id})
           send(self(), {:load_reactions, decoded_post_id})
+          send(self(), {:load_reply_parent, socket.assigns.post})
         else
           # No cached content - do full remote fetch
           send(self(), {:load_remote_post, decoded_post_id})
@@ -678,6 +684,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     submitted_link = message_submitted_link(msg)
     post_url = submitted_link || msg.activitypub_url || msg.activitypub_id
     metadata = msg.media_metadata || %{}
+    in_reply_to = message_in_reply_to(msg)
 
     attachments =
       if msg.media_urls && msg.media_urls != [] do
@@ -698,6 +705,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       "content" => msg.content,
       "published" => NaiveDateTime.to_iso8601(msg.inserted_at) <> "Z",
       "attributedTo" => msg.remote_actor && msg.remote_actor.uri,
+      "inReplyTo" => in_reply_to,
+      "inReplyToAuthor" => metadata["inReplyToAuthor"],
+      "inReplyToContent" => metadata["inReplyToContent"],
+      "inReplyToTitle" => metadata["inReplyToTitle"],
       "attachment" => attachments,
       "name" => msg.title,
       "likes" => %{"totalItems" => msg.like_count || 0},
@@ -914,6 +925,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     post_object
     |> maybe_put_field_from_existing(existing_post, "content")
     |> maybe_put_field_from_existing(existing_post, "name")
+    |> maybe_put_field_from_existing(existing_post, "inReplyTo")
+    |> maybe_put_field_from_existing(existing_post, "inReplyToAuthor")
+    |> maybe_put_field_from_existing(existing_post, "inReplyToContent")
+    |> maybe_put_field_from_existing(existing_post, "inReplyToTitle")
   end
 
   defp maybe_put_field_from_existing(post_object, existing_post, key) do
@@ -934,6 +949,320 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   defp preload_cached_message_associations(message) do
     Elektrine.Repo.preload(message, Elektrine.Messaging.Messages.timeline_post_preloads())
   end
+
+  defp message_in_reply_to(message) when is_map(message) do
+    metadata = local_message_metadata(message)
+
+    [metadata["inReplyTo"], metadata["in_reply_to"], message_reply_parent(message)]
+    |> Enum.find_value(&normalize_in_reply_to_ref/1)
+  end
+
+  defp message_in_reply_to(_), do: nil
+
+  defp local_message_metadata(%{media_metadata: metadata}) when is_map(metadata), do: metadata
+  defp local_message_metadata(_), do: %{}
+
+  defp message_reply_parent(%{reply_to: reply_to}) when is_map(reply_to) do
+    activitypub_ref_for_message(reply_to)
+  end
+
+  defp message_reply_parent(%{reply_to_id: reply_to_id}) when is_integer(reply_to_id) do
+    reply_to_id
+    |> Messaging.get_message()
+    |> activitypub_ref_for_message()
+  end
+
+  defp message_reply_parent(_), do: nil
+
+  defp activitypub_ref_for_message(%{activitypub_id: id}) when is_binary(id) and id != "", do: id
+
+  defp activitypub_ref_for_message(%{activitypub_url: url}) when is_binary(url) and url != "",
+    do: url
+
+  defp activitypub_ref_for_message(%{id: id}) when is_integer(id) do
+    "#{ElektrineWeb.Endpoint.url()}/posts/#{id}"
+  end
+
+  defp activitypub_ref_for_message(_), do: nil
+
+  defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
+  defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
+  defp normalize_in_reply_to_ref(%{id: id}), do: normalize_in_reply_to_ref(id)
+  defp normalize_in_reply_to_ref(%{href: href}), do: normalize_in_reply_to_ref(href)
+  defp normalize_in_reply_to_ref([first | _]), do: normalize_in_reply_to_ref(first)
+
+  defp normalize_in_reply_to_ref(ref) when is_binary(ref) do
+    ref
+    |> String.trim()
+    |> case do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp normalize_in_reply_to_ref(_), do: nil
+
+  defp extract_post_in_reply_to(post_object, local_message) do
+    local_metadata = local_message_metadata(local_message)
+
+    [
+      map_get_value(post_object, "inReplyTo"),
+      map_get_value(post_object, "in_reply_to"),
+      local_metadata["inReplyTo"],
+      local_metadata["in_reply_to"],
+      message_reply_parent(local_message)
+    ]
+    |> Enum.find_value(&normalize_in_reply_to_ref/1)
+  end
+
+  defp assign_reply_parent_fallback(socket, post_object, local_message) do
+    in_reply_to = extract_post_in_reply_to(post_object, local_message)
+
+    {reply_parent, reply_parent_actor} =
+      case local_reply_parent_from_ref(in_reply_to) do
+        {:ok, parent_post, parent_actor} ->
+          {parent_post, parent_actor}
+
+        :error ->
+          {build_reply_parent_fallback(post_object, local_message, in_reply_to), nil}
+      end
+
+    socket
+    |> assign(:in_reply_to, in_reply_to)
+    |> assign(:reply_parent, reply_parent)
+    |> assign(:reply_parent_actor, reply_parent_actor)
+  end
+
+  defp build_reply_parent_fallback(post_object, local_message, in_reply_to) do
+    metadata = local_message_metadata(local_message)
+
+    content =
+      map_get_value(post_object, "inReplyToContent") ||
+        metadata["inReplyToContent"] ||
+        metadata["in_reply_to_content"]
+
+    title =
+      map_get_value(post_object, "inReplyToTitle") ||
+        metadata["inReplyToTitle"] ||
+        metadata["in_reply_to_title"]
+
+    author =
+      map_get_value(post_object, "inReplyToAuthor") ||
+        metadata["inReplyToAuthor"] ||
+        metadata["in_reply_to_author"]
+
+    if is_binary(in_reply_to) || is_binary(content) || is_binary(title) || is_binary(author) do
+      %{
+        "id" => in_reply_to,
+        "url" => in_reply_to,
+        "type" => "Note",
+        "name" => title,
+        "content" => content,
+        "_fallback_author" => normalize_reply_parent_author(author)
+      }
+    else
+      nil
+    end
+  end
+
+  defp normalize_reply_parent_author(%{"name" => name}), do: normalize_reply_parent_author(name)
+  defp normalize_reply_parent_author(%{"url" => url}), do: normalize_reply_parent_author(url)
+  defp normalize_reply_parent_author(%{name: name}), do: normalize_reply_parent_author(name)
+  defp normalize_reply_parent_author(%{url: url}), do: normalize_reply_parent_author(url)
+
+  defp normalize_reply_parent_author(author) when is_binary(author) do
+    author
+    |> String.trim()
+    |> case do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp normalize_reply_parent_author(_), do: nil
+
+  defp local_reply_parent_from_ref(in_reply_to) when is_binary(in_reply_to) do
+    case Messaging.get_message_by_activitypub_ref(in_reply_to) do
+      %{} = parent_message ->
+        parent_message = preload_cached_message_associations(parent_message)
+        {:ok, build_reply_parent_from_message(parent_message), parent_message.remote_actor}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp local_reply_parent_from_ref(_), do: :error
+
+  defp build_reply_parent_from_message(message) do
+    base_url = ElektrineWeb.Endpoint.url()
+    metadata = local_message_metadata(message)
+
+    attributed_to =
+      cond do
+        message.remote_actor && is_binary(message.remote_actor.uri) ->
+          message.remote_actor.uri
+
+        message.sender && is_binary(message.sender.username) ->
+          "#{base_url}/users/#{message.sender.username}"
+
+        true ->
+          nil
+      end
+
+    %{
+      "id" => activitypub_ref_for_message(message),
+      "url" =>
+        message.activitypub_url || message.activitypub_id || activitypub_ref_for_message(message),
+      "type" =>
+        metadata["type"] ||
+          if(community_post_url?(message.activitypub_id || message.activitypub_url || ""),
+            do: "Page",
+            else: "Note"
+          ),
+      "name" => message.title,
+      "content" => message.content || metadata["inReplyToContent"],
+      "published" => NaiveDateTime.to_iso8601(message.inserted_at) <> "Z",
+      "attributedTo" => attributed_to,
+      "_local_user" => message.sender
+    }
+  end
+
+  defp resolve_reply_parent(in_reply_to) when is_binary(in_reply_to) do
+    case local_reply_parent_from_ref(in_reply_to) do
+      {:ok, parent_post, parent_actor} ->
+        {:ok, parent_post, parent_actor}
+
+      :error ->
+        case ActivityPub.Fetcher.fetch_object(in_reply_to) do
+          {:ok, parent_object} ->
+            parent_post = normalize_reply_parent_post(parent_object, in_reply_to)
+
+            case parent_post do
+              %{} ->
+                {:ok, parent_post, maybe_fetch_reply_parent_actor(parent_post)}
+
+              _ ->
+                {:error, :invalid_parent}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp resolve_reply_parent(_), do: {:error, :missing_parent}
+
+  defp normalize_reply_parent_post(
+         %{"type" => "Create", "object" => %{} = inner_object},
+         fallback_id
+       ) do
+    normalize_reply_parent_post(inner_object, fallback_id)
+  end
+
+  defp normalize_reply_parent_post(%{} = parent_object, fallback_id) do
+    id = map_get_value(parent_object, "id") || fallback_id
+
+    %{
+      "id" => id,
+      "url" => map_get_value(parent_object, "url") || id,
+      "type" => map_get_value(parent_object, "type") || "Note",
+      "name" => map_get_value(parent_object, "name"),
+      "content" =>
+        map_get_value(parent_object, "content") || map_get_value(parent_object, "summary"),
+      "published" => map_get_value(parent_object, "published"),
+      "attributedTo" => normalize_in_reply_to_ref(map_get_value(parent_object, "attributedTo"))
+    }
+  end
+
+  defp normalize_reply_parent_post(_, _), do: nil
+
+  defp maybe_fetch_reply_parent_actor(parent_post) when is_map(parent_post) do
+    attributed_to = extract_attributed_to_uri(parent_post)
+
+    cond do
+      !is_binary(attributed_to) ->
+        nil
+
+      local_actor_uri?(attributed_to) ->
+        nil
+
+      true ->
+        case ActivityPub.get_or_fetch_actor(attributed_to) do
+          {:ok, actor} -> actor
+          _ -> ActivityPub.get_actor_by_uri(attributed_to)
+        end
+    end
+  end
+
+  defp maybe_fetch_reply_parent_actor(_), do: nil
+
+  defp extract_attributed_to_uri(post) when is_map(post) do
+    post
+    |> map_get_value("attributedTo")
+    |> normalize_in_reply_to_ref()
+  end
+
+  defp extract_attributed_to_uri(_), do: nil
+
+  defp local_actor_uri?(uri) when is_binary(uri) do
+    ActivityPub.local_actor_prefixes()
+    |> Enum.any?(fn prefix -> String.starts_with?(uri, prefix) end)
+  end
+
+  defp local_actor_uri?(_), do: false
+
+  defp reply_parent_author_label(reply_parent, reply_parent_actor) do
+    cond do
+      reply_parent_actor && is_binary(reply_parent_actor.username) &&
+          is_binary(reply_parent_actor.domain) ->
+        "@#{reply_parent_actor.username}@#{reply_parent_actor.domain}"
+
+      is_map(reply_parent) && is_map(reply_parent["_local_user"]) ->
+        local_user = reply_parent["_local_user"]
+        "@#{local_user.handle || local_user.username}@z.org"
+
+      is_map(reply_parent) && is_binary(reply_parent["_fallback_author"]) ->
+        reply_parent["_fallback_author"]
+
+      is_map(reply_parent) && is_binary(reply_parent["attributedTo"]) ->
+        "@#{extract_username_from_uri(reply_parent["attributedTo"])}"
+
+      true ->
+        "original post"
+    end
+  end
+
+  defp reply_parent_content_domain(reply_parent, reply_parent_actor, in_reply_to) do
+    cond do
+      reply_parent_actor && is_binary(reply_parent_actor.domain) ->
+        reply_parent_actor.domain
+
+      is_map(reply_parent) && is_binary(reply_parent["attributedTo"]) ->
+        case URI.parse(reply_parent["attributedTo"]) do
+          %URI{host: host} when is_binary(host) and host != "" -> host
+          _ -> nil
+        end
+
+      is_binary(in_reply_to) ->
+        case URI.parse(in_reply_to) do
+          %URI{host: host} when is_binary(host) and host != "" -> host
+          _ -> nil
+        end
+
+      true ->
+        nil
+    end
+  end
+
+  defp http_url?(url) when is_binary(url) do
+    url
+    |> String.trim()
+    |> String.starts_with?(["http://", "https://"])
+  end
+
+  defp http_url?(_), do: false
 
   defp build_poll_fields_from_message(nil), do: %{}
 
@@ -1200,12 +1529,18 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             nil
         end
 
+      metadata = local_message_metadata(message)
+
       post_object = %{
         "id" => "#{base_url}/posts/#{message.id}",
         "type" => "Note",
         "content" => message.content,
         "published" => NaiveDateTime.to_iso8601(message.inserted_at) <> "Z",
         "attributedTo" => post_attributed_to,
+        "inReplyTo" => message_in_reply_to(message),
+        "inReplyToAuthor" => metadata["inReplyToAuthor"],
+        "inReplyToContent" => metadata["inReplyToContent"],
+        "inReplyToTitle" => metadata["inReplyToTitle"],
         "attachment" => attachments,
         "name" => message.title,
         "_local" => true,
@@ -1293,30 +1628,35 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           {socket.assigns.post_interactions, socket.assigns.user_saves}
         end
 
-      {:noreply,
-       socket
-       |> assign(:loading, false)
-       |> assign(:is_community_post, false)
-       |> assign(:community_actor, nil)
-       |> assign(:community_stats, %{members: 0, posts: 0})
-       |> assign(:post, post_object)
-       |> assign(:local_message, message)
-       |> assign(:remote_actor, nil)
-       |> assign(:page_title, page_title)
-       |> assign(:replies, local_replies)
-       |> assign(
-         :quick_reply_recent_replies,
-         recent_replies_for_preview(local_replies, post_object["id"])
-       )
-       |> assign(:threaded_replies, threaded_replies)
-       |> assign(:replies_loading, false)
-       |> assign(:replies_loaded, true)
-       |> assign(:post_interactions, post_interactions)
-       |> assign(:user_saves, user_saves)
-       |> assign(
-         :post_reactions,
-         Map.put(socket.assigns.post_reactions, local_post_key, reactions)
-       )}
+      updated_socket =
+        socket
+        |> assign(:loading, false)
+        |> assign(:is_community_post, false)
+        |> assign(:community_actor, nil)
+        |> assign(:community_stats, %{members: 0, posts: 0})
+        |> assign(:post, post_object)
+        |> assign(:local_message, message)
+        |> assign(:remote_actor, nil)
+        |> assign(:page_title, page_title)
+        |> assign(:replies, local_replies)
+        |> assign(
+          :quick_reply_recent_replies,
+          recent_replies_for_preview(local_replies, post_object["id"])
+        )
+        |> assign(:threaded_replies, threaded_replies)
+        |> assign(:replies_loading, false)
+        |> assign(:replies_loaded, true)
+        |> assign(:post_interactions, post_interactions)
+        |> assign(:user_saves, user_saves)
+        |> assign(
+          :post_reactions,
+          Map.put(socket.assigns.post_reactions, local_post_key, reactions)
+        )
+        |> assign_reply_parent_fallback(post_object, message)
+
+      send(self(), {:load_reply_parent, post_object})
+
+      {:noreply, updated_socket}
     else
       {:noreply,
        socket
@@ -1435,7 +1775,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         # Update local message counts with fresh data from source (async)
         Task.start(fn -> Elektrine.Messaging.Messages.sync_remote_counts(post_object) end)
 
-        socket = assign(socket, :local_message, local_message)
+        socket =
+          socket
+          |> assign(:local_message, local_message)
+          |> assign_reply_parent_fallback(post_object, local_message)
 
         # Load main post interactions immediately
         socket =
@@ -1447,6 +1790,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           end
 
         # Defer replies and platform-specific counts loading
+        send(self(), {:load_reply_parent, post_object})
         send(self(), {:load_replies, post_object})
         send(self(), {:load_platform_counts, post_object["id"]})
         send(self(), {:load_reactions, post_object["id"]})
@@ -1546,11 +1890,16 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         community_post_url?(post_object["id"] || "") ||
         community_post_url?(post_object["url"] || "")
 
-    {:noreply,
-     socket
-     |> assign(:post, post_object)
-     |> assign(:is_community_post, is_community_post)
-     |> assign(:page_title, post_object["name"] || socket.assigns.page_title)}
+    updated_socket =
+      socket
+      |> assign(:post, post_object)
+      |> assign(:is_community_post, is_community_post)
+      |> assign(:page_title, post_object["name"] || socket.assigns.page_title)
+      |> assign_reply_parent_fallback(post_object, local_message)
+
+    send(self(), {:load_reply_parent, post_object})
+
+    {:noreply, updated_socket}
   end
 
   # Handle community actor loaded for cached posts
@@ -1660,6 +2009,40 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info({:load_reply_parent, post_object}, socket) when is_map(post_object) do
+    local_message = socket.assigns[:local_message]
+    in_reply_to = extract_post_in_reply_to(post_object, local_message)
+    socket = assign_reply_parent_fallback(socket, post_object, local_message)
+
+    if is_binary(in_reply_to) do
+      liveview_pid = self()
+
+      Task.start(fn ->
+        result = resolve_reply_parent(in_reply_to)
+        send(liveview_pid, {:reply_parent_loaded, in_reply_to, result})
+      end)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:load_reply_parent, _}, socket), do: {:noreply, socket}
+
+  def handle_info({:reply_parent_loaded, in_reply_to, {:ok, parent_post, parent_actor}}, socket) do
+    if socket.assigns.in_reply_to == in_reply_to do
+      {:noreply,
+       socket
+       |> assign(:reply_parent, parent_post)
+       |> assign(:reply_parent_actor, parent_actor)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:reply_parent_loaded, _in_reply_to, {:error, _reason}}, socket) do
+    {:noreply, socket}
   end
 
   def handle_info({:load_replies, post_object}, socket) do

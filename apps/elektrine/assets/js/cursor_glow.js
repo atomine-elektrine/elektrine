@@ -10,8 +10,8 @@ let overlay = null
 let initialized = false
 
 const OFFSCREEN = -1000
-const BASE_RADIUS = 340
-const RADIUS_BOOST = 140
+const BASE_RADIUS = 300
+const RADIUS_BOOST = 110
 
 const state = {
   targetX: OFFSCREEN,
@@ -67,7 +67,7 @@ function tick() {
   state.radius += (targetRadius - state.radius) * radiusLerp
   state.velocity *= reducedMotion ? 0 : 0.82
 
-  const targetOpacity = state.hovering ? 1 : 0
+  const targetOpacity = state.hovering ? 0.85 : 0
   state.opacity += (targetOpacity - state.opacity) * opacityLerp
 
   applyOverlayState()

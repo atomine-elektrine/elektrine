@@ -109,6 +109,51 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
       assert html =~ "Open submitted link"
     end
 
+    test "shows replied-to context for cached federated replies", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      parent_id = "https://framapiaf.org/users/postroutine/statuses/#{unique}"
+      reply_id = "https://framapiaf.org/users/postroutine/statuses/#{unique + 1}"
+
+      parent_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://framapiaf.org/users/postroutine",
+          username: "postroutine",
+          domain: "framapiaf.org",
+          inbox_url: "https://framapiaf.org/users/postroutine/inbox",
+          public_key: "test-public-key-parent-#{unique}"
+        })
+        |> Repo.insert!()
+
+      {:ok, _parent_message} =
+        Messaging.create_federated_message(%{
+          content: "Original parent content",
+          visibility: "public",
+          activitypub_id: parent_id,
+          activitypub_url: parent_id,
+          federated: true,
+          remote_actor_id: parent_actor.id
+        })
+
+      {:ok, _reply_message} =
+        Messaging.create_federated_message(%{
+          content: "Reply content",
+          visibility: "public",
+          activitypub_id: reply_id,
+          activitypub_url: reply_id,
+          federated: true,
+          remote_actor_id: parent_actor.id,
+          media_metadata: %{"inReplyTo" => parent_id}
+        })
+
+      encoded_reply_id = URI.encode_www_form(reply_id)
+      {:ok, _view, html} = live(conn, ~p"/remote/post/#{encoded_reply_id}")
+
+      assert html =~ "Replying to"
+      assert html =~ "Original parent content"
+      assert html =~ ~s(href="#{parent_id}")
+    end
+
     test "renders local post replies when remote actor is nil", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 

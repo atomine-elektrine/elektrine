@@ -14,13 +14,40 @@ defmodule Elektrine.PasswordManagerTest do
       %{user: user, other_user: other_user}
     end
 
-    test "create_entry/2 stores encrypted data at rest", %{user: user} do
+    test "setup_vault/2 stores verifier and marks vault configured", %{user: user} do
+      refute PasswordManager.vault_configured?(user.id)
+
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert PasswordManager.vault_configured?(user.id)
+
+      assert %{"ciphertext" => _ciphertext} =
+               PasswordManager.get_vault_settings(user.id).encrypted_verifier
+    end
+
+    test "create_entry/2 requires vault setup", %{user: user} do
+      assert {:error, :vault_not_configured} =
+               PasswordManager.create_entry(user.id, %{
+                 "title" => "Blocked",
+                 "encrypted_password" => encrypted_payload("nope")
+               })
+    end
+
+    test "create_entry/2 stores client-encrypted payloads at rest", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
       attrs = %{
         "title" => "GitHub",
         "login_username" => "dev@example.com",
         "website" => "https://github.com",
-        "password" => "SuperSecret123!",
-        "notes" => "MFA enabled"
+        "encrypted_password" => encrypted_payload("SuperSecret123!"),
+        "encrypted_notes" => encrypted_payload("MFA enabled")
       }
 
       assert {:ok, entry} = PasswordManager.create_entry(user.id, attrs)
@@ -28,25 +55,55 @@ defmodule Elektrine.PasswordManagerTest do
       stored_entry = Repo.get!(VaultEntry, entry.id)
 
       assert stored_entry.title == "GitHub"
-      assert stored_entry.encrypted_password["encrypted_data"] != attrs["password"]
-      assert stored_entry.encrypted_notes["encrypted_data"] != attrs["notes"]
+
+      assert stored_entry.encrypted_password["ciphertext"] ==
+               attrs["encrypted_password"]["ciphertext"]
+
+      assert stored_entry.encrypted_notes["ciphertext"] == attrs["encrypted_notes"]["ciphertext"]
     end
 
-    test "create_entry/2 validates required password", %{user: user} do
+    test "create_entry/2 validates required encrypted payload", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
       attrs = %{
-        "title" => "No Password Entry",
-        "password" => ""
+        "title" => "Missing Ciphertext",
+        "encrypted_password" => nil
       }
 
       assert {:error, changeset} = PasswordManager.create_entry(user.id, attrs)
-      assert {"can't be blank", _opts} = changeset.errors[:password]
+      assert {"can't be blank", _opts} = changeset.errors[:encrypted_password]
+    end
+
+    test "create_entry/2 validates payload shape", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "Bad Payload",
+        "encrypted_password" => %{"ciphertext" => "abc"}
+      }
+
+      assert {:error, changeset} = PasswordManager.create_entry(user.id, attrs)
+
+      assert {"must be a valid client-encrypted payload", _opts} =
+               changeset.errors[:encrypted_password]
     end
 
     test "create_entry/2 validates website protocol", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
       attrs = %{
         "title" => "Bad Website",
         "website" => "ftp://example.com",
-        "password" => "password123"
+        "encrypted_password" => encrypted_payload("password123")
       }
 
       assert {:error, changeset} = PasswordManager.create_entry(user.id, attrs)
@@ -54,57 +111,94 @@ defmodule Elektrine.PasswordManagerTest do
     end
 
     test "list_entries/1 only returns entries for the user", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-user")
+               })
+
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(other_user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-other")
+               })
+
       assert {:ok, _entry_1} =
                PasswordManager.create_entry(user.id, %{
                  "title" => "Main Account",
-                 "password" => "one"
+                 "encrypted_password" => encrypted_payload("one")
                })
 
       assert {:ok, _entry_2} =
                PasswordManager.create_entry(other_user.id, %{
                  "title" => "Other Account",
-                 "password" => "two"
+                 "encrypted_password" => encrypted_payload("two")
                })
 
       entries = PasswordManager.list_entries(user.id)
 
       assert length(entries) == 1
       assert hd(entries).title == "Main Account"
+      refute Map.has_key?(hd(entries), :encrypted_password)
     end
 
-    test "get_entry/2 decrypts password and notes", %{user: user} do
-      assert {:ok, entry} =
-               PasswordManager.create_entry(user.id, %{
-                 "title" => "Email",
-                 "password" => "InboxSecret!",
-                 "notes" => "Recovery email on file"
+    test "list_entries/2 can include encrypted payloads", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
                })
 
-      assert {:ok, decrypted} = PasswordManager.get_entry(user.id, entry.id)
-      assert decrypted.password == "InboxSecret!"
-      assert decrypted.notes == "Recovery email on file"
+      assert {:ok, _entry} =
+               PasswordManager.create_entry(user.id, %{
+                 "title" => "Email",
+                 "encrypted_password" => encrypted_payload("InboxSecret!")
+               })
+
+      [entry] = PasswordManager.list_entries(user.id, include_secrets: true)
+      assert is_map(entry.encrypted_password)
+      assert entry.encrypted_password["algorithm"] == "AES-GCM"
     end
 
-    test "get_entry/2 is scoped by user", %{user: user, other_user: other_user} do
+    test "get_entry_ciphertext/2 is scoped by user", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(other_user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-other")
+               })
+
       assert {:ok, entry} =
                PasswordManager.create_entry(other_user.id, %{
                  "title" => "Hidden",
-                 "password" => "ShouldNotBeVisible"
+                 "encrypted_password" => encrypted_payload("ShouldNotBeVisible")
                })
 
-      assert {:error, :not_found} = PasswordManager.get_entry(user.id, entry.id)
+      assert {:error, :not_found} = PasswordManager.get_entry_ciphertext(user.id, entry.id)
     end
 
     test "delete_entry/2 only deletes user-owned entries", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-user")
+               })
+
       assert {:ok, entry} =
                PasswordManager.create_entry(user.id, %{
                  "title" => "Delete Me",
-                 "password" => "temporary"
+                 "encrypted_password" => encrypted_payload("temporary")
                })
 
       assert {:error, :not_found} = PasswordManager.delete_entry(other_user.id, entry.id)
       assert {:ok, _deleted} = PasswordManager.delete_entry(user.id, entry.id)
-      assert {:error, :not_found} = PasswordManager.get_entry(user.id, entry.id)
+      assert {:error, :not_found} = PasswordManager.get_entry_ciphertext(user.id, entry.id)
     end
+  end
+
+  defp encrypted_payload(plaintext) do
+    %{
+      "version" => 1,
+      "algorithm" => "AES-GCM",
+      "kdf" => "PBKDF2-SHA256",
+      "iterations" => 210_000,
+      "salt" => Base.encode64("1234567890123456"),
+      "iv" => Base.encode64("123456789012"),
+      "ciphertext" => Base.encode64("ciphertext:" <> plaintext)
+    }
   end
 end

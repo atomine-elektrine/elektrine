@@ -18,14 +18,41 @@ alias Elektrine.Repo
 if Mix.env() == :dev do
   IO.puts("Seeding development data...")
 
-  random_seed_password = fn ->
-    :crypto.strong_rand_bytes(18)
-    |> Base.url_encode64(padding: false)
-    |> binary_part(0, 18)
+  admin_password = "DevPass123!"
+  test_password = "DevPass123!"
+
+  ensure_admin_user = fn user, username ->
+    admin_user =
+      if user.is_admin do
+        user
+      else
+        {:ok, updated_user} = Accounts.update_user_admin_status(user, true)
+        IO.puts("✓ Made existing user '#{username}' an admin")
+        updated_user
+      end
+
+    case Accounts.admin_reset_password(admin_user, %{password: admin_password}) do
+      {:ok, updated_user} ->
+        IO.puts("✓ Set seed password for '#{username}'")
+        updated_user
+
+      {:error, password_error} ->
+        IO.puts("✗ Failed to set seed password for '#{username}': #{inspect(password_error)}")
+        admin_user
+    end
   end
 
-  admin_password = System.get_env("SEED_ADMIN_PASSWORD") || random_seed_password.()
-  test_password = System.get_env("SEED_TEST_PASSWORD") || random_seed_password.()
+  ensure_test_password = fn user ->
+    case Accounts.admin_reset_password(user, %{password: test_password}) do
+      {:ok, updated_user} ->
+        IO.puts("✓ Set seed password for 'testuser'")
+        updated_user
+
+      {:error, password_error} ->
+        IO.puts("✗ Failed to set seed password for 'testuser': #{inspect(password_error)}")
+        user
+    end
+  end
 
   # Create admin user if it doesn't exist
   admin_username = "admin"
@@ -53,33 +80,35 @@ if Mix.env() == :dev do
             IO.puts("  This might be because 'admin' conflicts with an existing alias.")
             IO.puts("  Using alternative username 'sysadmin' instead...")
 
-            case Accounts.create_user(%{
-                   username: "sysadmin",
-                   password: admin_password,
-                   password_confirmation: admin_password
-                 }) do
-              {:ok, admin_user} ->
-                {:ok, admin_user} = Accounts.update_user_admin_status(admin_user, true)
-                IO.puts("✓ Admin user created with username: sysadmin")
-                admin_user
+            fallback_username = "sysadmin"
 
-              {:error, fallback_errors} ->
-                IO.puts("✗ Failed to create fallback admin user: #{inspect(fallback_errors)}")
-                # Return nil and handle this case below
-                nil
+            case Accounts.get_user_by_username(fallback_username) do
+              nil ->
+                case Accounts.create_user(%{
+                       username: fallback_username,
+                       password: admin_password,
+                       password_confirmation: admin_password
+                     }) do
+                  {:ok, fallback_user} ->
+                    fallback_user = ensure_admin_user.(fallback_user, fallback_username)
+                    IO.puts("✓ Admin user created with username: #{fallback_username}")
+                    fallback_user
+
+                  {:error, fallback_errors} ->
+                    IO.puts("✗ Failed to create fallback admin user: #{inspect(fallback_errors)}")
+                    # Return nil and handle this case below
+                    nil
+                end
+
+              existing_fallback_user ->
+                IO.puts("✓ Fallback admin user '#{fallback_username}' already exists")
+                ensure_admin_user.(existing_fallback_user, fallback_username)
             end
         end
 
       existing_user ->
-        # Ensure existing user is admin
-        if not existing_user.is_admin do
-          {:ok, admin_user} = Accounts.update_user_admin_status(existing_user, true)
-          IO.puts("✓ Made existing user '#{admin_username}' an admin")
-          admin_user
-        else
-          IO.puts("✓ Admin user '#{admin_username}' already exists")
-          existing_user
-        end
+        IO.puts("✓ Admin user '#{admin_username}' already exists")
+        ensure_admin_user.(existing_user, admin_username)
     end
 
   # Create a test user if it doesn't exist
@@ -102,7 +131,7 @@ if Mix.env() == :dev do
 
       existing_user ->
         IO.puts("✓ Test user '#{test_username}' already exists")
-        existing_user
+        ensure_test_password.(existing_user)
     end
 
   # Helper function to get mailbox by email
@@ -653,7 +682,7 @@ if Mix.env() == :dev do
 
   IO.puts("  Test User: testuser (testuser@elektrine.com)")
   IO.puts("")
-  IO.puts("Seed passwords are controlled by SEED_ADMIN_PASSWORD and SEED_TEST_PASSWORD.")
+  IO.puts("Seed password (admin + test): #{admin_password}")
 else
   IO.puts("Skipping seeds - not in development environment")
 end

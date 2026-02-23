@@ -24,24 +24,20 @@ defmodule Elektrine.PasswordManager.VaultEntry do
   end
 
   @doc """
-  Changeset for validating plaintext form input before encryption.
+  Changeset for validating non-sensitive form fields.
   """
   def form_changeset(vault_entry, attrs) do
     vault_entry
-    |> cast(attrs, [:title, :login_username, :website, :password, :notes, :user_id])
+    |> cast(attrs, [:title, :login_username, :website, :user_id])
     |> normalize_string(:title)
     |> normalize_string(:login_username)
     |> normalize_string(:website)
-    |> normalize_string(:notes)
     |> empty_to_nil(:login_username)
     |> empty_to_nil(:website)
-    |> empty_to_nil(:notes)
-    |> validate_required([:title, :password, :user_id])
+    |> validate_required([:title, :user_id])
     |> validate_length(:title, max: 120)
     |> validate_length(:login_username, max: 255)
     |> validate_length(:website, max: 255)
-    |> validate_length(:password, max: 1024)
-    |> validate_length(:notes, max: 10_000)
     |> validate_website()
   end
 
@@ -58,10 +54,17 @@ defmodule Elektrine.PasswordManager.VaultEntry do
       :encrypted_notes,
       :user_id
     ])
+    |> normalize_string(:title)
+    |> normalize_string(:login_username)
+    |> normalize_string(:website)
+    |> empty_to_nil(:login_username)
+    |> empty_to_nil(:website)
     |> validate_required([:title, :encrypted_password, :user_id])
     |> validate_length(:title, max: 120)
     |> validate_length(:login_username, max: 255)
     |> validate_length(:website, max: 255)
+    |> validate_encrypted_payload(:encrypted_password, required: true)
+    |> validate_encrypted_payload(:encrypted_notes, required: false)
     |> validate_website()
     |> foreign_key_constraint(:user_id)
   end
@@ -91,6 +94,68 @@ defmodule Elektrine.PasswordManager.VaultEntry do
       value -> value
     end)
   end
+
+  defp validate_encrypted_payload(changeset, field, opts) do
+    required? = Keyword.get(opts, :required, false)
+
+    case get_field(changeset, field) do
+      nil ->
+        if required? do
+          add_error(changeset, field, "can't be blank")
+        else
+          changeset
+        end
+
+      payload when is_map(payload) ->
+        if valid_client_payload?(payload) do
+          changeset
+        else
+          add_error(changeset, field, "must be a valid client-encrypted payload")
+        end
+
+      _ ->
+        add_error(changeset, field, "must be a valid client-encrypted payload")
+    end
+  end
+
+  defp valid_client_payload?(payload) do
+    version = payload_value(payload, "version", :version)
+    algorithm = payload_value(payload, "algorithm", :algorithm)
+    kdf = payload_value(payload, "kdf", :kdf)
+    iterations = payload_value(payload, "iterations", :iterations)
+    salt = payload_value(payload, "salt", :salt)
+    iv = payload_value(payload, "iv", :iv)
+    ciphertext = payload_value(payload, "ciphertext", :ciphertext)
+
+    valid_version?(version) and algorithm == "AES-GCM" and kdf == "PBKDF2-SHA256" and
+      is_integer(iterations) and iterations >= 100_000 and iterations <= 1_000_000 and
+      valid_base64_bytes?(salt, min_size: 16) and valid_base64_bytes?(iv, exact_size: 12) and
+      valid_base64_bytes?(ciphertext, min_size: 1)
+  end
+
+  defp payload_value(payload, string_key, atom_key) do
+    Map.get(payload, string_key) || Map.get(payload, atom_key)
+  end
+
+  defp valid_version?(version) when is_integer(version), do: version >= 1
+  defp valid_version?(version) when is_float(version), do: version >= 1
+  defp valid_version?(_version), do: false
+
+  defp valid_base64_bytes?(value, opts) when is_binary(value) do
+    case Base.decode64(value) do
+      {:ok, bytes} ->
+        size = byte_size(bytes)
+        min_size = Keyword.get(opts, :min_size, 0)
+        exact_size = Keyword.get(opts, :exact_size)
+
+        size >= min_size and (is_nil(exact_size) or size == exact_size)
+
+      :error ->
+        false
+    end
+  end
+
+  defp valid_base64_bytes?(_value, _opts), do: false
 
   defp empty_to_nil(changeset, field) do
     case get_change(changeset, field) do

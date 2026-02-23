@@ -352,6 +352,7 @@ defmodule Elektrine.Messaging.Federation do
       "profiles" => "#{base_url}/federation/messaging/arblarg/profiles",
       "events" => "#{base_url}/federation/messaging/events",
       "sync" => "#{base_url}/federation/messaging/sync",
+      "public_servers" => "#{base_url}/federation/messaging/servers/public",
       "snapshot_template" => "#{base_url}/federation/messaging/servers/{server_id}/snapshot",
       "schema_template" => "#{base_url}/federation/messaging/arblarg/{version}/schemas/{name}",
       "schemas" => "#{base_url}/federation/messaging/arblarg/#{version}/schemas"
@@ -797,6 +798,33 @@ defmodule Elektrine.Messaging.Federation do
       _ -> {:error, :recovery_failed}
     end
   end
+
+  @doc "Refreshes a mirrored server by fetching a fresh snapshot from its origin peer.\n"
+  def refresh_mirror_server_snapshot(%Server{} = server) do
+    with true <- server.is_federated_mirror == true,
+         remote_domain when is_binary(remote_domain) <-
+           normalize_optional_string(server.origin_domain),
+         {:ok, remote_server_id} <-
+           infer_remote_server_id_from_federation_id(server.federation_id),
+         %{} = peer <- outgoing_peer(remote_domain) || incoming_peer(remote_domain),
+         {:ok, snapshot_payload} <- fetch_remote_snapshot(peer, remote_server_id) do
+      import_server_snapshot(snapshot_payload, remote_domain)
+    else
+      false ->
+        {:error, :not_federated_mirror}
+
+      nil ->
+        {:error, :unknown_peer}
+
+      {:error, reason} ->
+        {:error, reason}
+
+      _ ->
+        {:error, :cannot_infer_snapshot_server_id}
+    end
+  end
+
+  def refresh_mirror_server_snapshot(_server), do: {:error, :not_federated_mirror}
 
   @doc "Pushes a local server snapshot to all configured outgoing peers.\n"
   def push_server_snapshot(server_id) do
@@ -3740,6 +3768,17 @@ defmodule Elektrine.Messaging.Federation do
     {:error, :cannot_infer_snapshot_server_id}
   end
 
+  defp infer_remote_server_id_from_federation_id(federation_id) when is_binary(federation_id) do
+    case extract_trailing_integer(federation_id) do
+      nil -> {:error, :cannot_infer_snapshot_server_id}
+      id -> {:ok, id}
+    end
+  end
+
+  defp infer_remote_server_id_from_federation_id(_) do
+    {:error, :cannot_infer_snapshot_server_id}
+  end
+
   defp extract_trailing_integer(nil) do
     nil
   end
@@ -4233,6 +4272,7 @@ defmodule Elektrine.Messaging.Federation do
         allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
         event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
         sync_endpoint: normalize_optional_string(value_from(peer, :sync_endpoint)),
+        directory_endpoint: normalize_optional_string(value_from(peer, :directory_endpoint)),
         snapshot_endpoint_template:
           normalize_optional_string(value_from(peer, :snapshot_endpoint_template))
       }

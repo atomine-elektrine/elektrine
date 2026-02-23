@@ -461,7 +461,13 @@
       
 <!-- Password Manager Tab -->
       <%= if @selected_tab == "password-manager" do %>
-        <div class="space-y-4 sm:space-y-6">
+        <div
+          id="password-vault-settings-tab"
+          phx-hook="PasswordVault"
+          class="space-y-4 sm:space-y-6"
+          data-vault-configured={to_string(@password_manager_vault_configured)}
+          data-vault-verifier={encode_payload(@password_manager_vault_verifier)}
+        >
           <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -471,7 +477,7 @@
                   </h2>
                   <p class="text-xs sm:text-sm text-base-content/70 mt-1">
                     {gettext(
-                      "Store credentials in your encrypted vault and reveal them only when needed."
+                      "Vault secrets are encrypted and decrypted in your browser with your vault passphrase."
                     )}
                   </p>
                 </div>
@@ -485,9 +491,111 @@
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
             <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
+                <%= if @password_manager_vault_configured do %>
+                  <h3 class="card-title text-base sm:text-lg mb-4">
+                    {gettext("Unlock Vault")}
+                  </h3>
+                  <p class="text-xs sm:text-sm text-base-content/70 mb-4">
+                    {gettext(
+                      "Your passphrase stays in this browser session and is never sent to the server."
+                    )}
+                  </p>
+
+                  <div class="space-y-3">
+                    <input
+                      type="password"
+                      class="input input-bordered w-full"
+                      placeholder={gettext("Enter vault passphrase")}
+                      autocomplete="current-password"
+                      data-vault-passphrase-input
+                    />
+
+                    <div class="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-sm flex-1"
+                        data-vault-unlock
+                      >
+                        {gettext("Unlock")}
+                      </button>
+                      <button type="button" class="btn btn-outline btn-sm flex-1" data-vault-lock>
+                        {gettext("Lock")}
+                      </button>
+                    </div>
+
+                    <p class="text-xs text-base-content/70" data-vault-status>
+                      {gettext("Vault locked.")}
+                    </p>
+                  </div>
+                <% else %>
+                  <h3 class="card-title text-base sm:text-lg mb-4">
+                    {gettext("Set Vault Passphrase")}
+                  </h3>
+                  <p class="text-xs sm:text-sm text-base-content/70 mb-4">
+                    {gettext("Create your vault passphrase before saving credentials.")}
+                  </p>
+
+                  <.form for={%{}} phx-submit="password_manager_setup_vault" data-vault-setup-form>
+                    <div class="space-y-3">
+                      <input
+                        type="password"
+                        name="_vault_setup_passphrase"
+                        class="input input-bordered w-full"
+                        placeholder={gettext("New vault passphrase")}
+                        autocomplete="new-password"
+                        data-vault-setup-passphrase
+                      />
+                      <input
+                        type="password"
+                        name="_vault_setup_passphrase_confirm"
+                        class="input input-bordered w-full"
+                        placeholder={gettext("Confirm passphrase")}
+                        autocomplete="new-password"
+                        data-vault-setup-passphrase-confirm
+                      />
+
+                      <input
+                        type="hidden"
+                        name="vault[encrypted_verifier]"
+                        data-vault-setup-encrypted-verifier
+                      />
+
+                      <button
+                        type="button"
+                        class="btn btn-primary btn-sm w-full"
+                        data-vault-setup-submit
+                      >
+                        {gettext("Create Vault")}
+                      </button>
+                    </div>
+                  </.form>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="card glass-card shadow-lg">
+              <div class="card-body p-4 sm:p-6">
                 <h3 class="card-title text-base sm:text-lg mb-4">
-                  {gettext("Add Vault Entry")}
+                  {gettext("Vault Security")}
                 </h3>
+                <ul class="space-y-3 text-sm text-base-content/70 list-disc pl-5">
+                  <li>{gettext("Only encrypted vault payloads are stored server-side.")}</li>
+                  <li>{gettext("Secrets are revealed only after local browser decryption.")}</li>
+                  <li>
+                    {gettext("If you lose your vault passphrase, secrets cannot be recovered.")}
+                  </li>
+                  <li>{gettext("Use unique passwords for each account.")}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg mb-4">
+                {gettext("Add Vault Entry")}
+              </h3>
+              <%= if @password_manager_vault_configured do %>
                 <p class="text-xs sm:text-sm text-base-content/70 mb-4">
                   {gettext("Group related fields and save one credential set per service.")}
                 </p>
@@ -498,6 +606,7 @@
                   bare={true}
                   phx-change="password_manager_validate"
                   phx-submit="password_manager_create"
+                  data-vault-form
                 >
                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div class="rounded-lg border border-base-300 bg-base-200/50 p-4 h-full space-y-4">
@@ -530,33 +639,16 @@
                       <div class="form-control w-full">
                         <div class="label py-0 mb-1">
                           <span class="label-text">{gettext("Password")}</span>
-                          <button
-                            type="button"
-                            phx-click="password_manager_generate_password"
-                            class="btn btn-xs btn-outline"
-                          >
+                          <button type="button" class="btn btn-xs btn-outline" data-vault-generate>
                             {gettext("Generate")}
                           </button>
                         </div>
                         <input
                           type="password"
-                          id={@password_manager_form[:password].id}
-                          name={@password_manager_form[:password].name}
-                          value={
-                            Phoenix.HTML.Form.normalize_value(
-                              "password",
-                              @password_manager_form[:password].value
-                            )
-                          }
-                          class={[
-                            "input input-bordered w-full",
-                            @password_manager_form[:password].errors != [] && "input-error"
-                          ]}
-                          required
+                          class="input input-bordered w-full"
+                          autocomplete="new-password"
+                          data-vault-password-input
                         />
-                        <.error :for={error <- @password_manager_form[:password].errors}>
-                          {translate_error(error)}
-                        </.error>
                       </div>
                     </div>
                   </div>
@@ -566,42 +658,36 @@
                       {gettext("Notes")}
                     </p>
                     <textarea
-                      id={@password_manager_form[:notes].id}
-                      name={@password_manager_form[:notes].name}
-                      class={[
-                        "textarea textarea-bordered w-full min-h-[6rem]",
-                        @password_manager_form[:notes].errors != [] && "textarea-error"
-                      ]}
+                      class="textarea textarea-bordered w-full min-h-[6rem]"
                       placeholder={gettext("Optional notes, recovery links, backup codes, etc.")}
-                    >{Phoenix.HTML.Form.normalize_value("textarea", @password_manager_form[:notes].value)}</textarea>
-                    <.error :for={error <- @password_manager_form[:notes].errors}>
-                      {translate_error(error)}
-                    </.error>
+                      data-vault-notes-input
+                    ></textarea>
                   </div>
+
+                  <input
+                    type="hidden"
+                    name="entry[encrypted_password]"
+                    data-vault-encrypted-password
+                  />
+                  <input type="hidden" name="entry[encrypted_notes]" data-vault-encrypted-notes />
 
                   <:actions>
                     <div class="w-full flex justify-end">
-                      <.button class="btn btn-primary w-full sm:w-auto">
+                      <.button
+                        type="button"
+                        class="btn btn-primary w-full sm:w-auto"
+                        data-vault-entry-submit
+                      >
                         {gettext("Save Entry")}
                       </.button>
                     </div>
                   </:actions>
                 </.simple_form>
-              </div>
-            </div>
-
-            <div class="card glass-card shadow-lg">
-              <div class="card-body p-4 sm:p-6">
-                <h3 class="card-title text-base sm:text-lg mb-4">
-                  {gettext("Vault Security")}
-                </h3>
-                <ul class="space-y-3 text-sm text-base-content/70 list-disc pl-5">
-                  <li>{gettext("Vault data is encrypted with your account-specific key.")}</li>
-                  <li>{gettext("Reveal passwords only when needed, then hide them.")}</li>
-                  <li>{gettext("Use unique passwords for each account.")}</li>
-                  <li>{gettext("Delete credentials you no longer need.")}</li>
-                </ul>
-              </div>
+              <% else %>
+                <p class="text-xs sm:text-sm text-base-content/70">
+                  {gettext("Set your vault passphrase first. This form unlocks after setup.")}
+                </p>
+              <% end %>
             </div>
           </div>
 
@@ -616,122 +702,128 @@
                   <div class="h-4 bg-base-300 rounded w-full"></div>
                 </div>
               <% else %>
-                <%= if @password_manager_entries == [] do %>
+                <%= if not @password_manager_vault_configured do %>
                   <div class="text-center py-10">
                     <.icon
                       name="hero-lock-closed"
                       class="w-10 h-10 mx-auto text-base-content/25 mb-3"
                     />
-                    <p class="text-sm text-base-content/60">{gettext("No entries yet")}</p>
+                    <p class="text-sm text-base-content/60">
+                      {gettext("Set up your vault to start saving entries")}
+                    </p>
                   </div>
                 <% else %>
-                  <div class="overflow-x-auto">
-                    <table class="table">
-                      <thead>
-                        <tr>
-                          <th>{gettext("Title")}</th>
-                          <th class="hidden md:table-cell">{gettext("Login")}</th>
-                          <th class="hidden lg:table-cell">{gettext("Website")}</th>
-                          <th class="hidden sm:table-cell">{gettext("Created")}</th>
-                          <th>{gettext("Actions")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <%= for entry <- @password_manager_entries do %>
-                          <tr id={"password-manager-entry-#{entry.id}"}>
-                            <td class="font-medium">{entry.title}</td>
-                            <td class="hidden md:table-cell text-sm text-base-content/70">
-                              {entry.login_username || "-"}
-                            </td>
-                            <td class="hidden lg:table-cell text-sm">
-                              <%= if entry.website do %>
-                                <a
-                                  href={entry.website}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  class="link link-hover"
-                                >
-                                  {entry.website}
-                                </a>
-                              <% else %>
-                                <span class="text-base-content/50">-</span>
-                              <% end %>
-                            </td>
-                            <td class="hidden sm:table-cell text-sm text-base-content/70">
-                              <.local_time datetime={entry.inserted_at} format="date" />
-                            </td>
-                            <td>
-                              <div class="flex gap-2">
-                                <%= if Map.has_key?(@password_manager_revealed_entries, entry.id) do %>
-                                  <button
-                                    type="button"
-                                    phx-click="password_manager_hide"
-                                    phx-value-id={entry.id}
-                                    class="btn btn-xs btn-outline"
+                  <%= if @password_manager_entries == [] do %>
+                    <div class="text-center py-10">
+                      <.icon
+                        name="hero-lock-closed"
+                        class="w-10 h-10 mx-auto text-base-content/25 mb-3"
+                      />
+                      <p class="text-sm text-base-content/60">{gettext("No entries yet")}</p>
+                    </div>
+                  <% else %>
+                    <div class="overflow-x-auto">
+                      <table class="table">
+                        <thead>
+                          <tr>
+                            <th>{gettext("Title")}</th>
+                            <th class="hidden md:table-cell">{gettext("Login")}</th>
+                            <th class="hidden lg:table-cell">{gettext("Website")}</th>
+                            <th class="hidden sm:table-cell">{gettext("Created")}</th>
+                            <th>{gettext("Actions")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <%= for entry <- @password_manager_entries do %>
+                            <tr
+                              id={"password-manager-entry-#{entry.id}"}
+                              data-vault-entry-id={entry.id}
+                              data-encrypted-password={encode_payload(entry.encrypted_password)}
+                              data-encrypted-notes={encode_payload(entry.encrypted_notes)}
+                            >
+                              <td class="font-medium">{entry.title}</td>
+                              <td class="hidden md:table-cell text-sm text-base-content/70">
+                                {entry.login_username || "-"}
+                              </td>
+                              <td class="hidden lg:table-cell text-sm">
+                                <%= if entry.website do %>
+                                  <a
+                                    href={entry.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="link link-hover"
                                   >
-                                    {gettext("Hide")}
-                                  </button>
+                                    {entry.website}
+                                  </a>
                                 <% else %>
+                                  <span class="text-base-content/50">-</span>
+                                <% end %>
+                              </td>
+                              <td class="hidden sm:table-cell text-sm text-base-content/70">
+                                <.local_time datetime={entry.inserted_at} format="date" />
+                              </td>
+                              <td>
+                                <div class="flex gap-2">
                                   <button
                                     type="button"
-                                    phx-click="password_manager_reveal"
-                                    phx-value-id={entry.id}
                                     class="btn btn-xs btn-primary"
+                                    data-vault-reveal={entry.id}
+                                    data-reveal-label={gettext("Reveal")}
+                                    data-hide-label={gettext("Hide")}
                                   >
                                     {gettext("Reveal")}
                                   </button>
-                                <% end %>
 
-                                <button
-                                  type="button"
-                                  phx-click="password_manager_delete"
-                                  phx-value-id={entry.id}
-                                  data-confirm={gettext("Delete this vault entry?")}
-                                  class="btn btn-xs btn-error btn-outline"
-                                >
-                                  {gettext("Delete")}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-
-                          <tr
-                            :if={Map.has_key?(@password_manager_revealed_entries, entry.id)}
-                            id={"password-manager-secret-#{entry.id}"}
-                          >
-                            <td colspan="5">
-                              <% revealed = @password_manager_revealed_entries[entry.id] %>
-                              <div class="bg-base-200 rounded-lg p-4 space-y-3">
-                                <div>
-                                  <p class="text-xs uppercase tracking-wide text-base-content/60 mb-1">
-                                    {gettext("Password")}
-                                  </p>
-                                  <code
-                                    id={"password-manager-password-#{entry.id}"}
-                                    class="font-mono text-sm break-all"
+                                  <button
+                                    type="button"
+                                    phx-click="password_manager_delete"
+                                    phx-value-id={entry.id}
+                                    data-confirm={gettext("Delete this vault entry?")}
+                                    class="btn btn-xs btn-error btn-outline"
                                   >
-                                    {revealed.password}
-                                  </code>
+                                    {gettext("Delete")}
+                                  </button>
                                 </div>
+                              </td>
+                            </tr>
 
-                                <%= if revealed.notes do %>
+                            <tr
+                              id={"password-manager-secret-#{entry.id}"}
+                              data-vault-secret-row={entry.id}
+                              class="hidden"
+                            >
+                              <td colspan="5">
+                                <div class="bg-base-200 rounded-lg p-4 space-y-3">
                                   <div>
+                                    <p class="text-xs uppercase tracking-wide text-base-content/60 mb-1">
+                                      {gettext("Password")}
+                                    </p>
+                                    <code
+                                      id={"password-manager-password-#{entry.id}"}
+                                      data-vault-password-output
+                                      class="font-mono text-sm break-all"
+                                    >
+                                    </code>
+                                  </div>
+
+                                  <div data-vault-notes-wrapper class="hidden">
                                     <p class="text-xs uppercase tracking-wide text-base-content/60 mb-1">
                                       {gettext("Notes")}
                                     </p>
                                     <pre
                                       id={"password-manager-notes-#{entry.id}"}
+                                      data-vault-notes-output
                                       class="text-sm whitespace-pre-wrap font-sans"
-                                    >{revealed.notes}</pre>
+                                    ></pre>
                                   </div>
-                                <% end %>
-                              </div>
-                            </td>
-                          </tr>
-                        <% end %>
-                      </tbody>
-                    </table>
-                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          <% end %>
+                        </tbody>
+                      </table>
+                    </div>
+                  <% end %>
                 <% end %>
               <% end %>
             </div>

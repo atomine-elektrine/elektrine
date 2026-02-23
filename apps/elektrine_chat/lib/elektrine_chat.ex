@@ -119,6 +119,7 @@ defmodule ElektrineChat do
   # Search and moderation
   defdelegate list_servers(user_id, opts \\ []), to: Messaging
   defdelegate list_public_servers(user_id, opts \\ []), to: Messaging
+  defdelegate list_public_directory_servers(opts \\ []), to: Messaging
   defdelegate get_server(server_id, user_id), to: Messaging
   defdelegate get_server_member(server_id, user_id), to: Messaging
   defdelegate create_server(creator_id, attrs), to: Messaging

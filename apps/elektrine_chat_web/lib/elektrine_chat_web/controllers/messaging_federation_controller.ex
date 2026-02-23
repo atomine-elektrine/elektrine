@@ -4,6 +4,7 @@ defmodule ElektrineChatWeb.MessagingFederationController do
   """
   use ElektrineChatWeb, :controller
 
+  alias ElektrineChat, as: Messaging
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation
 
@@ -76,6 +77,28 @@ defmodule ElektrineChatWeb.MessagingFederationController do
     |> json(payload)
   end
 
+  @doc """
+  GET /federation/messaging/servers/public
+  Public directory of local public servers for cross-instance discovery.
+  """
+  def public_servers(conn, params) do
+    limit = parse_int(params["limit"], 50)
+    query = normalize_search_query(params["query"])
+
+    servers = Messaging.list_public_directory_servers(limit: limit, query: query)
+
+    payload = %{
+      version: 1,
+      origin_domain: Federation.local_domain(),
+      servers: Enum.map(servers, &format_public_server/1)
+    }
+
+    conn
+    |> put_cache_headers(payload, @discovery_cache_control)
+    |> put_status(:ok)
+    |> json(payload)
+  end
+
   defp schema_name_from_params(%{"name" => name, "format" => format})
        when is_binary(name) and is_binary(format) do
     name <> "." <> format
@@ -95,6 +118,40 @@ defmodule ElektrineChatWeb.MessagingFederationController do
     |> put_resp_header("cache-control", cache_control)
     |> put_resp_header("etag", ~s(W/"#{etag}"))
   end
+
+  defp format_public_server(server) do
+    %{
+      server_id: server.id,
+      federation_id: server.federation_id,
+      name: server.name,
+      description: server.description,
+      icon_url: server.icon_url,
+      is_public: server.is_public,
+      member_count: server.member_count,
+      origin_domain: Federation.local_domain()
+    }
+  end
+
+  defp parse_int(value, _default) when is_integer(value), do: value
+  defp parse_int(nil, default), do: default
+
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, _} -> int
+      :error -> default
+    end
+  end
+
+  defp parse_int(_value, default), do: default
+
+  defp normalize_search_query(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_search_query(_value), do: nil
 
   @doc """
   POST /federation/messaging/events

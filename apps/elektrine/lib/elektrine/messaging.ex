@@ -230,6 +230,11 @@ defmodule Elektrine.Messaging do
   defdelegate list_public_servers(user_id, opts \\ []), to: Servers
 
   @doc """
+  Lists local public servers for federation directory export.
+  """
+  defdelegate list_public_directory_servers(opts \\ []), to: Servers
+
+  @doc """
   Gets a server with channels for a user.
   """
   defdelegate get_server(server_id, user_id), to: Servers
