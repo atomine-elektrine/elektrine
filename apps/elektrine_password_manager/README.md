@@ -1,17 +1,18 @@
 # Elektrine Password Manager
 
-Standalone umbrella app for encrypted password-vault domain logic.
+Standalone umbrella app for password-vault domain logic.
 
 ## Included
 
 - `Elektrine.PasswordManager` context
 - `Elektrine.PasswordManager.VaultEntry` schema
-- Domain tests for create/list/reveal/delete flows
+- Domain tests for create/list/retrieve/delete flows
 
 ## Current integration
 
 - Uses `Elektrine.Repo` for persistence.
-- Uses `Elektrine.Encryption` for at-rest encryption.
+- Requires explicit vault setup with a browser-encrypted verifier payload.
+- Stores browser-encrypted ciphertext envelopes and never decrypts secrets server-side.
 - Consumed by `elektrine_web` for Settings UI and LiveViews.
 
 ## Path to external open-source extraction

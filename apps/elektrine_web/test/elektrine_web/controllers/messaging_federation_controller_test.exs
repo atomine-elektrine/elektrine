@@ -261,6 +261,43 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
     end
   end
 
+  describe "GET /federation/messaging/servers/public" do
+    test "returns only local public servers", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture()
+
+      {:ok, local_public} =
+        Messaging.create_server(owner.id, %{name: "directory-local", is_public: true})
+
+      {:ok, _local_private} =
+        Messaging.create_server(owner.id, %{name: "directory-private", is_public: false})
+
+      {:ok, _mirror_public} =
+        %Server{}
+        |> Server.changeset(%{
+          name: "directory-remote-mirror",
+          is_public: true,
+          member_count: 13,
+          federation_id: "https://remote.test/federation/messaging/servers/501",
+          origin_domain: "remote.test",
+          is_federated_mirror: true
+        })
+        |> Repo.insert()
+
+      conn = get(conn, "/federation/messaging/servers/public")
+      response = json_response(conn, 200)
+
+      assert response["version"] == 1
+      assert response["origin_domain"] == Federation.local_domain()
+      assert Enum.any?(response["servers"], &(&1["name"] == "directory-local"))
+      refute Enum.any?(response["servers"], &(&1["name"] == "directory-private"))
+      refute Enum.any?(response["servers"], &(&1["name"] == "directory-remote-mirror"))
+
+      entry = Enum.find(response["servers"], &(&1["name"] == "directory-local"))
+      assert entry["server_id"] == local_public.id
+      assert entry["origin_domain"] == Federation.local_domain()
+    end
+  end
+
   describe "GET /.well-known/arblarg" do
     test "returns discovery metadata", %{conn: conn} do
       conn = get(conn, "/.well-known/arblarg")
@@ -273,8 +310,9 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       assert response["identity"]["current_key_id"] == "k1"
       assert is_binary(response["endpoints"]["events"])
       assert is_binary(response["endpoints"]["profiles"])
+      assert is_binary(response["endpoints"]["public_servers"])
       refute Map.has_key?(response, "profiles")
-      refute Map.has_key?(response, "features")
+      assert response["features"]["relay_transport"] == true
     end
 
     test "serves legacy discovery aliases", %{conn: conn} do

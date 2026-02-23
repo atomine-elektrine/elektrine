@@ -39,7 +39,7 @@ defmodule ElektrineWeb.ChatLive.Components.ConversationList do
               <div class="flex items-center gap-2">
                 <%= if conversation.last_message_at do %>
                   <span class="text-xs opacity-70">
-                    <.local_time datetime={conversation.last_message_at} format="time" />
+                    <.local_time datetime={conversation.last_message_at} format="datetime" />
                   </span>
                 <% end %>
                 <%= if Map.get(@unread_counts, conversation.id, 0) > 0 do %>
@@ -94,8 +94,60 @@ defmodule ElektrineWeb.ChatLive.Components.ConversationList do
   defp message_display_content(%Message{} = message), do: Message.display_content(message)
   defp message_display_content(%ChatMessage{} = message), do: ChatMessage.display_content(message)
 
-  defp message_display_content(message) when is_map(message),
-    do: Map.get(message, :content, "") || ""
+  defp message_display_content(message) when is_map(message) do
+    content =
+      message
+      |> map_message_value(:content)
+      |> fallback_message_text(message)
+      |> normalize_message_text()
+
+    if content != "", do: content, else: fallback_message_label(message)
+  end
 
   defp message_display_content(_), do: ""
+
+  defp fallback_message_text(nil, message), do: map_message_value(message, :body)
+  defp fallback_message_text("", message), do: map_message_value(message, :body)
+  defp fallback_message_text(content, _message), do: content
+
+  defp fallback_message_label(message) do
+    message_type = map_message_value(message, :message_type)
+    media_urls = map_message_value(message, :media_urls) || []
+
+    cond do
+      message_type == "voice" ->
+        "Voice message"
+
+      message_type == "image" ->
+        "Photo"
+
+      message_type == "file" ->
+        "File"
+
+      message_type == "system" ->
+        "[System message]"
+
+      is_list(media_urls) and media_urls != [] ->
+        "[Attachment]"
+
+      true ->
+        ""
+    end
+  end
+
+  defp normalize_message_text(nil), do: ""
+
+  defp normalize_message_text(text) when is_binary(text) do
+    text
+    |> String.trim()
+  end
+
+  defp normalize_message_text(text) when is_atom(text), do: Atom.to_string(text)
+  defp normalize_message_text(text) when is_integer(text), do: Integer.to_string(text)
+  defp normalize_message_text(text) when is_float(text), do: Float.to_string(text)
+  defp normalize_message_text(_), do: ""
+
+  defp map_message_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
 end

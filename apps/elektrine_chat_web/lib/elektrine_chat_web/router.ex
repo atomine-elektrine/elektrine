@@ -30,6 +30,12 @@ defmodule ElektrineChatWeb.Router do
     get "/servers/:server_id/snapshot", MessagingFederationController, :snapshot
   end
 
+  scope "/federation/messaging", ElektrineChatWeb do
+    pipe_through :api
+
+    get "/servers/public", MessagingFederationController, :public_servers
+  end
+
   scope "/federation/messaging/arblarg", ElektrineChatWeb do
     pipe_through :api
 

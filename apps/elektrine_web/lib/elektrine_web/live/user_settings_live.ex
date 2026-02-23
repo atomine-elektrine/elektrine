@@ -69,7 +69,8 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:adding_feed, false)
      |> assign(:rss_error, nil)
      |> assign(:password_manager_entries, [])
-     |> assign(:password_manager_revealed_entries, %{})
+     |> assign(:password_manager_vault_configured, false)
+     |> assign(:password_manager_vault_verifier, nil)
      |> assign(:password_manager_form, password_manager_entry_form(user.id))
      |> assign(:api_tokens, [])
      |> assign(:webhooks, [])
@@ -204,9 +205,21 @@ defmodule ElektrineWeb.UserSettingsLive do
   defp load_tab_data(socket, "password-manager") do
     if socket.assigns.loading_password_manager do
       user = socket.assigns.user
+      vault_settings = PasswordManager.get_vault_settings(user.id)
+      vault_configured = not is_nil(vault_settings)
+
+      entries =
+        if vault_configured,
+          do: PasswordManager.list_entries(user.id, include_secrets: true),
+          else: []
 
       socket
-      |> assign(:password_manager_entries, PasswordManager.list_entries(user.id))
+      |> assign(:password_manager_vault_configured, vault_configured)
+      |> assign(
+        :password_manager_vault_verifier,
+        vault_settings && vault_settings.encrypted_verifier
+      )
+      |> assign(:password_manager_entries, entries)
       |> assign(:loading_password_manager, false)
     else
       socket
@@ -264,13 +277,24 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_event("password_manager_create", %{"entry" => params}, socket) do
     user = socket.assigns.current_user
 
-    case PasswordManager.create_entry(user.id, params) do
-      {:ok, _entry} ->
+    with {:ok, params} <- decode_encrypted_params(params),
+         {:ok, _entry} <- PasswordManager.create_entry(user.id, params) do
+      {:noreply,
+       socket
+       |> assign(
+         :password_manager_entries,
+         PasswordManager.list_entries(user.id, include_secrets: true)
+       )
+       |> assign(:password_manager_form, password_manager_entry_form(user.id))
+       |> put_flash(:info, "Vault entry saved")}
+    else
+      {:error, :invalid_payload} ->
         {:noreply,
-         socket
-         |> assign(:password_manager_entries, PasswordManager.list_entries(user.id))
-         |> assign(:password_manager_form, password_manager_entry_form(user.id))
-         |> put_flash(:info, "Vault entry saved")}
+         socket |> put_flash(:error, "Vault payload is invalid. Unlock your vault and try again.")}
+
+      {:error, :vault_not_configured} ->
+        {:noreply,
+         socket |> put_flash(:error, "Set up your vault passphrase before saving entries.")}
 
       {:error, changeset} ->
         changeset = %{changeset | action: :insert}
@@ -279,53 +303,44 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   @impl true
-  def handle_event("password_manager_generate_password", _params, socket) do
+  def handle_event("password_manager_setup_vault", %{"vault" => params}, socket) do
     user = socket.assigns.current_user
 
-    params =
-      socket.assigns.password_manager_form
-      |> password_manager_form_params()
-      |> Map.put("password", generate_password())
-
-    form = password_manager_entry_form(user.id, params, :validate)
-    {:noreply, assign(socket, :password_manager_form, form)}
-  end
-
-  @impl true
-  def handle_event("password_manager_reveal", %{"id" => id}, socket) do
-    user = socket.assigns.current_user
-
-    with {:ok, entry_id} <- parse_entry_id(id),
-         {:ok, entry} <- PasswordManager.get_entry(user.id, entry_id) do
-      revealed = %{password: entry.password, notes: entry.notes}
-
+    with {:ok, params} <- decode_setup_params(params),
+         {:ok, settings} <- PasswordManager.setup_vault(user.id, params) do
       {:noreply,
-       update(socket, :password_manager_revealed_entries, fn revealed_entries ->
-         Map.put(revealed_entries, entry_id, revealed)
-       end)}
+       socket
+       |> assign(:password_manager_vault_configured, true)
+       |> assign(:password_manager_vault_verifier, settings.encrypted_verifier)
+       |> assign(
+         :password_manager_entries,
+         PasswordManager.list_entries(user.id, include_secrets: true)
+       )
+       |> put_flash(:info, "Vault configured")}
     else
-      :error ->
-        {:noreply, put_flash(socket, :error, "Invalid entry id")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Entry not found")}
-
-      {:error, :decryption_failed} ->
-        {:noreply, put_flash(socket, :error, "Could not decrypt this entry")}
-    end
-  end
-
-  @impl true
-  def handle_event("password_manager_hide", %{"id" => id}, socket) do
-    case parse_entry_id(id) do
-      {:ok, entry_id} ->
+      {:error, :invalid_payload} ->
         {:noreply,
-         update(socket, :password_manager_revealed_entries, fn revealed_entries ->
-           Map.delete(revealed_entries, entry_id)
-         end)}
+         socket
+         |> put_flash(
+           :error,
+           "Vault setup payload is invalid. Use the setup form to continue."
+         )}
 
-      :error ->
-        {:noreply, put_flash(socket, :error, "Invalid entry id")}
+      {:error, changeset} ->
+        details =
+          changeset.errors
+          |> Keyword.keys()
+          |> Enum.map(&to_string/1)
+          |> Enum.join(", ")
+
+        message =
+          if details == "" do
+            "Could not configure vault."
+          else
+            "Could not configure vault (#{details})."
+          end
+
+        {:noreply, socket |> put_flash(:error, message)}
     end
   end
 
@@ -337,10 +352,10 @@ defmodule ElektrineWeb.UserSettingsLive do
          {:ok, _entry} <- PasswordManager.delete_entry(user.id, entry_id) do
       {:noreply,
        socket
-       |> assign(:password_manager_entries, PasswordManager.list_entries(user.id))
-       |> update(:password_manager_revealed_entries, fn revealed_entries ->
-         Map.delete(revealed_entries, entry_id)
-       end)
+       |> assign(
+         :password_manager_entries,
+         PasswordManager.list_entries(user.id, include_secrets: true)
+       )
        |> put_flash(:info, "Vault entry deleted")}
     else
       :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
@@ -1400,39 +1415,47 @@ defmodule ElektrineWeb.UserSettingsLive do
     :error
   end
 
-  defp password_manager_form_params(%Phoenix.HTML.Form{source: %Ecto.Changeset{params: params}})
-       when is_map(params) do
-    Map.drop(params, ["user_id"])
+  defp decode_setup_params(params) when is_map(params) do
+    with {:ok, params} <- decode_payload_field(params, "encrypted_verifier", required: true) do
+      {:ok, params}
+    end
   end
 
-  defp password_manager_form_params(_form) do
-    %{}
+  defp decode_setup_params(_params), do: {:error, :invalid_payload}
+
+  defp decode_encrypted_params(params) when is_map(params) do
+    with {:ok, params} <- decode_payload_field(params, "encrypted_password", required: true),
+         {:ok, params} <- decode_payload_field(params, "encrypted_notes", required: false) do
+      {:ok, params}
+    end
   end
 
-  defp generate_password(length \\ 24) do
-    lowercase = Enum.to_list(97..122)
-    uppercase = Enum.to_list(65..90)
-    digits = Enum.to_list(48..57)
-    symbols = ~c"!@#$%^&*()-_=+"
+  defp decode_encrypted_params(_params), do: {:error, :invalid_payload}
 
-    required = [
-      random_char(lowercase),
-      random_char(uppercase),
-      random_char(digits),
-      random_char(symbols)
-    ]
+  defp decode_payload_field(params, field, opts) do
+    required? = Keyword.get(opts, :required, false)
 
-    all_chars = lowercase ++ uppercase ++ digits ++ symbols
+    case Map.get(params, field) do
+      nil ->
+        if required?, do: {:error, :invalid_payload}, else: {:ok, params}
 
-    random_chars =
-      for _ <- 1..max(length - length(required), 0) do
-        random_char(all_chars)
-      end
+      "" ->
+        if required?, do: {:error, :invalid_payload}, else: {:ok, Map.put(params, field, nil)}
 
-    (required ++ random_chars) |> Enum.shuffle() |> List.to_string()
+      value when is_map(value) ->
+        {:ok, params}
+
+      value when is_binary(value) ->
+        case Jason.decode(value) do
+          {:ok, decoded} when is_map(decoded) -> {:ok, Map.put(params, field, decoded)}
+          _ -> {:error, :invalid_payload}
+        end
+
+      _ ->
+        {:error, :invalid_payload}
+    end
   end
 
-  defp random_char(charlist) do
-    Enum.at(charlist, :rand.uniform(length(charlist)) - 1)
-  end
+  defp encode_payload(nil), do: ""
+  defp encode_payload(payload) when is_map(payload), do: Jason.encode!(payload)
 end

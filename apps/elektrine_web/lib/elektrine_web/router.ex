@@ -203,6 +203,13 @@ defmodule ElektrineWeb.Router do
     get("/servers/:server_id/snapshot", MessagingFederationController, :snapshot)
   end
 
+  # Public messaging federation server directory for cross-instance discovery
+  scope "/federation/messaging", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/servers/public", MessagingFederationController, :public_servers)
+  end
+
   # Public Arblarg schema registry
   scope "/federation/messaging/arblarg", ElektrineWeb do
     pipe_through(:api)
@@ -981,6 +988,7 @@ defmodule ElektrineWeb.Router do
   scope "/api/ext/password-manager", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_account_write_scope])
 
+    post("/vault/setup", PasswordManagerController, :setup)
     post("/entries", PasswordManagerController, :create)
     delete("/entries/:id", PasswordManagerController, :delete)
   end

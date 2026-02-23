@@ -96,6 +96,9 @@ import {
   Turnstile
 } from './form_hooks'
 
+// Password manager hooks
+import { PasswordVault } from './password_manager_hooks'
+
 // Passkey hooks
 import {
   PasskeyRegister,
@@ -198,6 +201,7 @@ export const Hooks = {
   TimezoneDetector,
   VPNDownload,
   Turnstile,
+  PasswordVault,
 
   // Static Site
   DragDrop,

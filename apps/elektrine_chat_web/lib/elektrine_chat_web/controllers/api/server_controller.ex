@@ -133,6 +133,11 @@ defmodule ElektrineChatWeb.API.ServerController do
         |> put_status(:unprocessable_entity)
         |> json(%{error: "Already a member of this server"})
 
+      {:error, :federation_sync_unavailable} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{error: "This federated server is temporarily unavailable to join"})
+
       {:error, reason} ->
         conn
         |> put_status(:unprocessable_entity)

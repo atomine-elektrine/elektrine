@@ -170,5 +170,40 @@ defmodule Elektrine.Messaging.ServersTest do
                |> Messaging.list_public_servers(query: "federated.example")
                |> Enum.map(& &1.name)
     end
+
+    test "imports remote discovery entries into mirror servers" do
+      discoverer = AccountsFixtures.user_fixture()
+
+      remote_discovery = [
+        %{
+          "name" => "remote-discovery",
+          "description" => "Remote discoverable server",
+          "is_public" => true,
+          "member_count" => 21,
+          "origin_domain" => "remote.example",
+          "federation_id" => "https://remote.example/federation/messaging/servers/212"
+        }
+      ]
+
+      servers =
+        Messaging.list_public_servers(discoverer.id,
+          remote_discovery_fn: fn _query, _limit -> remote_discovery end
+        )
+
+      assert Enum.any?(
+               servers,
+               &(&1.federation_id == "https://remote.example/federation/messaging/servers/212")
+             )
+
+      mirror =
+        Repo.get_by(Server,
+          federation_id: "https://remote.example/federation/messaging/servers/212"
+        )
+
+      assert mirror
+      assert mirror.is_federated_mirror
+      assert mirror.origin_domain == "remote.example"
+      assert mirror.member_count == 21
+    end
   end
 end

@@ -141,17 +141,17 @@ html[data-theme="dark"],
 }
 
 /* ==========================================================================
-   GRID BACKGROUNDS WITH SUBTLE CURSOR GLOW
+   GRID BACKGROUNDS
    ========================================================================== */
 
 :root {
   --grid-color: rgba(168, 85, 247, 0.12);
   --grid-x-color: rgba(168, 85, 247, 0.06);
-  --grid-glow-color: rgba(168, 85, 247, 0.22);
-  --grid-glow-x-color: rgba(168, 85, 247, 0.14);
+  --grid-glow-color: rgba(168, 85, 247, 0.20);
+  --grid-glow-x-color: rgba(168, 85, 247, 0.12);
 }
 
-/* Grid glow overlay - only brightens grid lines near cursor */
+/* Grid glow overlay - cursor-focused grid highlight */
 #cursor-glow-overlay {
   position: fixed;
   top: 0;
@@ -177,21 +177,21 @@ html[data-theme="dark"],
       var(--grid-glow-x-color) 50%,
       transparent calc(50% + 0.6px)
     );
-  opacity: var(--cursor-opacity, 0);
-  filter: saturate(1.1) brightness(1.2);
-  transition: opacity 180ms ease-out;
+  opacity: calc(var(--cursor-opacity, 0) * 0.78);
+  filter: saturate(1.08) brightness(1.12);
+  transition: opacity 140ms ease-out;
   will-change: opacity, mask-image, -webkit-mask-image;
   mask-image: radial-gradient(
-    var(--cursor-radius, 340px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
-    rgba(0, 0, 0, 0.78) 0%,
-    rgba(0, 0, 0, 0.58) 36%,
+    var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
+    rgba(0, 0, 0, 0.76) 0%,
+    rgba(0, 0, 0, 0.56) 36%,
     rgba(0, 0, 0, 0.30) 62%,
     transparent 84%
   );
   -webkit-mask-image: radial-gradient(
-    var(--cursor-radius, 340px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
-    rgba(0, 0, 0, 0.78) 0%,
-    rgba(0, 0, 0, 0.58) 36%,
+    var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
+    rgba(0, 0, 0, 0.76) 0%,
+    rgba(0, 0, 0, 0.56) 36%,
     rgba(0, 0, 0, 0.30) 62%,
     transparent 84%
   );
@@ -255,8 +255,6 @@ body[data-grid="orange"], body.grid-orange {
 
 /* Apple-like glass card effect */
 .glass-card {
-  --mouse-x: -1000px;
-  --mouse-y: -1000px;
   position: relative;
   isolation: isolate;
   background: oklch(var(--b2) / 0.8);
@@ -271,52 +269,6 @@ body[data-grid="orange"], body.grid-orange {
 /* Sticky glass-cards need different containment to work properly */
 .glass-card.sticky {
   contain: none;
-}
-
-/* Inner glow that follows cursor */
-.glass-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    400px circle at var(--mouse-x) var(--mouse-y),
-    rgba(168, 85, 247, 0.15),
-    transparent 40%
-  );
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.glass-card:hover::before {
-  opacity: 1;
-}
-
-/* Border glow that follows cursor */
-.glass-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: radial-gradient(
-    600px circle at var(--mouse-x) var(--mouse-y),
-    rgba(168, 85, 247, 0.5),
-    rgba(6, 182, 212, 0.3) 30%,
-    transparent 50%
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.glass-card:hover::after {
-  opacity: 1;
 }
 
 /* Ensure card content is above the glow effects */

@@ -4,6 +4,7 @@ defmodule Elektrine.Messaging.Servers do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
@@ -13,6 +14,8 @@ defmodule Elektrine.Messaging.Servers do
     Server,
     ServerMember
   }
+
+  @default_discovery_timeout_ms 5_000
 
   @doc """
   Lists all servers where the user has an active membership.
@@ -36,6 +39,7 @@ defmodule Elektrine.Messaging.Servers do
   def list_public_servers(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     query = normalize_search_query(Keyword.get(opts, :query))
+    _ = maybe_sync_remote_public_servers(query, limit, opts)
 
     joined_server_ids_query =
       from(sm in ServerMember,
@@ -45,6 +49,23 @@ defmodule Elektrine.Messaging.Servers do
 
     from(s in Server,
       where: s.is_public == true and s.id not in subquery(joined_server_ids_query),
+      order_by: [desc: s.member_count, desc: s.last_activity_at, desc: s.inserted_at],
+      limit: ^limit,
+      preload: [:creator]
+    )
+    |> maybe_filter_discoverable_servers(query)
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists local public servers for federation directory export.
+  """
+  def list_public_directory_servers(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    query = normalize_search_query(Keyword.get(opts, :query))
+
+    from(s in Server,
+      where: s.is_public == true and s.is_federated_mirror != true,
       order_by: [desc: s.member_count, desc: s.last_activity_at, desc: s.inserted_at],
       limit: ^limit,
       preload: [:creator]
@@ -154,25 +175,27 @@ defmodule Elektrine.Messaging.Servers do
       %Server{is_public: false} ->
         {:error, :not_public}
 
-      %Server{} ->
-        Repo.transaction(fn ->
-          with {:ok, member} <- do_add_member(server_id, user_id, "member"),
-               :ok <- add_user_to_all_server_channels(server_id, user_id) do
-            {:ok, member}
-          else
-            {:error, reason} -> Repo.rollback(reason)
+      %Server{} = server ->
+        with :ok <- maybe_hydrate_mirror_server(server) do
+          Repo.transaction(fn ->
+            with {:ok, member} <- do_add_member(server_id, user_id, "member"),
+                 :ok <- add_user_to_all_server_channels(server_id, user_id) do
+              {:ok, member}
+            else
+              {:error, reason} -> Repo.rollback(reason)
+            end
+          end)
+          |> case do
+            {:ok, {:ok, member}} ->
+              Federation.maybe_push_for_server(server_id)
+              {:ok, member}
+
+            {:ok, other} ->
+              other
+
+            {:error, reason} ->
+              {:error, reason}
           end
-        end)
-        |> case do
-          {:ok, {:ok, member}} ->
-            Federation.maybe_push_for_server(server_id)
-            {:ok, member}
-
-          {:ok, other} ->
-            other
-
-          {:error, reason} ->
-            {:error, reason}
         end
     end
   end
@@ -324,4 +347,323 @@ defmodule Elektrine.Messaging.Servers do
   end
 
   defp normalize_search_query(_), do: nil
+
+  defp maybe_sync_remote_public_servers(query, limit, opts) do
+    include_remote = Keyword.get(opts, :include_remote, true)
+
+    if include_remote and Federation.enabled?() do
+      remote_servers =
+        case Keyword.get(opts, :remote_discovery_fn) do
+          fun when is_function(fun, 2) ->
+            fun.(query, limit)
+
+          _ ->
+            fetch_remote_public_servers(query, limit)
+        end
+
+      remote_servers
+      |> normalize_remote_public_servers()
+      |> Enum.each(fn attrs ->
+        case upsert_discovered_remote_server(attrs) do
+          {:ok, _server} ->
+            :ok
+
+          {:error, :federation_origin_conflict} ->
+            Logger.warning(
+              "Skipping remote discovery entry due to federation origin conflict: #{attrs.federation_id}"
+            )
+
+          {:error, reason} ->
+            Logger.warning(
+              "Failed to upsert remote discovery entry #{attrs.federation_id}: #{inspect(reason)}"
+            )
+        end
+      end)
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("Remote public server sync failed: #{Exception.message(error)}")
+      :ok
+  end
+
+  defp fetch_remote_public_servers(query, limit) do
+    peers = Federation.outgoing_peers()
+    timeout_ms = remote_discovery_timeout_ms()
+
+    if peers == [] do
+      []
+    else
+      peers
+      |> Task.async_stream(
+        fn peer -> fetch_remote_public_servers_from_peer(peer, query, limit, timeout_ms) end,
+        max_concurrency: min(length(peers), 4),
+        timeout: timeout_ms + 1_000,
+        ordered: false
+      )
+      |> Enum.flat_map(fn
+        {:ok, {:ok, servers}} ->
+          servers
+
+        {:ok, {:error, peer_domain, reason}} ->
+          Logger.warning(
+            "Remote server directory fetch failed for #{peer_domain}: #{inspect(reason)}"
+          )
+
+          []
+
+        {:exit, reason} ->
+          Logger.warning("Remote server directory fetch task exited: #{inspect(reason)}")
+          []
+      end)
+    end
+  end
+
+  defp fetch_remote_public_servers_from_peer(peer, query, limit, timeout_ms) do
+    path = "/federation/messaging/servers/public"
+    query_string = build_remote_discovery_query_string(query, limit)
+    url = remote_public_servers_url(peer, path, query_string)
+    headers = Federation.signed_headers(peer, "GET", path, query_string, "")
+    request = Finch.build(:get, url, headers)
+
+    case Finch.request(request, Elektrine.Finch, receive_timeout: timeout_ms, pool_timeout: 2_000) do
+      {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 ->
+        case Jason.decode(body) do
+          {:ok, payload} ->
+            {:ok, parse_remote_discovery_payload(payload, peer)}
+
+          _ ->
+            {:error, peer.domain, :invalid_json}
+        end
+
+      {:ok, %Finch.Response{status: status, body: body}} ->
+        {:error, peer.domain, {:http_error, status, truncate(body)}}
+
+      {:error, reason} ->
+        {:error, peer.domain, reason}
+    end
+  end
+
+  defp parse_remote_discovery_payload(%{"servers" => servers}, peer) when is_list(servers) do
+    Enum.map(servers, &normalize_remote_public_server(&1, peer))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_remote_discovery_payload(%{servers: servers}, peer) when is_list(servers) do
+    Enum.map(servers, &normalize_remote_public_server(&1, peer))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_remote_discovery_payload(_payload, _peer), do: []
+
+  defp normalize_remote_public_servers(servers) when is_list(servers) do
+    Enum.map(servers, &normalize_remote_public_server(&1, nil))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_remote_public_servers(_), do: []
+
+  defp normalize_remote_public_server(entry, peer) when is_map(entry) do
+    peer_domain =
+      case peer do
+        %{domain: domain} when is_binary(domain) -> String.downcase(domain)
+        _ -> normalize_optional_string(value_from(entry, :origin_domain))
+      end
+
+    origin_domain =
+      normalize_optional_string(value_from(entry, :origin_domain))
+      |> case do
+        nil -> peer_domain
+        value -> String.downcase(value)
+      end
+
+    remote_server_id = parse_int(value_from(entry, :server_id), nil)
+
+    federation_id =
+      normalize_optional_string(value_from(entry, :federation_id)) ||
+        normalize_optional_string(value_from(entry, :id)) ||
+        remote_server_federation_id(peer, remote_server_id)
+
+    name = normalize_optional_string(value_from(entry, :name))
+    is_public = parse_bool(value_from(entry, :is_public), true)
+
+    cond do
+      is_nil(name) ->
+        nil
+
+      is_nil(federation_id) ->
+        nil
+
+      is_nil(origin_domain) ->
+        nil
+
+      is_binary(peer_domain) and origin_domain != peer_domain ->
+        nil
+
+      is_public != true ->
+        nil
+
+      true ->
+        %{
+          name: name,
+          description: normalize_optional_string(value_from(entry, :description)),
+          icon_url: normalize_optional_string(value_from(entry, :icon_url)),
+          is_public: true,
+          member_count: max(parse_int(value_from(entry, :member_count), 0), 0),
+          federation_id: federation_id,
+          origin_domain: origin_domain
+        }
+    end
+  end
+
+  defp normalize_remote_public_server(_entry, _peer), do: nil
+
+  defp upsert_discovered_remote_server(attrs) when is_map(attrs) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    attrs =
+      attrs
+      |> Map.put(:is_federated_mirror, true)
+      |> Map.put(:last_federated_at, now)
+
+    case Repo.get_by(Server, federation_id: attrs.federation_id) do
+      nil ->
+        %Server{} |> Server.changeset(attrs) |> Repo.insert()
+
+      %Server{origin_domain: existing_origin_domain} = server ->
+        normalized_existing = normalize_optional_string(existing_origin_domain)
+
+        if is_binary(normalized_existing) and
+             String.downcase(normalized_existing) != String.downcase(attrs.origin_domain) do
+          {:error, :federation_origin_conflict}
+        else
+          server |> Server.changeset(attrs) |> Repo.update()
+        end
+    end
+  end
+
+  defp maybe_hydrate_mirror_server(%Server{is_federated_mirror: true} = server) do
+    if server_has_channels?(server.id) do
+      :ok
+    else
+      case Federation.refresh_mirror_server_snapshot(server) do
+        {:ok, _server} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "Failed to hydrate mirror server #{server.id} (#{server.federation_id}): #{inspect(reason)}"
+          )
+
+          {:error, :federation_sync_unavailable}
+      end
+    end
+  end
+
+  defp maybe_hydrate_mirror_server(_server), do: :ok
+
+  defp server_has_channels?(server_id) do
+    from(c in Conversation,
+      where: c.server_id == ^server_id and c.type == "channel",
+      select: c.id,
+      limit: 1
+    )
+    |> Repo.exists?()
+  end
+
+  defp remote_public_servers_url(peer, path, query_string) do
+    query_suffix =
+      case query_string do
+        value when is_binary(value) and value != "" -> "?" <> value
+        _ -> ""
+      end
+
+    endpoint =
+      case peer do
+        %{directory_endpoint: endpoint} when is_binary(endpoint) and endpoint != "" ->
+          String.trim_trailing(endpoint, "/")
+
+        _ ->
+          peer.base_url <> path
+      end
+
+    endpoint <> query_suffix
+  end
+
+  defp build_remote_discovery_query_string(query, limit) do
+    [
+      {"limit", Integer.to_string(limit)},
+      {"query", query}
+    ]
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+    |> URI.encode_query()
+  end
+
+  defp remote_server_federation_id(%{base_url: base_url}, remote_server_id)
+       when is_binary(base_url) and is_integer(remote_server_id) do
+    "#{base_url}/federation/messaging/servers/#{remote_server_id}"
+  end
+
+  defp remote_server_federation_id(_, _), do: nil
+
+  defp remote_discovery_timeout_ms do
+    Application.get_env(:elektrine, :messaging_federation, [])
+    |> Keyword.get(:discovery_timeout_ms, @default_discovery_timeout_ms)
+  end
+
+  defp truncate(nil), do: ""
+
+  defp truncate(body) when is_binary(body) do
+    if byte_size(body) > 180 do
+      binary_part(body, 0, 180) <> "..."
+    else
+      body
+    end
+  end
+
+  defp truncate(body), do: inspect(body)
+
+  defp value_from(data, key) when is_map(data) do
+    Map.get(data, key) || Map.get(data, Atom.to_string(key))
+  end
+
+  defp value_from(_data, _key), do: nil
+
+  defp normalize_optional_string(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_optional_string(_), do: nil
+
+  defp parse_int(value, _default) when is_integer(value), do: value
+
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, _} -> int
+      :error -> default
+    end
+  end
+
+  defp parse_int(_value, default), do: default
+
+  defp parse_bool(value, _default) when is_boolean(value), do: value
+
+  defp parse_bool(value, default) when is_binary(value) do
+    case String.downcase(String.trim(value)) do
+      "true" -> true
+      "1" -> true
+      "false" -> false
+      "0" -> false
+      _ -> default
+    end
+  end
+
+  defp parse_bool(nil, default), do: default
+  defp parse_bool(_value, default), do: default
 end

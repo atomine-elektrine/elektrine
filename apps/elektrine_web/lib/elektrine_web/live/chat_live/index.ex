@@ -2058,7 +2058,62 @@ defmodule ElektrineWeb.ChatLive.Index do
   defp message_display_content(%{__struct__: Elektrine.Messaging.ChatMessage} = msg),
     do: ChatMessage.display_content(msg)
 
+  defp message_display_content(message) when is_map(message) do
+    content =
+      message
+      |> map_message_value(:content)
+      |> fallback_message_text(message)
+      |> normalize_message_text()
+
+    if content != "", do: content, else: fallback_message_label(message)
+  end
+
   defp message_display_content(_), do: ""
+
+  defp fallback_message_text(nil, message), do: map_message_value(message, :body)
+  defp fallback_message_text("", message), do: map_message_value(message, :body)
+  defp fallback_message_text(content, _message), do: content
+
+  defp fallback_message_label(message) do
+    message_type = map_message_value(message, :message_type)
+    media_urls = map_message_value(message, :media_urls) || []
+
+    cond do
+      message_type == "voice" ->
+        "Voice message"
+
+      message_type == "image" ->
+        "Photo"
+
+      message_type == "file" ->
+        "File"
+
+      message_type == "system" ->
+        "[System message]"
+
+      is_list(media_urls) and media_urls != [] ->
+        "[Attachment]"
+
+      true ->
+        ""
+    end
+  end
+
+  defp normalize_message_text(nil), do: ""
+
+  defp normalize_message_text(text) when is_binary(text) do
+    text
+    |> String.trim()
+  end
+
+  defp normalize_message_text(text) when is_atom(text), do: Atom.to_string(text)
+  defp normalize_message_text(text) when is_integer(text), do: Integer.to_string(text)
+  defp normalize_message_text(text) when is_float(text), do: Float.to_string(text)
+  defp normalize_message_text(_), do: ""
+
+  defp map_message_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
 
   defp message_sender(message) when is_map(message) do
     case Map.get(message, :sender) do

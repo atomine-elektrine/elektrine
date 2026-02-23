@@ -51,7 +51,8 @@ defmodule ElektrineUmbrella.MixProject do
 
   defp aliases do
     [
-      setup: ["cmd --cd apps/elektrine mix setup"]
+      setup: ["cmd --cd apps/elektrine mix setup"],
+      seed: ["run priv/repo/seeds.exs"]
     ]
   end
 end

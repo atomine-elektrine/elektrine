@@ -21,8 +21,13 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
              match?({:live_redirect, %{to: "/login"}}, reason)
   end
 
-  test "can create and reveal a vault entry", %{conn: conn} do
+  test "can create a vault entry with encrypted payload", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
+
+    assert {:ok, _settings} =
+             PasswordManager.setup_vault(user.id, %{
+               "encrypted_verifier" => encrypted_payload("verifier")
+             })
 
     {:ok, view, _html} =
       conn
@@ -32,37 +37,35 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
     assert has_element?(view, "nav a[href=\"/overview\"]")
     assert has_element?(view, "nav a[href=\"/account/password-manager\"]")
 
-    view
-    |> form("#vault-entry-form", %{
+    render_submit(view, "create", %{
       "entry" => %{
         "title" => "GitHub",
         "login_username" => "coder@example.com",
         "website" => "https://github.com",
-        "password" => "SuperSecret123!",
-        "notes" => "2FA enabled"
+        "encrypted_password" => Jason.encode!(encrypted_payload("SuperSecret123!")),
+        "encrypted_notes" => Jason.encode!(encrypted_payload("2FA enabled"))
       }
     })
-    |> render_submit()
 
     assert render(view) =~ "GitHub"
 
-    [entry] = PasswordManager.list_entries(user.id)
-
-    view
-    |> element("#entry-#{entry.id} button[phx-click='reveal']")
-    |> render_click()
-
-    assert render(view) =~ "SuperSecret123!"
-    assert render(view) =~ "2FA enabled"
+    [entry] = PasswordManager.list_entries(user.id, include_secrets: true)
+    assert entry.encrypted_password["algorithm"] == "AES-GCM"
+    assert entry.encrypted_notes["ciphertext"] != ""
   end
 
   test "can delete a vault entry", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
+    assert {:ok, _settings} =
+             PasswordManager.setup_vault(user.id, %{
+               "encrypted_verifier" => encrypted_payload("verifier")
+             })
+
     {:ok, entry} =
       PasswordManager.create_entry(user.id, %{
         "title" => "Disposable",
-        "password" => "temp-password"
+        "encrypted_password" => encrypted_payload("temp-password")
       })
 
     {:ok, view, _html} =
@@ -77,5 +80,17 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
     |> render_click()
 
     refute render(view) =~ "Disposable"
+  end
+
+  defp encrypted_payload(value) do
+    %{
+      "version" => 1,
+      "algorithm" => "AES-GCM",
+      "kdf" => "PBKDF2-SHA256",
+      "iterations" => 210_000,
+      "salt" => Base.encode64("1234567890123456"),
+      "iv" => Base.encode64("123456789012"),
+      "ciphertext" => Base.encode64("ciphertext:" <> value)
+    }
   end
 end
