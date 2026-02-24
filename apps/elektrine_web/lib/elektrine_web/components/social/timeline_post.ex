@@ -168,6 +168,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
       <.reply_ancestor_stack
         reply_ancestors={@reply_ancestors}
+        source={@source}
         current_user={@current_user}
         user_likes={@user_likes}
         user_boosts={@user_boosts}
@@ -621,6 +622,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
   # Reply ancestor stack component - renders root -> parent context cards with thread rails.
   attr :reply_ancestors, :list, default: []
+  attr :source, :string, default: "timeline"
   attr :current_user, :map, default: nil
   attr :user_likes, :map, default: %{}
   attr :user_boosts, :map, default: %{}
@@ -650,12 +652,15 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           is_clickable = ancestor_clickable?(ancestor)
           role_label = ancestor_position_label(idx, @ancestor_count)
           subtitle = ancestor_author_subtitle(ancestor)
-          interaction_state = ancestor_interaction_state(ancestor, @post_interactions)
-          like_count = ancestor_like_count(ancestor, interaction_state)
-          boost_count = ancestor_boost_count(ancestor)
-          reply_count = ancestor_reply_count(ancestor)
           local_id = ancestor.local_id
-          show_actions = @show_ancestor_actions && is_integer(local_id) %>
+          show_actions =
+            @show_ancestor_actions &&
+              ancestor_actions_enabled_for_source?(@source) &&
+              is_integer(local_id)
+          interaction_state = if(show_actions, do: ancestor_interaction_state(ancestor, @post_interactions), else: %{})
+          like_count = if(show_actions, do: ancestor_like_count(ancestor, interaction_state), else: 0)
+          boost_count = if(show_actions, do: ancestor_boost_count(ancestor), else: 0)
+          reply_count = if(show_actions, do: ancestor_reply_count(ancestor), else: 0) %>
 
           <div class="relative pl-6">
             <%= if idx < @ancestor_count - 1 do %>
@@ -1280,6 +1285,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     do: max(0, Map.get(ancestor, :reply_count, 0) || 0)
 
   defp ancestor_reply_count(_), do: 0
+
+  defp ancestor_actions_enabled_for_source?(source)
+       when source in ["timeline", "overview", "hashtag", "remote_profile"],
+       do: false
+
+  defp ancestor_actions_enabled_for_source?(_), do: true
 
   defp ancestor_reactions(local_id, post_reactions_map)
        when is_integer(local_id) and is_map(post_reactions_map),
