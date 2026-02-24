@@ -49,22 +49,22 @@ defmodule Elektrine.Constants do
   def smtp_timeout_ms, do: @smtp_timeout_ms
 
   # IMAP Server Limits
-  # Reduced from 2000
-  @imap_max_connections 100
-  # Reduced from 200 (need some for multiple folders)
-  @imap_max_connections_per_ip 10
-  # Reduced from 1 hour to 30 min
-  @imap_connection_timeout_ms 30 * 60 * 1000
-  # Reduced from 15 to 10 minutes
-  @imap_inactivity_timeout_ms 10 * 60 * 1000
+  # Raised from 100 to better support concurrent client syncs.
+  @imap_max_connections 200
+  # Raised from 10 so clients like Apple Mail can hold more folder sessions.
+  @imap_max_connections_per_ip 25
+  # Raised from 30 min to reduce reconnect churn during large syncs.
+  @imap_connection_timeout_ms 60 * 60 * 1000
+  # Raised from 10 min for slower/bulk mailbox traversal.
+  @imap_inactivity_timeout_ms 20 * 60 * 1000
   # 30 seconds
   @imap_send_timeout_ms 30_000
   # 50MB
   @imap_max_message_size 50 * 1024 * 1024
-  # Apple Mail needs ~10 (one per folder)
-  @imap_max_idle_per_ip 15
-  # Reduced from 30 to 15 minutes
-  @imap_idle_timeout_ms 15 * 60 * 1000
+  # Apple Mail may idle one session per folder; allow additional headroom.
+  @imap_max_idle_per_ip 30
+  # Raised from 15 min to reduce frequent idle reconnects.
+  @imap_idle_timeout_ms 30 * 60 * 1000
 
   def imap_max_connections, do: @imap_max_connections
   def imap_max_connections_per_ip, do: @imap_max_connections_per_ip

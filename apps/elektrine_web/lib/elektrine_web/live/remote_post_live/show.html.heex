@@ -352,7 +352,20 @@
           }>
             <!-- Main Content -->
             <div class={if @is_community_post, do: "flex-1 min-w-0", else: ""}>
-              <!-- Main Post Card -->
+              <.ancestor_context_stack
+                in_reply_to={@in_reply_to}
+                reply_parent={@reply_parent}
+                reply_parent_actor={@reply_parent_actor}
+                reply_ancestors={@reply_ancestors}
+                post_interactions={@post_interactions}
+                user_saves={@user_saves}
+                post_reactions={@post_reactions}
+                current_user={@current_user}
+                replying_to_comment_id={@replying_to_comment_id}
+                comment_reply_content={@comment_reply_content}
+              />
+              
+<!-- Main Post Card -->
               <article class="card social-page-card border border-base-300 rounded-lg p-6 mb-6">
                 <div class={if @community_actor, do: "flex gap-3 sm:gap-4", else: ""}>
                   <!-- Voting Column (Reddit-style) - Only for community posts -->
@@ -497,56 +510,6 @@
                           <.icon name="hero-exclamation-triangle" class="w-4 h-4 flex-shrink-0" />
                           <span class="font-medium text-sm">{@post["summary"]}</span>
                         </div>
-                      </div>
-                    <% end %>
-
-                    <%= if @in_reply_to do %>
-                      <% parent_author =
-                        reply_parent_author_label(@reply_parent, @reply_parent_actor)
-
-                      parent_domain =
-                        reply_parent_content_domain(
-                          @reply_parent,
-                          @reply_parent_actor,
-                          @in_reply_to
-                        )
-
-                      parent_title =
-                        if is_map(@reply_parent), do: @reply_parent["name"], else: nil
-
-                      parent_content =
-                        if is_map(@reply_parent), do: @reply_parent["content"], else: nil %>
-                      <div class="mb-4 rounded-lg border border-base-300 bg-base-200/40 p-3">
-                        <div class="flex items-center gap-2 text-xs opacity-70">
-                          <.icon name="hero-arrow-uturn-left" class="w-3 h-3" />
-                          <span>Replying to</span>
-                          <span class="font-medium">{parent_author}</span>
-                        </div>
-                        <%= if is_binary(parent_title) && String.trim(parent_title) != "" do %>
-                          <div class="mt-2 text-sm font-semibold line-clamp-2 break-words">
-                            {parent_title}
-                          </div>
-                        <% end %>
-                        <%= if is_binary(parent_content) && String.trim(parent_content) != "" do %>
-                          <div class="mt-1 text-sm opacity-80 line-clamp-4 break-words post-content">
-                            {raw(render_remote_post_content(parent_content, parent_domain))}
-                          </div>
-                        <% end %>
-                        <%= if http_url?(@in_reply_to) do %>
-                          <a
-                            href={@in_reply_to}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                          >
-                            View original post
-                            <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                          </a>
-                        <% else %>
-                          <div class="mt-2 text-xs opacity-60 break-all">
-                            {@in_reply_to}
-                          </div>
-                        <% end %>
                       </div>
                     <% end %>
                     

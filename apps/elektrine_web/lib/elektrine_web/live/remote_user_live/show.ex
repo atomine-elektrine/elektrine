@@ -10,8 +10,10 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias ElektrineWeb.Live.PostInteractions
 
   import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.Loaders.Skeleton
+  import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
 
   @impl true
   def mount(params, _session, socket) do
@@ -40,6 +42,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       |> assign(:modal_image_index, 0)
       |> assign(:modal_post, nil)
       |> assign(:post_replies, %{})
+      |> assign(:post_reactions, %{})
       |> assign(:show_quote_modal, false)
       |> assign(:quote_target_post, nil)
       |> assign(:quote_target_message_id, nil)
@@ -80,6 +83,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       # Load local posts synchronously to prevent flicker (fast DB query)
       local_posts = get_local_posts_from_remote_actor(remote_actor)
       socket = assign(socket, :local_posts, local_posts)
+      socket = assign(socket, :post_reactions, get_post_reactions(local_posts))
       socket = assign(socket, :loading, Enum.empty?(local_posts))
 
       # Load interactions for local posts
@@ -285,12 +289,15 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
           socket.assigns.user_saves
         end
 
+      post_reactions = get_post_reactions(local_posts)
+
       # Show local posts immediately
       socket =
         socket
         |> assign(:local_posts, local_posts)
         |> assign(:post_interactions, post_interactions)
         |> assign(:user_saves, user_saves)
+        |> assign(:post_reactions, post_reactions)
         |> assign(:loading, false)
 
       # PHASE 2: Kick off remote fetches in background (non-blocking)
@@ -428,6 +435,8 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         end
 
       user_saves = Map.merge(socket.assigns.user_saves, new_user_saves)
+      new_post_reactions = get_post_reactions(stored_posts)
+      post_reactions = Map.merge(socket.assigns.post_reactions || %{}, new_post_reactions)
 
       # Load replies/comments for newly discovered outbox posts.
       schedule_replies_fetch(unique_outbox_posts, self())
@@ -436,7 +445,8 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
        socket
        |> assign(:local_posts, all_local_posts)
        |> assign(:post_interactions, post_interactions)
-       |> assign(:user_saves, user_saves)}
+       |> assign(:user_saves, user_saves)
+       |> assign(:post_reactions, post_reactions)}
     end
   end
 
@@ -671,10 +681,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   defp community_post_url?(url) when is_binary(url) do
-    String.contains?(url, "/post/") ||
-      Regex.match?(~r{/c/[^/]+/p/}, url) ||
-      Regex.match?(~r{/m/[^/]+/p/}, url) ||
-      Regex.match?(~r{/m/[^/]+/t/}, url)
+    LemmyApi.community_post_url?(url)
   end
 
   defp community_post_url?(_), do: false
@@ -1082,6 +1089,16 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
      |> assign(:reply_content, "")}
   end
 
+  def handle_event("show_reply_form", %{"message_id" => message_id}, socket) do
+    post_id = normalize_post_id_for_reply(socket, message_id)
+    handle_event("show_reply_form", %{"post_id" => post_id}, socket)
+  end
+
+  def handle_event("show_reply_form", %{"id" => id}, socket) do
+    post_id = normalize_post_id_for_reply(socket, id)
+    handle_event("show_reply_form", %{"post_id" => post_id}, socket)
+  end
+
   def handle_event("cancel_reply", _params, socket) do
     {:noreply,
      socket
@@ -1202,6 +1219,18 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  def handle_event("like_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "like_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("like_post", %{"id" => id}, socket) do
+    handle_event("like_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
   def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
     if current_user_missing?(socket) do
       {:noreply, socket}
@@ -1237,6 +1266,18 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
           {:noreply, socket}
       end
     end
+  end
+
+  def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "unlike_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("unlike_post", %{"id" => id}, socket) do
+    handle_event("unlike_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
   end
 
   # Modal like toggle (for image modal)
@@ -1306,6 +1347,18 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  def handle_event("boost_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "boost_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("boost_post", %{"id" => id}, socket) do
+    handle_event("boost_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
   def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
     if current_user_missing?(socket) do
       {:noreply, socket}
@@ -1343,6 +1396,18 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "unboost_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("unboost_post", %{"id" => id}, socket) do
+    handle_event("unboost_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
   def handle_event("quote_post", %{"post_id" => post_id}, socket) do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
@@ -1363,6 +1428,18 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
           {:noreply, put_flash(socket, :error, "Post not found")}
       end
     end
+  end
+
+  def handle_event("quote_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "quote_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("quote_post", %{"id" => id}, socket) do
+    handle_event("quote_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
   end
 
   def handle_event("close_quote_modal", _params, socket) do
@@ -1435,6 +1512,78 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
           end
       end
     end
+  end
+
+  def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to react")}
+    else
+      user_id = socket.assigns.current_user.id
+
+      case PostInteractions.resolve_message_for_interaction(post_id,
+             actor_uri: socket.assigns[:remote_actor] && socket.assigns.remote_actor.uri
+           ) do
+        {:ok, message} ->
+          alias Elektrine.Messaging.Reactions
+
+          existing_reaction =
+            Repo.get_by(Elektrine.Messaging.MessageReaction,
+              message_id: message.id,
+              user_id: user_id,
+              emoji: emoji
+            )
+
+          if existing_reaction do
+            case Reactions.remove_reaction(message.id, user_id, emoji) do
+              {:ok, _} ->
+                updated_reactions =
+                  PostInteractions.update_post_reactions(
+                    socket.assigns.post_reactions,
+                    message.id,
+                    %{emoji: emoji, user_id: user_id},
+                    :remove
+                  )
+
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          else
+            case Reactions.add_reaction(message.id, user_id, emoji) do
+              {:ok, reaction} ->
+                reaction = Repo.preload(reaction, [:user, :remote_actor])
+
+                updated_reactions =
+                  PostInteractions.update_post_reactions(
+                    socket.assigns.post_reactions,
+                    message.id,
+                    reaction,
+                    :add
+                  )
+
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+              {:error, :rate_limited} ->
+                {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          end
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to process post")}
+      end
+    end
+  end
+
+  def handle_event("react_to_post", %{"message_id" => message_id, "emoji" => emoji}, socket) do
+    handle_event(
+      "react_to_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id), "emoji" => emoji},
+      socket
+    )
   end
 
   # Save/bookmark post handlers
@@ -1592,7 +1741,56 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{post_id}")}
+    navigate_id = normalize_navigate_post_id(socket, post_id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, message_id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
+      when is_binary(url) and url != "" do
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(url)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, post_id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("open_external_link", %{"url" => url}, socket)
+      when is_binary(url) and url != "" do
+    {:noreply, redirect(socket, external: url)}
+  end
+
+  def handle_event("open_external_link", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("navigate_to_profile", %{"handle" => handle}, socket)
+      when is_binary(handle) and handle != "" do
+    {:noreply, push_navigate(socket, to: "/#{handle}")}
+  end
+
+  def handle_event("navigate_to_profile", %{"username" => username}, socket)
+      when is_binary(username) and username != "" do
+    {:noreply, push_navigate(socket, to: "/#{username}")}
   end
 
   def handle_event("stop_propagation", _params, socket) do
@@ -2006,6 +2204,168 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       true ->
         0
     end
+  end
+
+  defp normalize_post_id_for_reply(socket, value) do
+    decoded_value = decode_post_ref(value)
+
+    case parse_local_message_id(decoded_value) do
+      {:ok, id} ->
+        case Enum.find(socket.assigns.local_posts || [], &(&1.id == id)) do
+          %{activitypub_id: activitypub_id}
+          when is_binary(activitypub_id) and activitypub_id != "" ->
+            activitypub_id
+
+          %{id: local_id} when is_integer(local_id) ->
+            Integer.to_string(local_id)
+
+          _ ->
+            to_string(decoded_value)
+        end
+
+      :error ->
+        to_string(decoded_value)
+    end
+  end
+
+  defp normalize_navigate_post_id(socket, value) do
+    decoded_value = decode_post_ref(value)
+
+    case parse_local_message_id(decoded_value) do
+      {:ok, id} ->
+        case Enum.find(socket.assigns.local_posts || [], &(&1.id == id)) do
+          %{activitypub_id: activitypub_id}
+          when is_binary(activitypub_id) and activitypub_id != "" ->
+            activitypub_id
+
+          _ ->
+            Integer.to_string(id)
+        end
+
+      :error ->
+        to_string(decoded_value)
+    end
+  end
+
+  defp parse_local_message_id(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_local_message_id(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_local_message_id(_), do: :error
+
+  defp decode_post_ref(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    try do
+      URI.decode_www_form(trimmed)
+    rescue
+      ArgumentError -> trimmed
+    end
+  end
+
+  defp decode_post_ref(value), do: value
+
+  defp likes_by_local_id(posts, post_interactions) when is_list(posts) do
+    Enum.reduce(posts, %{}, fn
+      %{id: id} = post, acc when is_integer(id) ->
+        state = interaction_state_for_local_post(post, post_interactions)
+        Map.put(acc, id, Map.get(state, :liked, false))
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp likes_by_local_id(_, _), do: %{}
+
+  defp boosts_by_local_id(posts, post_interactions) when is_list(posts) do
+    Enum.reduce(posts, %{}, fn
+      %{id: id} = post, acc when is_integer(id) ->
+        state = interaction_state_for_local_post(post, post_interactions)
+        Map.put(acc, id, Map.get(state, :boosted, false))
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp boosts_by_local_id(_, _), do: %{}
+
+  defp saves_by_local_id(posts, user_saves) when is_list(posts) do
+    Enum.reduce(posts, %{}, fn
+      %{id: id} = post, acc when is_integer(id) ->
+        Map.put(acc, id, post_saved?(post, user_saves))
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp saves_by_local_id(_, _), do: %{}
+
+  defp replies_by_local_id(posts, post_replies) when is_list(posts) do
+    Enum.reduce(posts, %{}, fn
+      %{id: id} = post, acc when is_integer(id) ->
+        Map.put(acc, id, replies_for_post(post, post_replies))
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp replies_by_local_id(_, _), do: %{}
+
+  defp interaction_state_for_local_post(post, post_interactions) do
+    key_candidates =
+      [
+        post.activitypub_id,
+        Integer.to_string(post.id),
+        post.id
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find_value(key_candidates, PostInteractions.default_interaction_state(), fn key ->
+      Map.get(post_interactions || %{}, key)
+    end) || PostInteractions.default_interaction_state()
+  end
+
+  defp post_saved?(post, user_saves) do
+    key_candidates =
+      [
+        post.activitypub_id,
+        Integer.to_string(post.id),
+        post.id
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find_value(key_candidates, false, fn key ->
+      case Map.get(user_saves || %{}, key) do
+        nil -> nil
+        value -> value
+      end
+    end) || false
+  end
+
+  defp replies_for_post(post, post_replies) do
+    key_candidates =
+      [
+        post.activitypub_id,
+        Integer.to_string(post.id),
+        post.id
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find_value(key_candidates, [], fn key ->
+      case Map.get(post_replies || %{}, key) do
+        nil -> nil
+        value -> value
+      end
+    end) || []
   end
 
   # Upload error helper

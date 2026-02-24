@@ -5,12 +5,19 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
 
   def mount(_params, session, socket) do
     via_tor = via_tor_request?(socket, session)
+    turnstile_config = Application.get_env(:elektrine, :turnstile, [])
+    site_key = turnstile_config[:site_key]
+
+    turnstile_enabled =
+      not Keyword.get(turnstile_config, :skip_verification, false) and is_binary(site_key) and
+        String.trim(site_key) != ""
 
     {:ok,
      assign(socket,
        page_title: "Reset Password",
        via_tor: via_tor,
-       turnstile_site_key: Application.get_env(:elektrine, :turnstile)[:site_key]
+       turnstile_site_key: site_key,
+       turnstile_enabled: turnstile_enabled
      )}
   end
 
@@ -71,23 +78,25 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                     />
                   </div>
                 <% else %>
-                  <div class="turnstile-wrapper">
-                    <div
-                      id="turnstile-container"
-                      phx-hook="Turnstile"
-                      class="cf-turnstile"
-                      data-sitekey={@turnstile_site_key}
-                      data-theme="dark"
-                      data-size="normal"
-                    >
+                  <%= if @turnstile_enabled do %>
+                    <div class="turnstile-wrapper">
+                      <div
+                        id="turnstile-container"
+                        phx-hook="Turnstile"
+                        class="cf-turnstile"
+                        data-sitekey={@turnstile_site_key}
+                        data-theme="dark"
+                        data-size="normal"
+                      >
+                      </div>
                     </div>
-                  </div>
-                  <input
-                    type="hidden"
-                    name="cf-turnstile-response"
-                    id="cf-turnstile-response"
-                    value=""
-                  />
+                    <input
+                      type="hidden"
+                      name="cf-turnstile-response"
+                      id="cf-turnstile-response"
+                      value=""
+                    />
+                  <% end %>
                 <% end %>
               </div>
 

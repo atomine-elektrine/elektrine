@@ -11,24 +11,29 @@ defmodule Elektrine.Encryption do
   Returns {encrypted_data, iv, tag} as base64-encoded strings.
   """
   def encrypt(plaintext, user_id) when is_binary(plaintext) and is_integer(user_id) do
-    key = derive_key(user_id)
-    iv = :crypto.strong_rand_bytes(12)
+    if encryption_enabled?() do
+      key = derive_key(user_id)
+      iv = :crypto.strong_rand_bytes(12)
 
-    {ciphertext, tag} =
-      :crypto.crypto_one_time_aead(
-        :aes_256_gcm,
-        key,
-        iv,
-        plaintext,
-        @aad,
-        true
-      )
+      {ciphertext, tag} =
+        :crypto.crypto_one_time_aead(
+          :aes_256_gcm,
+          key,
+          iv,
+          plaintext,
+          @aad,
+          true
+        )
 
-    %{
-      encrypted_data: Base.encode64(ciphertext),
-      iv: Base.encode64(iv),
-      tag: Base.encode64(tag)
-    }
+      %{
+        encrypted_data: Base.encode64(ciphertext),
+        iv: Base.encode64(iv),
+        tag: Base.encode64(tag)
+      }
+    else
+      # Encryption is disabled when secrets are not configured.
+      %{plaintext_data: plaintext}
+    end
   end
 
   @doc """
@@ -37,28 +42,17 @@ defmodule Elektrine.Encryption do
   Handles both atom and string keys (for database retrieval).
   """
   def decrypt(encrypted_map, user_id) when is_map(encrypted_map) and is_integer(user_id) do
-    key = derive_key(user_id)
+    plaintext = encrypted_map[:plaintext_data] || encrypted_map["plaintext_data"]
 
-    # Handle both atom and string keys (database stores as strings)
-    encrypted_data = encrypted_map[:encrypted_data] || encrypted_map["encrypted_data"]
-    iv_data = encrypted_map[:iv] || encrypted_map["iv"]
-    tag_data = encrypted_map[:tag] || encrypted_map["tag"]
+    cond do
+      is_binary(plaintext) ->
+        {:ok, plaintext}
 
-    ciphertext = Base.decode64!(encrypted_data)
-    iv = Base.decode64!(iv_data)
-    tag = Base.decode64!(tag_data)
+      not encryption_enabled?() ->
+        {:error, :encryption_not_configured}
 
-    case :crypto.crypto_one_time_aead(
-           :aes_256_gcm,
-           key,
-           iv,
-           ciphertext,
-           @aad,
-           tag,
-           false
-         ) do
-      plaintext when is_binary(plaintext) -> {:ok, plaintext}
-      :error -> {:error, :decryption_failed}
+      true ->
+        decrypt_encrypted_payload(encrypted_map, user_id)
     end
   end
 
@@ -99,11 +93,15 @@ defmodule Elektrine.Encryption do
   Hashes a single keyword for search index lookup.
   """
   def hash_keyword(keyword, user_id) when is_binary(keyword) and is_integer(user_id) do
-    salt = get_search_salt()
-    key = derive_key(user_id)
+    if encryption_enabled?() do
+      salt = get_search_salt!()
+      key = derive_key(user_id)
 
-    :crypto.mac(:hmac, :sha256, key <> salt, String.downcase(keyword))
-    |> Base.encode64()
+      :crypto.mac(:hmac, :sha256, key <> salt, String.downcase(keyword))
+      |> Base.encode64()
+    else
+      String.downcase(keyword)
+    end
   end
 
   @doc """
@@ -121,8 +119,8 @@ defmodule Elektrine.Encryption do
   defp derive_key(user_id) do
     # Use cached key if available, otherwise derive and cache
     Elektrine.Encryption.KeyCache.get_or_derive(user_id, fn ->
-      master_secret = get_master_secret()
-      salt = get_key_salt()
+      master_secret = get_master_secret!()
+      salt = get_key_salt!()
 
       # Use PBKDF2 to derive a user-specific key (expensive, but cached)
       :crypto.pbkdf2_hmac(
@@ -135,18 +133,72 @@ defmodule Elektrine.Encryption do
     end)
   end
 
-  defp get_master_secret do
+  defp decrypt_encrypted_payload(encrypted_map, user_id) do
+    encrypted_data = encrypted_map[:encrypted_data] || encrypted_map["encrypted_data"]
+    iv_data = encrypted_map[:iv] || encrypted_map["iv"]
+    tag_data = encrypted_map[:tag] || encrypted_map["tag"]
+
+    with encrypted_data when is_binary(encrypted_data) <- encrypted_data,
+         iv_data when is_binary(iv_data) <- iv_data,
+         tag_data when is_binary(tag_data) <- tag_data,
+         {:ok, ciphertext} <- Base.decode64(encrypted_data),
+         {:ok, iv} <- Base.decode64(iv_data),
+         {:ok, tag} <- Base.decode64(tag_data) do
+      key = derive_key(user_id)
+
+      case :crypto.crypto_one_time_aead(
+             :aes_256_gcm,
+             key,
+             iv,
+             ciphertext,
+             @aad,
+             tag,
+             false
+           ) do
+        plaintext when is_binary(plaintext) -> {:ok, plaintext}
+        :error -> {:error, :decryption_failed}
+      end
+    else
+      _ -> {:error, :invalid_encrypted_payload}
+    end
+  end
+
+  defp encryption_enabled? do
+    encryption_flag = Application.get_env(:elektrine, :encryption_enabled, true)
+    encryption_flag != false and encryption_secrets_configured?()
+  end
+
+  defp encryption_secrets_configured? do
+    Enum.all?([master_secret(), key_salt(), search_salt()], &present_secret?/1)
+  end
+
+  defp present_secret?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_secret?(_), do: false
+
+  defp master_secret do
+    Application.get_env(:elektrine, :encryption_master_secret)
+  end
+
+  defp key_salt do
+    Application.get_env(:elektrine, :encryption_key_salt)
+  end
+
+  defp search_salt do
+    Application.get_env(:elektrine, :encryption_search_salt)
+  end
+
+  defp get_master_secret! do
     # In production, this should come from environment variable or secure storage
     Application.get_env(:elektrine, :encryption_master_secret) ||
       raise "ENCRYPTION_MASTER_SECRET not configured"
   end
 
-  defp get_key_salt do
+  defp get_key_salt! do
     Application.get_env(:elektrine, :encryption_key_salt) ||
       raise "ENCRYPTION_KEY_SALT not configured"
   end
 
-  defp get_search_salt do
+  defp get_search_salt! do
     Application.get_env(:elektrine, :encryption_search_salt) ||
       raise "ENCRYPTION_SEARCH_SALT not configured"
   end

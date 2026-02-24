@@ -16,6 +16,7 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Messaging.Message
 
   import Ecto.Query
 
@@ -342,9 +343,11 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
     end_dt = DateTime.new!(end_date, ~T[23:59:59], "Etc/UTC")
 
     Elektrine.Repo.one(
-      from(p in "posts",
-        where: p.inserted_at >= ^start_dt and p.inserted_at <= ^end_dt,
-        select: count(p.id)
+      from(m in Message,
+        where: m.inserted_at >= ^start_dt and m.inserted_at <= ^end_dt,
+        where: m.visibility in ["public", "unlisted"],
+        where: is_nil(m.deleted_at),
+        select: count(m.id)
       )
     ) || 0
   rescue

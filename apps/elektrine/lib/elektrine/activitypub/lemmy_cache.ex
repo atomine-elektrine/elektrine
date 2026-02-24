@@ -128,7 +128,7 @@ defmodule Elektrine.ActivityPub.LemmyCache do
   """
   def refresh_cache(activitypub_id) when is_binary(activitypub_id) do
     # Only fetch if it's a Lemmy post
-    if String.contains?(activitypub_id, "/post/") do
+    if LemmyApi.community_post_url?(activitypub_id) do
       counts = LemmyApi.fetch_post_counts(activitypub_id) || %{}
       top_comments = LemmyApi.fetch_top_comments(activitypub_id, 3) || []
 

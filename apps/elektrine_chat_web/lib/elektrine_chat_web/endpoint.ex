@@ -6,11 +6,10 @@ defmodule ElektrineChatWeb.Endpoint do
     longpoll: false
 
   def session_options do
-    [
+    base_opts = [
       store: :cookie,
       key: "_elektrine_chat_auth",
       signing_salt: System.get_env("SESSION_SIGNING_SALT") || "chat_auth_signing_salt",
-      encryption_salt: System.get_env("SESSION_ENCRYPTION_SALT") || "chat_auth_encryption_salt",
       max_age: 30 * 24 * 60 * 60,
       same_site: "Lax",
       secure: secure_cookies?(),
@@ -18,6 +17,12 @@ defmodule ElektrineChatWeb.Endpoint do
       path: "/",
       extra: "SameSite=Lax"
     ]
+
+    case System.get_env("SESSION_ENCRYPTION_SALT") do
+      nil -> base_opts
+      "" -> base_opts
+      encryption_salt -> Keyword.put(base_opts, :encryption_salt, encryption_salt)
+    end
   end
 
   if code_reloading? do

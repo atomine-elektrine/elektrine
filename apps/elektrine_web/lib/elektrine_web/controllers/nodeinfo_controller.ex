@@ -2,6 +2,7 @@ defmodule ElektrineWeb.NodeinfoController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.AppCache
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.MRF
   alias Elektrine.Messaging
@@ -50,7 +51,11 @@ defmodule ElektrineWeb.NodeinfoController do
 
   defp render_nodeinfo(conn, version) do
     # Get stats (cached for performance)
-    stats = get_instance_stats()
+    stats =
+      case AppCache.get_system_config(:nodeinfo_instance_stats, fn -> get_instance_stats() end) do
+        {:ok, cached_stats} when is_map(cached_stats) -> cached_stats
+        _ -> get_instance_stats()
+      end
 
     base_data = %{
       version: version,

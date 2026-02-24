@@ -10,6 +10,7 @@ defmodule Elektrine.IMAP.Commands do
   @max_idle_per_ip Constants.imap_max_idle_per_ip()
   @idle_timeout_ms Constants.imap_idle_timeout_ms()
   @idle_stale_grace_ms 60_000
+  @default_storage_limit_bytes 524_288_000
   @authenticated_capabilities [
     "IMAP4rev1",
     "UIDPLUS",
@@ -19,11 +20,15 @@ defmodule Elektrine.IMAP.Commands do
     "ID",
     "ENABLE",
     "MOVE",
+    "THREAD=REFERENCES",
     "SPECIAL-USE",
+    "LIST-EXTENDED",
+    "LIST-STATUS",
     "LITERAL+",
     "CHILDREN",
     "SORT",
     "XLIST",
+    "QUOTA",
     "STATUS=SIZE"
   ]
   @unauthenticated_capabilities ["AUTH=PLAIN", "AUTH=LOGIN" | @authenticated_capabilities]
@@ -126,6 +131,9 @@ defmodule Elektrine.IMAP.Commands do
       "SORT" when state.state == :selected ->
         handle_sort(tag, args, state)
 
+      "THREAD" when state.state == :selected ->
+        handle_thread(tag, args, state)
+
       "FETCH" when state.state == :selected ->
         handle_fetch(tag, args, state)
 
@@ -187,50 +195,56 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_authenticate(tag, args, state) do
-    case String.upcase(args || "") do
-      "PLAIN" ->
+    case parse_authenticate_args(args) do
+      {:ok, "PLAIN", nil} ->
         Helpers.send_response(state.socket, "+")
 
         case :gen_tcp.recv(state.socket, 0, 60_000) do
           {:ok, data} ->
-            credentials = data |> to_string() |> String.trim()
-
-            case Helpers.decode_auth_plain(credentials) do
-              {:ok, username, password} ->
-                do_authenticate(tag, username, password, state)
-
-              {:error, _} ->
-                Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
-                {:continue, state}
-            end
+            authenticate_plain_payload(tag, data, state)
 
           {:error, _} ->
             Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
             {:continue, state}
         end
 
-      "LOGIN" ->
+      {:ok, "PLAIN", initial_response} ->
+        authenticate_plain_payload(tag, initial_response, state)
+
+      {:ok, "LOGIN", nil} ->
         Helpers.send_response(state.socket, "+ VXNlcm5hbWU6")
 
         case :gen_tcp.recv(state.socket, 0, 60_000) do
           {:ok, username_data} ->
-            username =
-              username_data |> to_string() |> String.trim() |> Base.decode64!() |> String.trim()
+            case Helpers.decode_auth_login_line(username_data) do
+              {:ok, "*"} ->
+                Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
+                {:continue, state}
 
-            Helpers.send_response(state.socket, "+ UGFzc3dvcmQ6")
+              {:ok, username} ->
+                Helpers.send_response(state.socket, "+ UGFzc3dvcmQ6")
 
-            case :gen_tcp.recv(state.socket, 0, 60_000) do
-              {:ok, password_data} ->
-                password =
-                  password_data
-                  |> to_string()
-                  |> String.trim()
-                  |> Base.decode64!()
-                  |> String.trim()
+                case :gen_tcp.recv(state.socket, 0, 60_000) do
+                  {:ok, password_data} ->
+                    case Helpers.decode_auth_login_line(password_data) do
+                      {:ok, "*"} ->
+                        Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
+                        {:continue, state}
 
-                do_authenticate(tag, username, password, state)
+                      {:ok, password} ->
+                        do_authenticate(tag, username, password, state)
 
-              {:error, _} ->
+                      :error ->
+                        Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+                        {:continue, state}
+                    end
+
+                  {:error, _} ->
+                    Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+                    {:continue, state}
+                end
+
+              :error ->
                 Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
                 {:continue, state}
             end
@@ -240,8 +254,53 @@ defmodule Elektrine.IMAP.Commands do
             {:continue, state}
         end
 
-      _ ->
+      {:ok, "LOGIN", _initial_response} ->
+        Helpers.send_response(
+          state.socket,
+          "#{tag} BAD Unexpected initial response for AUTHENTICATE LOGIN"
+        )
+
+        {:continue, state}
+
+      {:ok, _mechanism, _initial_response} ->
         Helpers.send_response(state.socket, "#{tag} NO Unsupported authentication mechanism")
+        {:continue, state}
+
+      {:error, :missing_mechanism} ->
+        Helpers.send_response(state.socket, "#{tag} BAD Missing authentication mechanism")
+        {:continue, state}
+    end
+  end
+
+  defp parse_authenticate_args(nil), do: {:error, :missing_mechanism}
+
+  defp parse_authenticate_args(args) do
+    case String.trim(args) do
+      "" ->
+        {:error, :missing_mechanism}
+
+      trimmed ->
+        case String.split(trimmed, ~r/\s+/, parts: 2) do
+          [mechanism] ->
+            {:ok, String.upcase(mechanism), nil}
+
+          [mechanism, initial_response] ->
+            {:ok, String.upcase(mechanism), String.trim(initial_response)}
+        end
+    end
+  end
+
+  defp authenticate_plain_payload(tag, payload, state) do
+    case Helpers.decode_auth_plain(payload) do
+      {:ok, username, password} ->
+        do_authenticate(tag, username, password, state)
+
+      {:error, :cancelled} ->
+        Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
+        {:continue, state}
+
+      {:error, _} ->
+        Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
         {:continue, state}
     end
   end
@@ -264,71 +323,81 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_select(tag, args, state) do
-    folder = String.trim(args || "", "\"")
-    {:ok, messages} = load_folder_messages(state.mailbox, folder)
-    unseen_count = Helpers.count_unseen(messages)
-    first_unseen = find_first_unseen(messages)
-    Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
-    Helpers.send_response(state.socket, "* #{unseen_count} RECENT")
+    with {:ok, folder} <- Helpers.parse_mailbox_arg(args),
+         {:ok, messages} <- load_folder_messages(state.mailbox, folder) do
+      unseen_count = Helpers.count_unseen(messages)
+      first_unseen = find_first_unseen(messages)
+      Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
+      Helpers.send_response(state.socket, "* #{unseen_count} RECENT")
 
-    Helpers.send_response(
-      state.socket,
-      "* FLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $Forwarded $MDNSent Junk NonJunk)"
-    )
+      Helpers.send_response(
+        state.socket,
+        "* FLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $Forwarded $MDNSent Junk NonJunk)"
+      )
 
-    Helpers.send_response(
-      state.socket,
-      "* OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $Forwarded $MDNSent \\*)] Permanent flags"
-    )
+      Helpers.send_response(
+        state.socket,
+        "* OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $Forwarded $MDNSent \\*)] Permanent flags"
+      )
 
-    Helpers.send_response(state.socket, "* OK [UIDVALIDITY #{state.uid_validity}] UIDs valid")
+      Helpers.send_response(state.socket, "* OK [UIDVALIDITY #{state.uid_validity}] UIDs valid")
 
-    Helpers.send_response(
-      state.socket,
-      "* OK [UIDNEXT #{Helpers.get_next_uid(messages)}] Predicted next UID"
-    )
+      Helpers.send_response(
+        state.socket,
+        "* OK [UIDNEXT #{Helpers.get_next_uid(messages)}] Predicted next UID"
+      )
 
-    if first_unseen > 0 do
-      Helpers.send_response(state.socket, "* OK [UNSEEN #{first_unseen}] First unseen message")
+      if first_unseen > 0 do
+        Helpers.send_response(state.socket, "* OK [UNSEEN #{first_unseen}] First unseen message")
+      end
+
+      Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
+      Helpers.send_response(state.socket, "#{tag} OK [READ-WRITE] SELECT completed")
+      {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
+    else
+      {:error, :missing_mailbox_name} ->
+        Helpers.send_response(state.socket, "#{tag} BAD Missing mailbox name")
+        {:continue, state}
     end
-
-    Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
-    Helpers.send_response(state.socket, "#{tag} OK [READ-WRITE] SELECT completed")
-    {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
   end
 
   defp handle_examine(tag, args, state) do
-    folder = String.trim(args || "", "\"")
-    {:ok, messages} = load_folder_messages(state.mailbox, folder)
-    _unseen_count = Helpers.count_unseen(messages)
-    first_unseen = find_first_unseen(messages)
-    Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
-    Helpers.send_response(state.socket, "* 0 RECENT")
+    with {:ok, folder} <- Helpers.parse_mailbox_arg(args),
+         {:ok, messages} <- load_folder_messages(state.mailbox, folder) do
+      _unseen_count = Helpers.count_unseen(messages)
+      first_unseen = find_first_unseen(messages)
+      Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
+      Helpers.send_response(state.socket, "* 0 RECENT")
 
-    Helpers.send_response(
-      state.socket,
-      "* FLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $Forwarded $MDNSent Junk NonJunk)"
-    )
+      Helpers.send_response(
+        state.socket,
+        "* FLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $Forwarded $MDNSent Junk NonJunk)"
+      )
 
-    Helpers.send_response(
-      state.socket,
-      "* OK [PERMANENTFLAGS ()] No permanent flags in read-only mode"
-    )
+      Helpers.send_response(
+        state.socket,
+        "* OK [PERMANENTFLAGS ()] No permanent flags in read-only mode"
+      )
 
-    Helpers.send_response(state.socket, "* OK [UIDVALIDITY #{state.uid_validity}] UIDs valid")
+      Helpers.send_response(state.socket, "* OK [UIDVALIDITY #{state.uid_validity}] UIDs valid")
 
-    Helpers.send_response(
-      state.socket,
-      "* OK [UIDNEXT #{Helpers.get_next_uid(messages)}] Predicted next UID"
-    )
+      Helpers.send_response(
+        state.socket,
+        "* OK [UIDNEXT #{Helpers.get_next_uid(messages)}] Predicted next UID"
+      )
 
-    if first_unseen > 0 do
-      Helpers.send_response(state.socket, "* OK [UNSEEN #{first_unseen}] First unseen message")
+      if first_unseen > 0 do
+        Helpers.send_response(state.socket, "* OK [UNSEEN #{first_unseen}] First unseen message")
+      end
+
+      Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
+      Helpers.send_response(state.socket, "#{tag} OK [READ-ONLY] EXAMINE completed")
+      {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
+    else
+      {:error, :missing_mailbox_name} ->
+        Helpers.send_response(state.socket, "#{tag} BAD Missing mailbox name")
+        {:continue, state}
     end
-
-    Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
-    Helpers.send_response(state.socket, "#{tag} OK [READ-ONLY] EXAMINE completed")
-    {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
   end
 
   defp find_first_unseen(messages) do
@@ -339,26 +408,31 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_list(tag, args, state) do
-    {_reference, pattern} = Helpers.parse_list_args(args)
+    %{
+      pattern: pattern,
+      return_status_items: return_status_items,
+      select_subscribed: select_subscribed
+    } = parse_list_command_args(args)
+
     all_folders = all_folders_for_user(state.user.id)
 
-    folders =
-      case pattern do
-        "*" ->
-          all_folders
+    candidate_folders =
+      if select_subscribed do
+        subscribed = subscribed_folder_set(state.user.id, all_folders)
 
-        "%" ->
-          all_folders
-
-        pattern_str ->
-          Enum.filter(all_folders, fn {name, _} ->
-            Helpers.matches_pattern?(String.downcase(name), String.downcase(pattern_str))
-          end)
+        Enum.filter(all_folders, fn {folder, _attrs} ->
+          MapSet.member?(subscribed, folder)
+        end)
+      else
+        all_folders
       end
+
+    folders = filter_folders_by_pattern(candidate_folders, pattern)
 
     Enum.each(folders, fn {folder, attrs} ->
       escaped = Helpers.escape_imap_string(folder)
       Helpers.send_response(state.socket, "* LIST (#{attrs}) \"/\" \"#{escaped}\"")
+      maybe_send_list_status(folder, return_status_items, state)
     end)
 
     Helpers.send_response(state.socket, "#{tag} OK LIST completed")
@@ -368,20 +442,12 @@ defmodule Elektrine.IMAP.Commands do
   defp handle_lsub(tag, args, state) do
     {_reference, pattern} = Helpers.parse_list_args(args)
     all_folders = all_folders_for_user(state.user.id)
+    subscribed = subscribed_folder_set(state.user.id, all_folders)
 
     folders =
-      case pattern do
-        "*" ->
-          all_folders
-
-        "%" ->
-          all_folders
-
-        pattern_str ->
-          Enum.filter(all_folders, fn {name, _} ->
-            Helpers.matches_pattern?(String.downcase(name), String.downcase(pattern_str))
-          end)
-      end
+      all_folders
+      |> Enum.filter(fn {folder, _attrs} -> MapSet.member?(subscribed, folder) end)
+      |> filter_folders_by_pattern(pattern)
 
     Enum.each(folders, fn {folder, attrs} ->
       escaped = Helpers.escape_imap_string(folder)
@@ -392,13 +458,57 @@ defmodule Elektrine.IMAP.Commands do
     {:continue, state}
   end
 
-  defp handle_subscribe(tag, _args, state) do
-    Helpers.send_response(state.socket, "#{tag} OK SUBSCRIBE completed")
+  defp handle_subscribe(tag, args, state) do
+    all_folders = all_folders_for_user(state.user.id)
+    folder_names = Enum.map(all_folders, fn {folder, _attrs} -> folder end)
+
+    with {:ok, folder_name} <- parse_folder_name_argument(args),
+         true <- destination_folder_exists?(folder_name, state.user.id),
+         :ok <- seed_imap_subscriptions_if_needed(state.user.id, folder_names),
+         {:ok, _subscription} <-
+           Elektrine.Email.ImapSubscriptions.subscribe_folder(
+             state.user.id,
+             canonical_folder_name(folder_name, all_folders)
+           ) do
+      Helpers.send_response(state.socket, "#{tag} OK SUBSCRIBE completed")
+    else
+      {:error, :missing_folder_name} ->
+        Helpers.send_response(state.socket, "#{tag} BAD Missing folder name")
+
+      false ->
+        Helpers.send_response(state.socket, "#{tag} NO [NONEXISTENT] Folder does not exist")
+
+      {:error, _reason} ->
+        Helpers.send_response(state.socket, "#{tag} NO [CANNOT] Failed to subscribe folder")
+    end
+
     {:continue, state}
   end
 
-  defp handle_unsubscribe(tag, _args, state) do
-    Helpers.send_response(state.socket, "#{tag} OK UNSUBSCRIBE completed")
+  defp handle_unsubscribe(tag, args, state) do
+    all_folders = all_folders_for_user(state.user.id)
+    folder_names = Enum.map(all_folders, fn {folder, _attrs} -> folder end)
+
+    with {:ok, folder_name} <- parse_folder_name_argument(args),
+         true <- destination_folder_exists?(folder_name, state.user.id),
+         :ok <- seed_imap_subscriptions_if_needed(state.user.id, folder_names),
+         :ok <-
+           Elektrine.Email.ImapSubscriptions.unsubscribe_folder(
+             state.user.id,
+             canonical_folder_name(folder_name, all_folders)
+           ) do
+      Helpers.send_response(state.socket, "#{tag} OK UNSUBSCRIBE completed")
+    else
+      {:error, :missing_folder_name} ->
+        Helpers.send_response(state.socket, "#{tag} BAD Missing folder name")
+
+      false ->
+        Helpers.send_response(state.socket, "#{tag} NO [NONEXISTENT] Folder does not exist")
+
+      {:error, _reason} ->
+        Helpers.send_response(state.socket, "#{tag} NO [CANNOT] Failed to unsubscribe folder")
+    end
+
     {:continue, state}
   end
 
@@ -424,17 +534,59 @@ defmodule Elektrine.IMAP.Commands do
 
   defp handle_getquotaroot(tag, args, state) do
     folder = String.trim(args || "INBOX", "\"")
+    {used_kib, limit_kib} = user_quota_storage(state)
     Helpers.send_response(state.socket, "* QUOTAROOT \"#{folder}\" \"\"")
-    Helpers.send_response(state.socket, "* QUOTA \"\" (STORAGE 0 1048576)")
+    Helpers.send_response(state.socket, "* QUOTA \"\" (STORAGE #{used_kib} #{limit_kib})")
     Helpers.send_response(state.socket, "#{tag} OK GETQUOTAROOT completed")
     {:continue, state}
   end
 
   defp handle_getquota(tag, _args, state) do
-    Helpers.send_response(state.socket, "* QUOTA \"\" (STORAGE 0 1048576)")
+    {used_kib, limit_kib} = user_quota_storage(state)
+    Helpers.send_response(state.socket, "* QUOTA \"\" (STORAGE #{used_kib} #{limit_kib})")
     Helpers.send_response(state.socket, "#{tag} OK GETQUOTA completed")
     {:continue, state}
   end
+
+  defp user_quota_storage(state) do
+    user_id =
+      case Map.get(state, :user) do
+        %{id: id} when is_integer(id) -> id
+        _ -> nil
+      end
+
+    user =
+      if is_integer(user_id) do
+        Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
+      end
+
+    used_bytes =
+      case user do
+        %{storage_used_bytes: used_bytes} when is_integer(used_bytes) and used_bytes >= 0 ->
+          used_bytes
+
+        _ ->
+          0
+      end
+
+    limit_bytes =
+      case user do
+        %{storage_limit_bytes: limit_bytes} when is_integer(limit_bytes) and limit_bytes >= 0 ->
+          limit_bytes
+
+        _ ->
+          @default_storage_limit_bytes
+      end
+
+    {bytes_to_imap_quota_units(used_bytes), bytes_to_imap_quota_units(limit_bytes)}
+  end
+
+  # RFC 2087 `STORAGE` values are in units of 1024 octets.
+  defp bytes_to_imap_quota_units(bytes) when is_integer(bytes) and bytes >= 0 do
+    div(bytes + 1023, 1024)
+  end
+
+  defp bytes_to_imap_quota_units(_), do: 0
 
   defp handle_sort(tag, args, state) do
     case parse_sort_args(args) do
@@ -459,6 +611,19 @@ defmodule Elektrine.IMAP.Commands do
         Helpers.send_response(state.socket, "#{tag} OK SORT completed")
     end
 
+    {:continue, state}
+  end
+
+  defp handle_thread(tag, _args, state) do
+    threads = thread_sequence_response(state.messages)
+
+    if threads == "" do
+      Helpers.send_response(state.socket, "* THREAD")
+    else
+      Helpers.send_response(state.socket, "* THREAD #{threads}")
+    end
+
+    Helpers.send_response(state.socket, "#{tag} OK THREAD completed")
     {:continue, state}
   end
 
@@ -516,7 +681,8 @@ defmodule Elektrine.IMAP.Commands do
              user_id: state.user.id,
              color: "#3b82f6",
              icon: "folder"
-           }) do
+           }),
+         :ok <- maybe_subscribe_new_folder(state.user.id, folder_name) do
       Helpers.send_response(state.socket, "#{tag} OK CREATE completed")
     else
       {:error, :missing_folder_name} ->
@@ -546,7 +712,12 @@ defmodule Elektrine.IMAP.Commands do
     with {:ok, folder_name} <- parse_folder_name_argument(args),
          false <- system_folder_name?(folder_name),
          folder when not is_nil(folder) <- find_custom_folder_by_name(state.user.id, folder_name),
-         {:ok, _deleted_folder} <- Elektrine.Email.delete_custom_folder(folder) do
+         {:ok, _deleted_folder} <- Elektrine.Email.delete_custom_folder(folder),
+         :ok <-
+           Elektrine.Email.ImapSubscriptions.remove_folder_subscription(
+             state.user.id,
+             folder.name
+           ) do
       Helpers.send_response(state.socket, "#{tag} OK DELETE completed")
     else
       {:error, :missing_folder_name} ->
@@ -570,7 +741,13 @@ defmodule Elektrine.IMAP.Commands do
          false <- system_folder_name?(old_name),
          false <- system_folder_name?(new_name),
          folder when not is_nil(folder) <- find_custom_folder_by_name(state.user.id, old_name),
-         {:ok, _updated_folder} <- Elektrine.Email.update_custom_folder(folder, %{name: new_name}) do
+         {:ok, _updated_folder} <- Elektrine.Email.update_custom_folder(folder, %{name: new_name}),
+         :ok <-
+           Elektrine.Email.ImapSubscriptions.rename_folder_subscription(
+             state.user.id,
+             folder.name,
+             new_name
+           ) do
       Helpers.send_response(state.socket, "#{tag} OK RENAME completed")
     else
       {:error, :invalid_rename_args} ->
@@ -649,6 +826,113 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
+  defp parse_list_command_args(args) do
+    trimmed = String.trim(args || "")
+
+    {prefix, return_clause} =
+      case Regex.run(~r/^(.*?)(?:\s+RETURN\s+\((.*)\))?\s*$/i, trimmed) do
+        [_, prefix, return_clause] -> {String.trim(prefix), return_clause}
+        [_, prefix] -> {String.trim(prefix), nil}
+        _ -> {trimmed, nil}
+      end
+
+    return_status_items =
+      case return_clause && Regex.run(~r/STATUS\s*\(([^)]*)\)/i, return_clause) do
+        [_, items] ->
+          items
+          |> String.split(~r/\s+/, trim: true)
+          |> Enum.map(&String.upcase/1)
+
+        _ ->
+          []
+      end
+
+    {list_args, select_options} = parse_list_select_options(prefix)
+
+    {_reference, pattern} =
+      if list_args == "" do
+        {"", "*"}
+      else
+        Helpers.parse_list_args(list_args)
+      end
+
+    %{
+      pattern: pattern,
+      return_status_items: return_status_items,
+      select_subscribed: Enum.member?(select_options, "SUBSCRIBED")
+    }
+  end
+
+  defp parse_list_select_options(list_args) do
+    case Regex.run(~r/^\(([^)]*)\)\s*(.*)$/s, list_args) do
+      [_, options, remaining] ->
+        parsed_options =
+          options
+          |> String.split(~r/\s+/, trim: true)
+          |> Enum.map(&String.upcase/1)
+
+        {String.trim(remaining), parsed_options}
+
+      _ ->
+        {list_args, []}
+    end
+  end
+
+  defp filter_folders_by_pattern(all_folders, pattern) do
+    case pattern do
+      "*" ->
+        all_folders
+
+      "%" ->
+        all_folders
+
+      pattern_str ->
+        Enum.filter(all_folders, fn {name, _attrs} ->
+          Helpers.matches_pattern?(String.downcase(name), String.downcase(pattern_str))
+        end)
+    end
+  end
+
+  defp maybe_send_list_status(_folder, [], _state), do: :ok
+
+  defp maybe_send_list_status(folder, status_items, state) do
+    if state.mailbox do
+      {:ok, messages} = load_folder_messages(state.mailbox, folder)
+      items = build_status_items(messages, status_items, state)
+      escaped_folder = Helpers.escape_imap_string(folder)
+      Helpers.send_response(state.socket, "* STATUS \"#{escaped_folder}\" (#{items})")
+    end
+  end
+
+  defp seed_imap_subscriptions_if_needed(user_id, folder_names) do
+    Elektrine.Email.ImapSubscriptions.ensure_seeded(user_id, folder_names)
+  end
+
+  defp maybe_subscribe_new_folder(user_id, folder_name) do
+    if Elektrine.Email.ImapSubscriptions.has_records?(user_id) do
+      case Elektrine.Email.ImapSubscriptions.subscribe_folder(user_id, folder_name) do
+        {:ok, _subscription} -> :ok
+        {:error, _reason} -> :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp canonical_folder_name(folder_name, all_folders) do
+    normalized = String.downcase(String.trim(folder_name))
+
+    case Enum.find(all_folders, fn {name, _attrs} -> String.downcase(name) == normalized end) do
+      {canonical_name, _attrs} -> canonical_name
+      nil -> String.trim(folder_name)
+    end
+  end
+
+  defp subscribed_folder_set(user_id, all_folders) do
+    default_folders = Enum.map(all_folders, fn {folder, _attrs} -> folder end)
+    Elektrine.Email.ImapSubscriptions.subscribed_folder_set(user_id, default_folders)
+  end
+
   defp duplicate_folder_name_error?(%Ecto.Changeset{errors: errors}) do
     Enum.any?(errors, fn
       {:name, {_message, metadata}} -> metadata[:constraint] == :unique
@@ -674,24 +958,7 @@ defmodule Elektrine.IMAP.Commands do
     case Helpers.parse_status_args(args) do
       {:ok, folder, items} ->
         {:ok, messages} = load_folder_messages(state.mailbox, folder)
-
-        status_items =
-          Enum.map(items, fn item ->
-            case String.upcase(item) do
-              "MESSAGES" -> "MESSAGES #{length(messages)}"
-              "RECENT" -> "RECENT #{Helpers.count_unseen(messages)}"
-              "UNSEEN" -> "UNSEEN #{Helpers.count_unseen(messages)}"
-              "UIDNEXT" -> "UIDNEXT #{Helpers.get_next_uid(messages)}"
-              "UIDVALIDITY" -> "UIDVALIDITY #{state.uid_validity}"
-              "SIZE" -> "SIZE #{calculate_folder_size(messages, state.user.id)}"
-              "HIGHESTMODSEQ" -> "HIGHESTMODSEQ 1"
-              "DELETED" -> "DELETED 0"
-              "DELETEDSTORAGE" -> "DELETEDSTORAGE 0"
-              _ -> nil
-            end
-          end)
-          |> Enum.reject(&is_nil/1)
-          |> Enum.join(" ")
+        status_items = build_status_items(messages, items, state)
 
         escaped_folder = Helpers.escape_imap_string(folder)
         Helpers.send_response(state.socket, "* STATUS \"#{escaped_folder}\" (#{status_items})")
@@ -702,6 +969,26 @@ defmodule Elektrine.IMAP.Commands do
     end
 
     {:continue, state}
+  end
+
+  defp build_status_items(messages, items, state) do
+    items
+    |> Enum.map(fn item ->
+      case String.upcase(item) do
+        "MESSAGES" -> "MESSAGES #{length(messages)}"
+        "RECENT" -> "RECENT #{Helpers.count_unseen(messages)}"
+        "UNSEEN" -> "UNSEEN #{Helpers.count_unseen(messages)}"
+        "UIDNEXT" -> "UIDNEXT #{Helpers.get_next_uid(messages)}"
+        "UIDVALIDITY" -> "UIDVALIDITY #{state.uid_validity}"
+        "SIZE" -> "SIZE #{calculate_folder_size(messages, state.user.id)}"
+        "HIGHESTMODSEQ" -> "HIGHESTMODSEQ 1"
+        "DELETED" -> "DELETED 0"
+        "DELETEDSTORAGE" -> "DELETEDSTORAGE 0"
+        _ -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
   end
 
   defp calculate_folder_size(messages, user_id) do
@@ -876,10 +1163,26 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_uid_thread(tag, _args, state) do
-    threads = state.messages |> Enum.map_join("", fn msg -> "(#{msg.id})" end)
-    Helpers.send_response(state.socket, "* THREAD #{threads}")
+    threads = thread_uid_response(state.messages)
+
+    if threads == "" do
+      Helpers.send_response(state.socket, "* THREAD")
+    else
+      Helpers.send_response(state.socket, "* THREAD #{threads}")
+    end
+
     Helpers.send_response(state.socket, "#{tag} OK UID THREAD completed")
     {:continue, state}
+  end
+
+  defp thread_sequence_response(messages) do
+    messages
+    |> Enum.with_index(1)
+    |> Enum.map_join("", fn {_msg, seq_num} -> "(#{seq_num})" end)
+  end
+
+  defp thread_uid_response(messages) do
+    Enum.map_join(messages, "", fn msg -> "(#{msg.id})" end)
   end
 
   defp handle_search(tag, args, state) do
@@ -940,12 +1243,8 @@ defmodule Elektrine.IMAP.Commands do
       {:ok, sequence_set, dest_folder} ->
         if destination_folder_exists?(dest_folder, state.user.id) do
           messages = Helpers.get_messages_by_sequence(state.messages, sequence_set)
-
-          Enum.each(messages, fn {msg, _seq_num} ->
-            copy_message_to_folder(msg, state.mailbox, dest_folder)
-          end)
-
-          Helpers.send_response(state.socket, "#{tag} OK COPY completed")
+          uid_pairs = copy_uid_pairs(messages, state.mailbox, dest_folder)
+          send_tagged_ok_with_optional_copyuid(state, tag, uid_pairs, "COPY completed")
         else
           Helpers.send_response(
             state.socket,
@@ -966,14 +1265,20 @@ defmodule Elektrine.IMAP.Commands do
         if destination_folder_exists?(dest_folder, state.user.id) do
           messages = Helpers.get_messages_by_sequence(state.messages, sequence_set)
 
+          uid_pairs =
+            if String.upcase(dest_folder) == "TRASH" do
+              []
+            else
+              copy_uid_pairs(messages, state.mailbox, dest_folder)
+            end
+
           Enum.each(messages, fn {msg, _seq_num} ->
-            copy_message_to_folder(msg, state.mailbox, dest_folder)
             current_flags = Response.get_message_flags(msg, state.selected_folder)
             new_flags = ["\\Deleted" | current_flags] |> Enum.uniq()
             update_message_flags(msg, new_flags, state.mailbox)
           end)
 
-          Helpers.send_response(state.socket, "#{tag} OK MOVE completed")
+          send_tagged_ok_with_optional_copyuid(state, tag, uid_pairs, "MOVE completed")
         else
           Helpers.send_response(
             state.socket,
@@ -986,6 +1291,42 @@ defmodule Elektrine.IMAP.Commands do
     end
 
     {:continue, state}
+  end
+
+  defp copy_uid_pairs(messages, mailbox, dest_folder) do
+    messages
+    |> Enum.reduce([], fn {msg, _seq_num}, acc ->
+      case copy_message_to_folder(msg, mailbox, dest_folder) do
+        {:ok, new_uid} -> [{msg.id, new_uid} | acc]
+        _ -> acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp send_tagged_ok_with_optional_copyuid(state, tag, uid_pairs, completion_text) do
+    case copyuid_response_code(state.uid_validity, uid_pairs) do
+      nil ->
+        Helpers.send_response(state.socket, "#{tag} OK #{completion_text}")
+
+      copyuid_code ->
+        Helpers.send_response(state.socket, "#{tag} OK #{copyuid_code} #{completion_text}")
+    end
+  end
+
+  defp copyuid_response_code(_uid_validity, []), do: nil
+
+  defp copyuid_response_code(uid_validity, uid_pairs) do
+    {source_uids, destination_uids} = Enum.unzip(uid_pairs)
+    source_set = format_uid_set(source_uids)
+    destination_set = format_uid_set(destination_uids)
+    "[COPYUID #{uid_validity} #{source_set} #{destination_set}]"
+  end
+
+  defp format_uid_set(uids) do
+    uids
+    |> Enum.map(&to_string/1)
+    |> Enum.join(",")
   end
 
   defp handle_store(tag, args, state) do
@@ -1153,12 +1494,8 @@ defmodule Elektrine.IMAP.Commands do
       {:ok, uid_set, dest_folder} ->
         if destination_folder_exists?(dest_folder, state.user.id) do
           messages = Helpers.get_messages_by_uid(state.messages, uid_set)
-
-          Enum.each(messages, fn {msg, _seq_num} ->
-            copy_message_to_folder(msg, state.mailbox, dest_folder)
-          end)
-
-          Helpers.send_response(state.socket, "#{tag} OK UID COPY completed")
+          uid_pairs = copy_uid_pairs(messages, state.mailbox, dest_folder)
+          send_tagged_ok_with_optional_copyuid(state, tag, uid_pairs, "UID COPY completed")
         else
           Helpers.send_response(
             state.socket,
@@ -1179,20 +1516,18 @@ defmodule Elektrine.IMAP.Commands do
         if destination_folder_exists?(dest_folder, state.user.id) do
           messages = Helpers.get_messages_by_uid(state.messages, uid_set)
 
-          if String.upcase(dest_folder) == "TRASH" do
-            Enum.each(messages, fn {msg, _seq_num} ->
-              current_flags = Response.get_message_flags(msg, state.selected_folder)
-              new_flags = ["\\Deleted" | current_flags] |> Enum.uniq()
-              update_message_flags(msg, new_flags, state.mailbox)
-            end)
-          else
-            Enum.each(messages, fn {msg, _seq_num} ->
-              copy_message_to_folder(msg, state.mailbox, dest_folder)
-              current_flags = Response.get_message_flags(msg, state.selected_folder)
-              new_flags = ["\\Deleted" | current_flags] |> Enum.uniq()
-              update_message_flags(msg, new_flags, state.mailbox)
-            end)
-          end
+          uid_pairs =
+            if String.upcase(dest_folder) == "TRASH" do
+              []
+            else
+              copy_uid_pairs(messages, state.mailbox, dest_folder)
+            end
+
+          Enum.each(messages, fn {msg, _seq_num} ->
+            current_flags = Response.get_message_flags(msg, state.selected_folder)
+            new_flags = ["\\Deleted" | current_flags] |> Enum.uniq()
+            update_message_flags(msg, new_flags, state.mailbox)
+          end)
 
           messages
           |> Enum.reverse()
@@ -1200,7 +1535,7 @@ defmodule Elektrine.IMAP.Commands do
             Helpers.send_response(state.socket, "* #{seq_num} EXPUNGE")
           end)
 
-          Helpers.send_response(state.socket, "#{tag} OK UID MOVE completed")
+          send_tagged_ok_with_optional_copyuid(state, tag, uid_pairs, "UID MOVE completed")
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
           {:continue, %{state | messages: fresh_messages}}
         else
@@ -1596,7 +1931,7 @@ defmodule Elektrine.IMAP.Commands do
                   {:new_email, new_msg}
                 )
 
-                :ok
+                {:ok, new_msg.id}
 
               {:error, reason} ->
                 Logger.error("Failed to copy message #{msg.id}: #{inspect(reason)}")

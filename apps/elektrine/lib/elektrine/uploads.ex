@@ -914,27 +914,36 @@ defmodule Elektrine.Uploads do
   end
 
   defp attachment_url_presigned(attachment) do
-    if String.starts_with?(attachment, "http") do
-      attachment
-    else
-      bucket = get_config(:bucket)
-      config = ExAws.Config.new(:s3)
+    cond do
+      get_config(:adapter) == :local ->
+        attachment_url_direct(attachment)
 
-      key =
-        if String.contains?(attachment, "/") do
-          attachment
+      String.starts_with?(attachment, "http") ->
+        attachment
+
+      true ->
+        bucket = get_config(:bucket)
+        config = ExAws.Config.new(:s3)
+
+        key =
+          if String.contains?(attachment, "/") do
+            attachment
+          else
+            "chat-attachments/#{attachment}"
+          end
+
+        if is_binary(bucket) and bucket != "" do
+          case ExAws.S3.presigned_url(config, :get, bucket, key,
+                 expires_in: 3600,
+                 virtual_host: false,
+                 query_params: [{"response-content-disposition", "inline"}]
+               ) do
+            {:ok, url} -> url
+            _ -> attachment_url_direct(attachment)
+          end
         else
-          "chat-attachments/#{attachment}"
+          attachment_url_direct(attachment)
         end
-
-      case ExAws.S3.presigned_url(config, :get, bucket, key,
-             expires_in: 3600,
-             virtual_host: false,
-             query_params: [{"response-content-disposition", "inline"}]
-           ) do
-        {:ok, url} -> url
-        _ -> attachment_url_direct(attachment)
-      end
     end
   end
 

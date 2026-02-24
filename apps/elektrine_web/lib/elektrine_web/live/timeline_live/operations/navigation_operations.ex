@@ -15,10 +15,15 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
     post =
       Enum.find(socket.assigns[:timeline_posts] || [], fn post ->
         to_string(post.id) == to_string(id)
-      end)
+      end) || fetch_post_for_navigation(id)
+
+    reply_thread_path = reply_thread_path(post, id)
 
     path =
       cond do
+        is_binary(reply_thread_path) ->
+          reply_thread_path
+
         post && post.federated && is_binary(post.activitypub_id) && post.activitypub_id != "" ->
           "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
 
@@ -113,5 +118,85 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
         socket
       ) do
     {:noreply, push_navigate(socket, to: "/remote/#{username}@#{domain}")}
+  end
+
+  defp reply_thread_path(nil, _id), do: nil
+
+  defp reply_thread_path(post, id) do
+    anchor = reply_anchor_fragment(id)
+
+    cond do
+      parent_id = local_reply_parent_id(post) ->
+        "/remote/post/#{parent_id}#{anchor}"
+
+      in_reply_to = metadata_in_reply_to(post) ->
+        "/remote/post/#{URI.encode_www_form(in_reply_to)}#{anchor}"
+
+      true ->
+        nil
+    end
+  end
+
+  defp local_reply_parent_id(%{reply_to_id: reply_to_id}) when is_integer(reply_to_id),
+    do: reply_to_id
+
+  defp local_reply_parent_id(%{reply_to_id: reply_to_id}) when is_binary(reply_to_id) do
+    case Integer.parse(reply_to_id) do
+      {value, ""} -> value
+      _ -> nil
+    end
+  end
+
+  defp local_reply_parent_id(_), do: nil
+
+  defp metadata_in_reply_to(post) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata")
+
+    if is_map(metadata) do
+      [
+        Map.get(metadata, "inReplyTo"),
+        Map.get(metadata, "in_reply_to"),
+        Map.get(metadata, :inReplyTo),
+        Map.get(metadata, :in_reply_to)
+      ]
+      |> Enum.find_value(&normalize_in_reply_to_ref/1)
+    else
+      nil
+    end
+  end
+
+  defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
+  defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
+  defp normalize_in_reply_to_ref(%{id: id}), do: normalize_in_reply_to_ref(id)
+  defp normalize_in_reply_to_ref(%{href: href}), do: normalize_in_reply_to_ref(href)
+  defp normalize_in_reply_to_ref([first | _]), do: normalize_in_reply_to_ref(first)
+
+  defp normalize_in_reply_to_ref(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_in_reply_to_ref(_), do: nil
+
+  defp reply_anchor_fragment(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {value, ""} -> "#message-#{value}"
+      _ -> ""
+    end
+  end
+
+  defp reply_anchor_fragment(id) when is_integer(id), do: "#message-#{id}"
+  defp reply_anchor_fragment(_), do: ""
+
+  defp fetch_post_for_navigation(id) do
+    with {post_id, ""} <- Integer.parse(to_string(id)),
+         %Elektrine.Messaging.Message{} = post <-
+           Elektrine.Repo.get(Elektrine.Messaging.Message, post_id) do
+      post
+    else
+      _ -> nil
+    end
   end
 end

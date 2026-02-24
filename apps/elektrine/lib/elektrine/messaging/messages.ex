@@ -1553,16 +1553,35 @@ defmodule Elektrine.Messaging.Messages do
     if Enum.empty?(refs) do
       nil
     else
-      from(m in Message,
-        where: m.activitypub_id in ^refs or m.activitypub_url in ^refs,
-        limit: 1,
-        preload: [:sender, :remote_actor]
-      )
-      |> Repo.one()
+      case message_by_activitypub_id_refs(refs) do
+        %Message{} = message ->
+          message
+
+        nil ->
+          message_by_activitypub_url_refs(refs)
+      end
     end
   end
 
   def get_message_by_activitypub_ref(_), do: nil
+
+  defp message_by_activitypub_id_refs(refs) when is_list(refs) do
+    from(m in Message,
+      where: m.activitypub_id in ^refs,
+      limit: 1,
+      preload: [:sender, :remote_actor]
+    )
+    |> Repo.one()
+  end
+
+  defp message_by_activitypub_url_refs(refs) when is_list(refs) do
+    from(m in Message,
+      where: m.activitypub_url in ^refs,
+      limit: 1,
+      preload: [:sender, :remote_actor]
+    )
+    |> Repo.one()
+  end
 
   @doc """
   Gets multiple messages by their ActivityPub IDs.
@@ -2106,7 +2125,8 @@ defmodule Elektrine.Messaging.Messages do
       remote_actor: [],
       link_preview: [],
       hashtags: [],
-      reply_to: [sender: [:profile], remote_actor: []],
+      # Preload a short ancestor chain to avoid per-post lookups in timeline rendering.
+      reply_to: timeline_ancestor_preloads(3),
       quoted_message: [sender: [:profile], remote_actor: [], link_preview: []],
       shared_message: [
         sender: [:profile],
@@ -2128,7 +2148,8 @@ defmodule Elektrine.Messaging.Messages do
       sender: [:profile],
       remote_actor: [],
       link_preview: [],
-      reply_to: [sender: [:profile], remote_actor: []],
+      # Keep feed ancestor context cheap by loading up to three reply ancestors in bulk.
+      reply_to: timeline_ancestor_preloads(3),
       quoted_message: [sender: [:profile], remote_actor: [], link_preview: []],
       shared_message: [
         sender: [:profile],
@@ -2173,6 +2194,12 @@ defmodule Elektrine.Messaging.Messages do
       link_preview: [],
       quoted_message: [sender: [:profile], remote_actor: []]
     ]
+  end
+
+  defp timeline_ancestor_preloads(0), do: [sender: [:profile], remote_actor: []]
+
+  defp timeline_ancestor_preloads(depth) when depth > 0 do
+    [sender: [:profile], remote_actor: [], reply_to: timeline_ancestor_preloads(depth - 1)]
   end
 
   @doc """

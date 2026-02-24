@@ -12,38 +12,16 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
      socket
      |> assign(:app_passwords, app_passwords)
      |> assign(:new_token, nil)
-     |> assign(:form, to_form(%{}))}
+     |> assign(:form, app_password_form())}
   end
 
   @impl true
+  def handle_event("create", %{"app_password" => params}, socket) do
+    create_app_password(params, socket)
+  end
+
   def handle_event("create", params, socket) do
-    user = socket.assigns.current_user
-    name = params["name"]
-    expires_option = params["expires_at"]
-
-    # Calculate expiration date based on selection
-    expires_at =
-      case expires_option do
-        "30_days" -> DateTime.utc_now() |> DateTime.add(30, :day)
-        "90_days" -> DateTime.utc_now() |> DateTime.add(90, :day)
-        "1_year" -> DateTime.utc_now() |> DateTime.add(365, :day)
-        "never" -> nil
-        _ -> nil
-      end
-
-    case Accounts.create_app_password(user.id, %{name: name, expires_at: expires_at}) do
-      {:ok, app_password} ->
-        app_passwords = Accounts.list_app_passwords(user.id)
-
-        {:noreply,
-         socket
-         |> assign(:app_passwords, app_passwords)
-         |> assign(:new_token, app_password.token)
-         |> put_flash(:info, "App password created successfully")}
-
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Failed to create app password")}
-    end
+    create_app_password(params, socket)
   end
 
   @impl true
@@ -67,6 +45,50 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
   @impl true
   def handle_event("dismiss_token", _params, socket) do
     {:noreply, assign(socket, :new_token, nil)}
+  end
+
+  defp create_app_password(params, socket) do
+    user = socket.assigns.current_user
+    name = params["name"]
+    expires_option = params["expires_at"]
+
+    expires_at = expires_at_from_option(expires_option)
+
+    case Accounts.create_app_password(user.id, %{name: name, expires_at: expires_at}) do
+      {:ok, app_password} ->
+        app_passwords = Accounts.list_app_passwords(user.id)
+
+        {:noreply,
+         socket
+         |> assign(:app_passwords, app_passwords)
+         |> assign(:form, app_password_form())
+         |> assign(:new_token, app_password.token)
+         |> put_flash(:info, "App password created successfully")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> assign(:form, app_password_form(params))
+         |> put_flash(:error, "Failed to create app password")}
+    end
+  end
+
+  defp app_password_form(params \\ %{}) do
+    defaults = %{"name" => "", "expires_at" => "never"}
+
+    defaults
+    |> Map.merge(params)
+    |> to_form(as: :app_password)
+  end
+
+  defp expires_at_from_option(expires_option) do
+    case expires_option do
+      "30_days" -> DateTime.utc_now() |> DateTime.add(30, :day)
+      "90_days" -> DateTime.utc_now() |> DateTime.add(90, :day)
+      "1_year" -> DateTime.utc_now() |> DateTime.add(365, :day)
+      "never" -> nil
+      _ -> nil
+    end
   end
 
   @impl true
@@ -164,16 +186,13 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
         <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg mb-4">Create App Password</h2>
-            <.form for={@form} phx-submit="create">
+            <.form id="create-app-password-form" for={@form} phx-submit="create">
               <div class="form-control">
-                <label class="label">
-                  <span class="label-text">App name</span>
-                </label>
-                <input
+                <.input
+                  field={@form[:name]}
                   type="text"
-                  name="name"
+                  label="App name"
                   placeholder="e.g., Thunderbird on laptop"
-                  class="input input-bordered"
                   required
                   maxlength="100"
                 />
@@ -185,15 +204,17 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               </div>
 
               <div class="form-control mt-4">
-                <label class="label">
-                  <span class="label-text">Expires</span>
-                </label>
-                <select name="expires_at" class="select select-bordered">
-                  <option value="never">Never</option>
-                  <option value="30_days">30 days</option>
-                  <option value="90_days">90 days</option>
-                  <option value="1_year">1 year</option>
-                </select>
+                <.input
+                  field={@form[:expires_at]}
+                  type="select"
+                  label="Expires"
+                  options={[
+                    {"Never", "never"},
+                    {"30 days", "30_days"},
+                    {"90 days", "90_days"},
+                    {"1 year", "1_year"}
+                  ]}
+                />
                 <label class="label">
                   <span class="label-text-alt text-xs">
                     Password will automatically stop working after this period

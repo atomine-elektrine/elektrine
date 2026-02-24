@@ -4,6 +4,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   import Ecto.Query, warn: false
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
+  alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{Messaging, Profiles, Repo, Social}
   import ElektrineWeb.Components.Platform.ZNav
@@ -1069,7 +1070,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       activitypub_ids =
         posts
         |> Enum.map(& &1.activitypub_id)
-        |> Enum.filter(&(&1 && String.contains?(&1, "/post/")))
+        |> Enum.filter(&LemmyApi.community_post_url?/1)
 
       {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
       LemmyCache.schedule_refresh(activitypub_ids)
@@ -1240,7 +1241,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
             activitypub_ids =
               followed_community_posts
               |> Enum.map(& &1.activitypub_id)
-              |> Enum.filter(&(&1 && String.contains?(&1, "/post/")))
+              |> Enum.filter(&LemmyApi.community_post_url?/1)
 
             {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
             LemmyCache.schedule_refresh(activitypub_ids)

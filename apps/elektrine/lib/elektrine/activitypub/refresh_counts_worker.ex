@@ -469,7 +469,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp lemmy_url?(url) when is_binary(url) do
-    String.contains?(url, "/post/") or String.contains?(url, "/comment/")
+    LemmyApi.community_post_url?(url) or Regex.match?(~r{/comment/\d+(?:$|[/?#])}, url)
   end
 
   defp lemmy_url?(_), do: false

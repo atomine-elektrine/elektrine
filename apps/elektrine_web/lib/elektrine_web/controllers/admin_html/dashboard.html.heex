@@ -308,8 +308,8 @@
         </div>
       </div>
       <p class="text-sm opacity-70 mb-4">
-        These metrics are from ActivityPub. Use the Arblarg and Bluesky buttons above for their
-        protocol-specific controls.
+        ActivityPub metrics are shown first. Arblarg and Bluesky protocol snapshots are shown below
+        so this card reflects all federation systems.
       </p>
       <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div class="stat bg-base-200 rounded p-3">
@@ -331,6 +331,85 @@
         <div class="stat bg-base-200 rounded p-3">
           <div class="stat-title text-xs">Pending Relays</div>
           <div class="stat-value text-lg text-warning">{@stats.federation.pending_relays}</div>
+        </div>
+      </div>
+
+      <div class="divider my-4">Other Protocols</div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card bg-base-200 rounded-lg">
+          <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold flex items-center gap-2">
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Arblarg Messaging
+              </h3>
+              <.link
+                navigate={~p"/pripyat/messaging-federation"}
+                class="link link-primary text-xs"
+              >
+                Open →
+              </.link>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="text-xs opacity-70">Peer Controls</div>
+                <div class="text-xl font-semibold">{@stats.arblarg_federation.peer_controls}</div>
+              </div>
+              <div>
+                <div class="text-xs opacity-70">Blocked Peers</div>
+                <div class="text-xl font-semibold text-error">
+                  {@stats.arblarg_federation.blocked_peers}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs opacity-70">Incoming Denied</div>
+                <div class="text-xl font-semibold">
+                  {@stats.arblarg_federation.incoming_denied}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs opacity-70">Outgoing Denied</div>
+                <div class="text-xl font-semibold">
+                  {@stats.arblarg_federation.outgoing_denied}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-200 rounded-lg">
+          <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold flex items-center gap-2">
+                <.icon name="hero-link" class="w-4 h-4" /> Bluesky Bridge
+              </h3>
+              <.link navigate={~p"/pripyat/bluesky-bridge"} class="link link-primary text-xs">
+                Open →
+              </.link>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="text-xs opacity-70">Linked Users</div>
+                <div class="text-xl font-semibold">{@stats.bluesky_bridge.linked_users}</div>
+              </div>
+              <div>
+                <div class="text-xs opacity-70">Ready Users</div>
+                <div class="text-xl font-semibold text-success">
+                  {@stats.bluesky_bridge.ready_users}
+                </div>
+              </div>
+              <div>
+                <div class="text-xs opacity-70">Mirrored Posts</div>
+                <div class="text-xl font-semibold">{@stats.bluesky_bridge.mirrored_posts}</div>
+              </div>
+              <div>
+                <div class="text-xs opacity-70">Inbound (24h)</div>
+                <div class="text-xl font-semibold">
+                  {@stats.bluesky_bridge.inbound_events_24h}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

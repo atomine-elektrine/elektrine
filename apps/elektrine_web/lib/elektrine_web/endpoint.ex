@@ -7,11 +7,12 @@ defmodule ElektrineWeb.Endpoint do
   # Helper to get session options at runtime for LiveView/WebSocket connections
   # Must return a keyword list, not a processed map
   def session_options do
+    encryption_salt = System.get_env("SESSION_ENCRYPTION_SALT") || get_default_encryption_salt()
+
     base_opts = [
       store: :cookie,
       key: session_cookie_key(),
       signing_salt: System.get_env("SESSION_SIGNING_SALT") || get_default_signing_salt(),
-      encryption_salt: System.get_env("SESSION_ENCRYPTION_SALT") || get_default_encryption_salt(),
       # 30 days - standard for web apps
       max_age: 30 * 24 * 60 * 60,
       same_site: "Lax",
@@ -22,7 +23,10 @@ defmodule ElektrineWeb.Endpoint do
     ]
 
     # Intentionally host-only (no Domain=.z.org) to isolate user subdomains from app sessions.
-    base_opts
+    case encryption_salt do
+      nil -> base_opts
+      value -> Keyword.put(base_opts, :encryption_salt, value)
+    end
   end
 
   defp session_cookie_key do
@@ -41,7 +45,11 @@ defmodule ElektrineWeb.Endpoint do
         _ -> "dev_signing_salt"
       end
     else
-      "dev_signing_salt"
+      if Application.get_env(:elektrine, :environment) == :prod do
+        "chat_auth_signing_salt"
+      else
+        "dev_signing_salt"
+      end
     end
   end
 
@@ -53,7 +61,11 @@ defmodule ElektrineWeb.Endpoint do
         _ -> "dev_encryption_salt"
       end
     else
-      "dev_encryption_salt"
+      if Application.get_env(:elektrine, :environment) == :prod do
+        nil
+      else
+        "dev_encryption_salt"
+      end
     end
   end
 

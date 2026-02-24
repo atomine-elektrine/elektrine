@@ -200,6 +200,9 @@ html[data-theme="dark"],
 body.bg-base-100 {
   background-color: oklch(var(--b1));
   background-size: 40px 40px;
+  /* Prevent grid line drift/aliasing after deep scroll offsets. */
+  background-attachment: fixed;
+  background-position: 0 0;
   background-image:
     linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),

@@ -56,9 +56,15 @@ defmodule Elektrine.IMAP.Helpers do
   end
 
   def parse_status_args(args) do
-    case Regex.run(~r/"([^"]+)"\s*\(([^)]+)\)/, args) do
-      [_, folder, items] -> {:ok, folder, String.split(items, " ")}
-      _ -> {:error, :invalid_format}
+    case Regex.run(~r/^\s*(?:"([^"]+)"|([^\s]+))\s*\(([^)]+)\)\s*$/, args) do
+      [_, quoted_folder, "", items] ->
+        {:ok, quoted_folder, String.split(items, " ")}
+
+      [_, "", atom_folder, items] ->
+        {:ok, atom_folder, String.split(items, " ")}
+
+      _ ->
+        {:error, :invalid_format}
     end
   end
 
@@ -82,22 +88,151 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Parse fetch items list"
   def parse_fetch_items(items_str) do
-    cleaned = items_str |> String.trim() |> String.trim_leading("(") |> String.trim_trailing(")")
+    items_str
+    |> String.trim()
+    |> strip_outer_parentheses()
+    |> tokenize_fetch_items()
+    |> Enum.flat_map(&expand_fetch_macro/1)
+    |> dedupe_fetch_items()
+  end
 
-    if String.contains?(cleaned, "[") do
-      parse_complex_items(cleaned)
+  defp strip_outer_parentheses(str) do
+    if wrapped_in_single_parenthesized_group?(str) do
+      str
+      |> String.slice(1, byte_size(str) - 2)
+      |> String.trim()
     else
-      String.split(cleaned, ~r/\s+/) |> Enum.reject(&(&1 == ""))
+      str
     end
   end
 
-  defp parse_complex_items(str) do
-    simple_items = ["UID", "FLAGS", "RFC822.SIZE", "ENVELOPE", "BODYSTRUCTURE"]
-    words = String.split(str, ~r/\s+/)
+  defp wrapped_in_single_parenthesized_group?(str) do
+    if byte_size(str) < 2 or not String.starts_with?(str, "(") or not String.ends_with?(str, ")") do
+      false
+    else
+      chars = String.to_charlist(str)
+      last_index = length(chars) - 1
 
-    Enum.filter(words, fn word ->
-      String.upcase(word) in simple_items or String.starts_with?(word, "BODY")
-    end)
+      {depth, wrapped} =
+        Enum.with_index(chars)
+        |> Enum.reduce_while({0, true}, fn {char, index}, {depth, _wrapped} ->
+          cond do
+            char == ?( ->
+              {:cont, {depth + 1, true}}
+
+            char == ?) ->
+              new_depth = depth - 1
+
+              cond do
+                new_depth < 0 ->
+                  {:halt, {new_depth, false}}
+
+                new_depth == 0 and index < last_index ->
+                  {:halt, {new_depth, false}}
+
+                true ->
+                  {:cont, {new_depth, true}}
+              end
+
+            true ->
+              {:cont, {depth, true}}
+          end
+        end)
+
+      depth == 0 and wrapped
+    end
+  end
+
+  defp tokenize_fetch_items(str) do
+    {items, current, _bracket_depth} =
+      String.graphemes(str)
+      |> Enum.reduce({[], "", 0}, fn char, {items, current, bracket_depth} ->
+        cond do
+          String.trim(char) == "" and bracket_depth == 0 ->
+            if current == "" do
+              {items, "", bracket_depth}
+            else
+              {[current | items], "", bracket_depth}
+            end
+
+          true ->
+            next_bracket_depth =
+              cond do
+                char == "[" -> bracket_depth + 1
+                char == "]" and bracket_depth > 0 -> bracket_depth - 1
+                true -> bracket_depth
+              end
+
+            {items, current <> char, next_bracket_depth}
+        end
+      end)
+
+    if(current == "", do: items, else: [current | items])
+    |> Enum.reverse()
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp expand_fetch_macro(item) do
+    case String.upcase(String.trim(item)) do
+      "ALL" ->
+        ["FLAGS", "INTERNALDATE", "RFC822.SIZE", "ENVELOPE"]
+
+      "FAST" ->
+        ["FLAGS", "INTERNALDATE", "RFC822.SIZE"]
+
+      "FULL" ->
+        ["FLAGS", "INTERNALDATE", "RFC822.SIZE", "ENVELOPE", "BODY"]
+
+      _ ->
+        [item]
+    end
+  end
+
+  defp dedupe_fetch_items(items) do
+    {deduped, _seen} =
+      Enum.reduce(items, {[], MapSet.new()}, fn item, {acc, seen} ->
+        key = String.upcase(item)
+
+        if MapSet.member?(seen, key) do
+          {acc, seen}
+        else
+          {[item | acc], MapSet.put(seen, key)}
+        end
+      end)
+
+    Enum.reverse(deduped)
+  end
+
+  defp body_fetch_item_without_peek?(item_upper) do
+    Regex.match?(
+      ~r/^BODY(?:\.PEEK)?\[[^\]]*\](?:<\d+\.\d+>)?$/,
+      item_upper
+    ) and not String.contains?(item_upper, ".PEEK[")
+  end
+
+  @doc "Extract the first mailbox token from an IMAP argument string"
+  def parse_mailbox_arg(nil), do: {:error, :missing_mailbox_name}
+
+  def parse_mailbox_arg(args) do
+    trimmed = String.trim(args)
+
+    cond do
+      trimmed == "" ->
+        {:error, :missing_mailbox_name}
+
+      true ->
+        case Regex.run(~r/^\s*"((?:[^"\\]|\\.)*)"/, trimmed) do
+          [_, quoted] ->
+            {:ok, quoted |> String.replace("\\\"", "\"") |> String.replace("\\\\", "\\")}
+
+          _ ->
+            case Regex.run(~r/^\s*([^\s]+)/, trimmed) do
+              [_, atom] -> {:ok, String.trim(atom, "\"")}
+              _ -> {:error, :missing_mailbox_name}
+            end
+        end
+    end
   end
 
   @doc "Parse COPY/MOVE command arguments"
@@ -159,15 +294,71 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Decode PLAIN authentication credentials"
   def decode_auth_plain(credentials) do
-    decoded = Base.decode64!(credentials)
+    line = credentials |> to_string() |> String.trim()
 
+    cond do
+      line == "*" ->
+        {:error, :cancelled}
+
+      line == "" ->
+        {:error, :decode_failed}
+
+      true ->
+        case decode_base64_without_padding(line) do
+          {:ok, decoded} ->
+            decode_plain_credentials(decoded)
+
+          :error ->
+            {:error, :decode_failed}
+        end
+    end
+  end
+
+  defp decode_plain_credentials(decoded) do
     case String.split(decoded, "\0") do
       ["", username, password] -> {:ok, username, password}
       [_authzid, username, password] -> {:ok, username, password}
       _ -> {:error, :invalid_format}
     end
-  rescue
-    _ -> {:error, :decode_failed}
+  end
+
+  @doc "Decode a single base64 AUTHENTICATE LOGIN response line"
+  def decode_auth_login_line(data) do
+    line = data |> to_string() |> String.trim()
+
+    if line == "*" do
+      {:ok, "*"}
+    else
+      case decode_base64_without_padding(line) do
+        {:ok, decoded} -> {:ok, String.trim(decoded)}
+        :error -> :error
+      end
+    end
+  end
+
+  defp decode_base64_without_padding(line) when is_binary(line) do
+    case Base.decode64(line) do
+      {:ok, decoded} ->
+        {:ok, decoded}
+
+      :error ->
+        padded = maybe_pad_base64(line)
+
+        if padded == line do
+          :error
+        else
+          Base.decode64(padded)
+        end
+    end
+  end
+
+  defp maybe_pad_base64(line) when is_binary(line) do
+    case rem(byte_size(line), 4) do
+      0 -> line
+      2 -> line <> "=="
+      3 -> line <> "="
+      _ -> line
+    end
   end
 
   @doc "Parse sequence number with wildcard support"
@@ -741,10 +932,10 @@ defmodule Elektrine.IMAP.Helpers do
   @doc "Check if FETCH items should mark messages as read"
   def should_mark_as_read?(items) do
     Enum.any?(items, fn item ->
-      item_upper = String.upcase(item)
+      item_upper = String.upcase(String.trim(item))
 
-      (String.starts_with?(item_upper, "BODY[") && !String.contains?(item_upper, "PEEK")) ||
-        item_upper == "RFC822" || item_upper == "RFC822.TEXT"
+      body_fetch_item_without_peek?(item_upper) or item_upper == "RFC822" or
+        item_upper == "RFC822.TEXT"
     end)
   end
 

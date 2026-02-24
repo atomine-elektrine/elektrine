@@ -334,24 +334,22 @@ defmodule Elektrine.Bluesky.Inbound do
       metadata: metadata
     }
 
-    case %InboundEvent{} |> InboundEvent.changeset(attrs) |> Repo.insert() do
+    case %InboundEvent{}
+         |> InboundEvent.changeset(attrs)
+         |> Repo.insert(
+           on_conflict: :nothing,
+           conflict_target: [:user_id, :event_id],
+           returning: false
+         ) do
+      {:ok, %InboundEvent{id: nil}} ->
+        {:skip, :duplicate_event}
+
       {:ok, _event} ->
         :ok
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        if unique_constraint_violation?(changeset) do
-          {:skip, :duplicate_event}
-        else
-          {:error, {:event_tracking_failed, changeset.errors}}
-        end
+        {:error, {:event_tracking_failed, changeset.errors}}
     end
-  end
-
-  defp unique_constraint_violation?(%Ecto.Changeset{} = changeset) do
-    Enum.any?(changeset.errors, fn
-      {_field, {_msg, opts}} -> Keyword.get(opts, :constraint) == :unique
-      _ -> false
-    end)
   end
 
   defp create_local_notification(user, local_message, reason, raw_notification, subject_uri) do
