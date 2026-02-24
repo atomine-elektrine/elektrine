@@ -253,6 +253,124 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert_redirect(view, ~p"/timeline/post/#{post.id}")
   end
 
+  test "navigate_to_post opens parent thread for local replies", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, parent_post} =
+      Social.create_timeline_post(author.id, "Parent post", visibility: "public")
+
+    {:ok, reply_post} =
+      Social.create_timeline_post(author.id, "Reply post",
+        visibility: "public",
+        reply_to_id: parent_post.id
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "navigate_to_post", %{"id" => to_string(reply_post.id)})
+    assert_redirect(view, "/remote/post/#{parent_post.id}#message-#{reply_post.id}")
+  end
+
+  test "navigate_to_post opens metadata parent thread for federated replies", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, reply_post} =
+      Social.create_timeline_post(author.id, "Federated reply post", visibility: "public")
+
+    parent_ref = "https://example.social/notes/parent-#{reply_post.id}"
+    reply_ref = "https://example.social/notes/reply-#{reply_post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^reply_post.id),
+      set: [
+        federated: true,
+        activitypub_id: reply_ref,
+        media_metadata: %{"inReplyTo" => parent_ref}
+      ]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "navigate_to_post", %{"id" => to_string(reply_post.id)})
+
+    assert_redirect(
+      view,
+      "/remote/post/#{URI.encode_www_form(parent_ref)}#message-#{reply_post.id}"
+    )
+  end
+
+  test "timeline replies render ancestor context stack cards", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, root_post} =
+      Social.create_timeline_post(author.id, "Root ancestor context", visibility: "public")
+
+    {:ok, middle_post} =
+      Social.create_timeline_post(author.id, "Middle ancestor context",
+        visibility: "public",
+        reply_to_id: root_post.id
+      )
+
+    root_ref = "https://example.social/objects/root-#{root_post.id}"
+    middle_ref = "https://example.social/objects/middle-#{middle_post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^root_post.id),
+      set: [federated: true, activitypub_id: root_ref]
+    )
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^middle_post.id),
+      set: [
+        federated: true,
+        activitypub_id: middle_ref,
+        media_metadata: %{"inReplyTo" => root_ref}
+      ]
+    )
+
+    {:ok, _leaf_reply} =
+      Social.create_timeline_post(author.id, "Leaf reply in thread",
+        visibility: "public",
+        reply_to_id: middle_post.id
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=replies")
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "Leaf reply in thread" do
+          {:halt, rendered}
+        else
+          Process.sleep(100)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Leaf reply in thread"
+    assert html =~ "Thread context"
+    assert html =~ "Root"
+    assert html =~ "Parent"
+    assert html =~ "Current reply"
+    assert html =~ "Root ancestor context"
+    assert html =~ "Middle ancestor context"
+    assert html =~ ~s(phx-value-id="#{root_post.id}")
+    assert html =~ ~s(phx-value-id="#{middle_post.id}")
+  end
+
   test "load_remote_replies keeps loading until ingested replies are available", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

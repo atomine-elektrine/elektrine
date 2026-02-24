@@ -154,13 +154,72 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
       assert html =~ ~s(href="#{parent_id}")
     end
 
+    test "shows full ancestor chain for cached federated replies", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      grandparent_id = "https://framapiaf.org/users/postroutine/statuses/#{unique}"
+      parent_id = "https://framapiaf.org/users/postroutine/statuses/#{unique + 1}"
+      reply_id = "https://framapiaf.org/users/postroutine/statuses/#{unique + 2}"
+
+      parent_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://framapiaf.org/users/postroutine",
+          username: "postroutine",
+          domain: "framapiaf.org",
+          inbox_url: "https://framapiaf.org/users/postroutine/inbox",
+          public_key: "test-public-key-chain-#{unique}"
+        })
+        |> Repo.insert!()
+
+      {:ok, _grandparent_message} =
+        Messaging.create_federated_message(%{
+          content: "Root ancestor content",
+          visibility: "public",
+          activitypub_id: grandparent_id,
+          activitypub_url: grandparent_id,
+          federated: true,
+          remote_actor_id: parent_actor.id
+        })
+
+      {:ok, _parent_message} =
+        Messaging.create_federated_message(%{
+          content: "Middle ancestor content",
+          visibility: "public",
+          activitypub_id: parent_id,
+          activitypub_url: parent_id,
+          federated: true,
+          remote_actor_id: parent_actor.id,
+          media_metadata: %{"inReplyTo" => grandparent_id}
+        })
+
+      {:ok, _reply_message} =
+        Messaging.create_federated_message(%{
+          content: "Leaf reply content",
+          visibility: "public",
+          activitypub_id: reply_id,
+          activitypub_url: reply_id,
+          federated: true,
+          remote_actor_id: parent_actor.id,
+          media_metadata: %{"inReplyTo" => parent_id}
+        })
+
+      encoded_reply_id = URI.encode_www_form(reply_id)
+      {:ok, view, _initial_html} = live(conn, ~p"/remote/post/#{encoded_reply_id}")
+
+      html = render(view)
+      assert html =~ "Middle ancestor content"
+      assert html =~ "Root ancestor content"
+      assert html =~ ~s(href="#{parent_id}")
+      assert html =~ ~s(href="#{grandparent_id}")
+    end
+
     test "renders local post replies when remote actor is nil", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
       {:ok, post} =
         Social.create_timeline_post(user.id, "Parent local post", visibility: "public")
 
-      {:ok, _reply} =
+      {:ok, reply} =
         Social.create_timeline_post(user.id, "Local reply content",
           visibility: "public",
           reply_to_id: post.id
@@ -168,7 +227,9 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
 
       {:ok, view, _initial_html} = live(conn, ~p"/remote/post/#{post.id}")
 
-      assert render(view) =~ "Local reply content"
+      html = render(view)
+      assert html =~ "Local reply content"
+      assert html =~ ~s(id="message-#{reply.id}")
     end
 
     test "shows '(you)' only for replies written by the signed-in user", %{conn: conn} do

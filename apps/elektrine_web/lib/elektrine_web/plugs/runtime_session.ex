@@ -29,7 +29,6 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
       # ride the authenticated session via ambient cookies.
       key: session_cookie_key(),
       signing_salt: get_signing_salt(),
-      encryption_salt: get_encryption_salt(),
       # 30 days
       max_age: 30 * 24 * 60 * 60,
       same_site: "Lax",
@@ -39,7 +38,10 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
       extra: "SameSite=Lax"
     ]
 
-    base_opts
+    case get_encryption_salt() do
+      nil -> base_opts
+      encryption_salt -> Keyword.put(base_opts, :encryption_salt, encryption_salt)
+    end
   end
 
   defp session_cookie_key do
@@ -72,7 +74,7 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
 
       # At runtime in a release, require the variable
       Application.get_env(:elektrine, :environment) == :prod ->
-        raise "SESSION_SIGNING_SALT must be set in production"
+        "chat_auth_signing_salt"
 
       # Fallback for other environments
       true ->
@@ -92,7 +94,7 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
 
       # At runtime in a release, require the variable
       Application.get_env(:elektrine, :environment) == :prod ->
-        raise "SESSION_ENCRYPTION_SALT must be set in production"
+        nil
 
       # Fallback for other environments
       true ->

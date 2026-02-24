@@ -318,9 +318,9 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp get_federation_stats do
     %{
-      total_actors: Repo.aggregate(ActivityPub.Actor, :count, :id),
-      total_activities: Repo.aggregate(ActivityPub.Activity, :count, :id),
-      pending_deliveries: length(ActivityPub.get_pending_deliveries(1000)),
+      total_actors: approximate_table_count("activitypub_actors"),
+      total_activities: approximate_table_count("activitypub_activities"),
+      pending_deliveries: length(ActivityPub.get_pending_deliveries(250)),
       blocked_instances:
         Repo.aggregate(
           from(i in Instance, where: i.blocked == true),
@@ -344,11 +344,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
           :count,
           :id
         ),
-      unique_domains:
-        Repo.aggregate(
-          from(a in ActivityPub.Actor, select: a.domain, distinct: true),
-          :count
-        ),
+      unique_domains: approximate_table_count("activitypub_instances"),
       person_actors:
         Repo.aggregate(
           from(a in ActivityPub.Actor, where: a.actor_type == "Person"),
@@ -363,6 +359,22 @@ defmodule ElektrineWeb.AdminLive.Federation do
         )
     }
   end
+
+  defp approximate_table_count(table_name) when is_binary(table_name) do
+    sql = """
+    SELECT GREATEST(COALESCE(reltuples, 0), 0)::bigint
+    FROM pg_class
+    WHERE oid = $1::regclass
+    """
+
+    case Repo.query(sql, [table_name], timeout: 500, pool_timeout: 200) do
+      {:ok, %{rows: [[count]]}} when is_integer(count) -> count
+      {:ok, %{rows: [[count]]}} when is_float(count) -> trunc(count)
+      _ -> 0
+    end
+  end
+
+  defp approximate_table_count(_), do: 0
 
   defp get_domain_stats do
     from(a in ActivityPub.Actor,

@@ -8,7 +8,12 @@ defmodule ElektrineWeb.Telemetry do
 
   @impl true
   def init(_arg) do
-    children = [telemetry_poller: [measurements: periodic_measurements(), period: 30_000]]
+    poller_period_ms = Application.get_env(:elektrine_web, :telemetry_poller_period_ms, 60_000)
+
+    children = [
+      telemetry_poller: [measurements: periodic_measurements(), period: poller_period_ms]
+    ]
+
     Supervisor.init(children, strategy: :one_for_one)
   end
 
@@ -165,8 +170,8 @@ defmodule ElektrineWeb.Telemetry do
           group_by: j.state,
           select: {j.state, count(j.id)}
         ),
-        pool_timeout: 250,
-        timeout: 5000
+        pool_timeout: 150,
+        timeout: 750
       )
       |> Enum.into(%{})
 

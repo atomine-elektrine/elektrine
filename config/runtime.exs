@@ -328,33 +328,32 @@ if System.get_env("EMAIL_SERVICE") == "haraka" do
   config :swoosh, :api_client, Swoosh.ApiClient.Hackney
 end
 
-# Configure encryption (all environments)
-# Generate secrets with: mix phx.gen.secret 64
+# Configure encryption.
+# In production, encryption is optional: if secrets are missing, encryption is disabled.
+encryption_master_secret = System.get_env("ENCRYPTION_MASTER_SECRET")
+encryption_key_salt = System.get_env("ENCRYPTION_KEY_SALT")
+encryption_search_salt = System.get_env("ENCRYPTION_SEARCH_SALT")
+
+encryption_configured =
+  Enum.all?(
+    [encryption_master_secret, encryption_key_salt, encryption_search_salt],
+    &(is_binary(&1) and String.trim(&1) != "")
+  )
+
 if config_env() == :prod do
-  # In production, require encryption secrets - fail hard if missing
   config :elektrine,
-    encryption_master_secret:
-      System.get_env("ENCRYPTION_MASTER_SECRET") ||
-        raise("ENCRYPTION_MASTER_SECRET environment variable is required in production!"),
-    encryption_key_salt:
-      System.get_env("ENCRYPTION_KEY_SALT") ||
-        raise("ENCRYPTION_KEY_SALT environment variable is required in production!"),
-    encryption_search_salt:
-      System.get_env("ENCRYPTION_SEARCH_SALT") ||
-        raise("ENCRYPTION_SEARCH_SALT environment variable is required in production!")
+    encryption_enabled: encryption_configured,
+    encryption_master_secret: encryption_master_secret,
+    encryption_key_salt: encryption_key_salt,
+    encryption_search_salt: encryption_search_salt
 else
-  # In development/test, generate random secrets for security
-  # This prevents accidental use of static test secrets
+  # Keep encryption on by default outside prod to avoid changing development/test behavior.
   config :elektrine,
+    encryption_enabled: true,
     encryption_master_secret:
-      System.get_env("ENCRYPTION_MASTER_SECRET") ||
-        Base.encode64(:crypto.strong_rand_bytes(32)),
-    encryption_key_salt:
-      System.get_env("ENCRYPTION_KEY_SALT") ||
-        Base.encode64(:crypto.strong_rand_bytes(16)),
-    encryption_search_salt:
-      System.get_env("ENCRYPTION_SEARCH_SALT") ||
-        Base.encode64(:crypto.strong_rand_bytes(16))
+      encryption_master_secret || Base.encode64(:crypto.strong_rand_bytes(32)),
+    encryption_key_salt: encryption_key_salt || Base.encode64(:crypto.strong_rand_bytes(16)),
+    encryption_search_salt: encryption_search_salt || Base.encode64(:crypto.strong_rand_bytes(16))
 end
 
 if config_env() == :prod do
@@ -556,24 +555,10 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  # Validate session encryption salt at runtime (fail-closed security)
-  session_encryption_salt =
-    System.get_env("SESSION_ENCRYPTION_SALT") ||
-      raise """
-      environment variable SESSION_ENCRYPTION_SALT is missing.
-      Session encryption is required in production for security.
-      Generate a secure salt: mix phx.gen.secret 64
-      Set it in Fly.io: fly secrets set SESSION_ENCRYPTION_SALT=your_secret
-      """
-
   session_signing_salt =
-    System.get_env("SESSION_SIGNING_SALT") ||
-      raise """
-      environment variable SESSION_SIGNING_SALT is missing.
-      Session signing is required in production for security.
-      Generate a secure salt: mix phx.gen.secret 64
-      Set it in Fly.io: fly secrets set SESSION_SIGNING_SALT=your_secret
-      """
+    System.get_env("SESSION_SIGNING_SALT") || "chat_auth_signing_salt"
+
+  present? = fn value -> is_binary(value) and String.trim(value) != "" end
 
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
@@ -650,45 +635,22 @@ if config_env() == :prod do
   config :elektrine, ElektrineWeb.Endpoint, endpoint_config
   config :elektrine_chat_web, ElektrineChatWeb.Endpoint, endpoint_config
 
-  # Verify session encryption salt is properly set (not the build-time placeholder)
-  if session_encryption_salt == "compile_time_placeholder_will_be_overridden_at_runtime" do
-    raise """
-    SESSION_ENCRYPTION_SALT is still using the build-time placeholder.
-    You must set this environment variable in production.
-    Generate: mix phx.gen.secret 64
-    Set in Fly.io: fly secrets set SESSION_ENCRYPTION_SALT=your_generated_secret
-    """
-  end
-
-  if session_signing_salt == "compile_time_placeholder_signing" do
-    raise """
-    SESSION_SIGNING_SALT is still using the build-time placeholder.
-    You must set this environment variable in production.
-    Generate: mix phx.gen.secret 64
-    Set in Fly.io: fly secrets set SESSION_SIGNING_SALT=your_generated_secret
-    """
-  end
-
   # WebAuthn/Passkey configuration for production
   # Uses the PHX_HOST environment variable for RP ID
   config :elektrine,
     passkey_rp_id: host,
     passkey_origin: "https://#{host}"
 
-  # Cloudflare Turnstile configuration for production
+  turnstile_site_key = System.get_env("TURNSTILE_SITE_KEY")
+  turnstile_secret_key = System.get_env("TURNSTILE_SECRET_KEY")
+  turnstile_enabled = present?.(turnstile_site_key) and present?.(turnstile_secret_key)
+
+  # Cloudflare Turnstile configuration for production (optional)
   config :elektrine, :turnstile,
-    site_key:
-      System.get_env("TURNSTILE_SITE_KEY") ||
-        raise("""
-        environment variable TURNSTILE_SITE_KEY is missing.
-        Get your site key from https://dash.cloudflare.com/
-        """),
-    secret_key:
-      System.get_env("TURNSTILE_SECRET_KEY") ||
-        raise("""
-        environment variable TURNSTILE_SECRET_KEY is missing.
-        Get your secret key from https://dash.cloudflare.com/
-        """),
+    enabled: turnstile_enabled,
+    skip_verification: not turnstile_enabled,
+    site_key: turnstile_site_key,
+    secret_key: turnstile_secret_key,
     verify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
   # ## SSL Support
@@ -728,55 +690,51 @@ if config_env() == :prod do
   # In production you need to configure the mailer to use a different adapter.
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 
-  # Cloudflare R2 configuration for production
-  config :ex_aws,
-    access_key_id:
-      System.get_env("R2_ACCESS_KEY_ID") ||
-        raise("""
-        environment variable R2_ACCESS_KEY_ID is missing.
-        Get your Access Key ID from Cloudflare R2 dashboard.
-        """),
-    secret_access_key:
-      System.get_env("R2_SECRET_ACCESS_KEY") ||
-        raise("""
-        environment variable R2_SECRET_ACCESS_KEY is missing.
-        Get your Secret Access Key from Cloudflare R2 dashboard.
-        """),
-    region: "auto",
-    json_codec: Jason,
-    s3: [
-      scheme: "https://",
-      host:
-        System.get_env("R2_ENDPOINT") ||
-          raise("""
-          environment variable R2_ENDPOINT is missing.
-          Example: <account-id>.r2.cloudflarestorage.com
-          """),
-      region: "auto",
-      port: 443
-    ]
+  r2_access_key_id = System.get_env("R2_ACCESS_KEY_ID")
+  r2_secret_access_key = System.get_env("R2_SECRET_ACCESS_KEY")
+  r2_endpoint = System.get_env("R2_ENDPOINT")
+  r2_bucket_name = System.get_env("R2_BUCKET_NAME")
+  r2_public_url = System.get_env("R2_PUBLIC_URL")
 
-  config :elektrine, :uploads,
-    adapter: :s3,
-    bucket:
-      System.get_env("R2_BUCKET_NAME") ||
-        raise("""
-        environment variable R2_BUCKET_NAME is missing.
-        Set your Cloudflare R2 bucket name.
-        """),
-    endpoint:
-      System.get_env("R2_ENDPOINT") ||
-        raise("""
-        environment variable R2_ENDPOINT is missing.
-        Example: <account-id>.r2.cloudflarestorage.com
-        """),
-    # Optional: Custom domain if configured in R2
-    public_url: System.get_env("R2_PUBLIC_URL"),
-    # Upload security limits
-    # 5MB
-    max_file_size: 5 * 1024 * 1024,
-    max_image_width: 2048,
-    max_image_height: 2048
+  r2_configured =
+    Enum.all?(
+      [r2_access_key_id, r2_secret_access_key, r2_endpoint, r2_bucket_name],
+      &present?.(&1)
+    )
+
+  if r2_configured do
+    config :ex_aws,
+      access_key_id: r2_access_key_id,
+      secret_access_key: r2_secret_access_key,
+      region: "auto",
+      json_codec: Jason,
+      s3: [
+        scheme: "https://",
+        host: r2_endpoint,
+        region: "auto",
+        port: 443
+      ]
+
+    config :elektrine, :uploads,
+      adapter: :s3,
+      bucket: r2_bucket_name,
+      endpoint: r2_endpoint,
+      # Optional: Custom domain if configured in R2
+      public_url: r2_public_url,
+      # Upload security limits
+      # 5MB
+      max_file_size: 5 * 1024 * 1024,
+      max_image_width: 2048,
+      max_image_height: 2048
+  else
+    config :elektrine, :uploads,
+      adapter: :local,
+      uploads_dir: "priv/static/uploads",
+      max_file_size: 5 * 1024 * 1024,
+      max_background_size: 10 * 1024 * 1024,
+      max_image_width: 2048,
+      max_image_height: 2048
+  end
 end
 
 # POP3 Server configuration

@@ -68,6 +68,9 @@ defmodule ElektrineWeb.AdminController do
         {:active_users, fn -> get_active_user_stats() end, default_active_user_stats()},
         {:pending_reports, fn -> Elektrine.Reports.count_pending_reports() end, 0},
         {:federation, fn -> get_federation_stats() end, default_federation_stats()},
+        {:arblarg_federation, fn -> get_arblarg_federation_stats() end,
+         default_arblarg_federation_stats()},
+        {:bluesky_bridge, fn -> get_bluesky_bridge_stats() end, default_bluesky_bridge_stats()},
         {:subscriptions, fn -> get_subscription_stats() end, default_subscription_stats()}
       ]
       |> Task.async_stream(
@@ -103,6 +106,9 @@ defmodule ElektrineWeb.AdminController do
       active_users: Map.get(async_stats, :active_users, default_active_user_stats()),
       pending_reports: Map.get(async_stats, :pending_reports, 0),
       federation: Map.get(async_stats, :federation, default_federation_stats()),
+      arblarg_federation:
+        Map.get(async_stats, :arblarg_federation, default_arblarg_federation_stats()),
+      bluesky_bridge: Map.get(async_stats, :bluesky_bridge, default_bluesky_bridge_stats()),
       subscriptions: Map.get(async_stats, :subscriptions, default_subscription_stats())
     }
   end
@@ -294,6 +300,55 @@ defmodule ElektrineWeb.AdminController do
     }
   end
 
+  defp get_arblarg_federation_stats do
+    alias Elektrine.Messaging.Federation
+
+    controls = Federation.list_peer_controls()
+
+    %{
+      peer_controls: length(controls),
+      blocked_peers: Enum.count(controls, & &1.blocked),
+      incoming_denied: Enum.count(controls, &(not &1.effective_allow_incoming)),
+      outgoing_denied: Enum.count(controls, &(not &1.effective_allow_outgoing))
+    }
+  end
+
+  defp get_bluesky_bridge_stats do
+    alias Elektrine.Accounts.User
+    alias Elektrine.Bluesky.InboundEvent
+    alias Elektrine.Messaging.Message
+
+    last_24_hours = DateTime.add(DateTime.utc_now(), -24, :hour)
+
+    %{
+      linked_users:
+        Repo.aggregate(from(u in User, where: u.bluesky_enabled == true), :count, :id),
+      ready_users:
+        Repo.aggregate(
+          from(u in User,
+            where:
+              u.bluesky_enabled == true and
+                not is_nil(u.bluesky_identifier) and
+                not is_nil(u.bluesky_app_password)
+          ),
+          :count,
+          :id
+        ),
+      mirrored_posts:
+        Repo.aggregate(
+          from(m in Message, where: not is_nil(m.bluesky_uri)),
+          :count,
+          :id
+        ),
+      inbound_events_24h:
+        Repo.aggregate(
+          from(e in InboundEvent, where: e.processed_at >= ^last_24_hours),
+          :count,
+          :id
+        )
+    }
+  end
+
   defp get_subscription_stats do
     alias Subscriptions.Subscription
 
@@ -357,6 +412,24 @@ defmodule ElektrineWeb.AdminController do
       blocked_instances: 0,
       active_relays: 0,
       pending_relays: 0
+    }
+  end
+
+  defp default_arblarg_federation_stats do
+    %{
+      peer_controls: 0,
+      blocked_peers: 0,
+      incoming_denied: 0,
+      outgoing_denied: 0
+    }
+  end
+
+  defp default_bluesky_bridge_stats do
+    %{
+      linked_users: 0,
+      ready_users: 0,
+      mirrored_posts: 0,
+      inbound_events_24h: 0
     }
   end
 

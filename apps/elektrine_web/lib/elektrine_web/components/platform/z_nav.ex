@@ -24,12 +24,13 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
 
   """
   attr :active_tab, :string, required: true
+  attr :class, :string, default: "mb-6"
 
   def z_nav(assigns) do
     assigns = assign(assigns, :items, nav_items())
 
     ~H"""
-    <nav class="sticky top-16 z-40 mb-6 -mx-4 sm:-mx-6 lg:-mx-8">
+    <nav class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="rounded-box border border-base-300 bg-base-100/90 backdrop-blur-sm shadow-sm">
           <div class="flex items-center gap-1 overflow-x-auto px-2 py-2 sm:px-3">

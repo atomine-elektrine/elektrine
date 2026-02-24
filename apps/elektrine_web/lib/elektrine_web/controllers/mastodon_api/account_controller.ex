@@ -26,6 +26,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Blocking
   alias Elektrine.Accounts.Muting
+  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Social
@@ -457,7 +458,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   defp get_followers_count(%{id: user_id}) do
     Repo.one(
       from(f in "follows",
-        where: f.following_id == ^user_id,
+        where: f.followed_id == ^user_id,
         select: count(f.id)
       )
     ) || 0
@@ -478,9 +479,11 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
 
   defp get_statuses_count(%{id: user_id}) do
     Repo.one(
-      from(p in "posts",
-        where: p.user_id == ^user_id,
-        select: count(p.id)
+      from(m in Message,
+        where: m.sender_id == ^user_id,
+        where: m.visibility in ["public", "unlisted"],
+        where: is_nil(m.deleted_at),
+        select: count(m.id)
       )
     ) || 0
   rescue
@@ -488,19 +491,32 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   end
 
   defp get_last_status_at(%{id: user_id}) do
-    case Repo.one(
-           from(p in "posts",
-             where: p.user_id == ^user_id,
-             order_by: [desc: p.inserted_at],
-             limit: 1,
-             select: p.inserted_at
-           )
-         ) do
-      nil -> nil
-      datetime -> Date.to_iso8601(datetime)
-    end
+    Repo.one(
+      from(m in Message,
+        where: m.sender_id == ^user_id,
+        where: m.visibility in ["public", "unlisted"],
+        where: is_nil(m.deleted_at),
+        select: max(m.inserted_at)
+      )
+    )
+    |> to_iso_date()
   rescue
     _ -> nil
+  end
+
+  defp to_iso_date(nil), do: nil
+  defp to_iso_date(%Date{} = date), do: Date.to_iso8601(date)
+
+  defp to_iso_date(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.to_date()
+    |> Date.to_iso8601()
+  end
+
+  defp to_iso_date(%NaiveDateTime{} = datetime) do
+    datetime
+    |> NaiveDateTime.to_date()
+    |> Date.to_iso8601()
   end
 
   defp format_datetime(nil), do: nil

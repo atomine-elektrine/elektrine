@@ -85,9 +85,15 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
   defp ensure_pending_preview(url) do
     case Repo.get_by(LinkPreview, url: url) do
       nil ->
-        %LinkPreview{}
-        |> LinkPreview.changeset(%{url: url, status: "pending"})
-        |> Repo.insert()
+        _ =
+          %LinkPreview{}
+          |> LinkPreview.changeset(%{url: url, status: "pending"})
+          |> Repo.insert(on_conflict: :nothing, conflict_target: :url)
+
+        case Repo.get_by(LinkPreview, url: url) do
+          %LinkPreview{} = preview -> {:ok, preview}
+          nil -> {:error, :failed_to_create_preview}
+        end
 
       existing ->
         {:ok, existing}
@@ -97,11 +103,20 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
   defp find_or_create_preview(url, metadata) do
     case Repo.get_by(LinkPreview, url: url) do
       nil ->
-        case %LinkPreview{}
-             |> LinkPreview.changeset(Map.put(metadata, :url, url))
-             |> Repo.insert() do
-          {:ok, p} -> p
-          {:error, _} -> Repo.get_by(LinkPreview, url: url)
+        _ =
+          %LinkPreview{}
+          |> LinkPreview.changeset(Map.put(metadata, :url, url))
+          |> Repo.insert(on_conflict: :nothing, conflict_target: :url)
+
+        case Repo.get_by(LinkPreview, url: url) do
+          %LinkPreview{} = preview ->
+            case LinkPreviewFetcher.update_preview_with_metadata(preview, metadata) do
+              {:ok, p} -> p
+              {:error, _} -> preview
+            end
+
+          nil ->
+            nil
         end
 
       existing ->

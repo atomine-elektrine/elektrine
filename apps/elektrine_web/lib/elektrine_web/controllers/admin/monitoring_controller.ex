@@ -264,9 +264,17 @@ defmodule ElektrineWeb.Admin.MonitoringController do
   end
 
   defp get_oban_stats do
+    active_states = ["available", "executing", "scheduled", "retryable"]
+
     counts =
-      Repo.all(from(j in "oban_jobs", group_by: j.state, select: {j.state, count(j.id)}),
-        timeout: 2000
+      Repo.all(
+        from(j in "oban_jobs",
+          where: j.state in ^active_states,
+          group_by: j.state,
+          select: {j.state, count(j.id)}
+        ),
+        timeout: 750,
+        pool_timeout: 200
       )
       |> Enum.into(%{})
 
@@ -275,8 +283,8 @@ defmodule ElektrineWeb.Admin.MonitoringController do
       executing: Map.get(counts, "executing", 0),
       scheduled: Map.get(counts, "scheduled", 0),
       retryable: Map.get(counts, "retryable", 0),
-      completed: Map.get(counts, "completed", 0),
-      discarded: Map.get(counts, "discarded", 0)
+      completed: 0,
+      discarded: 0
     }
   rescue
     _ -> %{available: 0, executing: 0, scheduled: 0, retryable: 0, completed: 0, discarded: 0}

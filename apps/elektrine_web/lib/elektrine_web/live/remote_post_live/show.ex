@@ -3,6 +3,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
+  alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging
   alias Elektrine.Social
   alias ElektrineWeb.Live.PostInteractions
@@ -108,7 +109,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             _ -> "border-l-2 border-info/45 pl-3 ml-2"
           end
         end %>
-      <div class={indent_class}>
+      <div id={reply_dom_id(reply)} class={indent_class}>
         <%= if @is_lemmy_post do %>
           <!-- Lemmy-style comment (Reddit-style with vote column) -->
           <div class="flex gap-2 mb-2">
@@ -491,6 +492,297 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     """
   end
 
+  attr :in_reply_to, :string, default: nil
+  attr :reply_parent, :map, default: nil
+  attr :reply_parent_actor, :map, default: nil
+  attr :reply_ancestors, :list, default: []
+  attr :post_interactions, :map, default: %{}
+  attr :user_saves, :map, default: %{}
+  attr :post_reactions, :map, default: %{}
+  attr :current_user, :map, default: nil
+  attr :replying_to_comment_id, :any, default: nil
+  attr :comment_reply_content, :string, default: ""
+
+  def ancestor_context_stack(assigns) do
+    ~H"""
+    <%= if @in_reply_to do %>
+      <% fallback_entry =
+        if is_map(@reply_parent) do
+          [
+            %{
+              post: @reply_parent,
+              actor: @reply_parent_actor,
+              in_reply_to: @in_reply_to
+            }
+          ]
+        else
+          []
+        end
+
+      ancestors_for_render =
+        if Enum.empty?(@reply_ancestors),
+          do: fallback_entry,
+          else: @reply_ancestors
+
+      ancestors_for_render = Enum.reverse(ancestors_for_render)
+      ancestor_count = length(ancestors_for_render) %>
+      <%= if ancestors_for_render != [] do %>
+        <section class="mb-4 space-y-2" aria-label="Conversation context">
+          <%= for {ancestor, idx} <- Enum.with_index(ancestors_for_render) do %>
+            <% parent_post = ancestor.post
+            parent_actor = ancestor.actor
+
+            parent_ref =
+              normalize_in_reply_to_ref(
+                map_get_value(parent_post, "url") ||
+                  map_get_value(parent_post, "id") ||
+                  ancestor.in_reply_to
+              )
+
+            parent_author = reply_parent_author_label(parent_post, parent_actor)
+
+            parent_domain =
+              reply_parent_content_domain(parent_post, parent_actor, parent_ref)
+
+            parent_title =
+              if is_map(parent_post), do: parent_post["name"], else: nil
+
+            parent_content =
+              if is_map(parent_post), do: parent_post["content"], else: nil
+
+            interaction =
+              ancestor_interaction_target(parent_post, ancestor.in_reply_to)
+
+            post_state =
+              if interaction do
+                Map.get(@post_interactions, interaction.interaction_key, %{
+                  liked: false,
+                  boosted: false,
+                  like_delta: 0,
+                  boost_delta: 0
+                })
+              else
+                %{liked: false, boosted: false, like_delta: 0, boost_delta: 0}
+              end
+
+            is_liked = Map.get(post_state, :liked, false)
+            is_boosted = Map.get(post_state, :boosted, false)
+            like_count = ancestor_like_count(parent_post, post_state)
+            boost_count = ancestor_boost_count(parent_post, post_state)
+            reply_count = ancestor_reply_count(parent_post)
+
+            is_saved =
+              if interaction,
+                do: Map.get(@user_saves, interaction.interaction_key, false),
+                else: false
+
+            local_parent_id = ancestor_local_message_id(parent_post)
+            has_external_link = http_url?(parent_ref)
+            role_label = ancestor_role_label(idx, ancestor_count)
+            color = ancestor_thread_colors(idx) %>
+            <div class="flex items-stretch gap-3">
+              <div class="relative flex w-4 flex-shrink-0 justify-center">
+                <%= if idx < ancestor_count - 1 do %>
+                  <div class={[
+                    "absolute left-1/2 top-5 bottom-0 w-0.5 -translate-x-1/2 rounded-full",
+                    color.rail
+                  ]}>
+                  </div>
+                <% end %>
+                <div class={[
+                  "mt-2 h-2.5 w-2.5 rounded-full ring-2 ring-base-100",
+                  color.dot
+                ]}>
+                </div>
+              </div>
+              <article class={[
+                "flex-1 rounded-xl border border-base-300 border-l-4 bg-base-200/50 p-3",
+                color.border
+              ]}>
+                <div class="flex items-start gap-2 min-w-0">
+                  <%= if parent_actor && is_binary(parent_actor.avatar_url) && parent_actor.avatar_url != "" do %>
+                    <img
+                      src={parent_actor.avatar_url}
+                      alt=""
+                      class="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
+                    />
+                  <% else %>
+                    <div class="w-7 h-7 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <.icon name="hero-user" class="w-4 h-4 opacity-60" />
+                    </div>
+                  <% end %>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 text-xs min-w-0">
+                      <span class={[
+                        "badge badge-xs flex-shrink-0",
+                        ancestor_role_badge_class(role_label)
+                      ]}>
+                        {role_label}
+                      </span>
+                      <span class="opacity-70">Replying to</span>
+                      <span class="font-medium truncate">{parent_author}</span>
+                      <%= if is_integer(local_parent_id) do %>
+                        <.link
+                          navigate={"/remote/post/#{local_parent_id}"}
+                          class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                        >
+                          Open <.icon name="hero-arrow-right" class="w-3 h-3" />
+                        </.link>
+                      <% else %>
+                        <%= if has_external_link do %>
+                          <a
+                            href={parent_ref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                          >
+                            Open <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                          </a>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                <%= if is_binary(parent_title) && String.trim(parent_title) != "" do %>
+                  <div class="mt-2 text-sm font-semibold line-clamp-2 break-words">
+                    {parent_title}
+                  </div>
+                <% end %>
+                <%= if is_binary(parent_content) && String.trim(parent_content) != "" do %>
+                  <div class="mt-1 text-sm opacity-80 line-clamp-4 break-words post-content">
+                    {raw(render_remote_post_content(parent_content, parent_domain))}
+                  </div>
+                <% end %>
+                <%= if is_integer(local_parent_id) do %>
+                  <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                    <.link
+                      navigate={"/remote/post/#{local_parent_id}"}
+                      class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                    >
+                      Open parent post <.icon name="hero-arrow-right" class="w-3 h-3" />
+                    </.link>
+                    <%= if has_external_link do %>
+                      <a
+                        href={parent_ref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 text-base-content/70 hover:text-primary hover:underline"
+                      >
+                        Original URL <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                      </a>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <%= if has_external_link do %>
+                    <a
+                      href={parent_ref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      View original post
+                      <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+                    </a>
+                  <% else %>
+                    <div class="mt-2 text-xs opacity-60 break-all">
+                      {parent_ref}
+                    </div>
+                  <% end %>
+                <% end %>
+                <%= if interaction do %>
+                  <div class="mt-3 pt-3 border-t border-base-300/70 space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <.post_actions
+                        post_id={interaction.action_target}
+                        value_name={interaction.action_value_name}
+                        current_user={@current_user}
+                        is_liked={is_liked}
+                        is_boosted={is_boosted}
+                        like_count={like_count}
+                        boost_count={boost_count}
+                        comment_count={reply_count}
+                        is_saved={is_saved}
+                        show_quote={false}
+                        show_comment={false}
+                        size={:sm}
+                      />
+
+                      <%= if @current_user do %>
+                        <button
+                          phx-click="toggle_comment_reply"
+                          phx-value-comment_id={interaction.comment_target}
+                          class={[
+                            "btn btn-ghost btn-sm px-2 h-8 min-h-8 gap-1",
+                            if(
+                              @replying_to_comment_id ==
+                                interaction.comment_target,
+                              do: "bg-secondary/10 text-secondary"
+                            )
+                          ]}
+                          type="button"
+                        >
+                          <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
+                          <span class="text-xs tabular-nums">
+                            <%= if reply_count > 0 do %>
+                              {reply_count}
+                            <% else %>
+                              Reply
+                            <% end %>
+                          </span>
+                        </button>
+                      <% else %>
+                        <div class="btn btn-ghost btn-sm px-2 h-8 min-h-8 gap-1 cursor-default opacity-60">
+                          <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
+                          <span class="text-xs tabular-nums">{reply_count}</span>
+                        </div>
+                      <% end %>
+
+                      <.post_reactions
+                        post_id={interaction.action_target}
+                        value_name={interaction.action_value_name}
+                        reactions={Map.get(@post_reactions, interaction.reactions_key, [])}
+                        current_user={@current_user}
+                        size={:sm}
+                      />
+                    </div>
+
+                    <%= if @current_user &&
+                          @replying_to_comment_id == interaction.comment_target do %>
+                      <form phx-submit="submit_comment_reply" class="mt-2">
+                        <textarea
+                          name="content"
+                          phx-keyup="update_comment_reply_content"
+                          value={@comment_reply_content}
+                          placeholder="Write a reply..."
+                          class="textarea textarea-bordered textarea-sm w-full min-h-[70px]"
+                          rows="2"
+                        ></textarea>
+                        <div class="flex justify-end gap-2 mt-2">
+                          <button
+                            type="button"
+                            phx-click="toggle_comment_reply"
+                            phx-value-comment_id={interaction.comment_target}
+                            class="btn btn-ghost btn-xs"
+                          >
+                            Cancel
+                          </button>
+                          <button type="submit" class="btn btn-secondary btn-xs">
+                            Reply
+                          </button>
+                        </div>
+                      </form>
+                    <% end %>
+                  </div>
+                <% end %>
+              </article>
+            </div>
+          <% end %>
+        </section>
+      <% end %>
+    <% end %>
+    """
+  end
+
   @impl true
   def mount(%{"post_id" => post_id}, _session, socket) do
     # post_id could be a URL-encoded ActivityPub ID or a numeric local ID
@@ -546,6 +838,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       |> assign(:in_reply_to, nil)
       |> assign(:reply_parent, nil)
       |> assign(:reply_parent_actor, nil)
+      |> assign(:reply_ancestors, [])
       |> assign(:meta_description, nil)
       |> assign(:og_image, nil)
       |> assign(
@@ -634,10 +927,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   # Check if a URL looks like a community/Lemmy-like post
   # Patterns: /post/ (Lemmy), /c/.../p/ (PieFed), /m/.../p/ (Mbin)
   defp community_post_url?(url) when is_binary(url) do
-    String.contains?(url, "/post/") ||
-      Regex.match?(~r{/c/[^/]+/p/}, url) ||
-      Regex.match?(~r{/m/[^/]+/p/}, url) ||
-      Regex.match?(~r{/m/[^/]+/t/}, url)
+    LemmyApi.community_post_url?(url)
   end
 
   defp community_post_url?(_), do: false
@@ -1018,19 +1308,24 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   defp assign_reply_parent_fallback(socket, post_object, local_message) do
     in_reply_to = extract_post_in_reply_to(post_object, local_message)
 
-    {reply_parent, reply_parent_actor} =
-      case local_reply_parent_from_ref(in_reply_to) do
-        {:ok, parent_post, parent_actor} ->
-          {parent_post, parent_actor}
+    local_ancestors = resolve_local_reply_ancestor_chain(in_reply_to)
 
-        :error ->
-          {build_reply_parent_fallback(post_object, local_message, in_reply_to), nil}
+    {reply_parent, reply_parent_actor, reply_ancestors} =
+      case local_ancestors do
+        [first | _] ->
+          {first.post, first.actor, local_ancestors}
+
+        [] ->
+          fallback_parent = build_reply_parent_fallback(post_object, local_message, in_reply_to)
+          fallback_entry = build_reply_ancestor_entry(fallback_parent, nil, in_reply_to)
+          {fallback_parent, nil, if(fallback_entry, do: [fallback_entry], else: [])}
       end
 
     socket
     |> assign(:in_reply_to, in_reply_to)
     |> assign(:reply_parent, reply_parent)
     |> assign(:reply_parent_actor, reply_parent_actor)
+    |> assign(:reply_ancestors, reply_ancestors)
   end
 
   defp build_reply_parent_fallback(post_object, local_message, in_reply_to) do
@@ -1124,8 +1419,74 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       "content" => message.content || metadata["inReplyToContent"],
       "published" => NaiveDateTime.to_iso8601(message.inserted_at) <> "Z",
       "attributedTo" => attributed_to,
+      "inReplyTo" => message_in_reply_to(message),
+      "likes" => %{"totalItems" => message.like_count || 0},
+      "shares" => %{"totalItems" => message.share_count || 0},
+      "repliesCount" => message.reply_count || 0,
+      "replies" => %{"totalItems" => message.reply_count || 0},
+      "_local_message_id" => message.id,
+      "_local_like_count" => message.like_count || 0,
+      "_local_share_count" => message.share_count || 0,
+      "_local_reply_count" => message.reply_count || 0,
       "_local_user" => message.sender
     }
+  end
+
+  defp build_reply_ancestor_entry(parent_post, parent_actor, in_reply_to)
+       when is_map(parent_post) do
+    %{
+      post: parent_post,
+      actor: parent_actor,
+      in_reply_to: in_reply_to
+    }
+  end
+
+  defp build_reply_ancestor_entry(_, _, _), do: nil
+
+  defp resolve_local_reply_ancestor_chain(in_reply_to, max_depth \\ 8)
+
+  defp resolve_local_reply_ancestor_chain(in_reply_to, max_depth)
+       when is_binary(in_reply_to) and max_depth > 0 do
+    do_resolve_local_reply_ancestor_chain(
+      normalize_in_reply_to_ref(in_reply_to),
+      [],
+      MapSet.new(),
+      max_depth
+    )
+  end
+
+  defp resolve_local_reply_ancestor_chain(_, _), do: []
+
+  defp do_resolve_local_reply_ancestor_chain(nil, acc, _seen, _depth), do: Enum.reverse(acc)
+
+  defp do_resolve_local_reply_ancestor_chain(_, acc, _seen, depth) when depth <= 0,
+    do: Enum.reverse(acc)
+
+  defp do_resolve_local_reply_ancestor_chain(ref, acc, seen, depth) do
+    cond do
+      MapSet.member?(seen, ref) ->
+        Enum.reverse(acc)
+
+      true ->
+        case Messaging.get_message_by_activitypub_ref(ref) do
+          %{} = parent_message ->
+            parent_message = preload_cached_message_associations(parent_message)
+            parent_post = build_reply_parent_from_message(parent_message)
+            entry = build_reply_ancestor_entry(parent_post, parent_message.remote_actor, ref)
+            next_ref = message_in_reply_to(parent_message)
+            next_seen = MapSet.put(seen, ref)
+
+            do_resolve_local_reply_ancestor_chain(
+              normalize_in_reply_to_ref(next_ref),
+              if(entry, do: [entry | acc], else: acc),
+              next_seen,
+              depth - 1
+            )
+
+          _ ->
+            Enum.reverse(acc)
+        end
+    end
   end
 
   defp resolve_reply_parent(in_reply_to) when is_binary(in_reply_to) do
@@ -1154,6 +1515,51 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   defp resolve_reply_parent(_), do: {:error, :missing_parent}
 
+  defp resolve_reply_ancestor_chain(in_reply_to, max_depth \\ 8)
+
+  defp resolve_reply_ancestor_chain(in_reply_to, max_depth)
+       when is_binary(in_reply_to) and max_depth > 0 do
+    do_resolve_reply_ancestor_chain(
+      normalize_in_reply_to_ref(in_reply_to),
+      [],
+      MapSet.new(),
+      max_depth
+    )
+  end
+
+  defp resolve_reply_ancestor_chain(_, _), do: {:error, :missing_parent}
+
+  defp do_resolve_reply_ancestor_chain(nil, [], _seen, _depth), do: {:error, :missing_parent}
+  defp do_resolve_reply_ancestor_chain(nil, acc, _seen, _depth), do: {:ok, Enum.reverse(acc)}
+
+  defp do_resolve_reply_ancestor_chain(_, acc, _seen, depth) when depth <= 0,
+    do: {:ok, Enum.reverse(acc)}
+
+  defp do_resolve_reply_ancestor_chain(ref, acc, seen, depth) do
+    cond do
+      MapSet.member?(seen, ref) ->
+        {:ok, Enum.reverse(acc)}
+
+      true ->
+        case resolve_reply_parent(ref) do
+          {:ok, parent_post, parent_actor} ->
+            entry = build_reply_ancestor_entry(parent_post, parent_actor, ref)
+            next_ref = parent_post_in_reply_to_ref(parent_post)
+            next_seen = MapSet.put(seen, ref)
+
+            do_resolve_reply_ancestor_chain(
+              normalize_in_reply_to_ref(next_ref),
+              if(entry, do: [entry | acc], else: acc),
+              next_seen,
+              depth - 1
+            )
+
+          {:error, reason} ->
+            if acc == [], do: {:error, reason}, else: {:ok, Enum.reverse(acc)}
+        end
+    end
+  end
+
   defp normalize_reply_parent_post(
          %{"type" => "Create", "object" => %{} = inner_object},
          fallback_id
@@ -1172,11 +1578,33 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       "content" =>
         map_get_value(parent_object, "content") || map_get_value(parent_object, "summary"),
       "published" => map_get_value(parent_object, "published"),
-      "attributedTo" => normalize_in_reply_to_ref(map_get_value(parent_object, "attributedTo"))
+      "attributedTo" => normalize_in_reply_to_ref(map_get_value(parent_object, "attributedTo")),
+      "likes" => map_get_value(parent_object, "likes"),
+      "likesCount" => map_get_value(parent_object, "likesCount"),
+      "shares" => map_get_value(parent_object, "shares"),
+      "sharesCount" => map_get_value(parent_object, "sharesCount"),
+      "announcesCount" => map_get_value(parent_object, "announcesCount"),
+      "replies" => map_get_value(parent_object, "replies"),
+      "repliesCount" => map_get_value(parent_object, "repliesCount"),
+      "comments" => map_get_value(parent_object, "comments"),
+      "inReplyTo" =>
+        normalize_in_reply_to_ref(
+          map_get_value(parent_object, "inReplyTo") || map_get_value(parent_object, "in_reply_to")
+        )
     }
   end
 
   defp normalize_reply_parent_post(_, _), do: nil
+
+  defp parent_post_in_reply_to_ref(parent_post) when is_map(parent_post) do
+    [
+      map_get_value(parent_post, "inReplyTo"),
+      map_get_value(parent_post, "in_reply_to")
+    ]
+    |> Enum.find_value(&normalize_in_reply_to_ref/1)
+  end
+
+  defp parent_post_in_reply_to_ref(_), do: nil
 
   defp maybe_fetch_reply_parent_actor(parent_post) when is_map(parent_post) do
     attributed_to = extract_attributed_to_uri(parent_post)
@@ -2015,13 +2443,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     local_message = socket.assigns[:local_message]
     in_reply_to = extract_post_in_reply_to(post_object, local_message)
     socket = assign_reply_parent_fallback(socket, post_object, local_message)
+    socket = hydrate_ancestor_surface_data(socket, socket.assigns.reply_ancestors)
 
     if is_binary(in_reply_to) do
       liveview_pid = self()
 
       Task.start(fn ->
-        result = resolve_reply_parent(in_reply_to)
-        send(liveview_pid, {:reply_parent_loaded, in_reply_to, result})
+        result = resolve_reply_ancestor_chain(in_reply_to)
+        send(liveview_pid, {:reply_ancestors_loaded, in_reply_to, result})
       end)
     end
 
@@ -2030,18 +2459,26 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   def handle_info({:load_reply_parent, _}, socket), do: {:noreply, socket}
 
-  def handle_info({:reply_parent_loaded, in_reply_to, {:ok, parent_post, parent_actor}}, socket) do
+  def handle_info({:reply_ancestors_loaded, in_reply_to, {:ok, ancestors}}, socket) do
     if socket.assigns.in_reply_to == in_reply_to do
-      {:noreply,
-       socket
-       |> assign(:reply_parent, parent_post)
-       |> assign(:reply_parent_actor, parent_actor)}
+      case ancestors do
+        [%{post: parent_post, actor: parent_actor} | _] ->
+          {:noreply,
+           socket
+           |> assign(:reply_parent, parent_post)
+           |> assign(:reply_parent_actor, parent_actor)
+           |> assign(:reply_ancestors, ancestors)
+           |> hydrate_ancestor_surface_data(ancestors)}
+
+        _ ->
+          {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
   end
 
-  def handle_info({:reply_parent_loaded, _in_reply_to, {:error, _reason}}, socket) do
+  def handle_info({:reply_ancestors_loaded, _in_reply_to, {:error, _reason}}, socket) do
     {:noreply, socket}
   end
 
@@ -2120,9 +2557,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     cond do
       # Lemmy/community posts - check for various URL patterns
       # /post/ (Lemmy), /c/.../p/ (PieFed), /m/.../p/ or /m/.../t/ (Mbin)
-      String.contains?(post_id, "/post/") ||
-        Regex.match?(~r{/c/[^/]+/p/}, post_id) ||
-          Regex.match?(~r{/m/[^/]+/[pt]/}, post_id) ->
+      community_post_url?(post_id) ->
         # Try to fetch Lemmy-style counts (works for Lemmy, may work for compatible platforms)
         lemmy_counts = Elektrine.ActivityPub.LemmyApi.fetch_post_counts(post_id)
         lemmy_comment_counts = Elektrine.ActivityPub.LemmyApi.fetch_comment_counts(post_id)
@@ -2196,7 +2631,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
     # Also refresh the post object for non-Lemmy posts to get fresh counts
     socket =
-      if socket.assigns.post && !String.contains?(post_id, "/post/") do
+      if socket.assigns.post && !community_post_url?(post_id) do
         case Elektrine.ActivityPub.Fetcher.fetch_object(post_id) do
           {:ok, fresh_post} ->
             # Update local database with fresh counts
@@ -2441,7 +2876,11 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         comment_id = socket.assigns.replying_to_comment_id
 
         # Resolve local comments directly and federated comments via ActivityPub fetch/store.
-        case resolve_comment_target_message(comment_id, socket.assigns.replies) do
+        case resolve_comment_target_message(
+               comment_id,
+               socket.assigns.replies,
+               socket.assigns.reply_ancestors
+             ) do
           {:ok, message} ->
             # Create reply to the comment
             case Elektrine.Social.create_timeline_post(
@@ -3678,6 +4117,44 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end
   end
 
+  defp reply_dom_id(%{"_local_message_id" => message_id}) when is_integer(message_id),
+    do: "message-#{message_id}"
+
+  defp reply_dom_id(%{_local_message_id: message_id}) when is_integer(message_id),
+    do: "message-#{message_id}"
+
+  defp reply_dom_id(_), do: nil
+
+  defp ancestor_thread_colors(index) when is_integer(index) do
+    case rem(index, 5) do
+      0 -> %{rail: "bg-info/65", dot: "bg-info", border: "border-info/70"}
+      1 -> %{rail: "bg-secondary/65", dot: "bg-secondary", border: "border-secondary/70"}
+      2 -> %{rail: "bg-warning/70", dot: "bg-warning", border: "border-warning/70"}
+      3 -> %{rail: "bg-success/65", dot: "bg-success", border: "border-success/70"}
+      _ -> %{rail: "bg-error/65", dot: "bg-error", border: "border-error/70"}
+    end
+  end
+
+  defp ancestor_role_label(index, total) when is_integer(index) and is_integer(total) do
+    cond do
+      total <= 1 -> "Parent"
+      index == 0 -> "Root"
+      index == total - 1 -> "Parent"
+      true -> "Ancestor #{index + 1}"
+    end
+  end
+
+  defp ancestor_role_label(_, _), do: "Ancestor"
+
+  defp ancestor_role_badge_class("Root"),
+    do: "badge-info border-info/50 bg-info/10 text-info-content"
+
+  defp ancestor_role_badge_class("Parent"),
+    do: "badge-secondary border-secondary/50 bg-secondary/10 text-secondary-content"
+
+  defp ancestor_role_badge_class(_),
+    do: "badge-ghost border-base-300/70 bg-base-100/80 text-base-content/80"
+
   # Build tree from standard ActivityPub inReplyTo
   defp build_standard_tree(replies, root_post_id, sort) do
     # Group replies by their parent (inReplyTo)
@@ -3953,8 +4430,212 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   defp recent_replies_for_preview(_, _, _), do: []
 
-  defp resolve_comment_target_message(comment_id, replies) when is_binary(comment_id) do
-    case local_message_id_for_reply(replies, comment_id) do
+  defp ancestor_interaction_target(parent_post, fallback_ref) when is_map(parent_post) do
+    post_ref =
+      normalize_in_reply_to_ref(
+        map_get_value(parent_post, "id") || map_get_value(parent_post, "url") || fallback_ref
+      )
+
+    local_message_id = ancestor_local_message_id(parent_post)
+
+    cond do
+      is_integer(local_message_id) ->
+        key = Integer.to_string(local_message_id)
+
+        %{
+          action_value_name: "message_id",
+          action_target: local_message_id,
+          interaction_key: key,
+          reactions_key: key,
+          comment_target: post_ref || key
+        }
+
+      is_binary(post_ref) ->
+        %{
+          action_value_name: "post_id",
+          action_target: post_ref,
+          interaction_key: post_ref,
+          reactions_key: post_ref,
+          comment_target: post_ref
+        }
+
+      true ->
+        nil
+    end
+  end
+
+  defp ancestor_interaction_target(_, _), do: nil
+
+  defp ancestor_like_count(parent_post, post_state) when is_map(parent_post) do
+    base_count =
+      cond do
+        is_integer(map_get_value(parent_post, "_local_like_count")) ->
+          map_get_value(parent_post, "_local_like_count")
+
+        true ->
+          max(
+            get_collection_total_items(map_get_value(parent_post, "likes")),
+            get_collection_total_items(map_get_value(parent_post, "likesCount"))
+          )
+      end
+
+    base_count + Map.get(post_state, :like_delta, 0)
+  end
+
+  defp ancestor_like_count(_, _), do: 0
+
+  defp ancestor_boost_count(parent_post, post_state) when is_map(parent_post) do
+    base_count =
+      cond do
+        is_integer(map_get_value(parent_post, "_local_share_count")) ->
+          map_get_value(parent_post, "_local_share_count")
+
+        true ->
+          max(
+            max(
+              get_collection_total_items(map_get_value(parent_post, "shares")),
+              get_collection_total_items(map_get_value(parent_post, "sharesCount"))
+            ),
+            get_collection_total_items(map_get_value(parent_post, "announcesCount"))
+          )
+      end
+
+    base_count + Map.get(post_state, :boost_delta, 0)
+  end
+
+  defp ancestor_boost_count(_, _), do: 0
+
+  defp ancestor_reply_count(parent_post) when is_map(parent_post) do
+    cond do
+      is_integer(map_get_value(parent_post, "_local_reply_count")) ->
+        map_get_value(parent_post, "_local_reply_count")
+
+      true ->
+        max(
+          max(
+            get_collection_total_items(map_get_value(parent_post, "repliesCount")),
+            get_collection_total_items(map_get_value(parent_post, "replies"))
+          ),
+          get_collection_total_items(map_get_value(parent_post, "comments"))
+        )
+    end
+  end
+
+  defp ancestor_reply_count(_), do: 0
+
+  defp ancestor_local_message_id(parent_post) when is_map(parent_post) do
+    case map_get_value(parent_post, "_local_message_id") do
+      id when is_integer(id) ->
+        id
+
+      id when is_binary(id) ->
+        case Integer.parse(id) do
+          {parsed, ""} -> parsed
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp ancestor_local_message_id(_), do: nil
+
+  defp ancestor_local_message_ids(ancestors) when is_list(ancestors) do
+    ancestors
+    |> Enum.map(fn ancestor ->
+      ancestor
+      |> Map.get(:post, Map.get(ancestor, "post"))
+      |> ancestor_local_message_id()
+    end)
+    |> Enum.filter(&is_integer/1)
+    |> Enum.uniq()
+  end
+
+  defp ancestor_local_message_ids(_), do: []
+
+  defp hydrate_ancestor_surface_data(socket, ancestors) when is_list(ancestors) do
+    socket = assign(socket, :post_reactions, merge_local_ancestor_reactions(socket, ancestors))
+
+    if socket.assigns[:current_user] do
+      user_id = socket.assigns.current_user.id
+      ancestor_posts = Enum.map(ancestors, & &1.post)
+      remote_interactions = load_post_interactions(ancestor_posts, user_id)
+
+      socket
+      |> assign(
+        :post_interactions,
+        socket.assigns.post_interactions
+        |> Map.merge(remote_interactions)
+        |> merge_local_ancestor_interactions(ancestors, user_id)
+      )
+      |> assign(
+        :user_saves,
+        merge_local_ancestor_saves(socket.assigns.user_saves, ancestors, user_id)
+      )
+    else
+      socket
+    end
+  end
+
+  defp hydrate_ancestor_surface_data(socket, _), do: socket
+
+  defp merge_local_ancestor_reactions(socket, ancestors) do
+    local_message_ids = ancestor_local_message_ids(ancestors)
+
+    if local_message_ids == [] do
+      socket.assigns.post_reactions
+    else
+      import Ecto.Query
+
+      reactions =
+        from(r in Elektrine.Messaging.MessageReaction,
+          where: r.message_id in ^local_message_ids,
+          preload: [:user, :remote_actor]
+        )
+        |> Elektrine.Repo.all()
+
+      grouped_reactions =
+        reactions
+        |> Enum.group_by(fn reaction -> Integer.to_string(reaction.message_id) end)
+
+      Map.merge(socket.assigns.post_reactions, grouped_reactions, fn _key, _existing, incoming ->
+        incoming
+      end)
+    end
+  end
+
+  defp merge_local_ancestor_interactions(post_interactions, ancestors, user_id) do
+    ancestor_local_message_ids(ancestors)
+    |> Enum.reduce(post_interactions, fn message_id, acc ->
+      key = Integer.to_string(message_id)
+      existing = Map.get(acc, key, %{})
+
+      Map.put(acc, key, %{
+        liked: Social.user_liked_post?(user_id, message_id),
+        boosted: Social.user_boosted?(user_id, message_id),
+        like_delta: Map.get(existing, :like_delta, 0),
+        boost_delta: Map.get(existing, :boost_delta, 0),
+        vote: Map.get(existing, :vote, nil),
+        vote_delta: Map.get(existing, :vote_delta, 0)
+      })
+    end)
+  end
+
+  defp merge_local_ancestor_saves(user_saves, ancestors, user_id) do
+    ancestor_local_message_ids(ancestors)
+    |> Enum.reduce(user_saves, fn message_id, acc ->
+      Map.put(acc, Integer.to_string(message_id), Social.post_saved?(user_id, message_id))
+    end)
+  end
+
+  defp resolve_comment_target_message(comment_id, replies, ancestors)
+       when is_binary(comment_id) do
+    local_message_id =
+      local_message_id_for_reply(replies, comment_id) ||
+        local_message_id_for_ancestor(ancestors, comment_id)
+
+    case local_message_id do
       local_message_id when is_integer(local_message_id) ->
         case Elektrine.Repo.get(Elektrine.Messaging.Message, local_message_id) do
           %Elektrine.Messaging.Message{} = message ->
@@ -3969,7 +4650,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end
   end
 
-  defp resolve_comment_target_message(_, _), do: {:error, :invalid_comment}
+  defp resolve_comment_target_message(_, _, _), do: {:error, :invalid_comment}
 
   defp local_message_id_for_reply(replies, comment_id) when is_list(replies) do
     Enum.find_value(replies, fn reply ->
@@ -3983,6 +4664,22 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp local_message_id_for_reply(_, _), do: nil
+
+  defp local_message_id_for_ancestor(ancestors, comment_id) when is_list(ancestors) do
+    Enum.find_value(ancestors, fn ancestor ->
+      post = ancestor[:post] || ancestor["post"] || %{}
+
+      post_id =
+        normalize_in_reply_to_ref(map_get_value(post, "id")) ||
+          normalize_in_reply_to_ref(map_get_value(post, "url"))
+
+      if post_id == comment_id do
+        ancestor_local_message_id(post)
+      end
+    end)
+  end
+
+  defp local_message_id_for_ancestor(_, _), do: nil
 
   defp current_user_missing?(socket), do: is_nil(socket.assigns[:current_user])
 end

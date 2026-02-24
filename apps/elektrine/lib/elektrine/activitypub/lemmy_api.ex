@@ -284,13 +284,19 @@ defmodule Elektrine.ActivityPub.LemmyApi do
 
   defp get_community_actor_uri(_), do: nil
 
-  defp community_post_url?(url) when is_binary(url) do
-    String.contains?(url, "/post/") ||
-      Regex.match?(~r{/c/[^/]+/p/\d+}, url) ||
-      Regex.match?(~r{/m/[^/]+/[pt]/\d+}, url)
+  @doc """
+  Returns true when the URL matches a Lemmy/PieFed/Mbin community post pattern.
+
+  This intentionally requires a numeric post id for `/post/<id>` so URLs like
+  `bsky.app/profile/.../post/<rkey>` are not treated as Lemmy posts.
+  """
+  def community_post_url?(url) when is_binary(url) do
+    Regex.match?(~r{/post/\d+(?:$|[/?#])}, url) ||
+      Regex.match?(~r{/c/[^/]+/p/\d+(?:$|[/?#])}, url) ||
+      Regex.match?(~r{/m/[^/]+/[pt]/\d+(?:$|[/?#])}, url)
   end
 
-  defp community_post_url?(_), do: false
+  def community_post_url?(_), do: false
 
   defp resolve_post_reference(post_url) do
     case Regex.run(~r{https?://([^/]+)/post/(\d+)}, post_url) do

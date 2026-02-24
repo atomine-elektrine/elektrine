@@ -25,6 +25,55 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
 
       assert found.id == message.id
     end
+
+    test "falls back to activitypub_url variants when activitypub_id does not match" do
+      actor = remote_actor_fixture()
+      canonical_url = "https://mastodon.social/@alice/114173099"
+
+      assert {:ok, message} =
+               Messaging.create_federated_message(%{
+                 content: "url fallback",
+                 visibility: "public",
+                 federated: true,
+                 activitypub_id: "https://origin.example/objects/abc123",
+                 activitypub_url: canonical_url,
+                 remote_actor_id: actor.id
+               })
+
+      assert %{} =
+               found =
+               Messaging.get_message_by_activitypub_ref(canonical_url <> "?foo=bar#context")
+
+      assert found.id == message.id
+    end
+
+    test "prefers activitypub_id match before activitypub_url match" do
+      actor = remote_actor_fixture()
+      ref = "https://example.net/users/alice/statuses/777"
+
+      assert {:ok, by_id} =
+               Messaging.create_federated_message(%{
+                 content: "id match",
+                 visibility: "public",
+                 federated: true,
+                 activitypub_id: ref,
+                 activitypub_url: "https://example.net/@alice/777",
+                 remote_actor_id: actor.id
+               })
+
+      assert {:ok, _by_url} =
+               Messaging.create_federated_message(%{
+                 content: "url match",
+                 visibility: "public",
+                 federated: true,
+                 activitypub_id: "https://origin.example/objects/def456",
+                 activitypub_url: ref,
+                 remote_actor_id: actor.id
+               })
+
+      assert %{} = found = Messaging.get_message_by_activitypub_ref(ref)
+      assert found.id == by_id.id
+    end
   end
 
   defp remote_actor_fixture do

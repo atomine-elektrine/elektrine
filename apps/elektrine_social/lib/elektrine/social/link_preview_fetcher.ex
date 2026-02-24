@@ -69,19 +69,24 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
   end
 
   defp create_and_fetch_preview(url) do
-    case %LinkPreview{}
-         |> LinkPreview.changeset(%{url: url, status: "pending"})
-         |> Repo.insert() do
-      {:ok, preview} ->
-        Task.start(fn ->
-          metadata = fetch_preview_metadata(url)
-          update_preview_with_metadata(preview, metadata)
-        end)
+    _ =
+      %LinkPreview{}
+      |> LinkPreview.changeset(%{url: url, status: "pending"})
+      |> Repo.insert(on_conflict: :nothing, conflict_target: :url)
+
+    case Repo.get_by(LinkPreview, url: url) do
+      %LinkPreview{} = preview ->
+        if preview.status != "success" do
+          Task.start(fn ->
+            metadata = fetch_preview_metadata(url)
+            update_preview_with_metadata(preview, metadata)
+          end)
+        end
 
         {:ok, preview}
 
-      error ->
-        error
+      nil ->
+        {:error, :failed_to_create_preview}
     end
   end
 

@@ -991,11 +991,18 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
                   fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
                 })
 
-              case Elektrine.Repo.insert(preview_changeset) do
-                {:ok, preview} ->
-                  Messaging.update_message(message, %{link_preview_id: preview.id})
+              _ =
+                Elektrine.Repo.insert(
+                  preview_changeset,
+                  on_conflict: :nothing,
+                  conflict_target: :url
+                )
 
-                {:error, _} ->
+              case Elektrine.Repo.get_by(Social.LinkPreview, url: url) do
+                %{id: id} when is_integer(id) ->
+                  Messaging.update_message(message, %{link_preview_id: id})
+
+                _ ->
                   :ok
               end
 

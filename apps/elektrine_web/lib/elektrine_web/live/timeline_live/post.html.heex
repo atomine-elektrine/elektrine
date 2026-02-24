@@ -1,6 +1,6 @@
 <div class="social-page-wrap">
   <!-- Z Platform Navigation -->
-  <.z_nav active_tab="timeline" />
+  <.z_nav active_tab="timeline" class="mb-3 sm:mb-4" />
   
 <!-- Back Button -->
   <div class="social-page-toolbar">
@@ -21,13 +21,13 @@
         <span class="text-xs font-semibold opacity-70 flex-shrink-0">POPULAR:</span>
         <div class="overflow-hidden flex-1">
           <div class="marquee-container group">
-            <%= for _i <- 1..4 do %>
-              <div class="marquee-content" aria-hidden="true">
+            <%= for instance <- 1..2 do %>
+              <div class="marquee-content" aria-hidden={instance > 1}>
                 <%= for hashtag <- @trending_hashtags do %>
                   <.link
                     href={~p"/hashtag/#{hashtag.normalized_name}"}
                     class="inline-flex items-center px-3 py-1 bg-base-200 border border-base-300 rounded-full hover:border-error hover:bg-error/5 transition-colors flex-shrink-0 text-xs font-medium whitespace-nowrap"
-                    tabindex="-1"
+                    tabindex={if instance == 1, do: 0, else: -1}
                   >
                     #{hashtag.name} <span class="opacity-60 ml-1">({hashtag.use_count})</span>
                   </.link>

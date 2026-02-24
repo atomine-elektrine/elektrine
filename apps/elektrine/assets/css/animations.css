@@ -70,8 +70,8 @@
 }
 
 @keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-25%); }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(calc(-50% - (var(--marquee-gap) / 2)), 0, 0); }
 }
 
 @keyframes ticker {
@@ -183,20 +183,29 @@
    -------------------------------------------------------------------------- */
 
 .marquee-container {
+  --marquee-gap: 0.75rem;
+  --marquee-duration: 40s;
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: var(--marquee-gap);
   width: max-content;
-  animation: marquee 30s linear infinite;
+  min-width: max-content;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  animation: marquee var(--marquee-duration) linear infinite;
 }
 
-.marquee-container:hover {
+.marquee-container:hover,
+.marquee-container:focus-within {
   animation-play-state: paused;
 }
 
 .marquee-content {
   display: flex;
-  gap: 0.5rem;
-  padding-right: 0.5rem;
+  align-items: center;
+  gap: var(--marquee-gap);
+  flex: 0 0 auto;
 }
 
 .animate-ticker {
@@ -213,4 +222,3 @@
   align-items: center;
   white-space: nowrap;
 }
-

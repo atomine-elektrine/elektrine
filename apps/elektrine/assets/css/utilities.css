@@ -379,8 +379,13 @@ div.message-selected:hover {
     overflow-x: hidden;
   }
 
-  .min-w-0 {
+  .truncate.min-w-0 {
     overflow: hidden;
+  }
+
+  .timeline-post-card > .card-body,
+  .timeline-post-card .timeline-post-card-body {
+    overflow: visible;
   }
 }
 

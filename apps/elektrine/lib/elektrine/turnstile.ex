@@ -34,14 +34,15 @@ defmodule Elektrine.Turnstile do
         Logger.debug("Turnstile: skipping verification (dev/test mode)")
         {:ok, :verified}
 
+      # Treat missing config as disabled Turnstile.
+      is_nil(secret_key) or secret_key == "" or is_nil(verify_url) or verify_url == "" ->
+        Logger.warning("Turnstile is not configured; skipping verification")
+        {:ok, :verified}
+
       # Check for missing or empty token early
       is_nil(token) or token == "" ->
         Logger.warning("Turnstile verification failed: missing or empty token")
         {:error, :missing_token}
-
-      is_nil(secret_key) ->
-        Logger.error("Turnstile secret key not configured")
-        {:error, :missing_secret_key}
 
       true ->
         body = build_verification_body(secret_key, token, remote_ip)

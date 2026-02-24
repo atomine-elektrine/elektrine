@@ -4,6 +4,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   """
 
   import Ecto.Query
+  alias Elektrine.ActivityPub.LemmyApi
 
   @doc """
   Extracts totalItems from an ActivityPub collection or returns integer directly.
@@ -535,7 +536,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   # Check if a post is from a Lemmy instance (has /post/ in activitypub_id)
   defp lemmy_post?(post) do
     case post.activitypub_id do
-      id when is_binary(id) -> String.contains?(id, "/post/")
+      id when is_binary(id) -> LemmyApi.community_post_url?(id)
       _ -> false
     end
   end

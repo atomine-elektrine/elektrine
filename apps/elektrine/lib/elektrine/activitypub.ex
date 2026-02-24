@@ -15,6 +15,7 @@ defmodule Elektrine.ActivityPub do
     Fetcher,
     Instance,
     KeyManager,
+    LemmyApi,
     MastodonApi,
     RelaySubscription,
     UserBlock
@@ -891,9 +892,7 @@ defmodule Elektrine.ActivityPub do
 
   # Check if URL is a community-post format across Lemmy/PieFed/Mbin.
   defp lemmy_post_url?(url) when is_binary(url) do
-    String.contains?(url, "/post/") ||
-      Regex.match?(~r{/c/[^/]+/p/\d+}, url) ||
-      Regex.match?(~r{/m/[^/]+/[pt]/\d+}, url)
+    LemmyApi.community_post_url?(url)
   end
 
   defp lemmy_post_url?(_), do: false

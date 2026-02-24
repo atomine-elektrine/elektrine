@@ -657,6 +657,42 @@
   z-index: 100 !important;
 }
 
+/* Timeline cards need higher stacking when menus are open */
+.timeline-post-card {
+  position: relative;
+  overflow: visible !important;
+  z-index: 1;
+}
+
+.timeline-post-card:hover,
+.timeline-post-card:focus-within {
+  z-index: 80;
+}
+
+.timeline-post-card > .card-body,
+.timeline-post-card .timeline-post-card-body {
+  overflow: visible;
+}
+
+.timeline-post-dropdown {
+  position: relative;
+  z-index: 90;
+}
+
+.timeline-post-dropdown .dropdown-content,
+.timeline-post-card .timeline-post-dropdown-menu {
+  z-index: 120 !important;
+}
+
+.thread-context-card[role="button"] {
+  cursor: pointer;
+}
+
+.thread-context-card[role="button"]:focus-visible {
+  outline: 2px solid oklch(var(--p) / 0.55);
+  outline-offset: -2px;
+}
+
 /* --------------------------------------------------------------------------
    MODALS
    -------------------------------------------------------------------------- */

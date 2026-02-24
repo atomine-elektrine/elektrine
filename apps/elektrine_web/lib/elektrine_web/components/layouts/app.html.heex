@@ -32,26 +32,7 @@
           tabindex="0"
           class="menu dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-xl w-52 border border-base-300/50"
         >
-          <li>
-            <a href="/" class="rounded-lg">
-              <.icon name="hero-home" class="w-5 h-5" />
-              {gettext("Home")}
-            </a>
-          </li>
           <%= if @current_user do %>
-            <li>
-              <.link href={~p"/email"} class="rounded-lg text-primary">
-                <.icon name="hero-envelope" class="w-5 h-5" />
-                {gettext("Email")}
-              </.link>
-            </li>
-            <li>
-              <.link href={~p"/timeline"} class="rounded-lg text-secondary">
-                <.icon name="hero-chat-bubble-left-right" class="w-5 h-5" />
-                {gettext("Social")}
-              </.link>
-            </li>
-            <div class="divider my-1"></div>
             <li>
               <a href={~p"/account"} class="rounded-lg">
                 <.icon name="hero-user-circle" class="w-5 h-5" />
@@ -72,7 +53,6 @@
               </.link>
             </li>
           <% else %>
-            <div class="divider my-1"></div>
             <li>
               <.link href={~p"/login"} class="rounded-lg">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" />
@@ -93,7 +73,7 @@
       </a>
     </div>
     <div class="navbar-center hidden lg:flex">
-      <div class="form-control mr-4">
+      <div class="form-control">
         <form action="/search" method="get">
           <div class="join">
             <input
@@ -109,77 +89,6 @@
           </div>
         </form>
       </div>
-      <ul class="menu menu-horizontal px-1 gap-1">
-        <li>
-          <a
-            href="/"
-            class={[
-              "rounded-lg",
-              if(assigns[:conn] && @conn.request_path == "/",
-                do: "bg-primary/15 text-primary font-semibold",
-                else: "hover:bg-base-300"
-              )
-            ]}
-          >
-            {gettext("Home")}
-          </a>
-        </li>
-        <li>
-          <.link
-            href={~p"/email"}
-            class={[
-              "font-semibold rounded-lg",
-              if(
-                @current_user &&
-                  ((assigns[:conn] &&
-                      (String.starts_with?(@conn.request_path, "/email") ||
-                         String.starts_with?(@conn.request_path, "/vpn"))) ||
-                     (assigns[:socket] && assigns[:socket].view &&
-                        (String.contains?(to_string(assigns[:socket].view), "EmailLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "VPNLive")))),
-                do: "bg-primary/15 text-primary",
-                else: "text-primary hover:bg-primary/10"
-              )
-            ]}
-          >
-            Email
-          </.link>
-        </li>
-        <li>
-          <.link
-            href={~p"/timeline"}
-            class={[
-              "font-semibold rounded-lg",
-              if(
-                @current_user &&
-                  ((assigns[:conn] &&
-                      (String.starts_with?(@conn.request_path, "/chat") ||
-                         String.starts_with?(@conn.request_path, "/timeline") ||
-                         String.starts_with?(@conn.request_path, "/remote") ||
-                         String.starts_with?(@conn.request_path, "/gallery") ||
-                         String.starts_with?(@conn.request_path, "/overview") ||
-                         String.starts_with?(@conn.request_path, "/communities") ||
-                         String.starts_with?(@conn.request_path, "/friends") ||
-                         String.starts_with?(@conn.request_path, "/lists"))) ||
-                     (assigns[:socket] && assigns[:socket].view &&
-                        (String.contains?(to_string(assigns[:socket].view), "ChatLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "TimelineLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "RemoteUserLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "RemotePostLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "GalleryLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "OverviewLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "DiscussionsLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "FriendsLive") ||
-                           String.contains?(to_string(assigns[:socket].view), "ListLive")))),
-                do: "bg-secondary/15 text-secondary",
-                else: "text-secondary hover:bg-secondary/10"
-              )
-            ]}
-          >
-            Social
-          </.link>
-        </li>
-      </ul>
     </div>
     <div class="navbar-end">
       <%= if @current_user do %>
