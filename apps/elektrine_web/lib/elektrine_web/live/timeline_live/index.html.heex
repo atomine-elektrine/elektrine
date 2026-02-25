@@ -1370,33 +1370,6 @@
                       </button>
                     <% end %>
                   </div>
-                <% else %>
-                  <!-- Load Remote Replies Button for federated posts with comments but no local replies -->
-                  <% has_comments =
-                    (post.reply_count && post.reply_count > 0) ||
-                      (Map.get(@lemmy_counts, post.activitypub_id) &&
-                         Map.get(@lemmy_counts, post.activitypub_id).comments > 0)
-
-                  is_loading = MapSet.member?(@loading_remote_replies, post.id) %>
-                  <%= if post.federated && post.activitypub_id && has_comments do %>
-                    <div class="mt-3">
-                      <button
-                        phx-click="load_remote_replies"
-                        phx-value-post_id={post.id}
-                        phx-value-activitypub_id={post.activitypub_id}
-                        class="btn btn-ghost btn-sm text-primary"
-                        type="button"
-                        disabled={is_loading}
-                      >
-                        <%= if is_loading do %>
-                          <.spinner size="sm" /> Loading replies...
-                        <% else %>
-                          <.icon name="hero-chat-bubble-left-ellipsis" class="w-4 h-4 mr-1" />
-                          Load replies
-                        <% end %>
-                      </button>
-                    </div>
-                  <% end %>
                 <% end %>
               <% end %>
               <!-- Close else block for is_lemmy_post -->

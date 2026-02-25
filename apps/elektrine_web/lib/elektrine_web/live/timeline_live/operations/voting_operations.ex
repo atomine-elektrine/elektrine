@@ -5,6 +5,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Social
   alias Elektrine.Utils.SafeConvert
+  alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.TimelineLive.Operations.Helpers
   import ElektrineWeb.Live.Helpers.PostStateHelpers
 
@@ -611,58 +612,83 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
     end
   end
 
+  def handle_event("react_to_post", %{"message_id" => message_id, "emoji" => emoji}, socket) do
+    handle_event("react_to_post", %{"post_id" => message_id, "emoji" => emoji}, socket)
+  end
+
   def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
     if socket.assigns[:current_user] do
-      user_id = socket.assigns.current_user.id
-      message_id = SafeConvert.to_integer!(post_id, post_id)
+      normalized_post_id = normalize_reaction_post_id(post_id)
 
-      if message_id == :temp do
+      if normalized_post_id in [:temp, "temp"] do
         {:noreply, socket}
       else
-        alias Elektrine.Messaging.Reactions
+        case PostInteractions.resolve_message_for_interaction(normalized_post_id) do
+          {:ok, message} ->
+            user_id = socket.assigns.current_user.id
+            reaction_key = reaction_key_for_post_id(normalized_post_id)
+            alias Elektrine.Messaging.Reactions
 
-        existing_reaction =
-          Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
-            message_id: message_id,
-            user_id: user_id,
-            emoji: emoji
-          )
+            existing_reaction =
+              Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
+                message_id: message.id,
+                user_id: user_id,
+                emoji: emoji
+              )
 
-        if existing_reaction do
-          case Reactions.remove_reaction(message_id, user_id, emoji) do
-            {:ok, _} ->
-              updated_reactions =
-                update_post_reactions(
-                  socket,
-                  message_id,
-                  %{emoji: emoji, user_id: user_id},
-                  :remove
-                )
+            if existing_reaction do
+              case Reactions.remove_reaction(message.id, user_id, emoji) do
+                {:ok, _} ->
+                  updated_reactions =
+                    update_post_reactions(
+                      socket,
+                      reaction_key,
+                      %{emoji: emoji, user_id: user_id},
+                      :remove
+                    )
 
-              {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                  {:noreply, assign(socket, :post_reactions, updated_reactions)}
 
-            {:error, _} ->
-              {:noreply, socket}
-          end
-        else
-          case Reactions.add_reaction(message_id, user_id, emoji) do
-            {:ok, reaction} ->
-              reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
-              updated_reactions = update_post_reactions(socket, message_id, reaction, :add)
-              {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                {:error, _} ->
+                  {:noreply, socket}
+              end
+            else
+              case Reactions.add_reaction(message.id, user_id, emoji) do
+                {:ok, reaction} ->
+                  reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
+                  updated_reactions = update_post_reactions(socket, reaction_key, reaction, :add)
+                  {:noreply, assign(socket, :post_reactions, updated_reactions)}
 
-            {:error, :rate_limited} ->
-              {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+                {:error, :rate_limited} ->
+                  {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
 
-            {:error, _} ->
-              {:noreply, socket}
-          end
+                {:error, _} ->
+                  {:noreply, socket}
+              end
+            end
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to process post")}
         end
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to react")}
     end
   end
+
+  defp normalize_reaction_post_id(post_id) when is_binary(post_id), do: String.trim(post_id)
+  defp normalize_reaction_post_id(post_id), do: post_id
+
+  defp reaction_key_for_post_id(post_id) when is_integer(post_id), do: post_id
+
+  defp reaction_key_for_post_id(post_id) when is_binary(post_id) do
+    case Integer.parse(post_id) do
+      {id, ""} -> id
+      _ -> post_id
+    end
+  end
+
+  defp reaction_key_for_post_id(post_id), do: post_id
 
   defp update_post_reactions(socket, message_id, reaction, action) do
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})

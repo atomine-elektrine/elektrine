@@ -103,38 +103,99 @@
     <% else %>
       <%= if @is_local_post && @local_message do %>
         <!-- Local Post Display -->
-        <% sender = @local_message.sender %>
+        <% sender = @local_message.sender || %{}
+
+        sender_handle =
+          case Map.get(sender, :handle) do
+            handle when is_binary(handle) ->
+              trimmed_handle = String.trim(handle)
+              if trimmed_handle != "", do: trimmed_handle, else: nil
+
+            _ ->
+              nil
+          end
+
+        sender_username =
+          case Map.get(sender, :username) do
+            username when is_binary(username) ->
+              trimmed_username = String.trim(username)
+              if trimmed_username != "", do: trimmed_username, else: nil
+
+            _ ->
+              nil
+          end
+
+        sender_display_name_raw = Map.get(sender, :display_name)
+
+        sender_path =
+          if sender_username do
+            "/#{sender_handle || sender_username}"
+          else
+            nil
+          end
+
+        sender_display_name =
+          cond do
+            is_binary(sender_display_name_raw) and String.trim(sender_display_name_raw) != "" ->
+              sender_display_name_raw
+
+            sender_username ->
+              sender_username
+
+            true ->
+              "Deleted user"
+          end
+
+        sender_avatar = Map.get(sender, :avatar) %>
         <div class="social-page-rail">
           <article class="card social-page-card border border-base-300 rounded-lg p-6 mb-6">
             <!-- Post Header -->
             <div class="flex items-center gap-3 mb-4">
-              <.link
-                navigate={"/#{sender.handle || sender.username}"}
-                class="flex-shrink-0 rounded-full"
-              >
-                <%= if sender.avatar do %>
-                  <img
-                    src={Elektrine.Uploads.avatar_url(sender.avatar)}
-                    alt={sender.username}
-                    class="w-12 h-12 rounded-full object-cover"
-                  />
-                <% else %>
-                  <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
-                    <.icon name="hero-user" class="w-6 h-6" />
-                  </div>
-                <% end %>
-              </.link>
+              <%= if sender_path do %>
+                <.link navigate={sender_path} class="flex-shrink-0 rounded-full">
+                  <%= if sender_avatar do %>
+                    <img
+                      src={Elektrine.Uploads.avatar_url(sender_avatar)}
+                      alt={sender_username || sender_display_name}
+                      class="w-12 h-12 rounded-full object-cover"
+                    />
+                  <% else %>
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
+                      <.icon name="hero-user" class="w-6 h-6" />
+                    </div>
+                  <% end %>
+                </.link>
+              <% else %>
+                <div class="flex-shrink-0 rounded-full">
+                  <%= if sender_avatar do %>
+                    <img
+                      src={Elektrine.Uploads.avatar_url(sender_avatar)}
+                      alt={sender_display_name}
+                      class="w-12 h-12 rounded-full object-cover"
+                    />
+                  <% else %>
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
+                      <.icon name="hero-user" class="w-6 h-6" />
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
-                  <.link
-                    navigate={"/#{sender.handle || sender.username}"}
-                    class="font-bold transition-colors duration-200"
-                  >
-                    {sender.display_name || sender.username}
-                  </.link>
+                  <%= if sender_path do %>
+                    <.link navigate={sender_path} class="font-bold transition-colors duration-200">
+                      {sender_display_name}
+                    </.link>
+                  <% else %>
+                    <span class="font-bold">{sender_display_name}</span>
+                  <% end %>
                 </div>
                 <div class="text-sm opacity-70">
-                  @{sender.username}
+                  <%= if sender_username do %>
+                    @{sender_username}
+                  <% else %>
+                    @deleted
+                  <% end %>
                 </div>
               </div>
             </div>
@@ -168,11 +229,22 @@
             <% end %>
 
             <%= if @local_message.quoted_message_id && Ecto.assoc_loaded?(@local_message.quoted_message) && @local_message.quoted_message do %>
-              <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
-                quoted_message={@local_message.quoted_message}
-                variant={:detail}
-                content_mode={:local}
-              />
+              <% quoted_message_path = quote_message_path(@local_message.quoted_message) %>
+              <%= if is_binary(quoted_message_path) do %>
+                <.link navigate={quoted_message_path} class="block">
+                  <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                    quoted_message={@local_message.quoted_message}
+                    variant={:detail}
+                    content_mode={:local}
+                  />
+                </.link>
+              <% else %>
+                <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                  quoted_message={@local_message.quoted_message}
+                  variant={:detail}
+                  content_mode={:local}
+                />
+              <% end %>
             <% end %>
             
 <!-- Images -->
@@ -573,12 +645,24 @@
                         end %>
 
                       <%= if local_quote do %>
-                        <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
-                          quoted_message={local_quote}
-                          variant={:detail}
-                          content_mode={:remote_post}
-                          domain={@remote_actor.domain}
-                        />
+                        <% local_quote_path = quote_message_path(local_quote) %>
+                        <%= if is_binary(local_quote_path) do %>
+                          <.link navigate={local_quote_path} class="block">
+                            <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                              quoted_message={local_quote}
+                              variant={:detail}
+                              content_mode={:remote_post}
+                              domain={@remote_actor.domain}
+                            />
+                          </.link>
+                        <% else %>
+                          <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                            quoted_message={local_quote}
+                            variant={:detail}
+                            content_mode={:remote_post}
+                            domain={@remote_actor.domain}
+                          />
+                        <% end %>
                       <% else %>
                         <%= if is_binary(quote_url) do %>
                           <a
@@ -796,10 +880,10 @@
                           lemmy.score + like_delta
 
                         # Fresh Mastodon API counts (most accurate)
-                        mastodon_api && is_integer(mastodon_api[:favourites_count]) ->
+                        is_map(mastodon_api) and is_integer(mastodon_api[:favourites_count]) ->
                           mastodon_api[:favourites_count] + like_delta
 
-                        mastodon && is_integer(mastodon["favourites_count"]) ->
+                        is_map(mastodon) and is_integer(mastodon["favourites_count"]) ->
                           mastodon["favourites_count"] + like_delta
 
                         # Use local message count directly (no delta - it's already up to date from database)
@@ -816,10 +900,10 @@
                     boost_count =
                       cond do
                         # Fresh Mastodon API counts (most accurate)
-                        mastodon_api && is_integer(mastodon_api[:reblogs_count]) ->
+                        is_map(mastodon_api) and is_integer(mastodon_api[:reblogs_count]) ->
                           mastodon_api[:reblogs_count] + boost_delta
 
-                        mastodon && is_integer(mastodon["reblogs_count"]) ->
+                        is_map(mastodon) and is_integer(mastodon["reblogs_count"]) ->
                           mastodon["reblogs_count"] + boost_delta
 
                         # Use local message count directly (no delta - it's already up to date from database)
@@ -843,10 +927,10 @@
                           lemmy.comments
 
                         # Fresh Mastodon API counts (most accurate)
-                        mastodon_api && is_integer(mastodon_api[:replies_count]) ->
+                        is_map(mastodon_api) and is_integer(mastodon_api[:replies_count]) ->
                           mastodon_api[:replies_count]
 
-                        mastodon && is_integer(mastodon["replies_count"]) ->
+                        is_map(mastodon) and is_integer(mastodon["replies_count"]) ->
                           mastodon["replies_count"]
 
                         # Use local message count directly (no delta - it's already up to date from database)
@@ -963,10 +1047,10 @@
 <!-- Threaded Comments Section -->
               <% reported_reply_count =
                 cond do
-                  @community_actor && @lemmy_counts ->
+                  not is_nil(@community_actor) and not is_nil(@lemmy_counts) ->
                     @lemmy_counts.comments || 0
 
-                  @mastodon_counts && is_integer(@mastodon_counts[:replies_count]) ->
+                  is_map(@mastodon_counts) and is_integer(@mastodon_counts[:replies_count]) ->
                     @mastodon_counts[:replies_count]
 
                   is_map(@post) ->
@@ -1074,15 +1158,12 @@
                           do: "reply is",
                           else: "replies are"} available on the origin thread.
                       </span>
-                      <a
-                        href={@post["id"]}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <.link
+                        navigate={"/remote/post/#{URI.encode_www_form(@post["id"])}"}
                         class="text-sm font-medium underline inline-flex items-center gap-1"
                       >
-                        Open full thread
-                        <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                      </a>
+                        Reload thread <.icon name="hero-arrow-path" class="w-3 h-3" />
+                      </.link>
                     </div>
                   <% end %>
                   <div class="space-y-2">
@@ -1268,13 +1349,14 @@ modal_like_delta = Map.get(modal_interaction, :like_delta, 0)
 # Get base like count from Lemmy or ActivityPub - use Map.get for struct access
 base_like_count =
   cond do
-    @lemmy_counts && Map.get(@lemmy_counts, :score) ->
+    is_map(@lemmy_counts) and not is_nil(Map.get(@lemmy_counts, :score)) ->
       Map.get(@lemmy_counts, :score)
 
-    @post && @post["_mastodon"] && @post["_mastodon"]["favourites_count"] ->
+    is_map(@post) and is_map(@post["_mastodon"]) and
+        not is_nil(@post["_mastodon"]["favourites_count"]) ->
       @post["_mastodon"]["favourites_count"]
 
-    @post && @post["likes"] ->
+    is_map(@post) and not is_nil(@post["likes"]) ->
       Elektrine.ActivityPub.Helpers.get_collection_total(@post["likes"]) || 0
 
     true ->

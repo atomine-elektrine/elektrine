@@ -262,9 +262,6 @@ defmodule ElektrineWeb.TimelineLive.Router do
       "view_original_context" ->
         ReplyOperations.handle_event(event_name, params, socket)
 
-      "load_remote_replies" ->
-        ReplyOperations.handle_event(event_name, params, socket)
-
       # UI Operations
       "stop_event" ->
         UIOperations.handle_event(event_name, params, socket)

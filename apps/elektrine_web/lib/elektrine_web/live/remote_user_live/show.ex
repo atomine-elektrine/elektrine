@@ -83,7 +83,14 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       # Load local posts synchronously to prevent flicker (fast DB query)
       local_posts = get_local_posts_from_remote_actor(remote_actor)
       socket = assign(socket, :local_posts, local_posts)
-      socket = assign(socket, :post_reactions, get_post_reactions(local_posts))
+
+      socket =
+        assign(
+          socket,
+          :post_reactions,
+          normalize_post_reaction_keys(get_post_reactions(local_posts))
+        )
+
       socket = assign(socket, :loading, Enum.empty?(local_posts))
 
       # Load interactions for local posts
@@ -289,7 +296,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
           socket.assigns.user_saves
         end
 
-      post_reactions = get_post_reactions(local_posts)
+      post_reactions = normalize_post_reaction_keys(get_post_reactions(local_posts))
 
       # Show local posts immediately
       socket =
@@ -435,7 +442,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         end
 
       user_saves = Map.merge(socket.assigns.user_saves, new_user_saves)
-      new_post_reactions = get_post_reactions(stored_posts)
+      new_post_reactions = normalize_post_reaction_keys(get_post_reactions(stored_posts))
       post_reactions = Map.merge(socket.assigns.post_reactions || %{}, new_post_reactions)
 
       # Load replies/comments for newly discovered outbox posts.
@@ -821,7 +828,6 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
             %{
               "type" => post["type"],
               "url" => post["url"],
-              "community_actor_uri" => remote_actor.uri,
               "sensitive" => post["sensitive"],
               "quoteUrl" => post["quoteUrl"] || post["_misskey_quote"],
               "replies" => post["replies"],
@@ -829,6 +835,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
               "likes" => post["likes"],
               "shares" => post["shares"]
             }
+            |> maybe_put_community_actor_uri(remote_actor)
             |> Map.merge(alt_texts)
 
           # Parse the published date
@@ -927,6 +934,13 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   defp fetch_collection_count(_), do: 0
+
+  defp maybe_put_community_actor_uri(metadata, %{actor_type: "Group", uri: uri})
+       when is_map(metadata) and is_binary(uri) do
+    Map.put(metadata, "community_actor_uri", uri)
+  end
+
+  defp maybe_put_community_actor_uri(metadata, _remote_actor) when is_map(metadata), do: metadata
 
   defp extract_media_from_post(post) do
     attachments = post["attachment"] || post["image"] || []
@@ -1525,6 +1539,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
            ) do
         {:ok, message} ->
           alias Elektrine.Messaging.Reactions
+          key = PostInteractions.interaction_key(post_id, message)
 
           existing_reaction =
             Repo.get_by(Elektrine.Messaging.MessageReaction,
@@ -1539,7 +1554,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
                 updated_reactions =
                   PostInteractions.update_post_reactions(
                     socket.assigns.post_reactions,
-                    message.id,
+                    key,
                     %{emoji: emoji, user_id: user_id},
                     :remove
                   )
@@ -1557,7 +1572,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
                 updated_reactions =
                   PostInteractions.update_post_reactions(
                     socket.assigns.post_reactions,
-                    message.id,
+                    key,
                     reaction,
                     :add
                   )
@@ -1657,6 +1672,44 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  def handle_event("record_dwell_time", params, socket) do
+    if user = socket.assigns[:current_user] do
+      record_remote_profile_dwell_view(user.id, params)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("record_dwell_times", params, socket) do
+    if user = socket.assigns[:current_user] do
+      params
+      |> Map.get("views", [])
+      |> case do
+        views when is_list(views) ->
+          Enum.each(views, &record_remote_profile_dwell_view(user.id, &1))
+
+        _ ->
+          :ok
+      end
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("record_dismissal", params, socket) do
+    if user = socket.assigns[:current_user] do
+      post_id = Map.get(params, "post_id")
+      type = Map.get(params, "type")
+      dwell_time_ms = Map.get(params, "dwell_time_ms")
+
+      if is_binary(post_id) and post_id != "" and is_binary(type) and type != "" do
+        Elektrine.Social.Recommendations.record_dismissal(user.id, post_id, type, dwell_time_ms)
+      end
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_event(
         "open_image_modal",
         %{"url" => url, "images" => images_json, "index" => index} = params,
@@ -1737,6 +1790,31 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
   def handle_event("prev_media_post", _params, socket) do
     # Not implemented for remote user profiles
+    {:noreply, socket}
+  end
+
+  def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
+      when is_binary(url) and url != "" and url != "#" do
+    trimmed_url = String.trim(url)
+
+    case URI.parse(trimmed_url) do
+      %URI{scheme: nil, host: nil} ->
+        {:noreply, push_navigate(socket, to: trimmed_url)}
+
+      %URI{scheme: scheme} when scheme in ["http", "https"] ->
+        {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(trimmed_url)}")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("navigate_to_embedded_post", _params, socket) do
     {:noreply, socket}
   end
 
@@ -2030,6 +2108,26 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   defp load_user_saves_for_posts(_, _), do: %{}
+
+  defp record_remote_profile_dwell_view(user_id, params)
+       when is_integer(user_id) and is_map(params) do
+    case Map.get(params, "post_id") do
+      post_id when is_binary(post_id) and post_id != "" ->
+        attrs = %{
+          dwell_time_ms: Map.get(params, "dwell_time_ms"),
+          scroll_depth: Map.get(params, "scroll_depth"),
+          expanded: Map.get(params, "expanded") || false,
+          source: Map.get(params, "source") || "remote_profile"
+        }
+
+        Elektrine.Social.Recommendations.record_view_with_dwell(user_id, post_id, attrs)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp record_remote_profile_dwell_view(_, _), do: :ok
 
   defp resolve_quote_target(post_id, socket) do
     post_id = to_string(post_id)
@@ -2367,6 +2465,110 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       end
     end) || []
   end
+
+  defp normalize_post_reaction_keys(reactions_map) when is_map(reactions_map) do
+    Enum.into(reactions_map, %{}, fn {key, reactions} ->
+      {PostInteractions.normalize_key(key), reactions}
+    end)
+  end
+
+  defp normalize_post_reaction_keys(_), do: %{}
+
+  defp reactions_for_entry(%{id: id} = post, post_reactions) when is_integer(id) do
+    keys =
+      [post.activitypub_id, Integer.to_string(id), id]
+      |> Enum.reject(&is_nil/1)
+
+    reactions_for_keys(post_reactions, keys)
+  end
+
+  defp reactions_for_entry(_, _), do: []
+
+  defp post_reaction_surface(post_ref, local_posts, post_reactions) do
+    {target_id, value_name, keys} = reaction_target_for_post_ref(post_ref, local_posts)
+
+    %{
+      target_id: target_id,
+      value_name: value_name,
+      reactions: reactions_for_keys(post_reactions, keys)
+    }
+  end
+
+  defp reply_reaction_surface(reply, local_posts, post_reactions) when is_map(reply) do
+    reply_id = Map.get(reply, "id") || Map.get(reply, :id)
+    local_message_id = Map.get(reply, "_local_message_id") || Map.get(reply, :_local_message_id)
+
+    {target_id, value_name, keys} =
+      case parse_local_message_id(local_message_id) do
+        {:ok, id} ->
+          reply_ref =
+            if is_binary(reply_id) and reply_id != "" do
+              reply_id
+            else
+              nil
+            end
+
+          {id, "message_id", [Integer.to_string(id), id, reply_ref]}
+
+        :error ->
+          reaction_target_for_post_ref(reply_id, local_posts)
+      end
+
+    %{
+      target_id: target_id,
+      value_name: value_name,
+      reactions: reactions_for_keys(post_reactions, keys)
+    }
+  end
+
+  defp reply_reaction_surface(_, _local_posts, _post_reactions) do
+    %{target_id: nil, value_name: "post_id", reactions: []}
+  end
+
+  defp reaction_target_for_post_ref(post_ref, local_posts) do
+    decoded_ref = decode_post_ref(post_ref)
+
+    case parse_local_message_id(decoded_ref) do
+      {:ok, local_id} ->
+        {
+          local_id,
+          "message_id",
+          [Integer.to_string(local_id), local_id, to_string(decoded_ref)]
+        }
+
+      :error ->
+        normalized_ref =
+          if is_binary(decoded_ref), do: String.trim(decoded_ref), else: to_string(decoded_ref)
+
+        local_match =
+          Enum.find(local_posts || [], fn
+            %{activitypub_id: activitypub_id} -> activitypub_id == normalized_ref
+            _ -> false
+          end)
+
+        case local_match do
+          %{id: local_id} when is_integer(local_id) ->
+            {local_id, "message_id", [normalized_ref, Integer.to_string(local_id), local_id]}
+
+          _ when is_binary(normalized_ref) and normalized_ref != "" ->
+            {normalized_ref, "post_id", [normalized_ref]}
+
+          _ ->
+            {nil, "post_id", []}
+        end
+    end
+  end
+
+  defp reactions_for_keys(post_reactions, keys) when is_map(post_reactions) and is_list(keys) do
+    Enum.find_value(keys, [], fn key ->
+      case Map.get(post_reactions, key) do
+        reactions when is_list(reactions) -> reactions
+        _ -> nil
+      end
+    end) || []
+  end
+
+  defp reactions_for_keys(_, _), do: []
 
   # Upload error helper
   defp error_to_string(:too_large), do: "File is too large (max 50MB)"
