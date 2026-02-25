@@ -653,11 +653,15 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           role_label = ancestor_position_label(idx, @ancestor_count)
           subtitle = ancestor_author_subtitle(ancestor)
           local_id = ancestor.local_id
+
           show_actions =
             @show_ancestor_actions &&
               ancestor_actions_enabled_for_source?(@source) &&
               is_integer(local_id)
-          interaction_state = if(show_actions, do: ancestor_interaction_state(ancestor, @post_interactions), else: %{})
+
+          interaction_state =
+            if(show_actions, do: ancestor_interaction_state(ancestor, @post_interactions), else: %{})
+
           like_count = if(show_actions, do: ancestor_like_count(ancestor, interaction_state), else: 0)
           boost_count = if(show_actions, do: ancestor_boost_count(ancestor), else: 0)
           reply_count = if(show_actions, do: ancestor_reply_count(ancestor), else: 0) %>
@@ -783,15 +787,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           </span>
           <%= if @clickable do %>
             <span class="ml-auto inline-flex items-center gap-1 text-[10px] opacity-65 flex-shrink-0">
-              Open
-              <.icon
-                name={
-                  if @ancestor.click_event == "open_external_link",
-                    do: "hero-arrow-top-right-on-square",
-                    else: "hero-arrow-right"
-                }
-                class="h-3 w-3"
-              />
+              Open <.icon name="hero-arrow-right" class="h-3 w-3" />
             </span>
           <% end %>
         </div>
@@ -901,7 +897,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   # Keep reply ancestor lookups cheap on high-volume feeds.
   defp reply_ancestor_max_depth(source)
        when source in ["timeline", "overview", "hashtag", "remote_profile"],
-    do: 3
+       do: 3
 
   defp reply_ancestor_max_depth(_), do: 8
 
@@ -1130,7 +1126,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           {"navigate_to_post", nil, local_id}
 
         is_binary(activitypub_ref) ->
-          {"open_external_link", activitypub_ref, nil}
+          {"navigate_to_remote_post", activitypub_ref, nil}
 
         true ->
           {nil, nil, nil}
@@ -1293,13 +1289,64 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   defp ancestor_actions_enabled_for_source?(_), do: true
 
   defp ancestor_reactions(local_id, post_reactions_map)
-       when is_integer(local_id) and is_map(post_reactions_map),
-       do: Map.get(post_reactions_map, local_id, [])
+       when is_integer(local_id) and is_map(post_reactions_map) do
+    reactions_for_keys(post_reactions_map, [Integer.to_string(local_id), local_id])
+  end
 
   defp ancestor_reactions(_, _), do: []
 
-  defp ancestor_clickable?(%{click_event: "open_external_link", click_url: url})
-       when is_binary(url) and url != "",
+  defp reply_reaction_surface(reply, post_reactions_map) when is_map(post_reactions_map) do
+    case reply_reaction_target(reply) do
+      {nil, _value_name, _keys} ->
+        %{target_id: nil, value_name: "post_id", reactions: []}
+
+      {target_id, value_name, lookup_keys} ->
+        %{
+          target_id: target_id,
+          value_name: value_name,
+          reactions: reactions_for_keys(post_reactions_map, lookup_keys)
+        }
+    end
+  end
+
+  defp reply_reaction_surface(_reply, _post_reactions_map),
+    do: %{target_id: nil, value_name: "post_id", reactions: []}
+
+  defp reply_reaction_target(%{id: id}) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id]}
+  end
+
+  defp reply_reaction_target(%{"_local_message_id" => id}) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id]}
+  end
+
+  defp reply_reaction_target(%{_local_message_id: id}) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id]}
+  end
+
+  defp reply_reaction_target(%{"id" => id}) when is_binary(id) and id != "" do
+    {id, "post_id", [id]}
+  end
+
+  defp reply_reaction_target(%{id: id}) when is_binary(id) and id != "" do
+    {id, "post_id", [id]}
+  end
+
+  defp reply_reaction_target(_), do: {nil, "post_id", []}
+
+  defp reactions_for_keys(reactions_map, keys) when is_map(reactions_map) and is_list(keys) do
+    Enum.find_value(keys, [], fn key ->
+      case Map.get(reactions_map, key) do
+        reactions when is_list(reactions) -> reactions
+        _ -> nil
+      end
+    end) || []
+  end
+
+  defp reactions_for_keys(_, _), do: []
+
+  defp ancestor_clickable?(%{click_event: event, click_url: url})
+       when is_binary(event) and event != "" and is_binary(url) and url != "",
        do: true
 
   defp ancestor_clickable?(%{click_event: event, click_id: id})
@@ -2508,6 +2555,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           <div class="text-xs font-medium text-base-content/60 mb-2">Top Community Comments</div>
           <div class="space-y-2">
             <%= for reply <- Enum.take(@replies, 3) do %>
+              <% reply_reaction = reply_reaction_surface(reply, @post_reactions_map) %>
               <div class="flex gap-2 text-sm">
                 <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                 <div class="flex-1 min-w-0">
@@ -2528,6 +2576,17 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                       )
                     )}
                   </div>
+                  <%= if reply_reaction.target_id do %>
+                    <div class="mt-1.5" phx-click="stop_propagation">
+                      <.post_reactions
+                        post_id={reply_reaction.target_id}
+                        value_name={reply_reaction.value_name}
+                        reactions={reply_reaction.reactions}
+                        current_user={@current_user}
+                        size={:xs}
+                      />
+                    </div>
+                  <% end %>
                 </div>
               </div>
             <% end %>

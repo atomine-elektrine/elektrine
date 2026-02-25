@@ -204,45 +204,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
     end
   end
 
-  # Loads remote replies for a federated post
-  def handle_event(
-        "load_remote_replies",
-        %{"post_id" => post_id, "activitypub_id" => _activitypub_id},
-        socket
-      ) do
-    case SafeConvert.parse_id(post_id) do
-      {:ok, post_id} ->
-        # Set loading state
-        loading_set = MapSet.put(socket.assigns.loading_remote_replies, post_id)
-        socket = assign(socket, :loading_remote_replies, loading_set)
-
-        user_id = socket.assigns[:current_user] && socket.assigns.current_user.id
-
-        local_replies =
-          if user_id do
-            Social.get_direct_replies_for_posts([post_id], user_id: user_id, limit_per_post: 20)
-            |> Map.get(post_id, [])
-          else
-            Social.get_direct_replies_for_posts([post_id], limit_per_post: 20)
-            |> Map.get(post_id, [])
-          end
-
-        if local_replies == [] do
-          _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(post_id)
-
-          # Poll for newly ingested replies so the button click results in a visible update.
-          Process.send_after(self(), {:refresh_remote_replies, post_id, 1}, 1_500)
-        else
-          send(self(), {:post_replies_loaded, post_id, local_replies})
-        end
-
-        {:noreply, socket}
-
-      {:error, :invalid_id} ->
-        {:noreply, socket}
-    end
-  end
-
   defp recent_replies_for_post(socket, message_id, reply_to_post) do
     loaded_replies =
       socket.assigns.post_replies

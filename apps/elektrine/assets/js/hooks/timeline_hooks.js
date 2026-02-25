@@ -38,6 +38,12 @@ export const PostClick = {
         this.pushEvent(clickEvent, { id })
       } else if (clickEvent === "navigate_to_gallery_post" && id) {
         this.pushEvent(clickEvent, { id, url: url || "" })
+      } else if (clickEvent === "navigate_to_embedded_post" && (id || url)) {
+        if (url) {
+          this.pushEvent(clickEvent, { url })
+        } else {
+          this.pushEvent(clickEvent, { id })
+        }
       } else if (clickEvent === "navigate_to_remote_post" && (id || url)) {
         this.pushEvent(clickEvent, { id, url: url || "" })
       } else if (clickEvent === "navigate_to_discussion" && community && slug) {

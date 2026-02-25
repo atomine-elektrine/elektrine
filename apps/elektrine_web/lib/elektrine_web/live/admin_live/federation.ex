@@ -361,13 +361,20 @@ defmodule ElektrineWeb.AdminLive.Federation do
   end
 
   defp approximate_table_count(table_name) when is_binary(table_name) do
+    regclass_name =
+      if String.contains?(table_name, ".") do
+        table_name
+      else
+        "public.#{table_name}"
+      end
+
     sql = """
-    SELECT GREATEST(COALESCE(reltuples, 0), 0)::bigint
-    FROM pg_class
-    WHERE oid = $1::regclass
+    SELECT GREATEST(COALESCE(c.reltuples, 0), 0)::bigint
+    FROM pg_class AS c
+    WHERE c.oid = to_regclass($1)
     """
 
-    case Repo.query(sql, [table_name], timeout: 500, pool_timeout: 200) do
+    case Repo.query(sql, [regclass_name], timeout: 500, pool_timeout: 200) do
       {:ok, %{rows: [[count]]}} when is_integer(count) -> count
       {:ok, %{rows: [[count]]}} when is_float(count) -> trunc(count)
       _ -> 0

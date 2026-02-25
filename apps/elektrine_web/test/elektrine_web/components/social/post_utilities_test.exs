@@ -36,6 +36,19 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     refute PostUtilities.has_community_uri?(public_post)
   end
 
+  test "has_community_uri?/1 ignores person actor URIs" do
+    mastodon_style = %{
+      media_metadata: %{"community_actor_uri" => "https://mastodon.social/@alice"}
+    }
+
+    user_path_style = %{
+      media_metadata: %{"community_actor_uri" => "https://remote.example/users/alice"}
+    }
+
+    refute PostUtilities.has_community_uri?(mastodon_style)
+    refute PostUtilities.has_community_uri?(user_path_style)
+  end
+
   test "community_actor_uri/1 normalizes valid community values" do
     post = %{media_metadata: %{"community_actor_uri" => "  https://lemmy.world/c/elixir  "}}
 

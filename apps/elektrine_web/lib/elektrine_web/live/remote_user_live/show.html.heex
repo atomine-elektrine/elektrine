@@ -357,7 +357,7 @@
                   post_replies={local_replies}
                   post_interactions={@post_interactions}
                   post_reactions_map={@post_reactions}
-                  reactions={Map.get(@post_reactions, post.id, [])}
+                  reactions={reactions_for_entry(post, @post_reactions)}
                   show_follow_button={false}
                   show_admin_actions={false}
                   show_post_dropdown={false}
@@ -444,7 +444,10 @@
 
                 quote_url =
                   post["quoteUrl"] || post["_misskey_quote"] ||
-                    get_in(post, ["pleroma", "quote_uri"]) %>
+                    get_in(post, ["pleroma", "quote_uri"])
+
+                reaction_surface =
+                  post_reaction_surface(post["id"], @local_posts, @post_reactions) %>
                 <article class={[
                   "card social-page-card border border-base-300 rounded-lg overflow-hidden",
                   if(is_reply_outbox, do: "border-l-4 border-l-secondary/50", else: "")
@@ -634,6 +637,18 @@
                           </a>
                         <% end %>
                       </div>
+
+                      <%= if reaction_surface.target_id do %>
+                        <div class="mt-2" phx-click="stop_propagation">
+                          <.post_reactions
+                            post_id={reaction_surface.target_id}
+                            value_name={reaction_surface.value_name}
+                            reactions={reaction_surface.reactions}
+                            current_user={@current_user}
+                            size={:xs}
+                          />
+                        </div>
+                      <% end %>
                     </div>
                   </div>
                   
@@ -645,7 +660,10 @@
                       </div>
                       <div class="space-y-2">
                         <%= for reply <- Enum.take(loaded_replies, 3) do %>
-                          <% lemmy_data = reply["_lemmy"] %>
+                          <% lemmy_data = reply["_lemmy"]
+
+                          reply_reaction =
+                            reply_reaction_surface(reply, @local_posts, @post_reactions) %>
                           <div class="flex gap-2 text-sm">
                             <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                             <div class="flex-1 min-w-0">
@@ -668,6 +686,17 @@
                                   {raw(render_remote_bio(reply["content"], @remote_actor.domain))}
                                 <% end %>
                               </div>
+                              <%= if reply_reaction.target_id do %>
+                                <div class="mt-1.5" phx-click="stop_propagation">
+                                  <.post_reactions
+                                    post_id={reply_reaction.target_id}
+                                    value_name={reply_reaction.value_name}
+                                    reactions={reply_reaction.reactions}
+                                    current_user={@current_user}
+                                    size={:xs}
+                                  />
+                                </div>
+                              <% end %>
                             </div>
                           </div>
                         <% end %>
@@ -1104,7 +1133,7 @@
                     post_replies={local_replies}
                     post_interactions={@post_interactions}
                     post_reactions_map={@post_reactions}
-                    reactions={Map.get(@post_reactions, post.id, [])}
+                    reactions={reactions_for_entry(post, @post_reactions)}
                     show_follow_button={false}
                     show_admin_actions={false}
                     show_post_dropdown={false}
@@ -1240,7 +1269,10 @@
                         get_collection_total_items(post["quote_count"]) || 0
                       ),
                       get_collection_total_items(get_in(post, ["pleroma", "quote_count"])) || 0
-                    ) %>
+                    )
+
+                  reaction_surface =
+                    post_reaction_surface(post["id"], @local_posts, @post_reactions) %>
                   <div class="flex items-center gap-6 mt-3 text-sm" phx-click="stop_propagation">
                     <.post_actions
                       post_id={post["id"]}
@@ -1256,6 +1288,15 @@
                       size={:sm}
                       style={:minimal}
                     />
+                    <%= if reaction_surface.target_id do %>
+                      <.post_reactions
+                        post_id={reaction_surface.target_id}
+                        value_name={reaction_surface.value_name}
+                        reactions={reaction_surface.reactions}
+                        current_user={@current_user}
+                        size={:sm}
+                      />
+                    <% end %>
                   </div>
                   
 <!-- Reply Form -->

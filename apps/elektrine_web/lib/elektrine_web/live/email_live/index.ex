@@ -39,8 +39,19 @@ defmodule ElektrineWeb.EmailLive.Index do
 
   @impl true
   def mount(_params, session, socket) do
-    user = socket.assigns.current_user
+    case socket.assigns[:current_user] do
+      nil ->
+        {:ok,
+         socket
+         |> put_flash(:error, "You must log in to access this page.")
+         |> redirect(to: ~p"/login")}
 
+      user ->
+        mount_authenticated(user, session, socket)
+    end
+  end
+
+  defp mount_authenticated(user, session, socket) do
     # Mailbox is required for the page to function - must be loaded synchronously
     mailbox = get_or_create_mailbox(user)
 

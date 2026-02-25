@@ -23,6 +23,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       assigns
       |> assign(:comments, comments)
       |> assign(:is_lemmy_post, is_lemmy_post)
+      |> assign(:post_reactions, assigns[:post_reactions] || %{})
       |> assign(:reply_content_domain, reply_content_domain)
 
     ~H"""
@@ -68,20 +69,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           true -> length(children)
         end
 
-      # Timeline threads should stay readable; communities keep deep trees
-      show_nested_timeline_replies = @is_lemmy_post || depth < 1
-      show_origin_thread_link = !@is_lemmy_post && depth >= 1 && reply_child_count > 0
-
-      origin_thread_url =
-        cond do
-          is_binary(@post["id"]) -> @post["id"]
-          is_binary(@post["url"]) -> @post["url"]
-          true -> nil
-        end
+      reply_reaction = thread_reply_reaction_surface(reply, @post_reactions)
 
       is_local_reply = reply["_local"] == true
       local_user = reply["_local_user"]
-      reply_author_uri = reply["attributedTo"]
+
+      reply_author_uri =
+        normalize_in_reply_to_ref(reply["attributedTo"]) ||
+          normalize_in_reply_to_ref(reply["actor"])
 
       reply_actor =
         cond do
@@ -91,8 +86,39 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           true -> nil
         end
 
+      reply_fallback = build_reply_author_fallback(reply, reply_author_uri)
+
+      reply_avatar_url =
+        cond do
+          reply_actor && is_binary(reply_actor.avatar_url) &&
+              String.trim(reply_actor.avatar_url) != "" ->
+            reply_actor.avatar_url
+
+          true ->
+            reply_fallback.avatar_url
+        end
+
+      reply_profile_path =
+        cond do
+          reply_actor -> "/remote/#{reply_actor.username}@#{reply_actor.domain}"
+          is_binary(reply_fallback.profile_path) -> reply_fallback.profile_path
+          true -> nil
+        end
+
+      reply_display_name =
+        cond do
+          reply_actor -> reply_actor.display_name || reply_actor.username
+          true -> reply_fallback.display_name
+        end
+
+      reply_acct_label =
+        cond do
+          reply_actor -> "@#{reply_actor.username}@#{reply_actor.domain}"
+          true -> reply_fallback.acct_label
+        end
+
       # Keep visual distinction by surface: threaded trees for communities,
-      # shallow conversational layout for timeline-style threads.
+      # conversational rails for timeline-style threads.
       indent_class =
         if @is_lemmy_post do
           case min(depth, 4) do
@@ -180,11 +206,27 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     <!-- Comment Content -->
             <div class="flex-1 min-w-0">
               <!-- Comment Header -->
-              <div class="flex items-center gap-2 text-xs mb-1">
+              <div class="flex items-center gap-2 text-xs mb-1 min-w-0">
                 <%= if is_local_reply && local_user do %>
                   <.link
                     navigate={"/#{local_user.handle || local_user.username}"}
-                    class="font-medium text-info hover:underline"
+                    class="flex-shrink-0"
+                  >
+                    <%= if local_user.avatar do %>
+                      <img
+                        src={Elektrine.Uploads.avatar_url(local_user.avatar)}
+                        alt={local_user.username}
+                        class="w-6 h-6 rounded-full object-cover"
+                      />
+                    <% else %>
+                      <div class="w-6 h-6 rounded-full bg-base-300 flex items-center justify-center">
+                        <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                      </div>
+                    <% end %>
+                  </.link>
+                  <.link
+                    navigate={"/#{local_user.handle || local_user.username}"}
+                    class="font-medium text-info hover:underline truncate"
                   >
                     {local_user.display_name || local_user.username}
                   </.link>
@@ -192,20 +234,48 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     <span class="text-info/70">(you)</span>
                   <% end %>
                 <% else %>
-                  <%= if reply_actor do %>
+                  <%= if reply_profile_path do %>
                     <.link
-                      navigate={"/remote/#{reply_actor.username}@#{reply_actor.domain}"}
-                      class="font-medium hover:underline"
+                      navigate={reply_profile_path}
+                      class="flex-shrink-0"
                     >
-                      {raw(
-                        render_display_name_with_emojis(
-                          reply_actor.display_name || reply_actor.username,
-                          reply_actor.domain
-                        )
-                      )}
+                      <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                        <img
+                          src={reply_avatar_url}
+                          alt={reply_display_name}
+                          class="w-6 h-6 rounded-full object-cover"
+                        />
+                      <% else %>
+                        <div class="w-6 h-6 rounded-full bg-base-300 flex items-center justify-center">
+                          <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                        </div>
+                      <% end %>
+                    </.link>
+                    <.link navigate={reply_profile_path} class="font-medium hover:underline truncate">
+                      <%= if reply_actor do %>
+                        {raw(
+                          render_display_name_with_emojis(
+                            reply_actor.display_name || reply_actor.username,
+                            reply_actor.domain
+                          )
+                        )}
+                      <% else %>
+                        {reply_display_name}
+                      <% end %>
                     </.link>
                   <% else %>
-                    <span class="font-medium">{extract_username_from_uri(reply_author_uri)}</span>
+                    <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                      <img
+                        src={reply_avatar_url}
+                        alt={reply_display_name}
+                        class="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                      />
+                    <% else %>
+                      <div class="w-6 h-6 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                        <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                      </div>
+                    <% end %>
+                    <span class="font-medium truncate">{reply_display_name}</span>
                   <% end %>
                 <% end %>
                 <span class="text-base-content/40">·</span>
@@ -245,6 +315,18 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 <%= if reply_child_count > 0 do %>
                   <span class="text-xs text-base-content/40">{reply_child_count} replies</span>
                 <% end %>
+              <% end %>
+
+              <%= if reply_reaction.target_id do %>
+                <div class="mt-2" phx-click="stop_propagation">
+                  <.post_reactions
+                    post_id={reply_reaction.target_id}
+                    value_name={reply_reaction.value_name}
+                    reactions={reply_reaction.reactions}
+                    current_user={@current_user}
+                    size={:xs}
+                  />
+                </div>
               <% end %>
               
     <!-- Inline Reply Form -->
@@ -310,53 +392,60 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                   </div>
                 </div>
               <% else %>
-                <%= if reply_actor do %>
-                  <.link
-                    navigate={"/remote/#{reply_actor.username}@#{reply_actor.domain}"}
-                    class="flex-shrink-0"
-                  >
-                    <%= if reply_actor.avatar_url do %>
+                <%= if reply_profile_path do %>
+                  <.link navigate={reply_profile_path} class="flex-shrink-0">
+                    <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
                       <img
-                        src={reply_actor.avatar_url}
-                        alt={reply_actor.username}
-                        class="w-8 h-8 rounded-full"
+                        src={reply_avatar_url}
+                        alt={reply_display_name}
+                        class="w-8 h-8 rounded-full object-cover"
                       />
                     <% else %>
-                      <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
-                        <.icon name="hero-user" class="w-4 h-4" />
+                      <div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center">
+                        <.icon name="hero-user" class="w-4 h-4 opacity-70" />
                       </div>
                     <% end %>
                   </.link>
-                  <div class="flex-1 min-w-0">
+                <% else %>
+                  <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                    <img
+                      src={reply_avatar_url}
+                      alt={reply_display_name}
+                      class="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    />
+                  <% else %>
+                    <div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                      <.icon name="hero-user" class="w-4 h-4 opacity-70" />
+                    </div>
+                  <% end %>
+                <% end %>
+                <div class="flex-1 min-w-0">
+                  <%= if reply_profile_path do %>
                     <.link
-                      navigate={"/remote/#{reply_actor.username}@#{reply_actor.domain}"}
+                      navigate={reply_profile_path}
                       class="text-sm font-medium hover:text-purple-600 transition-colors"
                     >
-                      {raw(
-                        render_display_name_with_emojis(
-                          reply_actor.display_name || reply_actor.username,
-                          reply_actor.domain
-                        )
-                      )}
+                      <%= if reply_actor do %>
+                        {raw(
+                          render_display_name_with_emojis(
+                            reply_actor.display_name || reply_actor.username,
+                            reply_actor.domain
+                          )
+                        )}
+                      <% else %>
+                        {reply_display_name}
+                      <% end %>
                     </.link>
-                    <div class="text-xs opacity-50">
-                      @{reply_actor.username}@{reply_actor.domain} · {if reply["published"],
-                        do: format_activitypub_date(reply["published"])}
-                    </div>
+                  <% else %>
+                    <span class="text-sm font-medium">{reply_display_name}</span>
+                  <% end %>
+                  <div class="text-xs opacity-50">
+                    <%= if is_binary(reply_acct_label) && String.trim(reply_acct_label) != "" do %>
+                      {reply_acct_label} ·
+                    <% end %>
+                    {if reply["published"], do: format_activitypub_date(reply["published"])}
                   </div>
-                <% else %>
-                  <div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
-                    <.icon name="hero-user" class="w-4 h-4" />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <span class="text-sm font-medium">
-                      {extract_username_from_uri(reply_author_uri)}
-                    </span>
-                    <div class="text-xs opacity-50">
-                      {if reply["published"], do: format_activitypub_date(reply["published"])}
-                    </div>
-                  </div>
-                <% end %>
+                </div>
               <% end %>
             </div>
 
@@ -429,6 +518,18 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 <% end %>
               </div>
             <% end %>
+
+            <%= if reply_reaction.target_id do %>
+              <div class="mt-2" phx-click="stop_propagation">
+                <.post_reactions
+                  post_id={reply_reaction.target_id}
+                  value_name={reply_reaction.value_name}
+                  reactions={reply_reaction.reactions}
+                  current_user={@current_user}
+                  size={:xs}
+                />
+              </div>
+            <% end %>
             
     <!-- Inline Reply Form -->
             <%= if @current_user && @replying_to_comment_id == reply["id"] do %>
@@ -463,29 +564,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         
     <!-- Nested Replies -->
         <%= if (children) != [] do %>
-          <%= if show_nested_timeline_replies do %>
-            {render_threaded_comments(assigns, children)}
-          <% else %>
-            <div class="ml-2 mb-3">
-              <%= if show_origin_thread_link && origin_thread_url do %>
-                <a
-                  href={origin_thread_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                  Continue {reply_child_count} nested {if reply_child_count == 1,
-                    do: "reply",
-                    else: "replies"} on origin thread
-                </a>
-              <% else %>
-                <span class="text-xs text-base-content/50">
-                  {reply_child_count} nested {if reply_child_count == 1, do: "reply", else: "replies"}
-                </span>
-              <% end %>
-            </div>
-          <% end %>
+          {render_threaded_comments(assigns, children)}
         <% end %>
       </div>
     <% end %>
@@ -630,14 +709,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                         </.link>
                       <% else %>
                         <%= if has_external_link do %>
-                          <a
-                            href={parent_ref}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <.link
+                            navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
                             class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
                           >
-                            Open <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                          </a>
+                            Open <.icon name="hero-arrow-right" class="w-3 h-3" />
+                          </.link>
                         <% end %>
                       <% end %>
                     </div>
@@ -674,15 +751,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                   </div>
                 <% else %>
                   <%= if has_external_link do %>
-                    <a
-                      href={parent_ref}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <.link
+                      navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
                       class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
-                      View original post
-                      <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                    </a>
+                      View parent post <.icon name="hero-arrow-right" class="w-3 h-3" />
+                    </.link>
                   <% else %>
                     <div class="mt-2 text-xs opacity-60 break-all">
                       {parent_ref}
@@ -1066,6 +1140,19 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp submitted_url_host(_), do: nil
+
+  defp quote_message_path(%{activitypub_id: activitypub_id})
+       when is_binary(activitypub_id) and activitypub_id != "" do
+    "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+  end
+
+  defp quote_message_path(%{id: id}) when is_integer(id), do: "/remote/post/#{id}"
+
+  defp quote_message_path(%{id: id}) when is_binary(id) and id != "" do
+    "/remote/post/#{URI.encode_www_form(id)}"
+  end
+
+  defp quote_message_path(_), do: nil
 
   defp valid_submitted_url?(url, post_id) when is_binary(url) do
     url != post_id && String.starts_with?(url, ["http://", "https://"])
@@ -1786,7 +1873,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         # Build meta tags from local message
         description = build_og_description(message.content)
         image = get_first_media_url(message.media_urls)
-        title = message.title || "Post by #{message.sender.username}"
+
+        sender_username =
+          case message.sender do
+            %{username: username} when is_binary(username) and username != "" -> username
+            _ -> "unknown"
+          end
+
+        title = message.title || "Post by #{sender_username}"
 
         socket
         |> assign(:page_title, title)
@@ -2033,6 +2127,11 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         )
         |> Elektrine.Repo.all()
 
+      post_reactions =
+        socket.assigns.post_reactions
+        |> Map.put(local_post_key, reactions)
+        |> merge_reply_reactions(local_replies)
+
       {post_interactions, user_saves} =
         if socket.assigns[:current_user] do
           user_id = socket.assigns.current_user.id
@@ -2076,10 +2175,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         |> assign(:replies_loaded, true)
         |> assign(:post_interactions, post_interactions)
         |> assign(:user_saves, user_saves)
-        |> assign(
-          :post_reactions,
-          Map.put(socket.assigns.post_reactions, local_post_key, reactions)
-        )
+        |> assign(:post_reactions, post_reactions)
         |> assign_reply_parent_fallback(post_object, message)
 
       send(self(), {:load_reply_parent, post_object})
@@ -2529,6 +2625,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         %{}
       end
 
+    post_reactions =
+      socket.assigns.post_reactions
+      |> merge_reply_reactions(merged_replies)
+
     # Cache reply authors in background (non-blocking)
     Task.start(fn ->
       merged_replies
@@ -2549,7 +2649,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
      |> assign(:threaded_replies, threaded_replies)
      |> assign(:replies_loading, false)
      |> assign(:replies_loaded, true)
-     |> assign(:post_interactions, post_interactions)}
+     |> assign(:post_interactions, post_interactions)
+     |> assign(:post_reactions, post_reactions)}
   end
 
   def handle_info({:load_platform_counts, post_id}, socket) do
@@ -2620,7 +2721,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           )
           |> Elektrine.Repo.all()
 
-        {:noreply, assign(socket, :post_reactions, %{activitypub_id => reactions})}
+        {:noreply,
+         assign(
+           socket,
+           :post_reactions,
+           Map.put(socket.assigns.post_reactions || %{}, activitypub_id, reactions)
+         )}
     end
   end
 
@@ -4125,6 +4231,67 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   defp reply_dom_id(_), do: nil
 
+  defp thread_reply_reaction_surface(reply, post_reactions)
+       when is_map(reply) and is_map(post_reactions) do
+    reply_id = normalize_in_reply_to_ref(reply["id"] || reply[:id])
+    local_message_id = thread_reply_local_message_id(reply)
+
+    {target_id, value_name, lookup_keys} =
+      cond do
+        is_integer(local_message_id) and is_binary(reply_id) ->
+          {local_message_id, "message_id",
+           [Integer.to_string(local_message_id), local_message_id, reply_id]}
+
+        is_integer(local_message_id) ->
+          {local_message_id, "message_id",
+           [Integer.to_string(local_message_id), local_message_id]}
+
+        is_binary(reply_id) and reply_id != "" ->
+          {reply_id, "post_id", [reply_id]}
+
+        true ->
+          {nil, "post_id", []}
+      end
+
+    %{
+      target_id: target_id,
+      value_name: value_name,
+      reactions: reactions_for_keys(post_reactions, lookup_keys)
+    }
+  end
+
+  defp thread_reply_reaction_surface(_, _),
+    do: %{target_id: nil, value_name: "post_id", reactions: []}
+
+  defp thread_reply_local_message_id(%{"_local_message_id" => message_id})
+       when is_integer(message_id),
+       do: message_id
+
+  defp thread_reply_local_message_id(%{_local_message_id: message_id})
+       when is_integer(message_id),
+       do: message_id
+
+  defp thread_reply_local_message_id(%{"_local_message_id" => message_id})
+       when is_binary(message_id) do
+    case Integer.parse(String.trim(message_id)) do
+      {parsed, ""} -> parsed
+      _ -> nil
+    end
+  end
+
+  defp thread_reply_local_message_id(_), do: nil
+
+  defp reactions_for_keys(reaction_map, keys) when is_map(reaction_map) and is_list(keys) do
+    Enum.find_value(keys, [], fn key ->
+      case Map.get(reaction_map, key) do
+        reactions when is_list(reactions) -> reactions
+        _ -> nil
+      end
+    end) || []
+  end
+
+  defp reactions_for_keys(_, _), do: []
+
   defp ancestor_thread_colors(index) when is_integer(index) do
     case rem(index, 5) do
       0 -> %{rail: "bg-info/65", dot: "bg-info", border: "border-info/70"}
@@ -4313,6 +4480,110 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp extract_username_from_uri(_), do: "unknown"
+
+  defp build_reply_author_fallback(reply, reply_author_uri) do
+    mastodon_payload = map_get_value(reply, "_mastodon") || %{}
+
+    mastodon_account =
+      map_get_value(reply, "_mastodon_account") ||
+        map_get_value(mastodon_payload, "account") ||
+        %{}
+
+    lemmy_data = map_get_value(reply, "_lemmy") || %{}
+    attributed_to_map = if is_map(reply["attributedTo"]), do: reply["attributedTo"], else: %{}
+
+    account_actor_uri =
+      normalize_in_reply_to_ref(map_get_value(mastodon_account, "url")) ||
+        normalize_in_reply_to_ref(map_get_value(mastodon_account, "uri"))
+
+    attributed_actor_uri =
+      normalize_in_reply_to_ref(map_get_value(attributed_to_map, "id")) ||
+        normalize_in_reply_to_ref(map_get_value(attributed_to_map, "url"))
+
+    actor_uri = account_actor_uri || attributed_actor_uri || reply_author_uri
+    actor_domain = uri_host(actor_uri)
+
+    {acct_username, acct_domain} = parse_acct_parts(map_get_value(mastodon_account, "acct"))
+
+    username =
+      map_get_value(mastodon_account, "username") ||
+        map_get_value(attributed_to_map, "preferredUsername") ||
+        acct_username ||
+        extract_username_from_uri(actor_uri || reply_author_uri)
+
+    domain = actor_domain || acct_domain
+
+    display_name =
+      map_get_value(mastodon_account, "display_name") ||
+        map_get_value(mastodon_account, "displayName") ||
+        map_get_value(attributed_to_map, "name") ||
+        map_get_value(lemmy_data, "creator_name") ||
+        username ||
+        "unknown"
+
+    avatar_url =
+      normalize_http_url(map_get_value(mastodon_account, "avatar")) ||
+        normalize_http_url(map_get_value(mastodon_account, "avatar_static")) ||
+        normalize_http_url(map_get_value(lemmy_data, "creator_avatar")) ||
+        first_http_url_from_value(map_get_value(reply, "icon")) ||
+        first_http_url_from_value(map_get_value(attributed_to_map, "icon"))
+
+    acct_label =
+      cond do
+        is_binary(username) && username != "" && is_binary(domain) && domain != "" ->
+          "@#{username}@#{domain}"
+
+        is_binary(username) && username != "" ->
+          "@#{username}"
+
+        true ->
+          nil
+      end
+
+    %{
+      display_name: display_name,
+      avatar_url: avatar_url,
+      profile_path: actor_profile_path(username, domain),
+      acct_label: acct_label
+    }
+  end
+
+  defp actor_profile_path(username, domain)
+       when is_binary(username) and username != "" and is_binary(domain) and domain != "" do
+    "/remote/#{username}@#{domain}"
+  end
+
+  defp actor_profile_path(_, _), do: nil
+
+  defp parse_acct_parts(acct) when is_binary(acct) do
+    cleaned =
+      acct
+      |> String.trim()
+      |> String.trim_leading("@")
+
+    case String.split(cleaned, "@", parts: 2) do
+      [username, domain] when username != "" and domain != "" -> {username, domain}
+      [username] when username != "" -> {username, nil}
+      _ -> {nil, nil}
+    end
+  end
+
+  defp parse_acct_parts(_), do: {nil, nil}
+
+  defp uri_host(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> host
+      _ -> nil
+    end
+  end
+
+  defp uri_host(_), do: nil
+
+  defp first_http_url_from_value(value) do
+    value
+    |> url_candidates_from_field()
+    |> Enum.find_value(&normalize_http_url/1)
+  end
 
   # Convert cached messages (local and federated) to ActivityPub-like format for display
   # in the reply tree.
@@ -4604,6 +4875,33 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       end)
     end
   end
+
+  defp merge_reply_reactions(post_reactions, replies)
+       when is_map(post_reactions) and is_list(replies) do
+    local_message_ids =
+      replies
+      |> Enum.map(&thread_reply_local_message_id/1)
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+
+    if local_message_ids == [] do
+      post_reactions
+    else
+      import Ecto.Query
+
+      grouped_reactions =
+        from(r in Elektrine.Messaging.MessageReaction,
+          where: r.message_id in ^local_message_ids,
+          preload: [:user, :remote_actor]
+        )
+        |> Elektrine.Repo.all()
+        |> Enum.group_by(fn reaction -> Integer.to_string(reaction.message_id) end)
+
+      Map.merge(post_reactions, grouped_reactions, fn _key, _existing, incoming -> incoming end)
+    end
+  end
+
+  defp merge_reply_reactions(post_reactions, _), do: post_reactions
 
   defp merge_local_ancestor_interactions(post_interactions, ancestors, user_id) do
     ancestor_local_message_ids(ancestors)

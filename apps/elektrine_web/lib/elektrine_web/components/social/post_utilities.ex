@@ -12,6 +12,15 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
                           "as:Public",
                           "https://www.w3.org/ns/activitystreams#Public"
                         ])
+  @user_actor_path_markers [
+    "/users/",
+    "/user/",
+    "/u/",
+    "/@",
+    "/profile/",
+    "/profiles/",
+    "/accounts/"
+  ]
 
   @doc """
   Checks if the given URL is a video file based on extension.
@@ -398,10 +407,26 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
       MapSet.member?(@public_audience_uris, normalized) ->
         nil
 
+      user_actor_uri?(normalized) ->
+        nil
+
       true ->
         normalized
     end
   end
 
   defp normalize_community_uri(_), do: nil
+
+  defp user_actor_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        downcased_path = String.downcase(path)
+        Enum.any?(@user_actor_path_markers, &String.contains?(downcased_path, &1))
+
+      _ ->
+        false
+    end
+  end
+
+  defp user_actor_uri?(_), do: false
 end
