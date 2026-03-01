@@ -1324,9 +1324,7 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp format_uid_set(uids) do
-    uids
-    |> Enum.map(&to_string/1)
-    |> Enum.join(",")
+    Enum.map_join(uids, ",", &to_string/1)
   end
 
   defp handle_store(tag, args, state) do
@@ -2119,6 +2117,8 @@ defmodule Elektrine.IMAP.Commands do
           from: from_value,
           to: to_value,
           subject: subject,
+          in_reply_to: Map.get(headers, "in-reply-to"),
+          references: Map.get(headers, "references"),
           text_body: extract_text_body_internal(body, headers),
           status: status,
           category: category,

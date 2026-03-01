@@ -1,22 +1,24 @@
 defmodule Elektrine.Messaging.Federation do
   @moduledoc "Lightweight federation support for Discord-style messaging servers.\n\nThis module now supports both:\n- snapshot sync (coarse-grained)\n- real-time event sync with per-stream sequencing and idempotency\n- optional relay-routed transport for outbound HTTP federation traffic\n"
   import Ecto.Query, warn: false
+  import Elektrine.Messaging.Federation.Utils
   require Logger
   alias Elektrine.Async
+  alias Elektrine.Messaging.Federation.Config
 
   alias Elektrine.Messaging.{
-    ArblargSDK,
     ArblargProfiles,
+    ArblargSDK,
     ChatMessage,
     ChatMessageReaction,
     ChatMessages,
     Conversation,
     ConversationMember,
+    Federation.PeerPolicies,
     FederationEvent,
     FederationExtensionEvent,
     FederationOutboxEvent,
     FederationOutboxWorker,
-    FederationPeerPolicy,
     FederationPresenceState,
     FederationReadReceipt,
     FederationRequestReplay,
@@ -26,8 +28,8 @@ defmodule Elektrine.Messaging.Federation do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
-  alias Elektrine.Notifications
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
+  alias Elektrine.Notifications
   alias Elektrine.PubSubTopics
 
   alias Elektrine.Repo
@@ -59,12 +61,8 @@ defmodule Elektrine.Messaging.Federation do
 
   @doc "Returns normalized peer configs.\n"
   def peers do
-    configured_peers = configured_peers()
-    policy_overrides = runtime_policy_overrides()
-
-    Enum.map(configured_peers, fn peer ->
-      apply_runtime_policy(peer, Map.get(policy_overrides, String.downcase(peer.domain)))
-    end)
+    configured_peers()
+    |> PeerPolicies.apply_runtime_policies()
   end
 
   @doc "Returns the peer config for incoming requests by domain.\n"
@@ -152,83 +150,28 @@ defmodule Elektrine.Messaging.Federation do
 
   @doc "Lists runtime messaging federation peer controls for admin tooling.\n"
   def list_peer_controls do
-    configured = configured_peers()
-    configured_by_domain = Map.new(configured, &{String.downcase(&1.domain), &1})
-    policy_overrides = runtime_policy_overrides()
-    users_by_id = users_by_id_for_policies(policy_overrides)
-
-    configured_by_domain
-    |> Map.keys()
-    |> Enum.concat(Map.keys(policy_overrides))
-    |> Enum.uniq()
-    |> Enum.sort()
-    |> Enum.map(fn domain ->
-      configured_peer = Map.get(configured_by_domain, domain)
-      policy = Map.get(policy_overrides, domain)
-      effective_peer = apply_runtime_policy(configured_peer, policy)
-
-      %{
-        domain: domain,
-        configured: not is_nil(configured_peer),
-        base_url: if(is_map(configured_peer), do: configured_peer.base_url, else: nil),
-        blocked: if(is_map(policy), do: policy.blocked == true, else: false),
-        reason: if(is_map(policy), do: policy.reason, else: nil),
-        allow_incoming_override: if(is_map(policy), do: policy.allow_incoming, else: nil),
-        allow_outgoing_override: if(is_map(policy), do: policy.allow_outgoing, else: nil),
-        effective_allow_incoming:
-          if(is_map(effective_peer), do: effective_peer.allow_incoming == true, else: false),
-        effective_allow_outgoing:
-          if(is_map(effective_peer), do: effective_peer.allow_outgoing == true, else: false),
-        updated_at: if(is_map(policy), do: policy.updated_at, else: nil),
-        updated_by: if(is_map(policy), do: Map.get(users_by_id, policy.updated_by_id), else: nil)
-      }
-    end)
+    configured_peers()
+    |> PeerPolicies.list_peer_controls()
   end
 
   @doc "Creates or updates a runtime peer policy override for a domain.\n"
   def upsert_peer_policy(domain, attrs, updated_by_id \\ nil) when is_map(attrs) do
-    with {:ok, normalized_domain} <- normalize_peer_domain(domain) do
-      policy =
-        Repo.get_by(FederationPeerPolicy, domain: normalized_domain) || %FederationPeerPolicy{}
-
-      attrs =
-        attrs
-        |> normalize_peer_policy_attrs()
-        |> Map.put(:domain, normalized_domain)
-        |> maybe_put_updated_by(updated_by_id)
-
-      policy
-      |> FederationPeerPolicy.changeset(attrs)
-      |> Repo.insert_or_update()
-    end
+    PeerPolicies.upsert_peer_policy(domain, attrs, updated_by_id)
   end
 
   @doc "Removes any runtime peer policy override for a domain.\n"
   def clear_peer_policy(domain) do
-    with {:ok, normalized_domain} <- normalize_peer_domain(domain) do
-      case Repo.get_by(FederationPeerPolicy, domain: normalized_domain) do
-        nil -> {:ok, :not_found}
-        policy -> Repo.delete(policy)
-      end
-    end
+    PeerPolicies.clear_peer_policy(domain)
   end
 
   @doc "Blocks a peer domain for both incoming and outgoing federation traffic.\n"
   def block_peer_domain(domain, reason \\ nil, updated_by_id \\ nil) do
-    attrs = %{
-      blocked: true,
-      allow_incoming: false,
-      allow_outgoing: false,
-      reason: normalize_reason(reason)
-    }
-
-    upsert_peer_policy(domain, attrs, updated_by_id)
+    PeerPolicies.block_peer_domain(domain, reason, updated_by_id)
   end
 
   @doc "Unblocks a peer domain and clears directional runtime overrides.\n"
   def unblock_peer_domain(domain, updated_by_id \\ nil) do
-    attrs = %{blocked: false, allow_incoming: nil, allow_outgoing: nil, reason: nil}
-    upsert_peer_policy(domain, attrs, updated_by_id)
+    PeerPolicies.unblock_peer_domain(domain, updated_by_id)
   end
 
   @doc "Public discovery document for cross-domain federation bootstrap.\n"
@@ -1110,48 +1053,46 @@ defmodule Elektrine.Messaging.Federation do
 
     payload = normalize_incoming_event_payload(payload)
 
-    cond do
-      payload["origin_domain"] != remote_domain ->
-        {:error, :origin_domain_mismatch}
+    if payload["origin_domain"] != remote_domain do
+      {:error, :origin_domain_mismatch}
+    else
+      case ArblargSDK.validate_event_envelope(payload) do
+        :ok ->
+          case maybe_require_event_signature(payload, strict_signature_required?) do
+            :ok -> maybe_verify_envelope_signature(payload, remote_domain)
+            error -> error
+          end
 
-      true ->
-        case ArblargSDK.validate_event_envelope(payload) do
-          :ok ->
-            with :ok <- maybe_require_event_signature(payload, strict_signature_required?),
-                 :ok <- maybe_verify_envelope_signature(payload, remote_domain) do
-              :ok
-            end
+        {:error, :unsupported_version} ->
+          {:error, :unsupported_version}
 
-          {:error, :unsupported_version} ->
-            {:error, :unsupported_version}
+        {:error, :unsupported_protocol} ->
+          {:error, :unsupported_protocol}
 
-          {:error, :unsupported_protocol} ->
-            {:error, :unsupported_protocol}
+        {:error, :unsupported_event_type} ->
+          {:error, :unsupported_event_type}
 
-          {:error, :unsupported_event_type} ->
-            {:error, :unsupported_event_type}
+        {:error, :invalid_event_id} ->
+          {:error, :invalid_event_id}
 
-          {:error, :invalid_event_id} ->
-            {:error, :invalid_event_id}
+        {:error, :invalid_stream_id} ->
+          {:error, :invalid_stream_id}
 
-          {:error, :invalid_stream_id} ->
-            {:error, :invalid_stream_id}
+        {:error, :invalid_sequence} ->
+          {:error, :invalid_sequence}
 
-          {:error, :invalid_sequence} ->
-            {:error, :invalid_sequence}
+        {:error, :invalid_idempotency_key} ->
+          {:error, :invalid_idempotency_key}
 
-          {:error, :invalid_idempotency_key} ->
-            {:error, :invalid_idempotency_key}
+        {:error, :invalid_event_payload} ->
+          {:error, :invalid_event_payload}
 
-          {:error, :invalid_event_payload} ->
-            {:error, :invalid_event_payload}
+        {:error, :invalid_signature} ->
+          {:error, :invalid_event_signature}
 
-          {:error, :invalid_signature} ->
-            {:error, :invalid_event_signature}
-
-          {:error, _} ->
-            {:error, :invalid_payload}
-        end
+        {:error, _} ->
+          {:error, :invalid_payload}
+      end
     end
   end
 
@@ -2734,12 +2675,15 @@ defmodule Elektrine.Messaging.Federation do
            federated_source: federated_source
          ) do
       nil ->
-        with {:ok, message} <- %ChatMessage{} |> ChatMessage.changeset(attrs) |> Repo.insert(),
-             {_updated_count, _} <-
-               from(c in Conversation, where: c.id == ^mirror_channel.id)
-               |> Repo.update_all(set: [last_message_at: message.inserted_at]),
-             :ok <- maybe_broadcast_mirror_message_created(message) do
-          :ok
+        case %ChatMessage{} |> ChatMessage.changeset(attrs) |> Repo.insert() do
+          {:ok, message} ->
+            from(c in Conversation, where: c.id == ^mirror_channel.id)
+            |> Repo.update_all(set: [last_message_at: message.inserted_at])
+
+            maybe_broadcast_mirror_message_created(message)
+
+          error ->
+            error
         end
 
       %ChatMessage{} = existing ->
@@ -2749,12 +2693,15 @@ defmodule Elektrine.Messaging.Federation do
           edited_at: DateTime.utc_now()
         }
 
-        with {:ok, message} <- existing |> ChatMessage.changeset(update_attrs) |> Repo.update(),
-             {_updated_count, _} <-
-               from(c in Conversation, where: c.id == ^mirror_channel.id)
-               |> Repo.update_all(set: [last_message_at: DateTime.utc_now()]),
-             :ok <- maybe_broadcast_mirror_message_updated(message) do
-          :ok
+        case existing |> ChatMessage.changeset(update_attrs) |> Repo.update() do
+          {:ok, message} ->
+            from(c in Conversation, where: c.id == ^mirror_channel.id)
+            |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
+
+            maybe_broadcast_mirror_message_updated(message)
+
+          error ->
+            error
         end
     end
   end
@@ -3422,73 +3369,6 @@ defmodule Elektrine.Messaging.Federation do
     end
   end
 
-  defp next_outbound_sequence(stream_id) do
-    sql =
-      "INSERT INTO messaging_federation_stream_counters (stream_id, next_sequence, inserted_at, updated_at)\nVALUES ($1, 2, NOW(), NOW())\nON CONFLICT (stream_id)\nDO UPDATE\n  SET next_sequence = messaging_federation_stream_counters.next_sequence + 1,\n      updated_at = NOW()\nRETURNING next_sequence - 1\n"
-
-    case Ecto.Adapters.SQL.query(Repo, sql, [stream_id]) do
-      {:ok, %{rows: [[sequence]]}} when is_integer(sequence) -> sequence
-      _ -> 1
-    end
-  end
-
-  defp server_stream_id(server_id) do
-    "server:" <> server_federation_id(server_id)
-  end
-
-  defp channel_stream_id(channel_id) do
-    "channel:" <> channel_federation_id(channel_id)
-  end
-
-  defp dm_stream_id(conversation_id) do
-    "dm:" <> dm_federation_id(conversation_id)
-  end
-
-  defp server_payload(server) do
-    %{
-      "id" => server.federation_id || server_federation_id(server.id),
-      "name" => server.name,
-      "description" => server.description,
-      "icon_url" => server.icon_url,
-      "is_public" => server.is_public,
-      "member_count" => server.member_count
-    }
-  end
-
-  defp channel_payload(channel) do
-    %{
-      "id" => channel.federated_source || channel_federation_id(channel.id),
-      "name" => channel.name,
-      "description" => channel.description,
-      "topic" => channel.channel_topic,
-      "position" => channel.channel_position
-    }
-  end
-
-  defp message_payload(message, channel) do
-    %{
-      "id" => message.federated_source || message_federation_id(message.id),
-      "channel_id" => channel.federated_source || channel_federation_id(channel.id),
-      "content" => message.content,
-      "message_type" => message.message_type,
-      "media_urls" => message.media_urls || [],
-      "media_metadata" => message.media_metadata || %{},
-      "created_at" => format_created_at(message.inserted_at),
-      "edited_at" => format_created_at(message.edited_at),
-      "sender" => format_sender(message.sender)
-    }
-  end
-
-  defp sender_payload(user) do
-    %{
-      "uri" => "#{local_base_url()}/users/#{user.username}",
-      "username" => user.username,
-      "display_name" => user.display_name || user.username,
-      "domain" => local_domain(),
-      "handle" => "#{user.username}@#{local_domain()}"
-    }
-  end
-
   defp outbound_signing_material(peer) do
     active_key_id = peer.active_outbound_key_id
 
@@ -3569,10 +3449,9 @@ defmodule Elektrine.Messaging.Federation do
       if is_binary(payload["protocol"]), do: payload["protocol"], else: ArblargSDK.protocol_name()
 
     protocol_id =
-      cond do
-        is_binary(payload["protocol_id"]) -> payload["protocol_id"]
-        true -> ArblargSDK.protocol_id()
-      end
+      if is_binary(payload["protocol_id"]),
+        do: payload["protocol_id"],
+        else: ArblargSDK.protocol_id()
 
     protocol_version =
       cond do
@@ -3610,245 +3489,36 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp normalize_incoming_event_payload(payload), do: payload
-
-  defp truncate(nil) do
-    ""
-  end
-
-  defp truncate(body) when is_binary(body) do
-    if byte_size(body) > 180 do
-      binary_part(body, 0, 180) <> "..."
-    else
-      body
-    end
-  end
-
-  defp truncate(body) do
-    inspect(body)
-  end
-
-  defp normalize_message_type(type) when type in ["text", "image", "file", "voice", "system"] do
-    type
-  end
-
-  defp normalize_message_type(_) do
-    "text"
-  end
-
-  defp canonical_path(nil) do
-    "/"
-  end
-
-  defp canonical_path(path) when is_binary(path) do
-    trimmed = String.trim(path)
-
-    cond do
-      trimmed == "" -> "/"
-      String.starts_with?(trimmed, "/") -> trimmed
-      true -> "/" <> trimmed
-    end
-  end
-
-  defp canonical_path(path) do
-    canonical_path(to_string(path))
-  end
-
-  defp canonical_query_string(nil) do
-    ""
-  end
-
-  defp canonical_query_string(query) when is_binary(query) do
-    String.trim(query)
-  end
-
-  defp canonical_query_string(query) do
-    to_string(query)
-  end
-
-  defp canonical_content_digest(nil) do
-    body_digest("")
-  end
-
-  defp canonical_content_digest(content_digest) when is_binary(content_digest) do
-    case String.trim(content_digest) do
-      "" -> body_digest("")
-      value -> value
-    end
-  end
-
-  defp canonical_content_digest(content_digest) do
-    canonical_content_digest(to_string(content_digest))
-  end
-
-  defp server_federation_id(server_id) do
-    "#{local_base_url()}/federation/messaging/servers/#{server_id}"
-  end
-
-  defp channel_federation_id(channel_id) do
-    "#{local_base_url()}/federation/messaging/channels/#{channel_id}"
-  end
-
-  defp message_federation_id(message_id) do
-    "#{local_base_url()}/federation/messaging/messages/#{message_id}"
-  end
-
-  defp dm_federation_id(conversation_id) do
-    "#{local_base_url()}/federation/messaging/dms/#{conversation_id}"
-  end
-
-  defp format_sender(nil) do
-    nil
-  end
-
-  defp format_sender(sender) do
-    %{
-      "username" => sender.username,
-      "display_name" => sender.display_name || sender.username,
-      "domain" => local_domain(),
-      "handle" => "#{sender.username}@#{local_domain()}"
-    }
-  end
-
-  defp format_created_at(nil) do
-    nil
-  end
-
-  defp format_created_at(%DateTime{} = datetime) do
-    DateTime.to_iso8601(datetime)
-  end
-
-  defp format_created_at(%NaiveDateTime{} = datetime) do
-    NaiveDateTime.to_iso8601(datetime)
-  end
-
-  defp parse_datetime(nil), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> datetime
-      _ -> nil
-    end
-  end
-
-  defp parse_datetime(_), do: nil
-
-  defp parse_int(value, _default) when is_integer(value) do
-    value
-  end
-
-  defp parse_int(value, default) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, _} -> int
-      :error -> default
-    end
-  end
-
-  defp parse_int(_, default) do
-    default
-  end
-
-  defp infer_remote_server_id(payload) when is_map(payload) do
-    payload_data = payload["payload"] || payload["data"] || %{}
-    server_id_from_data = get_in(payload_data, ["server", "id"]) |> extract_trailing_integer()
-    stream_id = payload["stream_id"]
-
-    server_id_from_stream =
-      case stream_id do
-        "server:" <> server_federation_id -> extract_trailing_integer(server_federation_id)
-        _ -> nil
-      end
-
-    case server_id_from_data || server_id_from_stream do
-      nil -> {:error, :cannot_infer_snapshot_server_id}
-      id -> {:ok, id}
-    end
-  end
-
-  defp infer_remote_server_id(_) do
-    {:error, :cannot_infer_snapshot_server_id}
-  end
-
-  defp infer_remote_server_id_from_federation_id(federation_id) when is_binary(federation_id) do
-    case extract_trailing_integer(federation_id) do
-      nil -> {:error, :cannot_infer_snapshot_server_id}
-      id -> {:ok, id}
-    end
-  end
-
-  defp infer_remote_server_id_from_federation_id(_) do
-    {:error, :cannot_infer_snapshot_server_id}
-  end
-
-  defp extract_trailing_integer(nil) do
-    nil
-  end
-
-  defp extract_trailing_integer(value) when is_binary(value) do
-    value
-    |> String.trim_trailing("/")
-    |> String.split("/")
-    |> List.last()
-    |> case do
-      nil ->
-        nil
-
-      candidate ->
-        case Integer.parse(candidate) do
-          {int, ""} -> int
-          _ -> nil
-        end
-    end
-  end
-
-  defp extract_trailing_integer(_) do
-    nil
-  end
-
   defp delivery_concurrency do
-    federation_config() |> Keyword.get(:delivery_concurrency, 6)
+    Config.delivery_concurrency(federation_config())
   end
 
   defp outbound_events_url(peer) do
-    peer.event_endpoint || "#{peer.base_url}/federation/messaging/events"
+    Config.outbound_events_url(peer)
   end
 
   defp outbound_sync_url(peer) do
-    peer.sync_endpoint || "#{peer.base_url}/federation/messaging/sync"
+    Config.outbound_sync_url(peer)
   end
 
   defp outbound_snapshot_url(peer, remote_server_id) do
-    case peer.snapshot_endpoint_template do
-      template when is_binary(template) ->
-        if String.contains?(template, "{server_id}") do
-          String.replace(template, "{server_id}", Integer.to_string(remote_server_id))
-        else
-          template
-        end
-
-      _ ->
-        "#{peer.base_url}/federation/messaging/servers/#{remote_server_id}/snapshot"
-    end
+    Config.outbound_snapshot_url(peer, remote_server_id)
   end
 
   defp delivery_timeout_ms do
-    federation_config() |> Keyword.get(:delivery_timeout_ms, 12_000)
+    Config.delivery_timeout_ms(federation_config())
   end
 
   defp outbox_max_attempts do
-    federation_config() |> Keyword.get(:outbox_max_attempts, 8)
-  end
-
-  defp outbox_base_backoff_seconds do
-    federation_config() |> Keyword.get(:outbox_base_backoff_seconds, 5)
+    Config.outbox_max_attempts(federation_config())
   end
 
   defp outbox_backoff_seconds(attempt_count) do
-    base = outbox_base_backoff_seconds()
-    trunc(min(base * :math.pow(2, max(attempt_count - 1, 0)), 900))
+    Config.outbox_backoff_seconds(federation_config(), attempt_count)
   end
 
   defp outbox_partition_month(%DateTime{} = datetime) do
-    Date.new!(datetime.year, datetime.month, 1)
+    Config.outbox_partition_month(datetime)
   end
 
   defp archive_old_events do
@@ -3891,23 +3561,23 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp event_retention_days do
-    federation_config() |> Keyword.get(:event_retention_days, 14)
+    Config.event_retention_days(federation_config())
   end
 
   defp outbox_retention_days do
-    federation_config() |> Keyword.get(:outbox_retention_days, 30)
+    Config.outbox_retention_days(federation_config())
   end
 
   defp replay_nonce_ttl_seconds do
-    max(clock_skew_seconds() * 2, 600)
+    Config.replay_nonce_ttl_seconds(federation_config(), @clock_skew_seconds)
   end
 
   defp allow_insecure_transport? do
-    federation_config() |> Keyword.get(:allow_insecure_http_transport, false)
+    Config.allow_insecure_transport?(federation_config())
   end
 
   defp clock_skew_seconds do
-    federation_config() |> Keyword.get(:clock_skew_seconds, @clock_skew_seconds)
+    Config.clock_skew_seconds(federation_config(), @clock_skew_seconds)
   end
 
   defp federation_config do
@@ -3915,536 +3585,41 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp local_base_url do
-    configured =
-      federation_config()
-      |> Keyword.get(:base_url)
-      |> normalize_optional_string()
-
-    configured || infer_local_base_url(local_domain())
-  end
-
-  defp infer_local_base_url(domain) when is_binary(domain) do
-    is_tunnel = String.contains?(domain, ".") and not String.starts_with?(domain, "localhost")
-    scheme = if System.get_env("MIX_ENV") == "prod" or is_tunnel, do: "https", else: "http"
-    port = System.get_env("PORT") || "4000"
-
-    if scheme == "https" or port in ["80", "443"] or is_tunnel do
-      "#{scheme}://#{domain}"
-    else
-      "#{scheme}://#{domain}:#{port}"
-    end
+    Config.local_base_url(federation_config(), local_domain())
   end
 
   defp local_identity_key_id do
-    federation_config() |> Keyword.get(:identity_key_id, "default") |> to_string()
+    Config.local_identity_key_id(federation_config())
   end
 
   defp local_identity_discovery_identity do
-    keys =
-      local_identity_keys()
-      |> Enum.map(fn key ->
-        %{
-          "id" => key.id,
-          "algorithm" => ArblargSDK.signature_algorithm(),
-          "public_key" => Base.url_encode64(key.public_key, padding: false)
-        }
-      end)
-
-    %{
-      "algorithm" => ArblargSDK.signature_algorithm(),
-      "current_key_id" => local_identity_key_id(),
-      "keys" => keys
-    }
+    Config.local_identity_discovery_identity(local_identity_keys(), local_identity_key_id())
   end
 
   defp local_identity_keys do
-    configured =
-      federation_config()
-      |> Keyword.get(:identity_keys, [])
-      |> Enum.map(&normalize_identity_key/1)
-      |> Enum.reject(&is_nil/1)
-
-    cond do
-      configured != [] ->
-        configured
-
-      is_binary(
-        normalize_optional_string(federation_config() |> Keyword.get(:identity_shared_secret))
-      ) ->
-        secret = federation_config() |> Keyword.get(:identity_shared_secret)
-        {public_key, private_key} = ArblargSDK.derive_keypair_from_secret(secret)
-        [%{id: local_identity_key_id(), public_key: public_key, private_key: private_key}]
-
-      true ->
-        if enabled?() and prod_environment?() do
-          raise ArgumentError,
-                "messaging federation requires explicit identity keys in production; " <>
-                  "configure :identity_keys or :identity_shared_secret"
-        end
-
-        {public_key, private_key} =
-          ArblargSDK.derive_keypair_from_secret(local_domain())
-
-        [%{id: local_identity_key_id(), public_key: public_key, private_key: private_key}]
-    end
+    Config.local_identity_keys(
+      federation_config(),
+      local_identity_key_id(),
+      local_domain(),
+      enabled?(),
+      prod_environment?()
+    )
   end
 
   defp prod_environment? do
     Application.get_env(:elektrine, :environment) == :prod
   end
 
-  defp normalize_identity_key(key) when is_list(key), do: normalize_identity_key(Map.new(key))
-
-  defp normalize_identity_key(key) when is_map(key) do
-    id = normalize_optional_string(value_from(key, :id))
-    secret = normalize_optional_string(value_from(key, :secret))
-    public_key_encoded = normalize_optional_string(value_from(key, :public_key))
-    private_key_encoded = normalize_optional_string(value_from(key, :private_key))
-
-    cond do
-      !is_binary(id) ->
-        nil
-
-      is_binary(secret) ->
-        {public_key, private_key} = ArblargSDK.derive_keypair_from_secret(secret)
-        %{id: id, public_key: public_key, private_key: private_key}
-
-      true ->
-        with {:ok, public_key, private_key} <-
-               decode_or_derive_identity_keys(public_key_encoded, private_key_encoded) do
-          %{id: id, public_key: public_key, private_key: private_key}
-        else
-          _ -> nil
-        end
-    end
-  end
-
-  defp normalize_identity_key(_), do: nil
-
-  defp decode_or_derive_identity_keys(public_key_encoded, private_key_encoded) do
-    private_key_result = decode_key_material(private_key_encoded)
-    public_key_result = decode_key_material(public_key_encoded)
-
-    case {public_key_result, private_key_result} do
-      {{:ok, public_key}, {:ok, private_key}} ->
-        {:ok, public_key, private_key}
-
-      {:error, {:ok, private_key}} ->
-        {public_key, _} = :crypto.generate_key(:eddsa, :ed25519, private_key)
-        {:ok, public_key, private_key}
-
-      {{:ok, public_key}, :error} ->
-        {:ok, public_key, nil}
-
-      _ ->
-        :error
-    end
-  end
-
   defp official_relay_operator do
-    federation_config()
-    |> Keyword.get(:official_relay_operator, "Community-operated")
-    |> normalize_relay_operator_label()
+    Config.official_relay_operator(federation_config())
   end
 
   defp discovery_official_relays do
-    federation_config()
-    |> Keyword.get(:official_relays, [])
-    |> Enum.map(&normalize_discovery_relay/1)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp normalize_discovery_relay(relay) when is_binary(relay) do
-    url = normalize_optional_string(relay)
-
-    if is_binary(url) do
-      %{"url" => url}
-    else
-      nil
-    end
-  end
-
-  defp normalize_discovery_relay(relay) when is_map(relay) do
-    url = normalize_optional_string(value_from(relay, :url))
-    name = normalize_optional_string(value_from(relay, :name))
-    websocket_url = normalize_optional_string(value_from(relay, :websocket_url))
-    region = normalize_optional_string(value_from(relay, :region))
-
-    if is_binary(url) do
-      relay_doc = %{"url" => url}
-
-      relay_doc =
-        if is_binary(name) do
-          Map.put(relay_doc, "name", name)
-        else
-          relay_doc
-        end
-
-      relay_doc =
-        if is_binary(websocket_url) do
-          Map.put(relay_doc, "websocket_url", websocket_url)
-        else
-          relay_doc
-        end
-
-      if is_binary(region) do
-        Map.put(relay_doc, "region", region)
-      else
-        relay_doc
-      end
-    else
-      nil
-    end
-  end
-
-  defp normalize_discovery_relay(_) do
-    nil
-  end
-
-  defp normalize_relay_operator_label(value) do
-    value
-    |> to_string()
-    |> String.trim()
-    |> case do
-      "" -> "Community-operated"
-      label -> label
-    end
+    Config.discovery_official_relays(federation_config())
   end
 
   defp configured_peers do
-    federation_config()
-    |> Keyword.get(:peers, [])
-    |> Enum.map(&normalize_peer/1)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp runtime_policy_overrides do
-    try do
-      from(p in FederationPeerPolicy, order_by: [asc: p.domain])
-      |> Repo.all()
-      |> Map.new(fn policy -> {String.downcase(policy.domain), policy} end)
-    rescue
-      _ ->
-        %{}
-    end
-  end
-
-  defp users_by_id_for_policies(policy_overrides) when is_map(policy_overrides) do
-    user_ids =
-      policy_overrides
-      |> Map.values()
-      |> Enum.map(& &1.updated_by_id)
-      |> Enum.filter(&is_integer/1)
-      |> Enum.uniq()
-
-    if user_ids == [] do
-      %{}
-    else
-      try do
-        from(u in User, where: u.id in ^user_ids, select: {u.id, u})
-        |> Repo.all()
-        |> Map.new()
-      rescue
-        _ ->
-          %{}
-      end
-    end
-  end
-
-  defp users_by_id_for_policies(_), do: %{}
-
-  defp apply_runtime_policy(nil, _policy), do: nil
-
-  defp apply_runtime_policy(peer, nil) when is_map(peer), do: peer
-
-  defp apply_runtime_policy(peer, policy) when is_map(peer) and is_map(policy) do
-    blocked? = policy.blocked == true
-
-    allow_incoming =
-      cond do
-        blocked? -> false
-        is_boolean(policy.allow_incoming) -> policy.allow_incoming
-        true -> peer.allow_incoming
-      end
-
-    allow_outgoing =
-      cond do
-        blocked? -> false
-        is_boolean(policy.allow_outgoing) -> policy.allow_outgoing
-        true -> peer.allow_outgoing
-      end
-
-    %{peer | allow_incoming: allow_incoming, allow_outgoing: allow_outgoing}
-  end
-
-  defp apply_runtime_policy(peer, _policy), do: peer
-
-  defp normalize_peer_policy_attrs(attrs) when is_map(attrs) do
-    %{
-      allow_incoming:
-        normalize_optional_boolean(value_from(attrs, :allow_incoming, :__missing__), :__missing__),
-      allow_outgoing:
-        normalize_optional_boolean(value_from(attrs, :allow_outgoing, :__missing__), :__missing__),
-      blocked:
-        normalize_optional_boolean(value_from(attrs, :blocked, :__missing__), :__missing__),
-      reason: normalize_reason(value_from(attrs, :reason, :__missing__))
-    }
-    |> Enum.reject(fn {_key, value} -> value == :__missing__ end)
-    |> Map.new()
-  end
-
-  defp normalize_peer_policy_attrs(_), do: %{}
-
-  defp maybe_put_updated_by(attrs, updated_by_id)
-       when is_map(attrs) and is_integer(updated_by_id) do
-    Map.put(attrs, :updated_by_id, updated_by_id)
-  end
-
-  defp maybe_put_updated_by(attrs, _updated_by_id), do: attrs
-
-  defp normalize_peer_domain(domain) when is_binary(domain) do
-    normalized =
-      domain
-      |> String.trim()
-      |> String.downcase()
-      |> String.replace(~r/^https?:\/\//, "")
-      |> String.split("/", parts: 2)
-      |> List.first()
-      |> to_string()
-      |> String.trim(".")
-
-    if normalized == "" do
-      {:error, :invalid_domain}
-    else
-      {:ok, normalized}
-    end
-  end
-
-  defp normalize_peer_domain(_), do: {:error, :invalid_domain}
-
-  defp normalize_optional_boolean(:__missing__, missing), do: missing
-  defp normalize_optional_boolean(nil, _missing), do: nil
-  defp normalize_optional_boolean(true, _missing), do: true
-  defp normalize_optional_boolean(false, _missing), do: false
-  defp normalize_optional_boolean("true", _missing), do: true
-  defp normalize_optional_boolean("false", _missing), do: false
-  defp normalize_optional_boolean("1", _missing), do: true
-  defp normalize_optional_boolean("0", _missing), do: false
-  defp normalize_optional_boolean("inherit", _missing), do: nil
-  defp normalize_optional_boolean("", _missing), do: nil
-  defp normalize_optional_boolean(value, missing) when value == missing, do: missing
-  defp normalize_optional_boolean(_value, _missing), do: nil
-
-  defp normalize_reason(:__missing__), do: :__missing__
-
-  defp normalize_reason(reason) when is_binary(reason) do
-    trimmed = String.trim(reason)
-    if trimmed == "", do: nil, else: trimmed
-  end
-
-  defp normalize_reason(nil), do: nil
-  defp normalize_reason(_), do: nil
-
-  defp normalize_peer(peer) when is_map(peer) do
-    domain = value_from(peer, :domain)
-    base_url = value_from(peer, :base_url)
-    shared_secret = value_from(peer, :shared_secret)
-    keys = normalize_peer_keys(value_from(peer, :keys, []), shared_secret)
-
-    normalized_base_url =
-      if is_binary(base_url) do
-        String.trim_trailing(base_url, "/")
-      else
-        nil
-      end
-
-    if !is_binary(domain) or !is_binary(normalized_base_url) or Enum.empty?(keys) or
-         !valid_peer_base_url?(normalized_base_url) do
-      nil
-    else
-      %{
-        domain: domain,
-        base_url: normalized_base_url,
-        shared_secret: shared_secret,
-        keys: keys,
-        active_outbound_key_id: resolve_active_outbound_key_id(peer, keys),
-        allow_incoming: value_from(peer, :allow_incoming, true) == true,
-        allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
-        event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
-        sync_endpoint: normalize_optional_string(value_from(peer, :sync_endpoint)),
-        directory_endpoint: normalize_optional_string(value_from(peer, :directory_endpoint)),
-        snapshot_endpoint_template:
-          normalize_optional_string(value_from(peer, :snapshot_endpoint_template))
-      }
-    end
-  end
-
-  defp normalize_peer(peer) when is_list(peer) do
-    normalize_peer(Map.new(peer))
-  end
-
-  defp normalize_peer(_) do
-    nil
-  end
-
-  defp valid_peer_base_url?(base_url) when is_binary(base_url) do
-    case URI.parse(base_url) do
-      %URI{scheme: "https", host: host} when is_binary(host) and host != "" ->
-        true
-
-      %URI{scheme: "http", host: host} when is_binary(host) and host != "" ->
-        allow_insecure_transport?()
-
-      _ ->
-        false
-    end
-  end
-
-  defp valid_peer_base_url?(_), do: false
-
-  defp normalize_peer_keys(keys, shared_secret) when is_list(keys) do
-    normalized = keys |> Enum.map(&normalize_single_peer_key/1) |> Enum.reject(&is_nil/1)
-
-    if Enum.empty?(normalized) and is_binary(shared_secret) do
-      {public_key, private_key} = ArblargSDK.derive_keypair_from_secret(shared_secret)
-
-      [
-        %{
-          id: "legacy",
-          secret: shared_secret,
-          public_key: public_key,
-          private_key: private_key,
-          active_outbound: true
-        }
-      ]
-    else
-      normalized
-    end
-  end
-
-  defp normalize_peer_keys(_, shared_secret) when is_binary(shared_secret) do
-    {public_key, private_key} = ArblargSDK.derive_keypair_from_secret(shared_secret)
-
-    [
-      %{
-        id: "legacy",
-        secret: shared_secret,
-        public_key: public_key,
-        private_key: private_key,
-        active_outbound: true
-      }
-    ]
-  end
-
-  defp normalize_peer_keys(_, _) do
-    []
-  end
-
-  defp normalize_single_peer_key(key) when is_list(key) do
-    normalize_single_peer_key(Map.new(key))
-  end
-
-  defp normalize_single_peer_key(key) when is_map(key) do
-    id = normalize_optional_string(value_from(key, :id))
-    secret = normalize_optional_string(value_from(key, :secret))
-    public_key = decode_key_material(value_from(key, :public_key))
-    private_key = decode_key_material(value_from(key, :private_key))
-
-    cond do
-      !is_binary(id) ->
-        nil
-
-      is_binary(secret) ->
-        {derived_public, derived_private} = ArblargSDK.derive_keypair_from_secret(secret)
-
-        %{
-          id: id,
-          secret: secret,
-          public_key: derived_public,
-          private_key: derived_private,
-          active_outbound: value_from(key, :active_outbound, false) == true
-        }
-
-      public_key == :error and private_key == :error ->
-        nil
-
-      true ->
-        public_key =
-          case public_key do
-            {:ok, decoded_public} ->
-              decoded_public
-
-            :error ->
-              case private_key do
-                {:ok, decoded_private} ->
-                  {derived_public, _} = :crypto.generate_key(:eddsa, :ed25519, decoded_private)
-                  derived_public
-
-                :error ->
-                  nil
-              end
-          end
-
-        private_key = if match?({:ok, _}, private_key), do: elem(private_key, 1), else: nil
-
-        %{
-          id: id,
-          secret: nil,
-          public_key: public_key,
-          private_key: private_key,
-          active_outbound: value_from(key, :active_outbound, false) == true
-        }
-    end
-  end
-
-  defp normalize_single_peer_key(_) do
-    nil
-  end
-
-  defp resolve_active_outbound_key_id(peer, keys) do
-    configured = normalize_optional_string(value_from(peer, :active_outbound_key_id))
-
-    cond do
-      is_binary(configured) and
-          Enum.any?(keys, &(&1.id == configured and is_binary(&1.private_key))) ->
-        configured
-
-      key = Enum.find(keys, &(&1.active_outbound and is_binary(&1.private_key))) ->
-        key.id
-
-      key = Enum.find(keys, &is_binary(&1.private_key)) ->
-        key.id
-
-      true ->
-        keys |> List.first() |> Map.get(:id)
-    end
-  end
-
-  defp decode_key_material(value) when is_binary(value) and byte_size(value) == 32,
-    do: {:ok, value}
-
-  defp decode_key_material(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    cond do
-      trimmed == "" ->
-        :error
-
-      true ->
-        case Base.url_decode64(trimmed, padding: false) do
-          {:ok, raw} when byte_size(raw) == 32 -> {:ok, raw}
-          _ -> decode_key_material_standard_base64(trimmed)
-        end
-    end
-  end
-
-  defp decode_key_material(_), do: :error
-
-  defp decode_key_material_standard_base64(value) do
-    case Base.decode64(value) do
-      {:ok, raw} when byte_size(raw) == 32 -> {:ok, raw}
-      _ -> :error
-    end
+    Config.configured_peers(federation_config(), allow_insecure_transport?())
   end
 
   defp normalize_optional_string(value) when is_binary(value) do
@@ -4459,9 +3634,5 @@ defmodule Elektrine.Messaging.Federation do
 
   defp normalize_optional_string(_) do
     nil
-  end
-
-  defp value_from(map, key, default \\ nil) do
-    Map.get(map, key, Map.get(map, Atom.to_string(key), default))
   end
 end

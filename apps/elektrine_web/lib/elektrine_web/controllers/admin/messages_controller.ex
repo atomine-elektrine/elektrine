@@ -27,15 +27,16 @@ defmodule ElektrineWeb.Admin.MessagesController do
 
   def index(conn, params) do
     search_query = params |> Map.get("search", "") |> String.trim()
+    status_filter = parse_status_filter(Map.get(params, "status"))
     show_domain_stats = truthy_param?(Map.get(params, "show_domains"))
     page = SafeConvert.parse_page(params)
     per_page = 50
 
     {messages, total_count} =
       if search_query != "" do
-        search_messages_paginated(search_query, page, per_page)
+        search_messages_paginated(search_query, status_filter, page, per_page)
       else
-        get_recent_messages_paginated(page, per_page)
+        get_recent_messages_paginated(status_filter, page, per_page)
       end
 
     total_pages = ceil(total_count / per_page)
@@ -56,6 +57,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
       received_messages: received_messages,
       sent_messages: sent_messages,
       search_query: search_query,
+      status_filter: status_filter,
       show_domain_stats: show_domain_stats,
       page_results_count: length(messages),
       recipient_domains: recipient_domains,
@@ -248,7 +250,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
 
   # Private helper functions
 
-  defp get_recent_messages_paginated(page, per_page) do
+  defp get_recent_messages_paginated(status_filter, page, per_page) do
     offset = (page - 1) * per_page
 
     # Select lightweight fields for list views; full/decrypted content is only needed in view actions.
@@ -260,9 +262,13 @@ defmodule ElektrineWeb.Admin.MessagesController do
         on: mb.user_id == u.id,
         order_by: [desc: m.inserted_at]
       )
+      |> maybe_filter_status(status_filter)
       |> select_message_summary()
 
-    total_count = Repo.aggregate(Email.Message, :count, :id)
+    total_count =
+      Email.Message
+      |> maybe_filter_status(status_filter)
+      |> Repo.aggregate(:count, :id)
 
     messages =
       query
@@ -273,7 +279,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
     {messages, total_count}
   end
 
-  defp search_messages_paginated(search_query, page, per_page) do
+  defp search_messages_paginated(search_query, status_filter, page, per_page) do
     offset = (page - 1) * per_page
     search_term = "%#{search_query}%"
 
@@ -289,6 +295,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
             ilike(fragment("COALESCE(?, '')", u.username), ^search_term),
         order_by: [desc: m.inserted_at]
       )
+      |> maybe_filter_status(status_filter)
       |> select_message_summary()
 
     total_count =
@@ -301,6 +308,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
           ilike(m.subject, ^search_term) or ilike(m.from, ^search_term) or
             ilike(fragment("COALESCE(?, '')", u.username), ^search_term)
       )
+      |> maybe_filter_status(status_filter)
       |> Repo.aggregate(:count, :id)
 
     messages =
@@ -368,6 +376,14 @@ defmodule ElektrineWeb.Admin.MessagesController do
       }
     )
   end
+
+  defp parse_status_filter("sent"), do: "sent"
+  defp parse_status_filter("received"), do: "received"
+  defp parse_status_filter(_), do: "received"
+
+  defp maybe_filter_status(query, "received"), do: where(query, [m, ...], m.status == "received")
+  defp maybe_filter_status(query, "sent"), do: where(query, [m, ...], m.status == "sent")
+  defp maybe_filter_status(query, _), do: query
 
   defp truthy_param?(value) when value in [true, 1, "1", "true", "on", "yes"], do: true
   defp truthy_param?(_), do: false

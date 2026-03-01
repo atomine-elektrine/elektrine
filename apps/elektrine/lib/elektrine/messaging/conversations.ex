@@ -166,6 +166,27 @@ defmodule Elektrine.Messaging.Conversations do
     |> Repo.one()
   end
 
+  @doc """
+  Gets a conversation for chat display by hash for a specific user.
+
+  This mirrors `get_conversation_for_chat!/2` behavior while avoiding an extra
+  lookup when the route already contains the conversation hash.
+  """
+  def get_conversation_for_chat_by_hash!(hash, user_id) do
+    query =
+      from(c in Conversation,
+        join: cm in ConversationMember,
+        on: c.id == cm.conversation_id and cm.user_id == ^user_id,
+        where: c.hash == ^hash and is_nil(cm.left_at),
+        preload: [creator: [], members: [user: [:profile]]]
+      )
+
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      conversation -> {:ok, %{conversation | messages: []}}
+    end
+  end
+
   @doc "Gets a conversation by its name (case-insensitive, for communities).\n"
   def get_conversation_by_name(name) do
     normalized_name = String.downcase(name)

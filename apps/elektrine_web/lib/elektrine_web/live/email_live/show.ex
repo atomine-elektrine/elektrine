@@ -61,6 +61,7 @@ defmodule ElektrineWeb.EmailLive.Show do
 
   defp load_message(message, params, socket, user, mailbox) do
     unread_count = Email.unread_count(mailbox.id)
+    thread_messages = Email.list_thread_messages(message, mailbox.id)
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
@@ -84,6 +85,7 @@ defmodule ElektrineWeb.EmailLive.Show do
      |> assign(:page_title, message.subject)
      |> assign(:mailbox, mailbox)
      |> assign(:message, message)
+     |> assign(:thread_messages, thread_messages)
      |> assign(:unread_count, unread_count)
      |> assign(:storage_info, storage_info)
      |> assign(:return_to, return_to)
@@ -371,7 +373,13 @@ defmodule ElektrineWeb.EmailLive.Show do
           {:noreply, socket}
 
         updated_message ->
-          {:noreply, assign(socket, :message, updated_message)}
+          {:noreply,
+           socket
+           |> assign(:message, updated_message)
+           |> assign(
+             :thread_messages,
+             Email.list_thread_messages(updated_message, socket.assigns.mailbox.id)
+           )}
       end
     else
       {:noreply, socket}
@@ -381,7 +389,13 @@ defmodule ElektrineWeb.EmailLive.Show do
   def handle_info({:message_updated, updated_message}, socket) do
     # Message was updated (moved, deleted, etc.), reload if viewing this message
     if socket.assigns.message.id == updated_message.id do
-      {:noreply, assign(socket, :message, updated_message)}
+      {:noreply,
+       socket
+       |> assign(:message, updated_message)
+       |> assign(
+         :thread_messages,
+         Email.list_thread_messages(updated_message, socket.assigns.mailbox.id)
+       )}
     else
       {:noreply, socket}
     end
@@ -441,6 +455,28 @@ defmodule ElektrineWeb.EmailLive.Show do
     case message.status do
       "sent" -> total_recipients > 1
       _ -> total_recipients > 1 || cc_recipients != []
+    end
+  end
+
+  def thread_preview(message) do
+    content = message.text_body || message.html_body || ""
+
+    preview =
+      content
+      |> String.replace(~r/<[^>]+>/, " ")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+
+    case preview do
+      "" ->
+        gettext("(No preview)")
+
+      text ->
+        if String.length(text) <= 140 do
+          text
+        else
+          String.slice(text, 0, 140) <> "..."
+        end
     end
   end
 

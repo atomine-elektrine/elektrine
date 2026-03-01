@@ -189,13 +189,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
     <!-- Reply Content -->
         <%= if @normalized.content && String.trim(@normalized.content) != "" do %>
           <div class="text-sm break-words mb-2 [&_img]:max-w-[200px] [&_img]:max-h-[150px] [&_img]:rounded [&_img]:object-cover">
-            {raw(
-              @normalized.content
-              |> String.trim()
-              |> make_content_safe_with_links()
-              |> render_custom_emojis()
-              |> preserve_line_breaks()
-            )}
+            {raw(render_reply_content_html(@normalized))}
           </div>
         <% end %>
         
@@ -434,4 +428,23 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   end
 
   defp interactive_reply_id(_), do: nil
+
+  defp render_reply_content_html(%{
+         author_type: author_type,
+         content: content,
+         domain: domain
+       })
+       when author_type in [:remote, :lemmy] and is_binary(content) do
+    render_remote_post_content(String.trim(content), domain)
+  end
+
+  defp render_reply_content_html(%{content: content}) when is_binary(content) do
+    content
+    |> String.trim()
+    |> make_content_safe_with_links()
+    |> render_custom_emojis()
+    |> preserve_line_breaks()
+  end
+
+  defp render_reply_content_html(_), do: ""
 end

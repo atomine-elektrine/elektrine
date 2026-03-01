@@ -309,7 +309,7 @@
 
             <%= if @show_reply_form && @current_user do %>
               <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
-                <%= if length(@quick_reply_recent_replies) > 0 do %>
+                <%= if length(@quick_reply_recent_replies) > 0 && length(@replies) == 0 do %>
                   <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
                     <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                     <%= for reply <- @quick_reply_recent_replies do %>
@@ -349,6 +349,7 @@
                   rows={4}
                   form_class="space-y-3"
                   on_submit="submit_reply"
+                  on_change="update_reply_content"
                   on_cancel="toggle_reply_form"
                   cancel_class="btn btn-ghost btn-sm"
                   submit_class="btn btn-secondary btn-sm"
@@ -358,6 +359,9 @@
                   submit_icon="hero-paper-airplane"
                   submit_icon_class="w-4 h-4 mr-1"
                   submit_disable_with="Posting..."
+                  content_min={3}
+                  counter_suffix={gettext(" required chars")}
+                  show_counter={true}
                 />
               </div>
             <% end %>
@@ -983,7 +987,7 @@
 <!-- Reply Form -->
                     <%= if @show_reply_form do %>
                       <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
-                        <%= if length(@quick_reply_recent_replies) > 0 do %>
+                        <%= if length(@quick_reply_recent_replies) > 0 && length(@replies) == 0 do %>
                           <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
                             <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                             <%= for reply <- @quick_reply_recent_replies do %>
@@ -1028,6 +1032,7 @@
                           rows={4}
                           form_class="space-y-3"
                           on_submit="submit_reply"
+                          on_change="update_reply_content"
                           on_cancel="toggle_reply_form"
                           cancel_class="btn btn-ghost btn-sm"
                           submit_class="btn btn-secondary btn-sm"
@@ -1037,6 +1042,9 @@
                           submit_icon="hero-paper-airplane"
                           submit_icon_class="w-4 h-4 mr-1"
                           submit_disable_with="Posting..."
+                          content_min={3}
+                          counter_suffix={gettext(" required chars")}
+                          show_counter={true}
                         />
                       </div>
                     <% end %>

@@ -257,7 +257,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   def handle_event("navigate_to_gallery_post", %{"id" => _id, "url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{url}")}
+    {:noreply, push_navigate(socket, to: "/remote/post/#{encode_remote_post_ref(url)}")}
   end
 
   def handle_event("navigate_to_gallery_post", %{"id" => id}, socket) do
@@ -269,7 +269,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   def handle_event("navigate_to_remote_post", %{"id" => _id, "url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{url}")}
+    {:noreply, push_navigate(socket, to: "/remote/post/#{encode_remote_post_ref(url)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
+      when is_binary(url) and url != "" do
+    {:noreply, push_navigate(socket, to: "/remote/post/#{encode_remote_post_ref(url)}")}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
@@ -1429,6 +1434,23 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp parse_positive_int(_) do
     :error
+  end
+
+  defp encode_remote_post_ref(ref) when is_binary(ref) do
+    normalized_ref =
+      ref
+      |> String.trim()
+      |> decode_remote_post_ref()
+
+    URI.encode_www_form(normalized_ref)
+  end
+
+  defp encode_remote_post_ref(ref), do: URI.encode_www_form(to_string(ref))
+
+  defp decode_remote_post_ref(ref) when is_binary(ref) do
+    URI.decode_www_form(ref)
+  rescue
+    ArgumentError -> ref
   end
 
   defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0 do

@@ -55,7 +55,7 @@ defmodule ElektrineWeb.RecoveryEmailLive.Success do
           <.link href={~p"/"} class="btn btn-primary w-full">
             Go to Home
           </.link>
-          <.link href={~p"/account?tab=security"} class="btn btn-ghost w-full">
+          <.link href={~p"/account?tab=security"} class="btn btn-secondary w-full">
             Account Settings
           </.link>
         </div>

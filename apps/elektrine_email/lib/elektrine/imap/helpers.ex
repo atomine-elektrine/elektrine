@@ -147,23 +147,21 @@ defmodule Elektrine.IMAP.Helpers do
     {items, current, _bracket_depth} =
       String.graphemes(str)
       |> Enum.reduce({[], "", 0}, fn char, {items, current, bracket_depth} ->
-        cond do
-          String.trim(char) == "" and bracket_depth == 0 ->
-            if current == "" do
-              {items, "", bracket_depth}
-            else
-              {[current | items], "", bracket_depth}
+        if String.trim(char) == "" and bracket_depth == 0 do
+          if current == "" do
+            {items, "", bracket_depth}
+          else
+            {[current | items], "", bracket_depth}
+          end
+        else
+          next_bracket_depth =
+            cond do
+              char == "[" -> bracket_depth + 1
+              char == "]" and bracket_depth > 0 -> bracket_depth - 1
+              true -> bracket_depth
             end
 
-          true ->
-            next_bracket_depth =
-              cond do
-                char == "[" -> bracket_depth + 1
-                char == "]" and bracket_depth > 0 -> bracket_depth - 1
-                true -> bracket_depth
-              end
-
-            {items, current <> char, next_bracket_depth}
+          {items, current <> char, next_bracket_depth}
         end
       end)
 
@@ -217,21 +215,19 @@ defmodule Elektrine.IMAP.Helpers do
   def parse_mailbox_arg(args) do
     trimmed = String.trim(args)
 
-    cond do
-      trimmed == "" ->
-        {:error, :missing_mailbox_name}
+    if trimmed == "" do
+      {:error, :missing_mailbox_name}
+    else
+      case Regex.run(~r/^\s*"((?:[^"\\]|\\.)*)"/, trimmed) do
+        [_, quoted] ->
+          {:ok, quoted |> String.replace("\\\"", "\"") |> String.replace("\\\\", "\\")}
 
-      true ->
-        case Regex.run(~r/^\s*"((?:[^"\\]|\\.)*)"/, trimmed) do
-          [_, quoted] ->
-            {:ok, quoted |> String.replace("\\\"", "\"") |> String.replace("\\\\", "\\")}
-
-          _ ->
-            case Regex.run(~r/^\s*([^\s]+)/, trimmed) do
-              [_, atom] -> {:ok, String.trim(atom, "\"")}
-              _ -> {:error, :missing_mailbox_name}
-            end
-        end
+        _ ->
+          case Regex.run(~r/^\s*([^\s]+)/, trimmed) do
+            [_, atom] -> {:ok, String.trim(atom, "\"")}
+            _ -> {:error, :missing_mailbox_name}
+          end
+      end
     end
   end
 

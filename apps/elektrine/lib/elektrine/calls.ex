@@ -5,7 +5,17 @@ defmodule Elektrine.Calls do
 
   import Ecto.Query, warn: false
   alias Elektrine.Calls.Call
+  alias Elektrine.Messaging.{Conversation, ConversationMember}
   alias Elektrine.Repo
+  @terminal_statuses ["ended", "rejected", "missed", "failed"]
+  @allowed_previous_statuses %{
+    "ringing" => ["initiated"],
+    "active" => ["initiated", "ringing"],
+    "ended" => ["initiated", "ringing", "active"],
+    "rejected" => ["initiated", "ringing"],
+    "missed" => ["initiated", "ringing"],
+    "failed" => ["initiated", "ringing", "active"]
+  }
 
   @doc """
   Initiates a new call between two users.
@@ -17,56 +27,71 @@ defmodule Elektrine.Calls do
         {:error, reason}
 
       {:ok, :allowed} ->
-        # Auto-cleanup stale calls (> 2 minutes old)
-        two_minutes_ago = DateTime.utc_now() |> DateTime.add(-120, :second)
-
-        if existing_caller = get_active_call(caller_id) do
-          if DateTime.compare(existing_caller.inserted_at, two_minutes_ago) == :lt do
-            require Logger
-
-            Logger.warning(
-              "Force ending stale call #{existing_caller.id} for caller #{caller_id}"
-            )
-
-            end_call(existing_caller.id)
-          end
-        end
-
-        if existing_callee = get_active_call(callee_id) do
-          if DateTime.compare(existing_callee.inserted_at, two_minutes_ago) == :lt do
-            require Logger
-
-            Logger.warning(
-              "Force ending stale call #{existing_callee.id} for callee #{callee_id}"
-            )
-
-            end_call(existing_callee.id)
-          end
-        end
-
-        # Now check for active calls after cleanup
-        cond do
-          get_active_call(caller_id) ->
-            {:error, :caller_already_in_call}
-
-          get_active_call(callee_id) ->
-            {:error, :callee_already_in_call}
-
-          too_many_recent_calls?(caller_id) ->
-            {:error, :rate_limit_exceeded}
-
-          true ->
-            %Call{}
-            |> Call.changeset(%{
-              caller_id: caller_id,
-              callee_id: callee_id,
-              call_type: call_type,
-              conversation_id: conversation_id,
-              status: "initiated"
-            })
-            |> Repo.insert()
+        if conversation_id && !valid_call_conversation?(conversation_id, caller_id, callee_id) do
+          {:error, :invalid_conversation}
+        else
+          do_initiate_call(caller_id, callee_id, call_type, conversation_id)
         end
     end
+  end
+
+  defp do_initiate_call(caller_id, callee_id, call_type, conversation_id) do
+    # Auto-cleanup stale calls (> 2 minutes old)
+    two_minutes_ago = DateTime.utc_now() |> DateTime.add(-120, :second)
+
+    if existing_caller = get_active_call(caller_id) do
+      if DateTime.compare(existing_caller.inserted_at, two_minutes_ago) == :lt do
+        require Logger
+
+        Logger.warning("Force ending stale call #{existing_caller.id} for caller #{caller_id}")
+
+        end_call(existing_caller.id)
+      end
+    end
+
+    if existing_callee = get_active_call(callee_id) do
+      if DateTime.compare(existing_callee.inserted_at, two_minutes_ago) == :lt do
+        require Logger
+
+        Logger.warning("Force ending stale call #{existing_callee.id} for callee #{callee_id}")
+
+        end_call(existing_callee.id)
+      end
+    end
+
+    # Now check for active calls after cleanup
+    cond do
+      get_active_call(caller_id) ->
+        {:error, :caller_already_in_call}
+
+      get_active_call(callee_id) ->
+        {:error, :callee_already_in_call}
+
+      too_many_recent_calls?(caller_id) ->
+        {:error, :rate_limit_exceeded}
+
+      true ->
+        %Call{}
+        |> Call.changeset(%{
+          caller_id: caller_id,
+          callee_id: callee_id,
+          call_type: call_type,
+          conversation_id: conversation_id,
+          status: "initiated"
+        })
+        |> Repo.insert()
+    end
+  end
+
+  defp valid_call_conversation?(conversation_id, caller_id, callee_id) do
+    from(cm in ConversationMember,
+      join: c in Conversation,
+      on: c.id == cm.conversation_id,
+      where: cm.conversation_id == ^conversation_id and c.type == "dm" and is_nil(cm.left_at),
+      where: cm.user_id in ^[caller_id, callee_id],
+      select: count(cm.user_id, :distinct)
+    )
+    |> Repo.one() == 2
   end
 
   @doc """
@@ -96,54 +121,91 @@ defmodule Elektrine.Calls do
     if call.status == status do
       {:ok, call}
     else
-      attrs = Map.put(attrs, :status, status)
+      if transition_allowed?(call.status, status) do
+        attrs = Map.put(attrs, :status, status)
 
-      # Auto-set started_at when call becomes active
-      attrs =
-        if status == "active" and is_nil(call.started_at) do
-          Map.put(attrs, :started_at, DateTime.utc_now())
-        else
-          attrs
-        end
-
-      # Auto-set ended_at and calculate duration when call ends
-      attrs =
-        if status in ["ended", "rejected", "missed", "failed"] and is_nil(call.ended_at) do
-          ended_at = DateTime.utc_now()
-
-          duration =
-            if call.started_at do
-              DateTime.diff(ended_at, call.started_at)
-            else
-              0
-            end
-
-          attrs
-          |> Map.put(:ended_at, ended_at)
-          |> Map.put(:duration_seconds, duration)
-        else
-          attrs
-        end
-
-      result =
-        call
-        |> Call.changeset(attrs)
-        |> Repo.update()
-
-      # Create system message in conversation when call ends
-      case result do
-        {:ok, updated_call} when status in ["ended", "rejected", "missed", "failed"] ->
-          if updated_call.conversation_id do
-            create_call_log_message(updated_call)
+        # Auto-set started_at when call becomes active
+        attrs =
+          if status == "active" and is_nil(call.started_at) do
+            Map.put(attrs, :started_at, DateTime.utc_now())
+          else
+            attrs
           end
 
-          result
+        # Auto-set ended_at and calculate duration when call ends
+        attrs =
+          if status in @terminal_statuses and is_nil(call.ended_at) do
+            ended_at = DateTime.utc_now()
 
-        _ ->
-          result
+            duration =
+              if call.started_at do
+                DateTime.diff(ended_at, call.started_at)
+              else
+                0
+              end
+
+            attrs
+            |> Map.put(:ended_at, ended_at)
+            |> Map.put(:duration_seconds, duration)
+          else
+            attrs
+          end
+
+        changeset = Call.changeset(call, attrs)
+
+        if changeset.valid? do
+          update_fields = Map.to_list(changeset.changes)
+          now = DateTime.utc_now()
+
+          {updated_rows, _} =
+            status_update_query(call_id, status)
+            |> Repo.update_all(set: Keyword.put(update_fields, :updated_at, now))
+
+          updated_call =
+            Repo.get!(Call, call_id) |> Repo.preload([:caller, :callee, :conversation])
+
+          if updated_rows > 0 and status in @terminal_statuses do
+            maybe_broadcast_call_event(updated_call, status)
+
+            if updated_call.conversation_id do
+              create_call_log_message(updated_call)
+            end
+          end
+
+          {:ok, updated_call}
+        else
+          {:error, changeset}
+        end
+      else
+        {:ok, call}
       end
     end
   end
+
+  defp transition_allowed?(from_status, to_status) do
+    from_status in Map.get(@allowed_previous_statuses, to_status, [])
+  end
+
+  defp status_update_query(call_id, status) do
+    from(c in Call,
+      where: c.id == ^call_id and c.status in ^Map.get(@allowed_previous_statuses, status, [])
+    )
+  end
+
+  defp maybe_broadcast_call_event(call, status) when status in @terminal_statuses do
+    event =
+      case status do
+        "rejected" -> :call_rejected
+        "missed" -> :call_missed
+        _ -> :call_ended
+      end
+
+    Enum.each([call.caller_id, call.callee_id], fn user_id ->
+      Phoenix.PubSub.broadcast(Elektrine.PubSub, "user:#{user_id}", {event, call})
+    end)
+  end
+
+  defp maybe_broadcast_call_event(_call, _status), do: :ok
 
   # Create a system message in the conversation for call log
   defp create_call_log_message(call) do

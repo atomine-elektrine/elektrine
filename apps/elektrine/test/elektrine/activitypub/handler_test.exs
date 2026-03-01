@@ -2,6 +2,30 @@ defmodule Elektrine.ActivityPub.HandlerTest do
   use Elektrine.DataCase, async: true
 
   alias Elektrine.ActivityPub.Handler
+  alias Elektrine.ActivityPub.Instance
+  alias Elektrine.Repo
+
+  describe "process_activity_async/3" do
+    test "applies MRF policies before routing" do
+      {:ok, _instance} =
+        %Instance{}
+        |> Instance.changeset(%{domain: "blocked-async.example.com", blocked: true})
+        |> Repo.insert()
+
+      activity = %{
+        "type" => "CustomType",
+        "actor" => "https://blocked-async.example.com/users/test",
+        "object" => %{"type" => "Note", "content" => "test"}
+      }
+
+      assert {:ok, :mrf_rejected} =
+               Handler.process_activity_async(
+                 activity,
+                 "https://blocked-async.example.com/users/test",
+                 nil
+               )
+    end
+  end
 
   describe "extract_local_mentions/1" do
     test "extracts username from z.org mention" do

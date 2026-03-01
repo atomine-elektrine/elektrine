@@ -124,51 +124,44 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicy do
 
   defp check_media_nsfw(_host, activity), do: {:ok, activity}
 
-  # Remove from federated timeline (move Public to CC)
-  defp check_ftl_removal(host, %{"to" => to, "cc" => cc} = activity)
-       when is_list(to) and is_list(cc) do
+  # Remove from federated timeline (move Public to CC).
+  # Also applies for legacy :silenced policies.
+  defp check_ftl_removal(host, activity) do
     public_uri = "https://www.w3.org/ns/activitystreams#Public"
 
-    if host_has_policy?(host, :federated_timeline_removal) and public_uri in to do
-      Logger.debug("[SimplePolicy] Removing #{host} activity from federated timeline")
+    if host_has_policy?(host, :federated_timeline_removal) or host_has_policy?(host, :silenced) do
+      updated_activity =
+        update_visibility_targets(activity, fn to, cc ->
+          move_public_to_cc(to, cc, public_uri)
+        end)
 
-      updated_to = List.delete(to, public_uri)
-      updated_cc = if public_uri in cc, do: cc, else: [public_uri | cc]
+      if updated_activity != activity do
+        Logger.debug("[SimplePolicy] Removing #{host} activity from federated timeline")
+      end
 
-      activity =
-        activity
-        |> Map.put("to", updated_to)
-        |> Map.put("cc", updated_cc)
-
-      {:ok, activity}
+      {:ok, updated_activity}
     else
       {:ok, activity}
     end
   end
 
-  defp check_ftl_removal(_host, activity), do: {:ok, activity}
-
   # Force posts to followers-only visibility
-  defp check_followers_only(host, %{"to" => to, "cc" => cc, "actor" => actor} = activity)
-       when is_list(to) and is_list(cc) do
+  defp check_followers_only(host, %{"actor" => actor} = activity) when is_binary(actor) do
     public_uri = "https://www.w3.org/ns/activitystreams#Public"
 
-    if host_has_policy?(host, :followers_only) and public_uri in to do
-      Logger.debug("[SimplePolicy] Forcing #{host} activity to followers-only")
-
-      # Remove public from both to and cc, keep only followers
-      # Extract follower collection from actor if possible
+    if host_has_policy?(host, :followers_only) do
       follower_collection = "#{actor}/followers"
 
-      updated_to = to |> List.delete(public_uri) |> ensure_contains(follower_collection)
-      updated_cc = List.delete(cc, public_uri)
+      updated_activity =
+        update_visibility_targets(activity, fn to, cc ->
+          force_followers_only(to, cc, public_uri, follower_collection)
+        end)
 
-      activity =
-        activity
-        |> Map.put("to", updated_to)
-        |> Map.put("cc", updated_cc)
+      if updated_activity != activity do
+        Logger.debug("[SimplePolicy] Forcing #{host} activity to followers-only")
+      end
 
-      {:ok, activity}
+      {:ok, updated_activity}
     else
       {:ok, activity}
     end
@@ -180,12 +173,50 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicy do
     if item in list, do: list, else: [item | list]
   end
 
+  defp move_public_to_cc(to, cc, public_uri) do
+    if public_uri in to do
+      {List.delete(to, public_uri), if(public_uri in cc, do: cc, else: [public_uri | cc])}
+    else
+      {to, cc}
+    end
+  end
+
+  defp force_followers_only(to, cc, public_uri, follower_collection) do
+    if public_uri in to or public_uri in cc do
+      {
+        to |> List.delete(public_uri) |> ensure_contains(follower_collection),
+        List.delete(cc, public_uri)
+      }
+    else
+      {to, cc}
+    end
+  end
+
+  defp update_visibility_targets(%{"object" => object} = activity, updater) when is_map(object) do
+    activity
+    |> update_targets(updater)
+    |> Map.put("object", update_targets(object, updater))
+  end
+
+  defp update_visibility_targets(activity, updater), do: update_targets(activity, updater)
+
+  defp update_targets(%{"to" => to, "cc" => cc} = value, updater)
+       when is_list(to) and is_list(cc) do
+    {updated_to, updated_cc} = updater.(to, cc)
+
+    value
+    |> Map.put("to", updated_to)
+    |> Map.put("cc", updated_cc)
+  end
+
+  defp update_targets(value, _updater), do: value
+
   # Reject reports from listed domains
-  defp check_report_removal(host, %{"type" => "Flag"} = _activity) do
+  defp check_report_removal(host, %{"type" => "Flag"} = activity) do
     if host_has_policy?(host, :report_removal) do
       {:reject, "[SimplePolicy] host in report_removal list"}
     else
-      {:ok, nil}
+      {:ok, activity}
     end
   end
 
@@ -324,9 +355,12 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicy do
     config_policies =
       [
         {:blocked, :reject},
+        {:silenced, :silence},
+        {:silenced, :silenced},
         {:media_removal, :media_removal},
         {:media_nsfw, :media_nsfw},
         {:federated_timeline_removal, :federated_timeline_removal},
+        {:followers_only, :followers_only},
         {:report_removal, :report_removal},
         {:reject_deletes, :reject_deletes},
         {:avatar_removal, :avatar_removal},

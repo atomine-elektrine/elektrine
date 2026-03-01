@@ -255,6 +255,13 @@ defmodule Elektrine.Email.HarakaClient do
           headers
         end
 
+      headers =
+        if params[:references] do
+          Map.put(headers, "References", params[:references])
+        else
+          headers
+        end
+
       # Add custom forwarding headers if present
       headers =
         if params[:headers] && is_map(params[:headers]) do

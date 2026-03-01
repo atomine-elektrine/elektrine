@@ -4,9 +4,9 @@ defmodule ElektrineChatWeb.MessagingFederationController do
   """
   use ElektrineChatWeb, :controller
 
-  alias ElektrineChat, as: Messaging
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation
+  alias ElektrineChat, as: Messaging
 
   @discovery_cache_control "public, max-age=300, stale-while-revalidate=60"
   @schema_cache_control "public, max-age=3600, stale-while-revalidate=300"

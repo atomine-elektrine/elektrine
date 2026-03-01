@@ -1110,14 +1110,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       end
 
     activitypub_ref =
-      cond do
-        is_map(message) ->
-          normalize_in_reply_to_ref(Map.get(message, :activitypub_id)) ||
-            normalize_in_reply_to_ref(Map.get(message, :activitypub_url)) ||
-            normalize_in_reply_to_ref(ref)
-
-        true ->
+      if is_map(message) do
+        normalize_in_reply_to_ref(Map.get(message, :activitypub_id)) ||
+          normalize_in_reply_to_ref(Map.get(message, :activitypub_url)) ||
           normalize_in_reply_to_ref(ref)
+      else
+        normalize_in_reply_to_ref(ref)
       end
 
     {click_event, click_url, click_id} =
@@ -2233,8 +2231,9 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     has_image = !Enum.empty?(image_urls)
     image_url = if has_image, do: thumbnail_url(hd(image_urls), 96), else: nil
 
-    # Get title and community info
-    title = get_in(post.media_metadata || %{}, ["name"])
+    # Resolve title with stable fallbacks. Some federated community posts persist title on
+    # the message while others only expose it via metadata.
+    title = resolve_federated_title(post)
     community_uri = PostUtilities.community_actor_uri(post)
     external_link = PostUtilities.detect_external_link(post)
 
@@ -2632,8 +2631,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     {display_like_count, display_comment_count} =
       PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
 
-    # Get title from metadata if available
-    title = normalize_post_title(post.title || get_in(post.media_metadata || %{}, ["name"]))
+    # Compact cards should use the same title fallback chain as Lemmy cards.
+    title = resolve_federated_title(post)
 
     # Get thumbnail if available
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
@@ -2769,6 +2768,22 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   end
 
   defp normalize_post_title(_), do: nil
+
+  defp resolve_federated_title(post) when is_map(post) do
+    metadata = Map.get(post, :media_metadata) || %{}
+
+    [
+      Map.get(post, :title),
+      Map.get(post, "title"),
+      Map.get(metadata, "name"),
+      Map.get(metadata, :name),
+      Map.get(metadata, "title"),
+      Map.get(metadata, :title)
+    ]
+    |> Enum.find_value(&normalize_post_title/1)
+  end
+
+  defp resolve_federated_title(_), do: nil
 
   defp normalize_reply_author_info(author, in_reply_to_url) when is_binary(author) do
     author = String.trim(author)

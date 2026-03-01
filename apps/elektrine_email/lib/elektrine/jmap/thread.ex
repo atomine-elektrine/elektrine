@@ -38,8 +38,16 @@ defmodule Elektrine.JMAP.Thread do
   Returns {:ok, thread_id} or {:error, reason}
   """
   def assign_thread(attrs, mailbox_id) do
-    in_reply_to = attrs[:in_reply_to] || attrs["in_reply_to"]
-    references = attrs[:references] || attrs["references"]
+    in_reply_to =
+      attrs
+      |> Map.get(:in_reply_to, Map.get(attrs, "in_reply_to"))
+      |> parse_message_id()
+
+    references =
+      attrs
+      |> Map.get(:references, Map.get(attrs, "references"))
+      |> parse_reference_ids()
+
     subject = attrs[:subject] || attrs["subject"] || ""
 
     # Try to find existing thread
@@ -72,15 +80,25 @@ defmodule Elektrine.JMAP.Thread do
   defp find_thread_by_in_reply_to("", _mailbox_id), do: nil
 
   defp find_thread_by_in_reply_to(in_reply_to, mailbox_id) do
-    message_id = parse_message_id(in_reply_to)
+    normalized_message_id = parse_message_id(in_reply_to)
 
     case Repo.one(
            from m in Message,
-             where: m.mailbox_id == ^mailbox_id and m.message_id == ^message_id,
-             select: m.thread_id
+             where:
+               m.mailbox_id == ^mailbox_id and
+                 m.message_id in ^message_id_candidates(normalized_message_id),
+             select: %{id: m.id, thread_id: m.thread_id, subject: m.subject}
          ) do
-      nil -> nil
-      thread_id -> thread_id
+      nil ->
+        nil
+
+      %{thread_id: thread_id} when is_integer(thread_id) ->
+        thread_id
+
+      %{id: parent_id, subject: parent_subject} ->
+        thread_id = find_or_create_thread_by_subject(parent_subject || "", mailbox_id)
+        attach_parent_to_thread(parent_id, thread_id)
+        thread_id
     end
   end
 
@@ -89,25 +107,39 @@ defmodule Elektrine.JMAP.Thread do
   defp find_thread_by_references("", _mailbox_id), do: nil
 
   defp find_thread_by_references(references, mailbox_id) do
-    # Parse references into individual message IDs
-    message_ids =
-      references
-      |> String.split(~r/\s+/)
-      |> Enum.map(&parse_message_id/1)
-      |> Enum.reject(&is_nil/1)
+    message_ids = parse_reference_ids(references)
 
     if Enum.empty?(message_ids) do
       nil
     else
-      # Find any message with these message_ids that has a thread
-      Repo.one(
-        from m in Message,
-          where:
-            m.mailbox_id == ^mailbox_id and m.message_id in ^message_ids and
-              not is_nil(m.thread_id),
-          select: m.thread_id,
-          limit: 1
-      )
+      message_id_candidates =
+        message_ids
+        |> Enum.flat_map(&message_id_candidates/1)
+        |> Enum.uniq()
+
+      parent_messages =
+        Repo.all(
+          from m in Message,
+            where: m.mailbox_id == ^mailbox_id and m.message_id in ^message_id_candidates,
+            select: %{id: m.id, thread_id: m.thread_id, subject: m.subject},
+            order_by: [desc: m.inserted_at]
+        )
+
+      case Enum.find(parent_messages, &is_integer(&1.thread_id)) do
+        %{thread_id: thread_id} ->
+          thread_id
+
+        nil ->
+          case List.first(parent_messages) do
+            %{id: parent_id, subject: parent_subject} ->
+              thread_id = find_or_create_thread_by_subject(parent_subject || "", mailbox_id)
+              attach_parent_to_thread(parent_id, thread_id)
+              thread_id
+
+            nil ->
+              nil
+          end
+      end
     end
   end
 
@@ -121,17 +153,39 @@ defmodule Elektrine.JMAP.Thread do
              select: t.id
          ) do
       nil ->
-        # Create new thread
-        {:ok, thread} =
+        # Create new thread (or resolve unique conflict from a concurrent insert).
+        insert_result =
           %__MODULE__{}
           |> changeset(%{mailbox_id: mailbox_id, subject_hash: subject_hash})
           |> Repo.insert()
 
-        thread.id
+        case insert_result do
+          {:ok, thread} ->
+            thread.id
+
+          {:error, _changeset} ->
+            Repo.one(
+              from t in __MODULE__,
+                where: t.mailbox_id == ^mailbox_id and t.subject_hash == ^subject_hash,
+                select: t.id
+            )
+        end
 
       thread_id ->
         thread_id
     end
+  end
+
+  defp attach_parent_to_thread(parent_message_id, thread_id)
+       when is_integer(parent_message_id) and is_integer(thread_id) do
+    Repo.update_all(
+      from(m in Message,
+        where: m.id == ^parent_message_id and is_nil(m.thread_id)
+      ),
+      set: [thread_id: thread_id]
+    )
+
+    :ok
   end
 
   # Parse message ID from header (removes angle brackets)
@@ -144,6 +198,38 @@ defmodule Elektrine.JMAP.Thread do
     |> case do
       "" -> nil
       id -> id
+    end
+  end
+
+  defp parse_reference_ids(nil), do: []
+  defp parse_reference_ids(""), do: []
+
+  defp parse_reference_ids(references) when is_list(references) do
+    references
+    |> Enum.map(&parse_message_id/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp parse_reference_ids(references) when is_binary(references) do
+    references
+    |> String.split(~r/[\s,]+/, trim: true)
+    |> Enum.map(&parse_message_id/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp parse_reference_ids(_), do: []
+
+  defp message_id_candidates(nil), do: []
+  defp message_id_candidates(""), do: []
+
+  defp message_id_candidates(message_id) do
+    normalized = parse_message_id(message_id)
+
+    case normalized do
+      nil -> []
+      id -> Enum.uniq([id, "<#{id}>"])
     end
   end
 

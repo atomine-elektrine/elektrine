@@ -1,20 +1,58 @@
 <div class="p-4 sm:p-6">
   <% search_active = @search_query != "" %>
+  <% status_filter = assigns[:status_filter] || "received" %>
   <% show_domain_stats = assigns[:show_domain_stats] || false %>
   <% page_results_count = assigns[:page_results_count] || length(@messages) %>
   <% received_messages =
     assigns[:received_messages] || Enum.filter(@messages, &(&1.status == "received")) %>
   <% sent_messages = assigns[:sent_messages] || Enum.filter(@messages, &(&1.status == "sent")) %>
+  <% base_params =
+    %{"status" => status_filter}
+    |> then(fn params ->
+      if search_active, do: Map.put(params, "search", @search_query), else: params
+    end)
+    |> then(fn params ->
+      if show_domain_stats, do: Map.put(params, "show_domains", "1"), else: params
+    end) %>
+  <% base_params_without_search = Map.delete(base_params, "search") %>
+  <% base_params_without_domain_stats = Map.delete(base_params, "show_domains") %>
+  <% received_tab_params = base_params |> Map.put("status", "received") |> Map.put("page", 1) %>
+  <% sent_tab_params = base_params |> Map.put("status", "sent") |> Map.put("page", 1) %>
 
   <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold sm:text-3xl">Message Console</h1>
       <p class="mt-1 text-sm opacity-70 sm:text-base">
-        Recent inbound and outbound email activity.
+        Admin view for {if status_filter == "sent", do: "outbound", else: "inbound"} email activity.
       </p>
     </div>
     <div class="text-xs opacity-60 sm:text-sm">
       Page {@current_page} of {@total_pages}
+    </div>
+  </div>
+
+  <div class="mb-6">
+    <div class="join">
+      <.link
+        href={~p"/pripyat/messages?#{received_tab_params}"}
+        class={
+          if status_filter == "received",
+            do: "join-item btn btn-primary",
+            else: "join-item btn btn-ghost"
+        }
+      >
+        <.icon name="hero-arrow-down-tray" class="h-4 w-4" /> Received
+      </.link>
+      <.link
+        href={~p"/pripyat/messages?#{sent_tab_params}"}
+        class={
+          if status_filter == "sent",
+            do: "join-item btn btn-primary",
+            else: "join-item btn btn-ghost"
+        }
+      >
+        <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Sent
+      </.link>
     </div>
   </div>
 
@@ -65,11 +103,14 @@
             </button>
           </div>
         </div>
+        <input type="hidden" name="status" value={status_filter} />
         <%= if show_domain_stats do %>
           <input type="hidden" name="show_domains" value="1" />
         <% end %>
         <%= if search_active do %>
-          <.link href={~p"/pripyat/messages"} class="btn btn-ghost">Clear</.link>
+          <.link href={~p"/pripyat/messages?#{base_params_without_search}"} class="btn btn-ghost">
+            Clear
+          </.link>
         <% end %>
       </form>
 
@@ -95,9 +136,7 @@
         <%= if show_domain_stats do %>
           <.link
             href={
-              if search_active,
-                do: ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page}",
-                else: ~p"/pripyat/messages?page=#{@current_page}"
+              ~p"/pripyat/messages?#{Map.put(base_params_without_domain_stats, "page", @current_page)}"
             }
             class="btn btn-ghost btn-sm"
           >
@@ -133,10 +172,7 @@
       <% else %>
         <.link
           href={
-            if search_active,
-              do:
-                ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page}&show_domains=1",
-              else: ~p"/pripyat/messages?page=#{@current_page}&show_domains=1"
+            ~p"/pripyat/messages?#{base_params |> Map.put("show_domains", "1") |> Map.put("page", @current_page)}"
           }
           class="btn btn-outline btn-sm"
         >
@@ -461,21 +497,7 @@
       <div class="flex items-center gap-2 sm:hidden">
         <%= if @current_page > 1 do %>
           <.link
-            href={
-              cond do
-                search_active and show_domain_stats ->
-                  ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page - 1}&show_domains=1"
-
-                search_active ->
-                  ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page - 1}"
-
-                show_domain_stats ->
-                  ~p"/pripyat/messages?page=#{@current_page - 1}&show_domains=1"
-
-                true ->
-                  ~p"/pripyat/messages?page=#{@current_page - 1}"
-              end
-            }
+            href={~p"/pripyat/messages?#{Map.put(base_params, "page", @current_page - 1)}"}
             class="btn btn-sm"
           >
             <.icon name="hero-chevron-left" class="h-4 w-4" />
@@ -486,21 +508,7 @@
 
         <%= if @current_page < @total_pages do %>
           <.link
-            href={
-              cond do
-                search_active and show_domain_stats ->
-                  ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page + 1}&show_domains=1"
-
-                search_active ->
-                  ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page + 1}"
-
-                show_domain_stats ->
-                  ~p"/pripyat/messages?page=#{@current_page + 1}&show_domains=1"
-
-                true ->
-                  ~p"/pripyat/messages?page=#{@current_page + 1}"
-              end
-            }
+            href={~p"/pripyat/messages?#{Map.put(base_params, "page", @current_page + 1)}"}
             class="btn btn-sm"
           >
             <.icon name="hero-chevron-right" class="h-4 w-4" />
@@ -512,21 +520,7 @@
         <div class="join">
           <%= if @current_page > 1 do %>
             <.link
-              href={
-                cond do
-                  search_active and show_domain_stats ->
-                    ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page - 1}&show_domains=1"
-
-                  search_active ->
-                    ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page - 1}"
-
-                  show_domain_stats ->
-                    ~p"/pripyat/messages?page=#{@current_page - 1}&show_domains=1"
-
-                  true ->
-                    ~p"/pripyat/messages?page=#{@current_page - 1}"
-                end
-              }
+              href={~p"/pripyat/messages?#{Map.put(base_params, "page", @current_page - 1)}"}
               class="join-item btn"
             >
               «
@@ -535,21 +529,7 @@
 
           <%= for page_num <- @page_range do %>
             <.link
-              href={
-                cond do
-                  search_active and show_domain_stats ->
-                    ~p"/pripyat/messages?search=#{@search_query}&page=#{page_num}&show_domains=1"
-
-                  search_active ->
-                    ~p"/pripyat/messages?search=#{@search_query}&page=#{page_num}"
-
-                  show_domain_stats ->
-                    ~p"/pripyat/messages?page=#{page_num}&show_domains=1"
-
-                  true ->
-                    ~p"/pripyat/messages?page=#{page_num}"
-                end
-              }
+              href={~p"/pripyat/messages?#{Map.put(base_params, "page", page_num)}"}
               class={
                 if page_num == @current_page,
                   do: "join-item btn btn-primary",
@@ -562,21 +542,7 @@
 
           <%= if @current_page < @total_pages do %>
             <.link
-              href={
-                cond do
-                  search_active and show_domain_stats ->
-                    ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page + 1}&show_domains=1"
-
-                  search_active ->
-                    ~p"/pripyat/messages?search=#{@search_query}&page=#{@current_page + 1}"
-
-                  show_domain_stats ->
-                    ~p"/pripyat/messages?page=#{@current_page + 1}&show_domains=1"
-
-                  true ->
-                    ~p"/pripyat/messages?page=#{@current_page + 1}"
-                end
-              }
+              href={~p"/pripyat/messages?#{Map.put(base_params, "page", @current_page + 1)}"}
               class="join-item btn"
             >
               »

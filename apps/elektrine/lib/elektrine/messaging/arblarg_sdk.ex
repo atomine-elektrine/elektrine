@@ -571,11 +571,13 @@ defmodule Elektrine.Messaging.ArblargSDK do
   end
 
   def sign_payload(payload, private_key_material) when is_binary(payload) do
-    with {:ok, private_key} <- normalize_private_key(private_key_material) do
-      :crypto.sign(:eddsa, :none, payload, [private_key, :ed25519])
-      |> Base.url_encode64(padding: false)
-    else
-      _ -> ""
+    case normalize_private_key(private_key_material) do
+      {:ok, private_key} ->
+        :crypto.sign(:eddsa, :none, payload, [private_key, :ed25519])
+        |> Base.url_encode64(padding: false)
+
+      _ ->
+        ""
     end
   end
 
@@ -833,17 +835,15 @@ defmodule Elektrine.Messaging.ArblargSDK do
   end
 
   defp safe_call(fun) do
-    try do
-      case fun.() do
-        {:ok, _} = ok -> ok
-        {:error, _} = error -> error
-        other -> {:ok, other}
-      end
-    rescue
-      error -> {:error, {:exception, error}}
-    catch
-      kind, reason -> {:error, {kind, reason}}
+    case fun.() do
+      {:ok, _} = ok -> ok
+      {:error, _} = error -> error
+      other -> {:ok, other}
     end
+  rescue
+    error -> {:error, {:exception, error}}
+  catch
+    kind, reason -> {:error, {kind, reason}}
   end
 
   defp normalize_private_key(key) when is_binary(key) and byte_size(key) == 32,
@@ -855,19 +855,17 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp normalize_private_key(key) when is_binary(key) do
     trimmed = String.trim(key)
 
-    cond do
-      trimmed == "" ->
-        {:error, :invalid_private_key}
+    if trimmed == "" do
+      {:error, :invalid_private_key}
+    else
+      case decode_32_byte_key(trimmed) do
+        {:ok, decoded} ->
+          {:ok, decoded}
 
-      true ->
-        case decode_32_byte_key(trimmed) do
-          {:ok, decoded} ->
-            {:ok, decoded}
-
-          :error ->
-            {_public_key, private_key} = derive_keypair_from_secret(trimmed)
-            {:ok, private_key}
-        end
+        :error ->
+          {_public_key, private_key} = derive_keypair_from_secret(trimmed)
+          {:ok, private_key}
+      end
     end
   end
 
@@ -882,19 +880,17 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp normalize_public_key(key) when is_binary(key) do
     trimmed = String.trim(key)
 
-    cond do
-      trimmed == "" ->
-        {:error, :invalid_public_key}
+    if trimmed == "" do
+      {:error, :invalid_public_key}
+    else
+      case decode_32_byte_key(trimmed) do
+        {:ok, decoded} ->
+          {:ok, decoded}
 
-      true ->
-        case decode_32_byte_key(trimmed) do
-          {:ok, decoded} ->
-            {:ok, decoded}
-
-          :error ->
-            {public_key, _private_key} = derive_keypair_from_secret(trimmed)
-            {:ok, public_key}
-        end
+        :error ->
+          {public_key, _private_key} = derive_keypair_from_secret(trimmed)
+          {:ok, public_key}
+      end
     end
   end
 

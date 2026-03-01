@@ -28,7 +28,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             socket
             |> update_user_like_status(message_id, false)
             |> update_post_count(message_id, :like_count, -1)
-            |> update_post_interaction(message_id, :liked, false, -1)
+            |> update_post_interaction(message_id, :liked, false, 0)
 
           case Social.unlike_post(user_id, message_id) do
             {:ok, _} ->
@@ -39,17 +39,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                socket
                |> update_user_like_status(message_id, true)
                |> update_post_count(message_id, :like_count, 1)
-               |> update_post_interaction(message_id, :liked, true, 1)
+               |> update_post_interaction(message_id, :liked, true, 0)
                |> put_flash(:error, "Failed to unlike post")}
           end
         else
           currently_downvoted = Map.get(socket.assigns.user_downvotes, message_id, false)
 
-          score_adjustment =
+          like_delta_adjustment =
             if currently_downvoted do
-              2
-            else
               1
+            else
+              0
             end
 
           updated_socket =
@@ -66,7 +66,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                 0
               end
             )
-            |> update_post_interaction(message_id, :liked, true, score_adjustment)
+            |> update_post_interaction(message_id, :liked, true, like_delta_adjustment)
 
           updated_socket =
             if currently_downvoted do
@@ -114,7 +114,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                     0
                   end
                 )
-                |> update_post_interaction(message_id, :liked, false, -score_adjustment)
+                |> update_post_interaction(message_id, :liked, false, -like_delta_adjustment)
 
               error_socket =
                 if currently_downvoted do
@@ -176,6 +176,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               -1
             end
 
+          like_delta_adjustment = -1
+
           updated_socket =
             socket
             |> update_user_like_status(message_id, false)
@@ -191,7 +193,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               end
             )
             |> update_post_count(message_id, :dislike_count, 1)
-            |> update_post_interaction(message_id, :downvoted, true, score_adjustment)
+            |> update_post_interaction(message_id, :downvoted, true, like_delta_adjustment)
 
           updated_socket =
             if currently_liked do

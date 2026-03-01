@@ -16,6 +16,10 @@ defmodule ElektrineWeb.AdminLive.Federation do
        |> assign(:page_title, "ActivityPub Federation")
        |> assign(:active_tab, "instances")
        |> assign(:search_query, "")
+       |> assign(:instances_page, 1)
+       |> assign(:instances_per_page, 25)
+       |> assign(:actors_page, 1)
+       |> assign(:actors_per_page, 25)
        |> assign(:show_policy_modal, false)
        |> assign(:show_add_block_modal, false)
        |> assign(:selected_instance, nil)
@@ -31,10 +35,23 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp load_data(socket) do
     search = socket.assigns[:search_query] || ""
+    instances_page = socket.assigns[:instances_page] || 1
+    instances_per_page = socket.assigns[:instances_per_page] || 25
+    actors_page = socket.assigns[:actors_page] || 1
+    actors_per_page = socket.assigns[:actors_per_page] || 25
+
+    instances_page_data = list_instances(search, instances_page, instances_per_page)
+    actors_page_data = list_remote_actors(search, actors_page, actors_per_page)
 
     socket
-    |> assign(:instances, list_instances(search))
-    |> assign(:remote_actors, list_remote_actors(search))
+    |> assign(:instances, instances_page_data.entries)
+    |> assign(:instances_page, instances_page_data.page)
+    |> assign(:instances_total_count, instances_page_data.total_count)
+    |> assign(:instances_total_pages, instances_page_data.total_pages)
+    |> assign(:remote_actors, actors_page_data.entries)
+    |> assign(:actors_page, actors_page_data.page)
+    |> assign(:actors_total_count, actors_page_data.total_count)
+    |> assign(:actors_total_pages, actors_page_data.total_pages)
     |> assign(:stats, get_federation_stats())
     |> assign(:domain_stats, get_domain_stats())
     |> assign(:recent_activities, list_recent_activities())
@@ -49,6 +66,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
     {:noreply,
      socket
      |> assign(:search_query, query)
+     |> assign(:instances_page, 1)
+     |> assign(:actors_page, 1)
      |> load_data()}
   end
 
@@ -56,6 +75,36 @@ defmodule ElektrineWeb.AdminLive.Federation do
     {:noreply,
      socket
      |> assign(:search_query, "")
+     |> assign(:instances_page, 1)
+     |> assign(:actors_page, 1)
+     |> load_data()}
+  end
+
+  def handle_event("instances_prev_page", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:instances_page, socket.assigns.instances_page - 1)
+     |> load_data()}
+  end
+
+  def handle_event("instances_next_page", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:instances_page, socket.assigns.instances_page + 1)
+     |> load_data()}
+  end
+
+  def handle_event("actors_prev_page", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:actors_page, socket.assigns.actors_page - 1)
+     |> load_data()}
+  end
+
+  def handle_event("actors_next_page", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:actors_page, socket.assigns.actors_page + 1)
      |> load_data()}
   end
 
@@ -111,6 +160,22 @@ defmodule ElektrineWeb.AdminLive.Federation do
   def handle_event("update_policy_form", %{"field" => field, "value" => value}, socket) do
     policy_form = Map.put(socket.assigns.policy_form, field, parse_form_value(value))
     {:noreply, assign(socket, :policy_form, policy_form)}
+  end
+
+  def handle_event("update_policy_form", %{"field" => field}, socket) do
+    current = Map.get(socket.assigns.policy_form, field, false)
+    policy_form = Map.put(socket.assigns.policy_form, field, !current)
+    {:noreply, assign(socket, :policy_form, policy_form)}
+  end
+
+  def handle_event("sync_policy_form", params, socket) do
+    updates =
+      params
+      |> Map.drop(["_target"])
+      |> Enum.reject(fn {field, _value} -> String.starts_with?(field, "_unused_") end)
+      |> Map.new(fn {field, value} -> {field, parse_form_value(value)} end)
+
+    {:noreply, assign(socket, :policy_form, Map.merge(socket.assigns.policy_form, updates))}
   end
 
   def handle_event("save_policies", %{"reason" => reason, "notes" => notes}, socket) do
@@ -272,9 +337,11 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp parse_form_value("true"), do: true
   defp parse_form_value("false"), do: false
+  defp parse_form_value("on"), do: true
+  defp parse_form_value("off"), do: false
   defp parse_form_value(value), do: value
 
-  defp list_instances(search) do
+  defp list_instances(search, page, per_page) do
     query = from(i in Instance, order_by: [desc: i.inserted_at])
 
     query =
@@ -285,11 +352,11 @@ defmodule ElektrineWeb.AdminLive.Federation do
         query
       end
 
-    Repo.all(query)
+    paginate_query(query, page, per_page)
   end
 
-  defp list_remote_actors(search) do
-    query = from(a in ActivityPub.Actor, order_by: [desc: a.last_fetched_at], limit: 100)
+  defp list_remote_actors(search, page, per_page) do
+    query = from(a in ActivityPub.Actor, order_by: [desc: a.last_fetched_at])
 
     query =
       if search != "" do
@@ -305,8 +372,38 @@ defmodule ElektrineWeb.AdminLive.Federation do
         query
       end
 
-    Repo.all(query)
+    paginate_query(query, page, per_page)
   end
+
+  defp paginate_query(query, page, per_page) do
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = total_pages(total_count, per_page)
+    safe_page = clamp_page(page, total_pages)
+    offset = (safe_page - 1) * per_page
+
+    entries =
+      query
+      |> limit(^per_page)
+      |> offset(^offset)
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: safe_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
+    div(total_count + per_page - 1, per_page)
+  end
+
+  defp total_pages(_, _), do: 1
+
+  defp clamp_page(page, _total_pages) when page < 1, do: 1
+  defp clamp_page(page, total_pages) when page > total_pages, do: total_pages
+  defp clamp_page(page, _total_pages), do: page
 
   defp list_recent_activities do
     from(a in ActivityPub.Activity,
@@ -589,9 +686,19 @@ defmodule ElektrineWeb.AdminLive.Federation do
     <!-- Content based on active tab -->
       <%= case @active_tab do %>
         <% "instances" -> %>
-          <.instances_table instances={@instances} />
+          <.instances_table
+            instances={@instances}
+            page={@instances_page}
+            total_pages={@instances_total_pages}
+            total_count={@instances_total_count}
+          />
         <% "actors" -> %>
-          <.actors_table actors={@remote_actors} />
+          <.actors_table
+            actors={@remote_actors}
+            page={@actors_page}
+            total_pages={@actors_total_pages}
+            total_count={@actors_total_count}
+          />
         <% "domains" -> %>
           <.domains_table domain_stats={@domain_stats} />
         <% "activity" -> %>
@@ -620,7 +727,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-server-stack" class="w-5 h-5" /> ActivityPub Instance Policies
-          <span class="badge badge-neutral">{length(@instances)}</span>
+          <span class="badge badge-neutral">{@total_count}</span>
         </h2>
 
         <%= if length(@instances) > 0 do %>
@@ -696,6 +803,27 @@ defmodule ElektrineWeb.AdminLive.Federation do
               </tbody>
             </table>
           </div>
+          <%= if @total_pages > 1 do %>
+            <div class="flex items-center justify-between mt-4">
+              <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
+              <div class="join">
+                <button
+                  phx-click="instances_prev_page"
+                  class="btn btn-sm join-item"
+                  disabled={@page <= 1}
+                >
+                  Previous
+                </button>
+                <button
+                  phx-click="instances_next_page"
+                  class="btn btn-sm join-item"
+                  disabled={@page >= @total_pages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          <% end %>
         <% else %>
           <div class="text-center py-12">
             <.icon name="hero-server-stack" class="w-12 h-12 mx-auto opacity-30 mb-4" />
@@ -736,7 +864,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
           <span class="font-mono">{@instance.domain}</span>
         </h3>
 
-        <form phx-submit="save_policies">
+        <form phx-submit="save_policies" phx-change="sync_policy_form">
           <!-- Policy toggles in categories -->
           <div class="space-y-4">
             <!-- Blocking -->
@@ -898,7 +1026,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
           <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Add ActivityPub Instance Policy
         </h3>
 
-        <form phx-submit="add_instance">
+        <form phx-submit="add_instance" phx-change="sync_policy_form">
           <div class="form-control mb-4">
             <label class="label">
               <span class="label-text">Domain</span>
@@ -906,6 +1034,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <input
               type="text"
               name="domain"
+              value={@policy_form["domain"] || ""}
               placeholder="example.com or *.example.com"
               class="input input-bordered font-mono"
               required
@@ -1019,6 +1148,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <input
               type="text"
               name="reason"
+              value={@policy_form["reason"] || ""}
               class="input input-bordered"
               placeholder="Spam, harassment, illegal content, etc."
             />
@@ -1033,7 +1163,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
               class="textarea textarea-bordered"
               rows="2"
               placeholder="Internal notes"
-            ></textarea>
+            >{@policy_form["notes"] || ""}</textarea>
           </div>
 
           <div class="modal-action">
@@ -1059,7 +1189,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-users" class="w-5 h-5" /> Remote Actors
-          <span class="badge badge-neutral">{length(@actors)}</span>
+          <span class="badge badge-neutral">{@total_count}</span>
         </h2>
 
         <%= if length(@actors) > 0 do %>
@@ -1124,6 +1254,27 @@ defmodule ElektrineWeb.AdminLive.Federation do
               </tbody>
             </table>
           </div>
+          <%= if @total_pages > 1 do %>
+            <div class="flex items-center justify-between mt-4">
+              <span class="text-xs opacity-70">Page {@page} of {@total_pages}</span>
+              <div class="join">
+                <button
+                  phx-click="actors_prev_page"
+                  class="btn btn-sm join-item"
+                  disabled={@page <= 1}
+                >
+                  Previous
+                </button>
+                <button
+                  phx-click="actors_next_page"
+                  class="btn btn-sm join-item"
+                  disabled={@page >= @total_pages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          <% end %>
         <% else %>
           <div class="text-center py-12">
             <.icon name="hero-users" class="w-12 h-12 mx-auto opacity-30 mb-4" />

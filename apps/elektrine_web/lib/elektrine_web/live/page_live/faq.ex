@@ -25,7 +25,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    It's a platform with email, messaging, a social timeline, and some security tools. Started as a side project, grew from there.
+                    Elektrine is a communication platform with built-in email, messaging, a social timeline, and security tools.
                   </p>
                 </div>
               </div>
@@ -37,7 +37,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Yeah. The main stuff (email, chat, timeline) is free and will stay that way. Some features may require an invite code.
+                    Core features are free. Depending on server settings, some features may require an invite code or paid plan.
                   </p>
                 </div>
               </div>
@@ -49,7 +49,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Head to the registration page and create an account. You'll get an @elektrine.com email address automatically.
+                    Create an account on the registration page. Your mailbox is created automatically with both username@elektrine.com and username@z.org.
                   </p>
                 </div>
               </div>
@@ -63,7 +63,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Your username is permanent - it's what you log in with and it's part of your email address (username@elektrine.com). Your handle is the @name people see on your profile and posts. You can change your handle whenever you want in settings, but the username is locked in.
+                    Your username is for login and your mailbox address. Your handle is the public @name people see on profiles and posts, and it can be changed in settings (with a cooldown).
                   </p>
                 </div>
               </div>
@@ -91,7 +91,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Use the "Forgot Password" link on the login page. It'll send a reset link to your recovery email. Make sure you've set one up in Account Settings before this happens - we can't manually reset passwords.
+                    Use the "Forgot Password" page and enter your username or recovery email. Reset links are sent to your verified recovery email.
                   </p>
                 </div>
               </div>
@@ -117,7 +117,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    yourusername@elektrine.com - whatever username you picked when signing up.
+                    You get both username@elektrine.com and username@z.org. They deliver to the same mailbox.
                   </p>
                 </div>
               </div>
@@ -129,7 +129,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Yes, you can create aliases in Email Settings. These are additional addresses that all go to the same inbox. Useful for signing up for different services or keeping things organized.
+                    Yes. You can create aliases in Email Settings (up to 15 for regular accounts). Aliases can use either elektrine.com or z.org and can deliver locally or forward to another address.
                   </p>
                 </div>
               </div>
@@ -178,11 +178,39 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  What email limits should I know about?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    <strong>Attachments:</strong>
+                    Web compose allows up to 5 attachments. Standard per-file limit is 25MB.
+                  </p>
+                  <p class="mt-2">
+                    <strong>Message size:</strong>
+                    Total email size is capped at 50MB (headers, body, and attachments combined).
+                  </p>
+                  <p class="mt-2">
+                    <strong>Recipients:</strong> SMTP is capped at 20 recipients per message.
+                  </p>
+                  <p class="mt-2">
+                    <strong>Sending rate limits:</strong>
+                    Limits depend on account age/trust level. New accounts start low; established high-trust accounts can send up to 1000 emails/day and up to 200 unique recipients/day.
+                  </p>
+                  <p class="mt-2">
+                    <strong>Storage quota:</strong>
+                    Your mailbox shares your account storage quota. If you exceed it, new mail storage and sending can fail until space is freed.
+                  </p>
+                </div>
+              </div>
+
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
                   File attachment limits?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    10MB per file, up to 5 files per email. Standard stuff - images, PDFs, documents, that kind of thing.
+                    For standard accounts: 25MB per file in web compose, up to 5 files per email. Total message size is still capped at 50MB.
                   </p>
                 </div>
               </div>
@@ -193,7 +221,9 @@ defmodule ElektrineWeb.PageLive.FAQ do
                   Can I use Outlook/Thunderbird/Apple Mail?
                 </div>
                 <div class="collapse-content">
-                  <p class="pt-2">Not right now. It's web-only for the moment.</p>
+                  <p class="pt-2">
+                    Yes. IMAP/SMTP, POP3, and JMAP are supported. Thunderbird/Outlook/Apple Mail autoconfig is available. If you use 2FA, use an app password in mail clients.
+                  </p>
                 </div>
               </div>
 
@@ -216,7 +246,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    No. Deleted means deleted. There's no trash folder or 30-day grace period. Be sure before you delete something important.
+                    Deleting moves email to Trash first, where you can recover it. If you permanently delete from Trash, it cannot be recovered.
                   </p>
                 </div>
               </div>

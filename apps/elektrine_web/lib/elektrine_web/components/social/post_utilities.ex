@@ -306,6 +306,15 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   def has_community_uri?(post), do: not is_nil(community_actor_uri(post))
 
   @doc """
+  Checks if a post should be treated as a community post.
+  Supports both metadata-tagged remote posts and federated posts linked to mirror conversations.
+  """
+  @spec community_post?(map()) :: boolean()
+  def community_post?(post) do
+    has_community_uri?(post) || community_conversation_post?(post)
+  end
+
+  @doc """
   Determines if a post is a reply based on reply_to_id or inReplyTo metadata.
   """
   @spec reply?(map()) :: boolean()
@@ -396,6 +405,15 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   defp get_community_uri_value(metadata) do
     metadata["community_actor_uri"] || metadata[:community_actor_uri]
   end
+
+  defp community_conversation_post?(%{
+         federated: true,
+         conversation: %{type: "community"}
+       }),
+       do: true
+
+  defp community_conversation_post?(%{conversation: %Ecto.Association.NotLoaded{}}), do: false
+  defp community_conversation_post?(_), do: false
 
   defp normalize_community_uri(value) when is_binary(value) do
     normalized = String.trim(value)

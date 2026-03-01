@@ -182,6 +182,24 @@ defmodule Elektrine.Email.Messages do
   end
 
   @doc """
+  Lists all messages in the same email thread for a mailbox, ordered oldest-first.
+  Includes the current message in the returned list.
+  """
+  def list_thread_messages(%Message{} = message, mailbox_id) when is_integer(mailbox_id) do
+    if message.mailbox_id == mailbox_id && is_integer(message.thread_id) do
+      Message
+      |> where([m], m.mailbox_id == ^mailbox_id and m.thread_id == ^message.thread_id)
+      |> order_by(asc: :inserted_at)
+      |> Repo.all()
+      |> decrypt_email_messages(mailbox_id)
+    else
+      []
+    end
+  end
+
+  def list_thread_messages(_message, _mailbox_id), do: []
+
+  @doc """
   Returns the list of non-spam, non-archived messages for a mailbox, excluding bulk and paper trail.
   """
   def list_inbox_messages(mailbox_id, limit \\ 50, offset \\ 0) do
@@ -258,7 +276,11 @@ defmodule Elektrine.Email.Messages do
   def create_message(attrs \\ %{}) do
     # Calculate message size before creation
     message_size = calculate_message_size(attrs)
-    mailbox_id = attrs[:mailbox_id] || attrs["mailbox_id"]
+
+    mailbox_id =
+      attrs
+      |> get_attr(:mailbox_id)
+      |> normalize_mailbox_id()
 
     # Check storage limit using centralized user storage
     storage_check =
@@ -316,18 +338,25 @@ defmodule Elektrine.Email.Messages do
             attrs
           end
 
+        # Normalize and enrich threading fields before insert.
+        threaded_attrs =
+          categorized_attrs
+          |> normalize_threading_fields()
+          |> maybe_build_thread_references(mailbox_id)
+          |> maybe_assign_thread(mailbox_id)
+
         # Encrypt email content before storing
         encrypted_attrs =
           if mailbox_id do
             case Elektrine.Email.Mailboxes.get_mailbox(mailbox_id) do
               %Mailbox{user_id: user_id} when not is_nil(user_id) ->
-                Message.encrypt_content(categorized_attrs, user_id)
+                Message.encrypt_content(threaded_attrs, user_id)
 
               _ ->
-                categorized_attrs
+                threaded_attrs
             end
           else
-            categorized_attrs
+            threaded_attrs
           end
 
         result =
@@ -356,13 +385,16 @@ defmodule Elektrine.Email.Messages do
                 )
 
                 # Only create notification for received emails (not sent emails)
-                if categorized_attrs[:status] != "sent" && categorized_attrs["status"] != "sent" do
+                if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" do
                   # Create notification for new email if user has enabled it
                   user = Elektrine.Accounts.get_user!(mailbox.user_id)
 
                   if Map.get(user, :notify_on_email_received, true) do
-                    from_email = attrs[:from] || attrs["from"] || "Unknown sender"
-                    subject = attrs[:subject] || attrs["subject"] || "(No subject)"
+                    from_email =
+                      threaded_attrs[:from] || threaded_attrs["from"] || "Unknown sender"
+
+                    subject =
+                      threaded_attrs[:subject] || threaded_attrs["subject"] || "(No subject)"
 
                     Elektrine.Notifications.create_notification(%{
                       user_id: mailbox.user_id,
@@ -1010,6 +1042,213 @@ defmodule Elektrine.Email.Messages do
     subject_size + text_body_size + html_body_size + from_size + to_size + cc_size + bcc_size +
       attachments_size
   end
+
+  defp normalize_mailbox_id(mailbox_id) when is_integer(mailbox_id), do: mailbox_id
+
+  defp normalize_mailbox_id(mailbox_id) when is_binary(mailbox_id) do
+    case Integer.parse(mailbox_id) do
+      {parsed, ""} -> parsed
+      _ -> nil
+    end
+  end
+
+  defp normalize_mailbox_id(_), do: nil
+
+  defp normalize_threading_fields(attrs) do
+    attrs
+    |> maybe_put_attr(:message_id, normalize_message_id(get_attr(attrs, :message_id)))
+    |> maybe_put_attr(:in_reply_to, normalize_message_id(get_attr(attrs, :in_reply_to)))
+    |> maybe_put_attr(:references, normalize_references(get_attr(attrs, :references)))
+  end
+
+  defp maybe_build_thread_references(attrs, mailbox_id) when is_integer(mailbox_id) do
+    in_reply_to = normalize_message_id(get_attr(attrs, :in_reply_to))
+    existing_references = normalize_references(get_attr(attrs, :references))
+
+    cond do
+      blank_value?(in_reply_to) ->
+        attrs
+
+      !blank_value?(existing_references) ->
+        merged_refs =
+          existing_references
+          |> parse_reference_ids()
+          |> Kernel.++([in_reply_to])
+          |> Enum.uniq()
+          |> Enum.join(" ")
+
+        put_attr(attrs, :references, merged_refs)
+
+      true ->
+        parent_refs =
+          case load_parent_message_for_threading(mailbox_id, in_reply_to) do
+            nil ->
+              []
+
+            parent ->
+              parent_message_id = normalize_message_id(parent.message_id)
+              inherited_refs = parse_reference_ids(parent.references)
+
+              if blank_value?(parent_message_id) do
+                inherited_refs
+              else
+                inherited_refs ++ [parent_message_id]
+              end
+          end
+
+        merged_refs =
+          parent_refs
+          |> Kernel.++([in_reply_to])
+          |> Enum.reject(&blank_value?/1)
+          |> Enum.uniq()
+          |> Enum.join(" ")
+
+        if blank_value?(merged_refs) do
+          attrs
+        else
+          put_attr(attrs, :references, merged_refs)
+        end
+    end
+  end
+
+  defp maybe_build_thread_references(attrs, _mailbox_id), do: attrs
+
+  defp maybe_assign_thread(attrs, mailbox_id)
+       when is_integer(mailbox_id) and mailbox_id > 0 do
+    case get_attr(attrs, :thread_id) do
+      thread_id when is_integer(thread_id) and thread_id > 0 ->
+        attrs
+
+      _ ->
+        case Elektrine.JMAP.assign_thread(attrs, mailbox_id) do
+          {:ok, thread_id} when is_integer(thread_id) and thread_id > 0 ->
+            put_attr(attrs, :thread_id, thread_id)
+
+          _ ->
+            attrs
+        end
+    end
+  end
+
+  defp maybe_assign_thread(attrs, _mailbox_id), do: attrs
+
+  defp load_parent_message_for_threading(mailbox_id, in_reply_to) do
+    candidates = message_id_lookup_candidates(in_reply_to)
+
+    if candidates == [] do
+      nil
+    else
+      Message
+      |> where([m], m.mailbox_id == ^mailbox_id and m.message_id in ^candidates)
+      |> order_by([m], desc: m.inserted_at)
+      |> limit(1)
+      |> Repo.one()
+    end
+  end
+
+  defp message_id_lookup_candidates(nil), do: []
+  defp message_id_lookup_candidates(""), do: []
+
+  defp message_id_lookup_candidates(message_id) do
+    case normalize_message_id(message_id) do
+      nil -> []
+      normalized -> Enum.uniq([normalized, "<#{normalized}>"])
+    end
+  end
+
+  defp normalize_message_id(nil), do: nil
+  defp normalize_message_id(""), do: nil
+
+  defp normalize_message_id(message_id) when is_binary(message_id) do
+    message_id
+    |> String.trim()
+    |> String.replace(~r/^<|>$/, "")
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_message_id(message_id), do: normalize_message_id(to_string(message_id))
+
+  defp normalize_references(nil), do: nil
+  defp normalize_references(""), do: nil
+
+  defp normalize_references(references) when is_list(references) do
+    references
+    |> Enum.map(&normalize_message_id/1)
+    |> Enum.reject(&blank_value?/1)
+    |> Enum.uniq()
+    |> case do
+      [] -> nil
+      refs -> Enum.join(refs, " ")
+    end
+  end
+
+  defp normalize_references(references) when is_binary(references) do
+    references
+    |> String.split(~r/[\s,]+/, trim: true)
+    |> Enum.map(&normalize_message_id/1)
+    |> Enum.reject(&blank_value?/1)
+    |> Enum.uniq()
+    |> case do
+      [] -> nil
+      refs -> Enum.join(refs, " ")
+    end
+  end
+
+  defp normalize_references(references), do: normalize_references(to_string(references))
+
+  defp parse_reference_ids(nil), do: []
+  defp parse_reference_ids(""), do: []
+
+  defp parse_reference_ids(references) when is_binary(references) do
+    references
+    |> String.split(~r/[\s,]+/, trim: true)
+    |> Enum.reject(&blank_value?/1)
+  end
+
+  defp parse_reference_ids(references) when is_list(references) do
+    references
+    |> Enum.map(&normalize_message_id/1)
+    |> Enum.reject(&blank_value?/1)
+  end
+
+  defp parse_reference_ids(_), do: []
+
+  defp get_attr(attrs, atom_key) when is_map(attrs) and is_atom(atom_key) do
+    Map.get(attrs, atom_key) || Map.get(attrs, Atom.to_string(atom_key))
+  end
+
+  defp put_attr(attrs, atom_key, value) when is_map(attrs) and is_atom(atom_key) do
+    string_key = Atom.to_string(atom_key)
+
+    cond do
+      Map.has_key?(attrs, atom_key) ->
+        Map.put(attrs, atom_key, value)
+
+      Map.has_key?(attrs, string_key) ->
+        Map.put(attrs, string_key, value)
+
+      Enum.any?(Map.keys(attrs), &is_atom/1) ->
+        Map.put(attrs, atom_key, value)
+
+      true ->
+        Map.put(attrs, string_key, value)
+    end
+  end
+
+  defp maybe_put_attr(attrs, atom_key, value) do
+    if blank_value?(value) do
+      attrs
+    else
+      put_attr(attrs, atom_key, value)
+    end
+  end
+
+  defp blank_value?(value) when is_nil(value), do: true
+  defp blank_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_value?(_), do: false
 
   # Helper function to safely get field values from string or atom keys
   defp get_field_value(attrs, string_key, atom_key) do

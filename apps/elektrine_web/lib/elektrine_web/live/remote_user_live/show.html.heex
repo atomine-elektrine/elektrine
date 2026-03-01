@@ -372,7 +372,71 @@
                         ((is_binary(@reply_to_post) && @reply_to_post == local_post_id) ||
                            (is_map(@reply_to_post) &&
                               (@reply_to_post["id"] || @reply_to_post[:id]) == local_post_id)) do %>
+                  <% local_post_replies = Map.get(local_replies, post.id, [])
+                  local_reply_count = length(local_post_replies) %>
                   <div class="mt-2 border border-base-300 rounded-lg p-3 bg-base-100/70">
+                    <%= if local_reply_count > 0 do %>
+                      <div class="mb-3 border border-base-300 rounded-md bg-base-50 px-3 py-2">
+                        <div class="text-xs font-medium text-base-content/60 mb-2">
+                          Top Comments
+                        </div>
+                        <div class="space-y-2">
+                          <%= for reply <- Enum.take(local_post_replies, 3) do %>
+                            <% lemmy_data = reply["_lemmy"]
+
+                            reply_reaction =
+                              reply_reaction_surface(reply, @local_posts, @post_reactions) %>
+                            <div class="flex gap-2 text-sm">
+                              <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
+                              <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
+                                  <%= if lemmy_data && lemmy_data["creator_name"] do %>
+                                    <span class="font-medium">@{lemmy_data["creator_name"]}</span>
+                                  <% else %>
+                                    <%= if reply["attributedTo"] do %>
+                                      <span class="font-medium">
+                                        {extract_username_from_uri(reply["attributedTo"])}
+                                      </span>
+                                    <% end %>
+                                  <% end %>
+                                  <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
+                                    <span class="text-secondary">+{lemmy_data["score"]}</span>
+                                  <% end %>
+                                </div>
+                                <div class="line-clamp-2 text-xs break-words">
+                                  <%= if reply["content"] do %>
+                                    {raw(
+                                      render_remote_bio(reply["content"], @remote_actor.domain)
+                                    )}
+                                  <% end %>
+                                </div>
+                                <%= if reply_reaction.target_id do %>
+                                  <div class="mt-1.5" phx-click="stop_propagation">
+                                    <.post_reactions
+                                      post_id={reply_reaction.target_id}
+                                      value_name={reply_reaction.value_name}
+                                      reactions={reply_reaction.reactions}
+                                      current_user={@current_user}
+                                      size={:xs}
+                                    />
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          <% end %>
+                          <%= if local_reply_count > 3 do %>
+                            <div
+                              class="text-xs text-primary cursor-pointer hover:underline"
+                              phx-click="navigate_to_post"
+                              phx-value-post_id={URI.encode_www_form(local_post_id)}
+                            >
+                              View all {local_reply_count} comments
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+
                     <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
                       wrapper_class=""
                       click_stop={true}
@@ -386,6 +450,9 @@
                       submit_class="btn btn-secondary btn-sm"
                       submit_label="Reply"
                       submit_disable_with="Posting..."
+                      content_min={3}
+                      counter_suffix={gettext(" required chars")}
+                      show_counter={true}
                     />
                   </div>
                 <% end %>
@@ -734,6 +801,9 @@
                         submit_label="Comment"
                         submit_disable_with="Posting..."
                         form_class="space-y-2"
+                        content_min={3}
+                        counter_suffix={gettext(" required chars")}
+                        show_counter={true}
                       />
                     </div>
                   <% end %>
@@ -1145,10 +1215,76 @@
                   />
                   <% local_post_id = post.activitypub_id || to_string(post.id) %>
                   <%= if @show_reply_form && @reply_to_post &&
-                          ((is_binary(@reply_to_post) && @reply_to_post == local_post_id) ||
-                             (is_map(@reply_to_post) &&
-                                (@reply_to_post["id"] || @reply_to_post[:id]) == local_post_id)) do %>
+                        ((is_binary(@reply_to_post) && @reply_to_post == local_post_id) ||
+                           (is_map(@reply_to_post) &&
+                              (@reply_to_post["id"] || @reply_to_post[:id]) == local_post_id)) do %>
+                    <% local_post_replies = Map.get(local_replies, post.id, [])
+                    local_reply_count = length(local_post_replies) %>
                     <div class="mt-3">
+                      <%= if local_reply_count > 0 do %>
+                        <div class="mb-3 border border-base-300 rounded-md bg-base-50 px-3 py-2">
+                          <div class="text-xs font-medium text-base-content/60 mb-2">
+                            Top Comments
+                          </div>
+                          <div class="space-y-2">
+                            <%= for reply <- Enum.take(local_post_replies, 3) do %>
+                              <% lemmy_data = reply["_lemmy"]
+
+                              reply_reaction =
+                                reply_reaction_surface(reply, @local_posts, @post_reactions) %>
+                              <div class="flex gap-2 text-sm">
+                                <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
+                                <div class="flex-1 min-w-0">
+                                  <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
+                                    <%= if lemmy_data && lemmy_data["creator_name"] do %>
+                                      <span class="font-medium">
+                                        @{lemmy_data["creator_name"]}
+                                      </span>
+                                    <% else %>
+                                      <%= if reply["attributedTo"] do %>
+                                        <span class="font-medium">
+                                          {extract_username_from_uri(reply["attributedTo"])}
+                                        </span>
+                                      <% end %>
+                                    <% end %>
+                                    <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
+                                      <span class="text-secondary">+{lemmy_data["score"]}</span>
+                                    <% end %>
+                                  </div>
+                                  <div class="line-clamp-2 text-xs break-words">
+                                    <%= if reply["content"] do %>
+                                      {raw(
+                                        render_remote_bio(reply["content"], @remote_actor.domain)
+                                      )}
+                                    <% end %>
+                                  </div>
+                                  <%= if reply_reaction.target_id do %>
+                                    <div class="mt-1.5" phx-click="stop_propagation">
+                                      <.post_reactions
+                                        post_id={reply_reaction.target_id}
+                                        value_name={reply_reaction.value_name}
+                                        reactions={reply_reaction.reactions}
+                                        current_user={@current_user}
+                                        size={:xs}
+                                      />
+                                    </div>
+                                  <% end %>
+                                </div>
+                              </div>
+                            <% end %>
+                            <%= if local_reply_count > 3 do %>
+                              <div
+                                class="text-xs text-primary cursor-pointer hover:underline"
+                                phx-click="navigate_to_post"
+                                phx-value-post_id={URI.encode_www_form(local_post_id)}
+                              >
+                                View all {local_reply_count} comments
+                              </div>
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+
                       <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
                         wrapper_class="pt-3 border-t border-base-300"
                         click_stop={true}
@@ -1162,6 +1298,9 @@
                         submit_class="btn btn-secondary btn-xs"
                         submit_label="Reply"
                         submit_disable_with="Posting..."
+                        content_min={3}
+                        counter_suffix={gettext(" required chars")}
+                        show_counter={true}
                       />
                     </div>
                   <% end %>
@@ -1249,7 +1388,8 @@
                       get_collection_total_items(post["announcesCount"]) || 0
                     ) + boost_delta
 
-                  loaded_reply_count = length(Map.get(@post_replies, post["id"], []))
+                  loaded_replies = Map.get(@post_replies, post["id"], [])
+                  loaded_reply_count = length(loaded_replies)
 
                   remote_reply_count =
                     max(
@@ -1298,6 +1438,66 @@
                       />
                     <% end %>
                   </div>
+
+                  <%= if loaded_reply_count > 0 do %>
+                    <div class="mt-3 border border-base-300 rounded-md bg-base-50 px-3 py-2">
+                      <div class="text-xs font-medium text-base-content/60 mb-2">
+                        Top Comments
+                      </div>
+                      <div class="space-y-2">
+                        <%= for reply <- Enum.take(loaded_replies, 3) do %>
+                          <% lemmy_data = reply["_lemmy"]
+
+                          reply_reaction =
+                            reply_reaction_surface(reply, @local_posts, @post_reactions) %>
+                          <div class="flex gap-2 text-sm">
+                            <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
+                            <div class="flex-1 min-w-0">
+                              <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
+                                <%= if lemmy_data && lemmy_data["creator_name"] do %>
+                                  <span class="font-medium">@{lemmy_data["creator_name"]}</span>
+                                <% else %>
+                                  <%= if reply["attributedTo"] do %>
+                                    <span class="font-medium">
+                                      {extract_username_from_uri(reply["attributedTo"])}
+                                    </span>
+                                  <% end %>
+                                <% end %>
+                                <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
+                                  <span class="text-secondary">+{lemmy_data["score"]}</span>
+                                <% end %>
+                              </div>
+                              <div class="line-clamp-2 text-xs break-words">
+                                <%= if reply["content"] do %>
+                                  {raw(render_remote_bio(reply["content"], @remote_actor.domain))}
+                                <% end %>
+                              </div>
+                              <%= if reply_reaction.target_id do %>
+                                <div class="mt-1.5" phx-click="stop_propagation">
+                                  <.post_reactions
+                                    post_id={reply_reaction.target_id}
+                                    value_name={reply_reaction.value_name}
+                                    reactions={reply_reaction.reactions}
+                                    current_user={@current_user}
+                                    size={:xs}
+                                  />
+                                </div>
+                              <% end %>
+                            </div>
+                          </div>
+                        <% end %>
+                        <%= if loaded_reply_count > 3 do %>
+                          <div
+                            class="text-xs text-primary cursor-pointer hover:underline"
+                            phx-click="navigate_to_post"
+                            phx-value-post_id={URI.encode_www_form(post["id"])}
+                          >
+                            View all {loaded_reply_count} comments
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
                   
 <!-- Reply Form -->
                   <%= if @show_reply_form && @reply_to_post && @reply_to_post["id"] == post["id"] do %>
@@ -1314,6 +1514,9 @@
                       submit_class="btn btn-secondary btn-xs"
                       submit_label="Reply"
                       submit_disable_with="Posting..."
+                      content_min={3}
+                      counter_suffix={gettext(" required chars")}
+                      show_counter={true}
                     />
                   <% end %>
                 </article>

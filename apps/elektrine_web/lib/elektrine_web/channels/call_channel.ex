@@ -4,7 +4,6 @@ defmodule ElektrineWeb.CallChannel do
   require Logger
   alias Elektrine.Calls
   alias Elektrine.Constants
-  alias Elektrine.Repo
   @impl true
   def join("call:" <> call_id, _params, socket) do
     user_id = socket.assigns.user_id
@@ -40,12 +39,10 @@ defmodule ElektrineWeb.CallChannel do
 
   @impl true
   def handle_info(:ring_timeout, socket) do
-    call = Calls.get_call(socket.assigns.call_id) |> Repo.preload([:caller, :callee])
+    call = Calls.get_call(socket.assigns.call_id)
 
     if call && call.status == "ringing" do
       Calls.miss_call(socket.assigns.call_id)
-      Phoenix.PubSub.broadcast(Elektrine.PubSub, "user:#{call.caller_id}", {:call_missed, call})
-      Phoenix.PubSub.broadcast(Elektrine.PubSub, "user:#{call.callee_id}", {:call_missed, call})
       broadcast!(socket, "call_missed", %{reason: "timeout"})
       {:stop, :normal, socket}
     else
@@ -63,8 +60,14 @@ defmodule ElektrineWeb.CallChannel do
   def handle_in("offer", %{"sdp" => sdp}, socket) do
     case validate_sdp(sdp, "offer") do
       :ok ->
-        Calls.update_call_status(socket.assigns.call_id, "ringing")
-        Process.send_after(self(), :ring_timeout, Constants.call_ring_timeout_ms())
+        case Calls.update_call_status(socket.assigns.call_id, "ringing") do
+          {:ok, %{status: "ringing"}} ->
+            Process.send_after(self(), :ring_timeout, Constants.call_ring_timeout_ms())
+
+          _ ->
+            :ok
+        end
+
         broadcast_from!(socket, "offer", %{sdp: sdp, from_user_id: socket.assigns.user_id})
         {:reply, :ok, socket}
 
@@ -109,21 +112,6 @@ defmodule ElektrineWeb.CallChannel do
   def handle_in("reject_call", _params, socket) do
     Calls.reject_call(socket.assigns.call_id)
     broadcast!(socket, "call_rejected", %{by_user_id: socket.assigns.user_id})
-    call = Calls.get_call_with_users(socket.assigns.call_id)
-
-    if call do
-      Phoenix.PubSub.broadcast(
-        Elektrine.PubSub,
-        "user:#{call.caller_id}",
-        {:call_rejected, call}
-      )
-
-      Phoenix.PubSub.broadcast(
-        Elektrine.PubSub,
-        "user:#{call.callee_id}",
-        {:call_rejected, call}
-      )
-    end
 
     {:stop, :normal, :ok, socket}
   end
@@ -132,21 +120,6 @@ defmodule ElektrineWeb.CallChannel do
   def handle_in("end_call", _params, socket) do
     Calls.end_call(socket.assigns.call_id)
     broadcast!(socket, "call_ended", %{by_user_id: socket.assigns.user_id})
-    call = Calls.get_call_with_users(socket.assigns.call_id)
-
-    if call do
-      Phoenix.PubSub.broadcast(
-        Elektrine.PubSub,
-        "user:#{call.caller_id}",
-        {:call_ended, call}
-      )
-
-      Phoenix.PubSub.broadcast(
-        Elektrine.PubSub,
-        "user:#{call.callee_id}",
-        {:call_ended, call}
-      )
-    end
 
     {:stop, :normal, :ok, socket}
   end
@@ -169,22 +142,6 @@ defmodule ElektrineWeb.CallChannel do
           by_user_id: socket.assigns.user_id,
           reason: "disconnected"
         })
-
-        call = Calls.get_call_with_users(socket.assigns.call_id)
-
-        if call do
-          Phoenix.PubSub.broadcast(
-            Elektrine.PubSub,
-            "user:#{call.caller_id}",
-            {:call_ended, call}
-          )
-
-          Phoenix.PubSub.broadcast(
-            Elektrine.PubSub,
-            "user:#{call.callee_id}",
-            {:call_ended, call}
-          )
-        end
       end
     end
 

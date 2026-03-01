@@ -22,16 +22,18 @@ defmodule ElektrineWeb.ClientIP do
   @spec client_ip_tuple(Plug.Conn.t()) :: ip_tuple() | nil
   def client_ip_tuple(conn) do
     remote_ip = conn.remote_ip
+    on_fly = running_on_fly?()
+    fly_client_ip = if on_fly, do: header_ip(conn, "fly-client-ip"), else: nil
+    cf_connecting_ip = if on_fly, do: header_ip(conn, "cf-connecting-ip"), else: nil
 
     cond do
-      # Fly always injects fly-client-ip for external HTTP traffic. Use it even when
-      # trusted proxy CIDRs are not configured to avoid collapsing all clients to a
-      # shared edge IP.
-      running_on_fly?() and header_ip(conn, "fly-client-ip") ->
-        header_ip(conn, "fly-client-ip")
-
       trusted_proxy?(remote_ip) ->
-        forwarded_ip(conn) || remote_ip
+        forwarded_ip(conn) || fly_client_ip || remote_ip
+
+      # On Fly with Cloudflare in front, prefer the original client address from
+      # Cloudflare over the Fly edge IP fallback.
+      on_fly ->
+        cf_connecting_ip || fly_client_ip || remote_ip
 
       true ->
         remote_ip

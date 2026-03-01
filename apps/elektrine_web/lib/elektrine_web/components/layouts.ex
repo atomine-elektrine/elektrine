@@ -20,7 +20,201 @@ defmodule ElektrineWeb.Layouts do
 
   @doc ~s|Builds the page title.\n|
   def build_page_title(assigns) do
-    assigns[:page_title] || "Elektrine"
+    assigns[:page_title] || inferred_page_title(assigns) || "Elektrine"
+  end
+
+  defp inferred_page_title(assigns) do
+    admin_controller_page_title(assigns) || admin_live_page_title(assigns) ||
+      admin_path_page_title(assigns)
+  end
+
+  defp admin_controller_page_title(%{
+         conn: %{private: %{phoenix_controller: controller, phoenix_action: action}}
+       }) do
+    case {controller, action} do
+      {ElektrineWeb.AdminController, :dashboard} ->
+        "Admin Dashboard"
+
+      {ElektrineWeb.Admin.UsersController, :index} ->
+        "User Management"
+
+      {ElektrineWeb.Admin.UsersController, :multi_accounts} ->
+        "Multi-Accounts"
+
+      {ElektrineWeb.Admin.UsersController, :new} ->
+        "New User"
+
+      {ElektrineWeb.Admin.UsersController, :edit} ->
+        "Edit User"
+
+      {ElektrineWeb.Admin.UsersController, :ban} ->
+        "Ban User"
+
+      {ElektrineWeb.Admin.UsersController, :account_lookup} ->
+        "Account Lookup"
+
+      {ElektrineWeb.Admin.UsersController, :search_accounts} ->
+        "Account Lookup"
+
+      {ElektrineWeb.Admin.AliasesController, :index} ->
+        "Aliases"
+
+      {ElektrineWeb.Admin.AliasesController, :forwarded_messages} ->
+        "Forwarded Messages"
+
+      {ElektrineWeb.Admin.MailboxesController, :index} ->
+        "Mailboxes"
+
+      {ElektrineWeb.Admin.MessagesController, :index} ->
+        "Messages"
+
+      {ElektrineWeb.Admin.MessagesController, :view} ->
+        "View Message"
+
+      {ElektrineWeb.Admin.MessagesController, :user_messages} ->
+        "User Messages"
+
+      {ElektrineWeb.Admin.MessagesController, :view_user_message} ->
+        "View User Message"
+
+      {ElektrineWeb.Admin.MonitoringController, :active_users} ->
+        "Active Users"
+
+      {ElektrineWeb.Admin.MonitoringController, :imap_users} ->
+        "IMAP Users"
+
+      {ElektrineWeb.Admin.MonitoringController, :pop3_users} ->
+        "POP3 Users"
+
+      {ElektrineWeb.Admin.MonitoringController, :two_factor_status} ->
+        "Two-Factor Status"
+
+      {ElektrineWeb.Admin.DeletionRequestsController, :index} ->
+        "Deletion Requests"
+
+      {ElektrineWeb.Admin.DeletionRequestsController, :show} ->
+        "Deletion Request"
+
+      {ElektrineWeb.Admin.InviteCodesController, :index} ->
+        "Invite Codes"
+
+      {ElektrineWeb.Admin.InviteCodesController, :new} ->
+        "New Invite Code"
+
+      {ElektrineWeb.Admin.InviteCodesController, :edit} ->
+        "Edit Invite Code"
+
+      {ElektrineWeb.AdminUpdatesController, :index} ->
+        "Platform Updates"
+
+      {ElektrineWeb.AdminUpdatesController, :new} ->
+        "New Platform Update"
+
+      {ElektrineWeb.AdminAuditLogsController, :index} ->
+        "Audit Logs"
+
+      {ElektrineWeb.Admin.AnnouncementsController, :index} ->
+        "Announcements"
+
+      {ElektrineWeb.Admin.AnnouncementsController, :new} ->
+        "New Announcement"
+
+      {ElektrineWeb.Admin.AnnouncementsController, :edit} ->
+        "Edit Announcement"
+
+      {ElektrineWeb.Admin.CommunitiesController, :index} ->
+        "Communities"
+
+      {ElektrineWeb.Admin.CommunitiesController, :show} ->
+        "Community Details"
+
+      {ElektrineWeb.Admin.ModerationController, :content} ->
+        "Content Moderation"
+
+      {ElektrineWeb.Admin.ModerationController, :unsubscribe_stats} ->
+        "Unsubscribe Statistics"
+
+      {ElektrineWeb.Admin.SubscriptionsController, :index} ->
+        "Subscription Products"
+
+      {ElektrineWeb.Admin.SubscriptionsController, :new} ->
+        "New Product"
+
+      {ElektrineWeb.Admin.SubscriptionsController, :edit} ->
+        "Edit Product"
+
+      {ElektrineWeb.Admin.VPNController, :dashboard} ->
+        "VPN Dashboard"
+
+      {ElektrineWeb.Admin.VPNController, :new_server} ->
+        "New VPN Server"
+
+      {ElektrineWeb.Admin.VPNController, :edit_server} ->
+        "Edit VPN Server"
+
+      {ElektrineWeb.Admin.VPNController, :confirm_delete_server} ->
+        "Delete VPN Server"
+
+      {ElektrineWeb.Admin.VPNController, :users} ->
+        "VPN Users"
+
+      {ElektrineWeb.Admin.VPNController, :edit_user_config} ->
+        "Edit VPN User Config"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp admin_controller_page_title(_), do: nil
+
+  defp admin_live_page_title(%{socket: %{view: view}} = assigns) when is_atom(view) do
+    case {view, assigns[:live_action]} do
+      {ElektrineWeb.AdminLive.ReportsDashboard, :index} -> "Reports Dashboard"
+      {ElektrineWeb.AdminLive.BadgeManagement, :index} -> "Badge Management"
+      {ElektrineWeb.AdminLive.Federation, :index} -> "ActivityPub Federation"
+      {ElektrineWeb.AdminLive.MessagingFederation, :index} -> "Arblarg Messaging Federation"
+      {ElektrineWeb.AdminLive.BlueskyBridge, :index} -> "Bluesky Bridge"
+      {ElektrineWeb.AdminLive.Relays, :index} -> "ActivityPub Relay Management"
+      {ElektrineWeb.AdminLive.Emojis, :new} -> "New Custom Emoji"
+      {ElektrineWeb.AdminLive.Emojis, :edit} -> "Edit Custom Emoji"
+      {ElektrineWeb.AdminLive.Emojis, _} -> "Custom Emoji Management"
+      _ -> nil
+    end
+  end
+
+  defp admin_live_page_title(_), do: nil
+
+  defp admin_path_page_title(assigns) do
+    case get_current_path(assigns) do
+      "/pripyat" ->
+        "Admin Dashboard"
+
+      "/pripyat/dashboard" ->
+        "Live Dashboard"
+
+      path when is_binary(path) ->
+        if String.starts_with?(path, "/pripyat/") do
+          path
+          |> String.trim_leading("/pripyat/")
+          |> String.split("/", trim: true)
+          |> List.first()
+          |> humanize_admin_path_segment()
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp humanize_admin_path_segment(nil), do: nil
+
+  defp humanize_admin_path_segment(segment) when is_binary(segment) do
+    segment
+    |> String.split("-", trim: true)
+    |> Enum.map_join(" ", &String.capitalize/1)
   end
 
   @doc ~s|Builds the meta description for SEO.\n|

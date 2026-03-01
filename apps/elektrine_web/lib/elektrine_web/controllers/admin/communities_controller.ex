@@ -126,16 +126,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
       |> limit(^per_page)
       |> offset(^((page - 1) * per_page))
       |> Repo.all()
-      |> Enum.map(fn community_data ->
-        creator =
-          if community_data.creator_id do
-            Repo.get(Accounts.User, community_data.creator_id)
-          else
-            nil
-          end
-
-        Map.put(community_data, :creator, creator)
-      end)
+      |> attach_creators()
 
     # Get category counts for filter
     category_counts =
@@ -387,6 +378,27 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
     conn
     |> put_flash(:info, "Member has been removed from the community")
     |> redirect(to: ~p"/pripyat/communities/#{id}")
+  end
+
+  defp attach_creators(communities) do
+    creator_ids =
+      communities
+      |> Enum.map(& &1.creator_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    creators_by_id =
+      if creator_ids == [] do
+        %{}
+      else
+        from(u in Accounts.User, where: u.id in ^creator_ids)
+        |> Repo.all()
+        |> Map.new(fn user -> {user.id, user} end)
+      end
+
+    Enum.map(communities, fn community ->
+      Map.put(community, :creator, Map.get(creators_by_id, community.creator_id))
+    end)
   end
 
   # Helper for pagination

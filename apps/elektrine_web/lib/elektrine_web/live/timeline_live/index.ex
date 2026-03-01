@@ -332,7 +332,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
     |> Enum.filter(fn post ->
       if post.federated && is_binary(post.activitypub_id) do
         ap_id = post.activitypub_id
-        lemmy_post? = PostUtilities.has_community_uri?(post)
+        lemmy_post? = PostUtilities.community_post?(post)
         has_top_replies? = Map.get(post_replies, post.id, []) != []
         missing_lemmy_counts = lemmy_post? && !Map.has_key?(lemmy_counts, ap_id)
         missing_remote_post_data = !lemmy_post? && !Map.has_key?(remote_post_data, ap_id)
@@ -995,12 +995,31 @@ defmodule ElektrineWeb.TimelineLive.Index do
   @impl true
   def handle_info({:remote_replies_loaded, post_id, remote_replies}, socket) do
     converted_replies = convert_remote_replies_to_display_format(remote_replies)
-    updated_post_replies = Map.put(socket.assigns.post_replies, post_id, converted_replies)
+    existing_replies = Map.get(socket.assigns.post_replies, post_id, [])
+    merged_replies = merge_reply_previews(existing_replies, converted_replies)
+
+    updated_post_replies =
+      if merged_replies == [] do
+        socket.assigns.post_replies
+      else
+        Map.put(socket.assigns.post_replies, post_id, merged_replies)
+      end
+
+    updated_recent_replies =
+      case socket.assigns.reply_to_post do
+        %{id: ^post_id} ->
+          merge_reply_previews(socket.assigns.reply_to_post_recent_replies, converted_replies)
+
+        _ ->
+          socket.assigns.reply_to_post_recent_replies
+      end
+
     loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
 
     {:noreply,
      socket
      |> assign(:post_replies, updated_post_replies)
+     |> assign(:reply_to_post_recent_replies, updated_recent_replies)
      |> assign(:loading_remote_replies, loading_set)}
   end
 
@@ -1090,6 +1109,13 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   defp load_posts_for_filter(filter, user, timeline_view) do
     case timeline_view do
+      "communities" ->
+        if user do
+          Social.get_public_community_posts(limit: 20, user_id: user.id)
+        else
+          Social.get_public_community_posts(limit: 20)
+        end
+
       "replies" ->
         Social.get_federated_replies(limit: 20, user_id: user && user.id)
 
@@ -1157,7 +1183,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
   end
 
   defp view_requires_data_reload?(timeline_view) do
-    timeline_view in ["replies", "friends", "my_posts", "trusted"]
+    timeline_view in ["communities", "replies", "friends", "my_posts", "trusted"]
   end
 
   defp preload_timeline_post_async(post, source) do
@@ -1198,7 +1224,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       case socket.assigns.timeline_filter do
         "posts" ->
           Enum.filter(socket.assigns.timeline_posts, fn post ->
-            is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.has_community_uri?(post)
+            is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.community_post?(post)
           end)
 
         "replies" ->
@@ -1241,7 +1267,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
         "communities" ->
           Enum.filter(socket.assigns.timeline_posts, fn post ->
-            PostUtilities.has_community_uri?(post)
+            PostUtilities.community_post?(post)
           end)
 
         "federated" ->
@@ -1296,7 +1322,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
   defp post_matches_filter?(post, filter, socket) do
     case filter do
       "posts" ->
-        is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.has_community_uri?(post)
+        is_nil(Map.get(post, :reply_to_id)) && !PostUtilities.community_post?(post)
 
       "replies" ->
         !is_nil(Map.get(post, :reply_to_id)) ||
@@ -1320,7 +1346,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
         post.federated != true && (post.sender || %{}) |> Map.get(:trust_level, 0) >= 2
 
       "communities" ->
-        PostUtilities.has_community_uri?(post)
+        PostUtilities.community_post?(post)
 
       "federated" ->
         post.federated == true
@@ -1437,7 +1463,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
     if socket.assigns.current_filter in ["all", "following", "federated", "public"] &&
          socket.assigns.timeline_filter == "all" && socket.assigns.software_filter == "all" do
       {non_community, community} =
-        Enum.split_with(posts, fn post -> !PostUtilities.has_community_uri?(post) end)
+        Enum.split_with(posts, fn post -> !PostUtilities.community_post?(post) end)
 
       non_community ++ community
     else
@@ -1535,79 +1561,92 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   defp convert_single_remote_reply(reply_object) when is_map(reply_object) do
     actor_uri = extract_actor_uri(reply_object)
-    return_nil = fn -> nil end
 
     if is_binary(actor_uri) do
-      case Elektrine.ActivityPub.get_actor_by_uri(actor_uri) do
-        nil ->
-          return_nil.()
+      published =
+        case reply_object["published"] do
+          nil ->
+            DateTime.utc_now()
 
-        remote_actor ->
-          published =
-            case reply_object["published"] do
-              nil ->
-                DateTime.utc_now()
+          date_str ->
+            case DateTime.from_iso8601(date_str) do
+              {:ok, dt, _} -> dt
+              _ -> DateTime.utc_now()
+            end
+        end
 
-              date_str ->
-                case DateTime.from_iso8601(date_str) do
-                  {:ok, dt, _} -> dt
-                  _ -> DateTime.utc_now()
-                end
+      content =
+        reply_object["content"] || extract_content_from_map(reply_object["contentMap"]) || ""
+
+      fallback_avatar_url = extract_reply_avatar_fallback(reply_object)
+      remote_actor = Elektrine.ActivityPub.get_actor_by_uri(actor_uri)
+
+      remote_actor =
+        if remote_actor &&
+             is_binary(fallback_avatar_url) &&
+             fallback_avatar_url != "" &&
+             is_nil(remote_actor.avatar_url) do
+          %{remote_actor | avatar_url: fallback_avatar_url}
+        else
+          remote_actor
+        end
+
+      {fallback_author, fallback_domain} = actor_identity_from_uri(actor_uri)
+
+      local_message = Messaging.get_message_by_activitypub_ref(reply_object["id"])
+
+      interaction_id =
+        if match?(%Elektrine.Messaging.Message{}, local_message) do
+          local_message.id
+        else
+          reply_object["id"]
+        end
+
+      resolved_remote_actor =
+        case local_message do
+          %Elektrine.Messaging.Message{remote_actor: loaded_remote_actor}
+          when is_map(loaded_remote_actor) ->
+            case loaded_remote_actor do
+              %Ecto.Association.NotLoaded{} -> remote_actor
+              _ -> loaded_remote_actor
             end
 
-          content =
-            reply_object["content"] || extract_content_from_map(reply_object["contentMap"]) || ""
+          _ ->
+            remote_actor
+        end
 
-          fallback_avatar_url = extract_reply_avatar_fallback(reply_object)
-
-          remote_actor =
-            if is_binary(fallback_avatar_url) && fallback_avatar_url != "" &&
-                 is_nil(remote_actor.avatar_url) do
-              %{remote_actor | avatar_url: fallback_avatar_url}
-            else
-              remote_actor
-            end
-
-          local_message = Messaging.get_message_by_activitypub_ref(reply_object["id"])
-
-          interaction_id =
-            if match?(%Elektrine.Messaging.Message{}, local_message) do
-              local_message.id
-            else
-              reply_object["id"]
-            end
-
-          %{
-            id: interaction_id,
-            activitypub_id: (local_message && local_message.activitypub_id) || reply_object["id"],
-            content: (local_message && local_message.content) || content,
-            inserted_at: (local_message && local_message.inserted_at) || published,
-            like_count:
-              max(
-                (local_message && local_message.like_count) || 0,
-                Elektrine.ActivityPub.Helpers.extract_interaction_count(reply_object, "likes")
-              ),
-            share_count:
-              max(
-                (local_message && local_message.share_count) || 0,
-                Elektrine.ActivityPub.Helpers.extract_interaction_count(reply_object, "shares")
-              ),
-            reply_count:
-              max(
-                (local_message && local_message.reply_count) || 0,
-                Elektrine.ActivityPub.Helpers.extract_interaction_count(reply_object, "replies")
-              ),
-            sender: nil,
-            sender_id: nil,
-            remote_actor: (local_message && local_message.remote_actor) || remote_actor,
-            remote_actor_id: remote_actor.id,
-            federated: true,
-            media_urls: extract_media_urls(reply_object),
-            visibility: "public"
-          }
-      end
+      %{
+        id: interaction_id,
+        activitypub_id: (local_message && local_message.activitypub_id) || reply_object["id"],
+        content: (local_message && local_message.content) || content,
+        inserted_at: (local_message && local_message.inserted_at) || published,
+        like_count:
+          max(
+            (local_message && local_message.like_count) || 0,
+            Elektrine.ActivityPub.Helpers.extract_interaction_count(reply_object, "likes")
+          ),
+        share_count:
+          max(
+            (local_message && local_message.share_count) || 0,
+            Elektrine.ActivityPub.Helpers.extract_interaction_count(reply_object, "shares")
+          ),
+        reply_count:
+          max(
+            (local_message && local_message.reply_count) || 0,
+            Elektrine.ActivityPub.Helpers.extract_interaction_count(reply_object, "replies")
+          ),
+        sender: nil,
+        sender_id: nil,
+        remote_actor: resolved_remote_actor,
+        remote_actor_id: if(resolved_remote_actor, do: Map.get(resolved_remote_actor, :id)),
+        author: fallback_author,
+        author_domain: fallback_domain,
+        federated: true,
+        media_urls: extract_media_urls(reply_object),
+        visibility: "public"
+      }
     else
-      return_nil.()
+      nil
     end
   end
 
@@ -1658,7 +1697,15 @@ defmodule ElektrineWeb.TimelineLive.Index do
     uri
   end
 
+  defp extract_actor_uri(%{"actor" => uri}) when is_binary(uri) do
+    uri
+  end
+
   defp extract_actor_uri(%{"attributedTo" => [uri | _]}) when is_binary(uri) do
+    uri
+  end
+
+  defp extract_actor_uri(%{"actor" => [uri | _]}) when is_binary(uri) do
     uri
   end
 
@@ -1666,8 +1713,80 @@ defmodule ElektrineWeb.TimelineLive.Index do
     uri
   end
 
+  defp extract_actor_uri(%{"actor" => %{"id" => uri}}) when is_binary(uri) do
+    uri
+  end
+
   defp extract_actor_uri(_) do
     nil
+  end
+
+  defp actor_identity_from_uri(actor_uri) when is_binary(actor_uri) do
+    case URI.parse(actor_uri) do
+      %URI{host: host, path: path} ->
+        username =
+          path
+          |> to_string()
+          |> String.split("/", trim: true)
+          |> List.last()
+          |> normalize_actor_segment()
+
+        {username, host}
+
+      _ ->
+        {nil, nil}
+    end
+  end
+
+  defp actor_identity_from_uri(_) do
+    {nil, nil}
+  end
+
+  defp normalize_actor_segment(segment) when is_binary(segment) do
+    segment
+    |> URI.decode()
+    |> String.trim()
+    |> String.trim_leading("@")
+    |> String.split("#")
+    |> hd()
+    |> String.split("?")
+    |> hd()
+    |> case do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp normalize_actor_segment(_), do: nil
+
+  defp merge_reply_previews(existing, incoming) do
+    (List.wrap(existing) ++ List.wrap(incoming))
+    |> Enum.uniq_by(&reply_preview_key/1)
+    |> Enum.sort_by(&reply_preview_inserted_at_unix/1, :desc)
+    |> Enum.take(3)
+    |> Enum.reverse()
+  end
+
+  defp reply_preview_key(reply) do
+    Map.get(reply, :id) ||
+      Map.get(reply, :activitypub_id) ||
+      Map.get(reply, :ap_id) ||
+      {Map.get(reply, :content), Map.get(reply, :inserted_at)}
+  end
+
+  defp reply_preview_inserted_at_unix(reply) do
+    case Map.get(reply, :inserted_at) do
+      %DateTime{} = dt ->
+        DateTime.to_unix(dt)
+
+      %NaiveDateTime{} = naive ->
+        naive
+        |> DateTime.from_naive!("Etc/UTC")
+        |> DateTime.to_unix()
+
+      _ ->
+        0
+    end
   end
 
   defp extract_content_from_map(content_map) when is_map(content_map) do

@@ -509,6 +509,8 @@ defmodule Elektrine.Email.Receiver do
   defp store_incoming_message(mailbox_id, params) do
     sender_email = sanitize_address_header(params["from"] || params["mail_from"])
     attachments_metadata = prepare_attachments_metadata(params["attachments"])
+    in_reply_to = extract_thread_header(params, ["in_reply_to", "in-reply-to"])
+    references = extract_thread_header(params, ["references"])
 
     message_attrs = %{
       "message_id" => params["message_id"] || "incoming-#{:rand.uniform(1_000_000)}",
@@ -527,7 +529,9 @@ defmodule Elektrine.Email.Receiver do
       "mailbox_id" => mailbox_id,
       "metadata" => extract_metadata(params),
       "attachments" => attachments_metadata,
-      "has_attachments" => map_size(attachments_metadata) > 0
+      "has_attachments" => map_size(attachments_metadata) > 0,
+      "in_reply_to" => in_reply_to,
+      "references" => references
     }
 
     message_attrs =
@@ -616,6 +620,74 @@ defmodule Elektrine.Email.Receiver do
     decoded = decode_mail_header(filename)
     Elektrine.Email.Sanitizer.sanitize_utf8(decoded)
   end
+
+  defp extract_thread_header(params, keys) when is_list(keys) do
+    direct_value =
+      Enum.find_value(keys, fn key ->
+        params[key] || params[String.replace(key, "-", "_")]
+      end)
+
+    headers = params["headers"]
+
+    header_value =
+      Enum.find_value(keys, fn key ->
+        key
+        |> to_header_name()
+        |> then(&get_header_case_insensitive(headers, &1))
+      end)
+
+    (direct_value || header_value)
+    |> normalize_thread_header_value()
+  end
+
+  defp to_header_name(key) when is_binary(key) do
+    key
+    |> String.replace("_", "-")
+    |> String.split("-")
+    |> Enum.map_join("-", &String.capitalize/1)
+  end
+
+  defp get_header_case_insensitive(headers, _header_name) when not is_map(headers), do: nil
+
+  defp get_header_case_insensitive(headers, header_name) do
+    header_name_down = String.downcase(header_name)
+
+    Enum.find_value(headers, fn
+      {key, value} when is_binary(key) ->
+        if String.downcase(key) == header_name_down do
+          value
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp normalize_thread_header_value(nil), do: nil
+  defp normalize_thread_header_value(""), do: nil
+
+  defp normalize_thread_header_value(value) when is_list(value) do
+    value
+    |> Enum.map(&normalize_thread_header_value/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
+    |> normalize_thread_header_value()
+  end
+
+  defp normalize_thread_header_value(value) when is_binary(value) do
+    value
+    |> decode_mail_header()
+    |> Elektrine.Email.Sanitizer.sanitize_utf8()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_thread_header_value(value),
+    do: to_string(value) |> normalize_thread_header_value()
 
   defp extract_metadata(params) do
     %{

@@ -176,20 +176,22 @@ defmodule ElektrineWeb.API.CalendarController do
   end
 
   defp get_user_event(user_id, id) do
-    with {:ok, event_id} <- parse_id(id) do
-      query =
-        from(e in EventSchema,
-          join: c in CalendarSchema,
-          on: c.id == e.calendar_id,
-          where: e.id == ^event_id and c.user_id == ^user_id
-        )
+    case parse_id(id) do
+      {:ok, event_id} ->
+        query =
+          from(e in EventSchema,
+            join: c in CalendarSchema,
+            on: c.id == e.calendar_id,
+            where: e.id == ^event_id and c.user_id == ^user_id
+          )
 
-      case Repo.one(query) do
-        nil -> {:error, :not_found}
-        event -> {:ok, event}
-      end
-    else
-      :error -> {:error, :bad_request}
+        case Repo.one(query) do
+          nil -> {:error, :not_found}
+          event -> {:ok, event}
+        end
+
+      :error ->
+        {:error, :bad_request}
     end
   end
 

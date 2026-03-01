@@ -1,4 +1,5 @@
 // Chat-specific LiveView hooks
+import { copyToClipboard } from '../utils/clipboard'
 
 export const AutoExpandTextarea = {
   mounted() {
@@ -967,5 +968,25 @@ export const MessageContextMenu = {
     document.removeEventListener("click", this.clickHandler)
     document.removeEventListener("keydown", this.keyHandler)
     this.el.removeEventListener("scroll", this.scrollHandler)
+  }
+}
+
+export const CopyChatMessage = {
+  mounted() {
+    this.copyHandler = () => {
+      const text = this.el.dataset.copyContent || ''
+      copyToClipboard(text, 'message')
+
+      const hideEvent = this.el.dataset.hideEvent
+      if (hideEvent) {
+        this.pushEvent(hideEvent, {})
+      }
+    }
+
+    this.el.addEventListener('click', this.copyHandler)
+  },
+
+  destroyed() {
+    this.el.removeEventListener('click', this.copyHandler)
   }
 }

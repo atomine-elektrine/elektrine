@@ -15,6 +15,7 @@ defmodule ElektrineChat do
   defdelegate get_conversation!(id, user_id), to: Messaging
   defdelegate get_conversation_unread_count(conversation_id, user_id), to: Messaging
   defdelegate get_conversation_for_chat!(id, user_id), to: Messaging
+  defdelegate get_conversation_for_chat_by_hash!(hash, user_id), to: Messaging
   defdelegate get_conversation_by_hash(hash), to: Messaging
   defdelegate search_public_conversations(query, current_user_id, limit \\ 10), to: Messaging
   defdelegate list_public_channels(opts \\ []), to: Messaging

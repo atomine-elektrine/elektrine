@@ -18,9 +18,9 @@ defmodule ElektrineWeb.ChatLive.Index do
   import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1]
 
   # Import operation modules
-  alias ElektrineWeb.ChatLive.Operations.Helpers
+  alias ElektrineWeb.ChatLive.Bootstrap
   alias ElektrineWeb.ChatLive.HandleFormatter
-  alias ElektrineWeb.ChatLive.State
+  alias ElektrineWeb.ChatLive.Operations.{CallInfoOperations, Helpers, MessageInfoOperations}
 
   @impl true
   def mount(_params, session, socket) do
@@ -49,86 +49,24 @@ defmodule ElektrineWeb.ChatLive.Index do
     cached_unread = get_cached_unread_count(user.id)
     cached_servers = Messaging.list_servers(user.id)
 
-    filtered_cached_conversations =
-      Helpers.scope_conversations_to_server(cached_conversations, nil)
+    custom_emojis = load_custom_emojis()
+    federation_preview = build_federation_preview()
+
+    loading_conversations =
+      !Enum.empty?(cached_conversations) || Messaging.user_has_conversations?(user.id)
 
     # Initialize with cached data to prevent flicker
     socket =
-      socket
-      |> assign(:page_title, "Chat")
-      |> assign(:ui, %State.UI{})
-      |> assign(:search, %State.Search{user_results: []})
-      |> assign(:call, %State.Call{})
-      |> assign(:form, %State.Form{})
-      |> assign(:context_menu, %State.ContextMenu{})
-      |> assign(:message, %State.Message{})
-      |> assign(:conversation, %State.Conversation{
-        list: cached_conversations,
-        selected: nil,
-        filtered: filtered_cached_conversations,
-        last_message_read_status: %{},
-        unread_count: cached_unread,
-        unread_counts: %{}
-      })
-      |> assign(:joined_servers, cached_servers)
-      |> assign(:active_server_id, nil)
-      |> assign(:moderation, %State.Moderation{})
-      |> assign(:browse, %State.Browse{})
-      |> assign(:profile, %State.Profile{})
-      |> assign(:messages, [])
-      |> assign(:uploaded_files, [])
-      |> assign(:can_send_messages, true)
-      |> allow_upload(:chat_attachments,
-        accept: ~w(.jpg .jpeg .png .gif .webp .heic .heif .avif .pdf .doc .docx .xls .xlsx .txt),
-        max_entries: 5,
-        max_file_size: chat_attachment_limit
+      Bootstrap.initialize_socket(socket,
+        cached_conversations: cached_conversations,
+        cached_unread: cached_unread,
+        cached_servers: cached_servers,
+        chat_attachment_limit: chat_attachment_limit,
+        user_token: Helpers.generate_user_token(user.id),
+        custom_emojis: custom_emojis,
+        federation_preview: federation_preview,
+        loading_conversations: loading_conversations
       )
-      |> allow_upload(:server_icon_upload,
-        accept: ~w(.jpg .jpeg .png .gif .webp),
-        max_entries: 1,
-        max_file_size: 5 * 1024 * 1024
-      )
-      |> allow_upload(:group_avatar_upload,
-        accept: ~w(.jpg .jpeg .png .gif .webp),
-        max_entries: 1,
-        max_file_size: 5 * 1024 * 1024
-      )
-      |> allow_upload(:channel_avatar_upload,
-        accept: ~w(.jpg .jpeg .png .gif .webp),
-        max_entries: 1,
-        max_file_size: 5 * 1024 * 1024
-      )
-      |> assign(:user_token, Helpers.generate_user_token(user.id))
-      |> assign(:show_mobile_search, false)
-      |> assign(:show_report_modal, false)
-      |> assign(:report_type, nil)
-      |> assign(:report_id, nil)
-      |> assign(:report_metadata, %{})
-      |> assign(:user_communities, [])
-      |> assign(:has_more_older_messages, false)
-      |> assign(:has_more_newer_messages, false)
-      |> assign(:oldest_message_id, nil)
-      |> assign(:processed_call_events, MapSet.new())
-      |> assign(:newest_message_id, nil)
-      |> assign(:loading_older_messages, false)
-      |> assign(:loading_newer_messages, false)
-      |> assign(:first_unread_message_id, nil)
-      |> assign(:show_image_modal, false)
-      |> assign(:modal_image_url, nil)
-      |> assign(:modal_images, [])
-      |> assign(:modal_image_index, 0)
-      |> assign(:modal_post, nil)
-      |> assign(:public_server_search_results, [])
-      |> assign(:public_group_search_results, [])
-      |> assign(:public_channel_search_results, [])
-      |> assign(:custom_emojis, load_custom_emojis())
-      |> assign(:federation_preview, build_federation_preview())
-      |> assign(:federation_presence, %{})
-      |> assign(
-        :loading_conversations,
-        !Enum.empty?(cached_conversations) || Messaging.user_has_conversations?(user.id)
-      )
-      |> assign(:refresh_conversations_scheduled, false)
 
     # Load conversations async after connection
     if connected?(socket) do
@@ -196,170 +134,37 @@ defmodule ElektrineWeb.ChatLive.Index do
   end
 
   def handle_params(%{"conversation_id" => conversation_identifier}, _url, socket) do
-    # Try to find by hash first, then by ID for backwards compatibility
-    conversation_id =
-      case Messaging.get_conversation_by_hash(conversation_identifier) do
-        %{id: id} ->
-          id
+    user_id = socket.assigns.current_user.id
 
-        nil ->
-          case Integer.parse(conversation_identifier) do
-            {id, ""} -> id
-            _ -> nil
-          end
-      end
+    case Messaging.get_conversation_for_chat_by_hash!(conversation_identifier, user_id) do
+      {:ok, conversation} ->
+        {:noreply, open_conversation(socket, conversation)}
 
-    if conversation_id do
-      # Use lightweight loader - messages are loaded separately
-      case Messaging.get_conversation_for_chat!(conversation_id, socket.assigns.current_user.id) do
-        {:ok, conversation} ->
-          target_server_id =
-            conversation_server_id(conversation) || socket.assigns[:active_server_id]
+      {:error, :not_found} ->
+        case Integer.parse(conversation_identifier) do
+          {conversation_id, ""} ->
+            case Messaging.get_conversation_for_chat!(conversation_id, user_id) do
+              {:ok, conversation} ->
+                # If accessed by ID instead of hash, redirect to canonical hash URL.
+                if conversation_identifier != conversation.hash && conversation.hash do
+                  {:noreply, push_navigate(socket, to: ~p"/chat/#{conversation.hash}")}
+                else
+                  {:noreply, open_conversation(socket, conversation)}
+                end
 
-          # If accessed by ID instead of hash, redirect to hash URL
-          if conversation_identifier != conversation.hash && conversation.hash do
+              {:error, :not_found} ->
+                {:noreply,
+                 socket
+                 |> notify_error("Chat not found")
+                 |> push_navigate(to: ~p"/chat")}
+            end
+
+          _ ->
             {:noreply,
              socket
-             |> push_navigate(to: ~p"/chat/#{conversation.hash}")}
-          else
-            # Unsubscribe from previous conversation and subscribe to new one
-            if connected?(socket) do
-              # Unsubscribe from previous conversation if there was one
-              if socket.assigns.conversation.selected do
-                Phoenix.PubSub.unsubscribe(
-                  Elektrine.PubSub,
-                  "conversation:#{socket.assigns.conversation.selected.id}"
-                )
-
-                Phoenix.PubSub.unsubscribe(
-                  Elektrine.PubSub,
-                  "chat:#{socket.assigns.conversation.selected.id}"
-                )
-              end
-
-              # Subscribe to new conversation (both legacy and chat topics)
-              Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{conversation_id}")
-              Phoenix.PubSub.subscribe(Elektrine.PubSub, "chat:#{conversation_id}")
-            end
-
-            # Load initial messages using pagination
-            # Use Messages module for all conversation types (messages table)
-            data =
-              Messaging.get_conversation_messages(conversation_id, socket.assigns.current_user.id,
-                limit: 50
-              )
-
-            messages =
-              data.messages
-              |> Enum.reverse()
-
-            message_data = data
-
-            # Find first unread message for scroll positioning
-            first_unread_message_id =
-              Helpers.find_first_unread_message(
-                messages,
-                conversation_id,
-                socket.assigns.current_user.id
-              )
-
-            # Mark conversation as read immediately (after brief delay for UI to settle)
-            # This ensures notifications created in the next 200ms get cleaned up quickly
-            Process.send_after(self(), {:mark_conversation_read, conversation_id}, 200)
-
-            # Defer read status loading for faster initial render
-            # Read receipts are nice-to-have, not critical for initial display
-            message_ids = Enum.map(messages, & &1.id)
-
-            if message_ids != [] do
-              Process.send_after(self(), {:load_read_status, message_ids, conversation_id}, 150)
-            end
-
-            # Load timeout status for all users in conversation (single batched query)
-            user_ids = conversation.members |> Enum.map(& &1.user_id) |> Enum.uniq()
-            timeout_status = Helpers.load_timeout_status(user_ids, conversation_id)
-
-            # Calculate current unread counts, but mark this conversation as 0 in UI
-            current_unread_counts =
-              socket.assigns.conversation.unread_counts ||
-                Helpers.calculate_unread_counts(
-                  socket.assigns.conversation.list,
-                  socket.assigns.current_user.id
-                )
-
-            # Immediately update UI to show this conversation as read (even though we delay the DB update)
-            updated_unread_counts = Map.put(current_unread_counts, conversation.id, 0)
-
-            # Check if current user can send messages in this conversation
-            current_member =
-              Enum.find(
-                conversation.members,
-                &(&1.user_id == socket.assigns.current_user.id and is_nil(&1.left_at))
-              )
-
-            can_send =
-              current_member &&
-                Elektrine.Messaging.ConversationMember.can_send_messages?(current_member)
-
-            active_server_id = target_server_id
-            federation_presence = presence_map_for_server(active_server_id)
-
-            # Build socket with updated assigns
-            # Start with empty read_status - it will be loaded async
-            updated_socket =
-              socket
-              |> assign(:conversation, %{
-                socket.assigns.conversation
-                | selected: conversation,
-                  unread_counts: updated_unread_counts,
-                  filtered:
-                    refresh_conversation_filter(
-                      socket.assigns.conversation.list,
-                      socket.assigns.search.conversation_query,
-                      socket.assigns.current_user.id,
-                      active_server_id
-                    )
-              })
-              |> assign(:active_server_id, active_server_id)
-              |> assign(:federation_presence, federation_presence)
-              |> assign(:messages, messages)
-              |> assign(:message, %{
-                socket.assigns.message
-                | read_status: %{},
-                  typing_users: []
-              })
-              |> assign(:moderation, %{
-                socket.assigns.moderation
-                | user_timeout_status: timeout_status
-              })
-              |> assign(:can_send_messages, can_send)
-              |> assign(:first_unread_message_id, first_unread_message_id)
-              |> assign(:typing_timer, nil)
-              |> assign(:has_more_older_messages, message_data.has_more_older)
-              |> assign(:has_more_newer_messages, message_data.has_more_newer)
-              |> assign(:oldest_message_id, message_data.oldest_id)
-              |> assign(:newest_message_id, message_data.newest_id)
-              |> assign(:loading_older_messages, false)
-              |> assign(:loading_newer_messages, false)
-
-            # Trigger initial scroll based on unread status
-            Process.send_after(self(), :trigger_initial_scroll, 100)
-
-            {:noreply, updated_socket}
-          end
-
-        {:error, :not_found} ->
-          {:noreply,
-           socket
-           |> notify_error("Chat not found")
-           |> push_navigate(to: ~p"/chat")}
-      end
-    else
-      # Invalid conversation identifier
-      {:noreply,
-       socket
-       |> notify_error("Invalid chat")
-       |> push_navigate(to: ~p"/chat")}
+             |> notify_error("Invalid chat")
+             |> push_navigate(to: ~p"/chat")}
+        end
     end
   end
 
@@ -368,6 +173,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     {:noreply,
      socket
      |> assign(:conversation, %{socket.assigns.conversation | selected: nil})
+     |> assign(:initial_messages_loading, false)
      |> assign(:federation_presence, presence_map_for_server(socket.assigns[:active_server_id]))}
   end
 
@@ -612,48 +418,49 @@ defmodule ElektrineWeb.ChatLive.Index do
     if String.trim(name) != "" and selected_users != [] do
       member_ids = Enum.map(selected_users, & &1.id)
 
-      with {:ok, avatar_url} <- consume_entity_image_upload(socket, :group_avatar_upload) do
-        case Messaging.create_group_conversation(
-               socket.assigns.current_user.id,
-               %{
-                 name: String.trim(name),
-                 description: String.trim(description),
-                 avatar_url: avatar_url,
-                 is_public: is_public
-               },
-               member_ids
-             ) do
-          {:ok, conversation} ->
-            {:noreply,
-             socket
-             |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
-             |> assign(:form, %{socket.assigns.form | selected_users: []})
-             |> assign(:search, %{socket.assigns.search | query: "", results: []})
-             |> notify_info("Group created successfully!")
-             |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+      case consume_entity_image_upload(socket, :group_avatar_upload) do
+        {:ok, avatar_url} ->
+          case Messaging.create_group_conversation(
+                 socket.assigns.current_user.id,
+                 %{
+                   name: String.trim(name),
+                   description: String.trim(description),
+                   avatar_url: avatar_url,
+                   is_public: is_public
+                 },
+                 member_ids
+               ) do
+            {:ok, conversation} ->
+              {:noreply,
+               socket
+               |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
+               |> assign(:form, %{socket.assigns.form | selected_users: []})
+               |> assign(:search, %{socket.assigns.search | query: "", results: []})
+               |> notify_info("Group created successfully!")
+               |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
 
-          {:ok, conversation, failed_count} ->
-            {:noreply,
-             socket
-             |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
-             |> assign(:form, %{socket.assigns.form | selected_users: []})
-             |> assign(:search, %{socket.assigns.search | query: "", results: []})
-             |> notify_warning(
-               "Group created but #{failed_count} user(s) could not be added due to their privacy settings"
-             )
-             |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+            {:ok, conversation, failed_count} ->
+              {:noreply,
+               socket
+               |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
+               |> assign(:form, %{socket.assigns.form | selected_users: []})
+               |> assign(:search, %{socket.assigns.search | query: "", results: []})
+               |> notify_warning(
+                 "Group created but #{failed_count} user(s) could not be added due to their privacy settings"
+               )
+               |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
 
-          {:error, :group_limit_exceeded} ->
-            {:noreply,
-             socket
-             |> notify_error("You've reached the maximum limit of 20 groups")}
+            {:error, :group_limit_exceeded} ->
+              {:noreply,
+               socket
+               |> notify_error("You've reached the maximum limit of 20 groups")}
 
-          {:error, _changeset} ->
-            {:noreply,
-             socket
-             |> notify_error("Failed to create group. Please try again.")}
-        end
-      else
+            {:error, _changeset} ->
+              {:noreply,
+               socket
+               |> notify_error("Failed to create group. Please try again.")}
+          end
+
         {:error, reason} ->
           {:noreply, notify_error(socket, reason)}
       end
@@ -795,6 +602,58 @@ defmodule ElektrineWeb.ChatLive.Index do
     case Messaging.add_chat_reaction(message_id, socket.assigns.current_user.id, emoji) do
       {:ok, _reaction} -> {:noreply, socket}
       {:error, _} -> {:noreply, socket}
+    end
+  end
+
+  def handle_info({:load_conversation_messages, conversation_id}, socket) do
+    if socket.assigns.conversation.selected &&
+         socket.assigns.conversation.selected.id == conversation_id do
+      user_id = socket.assigns.current_user.id
+
+      data = Messaging.get_conversation_messages(conversation_id, user_id, limit: 50)
+      messages = Enum.reverse(data.messages)
+
+      first_unread_message_id =
+        Helpers.find_first_unread_message(messages, conversation_id, user_id)
+
+      # Mark conversation as read after UI settles.
+      Process.send_after(self(), {:mark_conversation_read, conversation_id}, 200)
+
+      message_ids = Enum.map(messages, & &1.id)
+
+      if message_ids != [] do
+        # Load read receipts asynchronously to keep initial message paint snappy.
+        Process.send_after(self(), {:load_read_status, message_ids, conversation_id}, 150)
+      end
+
+      user_ids =
+        socket.assigns.conversation.selected.members
+        |> Enum.map(& &1.user_id)
+        |> Enum.uniq()
+
+      timeout_status = Helpers.load_timeout_status(user_ids, conversation_id)
+
+      updated_socket =
+        socket
+        |> assign(:messages, messages)
+        |> assign(:moderation, %{
+          socket.assigns.moderation
+          | user_timeout_status: timeout_status
+        })
+        |> assign(:first_unread_message_id, first_unread_message_id)
+        |> assign(:has_more_older_messages, data.has_more_older)
+        |> assign(:has_more_newer_messages, data.has_more_newer)
+        |> assign(:oldest_message_id, data.oldest_id)
+        |> assign(:newest_message_id, data.newest_id)
+        |> assign(:loading_older_messages, false)
+        |> assign(:loading_newer_messages, false)
+        |> assign(:initial_messages_loading, false)
+
+      Process.send_after(self(), :trigger_initial_scroll, 100)
+
+      {:noreply, updated_socket}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -1334,35 +1193,6 @@ defmodule ElektrineWeb.ChatLive.Index do
     end
   end
 
-  def handle_info({:message_edited, message}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == message.conversation_id do
-      # Decrypt the edited message
-      decrypted_message = Elektrine.Messaging.Message.decrypt_content(message)
-
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == message.id, do: decrypted_message, else: msg
-        end)
-
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info({:message_deleted, message}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == message.conversation_id do
-      # Remove deleted message from the list entirely
-      messages = Enum.reject(socket.assigns.messages, fn msg -> msg.id == message.id end)
-
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
-
   # Chat message handlers (from ChatMessages module for DMs/groups/channels)
   def handle_info({:new_chat_message, message}, socket) do
     if socket.assigns.conversation.selected &&
@@ -1404,423 +1234,1225 @@ defmodule ElektrineWeb.ChatLive.Index do
     end
   end
 
-  def handle_info({:chat_message_updated, message}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == message.conversation_id do
-      # Message is already decrypted from the broadcast
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == message.id, do: message, else: msg
-        end)
+  def handle_info(info, socket) do
+    case MessageInfoOperations.route_info(info, socket) do
+      {:handled, result} ->
+        result
 
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
+      :unhandled ->
+        case CallInfoOperations.route_info(info, socket) do
+          {:handled, result} -> result
+          :unhandled -> {:noreply, socket}
+        end
     end
   end
 
-  def handle_info({:chat_message_deleted, message_id}, socket) do
-    # Remove deleted message from the list
-    messages = Enum.reject(socket.assigns.messages, fn msg -> msg.id == message_id end)
-    {:noreply, assign(socket, :messages, messages)}
-  end
+  defp chat_overlay_panels(assigns) do
+    ~H"""
+    <!-- Server Creation Modal -->
+    <%= if @ui.show_server_modal do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+          phx-click-away="hide_create_server"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">Create Server</h2>
+            <button phx-click="hide_create_server" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
 
-  def handle_info({:chat_reaction_added, message_id, reaction}, socket) do
-    messages =
-      Enum.map(socket.assigns.messages, fn message ->
-        if message.id == message_id do
-          existing_reactions = Map.get(message, :reactions, []) || []
+          <form phx-submit="create_server" class="space-y-4">
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Server Name</span>
+              </label>
+              <input
+                type="text"
+                name="server[name]"
+                placeholder="Server name"
+                class="input input-bordered w-full"
+                required
+                autofocus
+              />
+            </div>
 
-          already_exists =
-            Enum.any?(existing_reactions, fn existing ->
-              existing.emoji == reaction.emoji and
-                existing.user_id == reaction.user_id and
-                existing.remote_actor_id == reaction.remote_actor_id
-            end)
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Description</span>
+              </label>
+              <textarea
+                name="server[description]"
+                placeholder="What is this server about? (optional)"
+                class="textarea textarea-bordered w-full"
+                rows="3"
+              ></textarea>
+            </div>
 
-          updated_reactions =
-            if already_exists, do: existing_reactions, else: existing_reactions ++ [reaction]
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Server Icon</span>
+              </label>
+              <div class="flex items-center gap-3">
+                <%= if @uploads.server_icon_upload.entries != [] do %>
+                  <% entry = List.first(@uploads.server_icon_upload.entries) %>
+                  <div class="w-14 h-14 rounded-xl overflow-hidden bg-base-200 border border-base-300">
+                    <.live_img_preview entry={entry} class="w-full h-full object-cover" />
+                  </div>
+                <% else %>
+                  <div class="w-14 h-14 rounded-xl bg-base-200 border border-dashed border-base-300 flex items-center justify-center">
+                    <.icon name="hero-photo" class="w-6 h-6 text-base-content/60" />
+                  </div>
+                <% end %>
+                <label class="btn btn-ghost btn-sm">
+                  Choose Image
+                  <.live_file_input
+                    upload={@uploads.server_icon_upload}
+                    class="hidden"
+                    phx-change="validate_upload"
+                  />
+                </label>
+              </div>
+              <%= for entry <- @uploads.server_icon_upload.entries do %>
+                <div class="mt-2 flex items-center gap-2 text-xs">
+                  <span class="truncate flex-1">{entry.client_name}</span>
+                  <progress
+                    class="progress progress-secondary w-28 h-2"
+                    value={entry.progress}
+                    max="100"
+                  >
+                  </progress>
+                  <button
+                    type="button"
+                    phx-click="cancel_upload"
+                    phx-value-ref={entry.ref}
+                    phx-value-upload_name="server_icon_upload"
+                    class="btn btn-ghost btn-xs btn-circle"
+                    title="Remove image"
+                  >
+                    <.icon name="hero-x-mark" class="w-3 h-3" />
+                  </button>
+                </div>
+              <% end %>
+            </div>
 
-          %{message | reactions: updated_reactions}
-        else
-          message
-        end
-      end)
+            <div>
+              <label class="label cursor-pointer justify-start gap-3">
+                <input
+                  type="checkbox"
+                  name="server[is_public]"
+                  value="true"
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text">Show in server directory</span>
+              </label>
+              <p class="text-xs text-base-content/70 mt-1">
+                Public servers are discoverable and users can request membership.
+              </p>
+            </div>
 
-    {:noreply, assign(socket, :messages, messages)}
-  end
+            <div class="flex gap-3 pt-2">
+              <button type="submit" class="btn btn-secondary flex-1">
+                <.icon name="hero-plus-circle" class="w-4 h-4 mr-2" /> Create Server
+              </button>
+              <button type="button" phx-click="hide_create_server" class="btn btn-ghost">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    <% end %>
 
-  def handle_info({:chat_reaction_removed, message_id, user_id, emoji}, socket) do
-    messages =
-      Enum.map(socket.assigns.messages, fn message ->
-        if message.id == message_id do
-          reactions =
-            (Map.get(message, :reactions, []) || [])
-            |> Enum.reject(fn reaction ->
-              reaction.emoji == emoji and reaction.user_id == user_id
-            end)
+    <!-- Settings Modal -->
+    <%= if @ui.show_settings_modal && @conversation.selected do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+          phx-click-away="hide_settings"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">
+              {conversation_type_label(@conversation.selected.type)} Settings
+            </h2>
+            <button phx-click="hide_settings" class="btn btn-ghost btn-sm">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
+          
+    <!-- Chat Details -->
+          <div class="space-y-4">
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Name</span>
+              </label>
+              <p class="text-sm bg-base-200 p-2 rounded">
+                {route_label(@conversation.selected, @current_user.id)}
+              </p>
+            </div>
 
-          %{message | reactions: reactions}
-        else
-          message
-        end
-      end)
+            <%= if @conversation.selected.description do %>
+              <div>
+                <label class="label">
+                  <span class="label-text font-semibold">Description</span>
+                </label>
+                <p class="text-sm bg-base-200 p-2 rounded">
+                  {@conversation.selected.description}
+                </p>
+              </div>
+            <% end %>
 
-    {:noreply, assign(socket, :messages, messages)}
-  end
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Type</span>
+              </label>
+              <div class="flex items-center gap-2">
+                <%= case @conversation.selected.type do %>
+                  <% "group" -> %>
+                    <.icon name="hero-users" class="w-4 h-4" />
+                    <span class="text-sm">
+                      {if @conversation.selected.is_public, do: "Public", else: "Private"} Group
+                    </span>
+                  <% "channel" -> %>
+                    <.icon name="hero-megaphone" class="w-4 h-4" />
+                    <span class="text-sm">
+                      <%= if @conversation.selected.server_id do %>
+                        {if @conversation.selected.is_public, do: "Server", else: "Private Server"} Channel
+                      <% else %>
+                        {if @conversation.selected.is_public, do: "Public", else: "Private"} Channel
+                      <% end %>
+                    </span>
+                  <% _ -> %>
+                    <.icon name="hero-user" class="w-4 h-4" />
+                    <span class="text-sm">Direct Message</span>
+                <% end %>
+              </div>
+            </div>
 
-  def handle_info({:chat_reaction_removed, message_id, _user_id, emoji, remote_actor_id}, socket) do
-    messages =
-      Enum.map(socket.assigns.messages, fn message ->
-        if message.id == message_id do
-          reactions =
-            (Map.get(message, :reactions, []) || [])
-            |> Enum.reject(fn reaction ->
-              reaction.emoji == emoji and reaction.remote_actor_id == remote_actor_id
-            end)
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Members</span>
+              </label>
+              <p class="text-sm bg-base-200 p-2 rounded">
+                {@conversation.selected.member_count} members
+              </p>
+            </div>
 
-          %{message | reactions: reactions}
-        else
-          message
-        end
-      end)
+            <%= if @conversation.selected.creator_id do %>
+              <div>
+                <label class="label">
+                  <span class="label-text font-semibold">Created by</span>
+                </label>
+                <% creator =
+                  Enum.find(
+                    @conversation.selected.members,
+                    &(&1.user_id == @conversation.selected.creator_id)
+                  ) %>
+                <%= if creator do %>
+                  <p class="text-sm bg-base-200 p-2 rounded">
+                    {user_at_handle(creator.user)}
+                  </p>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+          
+    <!-- Danger Zone for Admins -->
+          <% current_member =
+            Enum.find(
+              @conversation.selected.members,
+              &(&1.user_id == @current_user.id and is_nil(&1.left_at))
+            ) %>
+          <%= if current_member && current_member.role == "admin" && @conversation.selected.type != "dm" do %>
+            <div class="divider text-error">Admin Actions</div>
+            <div class="space-y-2">
+              <button
+                phx-click="show_edit_conversation"
+                class="btn btn-sm btn-ghost w-full"
+              >
+                <.icon name="hero-pencil" class="w-4 h-4 mr-2" />
+                Edit {conversation_type_label(@conversation.selected.type)}
+              </button>
+              <%= if @conversation.selected.creator_id == @current_user.id do %>
+                <button
+                  phx-click="delete_conversation"
+                  class="btn btn-sm btn-secondary btn-ghost w-full"
+                  data-confirm={
+                    "Are you sure you want to delete this #{conversation_type_label_lower(@conversation.selected.type)}? This action cannot be undone."
+                  }
+                >
+                  <.icon name="hero-trash" class="w-4 h-4 mr-2" />
+                  Delete {conversation_type_label(@conversation.selected.type)}
+                </button>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
 
-    {:noreply, assign(socket, :messages, messages)}
-  end
+    <!-- Edit Conversation Modal -->
+    <%= if @ui.show_edit_modal && @conversation.selected do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+          phx-click-away="hide_edit_conversation"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">
+              Edit {conversation_type_label(@conversation.selected.type)}
+            </h2>
+            <button phx-click="hide_edit_conversation" class="btn btn-ghost btn-sm">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
 
-  def handle_info({:chat_remote_read_receipt, receipt}, socket) when is_map(receipt) do
-    message_id = receipt[:message_id] || receipt["message_id"]
+          <.form for={%{}} phx-submit="update_conversation" class="space-y-4">
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Name</span>
+              </label>
+              <input
+                type="text"
+                name="conversation[name]"
+                value={@form.edit_name}
+                placeholder="Name"
+                class="input input-bordered w-full"
+                required
+              />
+            </div>
 
-    if is_integer(message_id) and Enum.any?(socket.assigns.messages, &(&1.id == message_id)) do
-      current_read_status = socket.assigns.message.read_status || %{}
-      current_readers = Map.get(current_read_status, message_id, [])
+            <div>
+              <label class="label">
+                <span class="label-text font-semibold">Description</span>
+              </label>
+              <textarea
+                name="conversation[description]"
+                placeholder="Description (optional)"
+                class="textarea textarea-bordered w-full"
+                rows="3"
+              >{@form.edit_description}</textarea>
+            </div>
 
-      remote_reader = %{
-        user_id: nil,
-        remote_actor_id: receipt[:remote_actor_id] || receipt["remote_actor_id"],
-        username: receipt[:username] || receipt["username"] || "@remote",
-        avatar: receipt[:avatar] || receipt["avatar"]
-      }
+            <%= if @conversation.selected.type == "group" do %>
+              <div class="form-control">
+                <label class="label cursor-pointer">
+                  <span class="label-text">Make Public</span>
+                  <input type="hidden" name="conversation[is_public]" value="false" />
+                  <input
+                    type="checkbox"
+                    name="conversation[is_public]"
+                    value="true"
+                    checked={@conversation.selected.is_public}
+                    class="checkbox"
+                  />
+                </label>
+                <div class="label">
+                  <span class="label-text-alt">
+                    Anyone can find and join this public group
+                  </span>
+                </div>
+              </div>
+            <% end %>
 
-      updated_readers =
-        current_readers
-        |> Enum.reject(fn reader ->
-          is_integer(reader[:remote_actor_id]) and
-            reader[:remote_actor_id] == remote_reader.remote_actor_id
-        end)
-        |> Kernel.++([remote_reader])
+            <%= if @conversation.selected.type == "channel" && @conversation.selected.server_id do %>
+              <div class="form-control">
+                <label class="label cursor-pointer">
+                  <span class="label-text">Private Channel</span>
+                  <input type="hidden" name="conversation[is_private]" value="false" />
+                  <input
+                    type="checkbox"
+                    name="conversation[is_private]"
+                    value="true"
+                    checked={!@conversation.selected.is_public}
+                    class="checkbox"
+                  />
+                </label>
+                <div class="label">
+                  <span class="label-text-alt">
+                    Restrict this channel. Public server channels are visible to all server members.
+                  </span>
+                </div>
+              </div>
+            <% end %>
 
-      updated_read_status = Map.put(current_read_status, message_id, updated_readers)
+            <%= if @conversation.selected.type == "channel" && is_nil(@conversation.selected.server_id) do %>
+              <div class="form-control">
+                <label class="label cursor-pointer">
+                  <span class="label-text">Make Public</span>
+                  <input type="hidden" name="conversation[is_public]" value="false" />
+                  <input
+                    type="checkbox"
+                    name="conversation[is_public]"
+                    value="true"
+                    checked={@conversation.selected.is_public}
+                    class="checkbox"
+                  />
+                </label>
+                <div class="label">
+                  <span class="label-text-alt">
+                    Anyone can find and join this public channel
+                  </span>
+                </div>
+              </div>
+            <% end %>
 
-      {:noreply,
-       assign(socket, :message, %{socket.assigns.message | read_status: updated_read_status})}
-    else
-      {:noreply, socket}
-    end
-  end
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-secondary flex-1">
+                <.icon name="hero-check" class="w-4 h-4 mr-2" /> Save Changes
+              </button>
+              <button
+                type="button"
+                phx-click="hide_edit_conversation"
+                class="btn btn-ghost"
+              >
+                Cancel
+              </button>
+            </div>
+          </.form>
+        </div>
+      </div>
+    <% end %>
 
-  def handle_info({:federation_presence_update, payload}, socket) when is_map(payload) do
-    server_id = payload[:server_id] || payload["server_id"]
+    <!-- Add Members Modal -->
+    <%= if @ui.show_add_members_modal && @conversation.selected do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+          phx-click-away="hide_add_members"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">
+              Add Members to {route_label(@conversation.selected, @current_user.id)}
+            </h2>
+            <button phx-click="hide_add_members" class="btn btn-ghost btn-sm">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
 
-    if is_integer(server_id) and socket.assigns[:active_server_id] == server_id do
-      remote_actor_id = payload[:remote_actor_id] || payload["remote_actor_id"]
+          <div class="space-y-4">
+            <!-- User Search -->
+            <input
+              type="text"
+              placeholder="Search users to add..."
+              value={@search.query}
+              phx-keyup="search_users"
+              phx-debounce="300"
+              class="input input-bordered w-full"
+              name="query"
+            />
+            
+    <!-- Search Results -->
+            <%= if @search.results != [] do %>
+              <div class="max-h-64 overflow-y-auto space-y-2">
+                <%= for user <- @search.results do %>
+                  <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                    <button
+                      phx-click="show_user_profile"
+                      phx-value-user_id={user.id}
+                      class="flex items-center gap-3 flex-1 text-left hover:opacity-75 cursor-pointer"
+                    >
+                      <div class="w-8 h-8 rounded-full overflow-visible">
+                        <.user_avatar user={user} size="sm" user_statuses={@user_statuses} />
+                      </div>
+                      <div>
+                        <p class="font-medium text-sm">
+                          <.username_with_effects
+                            user={user}
+                            display_name={true}
+                            verified_size="xs"
+                          />
+                        </p>
+                        <p class="text-xs opacity-70">{user_at_handle(user)}</p>
+                      </div>
+                    </button>
+                    <button
+                      phx-click="add_member_to_conversation"
+                      phx-value-user_id={user.id}
+                      class="btn btn-secondary btn-xs"
+                    >
+                      Add
+                    </button>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="text-center py-8">
+                <.icon name="hero-magnifying-glass" class="w-8 h-8 mx-auto opacity-50 mb-2" />
+                <p class="text-sm opacity-70">Search for users to add</p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-      if is_integer(remote_actor_id) do
-        existing = socket.assigns[:federation_presence] || %{}
+    <!-- Message Search Modal -->
+    <%= if @ui.show_message_search_modal && @conversation.selected do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card p-6 max-w-lg w-full mx-4"
+          phx-click-away="hide_message_search"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">
+              Search Messages in {route_label(
+                @conversation.selected,
+                @current_user.id
+              )}
+            </h2>
+            <button phx-click="hide_message_search" class="btn btn-ghost btn-sm">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
 
-        presence_entry = %{
-          remote_actor_id: remote_actor_id,
-          handle: payload[:handle] || payload["handle"] || "@remote",
-          label: payload[:label] || payload["label"] || "@remote",
-          avatar_url: payload[:avatar_url] || payload["avatar_url"],
-          status: payload[:status] || payload["status"] || "offline",
-          activities: payload[:activities] || payload["activities"] || [],
-          updated_at: payload[:updated_at] || payload["updated_at"] || DateTime.utc_now()
-        }
+          <div class="space-y-4">
+            <!-- Message Search -->
+            <input
+              type="text"
+              placeholder="Search message content..."
+              value={@search.message_query}
+              phx-keyup="search_messages"
+              phx-debounce="300"
+              class="input input-bordered w-full"
+              name="query"
+            />
+            
+    <!-- Search Results -->
+            <%= if @search.message_results != [] do %>
+              <div class="max-h-96 overflow-y-auto space-y-2">
+                <%= for message <- @search.message_results do %>
+                  <div class="p-3 bg-base-200 rounded-lg">
+                    <div class="flex items-center gap-2 mb-2">
+                      <div class="w-6 h-6 rounded-lg overflow-visible">
+                        <.user_avatar
+                          user={message_sender(message)}
+                          size="xs"
+                          user_statuses={@user_statuses}
+                        />
+                      </div>
+                      <span class="text-sm font-medium">
+                        {message_sender_tag(message)}
+                      </span>
+                      <span class="text-xs opacity-70">
+                        <.local_time
+                          datetime={message.inserted_at}
+                          format="datetime"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </span>
+                    </div>
+                    <p class="text-sm">{message.content}</p>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="text-center py-8">
+                <.icon name="hero-chat-bubble-left" class="w-8 h-8 mx-auto opacity-50 mb-2" />
+                <p class="text-sm opacity-70">
+                  <%= if @search.message_query == "" do %>
+                    Type to search messages
+                  <% else %>
+                    No messages found
+                  <% end %>
+                </p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-        {:noreply,
-         assign(socket, :federation_presence, Map.put(existing, remote_actor_id, presence_entry))}
-      else
-        {:noreply, socket}
-      end
-    else
-      {:noreply, socket}
-    end
-  end
+    <!-- Context Menu -->
+    <%= if @context_menu.conversation do %>
+      <div
+        class="fixed bg-base-100 border border-base-300 rounded-lg shadow-xl z-50 py-2 min-w-48 animate-fade-in"
+        style={"left: #{@context_menu.position.x}px; top: #{@context_menu.position.y}px;"}
+        phx-click-away="hide_context_menu"
+      >
+        <% member =
+          Enum.find(
+            @context_menu.conversation.members,
+            &(&1.user_id == @current_user.id and is_nil(&1.left_at))
+          ) %>
+        
+    <!-- Pin/Unpin -->
+        <%= if member && member.pinned do %>
+          <button
+            phx-click="unpin_conversation"
+            phx-value-conversation_id={@context_menu.conversation.id}
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+          >
+            <.icon name="hero-bookmark" class="w-4 h-4" /> Unpin
+          </button>
+        <% else %>
+          <button
+            phx-click="pin_conversation"
+            phx-value-conversation_id={@context_menu.conversation.id}
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+          >
+            <.icon name="hero-bookmark" class="w-4 h-4" /> Pin to Top
+          </button>
+        <% end %>
+        
+    <!-- Mark as Read -->
+        <button
+          phx-click="mark_as_read"
+          phx-value-conversation_id={@context_menu.conversation.id}
+          class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+        >
+          <.icon name="hero-envelope-open" class="w-4 h-4" /> Mark as Read
+        </button>
 
-  def handle_info({:message_pinned, message}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == message.conversation_id do
-      # Update the message's is_pinned status in the list
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == message.id do
-            %{
-              msg
-              | is_pinned: true,
-                pinned_at: message.pinned_at,
-                pinned_by_id: message.pinned_by_id
+        <div class="divider my-1"></div>
+        
+    <!-- Clear History -->
+        <button
+          phx-click="clear_history"
+          phx-value-conversation_id={@context_menu.conversation.id}
+          data-confirm="Clear your message history in this chat? This cannot be undone."
+          class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 text-warning"
+        >
+          <.icon name="hero-trash" class="w-4 h-4" /> Clear History
+        </button>
+        
+    <!-- Leave (for groups/channels) -->
+        <%= if @context_menu.conversation.type != "dm" do %>
+          <button
+            phx-click="leave_conversation"
+            data-confirm={
+              "Are you sure you want to leave this #{conversation_type_label_lower(@context_menu.conversation.type)}?"
             }
-          else
-            msg
-          end
-        end)
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 text-error"
+          >
+            <.icon name="hero-arrow-left-on-rectangle" class="w-4 h-4" />
+            Leave {conversation_type_label(@context_menu.conversation.type)}
+          </button>
+        <% end %>
+      </div>
+    <% end %>
 
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
+    <!-- Message Context Menu -->
+    <%= if @context_menu.message do %>
+      <div
+        class="fixed bg-base-100 border border-base-300 rounded-lg shadow-xl z-50 py-2 min-w-48 animate-fade-in"
+        style={"left: #{@context_menu.position.x}px; top: #{@context_menu.position.y}px;"}
+        phx-click-away="hide_message_context_menu"
+      >
+        <!-- Copy Message -->
+        <button
+          phx-click="copy_message"
+          phx-value-message_id={@context_menu.message.id}
+          class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+        >
+          <.icon name="hero-clipboard" class="w-4 h-4" /> Copy Message
+        </button>
+        
+    <!-- Reply to Message -->
+        <button
+          phx-click="reply_to_message"
+          phx-value-message_id={@context_menu.message.id}
+          class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+        >
+          <.icon name="hero-arrow-uturn-left" class="w-4 h-4" /> Reply
+        </button>
+        
+    <!-- Pin/Unpin Message -->
+        <%= if Map.get(@context_menu.message, :is_pinned, false) do %>
+          <button
+            phx-click="unpin_message"
+            phx-value-message_id={@context_menu.message.id}
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+          >
+            <.icon name="hero-bookmark-slash" class="w-4 h-4" /> Unpin Message
+          </button>
+        <% else %>
+          <button
+            phx-click="pin_message"
+            phx-value-message_id={@context_menu.message.id}
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+          >
+            <.icon name="hero-bookmark" class="w-4 h-4" /> Pin Message
+          </button>
+        <% end %>
 
-  def handle_info({:message_unpinned, message}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == message.conversation_id do
-      # Update the message's is_pinned status in the list
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == message.id do
-            %{msg | is_pinned: false, pinned_at: nil, pinned_by_id: nil}
-          else
-            msg
-          end
-        end)
+        <%= if @context_menu.message.sender_id == @current_user.id do %>
+          <div class="divider my-1"></div>
+          
+    <!-- Delete Own Message -->
+          <button
+            phx-click="delete_message"
+            phx-value-message_id={@context_menu.message.id}
+            data-confirm="Delete this message?"
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 text-error"
+          >
+            <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
+          </button>
+        <% end %>
 
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
+        <%= if @current_user.is_admin do %>
+          <div class="divider my-1"></div>
 
-  def handle_info({:reaction_added, reaction}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == reaction.message.conversation_id do
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == reaction.message.id do
-            # Check if this reaction already exists to prevent duplicates
-            existing_reaction =
-              Enum.find(msg.reactions, fn r ->
-                r.user_id == reaction.user_id and r.emoji == reaction.emoji
-              end)
+          <div class="px-4 py-1 text-xs font-bold text-warning">
+            Admin Actions
+          </div>
+          
+    <!-- Delete Message -->
+          <button
+            phx-click="delete_message_admin"
+            phx-value-message_id={@context_menu.message.id}
+            data-confirm="Delete this message?"
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 text-error"
+          >
+            <.icon name="hero-trash" class="w-4 h-4" /> Delete Message
+          </button>
 
-            if existing_reaction do
-              # Reaction already exists, don't add duplicate
-              msg
-            else
-              # Add new reaction
-              %{msg | reactions: msg.reactions ++ [reaction]}
-            end
-          else
-            msg
-          end
-        end)
+          <%= if is_integer(@context_menu.message.sender_id) do %>
+            <!-- Timeout User -->
+            <button
+              phx-click="timeout_user"
+              phx-value-user_id={@context_menu.message.sender_id}
+              phx-value-duration="300"
+              class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 text-warning"
+            >
+              <.icon name="hero-clock" class="w-4 h-4" /> Timeout User (5min)
+            </button>
+            
+    <!-- Timeout User 1hr -->
+            <button
+              phx-click="timeout_user"
+              phx-value-user_id={@context_menu.message.sender_id}
+              phx-value-duration="3600"
+              class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2 text-warning"
+            >
+              <.icon name="hero-clock" class="w-4 h-4" /> Timeout User (1hr)
+            </button>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
 
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
+    <!-- User Profile Modal -->
+    <%= if @ui.show_profile_modal && @profile_user do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+          phx-click-away="hide_profile_modal"
+        >
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">User Profile</h2>
+            <button phx-click="hide_profile_modal" class="btn btn-ghost btn-sm">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
+          
+    <!-- User Info -->
+          <div class="text-center mb-6">
+            <button
+              data-external-link={
+                if @profile_user.profile,
+                  do: "https://#{@profile_user.handle || @profile_user.username}.z.org",
+                  else: "/#{@profile_user.handle || @profile_user.username}"
+              }
+              class="avatar mb-4 cursor-pointer"
+              title="View full profile"
+            >
+              <div class="w-20 h-20 rounded-lg">
+                <.user_avatar user={@profile_user} size="2xl" />
+              </div>
+            </button>
 
-  def handle_info({:reaction_removed, reaction}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == reaction.message.conversation_id do
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == reaction.message.id do
-            reactions = Enum.reject(msg.reactions, &(&1.id == reaction.id))
-            %{msg | reactions: reactions}
-          else
-            msg
-          end
-        end)
+            <h3 class="text-lg font-medium">
+              <.username_with_effects user={@profile_user} display_name={true} verified_size="md" />
+            </h3>
+            <p class="text-sm opacity-70 mb-4">{user_at_handle(@profile_user)}</p>
 
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
+            <%= if Ecto.assoc_loaded?(@profile_user.profile) && @profile_user.profile && @profile_user.profile.description do %>
+              <div class="bg-base-200 rounded-lg p-3 mb-4">
+                <p class="text-sm">{@profile_user.profile.description}</p>
+              </div>
+            <% end %>
 
-  def handle_info({:message_link_preview_updated, updated_message}, socket) do
-    if socket.assigns.conversation.selected &&
-         socket.assigns.conversation.selected.id == updated_message.conversation_id do
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == updated_message.id do
-            %{msg | link_preview: updated_message.link_preview}
-          else
-            msg
-          end
-        end)
+            <%= if Ecto.assoc_loaded?(@profile_user.profile) && @profile_user.profile && @profile_user.profile.location do %>
+              <div class="flex items-center justify-center gap-2 mb-4">
+                <.icon name="hero-map-pin" class="w-4 h-4 opacity-70" />
+                <span class="text-sm opacity-70">{@profile_user.profile.location}</span>
+              </div>
+            <% end %>
+          </div>
+          
+    <!-- Action Buttons -->
+          <div class="space-y-3">
+            <!-- View Full Profile -->
+            <button
+              data-external-link={
+                if @profile_user.profile,
+                  do: "https://#{@profile_user.handle || @profile_user.username}.z.org",
+                  else: "/#{@profile_user.handle || @profile_user.username}"
+              }
+              class="btn btn-ghost w-full"
+            >
+              <.icon name="hero-user" class="w-4 h-4 mr-2" /> View Full Profile
+            </button>
 
-      {:noreply, assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
+            <%= if @profile_user.id != @current_user.id do %>
+              <!-- Start DM -->
+              <button
+                phx-click="start_dm"
+                phx-value-user_id={@profile_user.id}
+                class="btn btn-secondary w-full"
+              >
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-2" /> Send Message
+              </button>
+              
+    <!-- Block/Unblock User -->
+              <%= if Elektrine.Accounts.user_blocked?(@current_user.id, @profile_user.id) do %>
+                <button
+                  phx-click="unblock_user"
+                  phx-value-user_id={@profile_user.id}
+                  class="btn btn-success btn-ghost w-full"
+                >
+                  <.icon name="hero-check" class="w-4 h-4 mr-2" /> Unblock User
+                </button>
+              <% else %>
+                <button
+                  phx-click="block_user"
+                  phx-value-user_id={@profile_user.id}
+                  class="btn btn-secondary btn-ghost w-full"
+                  data-confirm="Are you sure you want to block this user?"
+                >
+                  <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Block User
+                </button>
+              <% end %>
+              
+    <!-- Report User -->
+              <button
+                phx-click="show_report_modal"
+                phx-value-type="user"
+                phx-value-id={@profile_user.id}
+                class="btn btn-warning btn-ghost w-full"
+              >
+                <.icon name="hero-flag" class="w-4 h-4 mr-2" /> Report User
+              </button>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-  def handle_info({:notification_count_updated, new_count}, socket) do
-    {:noreply, assign(socket, :notification_count, new_count)}
-  end
+    <!-- Browse Network Modal -->
+    <%= if @ui.show_browse_modal do %>
+      <div class="modal modal-open">
+        <div
+          class="modal-box card glass-card w-[95vw] max-w-6xl mx-4 max-h-[85vh] overflow-hidden"
+          phx-click-away="hide_browse_modal"
+        >
+          <div class="flex items-center justify-between p-4 border-b border-base-300">
+            <h2 class="text-xl font-bold">Explore Servers and Groups</h2>
+            <button phx-click="hide_browse_modal" class="btn btn-ghost btn-sm">
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
 
-  # Call-related PubSub messages
-  def handle_info({:incoming_call, call}, socket) do
-    # Deduplicate - ignore if already showing this call
-    if socket.assigns.call && socket.assigns.call.incoming_call &&
-         socket.assigns.call.incoming_call.id == call.id do
-      {:noreply, socket}
-    else
-      # Reload call with user data if not already loaded
-      call =
-        if Ecto.assoc_loaded?(call.caller) do
-          call
-        else
-          Elektrine.Calls.get_call_with_users(call.id)
-        end
+          <div class="p-4">
+            <!-- Tab Navigation -->
+            <div class="tabs tabs-bordered mb-4">
+              <button
+                phx-click="browse_tab"
+                phx-value-tab="servers"
+                class={["tab", @browse.tab == "servers" && "tab-active"]}
+              >
+                <.icon name="hero-globe-alt" class="w-4 h-4 mr-2" /> Servers
+              </button>
+              <button
+                phx-click="browse_tab"
+                phx-value-tab="groups"
+                class={["tab", @browse.tab == "groups" && "tab-active"]}
+              >
+                <.icon name="hero-users" class="w-4 h-4 mr-2" /> Public Groups
+              </button>
+            </div>
+            
+    <!-- Search Bar -->
+            <div class="mb-4">
+              <input
+                type="text"
+                placeholder={
+                  case @browse.tab do
+                    "servers" -> "Search servers..."
+                    _ -> "Search groups..."
+                  end
+                }
+                class="input input-bordered w-full"
+                value={@search.browse_query}
+                phx-debounce="300"
+                phx-change="browse_search"
+                name="search"
+              />
+            </div>
+            
+    <!-- Content Area -->
+            <div class="max-h-96 overflow-y-auto">
+              <%= if @browse.tab == "servers" do %>
+                <%= if @browse.filtered_servers == [] do %>
+                  <div class="text-center py-8">
+                    <.icon name="hero-globe-alt" class="w-8 h-8 mx-auto opacity-50 mb-2" />
+                    <p class="text-sm opacity-70">No servers found</p>
+                    <p class="text-xs opacity-50">Check back soon for newly shared servers.</p>
+                  </div>
+                <% else %>
+                  <div class="space-y-2">
+                    <%= for server <- @browse.filtered_servers do %>
+                      <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2">
+                            <.icon name="hero-globe-alt" class="w-4 h-4 opacity-70" />
+                            <p class="font-medium text-sm truncate">{server.name}</p>
+                            <%= if server.is_federated_mirror do %>
+                              <span class="badge badge-secondary badge-xs">
+                                From another server
+                              </span>
+                            <% end %>
+                          </div>
+                          <%= if server.description do %>
+                            <p class="text-xs opacity-70 truncate mt-1">{server.description}</p>
+                          <% end %>
+                          <div class="flex items-center gap-4 mt-1">
+                            <span class="text-xs opacity-60">
+                              {server.member_count} members
+                            </span>
+                            <span class="text-xs opacity-60">
+                              {if server.origin_domain,
+                                do: "from #{server.origin_domain}",
+                                else: "created here"}
+                            </span>
+                            <span class="text-xs opacity-60">
+                              {if server.creator,
+                                do: "by @#{server.creator.username}",
+                                else: "shared server"}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          phx-click="join_server"
+                          phx-value-server_id={server.id}
+                          class="btn btn-primary btn-sm"
+                        >
+                          Join Server
+                        </button>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              <% else %>
+                <%= if @browse.filtered_groups == [] do %>
+                  <div class="text-center py-8">
+                    <.icon name="hero-users" class="w-8 h-8 mx-auto opacity-50 mb-2" />
+                    <p class="text-sm opacity-70">No public groups found</p>
+                    <p class="text-xs opacity-50">Create the first public group chat.</p>
+                  </div>
+                <% else %>
+                  <div class="space-y-2">
+                    <%= for group <- @browse.filtered_groups do %>
+                      <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2">
+                            <.icon name="hero-users" class="w-4 h-4 opacity-70" />
+                            <p class="font-medium text-sm truncate">{group.name}</p>
+                          </div>
+                          <%= if group.description do %>
+                            <p class="text-xs opacity-70 truncate mt-1">{group.description}</p>
+                          <% end %>
+                          <div class="flex items-center gap-4 mt-1">
+                            <span class="text-xs opacity-60">
+                              {group.member_count} members
+                            </span>
+                            <span class="text-xs opacity-60">
+                              by {user_at_handle(group.creator)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          phx-click="join_group"
+                          phx-value-group_id={group.id}
+                          class="btn btn-primary btn-sm"
+                        >
+                          Join Group
+                        </button>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-      socket =
-        socket
-        |> assign(:call, %{socket.assigns.call | incoming_call: call, status: "ringing"})
-        |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, true))
-        |> push_event("play_incoming_ringtone", %{})
+    <!-- Member Management Modal -->
+    <%= if assigns[:show_member_management] && @ui.show_member_management do %>
+      <div
+        class="modal modal-open"
+        phx-click="hide_member_management"
+      >
+        <div
+          class="card glass-card bg-base-100 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+          phx-click="ignore"
+        >
+          <div class="p-6 border-b border-base-300">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold flex items-center">
+                <.icon name="hero-users" class="w-5 h-5 mr-2" /> Manage Members
+              </h3>
+              <button
+                phx-click="hide_member_management"
+                class="btn btn-ghost btn-sm btn-circle"
+              >
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-      {:noreply, socket}
-    end
-  end
+          <div class="overflow-y-auto max-h-96 p-6">
+            <%= if @conversation.selected && @conversation.selected.members do %>
+              <div class="space-y-3">
+                <%= for member <- @conversation.selected.members do %>
+                  <%= if is_nil(member.left_at) do %>
+                    <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
+                      <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full overflow-visible">
+                          <.user_avatar user={member.user} size="sm" user_statuses={@user_statuses} />
+                        </div>
+                        <div>
+                          <p class="font-medium">
+                            <.username_with_effects
+                              user={member.user}
+                              display_name={true}
+                              verified_size="xs"
+                            />
+                          </p>
+                          <p class="text-sm opacity-70">
+                            {user_at_handle(member.user)}
+                          </p>
+                          <%= if member.user.is_admin do %>
+                            <div class="badge badge-warning badge-xs">Admin</div>
+                          <% end %>
+                          <%= if member.role == "admin" do %>
+                            <div class="badge badge-error badge-xs">Chat Admin</div>
+                          <% end %>
+                        </div>
+                      </div>
 
-  def handle_info({:call_rejected, call}, socket) do
-    # Deduplication key
-    event_key = {"call_rejected", call.id}
+                      <%= if (@current_user.is_admin or Helpers.conversation_admin?(@conversation.selected, @current_user)) && member.user_id != @current_user.id do %>
+                        <div class="flex gap-2">
+                          <%= if Map.get(@moderation.user_timeout_status, member.user_id, false) do %>
+                            <button
+                              phx-click="remove_timeout_user"
+                              phx-value-user_id={member.user_id}
+                              class="btn btn-xs btn-success"
+                              title="Remove Timeout"
+                            >
+                              <.icon name="hero-clock" class="w-3 h-3" />
+                            </button>
+                          <% else %>
+                            <div class="dropdown dropdown-end">
+                              <button tabindex="0" class="btn btn-xs btn-warning">
+                                <.icon name="hero-shield-exclamation" class="w-3 h-3" />
+                              </button>
+                              <ul
+                                tabindex="0"
+                                class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-36 z-30"
+                              >
+                                <li>
+                                  <button
+                                    phx-click="timeout_user"
+                                    phx-value-user_id={member.user_id}
+                                    phx-value-duration="300"
+                                    class="text-xs"
+                                  >
+                                    Timeout 5min
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    phx-click="timeout_user"
+                                    phx-value-user_id={member.user_id}
+                                    phx-value-duration="3600"
+                                    class="text-xs"
+                                  >
+                                    Timeout 1hr
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
+                          <% end %>
 
-    # Check if we already processed this event
-    if MapSet.member?(socket.assigns.processed_call_events, event_key) do
-      {:noreply, socket}
-    else
-      # Only process if this LiveView has the call (not just subscribed)
-      has_incoming =
-        socket.assigns.call && socket.assigns.call.incoming_call &&
-          socket.assigns.call.incoming_call.id == call.id
+                          <button
+                            phx-click="kick_user"
+                            phx-value-user_id={member.user_id}
+                            class="btn btn-xs btn-secondary"
+                            data-confirm="Are you sure you want to kick this user?"
+                            title="Kick User"
+                          >
+                            <.icon name="hero-user-minus" class="w-3 h-3" />
+                          </button>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-      has_active =
-        socket.assigns.call && socket.assigns.call.active_call &&
-          socket.assigns.call.active_call.id == call.id
+    <!-- Moderation Log Modal -->
+    <%= if assigns[:show_moderation_log] && @ui.show_moderation_log do %>
+      <div
+        class="modal modal-open"
+        phx-click="hide_moderation_log"
+      >
+        <div
+          class="card glass-card bg-base-100 rounded-xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
+          phx-click="ignore"
+        >
+          <div class="p-6 border-b border-base-300">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold flex items-center">
+                <.icon name="hero-clipboard-document-list" class="w-5 h-5 mr-2" /> Moderation Log
+              </h3>
+              <button
+                phx-click="hide_moderation_log"
+                class="btn btn-ghost btn-sm btn-circle"
+              >
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-      # Mark as processed
-      processed = MapSet.put(socket.assigns.processed_call_events, event_key)
+          <div class="overflow-y-auto max-h-96 p-6">
+            <%= if @moderation.log == [] do %>
+              <div class="text-center py-8 opacity-70">
+                <.icon name="hero-clipboard-document-list" class="w-16 h-16 mx-auto mb-4" />
+                <p>No moderation actions recorded</p>
+              </div>
+            <% else %>
+              <div class="space-y-3">
+                <%= for action <- @moderation.log do %>
+                  <div class="flex items-start gap-4 p-4 bg-base-200 rounded-lg">
+                    <div class="flex-shrink-0">
+                      <%= case action.action_type do %>
+                        <% "timeout" -> %>
+                          <div class="w-8 h-8 bg-warning/20 rounded-lg flex items-center justify-center">
+                            <.icon name="hero-clock" class="w-4 h-4 text-warning" />
+                          </div>
+                        <% "kick" -> %>
+                          <div class="w-8 h-8 bg-error/20 rounded-lg flex items-center justify-center">
+                            <.icon name="hero-user-minus" class="w-4 h-4 text-error" />
+                          </div>
+                        <% "delete_message" -> %>
+                          <div class="w-8 h-8 bg-error/20 rounded-lg flex items-center justify-center">
+                            <.icon name="hero-trash" class="w-4 h-4 text-error" />
+                          </div>
+                        <% _ -> %>
+                          <div class="w-8 h-8 bg-base-300 rounded-lg flex items-center justify-center">
+                            <.icon name="hero-shield-exclamation" class="w-4 h-4" />
+                          </div>
+                      <% end %>
+                    </div>
 
-      if has_incoming || has_active do
-        cleared_call_state =
-          socket.assigns.call
-          |> Map.put(:incoming_call, nil)
-          |> Map.put(:active_call, nil)
-          |> Map.put(:status, nil)
-          |> Map.put(:audio_enabled, true)
-          |> Map.put(:video_enabled, true)
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="font-medium">{String.capitalize(action.action_type)}</span>
+                        <span class="text-sm opacity-70">
+                          <.local_time
+                            datetime={action.inserted_at}
+                            format="datetime"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </span>
+                      </div>
 
-        socket =
-          socket
-          |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-          |> assign(:call, cleared_call_state)
-          |> assign(:processed_call_events, processed)
-          |> push_event("stop_ringtone", %{})
-          |> notify_info("Call was rejected")
+                      <p class="text-sm mb-2">
+                        <span class="font-medium">{action.moderator.username}</span>
+                        {action.action_type}ed
+                        <span class="font-medium">
+                          {action.target_user.handle || action.target_user.username}
+                        </span>
+                        <%= if action.conversation do %>
+                          in chat <span class="font-medium">#{action.conversation.name}</span>
+                        <% end %>
+                        <%= if action.duration do %>
+                          for
+                          <span class="font-medium">
+                            {Helpers.format_duration(action.duration)}
+                          </span>
+                        <% end %>
+                      </p>
 
-        {:noreply, socket}
-      else
-        {:noreply, assign(socket, :processed_call_events, processed)}
-      end
-    end
-  end
+                      <%= if action.reason do %>
+                        <p class="text-sm opacity-70">
+                          <span class="font-medium">Reason:</span> {action.reason}
+                        </p>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
 
-  def handle_info({:call_ended, call}, socket) do
-    # Deduplication key
-    event_key = {"call_ended", call.id}
+    <!-- Report Modal -->
+    <%= if @show_report_modal do %>
+      <.live_component
+        module={ElektrineWeb.Components.ReportModal}
+        id="report-modal"
+        reporter_id={@current_user.id}
+        reportable_type={@report_type}
+        reportable_id={@report_id}
+        additional_metadata={@report_metadata}
+      />
+    <% end %>
 
-    # Check if we already processed this event
-    if MapSet.member?(socket.assigns.processed_call_events, event_key) do
-      {:noreply, socket}
-    else
-      # Only process if this LiveView has the call (not just subscribed)
-      has_incoming =
-        socket.assigns.call && socket.assigns.call.incoming_call &&
-          socket.assigns.call.incoming_call.id == call.id
+    <%= if @call.incoming_call do %>
+      <.incoming_call_modal call={@call.incoming_call} show={@ui.show_incoming_call} />
+    <% end %>
 
-      has_active =
-        socket.assigns.call && socket.assigns.call.active_call &&
-          socket.assigns.call.active_call.id == call.id
-
-      # Mark as processed
-      processed = MapSet.put(socket.assigns.processed_call_events, event_key)
-
-      if has_incoming || has_active do
-        cleared_call_state =
-          socket.assigns.call
-          |> Map.put(:incoming_call, nil)
-          |> Map.put(:active_call, nil)
-          |> Map.put(:status, nil)
-          |> Map.put(:audio_enabled, true)
-          |> Map.put(:video_enabled, true)
-
-        socket =
-          socket
-          |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-          |> assign(:call, cleared_call_state)
-          |> assign(:processed_call_events, processed)
-          |> push_event("stop_ringtone", %{})
-          |> notify_info("Call ended")
-
-        {:noreply, socket}
-      else
-        {:noreply, assign(socket, :processed_call_events, processed)}
-      end
-    end
-  end
-
-  def handle_info({:call_missed, call}, socket) do
-    # Deduplication key
-    event_key = {"call_missed", call.id}
-
-    # Check if we already processed this event
-    if MapSet.member?(socket.assigns.processed_call_events, event_key) do
-      {:noreply, socket}
-    else
-      # Only process if this LiveView has the call (not just subscribed)
-      has_incoming =
-        socket.assigns.call && socket.assigns.call.incoming_call &&
-          socket.assigns.call.incoming_call.id == call.id
-
-      has_active =
-        socket.assigns.call && socket.assigns.call.active_call &&
-          socket.assigns.call.active_call.id == call.id
-
-      # Mark as processed
-      processed = MapSet.put(socket.assigns.processed_call_events, event_key)
-
-      if has_incoming || has_active do
-        cleared_call_state =
-          socket.assigns.call
-          |> Map.put(:incoming_call, nil)
-          |> Map.put(:active_call, nil)
-          |> Map.put(:status, nil)
-          |> Map.put(:audio_enabled, true)
-          |> Map.put(:video_enabled, true)
-
-        socket =
-          socket
-          |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-          |> assign(:call, cleared_call_state)
-          |> assign(:processed_call_events, processed)
-          |> push_event("stop_ringtone", %{})
-          |> notify_info("Call timed out")
-
-        {:noreply, socket}
-      else
-        {:noreply, assign(socket, :processed_call_events, processed)}
-      end
-    end
-  end
-
-  def handle_info(_info, socket) do
-    {:noreply, socket}
+    <%= if @call.active_call do %>
+      <.active_call_overlay
+        call={@call.active_call}
+        show={true}
+        audio_enabled={@call.audio_enabled}
+        video_enabled={@call.video_enabled}
+        call_status={@call.status}
+        is_caller={@call.active_call.caller_id == @current_user.id}
+      />
+    <% end %>
+    <!-- Image Modal -->
+    <% modal_is_liked = @modal_post && Map.get(assigns[:user_likes] || %{}, @modal_post.id, false)
+    modal_like_count = (@modal_post && @modal_post.like_count) || 0 %>
+    <.image_modal
+      show={@show_image_modal}
+      image_url={@modal_image_url}
+      images={@modal_images}
+      image_index={@modal_image_index}
+      post={@modal_post}
+      timezone={@timezone}
+      time_format={@time_format}
+      current_user={@current_user}
+      is_liked={modal_is_liked}
+      like_count={modal_like_count}
+    />
+    """
   end
 
   @impl true
@@ -1828,11 +2460,6 @@ defmodule ElektrineWeb.ChatLive.Index do
     # Clean up any active calls when user disconnects
     if socket.assigns.call && socket.assigns.call.active_call do
       Elektrine.Calls.end_call(socket.assigns.call.active_call.id)
-    end
-
-    # Also force cleanup any hanging calls for this user
-    if socket.assigns[:current_user] do
-      Elektrine.Jobs.StaleCallCleanup.cleanup_user_calls(socket.assigns.current_user.id)
     end
 
     :ok
@@ -1846,6 +2473,109 @@ defmodule ElektrineWeb.ChatLive.Index do
       assign(socket, :refresh_conversations_scheduled, true)
     end
   end
+
+  defp open_conversation(socket, conversation) do
+    conversation_id = conversation.id
+    active_server_id = conversation_server_id(conversation) || socket.assigns[:active_server_id]
+    federation_presence = presence_map_for_server(active_server_id)
+
+    current_unread_counts = socket.assigns.conversation.unread_counts || %{}
+    updated_unread_counts = Map.put(current_unread_counts, conversation_id, 0)
+
+    current_member =
+      Enum.find(
+        conversation.members,
+        &(&1.user_id == socket.assigns.current_user.id and is_nil(&1.left_at))
+      )
+
+    can_send =
+      current_member &&
+        Elektrine.Messaging.ConversationMember.can_send_messages?(current_member)
+
+    updated_socket =
+      socket
+      |> maybe_update_conversation_subscriptions(conversation_id)
+      |> assign(:conversation, %{
+        socket.assigns.conversation
+        | selected: conversation,
+          unread_counts: updated_unread_counts,
+          filtered:
+            refresh_conversation_filter(
+              socket.assigns.conversation.list,
+              socket.assigns.search.conversation_query,
+              socket.assigns.current_user.id,
+              active_server_id
+            )
+      })
+      |> assign(:active_server_id, active_server_id)
+      |> assign(:federation_presence, federation_presence)
+      |> assign(:messages, [])
+      |> assign(:message, %{
+        socket.assigns.message
+        | read_status: %{},
+          typing_users: []
+      })
+      |> assign(:moderation, %{
+        socket.assigns.moderation
+        | user_timeout_status: %{}
+      })
+      |> assign(:can_send_messages, can_send)
+      |> assign(:first_unread_message_id, nil)
+      |> assign(:typing_timer, nil)
+      |> assign(:has_more_older_messages, false)
+      |> assign(:has_more_newer_messages, false)
+      |> assign(:oldest_message_id, nil)
+      |> assign(:newest_message_id, nil)
+      |> assign(:loading_older_messages, false)
+      |> assign(:loading_newer_messages, false)
+      |> assign(:initial_messages_loading, true)
+
+    if connected?(updated_socket) do
+      send(self(), {:load_conversation_messages, conversation_id})
+    end
+
+    updated_socket
+  end
+
+  defp maybe_update_conversation_subscriptions(socket, conversation_id) do
+    if connected?(socket) do
+      previous_conversation_id =
+        socket.assigns.conversation.selected && socket.assigns.conversation.selected.id
+
+      if is_integer(previous_conversation_id) and previous_conversation_id != conversation_id do
+        Phoenix.PubSub.unsubscribe(Elektrine.PubSub, "conversation:#{previous_conversation_id}")
+        Phoenix.PubSub.unsubscribe(Elektrine.PubSub, "chat:#{previous_conversation_id}")
+      end
+
+      if previous_conversation_id != conversation_id do
+        Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{conversation_id}")
+        Phoenix.PubSub.subscribe(Elektrine.PubSub, "chat:#{conversation_id}")
+      end
+    end
+
+    socket
+  end
+
+  defp messages_with_date_separators(messages) when is_list(messages) do
+    {entries, _last_date} =
+      Enum.reduce(messages, {[], nil}, fn message, {acc, previous_date} ->
+        current_date = message_inserted_date(message)
+        show_separator = is_nil(previous_date) or Date.compare(current_date, previous_date) != :eq
+        {[{message, show_separator} | acc], current_date}
+      end)
+
+    Enum.reverse(entries)
+  end
+
+  defp messages_with_date_separators(_), do: []
+
+  defp message_inserted_date(%{inserted_at: %NaiveDateTime{} = inserted_at}),
+    do: NaiveDateTime.to_date(inserted_at)
+
+  defp message_inserted_date(%{inserted_at: %DateTime{} = inserted_at}),
+    do: DateTime.to_date(inserted_at)
+
+  defp message_inserted_date(_), do: Date.utc_today()
 
   defp update_conversation_preview(socket, message) do
     conversations = socket.assigns.conversation.list

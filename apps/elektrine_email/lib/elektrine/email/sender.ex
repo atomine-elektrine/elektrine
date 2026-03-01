@@ -358,6 +358,8 @@ defmodule Elektrine.Email.Sender do
           |> Map.put(:text_body, text_body)
           |> Map.put(:html_body, html_body)
           |> Map.put(:attachments, attachments)
+          |> put_if_present(:in_reply_to, extract_raw_header_from_email(raw_email, "In-Reply-To"))
+          |> put_if_present(:references, extract_raw_header_from_email(raw_email, "References"))
         rescue
           e ->
             Logger.warning(
@@ -400,6 +402,8 @@ defmodule Elektrine.Email.Sender do
     |> Map.delete("raw_email")
     |> Map.put(:subject, subject)
     |> Map.put(:text_body, body || params[:text_body] || params["text_body"])
+    |> put_if_present(:in_reply_to, extract_raw_header_from_email(raw_email, "In-Reply-To"))
+    |> put_if_present(:references, extract_raw_header_from_email(raw_email, "References"))
   end
 
   # Extract raw Subject line from email data for debugging
@@ -414,6 +418,37 @@ defmodule Elektrine.Email.Sender do
 
       _ ->
         nil
+    end
+  end
+
+  defp extract_raw_header_from_email(raw_email, header_name) when is_binary(raw_email) do
+    pattern =
+      ~r/^#{Regex.escape(header_name)}:\s*(.+?)(?:\r?\n(?!\s)|\r?\n\r?\n)/ims
+
+    case Regex.run(pattern, raw_email) do
+      [_, header_value] ->
+        header_value
+        |> String.replace(~r/\r?\n\s+/, " ")
+        |> String.trim()
+        |> case do
+          "" -> nil
+          value -> value
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp extract_raw_header_from_email(_, _), do: nil
+
+  defp put_if_present(params, _key, value) when not is_binary(value), do: params
+
+  defp put_if_present(params, key, value) do
+    if String.trim(value) == "" do
+      params
+    else
+      Map.put(params, key, value)
     end
   end
 
@@ -611,6 +646,13 @@ defmodule Elektrine.Email.Sender do
       email =
         if params[:in_reply_to] do
           header(email, "In-Reply-To", params[:in_reply_to])
+        else
+          email
+        end
+
+      email =
+        if params[:references] do
+          header(email, "References", params[:references])
         else
           email
         end
@@ -1001,6 +1043,8 @@ defmodule Elektrine.Email.Sender do
       subject: email_params[:subject],
       text_body: email_params[:text_body],
       html_body: email_params[:html_body],
+      in_reply_to: email_params[:in_reply_to],
+      references: email_params[:references],
       attachments: attachments_to_store,
       mailbox_id: sender_mailbox_id,
       status: "sent",
@@ -1047,6 +1091,8 @@ defmodule Elektrine.Email.Sender do
       subject: email_params[:subject],
       text_body: email_params[:text_body],
       html_body: email_params[:html_body],
+      in_reply_to: email_params[:in_reply_to],
+      references: email_params[:references],
       # Use S3 metadata if provided
       attachments: db_attachments || email_params[:attachments],
       mailbox_id: sender_mailbox_id,
@@ -1136,6 +1182,8 @@ defmodule Elektrine.Email.Sender do
           subject: email_params[:subject],
           text_body: email_params[:text_body],
           html_body: email_params[:html_body],
+          in_reply_to: email_params[:in_reply_to],
+          references: email_params[:references],
           attachments: attachments_to_store,
           mailbox_id: recipient_mailbox.id,
           status: "received",
@@ -1370,6 +1418,8 @@ defmodule Elektrine.Email.Sender do
             subject: email_params[:subject],
             text_body: email_params[:text_body],
             html_body: email_params[:html_body],
+            in_reply_to: email_params[:in_reply_to],
+            references: email_params[:references],
             attachments: attachments_to_store,
             mailbox_id: recipient_mailbox.id,
             status: "received",
@@ -1472,6 +1522,8 @@ defmodule Elektrine.Email.Sender do
       subject: email_params[:subject],
       text_body: email_params[:text_body],
       html_body: email_params[:html_body],
+      in_reply_to: email_params[:in_reply_to],
+      references: email_params[:references],
       attachments: attachments_to_store,
       mailbox_id: sender_mailbox_id,
       status: "received",

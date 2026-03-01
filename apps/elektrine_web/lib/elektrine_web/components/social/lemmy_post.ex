@@ -83,8 +83,9 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
     # Use thumbnail version for small display (80x80)
     image_url = if has_image, do: thumbnail_url(hd(image_urls), 96), else: nil
 
-    # Get title from metadata if available
-    title = get_in(assigns.post.media_metadata || %{}, ["name"])
+    # Resolve title with stable fallbacks. Some federated community posts persist title on
+    # the message while others only expose it via metadata.
+    title = resolve_federated_title(assigns.post)
 
     # Get community info
     community_uri = get_in(assigns.post.media_metadata || %{}, ["community_actor_uri"])
@@ -413,4 +414,27 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
 
   defp format_reactions(reactions, user_id),
     do: PostUtilities.format_reactions(reactions, user_id)
+
+  defp resolve_federated_title(post) when is_map(post) do
+    metadata = Map.get(post, :media_metadata) || %{}
+
+    [
+      Map.get(post, :title),
+      Map.get(post, "title"),
+      Map.get(metadata, "name"),
+      Map.get(metadata, :name),
+      Map.get(metadata, "title"),
+      Map.get(metadata, :title)
+    ]
+    |> Enum.find_value(&normalize_title/1)
+  end
+
+  defp resolve_federated_title(_), do: nil
+
+  defp normalize_title(title) when is_binary(title) do
+    title = String.trim(title)
+    if title == "", do: nil, else: title
+  end
+
+  defp normalize_title(_), do: nil
 end

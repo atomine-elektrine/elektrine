@@ -389,201 +389,207 @@ defmodule ElektrineWeb.EmailLive.Index do
     user = socket.assigns.current_user
     per_page = 20
 
-    case tab do
-      "inbox" ->
-        filter = params["filter"] || "inbox"
+    socket =
+      case tab do
+        "inbox" ->
+          filter = params["filter"] || "inbox"
 
-        socket =
-          if filter == "aliases" do
-            # Handle aliases specially - no pagination needed
-            aliases = Email.list_aliases(user.id)
-            alias_changeset = Email.change_alias(%Email.Alias{})
-            mailbox_changeset = Email.change_mailbox_forwarding(mailbox)
+          socket =
+            if filter == "aliases" do
+              # Handle aliases specially - no pagination needed
+              aliases = Email.list_aliases(user.id)
+              alias_changeset = Email.change_alias(%Email.Alias{})
+              mailbox_changeset = Email.change_mailbox_forwarding(mailbox)
 
-            socket
-            |> assign(:aliases, aliases)
-            |> assign(:alias_form, to_form(alias_changeset))
-            |> assign(:mailbox_form, to_form(mailbox_changeset))
-            |> assign(:messages, [])
-            |> assign(:pagination, %{
-              page: 1,
-              per_page: per_page,
-              total_count: 0,
-              total_pages: 0,
-              has_next: false,
-              has_prev: false
-            })
-          else
-            pagination = load_inbox_messages_paginated(mailbox.id, filter, page, per_page)
+              socket
+              |> assign(:aliases, aliases)
+              |> assign(:alias_form, to_form(alias_changeset))
+              |> assign(:mailbox_form, to_form(mailbox_changeset))
+              |> assign(:messages, [])
+              |> assign(:pagination, %{
+                page: 1,
+                per_page: per_page,
+                total_count: 0,
+                total_pages: 0,
+                has_next: false,
+                has_prev: false
+              })
+            else
+              pagination = load_inbox_messages_paginated(mailbox.id, filter, page, per_page)
 
-            socket
-            |> assign(:messages, pagination.messages)
-            |> assign(:pagination, pagination)
-          end
+              socket
+              |> assign(:messages, pagination.messages)
+              |> assign(:pagination, pagination)
+            end
 
-        socket
-        |> assign(:current_filter, filter)
+          socket
+          |> assign(:current_filter, filter)
 
-      "sent" ->
-        pagination = Email.list_sent_messages_paginated(mailbox.id, page, per_page)
+        "sent" ->
+          pagination = Email.list_sent_messages_paginated(mailbox.id, page, per_page)
 
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
+          socket
+          |> assign(:messages, pagination.messages)
+          |> assign(:pagination, pagination)
 
-      "drafts" ->
-        pagination = Email.list_drafts_messages_paginated(mailbox.id, page, per_page)
+        "drafts" ->
+          pagination = Email.list_drafts_messages_paginated(mailbox.id, page, per_page)
 
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
+          socket
+          |> assign(:messages, pagination.messages)
+          |> assign(:pagination, pagination)
 
-      "spam" ->
-        pagination = Email.list_spam_messages_paginated(mailbox.id, page, per_page)
+        "spam" ->
+          pagination = Email.list_spam_messages_paginated(mailbox.id, page, per_page)
 
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
+          socket
+          |> assign(:messages, pagination.messages)
+          |> assign(:pagination, pagination)
 
-      "trash" ->
-        pagination = Email.list_trash_messages_paginated(mailbox.id, page, per_page)
+        "trash" ->
+          pagination = Email.list_trash_messages_paginated(mailbox.id, page, per_page)
 
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
+          socket
+          |> assign(:messages, pagination.messages)
+          |> assign(:pagination, pagination)
 
-      "archive" ->
-        pagination = Email.list_archived_messages_paginated(mailbox.id, page, per_page)
+        "archive" ->
+          pagination = Email.list_archived_messages_paginated(mailbox.id, page, per_page)
 
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
+          socket
+          |> assign(:messages, pagination.messages)
+          |> assign(:pagination, pagination)
 
-      "search" ->
-        query = params["q"] || ""
+        "search" ->
+          query = params["q"] || ""
 
-        results =
-          if String.trim(query) != "" do
-            Email.search_messages(mailbox.id, query, page, per_page)
-          else
-            %{
-              messages: [],
-              total_count: 0,
-              page: page,
-              per_page: per_page,
-              total_pages: 0,
-              has_next: false,
-              has_prev: false
-            }
-          end
+          results =
+            if String.trim(query) != "" do
+              Email.search_messages(mailbox.id, query, page, per_page)
+            else
+              %{
+                messages: [],
+                total_count: 0,
+                page: page,
+                per_page: per_page,
+                total_pages: 0,
+                has_next: false,
+                has_prev: false
+              }
+            end
 
-        socket
-        |> assign(:search_query, query)
-        |> assign(:search_results, results)
-        |> assign(:messages, results.messages || [])
-        |> assign(:pagination, results)
-        |> assign(:selected_messages, [])
-        |> assign(:select_all, false)
+          socket
+          |> assign(:search_query, query)
+          |> assign(:search_results, results)
+          |> assign(:messages, results.messages || [])
+          |> assign(:pagination, results)
+          |> assign(:selected_messages, [])
+          |> assign(:select_all, false)
 
-      "contacts" ->
-        socket
-        |> assign(:contacts, Elektrine.Email.Contacts.list_contacts(user.id))
-        |> assign(:groups, Elektrine.Email.Contacts.list_contact_groups(user.id))
-        |> assign(:contact_search_query, "")
-        |> assign(:filter_group_id, nil)
-        |> assign(:show_contact_modal, false)
-        |> assign(:editing_contact, nil)
-        |> assign(:show_group_modal, false)
-        |> assign(:editing_group, nil)
-        |> assign(:messages, [])
-        |> assign(:pagination, %{
-          page: 1,
-          per_page: per_page,
-          total_count: 0,
-          total_pages: 0,
-          has_next: false,
-          has_prev: false
-        })
+        "contacts" ->
+          socket
+          |> assign(:contacts, Elektrine.Email.Contacts.list_contacts(user.id))
+          |> assign(:groups, Elektrine.Email.Contacts.list_contact_groups(user.id))
+          |> assign(:contact_search_query, "")
+          |> assign(:filter_group_id, nil)
+          |> assign(:show_contact_modal, false)
+          |> assign(:editing_contact, nil)
+          |> assign(:show_group_modal, false)
+          |> assign(:editing_group, nil)
+          |> assign(:messages, [])
+          |> assign(:pagination, %{
+            page: 1,
+            per_page: per_page,
+            total_count: 0,
+            total_pages: 0,
+            has_next: false,
+            has_prev: false
+          })
 
-      "calendar" ->
-        view_date = socket.assigns[:view_date] || Date.utc_today()
-        {:ok, default_calendar} = Cal.get_or_create_default_calendar(user.id)
-        calendars = Cal.list_calendars(user.id)
-        {start_date, end_date} = get_month_range(view_date)
-        events = Cal.list_user_events_in_range(user.id, start_date, end_date)
+        "calendar" ->
+          view_date = socket.assigns[:view_date] || Date.utc_today()
+          {:ok, default_calendar} = Cal.get_or_create_default_calendar(user.id)
+          calendars = Cal.list_calendars(user.id)
+          {start_date, end_date} = get_month_range(view_date)
+          events = Cal.list_user_events_in_range(user.id, start_date, end_date)
 
-        visible_calendars =
-          case socket.assigns[:visible_calendars] do
-            %MapSet{} = existing ->
-              if MapSet.size(existing) > 0 do
-                existing
-              else
+          visible_calendars =
+            case socket.assigns[:visible_calendars] do
+              %MapSet{} = existing ->
+                if MapSet.size(existing) > 0 do
+                  existing
+                else
+                  MapSet.new(Enum.map(calendars, & &1.id))
+                end
+
+              _ ->
                 MapSet.new(Enum.map(calendars, & &1.id))
-              end
+            end
 
-            _ ->
-              MapSet.new(Enum.map(calendars, & &1.id))
-          end
+          socket
+          |> assign(:calendars, calendars)
+          |> assign(:default_calendar, default_calendar)
+          |> assign(:events, events)
+          |> assign(:visible_calendars, visible_calendars)
+          |> assign(:selected_date, nil)
+          |> assign(:selected_event, nil)
+          |> assign(:messages, [])
+          |> assign(:pagination, %{
+            page: 1,
+            per_page: per_page,
+            total_count: 0,
+            total_pages: 0,
+            has_next: false,
+            has_prev: false
+          })
 
-        socket
-        |> assign(:calendars, calendars)
-        |> assign(:default_calendar, default_calendar)
-        |> assign(:events, events)
-        |> assign(:visible_calendars, visible_calendars)
-        |> assign(:selected_date, nil)
-        |> assign(:selected_event, nil)
-        |> assign(:messages, [])
-        |> assign(:pagination, %{
-          page: 1,
-          per_page: per_page,
-          total_count: 0,
-          total_pages: 0,
-          has_next: false,
-          has_prev: false
-        })
+        "folder" ->
+          folder_id = params["folder_id"]
 
-      "folder" ->
-        folder_id = params["folder_id"]
+          result =
+            if folder_id do
+              Email.list_folder_messages(String.to_integer(folder_id), user.id, page, per_page)
+            else
+              %{
+                messages: [],
+                total: 0,
+                page: page,
+                per_page: per_page,
+                has_next: false,
+                has_prev: false
+              }
+            end
 
-        result =
-          if folder_id do
-            Email.list_folder_messages(String.to_integer(folder_id), user.id, page, per_page)
-          else
-            %{
-              messages: [],
-              total: 0,
-              page: page,
-              per_page: per_page,
-              has_next: false,
-              has_prev: false
-            }
-          end
+          total_pages = if result.total > 0, do: ceil(result.total / per_page), else: 0
 
-        total_pages = if result.total > 0, do: ceil(result.total / per_page), else: 0
+          socket
+          |> assign(:messages, result.messages)
+          |> assign(:current_folder_id, folder_id)
+          |> assign(:pagination, %{
+            page: page,
+            per_page: per_page,
+            total_count: result.total,
+            total_pages: total_pages,
+            has_next: result.has_next,
+            has_prev: result.has_prev
+          })
 
-        socket
-        |> assign(:messages, result.messages)
-        |> assign(:current_folder_id, folder_id)
-        |> assign(:pagination, %{
-          page: page,
-          per_page: per_page,
-          total_count: result.total,
-          total_pages: total_pages,
-          has_next: result.has_next,
-          has_prev: result.has_prev
-        })
+        _ ->
+          socket
+          |> assign(:pagination, %{
+            page: 1,
+            per_page: per_page,
+            total_count: 0,
+            total_pages: 0,
+            has_next: false,
+            has_prev: false
+          })
+      end
 
-      _ ->
-        socket
-        |> assign(:pagination, %{
-          page: 1,
-          per_page: per_page,
-          total_count: 0,
-          total_pages: 0,
-          has_next: false,
-          has_prev: false
-        })
-    end
+    grouped_messages = group_messages_for_list(socket.assigns[:messages] || [], tab)
+
+    socket
+    |> assign(:messages, grouped_messages)
     |> assign(:selected_messages, [])
     |> assign(:select_all, false)
   end
@@ -725,7 +731,7 @@ defmodule ElektrineWeb.EmailLive.Index do
     base_classes = "bg-base-200 border-base-300"
 
     cond do
-      message.status == "received" and !message.read ->
+      message_unread_for_list?(message) ->
         "#{base_classes} border-l-4 border-l-primary bg-primary/5"
 
       current_tab == "spam" ->
@@ -736,6 +742,98 @@ defmodule ElektrineWeb.EmailLive.Index do
 
       true ->
         base_classes
+    end
+  end
+
+  defp group_messages_for_list(messages, tab)
+       when tab in ["contacts", "calendar", "drafts", "aliases"] do
+    messages
+  end
+
+  defp group_messages_for_list(messages, _tab) when is_list(messages) do
+    {ordered_keys, grouped} =
+      Enum.reduce(messages, {[], %{}}, fn message, {keys, acc} ->
+        key = message_thread_group_key(message)
+        unread = message.status == "received" and !message.read
+        attachment_total = message_attachment_total(message)
+
+        case Map.get(acc, key) do
+          nil ->
+            group = %{
+              head: message,
+              count: 1,
+              unread_count: if(unread, do: 1, else: 0),
+              has_unread: unread,
+              has_attachments: message.has_attachments || attachment_total > 0,
+              attachment_total: attachment_total
+            }
+
+            {[key | keys], Map.put(acc, key, group)}
+
+          group ->
+            updated_group = %{
+              group
+              | count: group.count + 1,
+                unread_count: group.unread_count + if(unread, do: 1, else: 0),
+                has_unread: group.has_unread || unread,
+                has_attachments:
+                  group.has_attachments || message.has_attachments || attachment_total > 0,
+                attachment_total: group.attachment_total + attachment_total
+            }
+
+            {keys, Map.put(acc, key, updated_group)}
+        end
+      end)
+
+    ordered_keys
+    |> Enum.reverse()
+    |> Enum.map(fn key ->
+      group = Map.fetch!(grouped, key)
+
+      group.head
+      |> Map.put(:thread_message_count, group.count)
+      |> Map.put(:thread_unread_count, group.unread_count)
+      |> Map.put(:thread_has_unread, group.has_unread)
+      |> Map.put(:thread_has_attachments, group.has_attachments)
+      |> Map.put(:thread_attachment_total, group.attachment_total)
+    end)
+  end
+
+  defp group_messages_for_list(messages, _tab), do: messages
+
+  defp message_thread_group_key(message) do
+    case Map.get(message, :thread_id) do
+      thread_id when is_integer(thread_id) and thread_id > 0 ->
+        {:thread, thread_id}
+
+      _ ->
+        {:message, message.id}
+    end
+  end
+
+  defp message_attachment_total(%{attachments: attachments}) when is_map(attachments),
+    do: map_size(attachments)
+
+  defp message_attachment_total(_), do: 0
+
+  defp message_unread_for_list?(message) do
+    Map.get(message, :thread_has_unread, false) ||
+      (message.status == "received" and !message.read)
+  end
+
+  defp thread_message_count(message), do: max(Map.get(message, :thread_message_count, 1), 1)
+
+  defp has_attachments_for_list?(message) do
+    Map.get(message, :thread_has_attachments, false) || message.has_attachments
+  end
+
+  defp attachment_total_for_list(message) do
+    case Map.get(message, :thread_attachment_total) do
+      total when is_integer(total) and total > 0 ->
+        total
+
+      _ ->
+        message_attachment_total(message)
     end
   end
 

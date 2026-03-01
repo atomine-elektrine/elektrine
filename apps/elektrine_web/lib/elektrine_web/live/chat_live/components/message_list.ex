@@ -200,9 +200,10 @@ defmodule ElektrineWeb.ChatLive.Components.MessageList do
                   </li>
                   <li>
                     <button
-                      phx-click="copy_message"
-                      phx-value-message_id={message.id}
-                      phx-target={@myself}
+                      id={"message-copy-action-#{message.id}"}
+                      type="button"
+                      phx-hook="CopyChatMessage"
+                      data-copy-content={message.content || ""}
                     >
                       <.icon name="hero-clipboard" class="w-3 h-3" /> Copy
                     </button>
@@ -262,33 +263,31 @@ defmodule ElektrineWeb.ChatLive.Components.MessageList do
 
   # Group consecutive messages from the same sender within 5 minutes
   defp group_messages(messages) do
-    messages
-    |> Enum.with_index()
-    |> Enum.map(fn {message, index} ->
-      is_grouped =
-        if index > 0 do
-          prev_message = Enum.at(messages, index - 1)
+    {grouped, _previous_message} =
+      Enum.reduce(messages, {[], nil}, fn message, {acc, previous_message} ->
+        is_grouped = grouped_message?(previous_message, message)
+        {[{message, is_grouped} | acc], message}
+      end)
 
-          same_sender = prev_message.sender_id == message.sender_id
+    Enum.reverse(grouped)
+  end
 
-          within_time_window =
-            case {prev_message.inserted_at, message.inserted_at} do
-              {prev_time, curr_time} when not is_nil(prev_time) and not is_nil(curr_time) ->
-                diff = DateTime.diff(curr_time, prev_time, :second)
-                # 5 minutes
-                diff < 300
+  defp grouped_message?(nil, _message), do: false
 
-              _ ->
-                false
-            end
+  defp grouped_message?(prev_message, message) do
+    same_sender = prev_message.sender_id == message.sender_id
 
-          same_sender && within_time_window
-        else
+    within_time_window =
+      case {prev_message.inserted_at, message.inserted_at} do
+        {prev_time, curr_time} when not is_nil(prev_time) and not is_nil(curr_time) ->
+          # 5 minutes
+          DateTime.diff(curr_time, prev_time, :second) < 300
+
+        _ ->
           false
-        end
+      end
 
-      {message, is_grouped}
-    end)
+    same_sender && within_time_window
   end
 
   defp format_reactions(reactions) do

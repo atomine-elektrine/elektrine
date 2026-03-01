@@ -707,7 +707,11 @@ defmodule ElektrineWeb.EmailLive.Compose do
             original_message.message_id
           end
 
-        Map.put(email_attrs, :in_reply_to, reply_to_id)
+        references = build_reply_references(original_message, reply_to_id)
+
+        email_attrs
+        |> Map.put(:in_reply_to, reply_to_id)
+        |> maybe_put_reply_references(references)
       else
         email_attrs
       end
@@ -1206,6 +1210,71 @@ Subject: #{message.subject}#{attachment_info}
         end
     end
   end
+
+  defp maybe_put_reply_references(attrs, references) do
+    if references && String.trim(references) != "" do
+      Map.put(attrs, :references, references)
+    else
+      attrs
+    end
+  end
+
+  defp build_reply_references(original_message, reply_to_id) do
+    original_references =
+      original_message.references
+      |> parse_reference_ids()
+
+    parent_message_id =
+      if original_message.metadata &&
+           Map.has_key?(original_message.metadata, "original_message_id") do
+        original_message.metadata["original_message_id"]
+      else
+        original_message.message_id
+      end
+
+    [original_references, [parent_message_id], [reply_to_id]]
+    |> List.flatten()
+    |> Enum.map(&normalize_message_id_header/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> case do
+      [] -> nil
+      refs -> Enum.join(refs, " ")
+    end
+  end
+
+  defp parse_reference_ids(nil), do: []
+  defp parse_reference_ids(""), do: []
+
+  defp parse_reference_ids(value) when is_binary(value) do
+    value
+    |> String.split(~r/[\s,]+/, trim: true)
+    |> Enum.map(&normalize_message_id_header/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_reference_ids(value) when is_list(value) do
+    value
+    |> Enum.map(&normalize_message_id_header/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_reference_ids(_), do: []
+
+  defp normalize_message_id_header(nil), do: nil
+  defp normalize_message_id_header(""), do: nil
+
+  defp normalize_message_id_header(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.replace(~r/^<|>$/, "")
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_message_id_header(value), do: to_string(value) |> normalize_message_id_header()
 
   defp get_available_from_addresses(mailbox, user) do
     base_email = mailbox.email
