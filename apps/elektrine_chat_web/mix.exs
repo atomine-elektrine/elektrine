@@ -28,10 +28,10 @@ defmodule ElektrineChatWeb.MixProject do
 
   defp deps do
     [
-      {:phoenix, "== 1.8.3"},
+      {:phoenix, "== 1.8.4"},
       {:phoenix_ecto, "== 4.7.0"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.23"},
+      {:phoenix_live_view, "== 1.1.25"},
       {:jason, "== 1.4.4"},
       {:elektrine, in_umbrella: true},
       {:elektrine_chat, in_umbrella: true}
