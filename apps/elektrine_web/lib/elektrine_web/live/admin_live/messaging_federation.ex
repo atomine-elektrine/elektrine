@@ -10,6 +10,8 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
        socket
        |> assign(:page_title, "Arblarg Messaging Federation")
        |> assign(:search_query, "")
+       |> assign(:page, 1)
+       |> assign(:per_page, 50)
        |> assign(:new_domain, "")
        |> assign(:new_reason, "")
        |> load_controls()}
@@ -23,11 +25,19 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
 
   @impl true
   def handle_event("search", %{"query" => query}, socket) do
-    {:noreply, socket |> assign(:search_query, query) |> load_controls()}
+    {:noreply, socket |> assign(:search_query, query) |> assign(:page, 1) |> load_controls()}
   end
 
   def handle_event("clear_search", _params, socket) do
-    {:noreply, socket |> assign(:search_query, "") |> load_controls()}
+    {:noreply, socket |> assign(:search_query, "") |> assign(:page, 1) |> load_controls()}
+  end
+
+  def handle_event("prev_page", _params, socket) do
+    {:noreply, socket |> assign(:page, socket.assigns.page - 1) |> load_controls()}
+  end
+
+  def handle_event("next_page", _params, socket) do
+    {:noreply, socket |> assign(:page, socket.assigns.page + 1) |> load_controls()}
   end
 
   def handle_event("update_new_domain", %{"value" => value}, socket) do
@@ -144,6 +154,8 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   defp load_controls(socket) do
     controls = Federation.list_peer_controls()
     query = socket.assigns[:search_query] || ""
+    page = socket.assigns[:page] || 1
+    per_page = socket.assigns[:per_page] || 50
 
     filtered_controls =
       if query == "" do
@@ -153,9 +165,22 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         Enum.filter(controls, &String.contains?(String.downcase(&1.domain), needle))
       end
 
+    total_count = length(filtered_controls)
+    total_pages = total_pages(total_count, per_page)
+    safe_page = clamp_page(page, total_pages)
+    offset = (safe_page - 1) * per_page
+
+    paged_controls =
+      filtered_controls
+      |> Enum.drop(offset)
+      |> Enum.take(per_page)
+
     socket
     |> assign(:all_peer_controls, controls)
-    |> assign(:peer_controls, filtered_controls)
+    |> assign(:peer_controls, paged_controls)
+    |> assign(:filtered_peer_total_count, total_count)
+    |> assign(:total_pages, total_pages)
+    |> assign(:page, safe_page)
     |> assign(:blocked_peer_count, Enum.count(controls, & &1.blocked))
     |> assign(:incoming_denied_count, Enum.count(controls, &(not &1.effective_allow_incoming)))
     |> assign(:outgoing_denied_count, Enum.count(controls, &(not &1.effective_allow_outgoing)))
@@ -165,6 +190,16 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   defp mode_to_override("deny"), do: {:ok, false}
   defp mode_to_override("inherit"), do: {:ok, nil}
   defp mode_to_override(_), do: :error
+
+  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
+    div(total_count + per_page - 1, per_page)
+  end
+
+  defp total_pages(_, _), do: 1
+
+  defp clamp_page(page, _total_pages) when page < 1, do: 1
+  defp clamp_page(page, total_pages) when page > total_pages, do: total_pages
+  defp clamp_page(page, _total_pages), do: page
 
   @impl true
   def render(assigns) do
@@ -262,7 +297,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 class="card-title text-base sm:text-lg">
               <.icon name="hero-server-stack" class="w-5 h-5" /> Arblarg Peer Policy Matrix
-              <span class="badge badge-neutral">{length(@all_peer_controls)}</span>
+              <span class="badge badge-neutral">{@filtered_peer_total_count}</span>
             </h2>
 
             <form phx-submit="search" class="flex gap-2">
@@ -422,6 +457,25 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                 </tbody>
               </table>
             </div>
+            <%= if @total_pages > 1 do %>
+              <div class="flex items-center justify-between mt-4">
+                <span class="text-xs opacity-70">
+                  Page {@page} of {@total_pages}
+                </span>
+                <div class="join">
+                  <button phx-click="prev_page" class="btn btn-sm join-item" disabled={@page <= 1}>
+                    Previous
+                  </button>
+                  <button
+                    phx-click="next_page"
+                    class="btn btn-sm join-item"
+                    disabled={@page >= @total_pages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            <% end %>
           <% end %>
         </div>
       </div>

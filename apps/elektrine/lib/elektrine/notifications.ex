@@ -80,9 +80,12 @@ defmodule Elektrine.Notifications do
       end)
 
     {count, _} = Repo.insert_all(Notification, notifications)
+    unique_user_ids = Enum.uniq(user_ids)
+
+    Enum.each(unique_user_ids, &Elektrine.AppCache.invalidate_notification_cache/1)
 
     # Broadcast to all users
-    Enum.each(user_ids, fn user_id ->
+    Enum.each(unique_user_ids, fn user_id ->
       Phoenix.PubSub.broadcast(
         Elektrine.PubSub,
         "user:#{user_id}:notifications",
@@ -241,11 +244,15 @@ defmodule Elektrine.Notifications do
   Gets unread notification count for a user.
   """
   def get_unread_count(user_id) do
-    from(n in Notification,
-      where: n.user_id == ^user_id and is_nil(n.read_at) and is_nil(n.dismissed_at),
-      select: count(n.id)
-    )
-    |> Repo.one()
+    case Elektrine.AppCache.get_notification_unread_count(user_id, fn ->
+           query_unread_count(user_id)
+         end) do
+      {:ok, count} ->
+        count
+
+      _ ->
+        query_unread_count(user_id)
+    end
   end
 
   @doc """
@@ -445,6 +452,7 @@ defmodule Elektrine.Notifications do
 
     # If it was unread, broadcast count update
     if was_unread do
+      Elektrine.AppCache.invalidate_notification_cache(user_id)
       new_count = get_unread_count(user_id)
 
       Phoenix.PubSub.broadcast(
@@ -466,6 +474,8 @@ defmodule Elektrine.Notifications do
     )
     |> Repo.update_all(set: [dismissed_at: DateTime.utc_now()])
 
+    Elektrine.AppCache.invalidate_notification_cache(user_id)
+
     Phoenix.PubSub.broadcast(
       Elektrine.PubSub,
       "user:#{user_id}:notifications",
@@ -480,6 +490,14 @@ defmodule Elektrine.Notifications do
     )
 
     :ok
+  end
+
+  defp query_unread_count(user_id) do
+    from(n in Notification,
+      where: n.user_id == ^user_id and is_nil(n.read_at) and is_nil(n.dismissed_at),
+      select: count(n.id)
+    )
+    |> Repo.one()
   end
 
   @doc """

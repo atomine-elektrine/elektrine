@@ -4,32 +4,12 @@
 
   <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
     <!-- Sidebar -->
-    <div class="w-full lg:w-72 xl:w-80 flex-shrink-0">
-      <div id="vpn-info-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
-        <div class="card-body p-6">
-          <div class="flex-1 min-w-0">
-            <h2 class="font-bold text-lg">{gettext("VPN Service")}</h2>
-            <p class="text-sm text-base-content/70 mt-2">
-              Connect to WireGuard servers worldwide
-            </p>
-            <div class="mt-4">
-              <.link
-                href={~p"/vpn/policy"}
-                class="link link-primary text-xs flex items-center gap-1"
-              >
-                <.icon name="hero-document-text" class="w-3 h-3" />
-                {gettext("View Service Policy & Details")}
-              </.link>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-<!-- Available Servers Card -->
+    <div class="order-2 lg:order-1 w-full lg:w-72 xl:w-80 flex-shrink-0 flex flex-col">
+      <!-- Available Servers Card -->
       <div
         id="vpn-servers-card"
         phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box mt-3"
+        class="card glass-card shadow-lg rounded-box"
       >
         <div class="card-body p-3">
           <h3 class="font-semibold text-sm mb-3">
@@ -112,10 +92,71 @@
           <% end %>
         </div>
       </div>
+
+      <div
+        id="vpn-info-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box mt-3"
+      >
+        <div class="card-body p-4">
+          <div class="flex-1 min-w-0">
+            <h2 class="font-bold text-base">{gettext("VPN Service")}</h2>
+            <p class="text-xs text-base-content/70 mt-2">
+              Connect to WireGuard servers worldwide
+            </p>
+            <div class="mt-3">
+              <.link
+                href={~p"/vpn/policy"}
+                class="link link-primary text-xs flex items-center gap-1"
+              >
+                <.icon name="hero-document-text" class="w-3 h-3" />
+                {gettext("View Service Policy & Details")}
+              </.link>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+<!-- How to Use Section -->
+      <div
+        id="vpn-instructions-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box mt-3"
+      >
+        <div class="card-body p-4">
+          <h3 class="font-semibold text-sm mb-3">{gettext("Setup Instructions")}</h3>
+
+          <div class="text-sm text-base-content/70 space-y-3">
+            <div>
+              <p class="font-medium text-base-content mb-1">{gettext("Install WireGuard")}</p>
+              <p class="text-xs">
+                <a
+                  href="https://www.wireguard.com/install/"
+                  target="_blank"
+                  class="link link-primary"
+                >
+                  wireguard.com/install
+                </a>
+              </p>
+            </div>
+
+            <div>
+              <p class="font-medium text-base-content mb-1">{gettext("Import Config")}</p>
+              <p class="text-xs">{gettext("Desktop: Download .conf file")}</p>
+              <p class="text-xs">{gettext("Mobile: Scan QR code")}</p>
+            </div>
+
+            <div>
+              <p class="font-medium text-base-content mb-1">{gettext("Connect")}</p>
+              <p class="text-xs">{gettext("Activate the tunnel in WireGuard")}</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     
 <!-- Main Content -->
-    <div class="flex-1 min-w-0">
+    <div class="order-1 lg:order-2 flex-1 min-w-0">
       <div
         id="vpn-configs-card"
         phx-hook="GlassCard"
@@ -324,43 +365,6 @@
               </p>
             </div>
           <% end %>
-        </div>
-      </div>
-      
-<!-- How to Use Section -->
-      <div
-        id="vpn-instructions-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box mt-6"
-      >
-        <div class="card-body p-4">
-          <h3 class="font-semibold text-sm mb-3">{gettext("Setup Instructions")}</h3>
-
-          <div class="text-sm text-base-content/70 space-y-3">
-            <div>
-              <p class="font-medium text-base-content mb-1">{gettext("Install WireGuard")}</p>
-              <p class="text-xs">
-                <a
-                  href="https://www.wireguard.com/install/"
-                  target="_blank"
-                  class="link link-primary"
-                >
-                  wireguard.com/install
-                </a>
-              </p>
-            </div>
-
-            <div>
-              <p class="font-medium text-base-content mb-1">{gettext("Import Config")}</p>
-              <p class="text-xs">{gettext("Desktop: Download .conf file")}</p>
-              <p class="text-xs">{gettext("Mobile: Scan QR code")}</p>
-            </div>
-
-            <div>
-              <p class="font-medium text-base-content mb-1">{gettext("Connect")}</p>
-              <p class="text-xs">{gettext("Activate the tunnel in WireGuard")}</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

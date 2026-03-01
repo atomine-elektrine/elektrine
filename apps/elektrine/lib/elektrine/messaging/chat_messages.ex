@@ -162,10 +162,14 @@ defmodule Elektrine.Messaging.ChatMessages do
                 m.id < ^oldest_message.id and
                 is_nil(m.deleted_at) and
                 is_nil(h.id),
-            select: count(m.id)
+            select: m.id,
+            limit: 1
           )
           |> Repo.one()
-          |> Kernel.>(0)
+          |> case do
+            nil -> false
+            _ -> true
+          end
       end
     else
       false
@@ -187,10 +191,14 @@ defmodule Elektrine.Messaging.ChatMessages do
                 m.id > ^newest_message.id and
                 is_nil(m.deleted_at) and
                 is_nil(h.id),
-            select: count(m.id)
+            select: m.id,
+            limit: 1
           )
           |> Repo.one()
-          |> Kernel.>(0)
+          |> case do
+            nil -> false
+            _ -> true
+          end
       end
     else
       false
@@ -789,12 +797,10 @@ defmodule Elektrine.Messaging.ChatMessages do
     domain = reader[:domain] || reader["domain"]
     handle = if is_binary(domain), do: "@#{username}@#{domain}", else: "@#{username}"
 
-    cond do
-      is_binary(display_name) and String.trim(display_name) != "" and display_name != username ->
-        "#{display_name} (#{handle})"
-
-      true ->
-        handle
+    if is_binary(display_name) and String.trim(display_name) != "" and display_name != username do
+      "#{display_name} (#{handle})"
+    else
+      handle
     end
   end
 
@@ -1048,18 +1054,16 @@ defmodule Elektrine.Messaging.ChatMessages do
 
     message = %{message | reply_to: reply_to}
 
-    cond do
-      not is_nil(message.sender) ->
-        message
+    if is_nil(message.sender) do
+      case remote_sender_from_metadata(message.media_metadata) do
+        nil ->
+          message
 
-      true ->
-        case remote_sender_from_metadata(message.media_metadata) do
-          nil ->
-            message
-
-          remote_sender ->
-            %{message | sender: remote_sender}
-        end
+        remote_sender ->
+          %{message | sender: remote_sender}
+      end
+    else
+      message
     end
   end
 

@@ -101,17 +101,18 @@ defmodule ElektrineWeb.API.PasswordManagerController do
   defp parse_id(_), do: {:error, :bad_request}
 
   defp decode_setup_params(attrs) when is_map(attrs) do
-    with {:ok, attrs} <- decode_payload_field(attrs, "encrypted_verifier", required: true) do
-      {:ok, attrs}
-    end
+    decode_payload_field(attrs, "encrypted_verifier", required: true)
   end
 
   defp decode_setup_params(_attrs), do: {:error, :bad_request}
 
   defp decode_encrypted_params(attrs) when is_map(attrs) do
-    with {:ok, attrs} <- decode_payload_field(attrs, "encrypted_password", required: true),
-         {:ok, attrs} <- decode_payload_field(attrs, "encrypted_notes", required: false) do
-      {:ok, attrs}
+    case decode_payload_field(attrs, "encrypted_password", required: true) do
+      {:ok, decoded_attrs} ->
+        decode_payload_field(decoded_attrs, "encrypted_notes", required: false)
+
+      error ->
+        error
     end
   end
 

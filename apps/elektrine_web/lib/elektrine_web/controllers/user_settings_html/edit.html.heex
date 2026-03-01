@@ -113,7 +113,7 @@
           <div class="card-actions">
             <.link
               href={~p"/account/password"}
-              class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+              class="btn btn-secondary btn-sm w-full text-xs sm:text-sm"
             >
               Change Password
             </.link>
@@ -139,7 +139,7 @@
             <div class="card-actions">
               <.link
                 href={~p"/account/two_factor"}
-                class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                class="btn btn-secondary btn-sm w-full text-xs sm:text-sm"
               >
                 Manage 2FA
               </.link>
@@ -186,7 +186,7 @@
                 <.link
                   href={"https://#{@user.handle || @user.username}.z.org"}
                   target="_blank"
-                  class="btn btn-ghost btn-sm"
+                  class="btn btn-secondary btn-sm"
                 >
                   <.icon name="hero-eye" class="w-4 h-4" /> View
                 </.link>
@@ -232,7 +232,7 @@
               Once deleted, your account cannot be recovered.
             </p>
             <div class="card-actions">
-              <.link href={~p"/account/delete"} class="btn btn-ghost btn-secondary btn-sm w-full">
+              <.link href={~p"/account/delete"} class="btn btn-secondary btn-sm w-full">
                 Request Deletion
               </.link>
             </div>

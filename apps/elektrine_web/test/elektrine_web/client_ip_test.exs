@@ -4,6 +4,27 @@ defmodule ElektrineWeb.ClientIPTest do
   alias ElektrineWeb.ClientIP
 
   describe "client_ip/1" do
+    test "prefers cf-connecting-ip over fly-client-ip when running on fly", %{conn: conn} do
+      previous_fly_app_name = System.get_env("FLY_APP_NAME")
+      previous_trusted_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs)
+
+      on_exit(fn ->
+        restore_env("FLY_APP_NAME", previous_fly_app_name)
+        Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_cidrs)
+      end)
+
+      System.put_env("FLY_APP_NAME", "elektrine")
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, [])
+
+      conn =
+        conn
+        |> Map.put(:remote_ip, {10, 0, 0, 1})
+        |> put_req_header("cf-connecting-ip", "203.0.113.77")
+        |> put_req_header("fly-client-ip", "198.51.100.42")
+
+      assert ClientIP.client_ip(conn) == "203.0.113.77"
+    end
+
     test "uses fly-client-ip when running on fly even if trusted proxies are unset", %{conn: conn} do
       previous_fly_app_name = System.get_env("FLY_APP_NAME")
       previous_trusted_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs)

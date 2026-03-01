@@ -157,6 +157,93 @@
               <% end %>
             </div>
           </div>
+
+          <%= if length(@thread_messages || []) > 1 do %>
+            <div class="bg-base-200/30 rounded-lg p-4 mb-6 border border-base-300">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center space-x-2">
+                  <.icon name="hero-chat-bubble-left-right" class="h-5 w-5 text-base-content/60" />
+                  <span class="text-sm font-semibold">{gettext("Conversation Context")}</span>
+                </div>
+                <span class="text-xs text-base-content/60">
+                  {gettext("%{count} messages", count: length(@thread_messages))}
+                </span>
+              </div>
+
+              <div class="space-y-2">
+                <%= for thread_message <- @thread_messages do %>
+                  <% is_current = thread_message.id == @message.id %>
+                  <% thread_identifier = thread_message.hash || thread_message.id %>
+                  <% row_classes = [
+                    "block rounded-lg border p-3 transition-colors",
+                    if(is_current,
+                      do: "border-primary bg-primary/10",
+                      else: "border-base-300 bg-base-100 hover:bg-base-200/70"
+                    )
+                  ] %>
+
+                  <%= if is_current do %>
+                    <div class={row_classes}>
+                      <div class="flex items-center justify-between mb-1">
+                        <p class="text-xs text-base-content/60">
+                          {format_email_display(thread_message.from)}
+                        </p>
+                        <.local_time
+                          datetime={thread_message.inserted_at}
+                          format="datetime"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </div>
+                      <p class="text-sm font-medium">
+                        <%= if thread_message.subject && String.trim(thread_message.subject) != "" do %>
+                          {decode_subject(thread_message.subject)}
+                        <% else %>
+                          <span class="text-base-content/50 italic">
+                            {gettext("(No Subject)")}
+                          </span>
+                        <% end %>
+                      </p>
+                      <p class="text-xs text-base-content/70 mt-1">
+                        {thread_preview(thread_message)}
+                      </p>
+                    </div>
+                  <% else %>
+                    <.link
+                      navigate={
+                        ~p"/email/view/#{thread_identifier}?return_to=#{@return_to}&filter=#{@return_filter}"
+                      }
+                      class={row_classes}
+                    >
+                      <div class="flex items-center justify-between mb-1">
+                        <p class="text-xs text-base-content/60">
+                          {format_email_display(thread_message.from)}
+                        </p>
+                        <.local_time
+                          datetime={thread_message.inserted_at}
+                          format="datetime"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </div>
+                      <p class="text-sm font-medium">
+                        <%= if thread_message.subject && String.trim(thread_message.subject) != "" do %>
+                          {decode_subject(thread_message.subject)}
+                        <% else %>
+                          <span class="text-base-content/50 italic">
+                            {gettext("(No Subject)")}
+                          </span>
+                        <% end %>
+                      </p>
+                      <p class="text-xs text-base-content/70 mt-1">
+                        {thread_preview(thread_message)}
+                      </p>
+                    </.link>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
           
 <!-- Boomerang Info -->
           <%= if @message.reply_later_at do %>

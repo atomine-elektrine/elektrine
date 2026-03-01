@@ -850,7 +850,7 @@
                               <!-- From/To -->
                               <span class={[
                                 "text-sm truncate",
-                                if(message.status == "received" and !message.read,
+                                if(message_unread_for_list?(message),
                                   do: "font-bold",
                                   else: "font-medium"
                                 )
@@ -864,20 +864,25 @@
                               
 <!-- Indicators -->
                               <div class="flex items-center gap-2">
-                                <%= if message.has_attachments do %>
+                                <%= if thread_message_count(message) > 1 do %>
+                                  <span class="badge badge-ghost badge-xs">
+                                    {thread_message_count(message)}
+                                  </span>
+                                <% end %>
+                                <%= if has_attachments_for_list?(message) do %>
                                   <div
                                     class="flex items-center gap-1 text-base-content/60"
                                     title={gettext("Has attachments")}
                                   >
                                     <.icon name="hero-paper-clip" class="w-4 h-4" />
-                                    <%= if message.attachments && map_size(message.attachments) > 0 do %>
+                                    <%= if attachment_total_for_list(message) > 0 do %>
                                       <span class="text-xs font-medium">
-                                        {map_size(message.attachments)}
+                                        {attachment_total_for_list(message)}
                                       </span>
                                     <% end %>
                                   </div>
                                 <% end %>
-                                <%= if message.status == "received" and !message.read do %>
+                                <%= if message_unread_for_list?(message) do %>
                                   <div class="w-2 h-2 bg-primary rounded-full flex-shrink-0">
                                   </div>
                                 <% end %>
@@ -922,7 +927,7 @@
 <!-- Subject -->
                           <h3 class={[
                             "text-sm mb-1 line-clamp-1 sm:line-clamp-none",
-                            if(message.status == "received" and !message.read,
+                            if(message_unread_for_list?(message),
                               do: "font-semibold",
                               else: "font-medium"
                             )

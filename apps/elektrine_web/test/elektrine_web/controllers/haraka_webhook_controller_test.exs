@@ -293,6 +293,40 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       [message] = messages
       assert message.mailbox_id == mailbox.id
     end
+
+    test "stores threading headers from webhook payload", %{conn: conn, mailbox: mailbox} do
+      parent_id = "parent-#{System.unique_integer([:positive])}@example.com"
+      root_id = "root-#{System.unique_integer([:positive])}@example.com"
+
+      params = %{
+        "from" => "sender@example.com",
+        "to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@elektrine.com",
+        "subject" => "Re: Thread header test",
+        "text_body" => "Threaded response",
+        "message_id" => "threading-#{System.system_time(:millisecond)}",
+        "headers" => %{
+          "In-Reply-To" => "<#{parent_id}>",
+          "References" => "<#{root_id}> <#{parent_id}>"
+        }
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] =
+        mailbox.id
+        |> Email.list_inbox_messages()
+        |> Enum.filter(&(&1.message_id == params["message_id"]))
+
+      assert message.in_reply_to == parent_id
+      assert message.references == "#{root_id} #{parent_id}"
+      assert is_integer(message.thread_id)
+    end
   end
 
   describe "decode_mime_header_public" do

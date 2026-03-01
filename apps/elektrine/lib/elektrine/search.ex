@@ -845,13 +845,11 @@ defmodule Elektrine.Search do
     attachments
     |> Map.values()
     |> Enum.find_value(fn attachment ->
-      cond do
-        is_map(attachment) ->
-          attachment["filename"] || attachment[:filename] || attachment["name"] ||
-            attachment[:name]
-
-        true ->
-          nil
+      if is_map(attachment) do
+        attachment["filename"] || attachment[:filename] || attachment["name"] ||
+          attachment[:name]
+      else
+        nil
       end
     end)
     |> case do

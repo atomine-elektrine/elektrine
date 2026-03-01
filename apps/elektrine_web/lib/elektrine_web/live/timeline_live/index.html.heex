@@ -1116,9 +1116,9 @@
                     else: "New posts"}
                 </div>
               <% end %>
-              <% # Check if this is a Lemmy community post (has community_actor_uri)
+              <% # Community posts include URI-tagged posts and mirror-linked federated posts.
               is_lemmy_post =
-                PostUtilities.has_community_uri?(post) %>
+                PostUtilities.community_post?(post) %>
               <%= if is_lemmy_post do %>
                 <!-- Lemmy-style compact post -->
                 <.timeline_post
@@ -1201,7 +1201,8 @@
                         </div>
                         
 <!-- Recent Replies Preview -->
-                        <%= if length(@reply_to_post_recent_replies) > 0 do %>
+                        <%= if length(@reply_to_post_recent_replies) > 0 &&
+                                Map.get(@post_replies, post.id, []) == [] do %>
                           <div class="mb-3 border-l-2 border-cyan-500/60 pl-3 space-y-2">
                             <div class="text-xs font-semibold opacity-60 mb-2">
                               Recent Replies:
@@ -1216,7 +1217,21 @@
                                   _actor -> true
                                 end
 
-                              has_author = Map.get(reply, :author) != nil %>
+                              has_author = Map.get(reply, :author) != nil
+                              reply_content = Map.get(reply, :content) || ""
+
+                              reply_preview =
+                                reply_content
+                                |> HtmlSanitizeEx.strip_tags()
+                                |> String.replace(~r/\s+/, " ")
+                                |> String.trim()
+
+                              reply_preview =
+                                if String.length(reply_preview) > 150 do
+                                  String.slice(reply_preview, 0, 150) <> "..."
+                                else
+                                  reply_preview
+                                end %>
                               <div class="text-sm">
                                 <div class="flex items-center gap-2 mb-1">
                                   <%= if has_sender do %>
@@ -1233,7 +1248,8 @@
                                     <% else %>
                                       <%= if has_author do %>
                                         <span class="font-medium">
-                                          @{reply.author}@{reply.author_domain}
+                                          @{reply.author}{if reply.author_domain,
+                                            do: "@#{reply.author_domain}"}
                                         </span>
                                       <% else %>
                                         <span class="font-medium opacity-50">Remote user</span>
@@ -1251,9 +1267,7 @@
                                   </span>
                                 </div>
                                 <div class="text-xs opacity-70 line-clamp-2">
-                                  {String.slice(reply.content, 0, 150)}{if String.length(
-                                                                             reply.content
-                                                                           ) > 150, do: "..."}
+                                  {reply_preview}
                                 </div>
                               </div>
                             <% end %>
@@ -1282,6 +1296,7 @@
                           textarea_mounted={JS.focus()}
                           textarea_update="ignore"
                           content_min={3}
+                          counter_suffix={gettext(" required chars")}
                           show_counter={true}
                         />
                       </div>
@@ -1349,7 +1364,7 @@
                                 form_class="space-y-2"
                                 textarea_mounted={JS.focus()}
                                 content_min={3}
-                                counter_suffix=""
+                                counter_suffix={gettext(" required chars")}
                                 show_counter={true}
                               />
                             </div>

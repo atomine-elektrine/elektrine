@@ -1079,22 +1079,62 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   def handle_event("show_reply_form", %{"post_id" => post_id}, socket) do
+    normalized_post_id = normalize_post_id_for_reply(socket, post_id)
+
     # First check timeline_posts (remote/outbox posts - maps with string keys)
-    reply_to_post = Enum.find(socket.assigns.timeline_posts, fn p -> p["id"] == post_id end)
+    timeline_post =
+      Enum.find(socket.assigns.timeline_posts, fn p -> p["id"] == normalized_post_id end)
 
     # If not found, check local_posts (Ecto schemas)
-    reply_to_post =
-      if reply_to_post do
-        reply_to_post
-      else
-        local_post =
-          Enum.find(socket.assigns.local_posts, fn p ->
-            (p.activitypub_id || to_string(p.id)) == post_id
-          end)
+    local_post =
+      Enum.find(socket.assigns.local_posts, fn p ->
+        (p.activitypub_id || to_string(p.id)) == normalized_post_id
+      end)
 
-        # Store just the post_id for local posts since we need it for reply
-        if local_post, do: post_id, else: nil
+    reply_to_post =
+      cond do
+        timeline_post ->
+          timeline_post
+
+        local_post ->
+          # Store just the normalized post_id for local posts since we need it for reply
+          normalized_post_id
+
+        true ->
+          nil
       end
+
+    fetch_target = timeline_post || local_post
+
+    already_has_replies? =
+      cond do
+        is_nil(fetch_target) ->
+          true
+
+        match?(%{__struct__: _}, fetch_target) ->
+          replies_for_post(fetch_target, socket.assigns.post_replies) != []
+
+        is_map(fetch_target) ->
+          Map.get(socket.assigns.post_replies || %{}, normalized_post_id, []) != []
+
+        true ->
+          true
+      end
+
+    if fetch_target && !already_has_replies? do
+      liveview_pid = self()
+
+      Task.start(fn ->
+        case fetch_replies_for_post(fetch_target) do
+          {fetched_post_id, replies}
+          when is_binary(fetched_post_id) and is_list(replies) and replies != [] ->
+            send(liveview_pid, {:replies_loaded_for_posts, %{fetched_post_id => replies}})
+
+          _ ->
+            :ok
+        end
+      end)
+    end
 
     {:noreply,
      socket
@@ -1122,6 +1162,10 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   def handle_event("update_reply_content", %{"content" => content}, socket) do
+    {:noreply, assign(socket, :reply_content, content)}
+  end
+
+  def handle_event("update_reply_content", %{"value" => content}, socket) do
     {:noreply, assign(socket, :reply_content, content)}
   end
 

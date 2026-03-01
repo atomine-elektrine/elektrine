@@ -71,6 +71,7 @@ defmodule Elektrine.ActivityPub.MRF do
 
     # Always include these core policies at the end
     core_policies = [
+      Elektrine.ActivityPub.MRF.SimplePolicy,
       Elektrine.ActivityPub.MRF.NormalizePolicy
     ]
 

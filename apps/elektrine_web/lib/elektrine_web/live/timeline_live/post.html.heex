@@ -563,22 +563,52 @@
                 <div class="mb-4 border-l-2 border-cyan-500/60 pl-4 space-y-3">
                   <div class="text-xs font-semibold opacity-60 mb-2">Recent Replies:</div>
                   <%= for reply <- Enum.take(@replies, 3) do %>
+                    <% has_sender = Map.get(reply, :sender) != nil
+
+                    has_remote_actor =
+                      case Map.get(reply, :remote_actor) do
+                        nil -> false
+                        %Ecto.Association.NotLoaded{} -> false
+                        _actor -> true
+                      end
+
+                    has_author = Map.get(reply, :author) != nil
+                    reply_content = Map.get(reply, :content) || ""
+
+                    reply_preview =
+                      reply_content
+                      |> HtmlSanitizeEx.strip_tags()
+                      |> String.replace(~r/\s+/, " ")
+                      |> String.trim()
+
+                    reply_preview =
+                      if String.length(reply_preview) > 150 do
+                        String.slice(reply_preview, 0, 150) <> "..."
+                      else
+                        reply_preview
+                      end %>
                     <div class="text-sm">
                       <div class="flex items-center gap-2 mb-1">
-                        <%= if reply.sender do %>
+                        <%= if has_sender do %>
                           <.username_with_effects
                             user={reply.sender}
                             display_name={false}
                             verified_size="xs"
                           />
                         <% else %>
-                          <%!-- Federated reply --%>
-                          <%= if Ecto.assoc_loaded?(reply.remote_actor) && reply.remote_actor do %>
+                          <%= if has_remote_actor do %>
                             <span class="font-medium">
                               @{reply.remote_actor.username}@{reply.remote_actor.domain}
                             </span>
                           <% else %>
-                            <span class="font-medium opacity-50">Remote user</span>
+                            <%= if has_author do %>
+                              <span class="font-medium">
+                                @{reply.author}{if reply.author_domain,
+                                  do: "@#{reply.author_domain}"}
+                              </span>
+                            <% else %>
+                              <span class="font-medium opacity-50">Remote user</span>
+                            <% end %>
                           <% end %>
                         <% end %>
                         <%= if reply.like_count && reply.like_count > 0 do %>
@@ -595,9 +625,7 @@
                         </span>
                       </div>
                       <div class="text-xs opacity-70 line-clamp-2">
-                        {String.slice(reply.content, 0, 150)}{if String.length(reply.content) >
-                                                                   150,
-                                                                 do: "..."}
+                        {reply_preview}
                       </div>
                     </div>
                   <% end %>
@@ -624,6 +652,7 @@
                 textarea_hook="AutoExpandTextarea"
                 textarea_update="ignore"
                 content_min={3}
+                counter_suffix={gettext(" required chars")}
                 show_counter={true}
               />
             </div>

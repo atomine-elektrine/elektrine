@@ -15,6 +15,7 @@ import {
   MessageList,
   ContextMenu,
   MessageContextMenu,
+  CopyChatMessage,
   VoiceRecorder
 } from './chat_hooks'
 
@@ -132,6 +133,7 @@ export const Hooks = {
   MessageList,
   ContextMenu,
   MessageContextMenu,
+  CopyChatMessage,
   VoiceRecorder,
 
   // Email

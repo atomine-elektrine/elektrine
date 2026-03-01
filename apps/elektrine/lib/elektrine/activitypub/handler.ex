@@ -59,9 +59,8 @@ defmodule Elektrine.ActivityPub.Handler do
 
         {:ok, validated_activity} ->
           # Run MRF policies
-          case MRF.filter(validated_activity) do
-            {:reject, reason} ->
-              Logger.info("MRF rejected activity from #{actor_uri}: #{reason}")
+          case apply_mrf_policies(validated_activity, actor_uri) do
+            {:reject, _reason} ->
               {:ok, :mrf_rejected}
 
             {:ok, filtered_activity} ->
@@ -103,7 +102,13 @@ defmodule Elektrine.ActivityPub.Handler do
     if target_user && ActivityPub.user_blocked?(target_user.id, actor_uri) do
       {:ok, :blocked}
     else
-      route_activity(activity, actor_uri, target_user)
+      case apply_mrf_policies(activity, actor_uri) do
+        {:reject, _reason} ->
+          {:ok, :mrf_rejected}
+
+        {:ok, filtered_activity} ->
+          route_activity(filtered_activity, actor_uri, target_user)
+      end
     end
   end
 
@@ -198,6 +203,17 @@ defmodule Elektrine.ActivityPub.Handler do
   defp get_object_id(%{"object" => object}) when is_binary(object), do: object
   defp get_object_id(%{"object" => %{"id" => id}}), do: id
   defp get_object_id(_), do: nil
+
+  defp apply_mrf_policies(activity, actor_uri) do
+    case MRF.filter(activity) do
+      {:reject, reason} ->
+        Logger.info("MRF rejected activity from #{actor_uri}: #{reason}")
+        {:reject, reason}
+
+      {:ok, filtered_activity} ->
+        {:ok, filtered_activity}
+    end
+  end
 
   # Legacy functions kept for backwards compatibility
 

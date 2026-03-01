@@ -4,9 +4,9 @@ defmodule Elektrine.IMAP.CommandsTest do
   import Ecto.Query
   import Elektrine.AccountsFixtures
   import Elektrine.EmailFixtures
-  alias Elektrine.IMAP.Commands
   alias Elektrine.Accounts.User
   alias Elektrine.Email
+  alias Elektrine.IMAP.Commands
   alias Elektrine.Repo
 
   test "capability_string/1 advertises only implemented baseline capabilities" do

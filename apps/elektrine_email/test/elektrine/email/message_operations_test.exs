@@ -440,6 +440,91 @@ defmodule Elektrine.Email.MessageOperationsTest do
     end
   end
 
+  describe "threading" do
+    setup do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "threadtest@elektrine.com"})
+      {:ok, user: user, mailbox: mailbox}
+    end
+
+    test "auto-assigns thread_id and builds References for reply chains", %{mailbox: mailbox} do
+      root_message_id = "thread-root-#{System.unique_integer([:positive])}@example.com"
+      reply_message_id = "thread-reply-#{System.unique_integer([:positive])}@example.com"
+      followup_message_id = "thread-followup-#{System.unique_integer([:positive])}@example.com"
+
+      {:ok, root} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "alice@example.com",
+          to: mailbox.email,
+          subject: "Quarterly update",
+          text_body: "Initial message",
+          message_id: root_message_id,
+          status: "received"
+        })
+
+      {:ok, reply} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: mailbox.email,
+          to: "alice@example.com",
+          subject: "Re: Quarterly update",
+          text_body: "Replying back",
+          message_id: reply_message_id,
+          in_reply_to: root_message_id,
+          status: "sent"
+        })
+
+      {:ok, followup} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "alice@example.com",
+          to: mailbox.email,
+          subject: "Re: Quarterly update",
+          text_body: "Thanks for the reply",
+          message_id: followup_message_id,
+          in_reply_to: reply_message_id,
+          status: "received"
+        })
+
+      assert is_integer(root.thread_id)
+      assert reply.thread_id == root.thread_id
+      assert followup.thread_id == root.thread_id
+
+      assert reply.references == root_message_id
+      assert followup.references == "#{root_message_id} #{reply_message_id}"
+
+      thread_messages = Email.list_thread_messages(followup, mailbox.id)
+      assert Enum.map(thread_messages, & &1.id) == [root.id, reply.id, followup.id]
+    end
+
+    test "attaches legacy parent messages to thread when replying", %{mailbox: mailbox} do
+      legacy_parent =
+        create_test_message(mailbox.id, %{
+          subject: "Legacy thread",
+          message_id: "legacy-parent-#{System.unique_integer([:positive])}@example.com",
+          thread_id: nil
+        })
+
+      {:ok, reply} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: mailbox.email,
+          to: "legacy@example.com",
+          subject: "Re: Legacy thread",
+          text_body: "Reply to legacy message",
+          message_id: "legacy-reply-#{System.unique_integer([:positive])}@example.com",
+          in_reply_to: legacy_parent.message_id,
+          status: "sent"
+        })
+
+      parent_after = Email.get_message(legacy_parent.id, mailbox.id)
+
+      assert is_integer(reply.thread_id)
+      assert parent_after.thread_id == reply.thread_id
+    end
+  end
+
   # Helper function to create test messages
   defp create_test_message(mailbox_id, attrs) do
     default_attrs = %{

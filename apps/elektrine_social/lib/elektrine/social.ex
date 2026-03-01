@@ -325,6 +325,40 @@ defmodule Elektrine.Social do
   end
 
   @doc """
+  Gets public community posts for timeline community view.
+  Includes federated community posts tagged via metadata or linked to mirror conversations.
+  """
+  def get_public_community_posts(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    pagination = pagination_opts(opts)
+    user_id = Keyword.get(opts, :user_id)
+    preloads = [conversation: []] ++ MessagingMessages.timeline_feed_preloads()
+    all_blocked_ids = blocked_user_ids(user_id)
+
+    query =
+      from m in Message,
+        left_join: c in Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          m.visibility == "public" and
+            m.federated == true and
+            is_nil(m.deleted_at) and
+            (m.approval_status == "approved" or is_nil(m.approval_status)) and
+            is_nil(m.reply_to_id) and
+            fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
+            (c.type == "community" or
+               fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata)),
+        order_by: [desc: m.id],
+        limit: ^limit,
+        preload: ^preloads
+
+    query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+    query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
+
+    Repo.all(query)
+  end
+
+  @doc """
   Gets trending timeline (posts with high engagement).
   """
   def get_trending_timeline(opts \\ []) do

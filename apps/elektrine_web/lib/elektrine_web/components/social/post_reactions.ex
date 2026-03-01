@@ -126,7 +126,11 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
 
     ~H"""
     <%= if length(@formatted_reactions) > 0 || (@current_user && @show_picker) do %>
-      <div class="flex flex-wrap items-center gap-1.5">
+      <div
+        class="flex flex-wrap items-center gap-1.5"
+        onclick="event.stopPropagation()"
+        onmousedown="event.stopPropagation()"
+      >
         <!-- Existing reactions -->
         <%= for reaction <- @formatted_reactions do %>
           <% tooltip = Enum.join(reaction.usernames, ", ")
@@ -150,12 +154,12 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
           </button>
         <% end %>
         
-    <!-- Quick reaction picker -->
+        <!-- Quick reaction picker -->
         <%= if @current_user && @show_picker do %>
           <div class="dropdown dropdown-top">
-            <label tabindex="0" class={@picker_btn_class} title="Add reaction">
+            <button type="button" class={@picker_btn_class} title="Add reaction">
               <.icon name="hero-face-smile" class={@picker_icon_class} />
-            </label>
+            </button>
             <div
               tabindex="0"
               class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box border border-base-300"

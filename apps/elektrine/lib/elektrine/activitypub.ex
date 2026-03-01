@@ -5,6 +5,7 @@ defmodule Elektrine.ActivityPub do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias Elektrine.Repo
 
   alias Elektrine.ActivityPub.{
@@ -17,6 +18,7 @@ defmodule Elektrine.ActivityPub do
     KeyManager,
     LemmyApi,
     MastodonApi,
+    MRF,
     RelaySubscription,
     UserBlock
   }
@@ -139,12 +141,27 @@ defmodule Elektrine.ActivityPub do
   """
   def fetch_and_cache_actor(uri, existing_actor \\ nil) do
     with {:ok, actor_data} <- Fetcher.fetch_actor(uri),
+         {:ok, actor_data} <- apply_actor_policies(actor_data, uri),
          {:ok, actor} <- cache_actor(actor_data, existing_actor) do
       {:ok, actor}
     else
-      {:error, reason} -> {:error, reason}
+      {:reject, reason} ->
+        Logger.info("MRF rejected actor document #{uri}: #{reason}")
+        {:error, :mrf_rejected}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  defp apply_actor_policies(actor_data, _uri) when is_map(actor_data) do
+    case MRF.filter(actor_data) do
+      {:ok, filtered_actor_data} -> {:ok, filtered_actor_data}
+      {:reject, reason} -> {:reject, reason}
+    end
+  end
+
+  defp apply_actor_policies(actor_data, _uri), do: {:ok, actor_data}
 
   defp cache_actor(actor_data, existing_actor) do
     uri = URI.parse(actor_data["id"])

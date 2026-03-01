@@ -11,6 +11,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
+  alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Fetcher
   alias Elektrine.Messaging.Message
   alias Elektrine.Social
   alias Elektrine.Utils.SafeConvert
@@ -41,14 +43,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
 
           recent_replies = recent_replies_for_post(socket, message_id, reply_to_post)
 
-          {:noreply,
-           socket
-           |> assign(:reply_to_post, reply_to_post)
-           |> assign(:reply_to_post_recent_replies, recent_replies)
-           |> push_event("focus_reply_form", %{
-             textarea_id: "reply-textarea-#{message_id}",
-             container_id: "reply-form-#{message_id}"
-           })}
+          updated_socket =
+            socket
+            |> assign(:reply_to_post, reply_to_post)
+            |> assign(:reply_to_post_recent_replies, recent_replies)
+            |> maybe_fetch_remote_replies_preview(message_id, reply_to_post, recent_replies)
+            |> push_event("focus_reply_form", %{
+              textarea_id: "reply-textarea-#{message_id}",
+              container_id: "reply-form-#{message_id}"
+            })
+
+          {:noreply, updated_socket}
         end
 
       {:error, :invalid_id} ->
@@ -233,6 +238,48 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
       preload: [sender: [:profile], remote_actor: []]
     )
     |> Elektrine.Repo.all()
+  end
+
+  defp maybe_fetch_remote_replies_preview(socket, post_id, reply_to_post, recent_replies) do
+    loading_set = socket.assigns[:loading_remote_replies] || MapSet.new()
+
+    cond do
+      !is_map(reply_to_post) ->
+        socket
+
+      reply_to_post.federated != true ->
+        socket
+
+      !is_binary(reply_to_post.activitypub_id) || String.trim(reply_to_post.activitypub_id) == "" ->
+        socket
+
+      recent_replies != [] ->
+        socket
+
+      MapSet.member?(loading_set, post_id) ->
+        socket
+
+      true ->
+        parent = self()
+        activitypub_id = reply_to_post.activitypub_id
+
+        Task.start(fn ->
+          remote_replies = fetch_remote_replies_for_preview(activitypub_id)
+          send(parent, {:remote_replies_loaded, post_id, remote_replies})
+        end)
+
+        assign(socket, :loading_remote_replies, MapSet.put(loading_set, post_id))
+    end
+  end
+
+  defp fetch_remote_replies_for_preview(activitypub_id) do
+    with {:ok, post_object} <- Fetcher.fetch_object(activitypub_id),
+         {:ok, replies} when is_list(replies) <-
+           ActivityPub.fetch_remote_post_replies(post_object, limit: 3) do
+      replies
+    else
+      _ -> []
+    end
   end
 
   defp reply_identity_key(reply) do

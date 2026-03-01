@@ -28,19 +28,55 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Unread Email</p>
-            <p class="text-xl font-semibold">{@dashboard.inbox_unread_count}</p>
+            <%= if @loading_dashboard do %>
+              <div
+                class="mt-1 h-7 w-14 rounded bg-base-300 animate-pulse"
+                role="status"
+                aria-label="Loading unread email count"
+              >
+              </div>
+            <% else %>
+              <p class="text-xl font-semibold">{@dashboard.inbox_unread_count}</p>
+            <% end %>
           </div>
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Unread Chat</p>
-            <p class="text-xl font-semibold">{@dashboard.chat_unread_count}</p>
+            <%= if @loading_dashboard do %>
+              <div
+                class="mt-1 h-7 w-14 rounded bg-base-300 animate-pulse"
+                role="status"
+                aria-label="Loading unread chat count"
+              >
+              </div>
+            <% else %>
+              <p class="text-xl font-semibold">{@dashboard.chat_unread_count}</p>
+            <% end %>
           </div>
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Tasks</p>
-            <p class="text-xl font-semibold">{length(@dashboard.tasks)}</p>
+            <%= if @loading_dashboard do %>
+              <div
+                class="mt-1 h-7 w-14 rounded bg-base-300 animate-pulse"
+                role="status"
+                aria-label="Loading task count"
+              >
+              </div>
+            <% else %>
+              <p class="text-xl font-semibold">{length(@dashboard.tasks)}</p>
+            <% end %>
           </div>
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Alerts</p>
-            <p class="text-xl font-semibold">{length(@dashboard.alerts)}</p>
+            <%= if @loading_dashboard do %>
+              <div
+                class="mt-1 h-7 w-14 rounded bg-base-300 animate-pulse"
+                role="status"
+                aria-label="Loading alert count"
+              >
+              </div>
+            <% else %>
+              <p class="text-xl font-semibold">{length(@dashboard.alerts)}</p>
+            <% end %>
           </div>
         </div>
 

@@ -55,12 +55,7 @@ defmodule ElektrineWeb.Admin.UsersController do
       end
 
     # Add aliases to each user
-    users_with_aliases =
-      users
-      |> Enum.map(fn user ->
-        aliases = Email.list_aliases(user.id)
-        Map.put(user, :aliases, aliases)
-      end)
+    users_with_aliases = attach_aliases(users)
 
     total_pages = ceil(total_count / per_page)
     page_range = pagination_range(page, total_pages)
@@ -672,6 +667,26 @@ defmodule ElektrineWeb.Admin.UsersController do
   end
 
   # Private helper functions
+
+  defp attach_aliases(users) do
+    user_ids = Enum.map(users, & &1.id)
+
+    aliases_by_user_id =
+      if user_ids == [] do
+        %{}
+      else
+        from(a in Email.Alias,
+          where: a.user_id in ^user_ids,
+          order_by: [desc: a.inserted_at]
+        )
+        |> Repo.all()
+        |> Enum.group_by(& &1.user_id)
+      end
+
+    Enum.map(users, fn user ->
+      Map.put(user, :aliases, Map.get(aliases_by_user_id, user.id, []))
+    end)
+  end
 
   defp get_all_users_paginated(page, per_page) do
     offset = (page - 1) * per_page

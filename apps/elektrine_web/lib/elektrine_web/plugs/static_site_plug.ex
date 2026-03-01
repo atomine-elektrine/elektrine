@@ -143,11 +143,15 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     # Format: /username/path/to/file.css
     case String.split(path, "/", parts: 2) do
       [handle, asset_path] ->
-        # Validate asset_path doesn't contain path traversal
-        if safe_asset_path?(asset_path) do
-          serve_asset(conn, handle, asset_path)
-        else
+        if reserved_path?(handle) do
           conn
+        else
+          # Validate asset_path doesn't contain path traversal
+          if safe_asset_path?(asset_path) do
+            serve_asset(conn, handle, asset_path)
+          else
+            conn
+          end
         end
 
       _ ->
@@ -229,12 +233,16 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   # Paths that should never be treated as profile handles
   @reserved_paths ~w(
-    admin api account email temp-mail siem search login register
+    admin api account email temp-mail siem search login register password passkey two_factor
     pripyat
-    dev www support help about contact terms privacy blog docs status
-    health ping test settings logout users calendars addressbooks
+    dev www support help about contact terms privacy faq blog docs status
+    health ping test settings logout locale onboarding subscribe unsubscribe
+    users profiles subdomain calendars calendar contacts addressbooks
     principals activitypub inbox outbox followers following liked
     wellknown .well-known jmap captcha uploads
+    overview communities discussions timeline hashtag lists gallery remote chat friends notifications
+    media_proxy federation relay tags mail autodiscover oauth webhook vpn
+    nodeinfo sitemap.xml robots.txt _matrix-internal announcements l c
   )
 
   defp reserved_path?(path) do

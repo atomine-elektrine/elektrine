@@ -651,6 +651,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
             user_id: current_user && current_user.id
           )
 
+        "communities" ->
+          if current_user do
+            Social.get_public_community_posts(
+              limit: 20,
+              before_id: before_id,
+              user_id: current_user.id
+            )
+          else
+            Social.get_public_community_posts(limit: 20, before_id: before_id)
+          end
+
         _ ->
           case socket.assigns.current_filter do
             "all" ->
@@ -775,7 +786,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   end
 
   defp special_timeline_view?(view) do
-    view in ["replies", "friends", "my_posts", "trusted"]
+    view in ["communities", "replies", "friends", "my_posts", "trusted"]
   end
 
   defp timeline_remote_enrichment_enabled? do

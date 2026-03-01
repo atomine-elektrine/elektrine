@@ -592,14 +592,21 @@ defmodule Elektrine.Messaging.Messages do
 
         if oldest_message do
           from(m in Message,
+            left_join: h in UserHiddenMessage,
+            on: h.message_id == m.id and h.user_id == ^user_id,
             where:
               m.conversation_id == ^conversation_id and
                 m.id < ^oldest_message.id and
-                is_nil(m.deleted_at),
-            select: count(m.id)
+                is_nil(m.deleted_at) and
+                is_nil(h.id),
+            select: m.id,
+            limit: 1
           )
           |> Repo.one()
-          |> Kernel.>(0)
+          |> case do
+            nil -> false
+            _ -> true
+          end
         else
           false
         end
@@ -613,14 +620,21 @@ defmodule Elektrine.Messaging.Messages do
 
         if newest_message do
           from(m in Message,
+            left_join: h in UserHiddenMessage,
+            on: h.message_id == m.id and h.user_id == ^user_id,
             where:
               m.conversation_id == ^conversation_id and
                 m.id > ^newest_message.id and
-                is_nil(m.deleted_at),
-            select: count(m.id)
+                is_nil(m.deleted_at) and
+                is_nil(h.id),
+            select: m.id,
+            limit: 1
           )
           |> Repo.one()
-          |> Kernel.>(0)
+          |> case do
+            nil -> false
+            _ -> true
+          end
         else
           false
         end

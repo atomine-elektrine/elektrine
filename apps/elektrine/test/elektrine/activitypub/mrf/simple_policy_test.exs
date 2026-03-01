@@ -124,6 +124,34 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicyTest do
         "actor" => "https://ftl.example.com/users/test",
         "to" => ["https://www.w3.org/ns/activitystreams#Public"],
         "cc" => ["https://ftl.example.com/users/test/followers"],
+        "object" => %{
+          "type" => "Note",
+          "content" => "test",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://ftl.example.com/users/test/followers"]
+        }
+      }
+
+      assert {:ok, filtered} = SimplePolicy.filter(activity)
+      refute "https://www.w3.org/ns/activitystreams#Public" in filtered["to"]
+      assert "https://www.w3.org/ns/activitystreams#Public" in filtered["cc"]
+      refute "https://www.w3.org/ns/activitystreams#Public" in filtered["object"]["to"]
+      assert "https://www.w3.org/ns/activitystreams#Public" in filtered["object"]["cc"]
+    end
+  end
+
+  describe "filter/1 - silenced" do
+    test "applies federated timeline removal behavior for silenced instances" do
+      {:ok, _instance} =
+        %Instance{}
+        |> Instance.changeset(%{domain: "silenced.example.com", silenced: true})
+        |> Repo.insert()
+
+      activity = %{
+        "type" => "Create",
+        "actor" => "https://silenced.example.com/users/test",
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => ["https://silenced.example.com/users/test/followers"],
         "object" => %{"type" => "Note", "content" => "test"}
       }
 
@@ -145,12 +173,20 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicyTest do
         "actor" => "https://fo.example.com/users/test",
         "to" => ["https://www.w3.org/ns/activitystreams#Public"],
         "cc" => ["https://fo.example.com/users/test/followers"],
-        "object" => %{"type" => "Note", "content" => "test"}
+        "object" => %{
+          "type" => "Note",
+          "content" => "test",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => ["https://fo.example.com/users/test/followers"]
+        }
       }
 
       assert {:ok, filtered} = SimplePolicy.filter(activity)
       refute "https://www.w3.org/ns/activitystreams#Public" in filtered["to"]
       refute "https://www.w3.org/ns/activitystreams#Public" in filtered["cc"]
+      assert "https://fo.example.com/users/test/followers" in filtered["to"]
+      refute "https://www.w3.org/ns/activitystreams#Public" in filtered["object"]["to"]
+      refute "https://www.w3.org/ns/activitystreams#Public" in filtered["object"]["cc"]
     end
   end
 
@@ -169,6 +205,21 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicyTest do
 
       assert {:reject, "[SimplePolicy] host in report_removal list"} =
                SimplePolicy.filter(activity)
+    end
+
+    test "allows Flag activities from instances without report_removal policy" do
+      {:ok, _instance} =
+        %Instance{}
+        |> Instance.changeset(%{domain: "normal-report.example.com", report_removal: false})
+        |> Repo.insert()
+
+      activity = %{
+        "type" => "Flag",
+        "actor" => "https://normal-report.example.com/users/test",
+        "object" => ["https://our.instance/users/victim"]
+      }
+
+      assert {:ok, ^activity} = SimplePolicy.filter(activity)
     end
   end
 

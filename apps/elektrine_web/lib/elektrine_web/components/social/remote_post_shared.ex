@@ -120,7 +120,7 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
   attr :hidden_fields, :list, default: []
   attr :show_counter, :boolean, default: false
   attr :content_min, :integer, default: nil
-  attr :counter_suffix, :string, default: " min"
+  attr :counter_suffix, :string, default: " required chars"
 
   def inline_reply_form(assigns) do
     content_length = String.length(assigns.content || "")

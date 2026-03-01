@@ -83,8 +83,7 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
         details =
           changeset.errors
           |> Keyword.keys()
-          |> Enum.map(&to_string/1)
-          |> Enum.join(", ")
+          |> Enum.map_join(", ", &to_string/1)
 
         message =
           if details == "" do
@@ -447,17 +446,18 @@ defmodule ElektrineWeb.SettingsLive.PasswordManager do
   end
 
   defp decode_setup_params(params) when is_map(params) do
-    with {:ok, params} <- decode_payload_field(params, "encrypted_verifier", required: true) do
-      {:ok, params}
-    end
+    decode_payload_field(params, "encrypted_verifier", required: true)
   end
 
   defp decode_setup_params(_params), do: {:error, :invalid_payload}
 
   defp decode_encrypted_params(params) when is_map(params) do
-    with {:ok, params} <- decode_payload_field(params, "encrypted_password", required: true),
-         {:ok, params} <- decode_payload_field(params, "encrypted_notes", required: false) do
-      {:ok, params}
+    case decode_payload_field(params, "encrypted_password", required: true) do
+      {:ok, decoded_params} ->
+        decode_payload_field(decoded_params, "encrypted_notes", required: false)
+
+      error ->
+        error
     end
   end
 

@@ -46,6 +46,11 @@ defmodule Elektrine.Messaging do
   defdelegate get_conversation_by_hash(hash), to: Conversations
 
   @doc """
+  Gets a conversation for chat display by hash, ensuring user membership.
+  """
+  defdelegate get_conversation_for_chat_by_hash!(hash, user_id), to: Conversations
+
+  @doc """
   Gets a conversation by its name (for communities).
   """
   defdelegate get_conversation_by_name(name), to: Conversations

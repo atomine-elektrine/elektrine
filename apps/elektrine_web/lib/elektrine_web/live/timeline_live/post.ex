@@ -89,7 +89,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
 
                 <div class="mb-3">
                   <div class="break-words">
-                    {raw(make_links_clickable(@reply.content))}
+                    {raw(render_remote_post_content(@reply.content, @reply.remote_actor.domain))}
                   </div>
                 </div>
 
@@ -298,6 +298,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
                 form_class="space-y-4"
                 textarea_mounted={JS.focus()}
                 content_min={3}
+                counter_suffix={gettext(" required chars")}
                 show_counter={true}
               />
             </div>
@@ -610,34 +611,38 @@ defmodule ElektrineWeb.TimelineLive.Post do
       user_id = socket.assigns.current_user.id
       already_liked = Map.get(socket.assigns.liked_replies, reply_id, false)
 
-      case {already_liked, Social.like_post(user_id, reply_id),
-            Social.unlike_post(user_id, reply_id)} do
-        {false, {:ok, _}, _} ->
-          # Like the reply
-          updated_replies =
-            update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
-              %{r | like_count: (r.like_count || 0) + 1}
-            end)
+      if already_liked do
+        case Social.unlike_post(user_id, reply_id) do
+          {:ok, _} ->
+            updated_replies =
+              update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
+                %{r | like_count: max(0, (r.like_count || 0) - 1)}
+              end)
 
-          {:noreply,
-           socket
-           |> assign(:replies, updated_replies)
-           |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, true))}
+            {:noreply,
+             socket
+             |> assign(:replies, updated_replies)
+             |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, false))}
 
-        {true, _, {:ok, _}} ->
-          # Unlike the reply
-          updated_replies =
-            update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
-              %{r | like_count: max(0, (r.like_count || 0) - 1)}
-            end)
+          _ ->
+            {:noreply, put_flash(socket, :error, "Failed to update like")}
+        end
+      else
+        case Social.like_post(user_id, reply_id) do
+          {:ok, _} ->
+            updated_replies =
+              update_reply_in_tree(socket.assigns.replies, reply_id, fn r ->
+                %{r | like_count: (r.like_count || 0) + 1}
+              end)
 
-          {:noreply,
-           socket
-           |> assign(:replies, updated_replies)
-           |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, false))}
+            {:noreply,
+             socket
+             |> assign(:replies, updated_replies)
+             |> assign(:liked_replies, Map.put(socket.assigns.liked_replies, reply_id, true))}
 
-        _ ->
-          {:noreply, put_flash(socket, :error, "Failed to update like")}
+          _ ->
+            {:noreply, put_flash(socket, :error, "Failed to update like")}
+        end
       end
     else
       {:noreply, push_navigate(socket, to: ~p"/login")}

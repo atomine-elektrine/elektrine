@@ -85,7 +85,10 @@
             Open your authenticator app and scan this QR code
           </p>
 
-          <a href={~p"/account/two_factor/setup?refresh=true"} class="btn btn-ghost btn-sm mt-2">
+          <a
+            href={~p"/account/two_factor/setup?refresh=true"}
+            class="btn btn-secondary btn-sm mt-2"
+          >
             <.icon name="hero-arrow-path" class="h-4 w-4 mr-1" /> Generate New QR Code
           </a>
 
@@ -194,7 +197,7 @@
           </div>
 
           <div class="card-actions justify-between mt-4 sm:mt-6">
-            <.link href={~p"/account"} class="btn btn-ghost btn-sm sm:btn-md">
+            <.link href={~p"/account"} class="btn btn-secondary btn-sm sm:btn-md">
               <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to settings
             </.link>
 

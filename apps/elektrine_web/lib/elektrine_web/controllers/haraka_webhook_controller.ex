@@ -393,6 +393,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
     from = get_header_value(params, "from", "mail_from") || "unknown@example.com"
     to = get_header_value(params, "to", "rcpt_to") || "unknown@elektrine.com"
     subject = extract_subject(params)
+    in_reply_to = extract_threading_header(params, ["in_reply_to", "in-reply-to"])
+    references = extract_threading_header(params, ["references"])
 
     authenticated_context =
       if trusted_local_sender?(params, from) do
@@ -531,6 +533,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
                 "subject" => subject,
                 "text_body" => text_body,
                 "html_body" => html_body,
+                "in_reply_to" => in_reply_to,
+                "references" => references,
                 "attachments" => attachments,
                 "has_attachments" => has_attachments,
                 "mailbox_id" => mailbox.id,
@@ -899,6 +903,46 @@ defmodule ElektrineWeb.HarakaWebhookController do
   defp decode_subject_from_headers(_) do
     ""
   end
+
+  defp extract_threading_header(params, candidates) when is_map(params) and is_list(candidates) do
+    direct_value =
+      Enum.find_value(candidates, fn key ->
+        params[key] || params[String.replace(key, "-", "_")]
+      end)
+      |> extract_from_array()
+
+    headers = normalize_headers(params["headers"])
+
+    header_value =
+      Enum.find_value(candidates, fn key ->
+        get_case_insensitive(headers, key) ||
+          get_case_insensitive(headers, String.replace(key, "_", "-"))
+      end)
+      |> extract_from_array()
+
+    (direct_value || header_value)
+    |> normalize_threading_header_value()
+  end
+
+  defp extract_threading_header(_params, _candidates), do: nil
+
+  defp normalize_threading_header_value(nil), do: nil
+  defp normalize_threading_header_value(""), do: nil
+
+  defp normalize_threading_header_value(value) when is_binary(value) do
+    value
+    |> decode_header_with_mail_library()
+    |> Sanitizer.sanitize_utf8()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_threading_header_value(value),
+    do: to_string(value) |> normalize_threading_header_value()
 
   defp choose_cleaner_decoded_text(primary, fallback) do
     primary =

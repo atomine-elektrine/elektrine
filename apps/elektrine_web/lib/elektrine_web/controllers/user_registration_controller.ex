@@ -1,6 +1,5 @@
 defmodule ElektrineWeb.UserRegistrationController do
   use ElektrineWeb, :controller
-  import Ecto.Query, warn: false
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
@@ -15,121 +14,75 @@ defmodule ElektrineWeb.UserRegistrationController do
 
   def create(conn, %{"user" => user_params} = params) do
     remote_ip = get_remote_ip(conn)
+    registration_ip = normalize_ipv6_subnet(remote_ip)
     captcha_token = Map.get(params, "cf-turnstile-response")
     captcha_answer = Map.get(params, "captcha_answer")
     via_tor = conn.assigns[:via_tor] || false
     require Logger
 
-    # Check registration rate limit first
-    case check_registration_rate_limit(remote_ip) do
-      {:error, :rate_limit_exceeded} ->
-        conn
-        |> put_flash(
-          :error,
-          "Only one registration per week is allowed per IP address. Please try again next week."
-        )
-        |> redirect(to: ~p"/register")
+    # Check if captcha should be skipped (dev/test mode)
+    turnstile_config = Application.get_env(:elektrine, :turnstile) || []
+    skip_captcha = Keyword.get(turnstile_config, :skip_verification, false)
 
-      :ok ->
-        # Check if captcha should be skipped (dev/test mode)
-        turnstile_config = Application.get_env(:elektrine, :turnstile) || []
-        skip_captcha = Keyword.get(turnstile_config, :skip_verification, false)
+    # Different captcha verification for Tor vs clearnet
+    captcha_result =
+      if skip_captcha do
+        Logger.debug("Captcha verification skipped (dev/test mode)")
+        {:ok, :verified}
+      else
+        if via_tor do
+          # Verify server-side image captcha for Tor users
+          token = get_session(conn, :captcha_token)
 
-        # Different captcha verification for Tor vs clearnet
-        captcha_result =
-          if skip_captcha do
-            Logger.debug("Captcha verification skipped (dev/test mode)")
-            {:ok, :verified}
-          else
-            if via_tor do
-              # Verify server-side image captcha for Tor users
-              token = get_session(conn, :captcha_token)
+          Logger.info(
+            "Tor captcha check: token_present=#{not is_nil(token)}, answer_present=#{not is_nil(captcha_answer)}"
+          )
 
-              Logger.info(
-                "Tor captcha check: token_present=#{not is_nil(token)}, answer_present=#{not is_nil(captcha_answer)}"
-              )
-
-              if token && captcha_answer do
-                case Elektrine.Captcha.verify(token, captcha_answer) do
-                  :ok -> {:ok, :verified}
-                  error -> error
-                end
-              else
-                {:error, :missing_captcha}
-              end
-            else
-              # Use Turnstile for clearnet users
-              Logger.info(
-                "Turnstile check: token_present=#{not is_nil(captcha_token)}, ip_present=#{not is_nil(remote_ip)}"
-              )
-
-              result = Turnstile.verify(captcha_token, remote_ip)
-
-              verification_status =
-                if match?({:ok, :verified}, result), do: "verified", else: "failed"
-
-              Logger.info("Turnstile result: #{verification_status}")
-              result
+          if token && captcha_answer do
+            case Elektrine.Captcha.verify(token, captcha_answer) do
+              :ok -> {:ok, :verified}
+              error -> error
             end
+          else
+            {:error, :missing_captcha}
           end
+        else
+          # Use Turnstile for clearnet users
+          Logger.info(
+            "Turnstile check: token_present=#{not is_nil(captcha_token)}, ip_present=#{not is_nil(remote_ip)}"
+          )
 
-        # Verify captcha
-        case captcha_result do
-          {:ok, :verified} ->
-            # Check if invite codes are enabled
-            if Elektrine.System.invite_codes_enabled?() do
-              # Validate invite code
-              invite_code = Map.get(user_params, "invite_code", "")
+          result = Turnstile.verify(captcha_token)
 
-              case Accounts.validate_invite_code(invite_code) do
-                {:ok, _invite_code} ->
-                  # Add IP address and Tor registration status to user params
-                  user_params_with_ip =
-                    user_params
-                    |> Map.put("registration_ip", remote_ip)
-                    |> Map.put("registered_via_onion", via_tor)
+          verification_status =
+            if match?({:ok, :verified}, result), do: "verified", else: "failed"
 
-                  case Accounts.create_user(user_params_with_ip) do
-                    {:ok, user} ->
-                      # Use the invite code
-                      Accounts.use_invite_code(invite_code, user.id)
+          Logger.info("Turnstile result: #{verification_status}")
+          result
+        end
+      end
 
-                      UserAuth.log_in_user(conn, user, %{},
-                        flash: {:info, "User created successfully."}
-                      )
+    # Verify captcha
+    case captcha_result do
+      {:ok, :verified} ->
+        # Check if invite codes are enabled
+        if Elektrine.System.invite_codes_enabled?() do
+          # Validate invite code
+          invite_code = Map.get(user_params, "invite_code", "")
 
-                    {:error, %Ecto.Changeset{} = changeset} ->
-                      invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
-
-                      render_registration(conn,
-                        changeset: changeset,
-                        invite_codes_enabled: invite_codes_enabled
-                      )
-                  end
-
-                {:error, reason} ->
-                  changeset =
-                    %User{}
-                    |> Accounts.change_user_registration(user_params)
-                    |> Ecto.Changeset.add_error(:invite_code, invite_code_error_message(reason))
-
-                  invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
-
-                  render_registration(conn,
-                    changeset: changeset,
-                    invite_codes_enabled: invite_codes_enabled
-                  )
-              end
-            else
-              # Invite codes disabled, proceed with normal registration
+          case Accounts.validate_invite_code(invite_code) do
+            {:ok, _invite_code} ->
               # Add IP address and Tor registration status to user params
               user_params_with_ip =
                 user_params
-                |> Map.put("registration_ip", remote_ip)
+                |> Map.put("registration_ip", registration_ip)
                 |> Map.put("registered_via_onion", via_tor)
 
               case Accounts.create_user(user_params_with_ip) do
                 {:ok, user} ->
+                  # Use the invite code
+                  Accounts.use_invite_code(invite_code, user.id)
+
                   UserAuth.log_in_user(conn, user, %{},
                     flash: {:info, "User created successfully."}
                   )
@@ -142,25 +95,58 @@ defmodule ElektrineWeb.UserRegistrationController do
                     invite_codes_enabled: invite_codes_enabled
                   )
               end
-            end
 
-          {:error, reason} ->
-            # Log the error for debugging
-            require Logger
-            Logger.error("Turnstile verification failed: #{inspect(reason)}")
+            {:error, reason} ->
+              changeset =
+                %User{}
+                |> Accounts.change_user_registration(user_params)
+                |> Ecto.Changeset.add_error(:invite_code, invite_code_error_message(reason))
 
-            changeset =
-              %User{}
-              |> Accounts.change_user_registration(user_params)
-              |> Ecto.Changeset.add_error(:captcha, "Please complete the captcha verification")
+              invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
 
-            invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
+              render_registration(conn,
+                changeset: changeset,
+                invite_codes_enabled: invite_codes_enabled
+              )
+          end
+        else
+          # Invite codes disabled, proceed with normal registration
+          # Add IP address and Tor registration status to user params
+          user_params_with_ip =
+            user_params
+            |> Map.put("registration_ip", registration_ip)
+            |> Map.put("registered_via_onion", via_tor)
 
-            render_registration(conn,
-              changeset: changeset,
-              invite_codes_enabled: invite_codes_enabled
-            )
+          case Accounts.create_user(user_params_with_ip) do
+            {:ok, user} ->
+              UserAuth.log_in_user(conn, user, %{}, flash: {:info, "User created successfully."})
+
+            {:error, %Ecto.Changeset{} = changeset} ->
+              invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
+
+              render_registration(conn,
+                changeset: changeset,
+                invite_codes_enabled: invite_codes_enabled
+              )
+          end
         end
+
+      {:error, reason} ->
+        # Log the error for debugging
+        require Logger
+        Logger.error("Turnstile verification failed: #{inspect(reason)}")
+
+        changeset =
+          %User{}
+          |> Accounts.change_user_registration(user_params)
+          |> Ecto.Changeset.add_error(:captcha, "Please complete the captcha verification")
+
+        invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
+
+        render_registration(conn,
+          changeset: changeset,
+          invite_codes_enabled: invite_codes_enabled
+        )
     end
   end
 
@@ -202,10 +188,7 @@ defmodule ElektrineWeb.UserRegistrationController do
   end
 
   defp get_remote_ip(conn) do
-    ip_string = ElektrineWeb.ClientIP.client_ip(conn)
-
-    # Normalize IPv6 to /64 subnet to prevent rotation attacks
-    normalize_ipv6_subnet(ip_string)
+    ElektrineWeb.ClientIP.client_ip(conn)
   end
 
   # Normalizes IPv6 addresses to /64 subnet (first 4 hextets)
@@ -250,85 +233,4 @@ defmodule ElektrineWeb.UserRegistrationController do
 
   defp invite_code_error_message(:code_inactive), do: "This invite code is no longer active"
   defp invite_code_error_message(_), do: "Invalid invite code"
-
-  # Registration rate limiting - multi-layer approach
-  defp check_registration_rate_limit(ip_address) do
-    # Layer 1: Check /64 limit (1 per week for residential networks)
-    case check_subnet_rate_limit(ip_address, 1, :week) do
-      {:error, reason} ->
-        {:error, reason}
-
-      :ok ->
-        # Layer 2: Check /32 limit (3 per day for ISP-wide abuse prevention)
-        ip_32 = normalize_ipv6_to_32(ip_address)
-        check_subnet_rate_limit(ip_32, 3, :day)
-    end
-  end
-
-  defp check_subnet_rate_limit(ip_address, limit, period) do
-    start_time =
-      case period do
-        :week ->
-          Date.utc_today()
-          |> Date.beginning_of_week()
-          |> Date.to_string()
-          |> then(fn date -> "#{date} 00:00:00" end)
-          |> NaiveDateTime.from_iso8601!()
-          |> DateTime.from_naive!("Etc/UTC")
-
-        :day ->
-          DateTime.utc_now()
-          |> DateTime.add(-24, :hour)
-      end
-
-    # For /32 checks, we need to match the prefix
-    registration_count =
-      if String.ends_with?(ip_address, "::/32") do
-        # Extract the /32 prefix for LIKE matching
-        prefix = String.replace_suffix(ip_address, "::/32", "")
-
-        Elektrine.Accounts.User
-        |> where([u], like(u.registration_ip, ^"#{prefix}%") and u.inserted_at >= ^start_time)
-        |> Elektrine.Repo.aggregate(:count, :id)
-      else
-        Elektrine.Accounts.User
-        |> where([u], u.registration_ip == ^ip_address and u.inserted_at >= ^start_time)
-        |> Elektrine.Repo.aggregate(:count, :id)
-      end
-
-    if registration_count >= limit do
-      {:error, :rate_limit_exceeded}
-    else
-      :ok
-    end
-  end
-
-  # Normalize IPv6 to /32 for ISP-level rate limiting
-  defp normalize_ipv6_to_32(ip_string) do
-    if String.contains?(ip_string, ":") do
-      # Strip off /64 suffix if present
-      base_ip = String.replace_suffix(ip_string, "::/64", "")
-      hextets = String.split(base_ip, ":")
-
-      # Handle compressed notation
-      expanded =
-        if Enum.any?(hextets, &(&1 == "")) do
-          parts_before = Enum.take_while(hextets, &(&1 != ""))
-          parts_after = hextets |> Enum.drop_while(&(&1 != "")) |> Enum.drop(1)
-          zeros_needed = 8 - length(parts_before) - length(parts_after)
-          parts_before ++ List.duplicate("0", zeros_needed) ++ parts_after
-        else
-          hextets
-        end
-
-      # Take first 2 hextets for /32 subnet
-      expanded
-      |> Enum.take(2)
-      |> Enum.join(":")
-      |> Kernel.<>("::/32")
-    else
-      # IPv4 - return as-is
-      ip_string
-    end
-  end
 end

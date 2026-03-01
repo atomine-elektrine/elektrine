@@ -58,6 +58,7 @@ defmodule Elektrine.Email do
     to: Elektrine.Email.Messages
 
   defdelegate list_messages(mailbox_id, limit \\ 50, offset \\ 0), to: Elektrine.Email.Messages
+  defdelegate list_thread_messages(message, mailbox_id), to: Elektrine.Email.Messages
 
   defdelegate list_inbox_messages(mailbox_id, limit \\ 50, offset \\ 0),
     to: Elektrine.Email.Messages

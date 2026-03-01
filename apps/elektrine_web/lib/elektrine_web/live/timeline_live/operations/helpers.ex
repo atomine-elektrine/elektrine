@@ -13,7 +13,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
         "posts" ->
           Enum.filter(socket.assigns.timeline_posts, fn post ->
             is_nil(Map.get(post, :reply_to_id)) &&
-              !PostUtilities.has_community_uri?(post)
+              !PostUtilities.community_post?(post)
           end)
 
         "replies" ->
@@ -58,7 +58,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
 
         "communities" ->
           Enum.filter(socket.assigns.timeline_posts, fn post ->
-            PostUtilities.has_community_uri?(post)
+            PostUtilities.community_post?(post)
           end)
 
         "federated" ->
@@ -133,7 +133,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
          socket.assigns.software_filter == "all" do
       {non_community, community} =
         Enum.split_with(posts, fn post ->
-          !PostUtilities.has_community_uri?(post)
+          !PostUtilities.community_post?(post)
         end)
 
       non_community ++ community

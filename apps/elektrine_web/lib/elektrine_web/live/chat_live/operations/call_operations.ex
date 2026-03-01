@@ -59,6 +59,10 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
           {:noreply,
            notify_error(socket, "You're starting calls too quickly. Try again shortly.")}
 
+        {:error, :invalid_conversation} ->
+          {:noreply,
+           notify_error(socket, "Call can only be started from your shared DM conversation")}
+
         {:error, reason} ->
           error_msg = Elektrine.Privacy.privacy_error_message(reason)
           {:noreply, notify_error(socket, error_msg)}

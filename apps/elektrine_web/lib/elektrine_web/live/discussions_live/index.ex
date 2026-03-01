@@ -1353,26 +1353,93 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   defp get_followed_community_posts(user_id, opts) do
     limit = Keyword.get(opts, :limit, 20)
 
-    followed_uris =
+    followed_groups_from_follows =
       from(f in Profiles.Follow,
         join: a in Actor,
         on: f.remote_actor_id == a.id,
         where: f.follower_id == ^user_id and a.actor_type == "Group",
-        select: a.uri
+        select: %{id: a.id, uri: a.uri}
       )
       |> Repo.all()
 
-    if Enum.empty?(followed_uris) do
+    federated_mirror_memberships =
+      from(cm in Messaging.ConversationMember,
+        join: c in Messaging.Conversation,
+        on: c.id == cm.conversation_id,
+        left_join: a in Actor,
+        on: c.remote_group_actor_id == a.id,
+        where:
+          cm.user_id == ^user_id and is_nil(cm.left_at) and c.type == "community" and
+            c.is_federated_mirror == true,
+        select: %{
+          conversation_id: c.id,
+          remote_actor_id: c.remote_group_actor_id,
+          remote_uri: fragment("COALESCE(?, ?)", a.uri, c.federated_source)
+        }
+      )
+      |> Repo.all()
+
+    followed_actor_ids =
+      followed_groups_from_follows
+      |> Enum.map(& &1.id)
+      |> Kernel.++(Enum.map(federated_mirror_memberships, & &1.remote_actor_id))
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+
+    followed_uris =
+      followed_groups_from_follows
+      |> Enum.map(& &1.uri)
+      |> Kernel.++(Enum.map(federated_mirror_memberships, & &1.remote_uri))
+      |> Enum.filter(fn uri -> is_binary(uri) && String.trim(uri) != "" end)
+      |> Enum.uniq()
+
+    mirror_community_ids =
+      federated_mirror_memberships
+      |> Enum.map(& &1.conversation_id)
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+
+    if Enum.empty?(followed_actor_ids) and Enum.empty?(followed_uris) and
+         Enum.empty?(mirror_community_ids) do
       []
     else
+      community_filter = dynamic([_m], false)
+
+      community_filter =
+        if Enum.empty?(followed_actor_ids) do
+          community_filter
+        else
+          dynamic(
+            [m],
+            ^community_filter or m.remote_actor_id in ^followed_actor_ids
+          )
+        end
+
+      community_filter =
+        if Enum.empty?(mirror_community_ids) do
+          community_filter
+        else
+          dynamic([m], ^community_filter or m.conversation_id in ^mirror_community_ids)
+        end
+
+      community_filter =
+        if Enum.empty?(followed_uris) do
+          community_filter
+        else
+          dynamic(
+            [m],
+            ^community_filter or
+              fragment("?->>'community_actor_uri' = ANY(?)", m.media_metadata, ^followed_uris)
+          )
+        end
+
       from(m in Messaging.Message,
         where:
           m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
-            is_nil(m.reply_to_id) and
-            fragment("?->>'community_actor_uri' = ANY(?)", m.media_metadata, ^followed_uris),
-        order_by: [desc: m.inserted_at],
+            is_nil(m.reply_to_id) and ^community_filter,
+        order_by: [desc: m.id],
         limit: ^limit,
-        preload: [remote_actor: [], hashtags: [], link_preview: []]
+        preload: [conversation: [], remote_actor: [], hashtags: [], link_preview: []]
       )
       |> Repo.all()
     end
@@ -1545,7 +1612,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp sort_feed_posts(posts, "new", _lemmy_counts) do
-    Enum.sort_by(posts, & &1.inserted_at, {:desc, NaiveDateTime})
+    Enum.sort_by(posts, & &1.id, :desc)
   end
 
   defp sort_feed_posts(posts, "top", lemmy_counts) do
