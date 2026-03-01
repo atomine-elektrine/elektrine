@@ -105,6 +105,12 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
         %{}
 
     lemmy_data = map_get_value(reply, "_lemmy") || %{}
+
+    lemmy_creator =
+      if is_map(map_get_value(lemmy_data, "creator")),
+        do: map_get_value(lemmy_data, "creator"),
+        else: %{}
+
     attributed_to_map = if is_map(reply["attributedTo"]), do: reply["attributedTo"], else: %{}
 
     account_actor_uri =
@@ -132,6 +138,9 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
       map_get_value(mastodon_account, "display_name") ||
         map_get_value(mastodon_account, "displayName") ||
         map_get_value(attributed_to_map, "name") ||
+        map_get_value(lemmy_creator, "display_name") ||
+        map_get_value(lemmy_creator, "name") ||
+        map_get_value(lemmy_data, "creator_display_name") ||
         map_get_value(lemmy_data, "creator_name") ||
         username ||
         "unknown"
@@ -139,7 +148,11 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
     avatar_url =
       normalize_http_url(map_get_value(mastodon_account, "avatar")) ||
         normalize_http_url(map_get_value(mastodon_account, "avatar_static")) ||
+        normalize_http_url(map_get_value(lemmy_creator, "avatar")) ||
+        normalize_http_url(map_get_value(lemmy_data, "author_avatar")) ||
         normalize_http_url(map_get_value(lemmy_data, "creator_avatar")) ||
+        normalize_http_url(map_get_value(reply, "author_avatar")) ||
+        normalize_http_url(map_get_value(reply, "avatar_url")) ||
         first_http_url_from_value(map_get_value(reply, "icon")) ||
         first_http_url_from_value(map_get_value(attributed_to_map, "icon"))
 

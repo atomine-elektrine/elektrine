@@ -89,8 +89,8 @@ defmodule ElektrineWeb.PasskeyController do
   end
 
   defp verify_and_login(conn, challenge, assertion, ip_address) do
-    case Passkeys.verify_authentication(challenge, assertion) do
-      {:ok, user} ->
+    case Passkeys.verify_authentication_with_credential(challenge, assertion) do
+      {:ok, user, credential} ->
         # Clear rate limits on successful authentication
         RateLimiter.record_successful_attempt(ip_address)
         Events.auth(:passkey, :success, %{reason: :verified})
@@ -99,7 +99,11 @@ defmodule ElektrineWeb.PasskeyController do
         flash_message = ElektrineWeb.UserAuth.login_flash_message(user, method: :passkey)
 
         conn
-        |> ElektrineWeb.UserAuth.log_in_user(user, %{}, flash: {:info, flash_message})
+        |> ElektrineWeb.UserAuth.log_in_user(user, %{},
+          flash: {:info, flash_message},
+          auth_method: :passkey,
+          passkey_credential_id: credential.credential_id
+        )
 
       {:error, :cloned_authenticator} ->
         # Cloned authenticator detected - block authentication

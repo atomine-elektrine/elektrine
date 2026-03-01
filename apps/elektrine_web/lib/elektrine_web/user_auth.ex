@@ -11,6 +11,7 @@ defmodule ElektrineWeb.UserAuth do
   alias Elektrine.AppCache
   alias Elektrine.Constants
   alias Elektrine.Email.Cached, as: EmailCached
+  alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.ClientIP
 
   # Make the remember me cookie valid for 60 days.
@@ -44,8 +45,9 @@ defmodule ElektrineWeb.UserAuth do
     |> renew_session()
     |> put_token_in_session(token)
     |> store_session_ip_for_admin(user, remote_ip)
-    |> maybe_write_remember_me_cookie(token, params)
+    |> maybe_write_remember_me_cookie(token, user, params)
     |> maybe_put_session_values(opts[:session])
+    |> maybe_initialize_admin_security_session(user, opts)
     |> maybe_put_flash(opts[:flash])
     |> redirect(to: user_return_to || signed_in_path(conn, user))
   end
@@ -86,6 +88,15 @@ defmodule ElektrineWeb.UserAuth do
     Enum.reduce(session_map, conn, fn {key, value}, acc ->
       put_session(acc, key, value)
     end)
+  end
+
+  defp maybe_initialize_admin_security_session(conn, user, opts) do
+    admin_opts = [
+      auth_method: opts[:auth_method] || opts[:method],
+      passkey_credential_id: opts[:passkey_credential_id]
+    ]
+
+    AdminSecurity.initialize_admin_session(conn, user, admin_opts)
   end
 
   @doc """
@@ -142,11 +153,16 @@ defmodule ElektrineWeb.UserAuth do
     |> log_in_user(user, params, opts)
   end
 
-  defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
+  defp maybe_write_remember_me_cookie(conn, _token, %{is_admin: true}, %{"remember_me" => "true"}) do
+    # Admin sessions are intentionally short-lived and cannot be remembered.
+    conn
+  end
+
+  defp maybe_write_remember_me_cookie(conn, token, _user, %{"remember_me" => "true"}) do
     put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
   end
 
-  defp maybe_write_remember_me_cookie(conn, _token, _params) do
+  defp maybe_write_remember_me_cookie(conn, _token, _user, _params) do
     conn
   end
 
@@ -341,7 +357,9 @@ defmodule ElektrineWeb.UserAuth do
           |> halt()
         else
           # SECURITY: Verify admin session IP hasn't changed (session hijacking detection)
-          verify_admin_session_ip(conn, user)
+          conn
+          |> verify_admin_session_ip(user)
+          |> AdminSecurity.enforce_controller_security(user)
         end
 
       %{banned: true} ->

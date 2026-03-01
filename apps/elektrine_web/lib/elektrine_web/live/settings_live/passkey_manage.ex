@@ -60,7 +60,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
                 class="btn btn-primary"
               >
                 <%= if @registering do %>
-                  <span class="loading loading-spinner loading-sm"></span>
+                  <.spinner size="sm" />
                   {gettext("Registering...")}
                 <% else %>
                   <.icon name="hero-plus" class="w-4 h-4" />

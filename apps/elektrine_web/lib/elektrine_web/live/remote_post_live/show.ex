@@ -12,6 +12,9 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.Loaders.Skeleton
 
+  @submitted_preview_poll_attempts 10
+  @submitted_preview_poll_interval_ms 1_000
+
   # Render threaded comments recursively
   # Detects if this is a Lemmy post (has community_actor) and renders accordingly
   def render_threaded_comments(assigns, comments) do
@@ -615,12 +618,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             <% parent_post = ancestor.post
             parent_actor = ancestor.actor
 
-            parent_ref =
-              normalize_in_reply_to_ref(
-                map_get_value(parent_post, "url") ||
-                  map_get_value(parent_post, "id") ||
-                  ancestor.in_reply_to
-              )
+            parent_ref = ancestor_post_ref(parent_post, ancestor.in_reply_to)
 
             parent_author = reply_parent_author_label(parent_post, parent_actor)
 
@@ -920,6 +918,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       |> assign(:reply_ancestors, [])
       |> assign(:meta_description, nil)
       |> assign(:og_image, nil)
+      |> assign(:submitted_link_preview, nil)
       |> assign(
         :current_url,
         ElektrineWeb.Endpoint.url() <> "/remote/post/" <> URI.encode_www_form(decoded_post_id)
@@ -945,7 +944,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
             cached_is_community =
               community_post_url?(msg.activitypub_id || "") ||
-                community_post_url?(msg.activitypub_url || "")
+                community_post_url?(msg.activitypub_url || "") ||
+                is_binary(community_uri_from_local_message(msg))
 
             # Build post object from cached message
             post_object = build_post_object_from_message(msg)
@@ -961,6 +961,11 @@ defmodule ElektrineWeb.RemotePostLive.Show do
               msg.title || "Post by @#{(msg.remote_actor && msg.remote_actor.username) || "user"}"
             )
             |> assign_reply_parent_fallback(post_object, msg)
+            |> ensure_submitted_link_preview(
+              post_object,
+              msg,
+              msg.remote_actor && msg.remote_actor.domain
+            )
 
           nil ->
             socket
@@ -981,8 +986,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           # Check if it's a community/Lemmy-like post that needs community loaded
           # Patterns: /post/ (Lemmy), /c/.../p/ (PieFed), or any post with Page type
           # Always try to load community for federated posts - it will be nil if none exists
-          if cached_msg.activitypub_id && community_post_url?(cached_msg.activitypub_id) do
-            send(self(), {:load_community_for_cached, decoded_post_id})
+          cached_community_uri = community_uri_from_local_message(cached_msg)
+
+          if (is_binary(cached_msg.activitypub_id) &&
+                community_post_url?(cached_msg.activitypub_id)) ||
+               is_binary(cached_community_uri) do
+            send(self(), {:load_community_for_cached, decoded_post_id, cached_community_uri})
           end
 
           # Load main post interactions immediately for cached posts
@@ -1010,6 +1019,21 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp community_post_url?(_), do: false
+
+  defp community_uri_from_local_message(%{media_metadata: metadata}) when is_map(metadata) do
+    case Map.get(metadata, "community_actor_uri") || Map.get(metadata, :community_actor_uri) do
+      uri when is_binary(uri) ->
+        case String.trim(uri) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp community_uri_from_local_message(_), do: nil
 
   # Find community URI from post object - check multiple possible fields
   # Different platforms use different fields for the community
@@ -1133,6 +1157,112 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp submitted_url_host(_), do: nil
+
+  defp effective_link_preview(local_message, submitted_link_preview) do
+    cond do
+      match?(%{link_preview: %Elektrine.Social.LinkPreview{status: "success"}}, local_message) ->
+        local_message.link_preview
+
+      match?(%Elektrine.Social.LinkPreview{status: "success"}, submitted_link_preview) ->
+        submitted_link_preview
+
+      true ->
+        nil
+    end
+  end
+
+  defp preview_title_duplicates_post?(preview_title, post_title)
+       when is_binary(preview_title) and is_binary(post_title) do
+    normalize_preview_text(preview_title) == normalize_preview_text(post_title)
+  end
+
+  defp preview_title_duplicates_post?(_, _), do: false
+
+  defp normalize_preview_text(text) when is_binary(text) do
+    text
+    |> String.downcase()
+    |> String.trim()
+    |> String.replace(~r/\s+/, " ")
+  end
+
+  defp ensure_submitted_link_preview(socket, post_object, local_message, remote_actor_domain)
+       when is_map(post_object) do
+    if match?(%{link_preview: %Elektrine.Social.LinkPreview{status: "success"}}, local_message) do
+      assign(socket, :submitted_link_preview, nil)
+    else
+      case detect_submitted_url(post_object, local_message, remote_actor_domain) do
+        url when is_binary(url) ->
+          case Elektrine.Repo.get_by(Elektrine.Social.LinkPreview, url: url) do
+            %Elektrine.Social.LinkPreview{status: "success"} = preview ->
+              assign(socket, :submitted_link_preview, preview)
+
+            _ ->
+              maybe_enqueue_submitted_link_preview(url, local_message)
+              maybe_schedule_submitted_preview_poll(socket, url)
+              assign(socket, :submitted_link_preview, nil)
+          end
+
+        _ ->
+          assign(socket, :submitted_link_preview, nil)
+      end
+    end
+  end
+
+  defp ensure_submitted_link_preview(socket, _, _, _),
+    do: assign(socket, :submitted_link_preview, nil)
+
+  defp maybe_enqueue_submitted_link_preview(url, local_message) when is_binary(url) do
+    message_id =
+      case local_message do
+        %{id: id} when is_integer(id) -> id
+        _ -> nil
+      end
+
+    _ = Social.FetchLinkPreviewWorker.enqueue(url, message_id)
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  defp maybe_enqueue_submitted_link_preview(_, _), do: :ok
+
+  defp maybe_schedule_submitted_preview_poll(socket, url) when is_binary(url) do
+    if connected?(socket) do
+      Process.send_after(
+        self(),
+        {:poll_submitted_link_preview, url, @submitted_preview_poll_attempts},
+        @submitted_preview_poll_interval_ms
+      )
+    end
+
+    :ok
+  end
+
+  defp maybe_schedule_submitted_preview_poll(_, _), do: :ok
+
+  defp current_submitted_url(socket) do
+    detect_submitted_url(
+      socket.assigns[:post],
+      socket.assigns[:local_message],
+      socket.assigns[:remote_actor] && socket.assigns.remote_actor.domain
+    )
+  end
+
+  defp extract_youtube_id(url) when is_binary(url) do
+    patterns = [
+      ~r/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+      ~r/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/
+    ]
+
+    Enum.find_value(patterns, fn pattern ->
+      case Regex.run(pattern, url) do
+        [_, video_id] -> video_id
+        _ -> nil
+      end
+    end)
+  end
+
+  defp extract_youtube_id(_), do: nil
 
   defp quote_message_path(%{activitypub_id: activitypub_id})
        when is_binary(activitypub_id) and activitypub_id != "" do
@@ -1371,6 +1501,15 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp normalize_in_reply_to_ref(_), do: nil
+
+  defp ancestor_post_ref(parent_post, in_reply_to_ref) do
+    [
+      map_get_value(parent_post, "id"),
+      in_reply_to_ref,
+      map_get_value(parent_post, "url")
+    ]
+    |> Enum.find_value(&normalize_in_reply_to_ref/1)
+  end
 
   defp extract_post_in_reply_to(post_object, local_message) do
     local_metadata = local_message_metadata(local_message)
@@ -2182,6 +2321,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         |> assign(:user_saves, user_saves)
         |> assign(:post_reactions, post_reactions)
         |> assign_reply_parent_fallback(post_object, message)
+        |> ensure_submitted_link_preview(post_object, message, nil)
 
       send(self(), {:load_reply_parent, post_object})
 
@@ -2247,10 +2387,27 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           end
 
         post_object = merge_local_poll_data(post_object, local_message)
+        local_community_uri = community_uri_from_local_message(local_message)
+
+        community_actor =
+          cond do
+            community_actor ->
+              community_actor
+
+            is_binary(local_community_uri) ->
+              case ActivityPub.get_or_fetch_actor(local_community_uri) do
+                {:ok, actor} -> actor
+                _ -> nil
+              end
+
+            true ->
+              nil
+          end
 
         is_community_post =
           !is_nil(community_actor) ||
             is_binary(find_community_uri(post_object)) ||
+            is_binary(local_community_uri) ||
             community_post_url?(post_object["id"] || "") ||
             community_post_url?(post_object["url"] || "")
 
@@ -2308,6 +2465,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           socket
           |> assign(:local_message, local_message)
           |> assign_reply_parent_fallback(post_object, local_message)
+          |> ensure_submitted_link_preview(post_object, local_message, remote_actor.domain)
 
         # Load main post interactions immediately
         socket =
@@ -2352,8 +2510,13 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end
   end
 
-  # Load community actor for cached community posts
   def handle_info({:load_community_for_cached, post_id}, socket) do
+    fallback_community_uri = community_uri_from_local_message(socket.assigns[:local_message])
+    handle_info({:load_community_for_cached, post_id, fallback_community_uri}, socket)
+  end
+
+  # Load community actor for cached community posts
+  def handle_info({:load_community_for_cached, post_id, fallback_community_uri}, socket) do
     liveview_pid = self()
 
     Task.start(fn ->
@@ -2362,23 +2525,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         {:ok, post_object} ->
           send(liveview_pid, {:cached_post_object_loaded, post_object})
 
-          # Check multiple fields for community URI
-          community_uri =
-            cond do
-              is_binary(post_object["audience"]) ->
-                post_object["audience"]
-
-              is_list(post_object["to"]) ->
-                Enum.find(post_object["to"], fn uri ->
-                  is_binary(uri) && (String.contains?(uri, "/c/") || String.contains?(uri, "/m/"))
-                end)
-
-              is_binary(post_object["context"]) && String.contains?(post_object["context"], "/c/") ->
-                post_object["context"]
-
-              true ->
-                nil
-            end
+          community_uri = find_community_uri(post_object) || fallback_community_uri
 
           if community_uri do
             send(liveview_pid, :community_detected)
@@ -2393,7 +2540,17 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           end
 
         _ ->
-          :ok
+          if is_binary(fallback_community_uri) do
+            send(liveview_pid, :community_detected)
+
+            case ActivityPub.get_or_fetch_actor(fallback_community_uri) do
+              {:ok, community_actor} ->
+                send(liveview_pid, {:community_loaded, community_actor})
+
+              _ ->
+                :ok
+            end
+          end
       end
     end)
 
@@ -2416,6 +2573,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     is_community_post =
       socket.assigns.is_community_post ||
         is_binary(find_community_uri(post_object)) ||
+        is_binary(community_uri_from_local_message(local_message)) ||
         community_post_url?(post_object["id"] || "") ||
         community_post_url?(post_object["url"] || "")
 
@@ -2425,6 +2583,11 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       |> assign(:is_community_post, is_community_post)
       |> assign(:page_title, post_object["name"] || socket.assigns.page_title)
       |> assign_reply_parent_fallback(post_object, local_message)
+      |> ensure_submitted_link_preview(
+        post_object,
+        local_message,
+        socket.assigns[:remote_actor] && socket.assigns.remote_actor.domain
+      )
 
     send(self(), {:load_reply_parent, post_object})
 
@@ -2843,6 +3006,37 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end
   end
 
+  def handle_info({:poll_submitted_link_preview, _url, attempts_left}, socket)
+      when attempts_left <= 0 do
+    {:noreply, socket}
+  end
+
+  def handle_info({:poll_submitted_link_preview, url, attempts_left}, socket)
+      when is_binary(url) and attempts_left > 0 do
+    current_url = current_submitted_url(socket)
+
+    if current_url != url do
+      {:noreply, socket}
+    else
+      case Elektrine.Repo.get_by(Elektrine.Social.LinkPreview, url: url) do
+        %Elektrine.Social.LinkPreview{status: "success"} = preview ->
+          {:noreply, assign(socket, :submitted_link_preview, preview)}
+
+        %Elektrine.Social.LinkPreview{status: "failed"} ->
+          {:noreply, socket}
+
+        _ ->
+          Process.send_after(
+            self(),
+            {:poll_submitted_link_preview, url, attempts_left - 1},
+            @submitted_preview_poll_interval_ms
+          )
+
+          {:noreply, socket}
+      end
+    end
+  end
+
   # Catch-all for PubSub broadcasts we don't need to handle (e.g., presence_diff)
   def handle_info(%Phoenix.Socket.Broadcast{}, socket) do
     {:noreply, socket}
@@ -3216,9 +3410,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   def handle_event("like_post", %{"post_id" => post_id}, socket) do
-    Interactions.like_post(socket, post_id,
-      on_refresh: &assign_local_message/2
-    )
+    Interactions.like_post(socket, post_id, on_refresh: &assign_local_message/2)
   end
 
   def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
@@ -3228,9 +3420,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
-    Interactions.unlike_post(socket, post_id,
-      on_refresh: &assign_local_message/2
-    )
+    Interactions.unlike_post(socket, post_id, on_refresh: &assign_local_message/2)
   end
 
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
@@ -3258,9 +3448,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   def handle_event("boost_post", %{"post_id" => post_id}, socket) do
-    Interactions.boost_post(socket, post_id,
-      on_share_delta: &maybe_adjust_local_share_count/3
-    )
+    Interactions.boost_post(socket, post_id, on_share_delta: &maybe_adjust_local_share_count/3)
   end
 
   def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
@@ -3270,9 +3458,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
-    Interactions.unboost_post(socket, post_id,
-      on_share_delta: &maybe_adjust_local_share_count/3
-    )
+    Interactions.unboost_post(socket, post_id, on_share_delta: &maybe_adjust_local_share_count/3)
   end
 
   # Save/bookmark post handlers
@@ -3633,6 +3819,56 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   defp build_threaded_replies_with_actor_cache(replies, post_id, sort) do
     Threading.build_threaded_replies_with_actor_cache(replies, post_id, sort)
   end
+
+  defp quick_reply_author_preview(reply) when is_map(reply) do
+    local_user = Map.get(reply, "_local_user") || Map.get(reply, :_local_user)
+
+    if is_map(local_user) do
+      username = Map.get(local_user, :username) || Map.get(local_user, "username")
+      handle = Map.get(local_user, :handle) || Map.get(local_user, "handle") || username
+      avatar = Map.get(local_user, :avatar) || Map.get(local_user, "avatar")
+
+      avatar_url =
+        if is_binary(avatar) && String.trim(avatar) != "" do
+          Elektrine.Uploads.avatar_url(avatar)
+        else
+          nil
+        end
+
+      %{
+        label: "@#{handle}@z.org",
+        avatar_url: avatar_url,
+        profile_path: if(is_binary(handle) && handle != "", do: "/#{handle}", else: nil)
+      }
+    else
+      author_uri =
+        Map.get(reply, "attributedTo") || Map.get(reply, :attributedTo) ||
+          Map.get(reply, "actor") || Map.get(reply, :actor)
+
+      fallback = SurfaceHelpers.build_reply_author_fallback(reply, author_uri)
+
+      label =
+        cond do
+          is_binary(fallback.acct_label) && String.trim(fallback.acct_label) != "" ->
+            fallback.acct_label
+
+          is_binary(author_uri) && String.trim(author_uri) != "" ->
+            "@#{extract_username_from_uri(author_uri)}"
+
+          true ->
+            "Remote user"
+        end
+
+      %{
+        label: label,
+        avatar_url: fallback.avatar_url,
+        profile_path: fallback.profile_path
+      }
+    end
+  end
+
+  defp quick_reply_author_preview(_),
+    do: %{label: "Remote user", avatar_url: nil, profile_path: nil}
 
   defp extract_username_from_uri(uri), do: SurfaceHelpers.extract_username_from_uri(uri)
 

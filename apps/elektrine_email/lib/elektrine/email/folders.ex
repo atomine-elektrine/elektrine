@@ -422,6 +422,18 @@ defmodule Elektrine.Email.Folders do
   end
 
   @doc """
+  Returns the total number of messages in The Feed for a mailbox.
+  """
+  def feed_messages_count(mailbox_id) do
+    Message
+    |> where(mailbox_id: ^mailbox_id)
+    |> where(category: "feed")
+    |> where([m], not m.spam and not m.archived and not m.deleted)
+    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   Returns paginated feed messages for a mailbox with metadata.
   Optimized to build base query once and reuse for both count and fetch.
   """
@@ -481,6 +493,18 @@ defmodule Elektrine.Email.Folders do
     |> offset(^offset)
     |> Repo.all()
     |> decrypt_email_messages(mailbox_id)
+  end
+
+  @doc """
+  Returns the total number of messages in Paper Trail for a mailbox.
+  """
+  def ledger_messages_count(mailbox_id) do
+    Message
+    |> where(mailbox_id: ^mailbox_id)
+    |> where(category: "ledger")
+    |> where([m], not m.spam and not m.archived and not m.deleted)
+    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
+    |> Repo.aggregate(:count)
   end
 
   @doc """

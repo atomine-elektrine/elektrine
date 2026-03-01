@@ -641,6 +641,14 @@ if config_env() == :prod do
     passkey_rp_id: host,
     passkey_origin: "https://#{host}"
 
+  config :elektrine, :admin_security,
+    require_passkey: parse_bool_env.("ADMIN_REQUIRE_PASSKEY", true),
+    access_ttl_seconds: parse_int_env.("ADMIN_ACCESS_TTL_SECONDS", 15 * 60),
+    elevation_ttl_seconds: parse_int_env.("ADMIN_ELEVATION_TTL_SECONDS", 5 * 60),
+    action_grant_ttl_seconds: parse_int_env.("ADMIN_ACTION_GRANT_TTL_SECONDS", 90),
+    intent_ttl_seconds: parse_int_env.("ADMIN_INTENT_TTL_SECONDS", 3 * 60),
+    replay_ttl_seconds: parse_int_env.("ADMIN_ACTION_REPLAY_TTL_SECONDS", 10 * 60)
+
   turnstile_site_key = System.get_env("TURNSTILE_SITE_KEY")
   turnstile_secret_key = System.get_env("TURNSTILE_SECRET_KEY")
   turnstile_enabled = present?.(turnstile_site_key) and present?.(turnstile_secret_key)

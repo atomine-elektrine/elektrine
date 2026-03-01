@@ -2,7 +2,6 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
   use Elektrine.DataCase, async: true
 
   import Elektrine.AccountsFixtures
-  import Elektrine.SocialFixtures
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Handlers.LikeHandler

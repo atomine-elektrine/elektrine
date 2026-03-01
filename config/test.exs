@@ -103,3 +103,12 @@ config :elektrine, :environment, :test
 
 # Disable async tasks in tests to work with Ecto Sandbox
 config :elektrine, :async_enabled, false
+
+# Keep admin security enabled in test while avoiding passkey enrollment setup in each test.
+config :elektrine, :admin_security,
+  require_passkey: false,
+  access_ttl_seconds: 15 * 60,
+  elevation_ttl_seconds: 5 * 60,
+  action_grant_ttl_seconds: 90,
+  intent_ttl_seconds: 180,
+  replay_ttl_seconds: 600

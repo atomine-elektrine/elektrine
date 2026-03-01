@@ -165,7 +165,7 @@ defmodule ElektrineWeb.API.SocialControllerTest do
   end
 
   describe "POST /api/social/posts/:id/like" do
-    test "likes a post", %{conn: conn, user: user, token: token} do
+    test "likes a post", %{conn: conn, token: token} do
       other_user = AccountsFixtures.user_fixture()
       post = SocialFixtures.post_fixture(%{user: other_user, content: "Likeable"})
 
@@ -179,7 +179,7 @@ defmodule ElektrineWeb.API.SocialControllerTest do
   end
 
   describe "DELETE /api/social/posts/:id/like" do
-    test "unlikes a post", %{conn: conn, user: user, token: token} do
+    test "unlikes a post", %{conn: conn, token: token} do
       other_user = AccountsFixtures.user_fixture()
       post = SocialFixtures.post_fixture(%{user: other_user, content: "Unlikeable"})
 

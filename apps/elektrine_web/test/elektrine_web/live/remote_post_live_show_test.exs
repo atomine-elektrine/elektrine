@@ -7,6 +7,7 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.LinkPreview
   alias ElektrineWeb.RemotePostLive.Show
 
   test "renders custom emoji in remote comment author display name" do
@@ -172,6 +173,47 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
     assert html =~ "/remote/bobby@mastodon.social"
   end
 
+  test "uses lemmy fallback avatar in remote community comment threads when actor cache misses" do
+    comments = [
+      %{
+        reply: %{
+          "id" => "https://lemmy.world/comment/1",
+          "attributedTo" => "https://lemmy.world/u/lemmy_bob",
+          "content" => "Lemmy fallback avatar data",
+          "published" => "2025-01-01T00:00:00Z",
+          "likes" => %{"totalItems" => 0},
+          "_lemmy" => %{
+            "creator_name" => "Lemmy Bob",
+            "creator_avatar" => "https://lemmy.world/pictrs/image/avatar_bob.png"
+          }
+        },
+        depth: 0,
+        children: []
+      }
+    ]
+
+    assigns = %{
+      __changed__: %{},
+      community_actor: %{domain: "lemmy.world"},
+      remote_actor: %{domain: "lemmy.world"},
+      post_interactions: %{},
+      lemmy_comment_counts: %{},
+      post: %{"id" => "https://lemmy.world/post/1"},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.render_threaded_comments(comments)
+      |> rendered_to_string()
+
+    assert html =~ "Lemmy Bob"
+    assert html =~ "https://lemmy.world/pictrs/image/avatar_bob.png"
+    assert html =~ "/remote/lemmy_bob@lemmy.world"
+  end
+
   test "renders local post when sender is missing" do
     quoted_message = %Message{
       id: 98_765,
@@ -246,5 +288,119 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
     assert html =~ "@deleted"
     assert html =~ "Local title"
     assert html =~ "/remote/post/98765"
+  end
+
+  test "renders YouTube embed for local link previews on remote post page" do
+    link_preview = %LinkPreview{
+      status: "success",
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      title: "Video title",
+      description: "Video description"
+    }
+
+    local_message = %{
+      id: 54_321,
+      sender: nil,
+      title: "Link post",
+      content: "",
+      post_type: nil,
+      poll: nil,
+      quoted_message_id: nil,
+      quoted_message: nil,
+      media_urls: [],
+      link_preview: link_preview,
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      inserted_at: ~N[2026-02-25 03:31:05]
+    }
+
+    assigns = %{
+      __changed__: %{},
+      z: %{},
+      loading: false,
+      load_error: nil,
+      is_local_post: true,
+      local_message: local_message,
+      post: nil,
+      remote_actor: nil,
+      community_actor: nil,
+      community_stats: %{members: 0, posts: 0},
+      is_community_post: false,
+      is_following_community: false,
+      is_pending_community: false,
+      replies: [],
+      threaded_replies: [],
+      replies_loading: false,
+      replies_loaded: true,
+      comment_sort: "hot",
+      post_interactions: %{},
+      user_saves: %{},
+      lemmy_counts: nil,
+      mastodon_counts: nil,
+      show_reply_form: false,
+      reply_content: "",
+      quick_reply_recent_replies: [],
+      replying_to_comment_id: nil,
+      comment_reply_content: "",
+      show_image_modal: false,
+      modal_image_url: nil,
+      modal_images: [],
+      modal_image_index: 0,
+      modal_post: nil,
+      post_reactions: %{},
+      in_reply_to: nil,
+      reply_parent: nil,
+      reply_parent_actor: nil,
+      reply_ancestors: [],
+      current_user: nil
+    }
+
+    html =
+      assigns
+      |> Show.render()
+      |> rendered_to_string()
+
+    assert html =~ "https://www.youtube.com/embed/dQw4w9WgXcQ"
+    assert html =~ "Video title"
+  end
+
+  test "ancestor context links prefer post reference over actor profile url" do
+    parent_post = %{
+      "id" => "https://lemmy.sdf.org/comment/12345",
+      "url" => "https://lemmy.sdf.org/u/deleted",
+      "content" => "Parent content"
+    }
+
+    assigns = %{
+      __changed__: %{},
+      in_reply_to: "https://lemmy.sdf.org/comment/12345",
+      reply_parent: nil,
+      reply_parent_actor: nil,
+      reply_ancestors: [
+        %{
+          post: parent_post,
+          actor: nil,
+          in_reply_to: "https://lemmy.sdf.org/comment/12345"
+        }
+      ],
+      post_interactions: %{},
+      user_saves: %{},
+      post_reactions: %{},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.ancestor_context_stack()
+      |> rendered_to_string()
+
+    encoded_parent = URI.encode_www_form("https://lemmy.sdf.org/comment/12345")
+    encoded_actor = URI.encode_www_form("https://lemmy.sdf.org/u/deleted")
+
+    assert html =~ "/remote/post/#{encoded_parent}"
+    refute html =~ "/remote/post/#{encoded_actor}"
   end
 end

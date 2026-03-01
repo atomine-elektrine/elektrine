@@ -104,7 +104,7 @@ defmodule ElektrineWeb.PageLive.Home do
         <div class="flex items-center gap-6 text-xs font-mono text-white/20">
           <span>{format_number(@federation.remote_actors)} remote users</span>
           <span>{format_number(@federation.instances)} instances</span>
-          <span>{@sys.active_users} online</span>
+          <span>{@sys.active_users} connected</span>
         </div>
       </div>
     </div>
@@ -139,7 +139,10 @@ defmodule ElektrineWeb.PageLive.Home do
 
     Elektrine.Repo.one(
       from(u in Elektrine.Accounts.User,
-        where: u.last_seen_at > ^five_minutes_ago,
+        where:
+          u.last_seen_at > ^five_minutes_ago or
+            u.last_imap_access > ^five_minutes_ago or
+            u.last_pop3_access > ^five_minutes_ago,
         select: count(u.id)
       )
     ) || 0

@@ -168,9 +168,7 @@ defmodule Elektrine.Messaging.FederatedCommunities do
       creator_id: get_system_user_id()
     }
 
-    case %Conversation{}
-         |> Conversation.changeset(attrs)
-         |> Repo.insert() do
+    case insert_mirror(attrs) do
       {:ok, mirror} ->
         Logger.info("Created mirror community #{mirror.name} for #{group_actor.uri}")
 
@@ -186,6 +184,42 @@ defmodule Elektrine.Messaging.FederatedCommunities do
         {:error, changeset}
     end
   end
+
+  defp insert_mirror(attrs) do
+    case do_insert_mirror(attrs) do
+      {:ok, mirror} ->
+        {:ok, mirror}
+
+      {:error, changeset} ->
+        if description_validation_error?(changeset) do
+          fallback_attrs =
+            Map.put(
+              attrs,
+              :description,
+              "Federated community mirror from #{URI.parse(attrs.federated_source || "") |> Map.get(:host) || "remote"}"
+            )
+
+          do_insert_mirror(fallback_attrs)
+        else
+          {:error, changeset}
+        end
+    end
+  end
+
+  defp do_insert_mirror(attrs) do
+    %Conversation{}
+    |> Conversation.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  defp description_validation_error?(%Ecto.Changeset{errors: errors}) do
+    Enum.any?(errors, fn
+      {:description, _} -> true
+      _ -> false
+    end)
+  end
+
+  defp description_validation_error?(_), do: false
 
   defp generate_mirror_name(group_actor) do
     # Extract community name from URI or use username

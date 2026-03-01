@@ -1,0 +1,132 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6 flex justify-between items-start">
+    <div>
+      <h1 class="text-2xl font-bold">Arblarg Chat Message</h1>
+      <p class="opacity-70 mt-2">
+        Detailed admin view of a single Arblarg protocol message.
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <.link
+        href={~p"/pripyat/arblarg/messages/#{@message.id}/raw"}
+        class="btn btn-ghost"
+        target="_blank"
+      >
+        <.icon name="hero-code-bracket" class="w-4 h-4 mr-2" /> View Raw
+      </.link>
+      <.link href={~p"/pripyat/arblarg/messages"} class="btn btn-ghost">
+        <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Messages
+      </.link>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <h2 class="text-lg font-semibold mb-4">Message Info</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div class="space-y-1">
+          <p><strong>Message ID:</strong> <span class="font-medium">#{@message.id}</span></p>
+          <p>
+            <strong>Type:</strong>
+            <span class="badge badge-ghost badge-sm">{@message.message_type}</span>
+          </p>
+          <p>
+            <strong>Sender:</strong>
+            <.link href={~p"/pripyat/users/#{@message.sender_id}/edit"} class="link link-primary">
+              {@message.sender && @message.sender.username} (@{@message.sender &&
+                @message.sender.handle})
+            </.link>
+          </p>
+          <p>
+            <strong>Conversation:</strong> {@message.conversation &&
+              (@message.conversation.name || "(No name)")}
+          </p>
+          <p>
+            <strong>Conversation Type:</strong> {@message.conversation &&
+              String.upcase(@message.conversation.type || "unknown")}
+          </p>
+        </div>
+        <div class="space-y-1">
+          <p>
+            <strong>Created:</strong>
+            <.local_time
+              datetime={@message.inserted_at}
+              format="datetime"
+              timezone={@timezone}
+              time_format={@time_format}
+            />
+          </p>
+          <p><strong>Edited At:</strong> {@message.edited_at || "(Never)"}</p>
+          <p>
+            <strong>Protocol:</strong>
+            <span class={
+              case @message.protocol_kind do
+                "mirrored" -> "badge badge-warning badge-sm"
+                "federated" -> "badge badge-success badge-sm"
+                _ -> "badge badge-info badge-sm"
+              end
+            }>
+              {String.capitalize(@message.protocol_kind)}
+            </span>
+          </p>
+          <p><strong>Origin Domain:</strong> {@message.origin_domain || "(Local)"}</p>
+          <p>
+            <strong>Federated Source:</strong>
+            <span class="text-xs">{@message.federated_source || "(None)"}</span>
+          </p>
+          <p>
+            <strong>Mirrored:</strong> {if @message.is_federated_mirror, do: "Yes", else: "No"}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl mb-6">
+    <div class="card-body">
+      <h2 class="text-lg font-semibold mb-4">Content</h2>
+      <%= if @message.content && String.trim(@message.content) != "" do %>
+        <div class="bg-base-50 rounded-lg border border-base-300 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words">
+          {@message.content}
+        </div>
+      <% else %>
+        <div class="bg-base-50 rounded-lg border border-base-300 p-4 text-sm opacity-70">
+          No text content on this message.
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body">
+      <h2 class="text-lg font-semibold mb-4">Media & Metadata</h2>
+
+      <%= if @message.media_urls && @message.media_urls != [] do %>
+        <div class="mb-4">
+          <h3 class="font-medium mb-2">Media URLs</h3>
+          <div class="space-y-2">
+            <%= for media_url <- @message.media_urls do %>
+              <div class="text-sm break-all">
+                <a
+                  href={media_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="link link-primary"
+                >
+                  {media_url}
+                </a>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% else %>
+        <p class="text-sm opacity-70 mb-4">No media URLs.</p>
+      <% end %>
+
+      <div>
+        <h3 class="font-medium mb-2">Media Metadata</h3>
+        <pre class="bg-base-50 rounded-lg border border-base-300 p-4 text-xs overflow-x-auto whitespace-pre-wrap break-words">{if is_map(@message.media_metadata), do: Jason.encode!(@message.media_metadata, pretty: true), else: inspect(@message.media_metadata, pretty: true)}</pre>
+      </div>
+    </div>
+  </div>
+</div>

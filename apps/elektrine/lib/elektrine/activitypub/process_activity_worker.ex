@@ -126,13 +126,13 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
       {:error, reason}
       when reason in [
              :handle_like_failed,
-             :handle_emoji_react_failed,
              :handle_dislike_failed,
              :fetch_failed,
              :http_error,
              :not_found
            ] ->
-        # These are expected when remote instances react to posts we don't have - don't retry
+        # These are usually non-recoverable for this worker; retrying tends to add queue noise.
+        # EmojiReact failures are intentionally excluded so they can retry after post hydration.
         Logger.debug("Activity #{activity["id"]} failed (#{reason}), not retrying")
 
         emit_handler_telemetry(activity, actor_uri, :ignored, started_at, %{

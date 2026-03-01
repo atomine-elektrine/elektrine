@@ -1295,42 +1295,90 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
   defp reply_reaction_surface(reply, post_reactions_map) when is_map(post_reactions_map) do
     case reply_reaction_target(reply) do
-      {nil, _value_name, _keys} ->
-        %{target_id: nil, value_name: "post_id", reactions: []}
+      {nil, _value_name, _keys, _actor_uri} ->
+        %{target_id: nil, value_name: "post_id", reactions: [], actor_uri: nil}
 
-      {target_id, value_name, lookup_keys} ->
+      {target_id, value_name, lookup_keys, actor_uri} ->
         %{
           target_id: target_id,
           value_name: value_name,
-          reactions: reactions_for_keys(post_reactions_map, lookup_keys)
+          reactions: reactions_for_keys(post_reactions_map, lookup_keys),
+          actor_uri: actor_uri
         }
     end
   end
 
   defp reply_reaction_surface(_reply, _post_reactions_map),
-    do: %{target_id: nil, value_name: "post_id", reactions: []}
+    do: %{target_id: nil, value_name: "post_id", reactions: [], actor_uri: nil}
 
-  defp reply_reaction_target(%{id: id}) when is_integer(id) do
-    {id, "message_id", [Integer.to_string(id), id]}
+  defp reply_reaction_target(%{id: id} = reply) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id], reply_actor_uri(reply)}
   end
 
-  defp reply_reaction_target(%{"_local_message_id" => id}) when is_integer(id) do
-    {id, "message_id", [Integer.to_string(id), id]}
+  defp reply_reaction_target(%{"id" => id} = reply) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id], reply_actor_uri(reply)}
   end
 
-  defp reply_reaction_target(%{_local_message_id: id}) when is_integer(id) do
-    {id, "message_id", [Integer.to_string(id), id]}
+  defp reply_reaction_target(%{"_local_message_id" => id} = reply) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id], reply_actor_uri(reply)}
   end
 
-  defp reply_reaction_target(%{"id" => id}) when is_binary(id) and id != "" do
-    {id, "post_id", [id]}
+  defp reply_reaction_target(%{_local_message_id: id} = reply) when is_integer(id) do
+    {id, "message_id", [Integer.to_string(id), id], reply_actor_uri(reply)}
   end
 
-  defp reply_reaction_target(%{id: id}) when is_binary(id) and id != "" do
-    {id, "post_id", [id]}
+  defp reply_reaction_target(%{"id" => id} = reply) when is_binary(id) and id != "" do
+    case Integer.parse(id) do
+      {local_id, ""} ->
+        {local_id, "message_id", [id, local_id], reply_actor_uri(reply)}
+
+      _ ->
+        {id, "post_id", [id], reply_actor_uri(reply)}
+    end
   end
 
-  defp reply_reaction_target(_), do: {nil, "post_id", []}
+  defp reply_reaction_target(%{id: id} = reply) when is_binary(id) and id != "" do
+    case Integer.parse(id) do
+      {local_id, ""} ->
+        {local_id, "message_id", [id, local_id], reply_actor_uri(reply)}
+
+      _ ->
+        {id, "post_id", [id], reply_actor_uri(reply)}
+    end
+  end
+
+  defp reply_reaction_target(%{"ap_id" => ap_id} = reply) when is_binary(ap_id) and ap_id != "" do
+    {ap_id, "post_id", [ap_id], reply_actor_uri(reply)}
+  end
+
+  defp reply_reaction_target(%{ap_id: ap_id} = reply) when is_binary(ap_id) and ap_id != "" do
+    {ap_id, "post_id", [ap_id], reply_actor_uri(reply)}
+  end
+
+  defp reply_reaction_target(_), do: {nil, "post_id", [], nil}
+
+  defp reply_actor_uri(%{"actor_id" => actor_uri}) when is_binary(actor_uri) and actor_uri != "",
+    do: actor_uri
+
+  defp reply_actor_uri(%{actor_id: actor_uri}) when is_binary(actor_uri) and actor_uri != "",
+    do: actor_uri
+
+  defp reply_actor_uri(%{"actor_uri" => actor_uri})
+       when is_binary(actor_uri) and actor_uri != "",
+       do: actor_uri
+
+  defp reply_actor_uri(%{actor_uri: actor_uri}) when is_binary(actor_uri) and actor_uri != "",
+    do: actor_uri
+
+  defp reply_actor_uri(%{remote_actor: %{uri: actor_uri}})
+       when is_binary(actor_uri) and actor_uri != "",
+       do: actor_uri
+
+  defp reply_actor_uri(%{"remote_actor" => %{"uri" => actor_uri}})
+       when is_binary(actor_uri) and actor_uri != "",
+       do: actor_uri
+
+  defp reply_actor_uri(_), do: nil
 
   defp reactions_for_keys(reactions_map, keys) when is_map(reactions_map) and is_list(keys) do
     Enum.find_value(keys, [], fn key ->
@@ -1613,7 +1661,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :on_image_click, :string, default: "open_image_modal"
 
   defp post_content(assigns) do
-    title = normalize_post_title(assigns.post.title)
+    title = resolve_federated_title(assigns.post)
     assigns = assign(assigns, :title, title)
 
     ~H"""
@@ -2554,11 +2602,21 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           <div class="text-xs font-medium text-base-content/60 mb-2">Top Community Comments</div>
           <div class="space-y-2">
             <%= for reply <- Enum.take(@replies, 3) do %>
-              <% reply_reaction = reply_reaction_surface(reply, @post_reactions_map) %>
+              <% reply_reaction = reply_reaction_surface(reply, @post_reactions_map)
+              reply_avatar_url = PostUtilities.get_reply_avatar_url(reply) %>
               <div class="flex gap-2 text-sm">
                 <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
+                    <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                      <img
+                        src={reply_avatar_url}
+                        alt=""
+                        class="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                      />
+                    <% else %>
+                      <.placeholder_avatar size="2xs" class="w-4 h-4 flex-shrink-0" />
+                    <% end %>
                     <span class="font-medium">
                       {PostUtilities.get_reply_author(reply)}
                     </span>
@@ -2580,6 +2638,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                       <.post_reactions
                         post_id={reply_reaction.target_id}
                         value_name={reply_reaction.value_name}
+                        actor_uri={reply_reaction.actor_uri}
                         reactions={reply_reaction.reactions}
                         current_user={@current_user}
                         size={:xs}

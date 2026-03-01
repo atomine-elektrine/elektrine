@@ -76,19 +76,7 @@ defmodule Elektrine.ActivityPub.IncomingActivityWorker do
   end
 
   defp process_activity(activity) do
-    object_uri = get_in(activity.data, ["object"])
-
-    if is_binary(object_uri) && String.contains?(object_uri, "/activities/") do
-      activity
-      |> Activity.mark_processed_changeset(%{
-        processed: true,
-        processed_at: DateTime.utc_now() |> DateTime.truncate(:second),
-        process_error: "Skipped: Lemmy activity URL not fetchable"
-      })
-      |> Repo.update()
-    else
-      do_process_activity(activity)
-    end
+    do_process_activity(activity)
   end
 
   defp do_process_activity(activity) do

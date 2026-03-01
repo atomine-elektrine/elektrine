@@ -1,0 +1,57 @@
+<div class="p-4 sm:p-6">
+  <div class="mb-6">
+    <h1 class="text-2xl sm:text-3xl font-bold">Admin Access Verification</h1>
+    <p class="opacity-70 mt-1 text-sm sm:text-base">
+      Confirm with a passkey to continue. Elevation is short-lived and auto-expires.
+    </p>
+  </div>
+
+  <div class="max-w-2xl">
+    <div class="card glass-card shadow-xl">
+      <div class="card-body gap-5">
+        <div class="alert alert-info">
+          <.icon name="hero-information-circle" class="w-5 h-5" />
+          <span>This applies only to admin privileges, not your regular user session.</span>
+        </div>
+
+        <%= if @has_passkeys do %>
+          <div
+            id="admin-elevation-flow"
+            data-admin-elevation="true"
+            data-return-to={@return_to}
+            class="space-y-3"
+          >
+            <button
+              id="admin-elevate-passkey"
+              type="button"
+              class="btn btn-primary w-full sm:w-auto"
+            >
+              <.icon name="hero-finger-print" class="w-5 h-5" /> Verify With Passkey
+            </button>
+            <p class="text-sm opacity-70">
+              You may be asked to verify again for sensitive admin actions.
+            </p>
+          </div>
+        <% else %>
+          <div class="alert alert-warning">
+            <div class="space-y-2">
+              <p class="font-semibold">No passkey registered</p>
+              <p class="text-sm">
+                Add a passkey in account settings, then return here.
+              </p>
+              <.link href={~p"/account/passkeys"} class="btn btn-sm btn-warning">
+                Open Passkey Settings
+              </.link>
+            </div>
+          </div>
+        <% end %>
+
+        <div class="pt-1">
+          <.link href={@return_to} class="link link-hover opacity-70">
+            Back to previous admin page
+          </.link>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

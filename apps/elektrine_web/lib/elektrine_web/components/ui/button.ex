@@ -7,7 +7,7 @@ defmodule ElektrineWeb.Components.UI.Button do
   """
   use Phoenix.Component
 
-  alias ElektrineWeb.Components.UI.Spinner
+  alias ElektrineWeb.Components.UI.Loading
 
   @doc """
   Renders a button.
@@ -53,7 +53,7 @@ defmodule ElektrineWeb.Components.UI.Button do
       {@rest}
     >
       <%= if @loading do %>
-        <Spinner.spinner class={spinner_size_class(@size)} />
+        <Loading.spinner size={@size} />
         <span>{@loading_text || render_slot(@inner_block)}</span>
       <% else %>
         <%= if @icon_left do %>
@@ -127,9 +127,4 @@ defmodule ElektrineWeb.Components.UI.Button do
   defp icon_size_class("sm"), do: "w-4 h-4"
   defp icon_size_class("lg"), do: "w-6 h-6"
   defp icon_size_class(_), do: "w-5 h-5"
-
-  defp spinner_size_class("xs"), do: "w-3 h-3"
-  defp spinner_size_class("sm"), do: "w-4 h-4"
-  defp spinner_size_class("lg"), do: "w-6 h-6"
-  defp spinner_size_class(_), do: "w-5 h-5"
 end

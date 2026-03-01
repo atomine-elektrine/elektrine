@@ -3,6 +3,7 @@ defmodule Elektrine.Profiles do
   The Profiles context for managing customizable user profile pages.
   """
 
+  require Logger
   import Ecto.Query, warn: false
   alias Elektrine.Repo
 
@@ -846,6 +847,9 @@ defmodule Elektrine.Profiles do
                 "Successfully sent Follow to #{remote_actor.username}@#{remote_actor.domain}"
               )
 
+              maybe_join_remote_group_mirror(follower_id, remote_actor)
+              maybe_trigger_community_fetch(remote_actor)
+
               {:ok, follow}
 
             unexpected ->
@@ -876,6 +880,52 @@ defmodule Elektrine.Profiles do
         error
     end
   end
+
+  defp maybe_join_remote_group_mirror(
+         user_id,
+         %Elektrine.ActivityPub.Actor{
+           actor_type: "Group"
+         } = remote_actor
+       ) do
+    with {:ok, mirror} <-
+           Elektrine.Messaging.FederatedCommunities.create_or_get_mirror_community(remote_actor) do
+      case Elektrine.Messaging.join_conversation(mirror.id, user_id) do
+        {:ok, _member} ->
+          :ok
+
+        {:error, :already_member} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "Failed to auto-join mirror community #{mirror.id} for remote group #{remote_actor.uri}: #{inspect(reason)}"
+          )
+      end
+    else
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to create/get mirror community for remote group #{remote_actor.uri}: #{inspect(reason)}"
+        )
+    end
+
+    :ok
+  end
+
+  defp maybe_join_remote_group_mirror(_user_id, _remote_actor), do: :ok
+
+  defp maybe_trigger_community_fetch(%Elektrine.ActivityPub.Actor{actor_type: "Group"}) do
+    case Process.whereis(Elektrine.ActivityPub.CommunityFetcher) do
+      pid when is_pid(pid) ->
+        send(pid, :fetch_community_posts)
+
+      _ ->
+        :ok
+    end
+
+    :ok
+  end
+
+  defp maybe_trigger_community_fetch(_remote_actor), do: :ok
 
   defp get_follower(follower_id) do
     case Repo.get(Elektrine.Accounts.User, follower_id) do

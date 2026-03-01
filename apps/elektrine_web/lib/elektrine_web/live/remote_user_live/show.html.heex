@@ -383,21 +383,52 @@
                         <div class="space-y-2">
                           <%= for reply <- Enum.take(local_post_replies, 3) do %>
                             <% lemmy_data = reply["_lemmy"]
+                            reply_author = preview_reply_author(reply)
 
                             reply_reaction =
                               reply_reaction_surface(reply, @local_posts, @post_reactions) %>
                             <div class="flex gap-2 text-sm">
                               <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                               <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
-                                  <%= if lemmy_data && lemmy_data["creator_name"] do %>
-                                    <span class="font-medium">@{lemmy_data["creator_name"]}</span>
+                                <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5 min-w-0">
+                                  <%= if reply_author.profile_path do %>
+                                    <.link
+                                      navigate={reply_author.profile_path}
+                                      class="w-4 h-4 flex-shrink-0"
+                                      phx-click="stop_propagation"
+                                    >
+                                      <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                        <img
+                                          src={reply_author.avatar_url}
+                                          alt=""
+                                          class="w-4 h-4 rounded-full object-cover"
+                                        />
+                                      <% else %>
+                                        <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center">
+                                          <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                        </div>
+                                      <% end %>
+                                    </.link>
+                                    <.link
+                                      navigate={reply_author.profile_path}
+                                      class="font-medium truncate hover:underline"
+                                      phx-click="stop_propagation"
+                                    >
+                                      {reply_author.label}
+                                    </.link>
                                   <% else %>
-                                    <%= if reply["attributedTo"] do %>
-                                      <span class="font-medium">
-                                        {extract_username_from_uri(reply["attributedTo"])}
-                                      </span>
+                                    <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                      <img
+                                        src={reply_author.avatar_url}
+                                        alt=""
+                                        class="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                                      />
+                                    <% else %>
+                                      <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                                        <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                      </div>
                                     <% end %>
+                                    <span class="font-medium truncate">{reply_author.label}</span>
                                   <% end %>
                                   <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
                                     <span class="text-secondary">+{lemmy_data["score"]}</span>
@@ -591,6 +622,7 @@
                     
 <!-- Post Content -->
                     <div class="flex-1 p-2 min-w-0">
+                      <% post_title = normalize_remote_post_title(post) %>
                       <!-- Reply indicator -->
                       <%= if is_reply_outbox do %>
                         <div class="flex items-center gap-1 text-xs text-secondary mb-1">
@@ -600,7 +632,7 @@
                       <% end %>
                       
 <!-- Title -->
-                      <%= if post["name"] do %>
+                      <%= if post_title do %>
                         <%= if external_link_outbox do %>
                           <a
                             id={"outbox-external-title-#{URI.encode_www_form(post["id"] || "unknown")}"}
@@ -611,7 +643,7 @@
                             phx-hook="StopPropagation"
                           >
                             <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-primary flex items-center gap-1">
-                              {post["name"]}
+                              {post_title}
                               <.icon
                                 name="hero-arrow-top-right-on-square"
                                 class="w-3 h-3 flex-shrink-0"
@@ -620,20 +652,20 @@
                           </a>
                         <% else %>
                           <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-secondary">
-                            {post["name"]}
+                            {post_title}
                           </h3>
                         <% end %>
                       <% end %>
                       
 <!-- Content preview (only if no title) -->
                       <%= if is_binary(post["content"]) && String.trim(post["content"]) != "" &&
-                              !post["name"] do %>
+                              !post_title do %>
                         <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
                           {raw(render_remote_bio(post["content"], @remote_actor.domain))}
                         </div>
                       <% end %>
 
-                      <%= if !image_url && !post["name"] &&
+                      <%= if !image_url && !post_title &&
                               (!is_binary(post["content"]) || String.trim(post["content"]) == "") do %>
                         <div class="text-sm opacity-60 italic mb-1">Post content unavailable</div>
                       <% end %>
@@ -728,21 +760,52 @@
                       <div class="space-y-2">
                         <%= for reply <- Enum.take(loaded_replies, 3) do %>
                           <% lemmy_data = reply["_lemmy"]
+                          reply_author = preview_reply_author(reply)
 
                           reply_reaction =
                             reply_reaction_surface(reply, @local_posts, @post_reactions) %>
                           <div class="flex gap-2 text-sm">
                             <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                             <div class="flex-1 min-w-0">
-                              <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
-                                <%= if lemmy_data && lemmy_data["creator_name"] do %>
-                                  <span class="font-medium">@{lemmy_data["creator_name"]}</span>
+                              <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5 min-w-0">
+                                <%= if reply_author.profile_path do %>
+                                  <.link
+                                    navigate={reply_author.profile_path}
+                                    class="w-4 h-4 flex-shrink-0"
+                                    phx-click="stop_propagation"
+                                  >
+                                    <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                      <img
+                                        src={reply_author.avatar_url}
+                                        alt=""
+                                        class="w-4 h-4 rounded-full object-cover"
+                                      />
+                                    <% else %>
+                                      <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center">
+                                        <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                      </div>
+                                    <% end %>
+                                  </.link>
+                                  <.link
+                                    navigate={reply_author.profile_path}
+                                    class="font-medium truncate hover:underline"
+                                    phx-click="stop_propagation"
+                                  >
+                                    {reply_author.label}
+                                  </.link>
                                 <% else %>
-                                  <%= if reply["attributedTo"] do %>
-                                    <span class="font-medium">
-                                      {extract_username_from_uri(reply["attributedTo"])}
-                                    </span>
+                                  <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                    <img
+                                      src={reply_author.avatar_url}
+                                      alt=""
+                                      class="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                                    />
+                                  <% else %>
+                                    <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                                      <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                    </div>
                                   <% end %>
+                                  <span class="font-medium truncate">{reply_author.label}</span>
                                 <% end %>
                                 <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
                                   <span class="text-secondary">+{lemmy_data["score"]}</span>
@@ -1229,23 +1292,57 @@
                           <div class="space-y-2">
                             <%= for reply <- Enum.take(local_post_replies, 3) do %>
                               <% lemmy_data = reply["_lemmy"]
+                              reply_author = preview_reply_author(reply)
 
                               reply_reaction =
                                 reply_reaction_surface(reply, @local_posts, @post_reactions) %>
                               <div class="flex gap-2 text-sm">
                                 <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                                 <div class="flex-1 min-w-0">
-                                  <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
-                                    <%= if lemmy_data && lemmy_data["creator_name"] do %>
-                                      <span class="font-medium">
-                                        @{lemmy_data["creator_name"]}
-                                      </span>
+                                  <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5 min-w-0">
+                                    <%= if reply_author.profile_path do %>
+                                      <.link
+                                        navigate={reply_author.profile_path}
+                                        class="w-4 h-4 flex-shrink-0"
+                                        phx-click="stop_propagation"
+                                      >
+                                        <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                          <img
+                                            src={reply_author.avatar_url}
+                                            alt=""
+                                            class="w-4 h-4 rounded-full object-cover"
+                                          />
+                                        <% else %>
+                                          <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center">
+                                            <.icon
+                                              name="hero-user"
+                                              class="w-2.5 h-2.5 opacity-60"
+                                            />
+                                          </div>
+                                        <% end %>
+                                      </.link>
+                                      <.link
+                                        navigate={reply_author.profile_path}
+                                        class="font-medium truncate hover:underline"
+                                        phx-click="stop_propagation"
+                                      >
+                                        {reply_author.label}
+                                      </.link>
                                     <% else %>
-                                      <%= if reply["attributedTo"] do %>
-                                        <span class="font-medium">
-                                          {extract_username_from_uri(reply["attributedTo"])}
-                                        </span>
+                                      <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                        <img
+                                          src={reply_author.avatar_url}
+                                          alt=""
+                                          class="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                                        />
+                                      <% else %>
+                                        <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                                          <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                        </div>
                                       <% end %>
+                                      <span class="font-medium truncate">
+                                        {reply_author.label}
+                                      </span>
                                     <% end %>
                                     <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
                                       <span class="text-secondary">+{lemmy_data["score"]}</span>
@@ -1316,14 +1413,15 @@
                   phx-click="navigate_to_post"
                   phx-value-post_id={URI.encode_www_form(post["id"])}
                 >
+                  <% post_title = normalize_remote_post_title(post) %>
                   <div class="flex items-center justify-between mb-3">
                     <span class="text-xs opacity-60">
                       {if post["published"], do: format_activitypub_date(post["published"])}
                     </span>
                   </div>
 
-                  <%= if post["name"] do %>
-                    <h3 class="font-bold text-base mb-2">{post["name"]}</h3>
+                  <%= if post_title do %>
+                    <h3 class="font-bold text-base mb-2">{post_title}</h3>
                   <% end %>
 
                   <%= if post["content"] do %>
@@ -1447,21 +1545,52 @@
                       <div class="space-y-2">
                         <%= for reply <- Enum.take(loaded_replies, 3) do %>
                           <% lemmy_data = reply["_lemmy"]
+                          reply_author = preview_reply_author(reply)
 
                           reply_reaction =
                             reply_reaction_surface(reply, @local_posts, @post_reactions) %>
                           <div class="flex gap-2 text-sm">
                             <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                             <div class="flex-1 min-w-0">
-                              <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
-                                <%= if lemmy_data && lemmy_data["creator_name"] do %>
-                                  <span class="font-medium">@{lemmy_data["creator_name"]}</span>
+                              <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5 min-w-0">
+                                <%= if reply_author.profile_path do %>
+                                  <.link
+                                    navigate={reply_author.profile_path}
+                                    class="w-4 h-4 flex-shrink-0"
+                                    phx-click="stop_propagation"
+                                  >
+                                    <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                      <img
+                                        src={reply_author.avatar_url}
+                                        alt=""
+                                        class="w-4 h-4 rounded-full object-cover"
+                                      />
+                                    <% else %>
+                                      <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center">
+                                        <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                      </div>
+                                    <% end %>
+                                  </.link>
+                                  <.link
+                                    navigate={reply_author.profile_path}
+                                    class="font-medium truncate hover:underline"
+                                    phx-click="stop_propagation"
+                                  >
+                                    {reply_author.label}
+                                  </.link>
                                 <% else %>
-                                  <%= if reply["attributedTo"] do %>
-                                    <span class="font-medium">
-                                      {extract_username_from_uri(reply["attributedTo"])}
-                                    </span>
+                                  <%= if is_binary(reply_author.avatar_url) && String.trim(reply_author.avatar_url) != "" do %>
+                                    <img
+                                      src={reply_author.avatar_url}
+                                      alt=""
+                                      class="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                                    />
+                                  <% else %>
+                                    <div class="w-4 h-4 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                                      <.icon name="hero-user" class="w-2.5 h-2.5 opacity-60" />
+                                    </div>
                                   <% end %>
+                                  <span class="font-medium truncate">{reply_author.label}</span>
                                 <% end %>
                                 <%= if lemmy_data && lemmy_data["score"] && lemmy_data["score"] > 0 do %>
                                   <span class="text-secondary">+{lemmy_data["score"]}</span>

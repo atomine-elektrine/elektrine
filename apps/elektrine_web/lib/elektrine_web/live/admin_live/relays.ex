@@ -744,7 +744,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             </button>
             <button type="submit" class="btn btn-primary" disabled={@adding}>
               <%= if @adding do %>
-                <span class="loading loading-spinner loading-sm"></span> Subscribing...
+                <.spinner size="sm" /> Subscribing...
               <% else %>
                 Subscribe
               <% end %>

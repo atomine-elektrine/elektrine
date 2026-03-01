@@ -7,13 +7,19 @@
     <.link navigate={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
     </.link>
-    <%= if @community_actor do %>
-      <.link
-        navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
-        class="btn btn-ghost btn-sm gap-2"
-      >
-        <.icon name="hero-user-group" class="w-4 h-4" /> !{@community_actor.username}
-      </.link>
+    <%= if @is_community_post do %>
+      <%= if @community_actor do %>
+        <.link
+          navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+          class="btn btn-ghost btn-sm gap-2"
+        >
+          <.icon name="hero-user-group" class="w-4 h-4" /> !{@community_actor.username}
+        </.link>
+      <% else %>
+        <span class="btn btn-ghost btn-sm gap-2 opacity-50 pointer-events-none select-none">
+          <.icon name="hero-user-group" class="w-4 h-4" /> !community
+        </span>
+      <% end %>
     <% end %>
     <%= if @remote_actor do %>
       <.link
@@ -259,6 +265,72 @@
                 image_class="w-full h-auto object-cover max-h-96"
               />
             <% end %>
+
+            <% link_preview =
+              effective_link_preview(@local_message, Map.get(assigns, :submitted_link_preview)) %>
+            <%= if link_preview do %>
+              <% youtube_id = extract_youtube_id(link_preview.url) %>
+              <% hide_preview_title =
+                preview_title_duplicates_post?(
+                  link_preview.title,
+                  if(is_map(@post), do: @post["name"], else: nil)
+                ) %>
+              <%= if youtube_id do %>
+                <div class="mb-4 border border-base-200 rounded-lg overflow-hidden">
+                  <div class="aspect-video bg-base-200">
+                    <iframe
+                      src={"https://www.youtube.com/embed/#{youtube_id}"}
+                      title={link_preview.title || "YouTube video"}
+                      frameborder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowfullscreen
+                      class="w-full h-full"
+                    >
+                    </iframe>
+                  </div>
+                  <div class="p-4 border-t border-base-200">
+                    <%= if link_preview.title && !hide_preview_title do %>
+                      <h4 class="font-medium">{link_preview.title}</h4>
+                    <% end %>
+                    <%= if link_preview.description do %>
+                      <p class="text-sm opacity-70 mt-1 line-clamp-2">
+                        {link_preview.description}
+                      </p>
+                    <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <div class="mb-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
+                  <a
+                    href={link_preview.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="block"
+                  >
+                    <%= if link_preview.image_url do %>
+                      <div class="aspect-video bg-base-200">
+                        <img
+                          src={link_preview.image_url}
+                          alt={link_preview.title || ""}
+                          class="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    <% end %>
+                    <div class="p-4">
+                      <%= if link_preview.title && !hide_preview_title do %>
+                        <h4 class="font-medium">{link_preview.title}</h4>
+                      <% end %>
+                      <%= if link_preview.description do %>
+                        <p class="text-sm opacity-70 mt-1">
+                          {link_preview.description}
+                        </p>
+                      <% end %>
+                    </div>
+                  </a>
+                </div>
+              <% end %>
+            <% end %>
             
 <!-- Post Stats -->
             <div class="flex items-center gap-4 text-sm opacity-70 pt-4 border-t border-base-300">
@@ -313,20 +385,48 @@
                   <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
                     <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                     <%= for reply <- @quick_reply_recent_replies do %>
-                      <% author =
-                        cond do
-                          reply["_local_user"] ->
-                            "@#{reply["_local_user"].handle || reply["_local_user"].username}@z.org"
-
-                          is_binary(reply["attributedTo"]) ->
-                            "@#{extract_username_from_uri(reply["attributedTo"])}"
-
-                          true ->
-                            "Remote user"
-                        end %>
+                      <% author_preview = quick_reply_author_preview(reply) %>
                       <div class="text-sm">
-                        <div class="flex items-center gap-2 mb-1">
-                          <span class="font-medium">{author}</span>
+                        <div class="flex items-center gap-2 mb-1 min-w-0">
+                          <%= if author_preview.profile_path do %>
+                            <.link
+                              navigate={author_preview.profile_path}
+                              class="w-5 h-5 flex-shrink-0"
+                              phx-click="stop_propagation"
+                            >
+                              <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                                <img
+                                  src={author_preview.avatar_url}
+                                  alt=""
+                                  class="w-5 h-5 rounded-full object-cover"
+                                />
+                              <% else %>
+                                <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
+                                  <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                                </div>
+                              <% end %>
+                            </.link>
+                            <.link
+                              navigate={author_preview.profile_path}
+                              class="font-medium truncate hover:underline"
+                              phx-click="stop_propagation"
+                            >
+                              {author_preview.label}
+                            </.link>
+                          <% else %>
+                            <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                              <img
+                                src={author_preview.avatar_url}
+                                alt=""
+                                class="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                              />
+                            <% else %>
+                              <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                                <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                              </div>
+                            <% end %>
+                            <span class="font-medium truncate">{author_preview.label}</span>
+                          <% end %>
                           <%= if reply["published"] do %>
                             <span class="text-xs opacity-50">
                               · {format_activitypub_date(reply["published"])}
@@ -401,7 +501,7 @@
               <div class="text-center py-4 text-base-content/60">
                 <%= if @replies_loading do %>
                   <div class="flex items-center justify-center gap-2">
-                    <span class="loading loading-spinner loading-sm"></span>
+                    <.spinner size="sm" />
                     <p>Loading comments...</p>
                   </div>
                 <% else %>
@@ -443,9 +543,9 @@
               
 <!-- Main Post Card -->
               <article class="card social-page-card border border-base-300 rounded-lg p-6 mb-6">
-                <div class={if @community_actor, do: "flex gap-3 sm:gap-4", else: ""}>
+                <div class={if @is_community_post, do: "flex gap-3 sm:gap-4", else: ""}>
                   <!-- Voting Column (Reddit-style) - Only for community posts -->
-                  <%= if @community_actor do %>
+                  <%= if @is_community_post do %>
                     <% lemmy = @lemmy_counts
                     vote_state = Map.get(@post_interactions, @post["id"], %{})
                     user_vote = Map.get(vote_state, :vote, nil)
@@ -458,7 +558,7 @@
 
                     score = base_score + vote_delta %>
                     <div class="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
-                      <%= if @current_user do %>
+                      <%= if @current_user && @community_actor do %>
                         <button
                           phx-click="vote_post"
                           phx-value-type="up"
@@ -485,7 +585,7 @@
                         </div>
                       <% end %>
                       <span class="text-sm sm:text-lg font-bold">{score}</span>
-                      <%= if @current_user do %>
+                      <%= if @current_user && @community_actor do %>
                         <button
                           phx-click="vote_post"
                           phx-value-type="down"
@@ -527,7 +627,7 @@
                             src={@remote_actor.avatar_url}
                             alt={@remote_actor.username}
                             class={
-                              if @community_actor,
+                              if @is_community_post,
                                 do: "w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover",
                                 else: "w-12 h-12 rounded-full object-cover"
                             }
@@ -535,12 +635,12 @@
                         <% else %>
                           <div class={[
                             "rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center",
-                            if(@community_actor, do: "w-8 h-8 sm:w-10 sm:h-10", else: "w-12 h-12")
+                            if(@is_community_post, do: "w-8 h-8 sm:w-10 sm:h-10", else: "w-12 h-12")
                           ]}>
                             <.icon
                               name="hero-user"
                               class={
-                                if @community_actor, do: "w-4 h-4 sm:w-5 sm:h-5", else: "w-6 h-6"
+                                if @is_community_post, do: "w-4 h-4 sm:w-5 sm:h-5", else: "w-6 h-6"
                               }
                             />
                           </div>
@@ -559,14 +659,18 @@
                               )
                             )}
                           </.link>
-                          <%= if @community_actor do %>
+                          <%= if @is_community_post do %>
                             <span class="text-xs opacity-50">in</span>
-                            <.link
-                              navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
-                              class="text-secondary font-medium text-sm hover:underline"
-                            >
-                              !{@community_actor.username}
-                            </.link>
+                            <%= if @community_actor do %>
+                              <.link
+                                navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
+                                class="text-secondary font-medium text-sm hover:underline"
+                              >
+                                !{@community_actor.username}
+                              </.link>
+                            <% else %>
+                              <span class="text-secondary font-medium text-sm opacity-60">!community</span>
+                            <% end %>
                           <% end %>
                         </div>
                         <div class="text-xs sm:text-sm opacity-70">
@@ -597,6 +701,12 @@
                         @remote_actor && @remote_actor.domain
                       )
 
+                    link_preview =
+                      effective_link_preview(
+                        @local_message,
+                        Map.get(assigns, :submitted_link_preview)
+                      )
+
                     submitted_url_host = submitted_url_host(submitted_url)
                     is_external_link = is_binary(submitted_url)
                     link_domain = submitted_url_host || submitted_url %>
@@ -622,7 +732,9 @@
                             </h1>
                             <div class="text-sm text-primary/70 mb-3">
                               <span class="font-medium">{link_domain}</span>
-                              <span class="block opacity-80 break-all">{submitted_url}</span>
+                              <%= if !link_preview do %>
+                                <span class="block opacity-80 break-all">{submitted_url}</span>
+                              <% end %>
                             </div>
                           </a>
                         <% else %>
@@ -782,42 +894,78 @@
                       <% end %>
                       
 <!-- Link Preview (from local message if available) -->
-                      <%= if @local_message && match?(%Elektrine.Social.LinkPreview{}, @local_message.link_preview) && @local_message.link_preview.status == "success" do %>
-                        <div class="mt-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
-                          <a
-                            href={@local_message.link_preview.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block"
-                          >
-                            <%= if @local_message.link_preview.image_url do %>
-                              <div class="aspect-video bg-base-200">
-                                <img
-                                  src={@local_message.link_preview.image_url}
-                                  alt={@local_message.link_preview.title || ""}
-                                  class="w-full h-full object-cover"
-                                  loading="lazy"
-                                />
-                              </div>
-                            <% end %>
-                            <div class="p-3">
-                              <%= if @local_message.link_preview.title do %>
+                      <% link_preview =
+                        effective_link_preview(
+                          @local_message,
+                          Map.get(assigns, :submitted_link_preview)
+                        ) %>
+                      <%= if link_preview do %>
+                        <% youtube_id = extract_youtube_id(link_preview.url) %>
+                        <% hide_preview_title =
+                          preview_title_duplicates_post?(link_preview.title, @post["name"]) %>
+                        <%= if youtube_id do %>
+                          <div class="mt-4 border border-base-200 rounded-lg overflow-hidden">
+                            <div class="aspect-video bg-base-200">
+                              <iframe
+                                src={"https://www.youtube.com/embed/#{youtube_id}"}
+                                title={link_preview.title || "YouTube video"}
+                                frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowfullscreen
+                                class="w-full h-full"
+                              >
+                              </iframe>
+                            </div>
+                            <div class="p-3 border-t border-base-200">
+                              <%= if link_preview.title && !hide_preview_title do %>
                                 <h4 class="font-medium text-sm line-clamp-2 mb-1">
-                                  {@local_message.link_preview.title}
+                                  {link_preview.title}
                                 </h4>
                               <% end %>
-                              <%= if @local_message.link_preview.description do %>
+                              <%= if link_preview.description do %>
                                 <p class="text-xs opacity-70 line-clamp-2 mb-2">
-                                  {@local_message.link_preview.description}
+                                  {link_preview.description}
                                 </p>
                               <% end %>
-                              <div class="text-xs opacity-50 flex items-center gap-1">
-                                <.icon name="hero-link" class="w-3 h-3" />
-                                {URI.parse(@local_message.link_preview.url).host}
-                              </div>
                             </div>
-                          </a>
-                        </div>
+                          </div>
+                        <% else %>
+                          <div class="mt-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
+                            <a
+                              href={link_preview.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="block"
+                            >
+                              <%= if link_preview.image_url do %>
+                                <div class="aspect-video bg-base-200">
+                                  <img
+                                    src={link_preview.image_url}
+                                    alt={link_preview.title || ""}
+                                    class="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </div>
+                              <% end %>
+                              <div class="p-3">
+                                <%= if link_preview.title && !hide_preview_title do %>
+                                  <h4 class="font-medium text-sm line-clamp-2 mb-1">
+                                    {link_preview.title}
+                                  </h4>
+                                <% end %>
+                                <%= if link_preview.description do %>
+                                  <p class="text-xs opacity-70 line-clamp-2 mb-2">
+                                    {link_preview.description}
+                                  </p>
+                                <% end %>
+                                <div class="text-xs opacity-50 flex items-center gap-1">
+                                  <.icon name="hero-link" class="w-3 h-3" />
+                                  {URI.parse(link_preview.url).host}
+                                </div>
+                              </div>
+                            </a>
+                          </div>
+                        <% end %>
                       <% end %>
                     </div>
                     
@@ -826,7 +974,7 @@
                     # since @post["url"] may be an external link for Lemmy link posts
                     instance_url = @post["id"] %>
                     <div class="flex items-center gap-4 text-sm opacity-70 mb-4 pt-3 border-t border-base-300">
-                      <%= if !@community_actor do %>
+                      <%= if !@is_community_post do %>
                         <!-- Only show timestamp here for non-community posts (already shown in header for community posts) -->
                         <div>
                           {if @post["published"], do: format_activitypub_date(@post["published"])}
@@ -991,20 +1139,50 @@
                           <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
                             <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                             <%= for reply <- @quick_reply_recent_replies do %>
-                              <% author =
-                                cond do
-                                  reply["_local_user"] ->
-                                    "@#{reply["_local_user"].handle || reply["_local_user"].username}@z.org"
-
-                                  is_binary(reply["attributedTo"]) ->
-                                    "@#{extract_username_from_uri(reply["attributedTo"])}"
-
-                                  true ->
-                                    "Remote user"
-                                end %>
+                              <% author_preview = quick_reply_author_preview(reply) %>
                               <div class="text-sm">
-                                <div class="flex items-center gap-2 mb-1">
-                                  <span class="font-medium">{author}</span>
+                                <div class="flex items-center gap-2 mb-1 min-w-0">
+                                  <%= if author_preview.profile_path do %>
+                                    <.link
+                                      navigate={author_preview.profile_path}
+                                      class="w-5 h-5 flex-shrink-0"
+                                      phx-click="stop_propagation"
+                                    >
+                                      <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                                        <img
+                                          src={author_preview.avatar_url}
+                                          alt=""
+                                          class="w-5 h-5 rounded-full object-cover"
+                                        />
+                                      <% else %>
+                                        <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
+                                          <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                                        </div>
+                                      <% end %>
+                                    </.link>
+                                    <.link
+                                      navigate={author_preview.profile_path}
+                                      class="font-medium truncate hover:underline"
+                                      phx-click="stop_propagation"
+                                    >
+                                      {author_preview.label}
+                                    </.link>
+                                  <% else %>
+                                    <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                                      <img
+                                        src={author_preview.avatar_url}
+                                        alt=""
+                                        class="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                                      />
+                                    <% else %>
+                                      <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                                        <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                                      </div>
+                                    <% end %>
+                                    <span class="font-medium truncate">
+                                      {author_preview.label}
+                                    </span>
+                                  <% end %>
                                   <%= if reply["published"] do %>
                                     <span class="text-xs opacity-50">
                                       · {format_activitypub_date(reply["published"])}
@@ -1079,7 +1257,7 @@
                 <div class="mb-6">
                   <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-bold flex items-center gap-2">
-                      <%= if @community_actor do %>
+                      <%= if @is_community_post do %>
                         Comments ({length(@replies)})
                       <% else %>
                         Conversation ({length(@replies)})
@@ -1158,7 +1336,7 @@
                       </ul>
                     </div>
                   </div>
-                  <%= if !@community_actor && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
+                  <%= if !@is_community_post && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
                     <div class="alert alert-info py-2 mb-3">
                       <.icon name="hero-information-circle" class="w-4 h-4" />
                       <span class="text-sm">
@@ -1183,7 +1361,7 @@
                   <.icon name="hero-chat-bubble-left" class="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <%= if @replies_loading do %>
                     <div class="flex items-center justify-center gap-2">
-                      <span class="loading loading-spinner loading-sm"></span>
+                      <.spinner size="sm" />
                       <p>Loading comments...</p>
                     </div>
                   <% else %>

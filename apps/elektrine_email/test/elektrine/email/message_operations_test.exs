@@ -5,6 +5,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   import Elektrine.EmailFixtures
 
   alias Elektrine.Email
+  alias Elektrine.Email.Cached
   alias Elektrine.Email.CustomFolders
   alias Elektrine.Email.Labels
   alias Elektrine.Email.Messages
@@ -116,6 +117,18 @@ defmodule Elektrine.Email.MessageOperationsTest do
       assert updated.folder_id == folder.id
     end
 
+    test "rejects moving message to a folder owned by another user", %{mailbox: mailbox} do
+      message = create_test_message(mailbox.id, %{folder_id: nil})
+      other_user = user_fixture()
+      {:ok, other_folder} = CustomFolders.create_folder(%{user_id: other_user.id, name: "Other"})
+
+      assert {:error, :invalid_folder} =
+               CustomFolders.move_message_to_folder(message.id, other_folder.id)
+
+      reloaded = Email.get_message_internal(message.id)
+      assert reloaded.folder_id == nil
+    end
+
     test "message in folder is excluded from inbox listing", %{mailbox: mailbox, folder: folder} do
       message = create_test_message(mailbox.id, %{folder_id: folder.id})
 
@@ -134,6 +147,80 @@ defmodule Elektrine.Email.MessageOperationsTest do
       result = CustomFolders.list_folder_messages(folder.id, user.id)
 
       assert Enum.any?(result.messages, &(&1.id == message.id))
+    end
+
+    test "folder listing does not leak messages from other users", %{
+      folder: folder,
+      user: user
+    } do
+      own_mailbox = mailbox_fixture(%{user_id: user.id, email: "ownfolder@elektrine.com"})
+      own_message = create_test_message(own_mailbox.id, %{folder_id: folder.id})
+
+      other_user = user_fixture()
+
+      other_mailbox =
+        mailbox_fixture(%{user_id: other_user.id, email: "otherfolder@elektrine.com"})
+
+      other_message = create_test_message(other_mailbox.id, %{folder_id: folder.id})
+
+      result = CustomFolders.list_folder_messages(folder.id, user.id)
+
+      assert Enum.any?(result.messages, &(&1.id == own_message.id))
+      refute Enum.any?(result.messages, &(&1.id == other_message.id))
+    end
+  end
+
+  describe "cache invalidation regressions" do
+    setup do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "cachetest@elektrine.com"})
+      {:ok, folder} = CustomFolders.create_folder(%{user_id: user.id, name: "Cache Folder"})
+      {:ok, user: user, mailbox: mailbox, folder: folder}
+    end
+
+    test "mark_as_unread invalidates cached unread inbox counts", %{mailbox: mailbox} do
+      message = create_test_message(mailbox.id, %{read: true})
+
+      assert Cached.unread_inbox_count(mailbox.id) == 0
+
+      {:ok, _updated} = Email.mark_as_unread(message)
+
+      assert Cached.unread_inbox_count(mailbox.id) == 1
+    end
+
+    test "mark_as_not_spam invalidates cached unread inbox counts", %{mailbox: mailbox} do
+      message = create_test_message(mailbox.id, %{read: false, spam: true})
+
+      assert Cached.unread_inbox_count(mailbox.id) == 0
+
+      {:ok, _updated} = Email.mark_as_not_spam(message)
+
+      assert Cached.unread_inbox_count(mailbox.id) == 1
+    end
+
+    test "move_to_digest invalidates cached feed counts", %{mailbox: mailbox} do
+      message = create_test_message(mailbox.id, %{category: nil})
+
+      assert Cached.feed_messages_count(mailbox.id) == 0
+
+      {:ok, _updated} = Email.move_to_digest(message)
+
+      assert Cached.feed_messages_count(mailbox.id) == 1
+    end
+
+    test "update_message_flags invalidates cached inbox message lists", %{
+      mailbox: mailbox,
+      folder: folder
+    } do
+      message = create_test_message(mailbox.id, %{folder_id: nil})
+
+      initial = Cached.list_inbox_messages_paginated(mailbox.id, 1, 20)
+      assert Enum.any?(initial.messages, &(&1.id == message.id))
+
+      {:ok, _updated} = Messages.update_message_flags(message.id, %{folder_id: folder.id})
+
+      refreshed = Cached.list_inbox_messages_paginated(mailbox.id, 1, 20)
+      refute Enum.any?(refreshed.messages, &(&1.id == message.id))
     end
   end
 

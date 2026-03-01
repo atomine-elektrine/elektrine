@@ -95,6 +95,11 @@
               <.icon name="hero-chat-bubble-left-ellipsis" class="w-5 h-5" /> Messages
             </.link>
           </li>
+          <li>
+            <.link href={~p"/pripyat/arblarg/messages"} class="rounded-lg py-3">
+              <.icon name="hero-chat-bubble-left-right" class="w-5 h-5" /> Arblarg Messages
+            </.link>
+          </li>
 
           <div class="divider my-1 h-px"></div>
           <li class="menu-title px-3 pt-2 pb-1">
@@ -226,6 +231,7 @@
             <li><.link href={~p"/pripyat/aliases"}>Aliases</.link></li>
             <li><.link href={~p"/pripyat/forwarded-messages"}>Forwarded Messages</.link></li>
             <li><.link href={~p"/pripyat/messages"}>Messages</.link></li>
+            <li><.link href={~p"/pripyat/arblarg/messages"}>Arblarg Messages</.link></li>
           </ul>
         </li>
 
@@ -281,6 +287,7 @@
             <option value={~p"/pripyat"}>Dashboard</option>
             <option value={~p"/pripyat/users"}>Users</option>
             <option value={~p"/pripyat/messages"}>Messages</option>
+            <option value={~p"/pripyat/arblarg/messages"}>Arblarg Messages</option>
             <option value={~p"/pripyat/mailboxes"}>Mailboxes</option>
             <option value={~p"/pripyat/aliases"}>Aliases</option>
             <option value={~p"/pripyat/content-moderation"}>Moderation</option>

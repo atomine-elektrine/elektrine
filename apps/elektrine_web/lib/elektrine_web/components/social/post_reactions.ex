@@ -19,6 +19,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
   * `:on_react` - Event name for react action (default: "react_to_post")
   * `:size` - Button size: :xs, :sm (default: :xs)
   * `:value_name` - The phx-value attribute name: "post_id" or "message_id" (default: "post_id")
+  * `:actor_uri` - Optional actor URI to help resolve remote comment interactions
   * `:show_picker` - Whether to show the quick picker (default: true)
   * `:emojis` - List of emojis for quick picker (default: standard set)
 
@@ -44,6 +45,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
   attr :on_react, :string, default: "react_to_post"
   attr :size, :atom, default: :xs
   attr :value_name, :string, default: "post_id"
+  attr :actor_uri, :string, default: nil
   attr :show_picker, :boolean, default: true
   attr :emojis, :list, default: @default_emojis
 
@@ -123,14 +125,14 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
       |> assign(:icon_class, icon_class)
       |> assign(:picker_btn_class, picker_btn_class)
       |> assign(:picker_icon_class, picker_icon_class)
+      |> assign(
+        :reaction_value_attrs,
+        build_reaction_value_attrs(assigns.value_name, assigns.post_id, assigns.actor_uri)
+      )
 
     ~H"""
     <%= if length(@formatted_reactions) > 0 || (@current_user && @show_picker) do %>
-      <div
-        class="flex flex-wrap items-center gap-1.5"
-        onclick="event.stopPropagation()"
-        onmousedown="event.stopPropagation()"
-      >
+      <div class="flex flex-wrap items-center gap-1.5">
         <!-- Existing reactions -->
         <%= for reaction <- @formatted_reactions do %>
           <% tooltip = Enum.join(reaction.usernames, ", ")
@@ -139,7 +141,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
             if reaction.count > 10, do: tooltip <> " and #{reaction.count - 10} more", else: tooltip %>
           <button
             phx-click={@on_react}
-            {[{"phx-value-#{@value_name}", @post_id}]}
+            {@reaction_value_attrs}
             phx-value-emoji={reaction.emoji}
             class={[
               @btn_class,
@@ -154,7 +156,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
           </button>
         <% end %>
         
-        <!-- Quick reaction picker -->
+    <!-- Quick reaction picker -->
         <%= if @current_user && @show_picker do %>
           <div class="dropdown dropdown-top">
             <button type="button" class={@picker_btn_class} title="Add reaction">
@@ -168,7 +170,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
                 <%= for emoji <- @emojis do %>
                   <button
                     phx-click={@on_react}
-                    {[{"phx-value-#{@value_name}", @post_id}]}
+                    {@reaction_value_attrs}
                     phx-value-emoji={emoji}
                     class="btn btn-ghost btn-sm text-lg"
                     type="button"
@@ -184,4 +186,17 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
     <% end %>
     """
   end
+
+  defp build_reaction_value_attrs(value_name, post_id, actor_uri) do
+    [{"phx-value-#{value_name}", post_id}] ++ actor_uri_attr(actor_uri)
+  end
+
+  defp actor_uri_attr(actor_uri) when is_binary(actor_uri) do
+    case String.trim(actor_uri) do
+      "" -> []
+      trimmed -> [{"phx-value-actor_uri", trimmed}]
+    end
+  end
+
+  defp actor_uri_attr(_), do: []
 end

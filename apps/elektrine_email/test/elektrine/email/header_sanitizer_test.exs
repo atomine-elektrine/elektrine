@@ -253,8 +253,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
       # Simulating authenticated user context
       result = HeaderSanitizer.check_local_domain_spoofing(from, %{authenticated: true})
 
-      # Should pass or have different handling for authenticated users
-      assert result != {:error, :spoofing_attempt}
+      assert result == {:ok, :valid}
     end
 
     test "allows external senders from external domains" do

@@ -136,11 +136,15 @@ defmodule Elektrine.Email do
   defdelegate list_feed_messages(mailbox_id, limit \\ 50, offset \\ 0),
     to: Elektrine.Email.Folders
 
+  defdelegate feed_messages_count(mailbox_id), to: Elektrine.Email.Folders
+
   defdelegate list_feed_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20),
     to: Elektrine.Email.Folders
 
   defdelegate list_ledger_messages(mailbox_id, limit \\ 50, offset \\ 0),
     to: Elektrine.Email.Folders
+
+  defdelegate ledger_messages_count(mailbox_id), to: Elektrine.Email.Folders
 
   defdelegate list_ledger_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20),
     to: Elektrine.Email.Folders

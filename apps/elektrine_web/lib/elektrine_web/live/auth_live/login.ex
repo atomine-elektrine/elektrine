@@ -80,7 +80,7 @@ defmodule ElektrineWeb.AuthLive.Login do
           disabled={@passkey_loading}
         >
           <%= if @passkey_loading do %>
-            <span class="loading loading-spinner loading-sm"></span>
+            <.spinner size="sm" />
           <% else %>
             <.icon name="hero-finger-print" class="w-5 h-5" />
           <% end %>

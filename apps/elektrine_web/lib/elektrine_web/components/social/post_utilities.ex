@@ -4,7 +4,9 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   Provides common functionality for TimelinePost, LemmyPost, and other post components.
   """
 
+  alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging.Message
+  alias Elektrine.Uploads
   alias ElektrineWeb.HtmlHelpers
 
   @public_audience_uris MapSet.new([
@@ -247,7 +249,15 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
     if domain, do: "@#{author}@#{domain}", else: "@#{author}"
   end
 
+  def get_reply_author(%{"author" => author, "author_domain" => domain}) when is_binary(author) do
+    if domain, do: "@#{author}@#{domain}", else: "@#{author}"
+  end
+
   def get_reply_author(%{remote_actor: %{username: username, domain: domain}}) do
+    "@#{username}@#{domain}"
+  end
+
+  def get_reply_author(%{"remote_actor" => %{"username" => username, "domain" => domain}}) do
     "@#{username}@#{domain}"
   end
 
@@ -255,11 +265,60 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
     "@#{username}"
   end
 
+  def get_reply_author(%{"remote_actor" => %{"username" => username}}) do
+    "@#{username}"
+  end
+
   def get_reply_author(%{sender: %{username: username}}) do
     "@#{username}"
   end
 
+  def get_reply_author(%{"sender" => %{"username" => username}}) do
+    "@#{username}"
+  end
+
   def get_reply_author(_), do: ""
+
+  @doc """
+  Gets the avatar URL from a reply.
+  Handles local messages, federated messages, and Lemmy API comment maps.
+  """
+  @spec get_reply_avatar_url(map() | Message.t()) :: String.t() | nil
+  def get_reply_avatar_url(%Message{} = msg) do
+    cond do
+      msg.remote_actor && is_binary(msg.remote_actor.avatar_url) &&
+          String.trim(msg.remote_actor.avatar_url) != "" ->
+        msg.remote_actor.avatar_url
+
+      msg.sender && is_binary(msg.sender.avatar) && String.trim(msg.sender.avatar) != "" ->
+        Uploads.avatar_url(msg.sender.avatar)
+
+      true ->
+        nil
+    end
+  end
+
+  def get_reply_avatar_url(reply) when is_map(reply) do
+    remote_actor = Map.get(reply, :remote_actor) || Map.get(reply, "remote_actor")
+    sender = Map.get(reply, :sender) || Map.get(reply, "sender")
+    local_user = Map.get(reply, :_local_user) || Map.get(reply, "_local_user")
+    lemmy_data = Map.get(reply, :_lemmy) || Map.get(reply, "_lemmy")
+
+    [
+      Map.get(reply, :author_avatar),
+      Map.get(reply, "author_avatar"),
+      Map.get(reply, :avatar_url),
+      Map.get(reply, "avatar_url"),
+      remote_actor && (Map.get(remote_actor, :avatar_url) || Map.get(remote_actor, "avatar_url")),
+      sender && (Map.get(sender, :avatar) || Map.get(sender, "avatar")),
+      local_user && (Map.get(local_user, :avatar) || Map.get(local_user, "avatar")),
+      lemmy_data &&
+        (Map.get(lemmy_data, :creator_avatar) || Map.get(lemmy_data, "creator_avatar"))
+    ]
+    |> Enum.find_value(&normalize_reply_avatar/1)
+  end
+
+  def get_reply_avatar_url(_), do: nil
 
   @doc """
   Gets the content from a reply.
@@ -311,7 +370,8 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   """
   @spec community_post?(map()) :: boolean()
   def community_post?(post) do
-    has_community_uri?(post) || community_conversation_post?(post)
+    has_community_uri?(post) || community_conversation_post?(post) ||
+      community_post_url_match?(post)
   end
 
   @doc """
@@ -384,6 +444,23 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
 
   defp contains_emoji_shortcode?(_), do: false
 
+  defp normalize_reply_avatar(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" ->
+        nil
+
+      String.starts_with?(trimmed, "http://") || String.starts_with?(trimmed, "https://") ->
+        trimmed
+
+      true ->
+        Uploads.avatar_url(trimmed)
+    end
+  end
+
+  defp normalize_reply_avatar(_), do: nil
+
   defp remote_actor_domain(%{remote_actor: remote_actor}), do: remote_actor_domain(remote_actor)
 
   defp remote_actor_domain(%{domain: domain}) when is_binary(domain) and domain != "", do: domain
@@ -414,6 +491,16 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
 
   defp community_conversation_post?(%{conversation: %Ecto.Association.NotLoaded{}}), do: false
   defp community_conversation_post?(_), do: false
+
+  defp community_post_url_match?(post) when is_map(post) do
+    activitypub_id = Map.get(post, :activitypub_id) || Map.get(post, "activitypub_id")
+    activitypub_url = Map.get(post, :activitypub_url) || Map.get(post, "activitypub_url")
+
+    (is_binary(activitypub_id) && LemmyApi.community_post_url?(activitypub_id)) ||
+      (is_binary(activitypub_url) && LemmyApi.community_post_url?(activitypub_url))
+  end
+
+  defp community_post_url_match?(_), do: false
 
   defp normalize_community_uri(value) when is_binary(value) do
     normalized = String.trim(value)

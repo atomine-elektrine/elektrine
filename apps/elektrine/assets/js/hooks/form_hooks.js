@@ -2,9 +2,7 @@
  * Form Hooks
  * Hooks for form inputs, tag inputs, and autocomplete functionality.
  */
-
-const SPINNER_SVG =
-  '<svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path d="M12 2a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm0 16a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1Zm10-7a1 1 0 1 1 0 2h-2a1 1 0 1 1 0-2h2ZM4 11a1 1 0 1 1 0 2H2a1 1 0 1 1 0-2h2Zm15.07-5.66a1 1 0 0 1 1.41 1.41l-1.41 1.42a1 1 0 1 1-1.41-1.42l1.41-1.41ZM6.34 17.66a1 1 0 1 1 1.41 1.41l-1.41 1.42a1 1 0 0 1-1.41-1.42l1.41-1.41Zm13.15 1.42a1 1 0 0 1-1.41 0l-1.42-1.42a1 1 0 1 1 1.42-1.41l1.41 1.41a1 1 0 0 1 0 1.42ZM7.76 7.08A1 1 0 1 1 6.34 8.5L4.93 7.08a1 1 0 1 1 1.41-1.41l1.42 1.41Z"/></svg>'
+import { spinnerSvg } from '../utils/spinner'
 
 /**
  * FormSubmit Hook
@@ -23,7 +21,7 @@ export const FormSubmit = {
         const loadingText = submitBtn.dataset.loadingText || submitBtn.textContent.trim()
 
         // Replace with spinner and loading text
-        submitBtn.innerHTML = `${SPINNER_SVG}<span>${loadingText}</span>`
+        submitBtn.innerHTML = `${spinnerSvg()}<span>${loadingText}</span>`
         submitBtn.disabled = true
         submitBtn.classList.add('pointer-events-none')
 

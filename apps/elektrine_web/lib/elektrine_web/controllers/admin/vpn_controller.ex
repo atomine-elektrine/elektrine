@@ -23,12 +23,14 @@ defmodule ElektrineWeb.Admin.VPNController do
       )
       |> Elektrine.Repo.one()
       |> case do
-        nil -> {0, 0}
-        totals -> totals
+        nil ->
+          {0, 0}
+
+        {bandwidth, quota} ->
+          {normalize_aggregate_total(bandwidth), normalize_aggregate_total(quota)}
       end
 
-    quota_usage_percent =
-      if total_quota > 0, do: (total_bandwidth / total_quota * 100) |> round(), else: 0
+    quota_usage_percent = calculate_quota_usage_percent(total_bandwidth, total_quota)
 
     # Get top bandwidth users
     top_users =
@@ -271,6 +273,27 @@ defmodule ElektrineWeb.Admin.VPNController do
         conn
         |> put_flash(:error, "Failed to reset quota")
         |> redirect(to: ~p"/pripyat/vpn/users")
+    end
+  end
+
+  defp normalize_aggregate_total(nil), do: 0
+  defp normalize_aggregate_total(value) when is_integer(value), do: value
+  defp normalize_aggregate_total(value) when is_float(value), do: round(value)
+
+  defp normalize_aggregate_total(%Decimal{} = value) do
+    value
+    |> Decimal.round(0)
+    |> Decimal.to_integer()
+  end
+
+  defp calculate_quota_usage_percent(total_bandwidth, total_quota) do
+    bandwidth = normalize_aggregate_total(total_bandwidth)
+    quota = normalize_aggregate_total(total_quota)
+
+    if quota > 0 do
+      round(bandwidth / quota * 100)
+    else
+      0
     end
   end
 end

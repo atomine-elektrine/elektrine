@@ -68,6 +68,9 @@ defmodule ElektrineWeb.TimelineLive.Router do
       "update_post_content" ->
         PostOperations.handle_event(event_name, params, socket)
 
+      "update_post_content_live" ->
+        PostOperations.handle_event(event_name, params, socket)
+
       "autosave_draft" ->
         PostOperations.handle_event(event_name, params, socket)
 

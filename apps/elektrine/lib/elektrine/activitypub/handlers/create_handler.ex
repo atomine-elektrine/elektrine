@@ -13,6 +13,22 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   alias Elektrine.Messaging
   alias Elektrine.Social
 
+  @public_audience_uris MapSet.new([
+                          "Public",
+                          "as:Public",
+                          "https://www.w3.org/ns/activitystreams#Public"
+                        ])
+  @user_actor_path_markers [
+    "/users/",
+    "/user/",
+    "/u/",
+    "/@",
+    "/profile/",
+    "/profiles/",
+    "/accounts/"
+  ]
+  @community_path_markers ["/c/", "/m/", "/community/", "/communities/", "/groups/", "/g/"]
+
   @doc """
   Handles an incoming Create activity.
   """
@@ -35,17 +51,26 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   Public API for use by other handlers (e.g., AnnounceHandler).
   """
   def create_note(object, actor_uri) do
+    create_note(object, actor_uri, [])
+  end
+
+  @doc """
+  Creates a note from an ActivityPub object with extra ingestion options.
+  Supported opts:
+  - `:fallback_community_uri` - fallback Group/community URI when object fields are incomplete
+  """
+  def create_note(object, actor_uri, opts) when is_list(opts) do
     if poll_vote?(object) do
       handle_incoming_poll_vote(object, actor_uri)
     else
-      create_regular_note(object, actor_uri)
+      create_regular_note(object, actor_uri, opts)
     end
   end
 
   @doc """
   Creates a Question (poll) from an ActivityPub object.
   """
-  def create_question(object, actor_uri) do
+  def create_question(object, actor_uri, opts \\ []) do
     with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
       content = strip_html(object["content"] || object["question"] || "")
       hashtags = extract_hashtags(object, content)
@@ -68,7 +93,11 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
                remote_actor_id: remote_actor.id,
                media_urls: media_urls,
                media_metadata:
-                 if(map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}),
+                 build_poll_metadata(
+                   alt_texts,
+                   object,
+                   Keyword.put_new(opts, :author_uri, actor_uri)
+                 ),
                inserted_at: Helpers.parse_published_date(object["published"]),
                extracted_hashtags: hashtags,
                post_type: "poll",
@@ -181,9 +210,12 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     end
   end
 
-  defp create_regular_note(object, actor_uri) do
+  defp create_regular_note(object, actor_uri, opts) do
+    object = maybe_enrich_sparse_object(object)
+
     with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
       content = strip_html(object["content"] || "")
+      title = normalize_object_title(object["name"])
       hashtags = extract_hashtags(object, content)
       mentioned_local_users = extract_local_mentions(object)
 
@@ -200,6 +232,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         result =
           Messaging.create_federated_message(%{
             content: content,
+            title: title,
             visibility: visibility,
             activitypub_id: object["id"],
             activitypub_url: object["url"] || object["id"],
@@ -208,7 +241,12 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
             reply_to_id: reply_to_id,
             quoted_message_id: quoted_message_id,
             media_urls: media_urls,
-            media_metadata: build_metadata_with_engagement(alt_texts, object),
+            media_metadata:
+              build_metadata_with_engagement(
+                alt_texts,
+                object,
+                Keyword.put_new(opts, :author_uri, actor_uri)
+              ),
             inserted_at: Helpers.parse_published_date(object["published"]),
             extracted_hashtags: hashtags,
             like_count: Helpers.extract_interaction_count(object, "likes"),
@@ -304,7 +342,14 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     )
   end
 
-  defp build_metadata_with_engagement(alt_texts, object) do
+  defp build_poll_metadata(alt_texts, object, opts) do
+    base = if map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}
+
+    base
+    |> Map.merge(extract_community_metadata(object, opts))
+  end
+
+  defp build_metadata_with_engagement(alt_texts, object, opts) do
     base = if map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}
 
     # Store original engagement counts for reference
@@ -320,11 +365,198 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     # Extract external link for Lemmy link posts
     external_link = extract_external_link(object)
 
+    # Persist community actor URI when present so UI/query layers can
+    # reliably classify community posts even when the author is a Person.
+    community_metadata = extract_community_metadata(object, opts)
+
     base
     |> Map.merge(engagement)
     |> Map.merge(reply_context)
     |> Map.merge(external_link)
+    |> Map.merge(community_metadata)
   end
+
+  defp extract_community_metadata(object, opts) do
+    case detect_community_actor_uri(object, opts) do
+      uri when is_binary(uri) -> %{"community_actor_uri" => uri}
+      _ -> %{}
+    end
+  end
+
+  defp detect_community_actor_uri(object, opts) when is_map(object) and is_list(opts) do
+    author_uri =
+      normalize_uri(object["attributedTo"] || Keyword.get(opts, :author_uri))
+
+    fallback_uri = normalize_uri(Keyword.get(opts, :fallback_community_uri))
+
+    direct_candidate =
+      object
+      |> community_uri_candidates(fallback_uri)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.reject(&public_audience_uri?/1)
+      |> Enum.reject(&collection_uri?/1)
+      |> Enum.reject(&post_reference_uri?/1)
+      |> Enum.reject(&(&1 == author_uri))
+      |> Enum.find(&community_actor_uri?/1)
+
+    direct_candidate || community_uri_from_reply_chain(object["inReplyTo"])
+  end
+
+  defp detect_community_actor_uri(_, _), do: nil
+
+  defp community_uri_candidates(object, fallback_uri) do
+    [
+      object["audience"],
+      object["context"],
+      object["to"],
+      object["cc"],
+      object["target"],
+      fallback_uri
+    ]
+    |> Enum.flat_map(&expand_uri_candidates/1)
+    |> Enum.map(&normalize_uri/1)
+  end
+
+  defp community_uri_from_reply_chain(in_reply_to) do
+    with uri when is_binary(uri) <- extract_in_reply_to_uri(in_reply_to),
+         %{} = parent_message <- Messaging.get_message_by_activitypub_ref(uri) do
+      get_community_uri_from_chain(parent_message)
+    else
+      _ -> nil
+    end
+  end
+
+  defp extract_in_reply_to_uri(in_reply_to) when is_binary(in_reply_to),
+    do: normalize_uri(in_reply_to)
+
+  defp extract_in_reply_to_uri(in_reply_to) when is_map(in_reply_to) do
+    in_reply_to
+    |> Map.get("id")
+    |> extract_in_reply_to_uri()
+  end
+
+  defp extract_in_reply_to_uri(_), do: nil
+
+  # Walk the parent chain to recover community attribution for sparse activities.
+  defp get_community_uri_from_chain(message, depth \\ 0)
+
+  defp get_community_uri_from_chain(_message, depth) when depth > 10, do: nil
+
+  defp get_community_uri_from_chain(message, depth) do
+    current_uri =
+      message
+      |> Map.get(:media_metadata, %{})
+      |> case do
+        metadata when is_map(metadata) -> Map.get(metadata, "community_actor_uri")
+        _ -> nil
+      end
+      |> normalize_uri()
+
+    cond do
+      is_binary(current_uri) && community_actor_uri?(current_uri) ->
+        current_uri
+
+      true ->
+        with reply_to_id when is_integer(reply_to_id) <- Map.get(message, :reply_to_id),
+             %{} = parent <- Messaging.get_message(reply_to_id) do
+          get_community_uri_from_chain(parent, depth + 1)
+        else
+          _ -> nil
+        end
+    end
+  end
+
+  defp expand_uri_candidates(value) when is_binary(value), do: [value]
+  defp expand_uri_candidates(value) when is_list(value), do: value
+  defp expand_uri_candidates(%{"id" => id}) when is_binary(id), do: [id]
+
+  defp expand_uri_candidates(map) when is_map(map) do
+    map
+    |> Map.take(["id", "url", "href"])
+    |> Map.values()
+    |> Enum.flat_map(&expand_uri_candidates/1)
+  end
+
+  defp expand_uri_candidates(_), do: []
+
+  defp normalize_uri(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_uri(_), do: nil
+
+  defp public_audience_uri?(uri) when is_binary(uri),
+    do: MapSet.member?(@public_audience_uris, uri)
+
+  defp public_audience_uri?(_), do: false
+
+  defp collection_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        normalized = path |> String.downcase() |> String.trim_trailing("/")
+        String.ends_with?(normalized, "/followers") || String.ends_with?(normalized, "/following")
+
+      _ ->
+        false
+    end
+  end
+
+  defp collection_uri?(_), do: false
+
+  defp post_reference_uri?(uri) when is_binary(uri) do
+    Regex.match?(~r{/post/\d+(?:$|[/?#])}, uri) ||
+      Regex.match?(~r{/c/[^/]+/p/\d+(?:$|[/?#])}, uri) ||
+      Regex.match?(~r{/m/[^/]+/[pt]/\d+(?:$|[/?#])}, uri)
+  end
+
+  defp post_reference_uri?(_), do: false
+
+  defp community_actor_uri?(uri) when is_binary(uri) do
+    known_group_actor_uri?(uri) || community_path_uri?(uri)
+  end
+
+  defp community_actor_uri?(_), do: false
+
+  defp known_group_actor_uri?(uri) when is_binary(uri) do
+    case ActivityPub.get_actor_by_uri(uri) do
+      %Elektrine.ActivityPub.Actor{actor_type: "Group"} -> true
+      _ -> false
+    end
+  end
+
+  defp known_group_actor_uri?(_), do: false
+
+  defp community_path_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        path_downcased = String.downcase(path)
+
+        Enum.any?(@community_path_markers, &String.contains?(path_downcased, &1)) &&
+          !user_actor_uri?(uri)
+
+      _ ->
+        false
+    end
+  end
+
+  defp community_path_uri?(_), do: false
+
+  defp user_actor_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        downcased_path = String.downcase(path)
+        Enum.any?(@user_actor_path_markers, &String.contains?(downcased_path, &1))
+
+      _ ->
+        false
+    end
+  end
+
+  defp user_actor_uri?(_), do: false
 
   # Extract external link from Lemmy/other link posts
   # Lemmy stores the submitted URL in attachment with type "Link"
@@ -712,6 +944,66 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     |> HtmlEntities.decode()
     |> String.trim()
   end
+
+  defp normalize_object_title(title) when is_binary(title) do
+    title
+    |> strip_html()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_object_title(_), do: nil
+
+  defp maybe_enrich_sparse_object(%{"id" => id} = object) when is_binary(id) do
+    if sparse_object_payload?(object) do
+      case Elektrine.ActivityPub.Fetcher.fetch_object(id) do
+        {:ok, fetched} when is_map(fetched) ->
+          merge_sparse_object_payload(object, fetched)
+
+        _ ->
+          object
+      end
+    else
+      object
+    end
+  end
+
+  defp maybe_enrich_sparse_object(object), do: object
+
+  defp sparse_object_payload?(object) when is_map(object) do
+    missing_name = blank_object_value?(object["name"])
+    missing_content = blank_object_value?(object["content"])
+    missing_attachment = blank_object_value?(object["attachment"])
+    missing_image = blank_object_value?(object["image"])
+
+    missing_name && missing_content && missing_attachment && missing_image
+  end
+
+  defp sparse_object_payload?(_), do: false
+
+  defp merge_sparse_object_payload(base, fetched) when is_map(base) and is_map(fetched) do
+    Enum.reduce(fetched, base, fn {key, fetched_value}, acc ->
+      current_value = Map.get(acc, key)
+
+      if blank_object_value?(current_value) and not blank_object_value?(fetched_value) do
+        Map.put(acc, key, fetched_value)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp merge_sparse_object_payload(base, _), do: base
+
+  defp blank_object_value?(nil), do: true
+  defp blank_object_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_object_value?(value) when is_list(value), do: value == []
+  defp blank_object_value?(value) when is_map(value), do: map_size(value) == 0
+  defp blank_object_value?(_), do: false
 
   defp extract_mentions_from_at_pattern(html) do
     Regex.replace(

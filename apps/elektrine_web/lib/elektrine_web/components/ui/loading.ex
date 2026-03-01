@@ -29,7 +29,7 @@ defmodule ElektrineWeb.Components.UI.Loading do
         Loading...
       </button>
   """
-  attr :size, :string, default: "md", values: ["sm", "md", "lg"], doc: "Spinner size"
+  attr :size, :string, default: "md", values: ["xs", "sm", "md", "lg"], doc: "Spinner size"
   attr :variant, :string, default: "ring", values: ["ring", "dots"], doc: "Spinner variant"
   attr :class, :string, default: nil, doc: "Additional CSS classes"
   attr :rest, :global, doc: "Additional HTML attributes"
@@ -234,6 +234,7 @@ defmodule ElektrineWeb.Components.UI.Loading do
 
   # Private helper functions
 
+  defp spinner_size_class("xs"), do: "w-3 h-3"
   defp spinner_size_class("sm"), do: "w-4 h-4"
   defp spinner_size_class("md"), do: "w-5 h-5"
   defp spinner_size_class("lg"), do: "w-8 h-8"

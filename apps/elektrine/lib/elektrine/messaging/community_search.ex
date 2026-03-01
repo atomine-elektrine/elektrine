@@ -6,6 +6,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
   import Ecto.Query
   alias Elektrine.{ActivityPub, Repo}
   alias Elektrine.Messaging.Conversation
+  alias Elektrine.Profiles
   require Logger
 
   @doc """
@@ -136,7 +137,8 @@ defmodule Elektrine.Messaging.CommunitySearch do
          true <- group_actor && group_actor.actor_type == "Group",
          {:ok, mirror} <-
            Elektrine.Messaging.FederatedCommunities.create_or_get_mirror_community(group_actor),
-         {:ok, _member} <- Elektrine.Messaging.join_conversation(mirror.id, user_id) do
+         {:ok, _member} <- ensure_user_in_mirror(mirror.id, user_id) do
+      maybe_follow_remote_group(user_id, group_actor_id)
       {:ok, mirror}
     else
       false -> {:error, :not_a_group}
@@ -183,5 +185,33 @@ defmodule Elektrine.Messaging.CommunitySearch do
   defp extract_follower_count(actor) do
     # Try to get follower count from metadata
     get_in(actor.metadata, ["followers", "totalItems"]) || 0
+  end
+
+  defp ensure_user_in_mirror(mirror_id, user_id) do
+    case Elektrine.Messaging.join_conversation(mirror_id, user_id) do
+      {:ok, _member} = ok ->
+        ok
+
+      {:error, :already_member} ->
+        {:ok, :already_member}
+
+      error ->
+        error
+    end
+  end
+
+  defp maybe_follow_remote_group(user_id, group_actor_id) do
+    case Profiles.follow_remote_actor(user_id, group_actor_id) do
+      {:ok, _follow} ->
+        :ok
+
+      {:error, :already_following} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to send ActivityPub Follow while following remote group #{group_actor_id}: #{inspect(reason)}"
+        )
+    end
   end
 end
