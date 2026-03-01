@@ -1,6 +1,7 @@
 // Global notification system for reliable notifications
 
 import { FlashMessageManager } from './flash_message_manager'
+import { spinnerSvg } from './utils/spinner'
 
 /**
  * Show a toast notification with various options
@@ -71,7 +72,7 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
 
   // Build icon HTML - spinner for loading type
   const iconHtml = type === 'loading'
-    ? `<span class="loading loading-spinner loading-md"></span>`
+    ? spinnerSvg()
     : `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}" />
        </svg>`

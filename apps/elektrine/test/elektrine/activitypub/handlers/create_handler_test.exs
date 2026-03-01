@@ -1,0 +1,172 @@
+defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
+  use Elektrine.DataCase, async: true
+
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.Handlers.CreateHandler
+  alias Elektrine.Messaging
+  alias Elektrine.Repo
+
+  describe "create_note/2 community detection" do
+    test "stores community_actor_uri from audience field" do
+      author = remote_actor_fixture("alice")
+      community_uri = "https://lemmy.world/c/elixir"
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://lemmy.world/post/#{System.unique_integer([:positive])}",
+          "audience" => community_uri
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert get_in(message.media_metadata || %{}, ["community_actor_uri"]) == community_uri
+    end
+
+    test "stores community_actor_uri from to/cc fields" do
+      author = remote_actor_fixture("bob")
+      community_uri = "https://programming.dev/c/elixir"
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://programming.dev/post/#{System.unique_integer([:positive])}",
+          "to" => [
+            "https://www.w3.org/ns/activitystreams#Public",
+            "https://mastodon.social/users/someone"
+          ],
+          "cc" => [community_uri]
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert get_in(message.media_metadata || %{}, ["community_actor_uri"]) == community_uri
+    end
+
+    test "stores community_actor_uri from target field" do
+      author = remote_actor_fixture("target")
+      community_uri = "https://lemmy.ml/c/federation"
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://lemmy.ml/post/#{System.unique_integer([:positive])}",
+          "target" => community_uri,
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => []
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert get_in(message.media_metadata || %{}, ["community_actor_uri"]) == community_uri
+    end
+
+    test "falls back to inReplyTo parent community metadata when audience fields are missing" do
+      parent_author = remote_actor_fixture("parent")
+      author = remote_actor_fixture("reply")
+      community_uri = "https://lemmy.world/c/rust"
+      parent_ap_id = "https://lemmy.world/post/#{System.unique_integer([:positive])}"
+
+      assert {:ok, _parent_message} =
+               Messaging.create_federated_message(%{
+                 content: "Parent post",
+                 visibility: "public",
+                 activitypub_id: parent_ap_id,
+                 activitypub_url: parent_ap_id,
+                 federated: true,
+                 remote_actor_id: parent_author.id,
+                 media_metadata: %{"community_actor_uri" => community_uri},
+                 inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               })
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://mastodon.social/notes/#{System.unique_integer([:positive])}",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => [],
+          "inReplyTo" => parent_ap_id
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert get_in(message.media_metadata || %{}, ["community_actor_uri"]) == community_uri
+    end
+
+    test "stores a sanitized title from object name" do
+      author = remote_actor_fixture("titled")
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://lemmy.world/post/#{System.unique_integer([:positive])}",
+          "content" => "",
+          "name" =>
+            ~s(<h1 class="font-bold text-xl mb-3">Even the DNC base is controlled opposition</h1>)
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert message.title == "Even the DNC base is controlled opposition"
+    end
+
+    test "treats markup-only object name as no title" do
+      author = remote_actor_fixture("titleempty")
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://lemmy.world/post/#{System.unique_integer([:positive])}",
+          "content" => "",
+          "name" => "<h1 class=\"font-bold\"></h1>"
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert is_nil(message.title)
+    end
+  end
+
+  describe "create_note/3 community fallback" do
+    test "uses fallback_community_uri when object fields are incomplete" do
+      author = remote_actor_fixture("carol")
+      fallback_community_uri = "https://lemmy.ml/c/technology"
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://lemmy.ml/post/#{System.unique_integer([:positive])}",
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => []
+        })
+
+      assert {:ok, message} =
+               CreateHandler.create_note(object, author.uri,
+                 fallback_community_uri: fallback_community_uri
+               )
+
+      assert get_in(message.media_metadata || %{}, ["community_actor_uri"]) ==
+               fallback_community_uri
+    end
+  end
+
+  defp note_object(author_uri, overrides) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+
+    defaults = %{
+      "type" => "Note",
+      "id" => "https://remote.example/notes/#{System.unique_integer([:positive])}",
+      "attributedTo" => author_uri,
+      "content" => "Hello from federation",
+      "published" => now,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => []
+    }
+
+    Map.merge(defaults, overrides)
+  end
+
+  defp remote_actor_fixture(label) do
+    unique = System.unique_integer([:positive])
+    username = "#{label}#{unique}"
+    uri = "https://remote.example/users/#{username}"
+
+    %Actor{}
+    |> Actor.changeset(%{
+      uri: uri,
+      username: username,
+      domain: "remote.example",
+      inbox_url: "https://remote.example/users/#{username}/inbox",
+      public_key: "-----BEGIN PUBLIC KEY-----test-key-----END PUBLIC KEY-----",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
+  end
+end

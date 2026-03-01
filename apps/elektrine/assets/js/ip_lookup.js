@@ -1,3 +1,5 @@
+import { spinnerSvg } from './utils/spinner';
+
 export function initIpLookup() {
   // Add event listeners to all IP lookup buttons
   document.addEventListener('click', function(e) {
@@ -17,7 +19,7 @@ async function lookupIP(ip) {
   if (!modal || !content) return;
 
   // Show modal with loading state
-  content.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-lg"></span></div>';
+  content.innerHTML = `<div class="flex justify-center py-8">${spinnerSvg({ size: 'lg' })}</div>`;
   modal.showModal();
 
   try {

@@ -143,7 +143,18 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
     {:ok, activity}
   end
 
+  defp validate_announce(%{"object" => objects} = activity) when is_list(objects) do
+    if Enum.all?(objects, &announce_object_ref?/1) do
+      {:ok, activity}
+    else
+      {:error, "Announce activity has invalid object list"}
+    end
+  end
+
   defp validate_announce(_), do: {:error, "Announce activity missing object"}
+
+  defp announce_object_ref?(object) when is_binary(object) or is_map(object), do: true
+  defp announce_object_ref?(_), do: false
 
   # Undo validation
   defp validate_undo(%{"object" => object} = activity) when is_binary(object) or is_map(object) do

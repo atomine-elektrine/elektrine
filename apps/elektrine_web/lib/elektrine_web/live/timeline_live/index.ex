@@ -1496,8 +1496,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   defp create_lemmy_comment_message(post, %{ap_id: ap_id, actor_id: actor_uri} = comment)
        when is_binary(actor_uri) and actor_uri != "" do
-    with remote_actor when not is_nil(remote_actor) <-
-           Elektrine.ActivityPub.get_actor_by_uri(actor_uri),
+    with remote_actor when not is_nil(remote_actor) <- resolve_lemmy_comment_actor(actor_uri),
          {:ok, message} <-
            Messaging.create_federated_message(%{
              activitypub_id: ap_id,
@@ -1535,6 +1534,21 @@ defmodule ElektrineWeb.TimelineLive.Index do
   defp create_lemmy_comment_message(_post, comment) do
     comment
   end
+
+  defp resolve_lemmy_comment_actor(actor_uri) when is_binary(actor_uri) and actor_uri != "" do
+    case Elektrine.ActivityPub.get_actor_by_uri(actor_uri) do
+      nil ->
+        case Elektrine.ActivityPub.get_or_fetch_actor(actor_uri) do
+          {:ok, actor} -> actor
+          _ -> nil
+        end
+
+      actor ->
+        actor
+    end
+  end
+
+  defp resolve_lemmy_comment_actor(_), do: nil
 
   defp merge_lemmy_comment_counts(%Elektrine.Messaging.Message{} = message, comment) do
     %{

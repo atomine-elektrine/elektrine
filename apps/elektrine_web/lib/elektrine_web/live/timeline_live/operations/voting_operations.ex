@@ -614,18 +614,30 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
     end
   end
 
-  def handle_event("react_to_post", %{"message_id" => message_id, "emoji" => emoji}, socket) do
-    handle_event("react_to_post", %{"post_id" => message_id, "emoji" => emoji}, socket)
+  def handle_event(
+        "react_to_post",
+        %{"message_id" => message_id, "emoji" => emoji} = params,
+        socket
+      ) do
+    actor_uri = normalize_reaction_actor_uri(Map.get(params, "actor_uri"))
+
+    %{"post_id" => message_id, "emoji" => emoji}
+    |> maybe_put_reaction_actor_uri(actor_uri)
+    |> then(&handle_event("react_to_post", &1, socket))
   end
 
-  def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
+  def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji} = params, socket) do
     if socket.assigns[:current_user] do
       normalized_post_id = normalize_reaction_post_id(post_id)
+      reaction_actor_uri = normalize_reaction_actor_uri(Map.get(params, "actor_uri"))
 
       if normalized_post_id in [:temp, "temp"] do
         {:noreply, socket}
       else
-        case PostInteractions.resolve_message_for_interaction(normalized_post_id) do
+        case PostInteractions.resolve_message_for_interaction(
+               normalized_post_id,
+               actor_uri: reaction_actor_uri
+             ) do
           {:ok, message} ->
             user_id = socket.assigns.current_user.id
             reaction_key = reaction_key_for_post_id(normalized_post_id)
@@ -680,6 +692,20 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
   defp normalize_reaction_post_id(post_id) when is_binary(post_id), do: String.trim(post_id)
   defp normalize_reaction_post_id(post_id), do: post_id
+
+  defp normalize_reaction_actor_uri(actor_uri) when is_binary(actor_uri) do
+    case String.trim(actor_uri) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_reaction_actor_uri(_), do: nil
+
+  defp maybe_put_reaction_actor_uri(params, nil), do: params
+
+  defp maybe_put_reaction_actor_uri(params, actor_uri),
+    do: Map.put(params, "actor_uri", actor_uri)
 
   defp reaction_key_for_post_id(post_id) when is_integer(post_id), do: post_id
 

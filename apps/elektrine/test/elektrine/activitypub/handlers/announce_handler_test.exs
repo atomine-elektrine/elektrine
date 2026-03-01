@@ -61,6 +61,20 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
       result = AnnounceHandler.handle(activity, "https://remote.server/users/booster", nil)
       assert result == {:error, :invalid_object}
     end
+
+    test "handles object list by processing each entry" do
+      activity = %{
+        "type" => "Announce",
+        "actor" => "https://remote.server/users/booster",
+        "object" => [
+          "https://remote.server/activities/123",
+          %{"invalid" => "no_id"}
+        ]
+      }
+
+      result = AnnounceHandler.handle(activity, "https://remote.server/users/booster", nil)
+      assert result == {:ok, :ignored}
+    end
   end
 
   describe "handle_undo/2" do

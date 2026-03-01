@@ -63,9 +63,19 @@
     </div>
   <% true -> %>
     <% # Define CSS custom properties for dynamic colors
-    accent_color = (@profile && @profile.accent_color) || "#22d3ee"
-    text_color = (@profile && @profile.text_color) || "#ffffff"
-    background_color = (@profile && @profile.background_color) || "#000000"
+    is_default_profile = !Map.get(assigns, :is_custom, false)
+
+    accent_color =
+      (@profile && @profile.accent_color) ||
+        if(is_default_profile, do: "#60a5fa", else: "#22d3ee")
+
+    text_color =
+      (@profile && @profile.text_color) || if(is_default_profile, do: "#f1f5f9", else: "#ffffff")
+
+    background_color =
+      (@profile && @profile.background_color) ||
+        if(is_default_profile, do: "#111827", else: "#000000")
+
     icon_color = (@profile && @profile.icon_color) || accent_color %>
     <style>
       #profile-container {
@@ -81,7 +91,7 @@
       data-profile-handle={@user.handle || @user.username}
       data-profile-user-id={@user.id}
       data-current-user-id={@current_user && @current_user.id}
-      data-profile-accent={(@profile && @profile.accent_color) || "#22d3ee"}
+      data-profile-accent={accent_color}
       phx-hook={
         if @profile && @profile.typewriter_title && @profile.page_title,
           do: "TabTitleTypewriter",
@@ -101,6 +111,9 @@
       style={
         background_style =
           cond do
+            is_default_profile ->
+              "background: linear-gradient(180deg, oklch(var(--b1) / 0.98) 0%, oklch(var(--b2) / 0.94) 100%);"
+
             # Video background
             @profile && @profile.background_url && @profile.background_type == "video" ->
               "background-color: #{@profile.background_color || "#000000"};"
@@ -155,40 +168,58 @@
         </video>
       <% end %>
       <div
-        class="w-full max-w-full sm:max-w-[580px] relative overflow-visible rounded-none sm:rounded-t-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)]"
-        style={
-          if @profile do
-            opacity = @profile.profile_opacity || 1.0
-            blur = @profile.profile_blur || 0
-            container_color = @profile.container_background_color || "#000000"
-            container_opacity = @profile.container_opacity || 0.4
-
-            # Build container background - always apply it
-            # If pattern is set, reduce opacity slightly to let pattern show through
-            adjusted_opacity =
-              if @profile.container_pattern && @profile.container_pattern != "none" do
-                # Reduce opacity when pattern is active
-                container_opacity * 0.7
-              else
-                container_opacity
-              end
-
-            # Convert hex to rgba with opacity
-            {r, g, b} = hex_to_rgb(container_color)
-            container_bg = "background-color: rgba(#{r}, #{g}, #{b}, #{adjusted_opacity});"
-
-            "opacity: #{opacity}; z-index: 10; position: relative; #{container_bg} #{if blur > 0, do: "backdrop-filter: blur(#{blur}px); -webkit-backdrop-filter: blur(#{blur}px);", else: ""}"
+        class={
+          if is_default_profile do
+            "w-full max-w-full sm:max-w-[680px] relative overflow-visible rounded-none sm:rounded-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)] social-page-card border border-base-300 shadow-xl"
           else
-            "z-index: 10; position: relative;"
+            "w-full max-w-full sm:max-w-[580px] relative overflow-visible rounded-none sm:rounded-t-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)]"
+          end
+        }
+        style={
+          cond do
+            is_default_profile ->
+              "z-index: 10; position: relative;"
+
+            @profile ->
+              opacity = @profile.profile_opacity || 1.0
+              blur = @profile.profile_blur || 0
+              container_color = @profile.container_background_color || "#000000"
+              container_opacity = @profile.container_opacity || 0.4
+
+              # Build container background - always apply it
+              # If pattern is set, reduce opacity slightly to let pattern show through
+              adjusted_opacity =
+                if @profile.container_pattern && @profile.container_pattern != "none" do
+                  # Reduce opacity when pattern is active
+                  container_opacity * 0.7
+                else
+                  container_opacity
+                end
+
+              # Convert hex to rgba with opacity
+              {r, g, b} = hex_to_rgb(container_color)
+              container_bg = "background-color: rgba(#{r}, #{g}, #{b}, #{adjusted_opacity});"
+
+              "opacity: #{opacity}; z-index: 10; position: relative; #{container_bg} #{if blur > 0, do: "backdrop-filter: blur(#{blur}px); -webkit-backdrop-filter: blur(#{blur}px);", else: ""}"
+
+            true ->
+              "z-index: 10; position: relative;"
           end
         }
       >
         <!-- Timeline Blade - slides out from right edge -->
         <%= if not (@profile && @profile.hide_timeline) do %>
           <% show_community_posts = @user_discussion_posts && length(@user_discussion_posts) > 0
-          container_color = (@profile && @profile.container_background_color) || "#000000"
-          container_opacity = (@profile && @profile.container_opacity) || 0.4
-          {cr, cg, cb} = hex_to_rgb(container_color) %>
+
+          timeline_blade_style =
+            if is_default_profile do
+              "z-index: 5; background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-left: 1px solid oklch(var(--bc) / 0.14);"
+            else
+              container_color = (@profile && @profile.container_background_color) || "#000000"
+              container_opacity = (@profile && @profile.container_opacity) || 0.4
+              {cr, cg, cb} = hex_to_rgb(container_color)
+              "z-index: 5; background-color: rgba(#{cr}, #{cg}, #{cb}, #{container_opacity});"
+            end %>
           <!-- Desktop: Slide-out blade -->
           <div
             id="timeline-blade"
@@ -196,7 +227,7 @@
             data-closed-class="translate-x-0 pointer-events-none opacity-0"
             data-open-class="translate-x-[100%]"
             class={"hidden sm:block absolute top-0 right-0 h-full w-[320px] sm:rounded-tl-2xl rounded-r-2xl #{if @show_timeline_drawer, do: "translate-x-[100%]", else: "translate-x-0 pointer-events-none opacity-0"}"}
-            style={"z-index: 5; background-color: rgba(#{cr}, #{cg}, #{cb}, #{container_opacity});"}
+            style={timeline_blade_style}
           >
             <div class="h-full overflow-y-auto">
               <!-- Blade Header -->
@@ -533,20 +564,42 @@
             <button
               phx-click="toggle_timeline_drawer"
               data-action="toggle-timeline-drawer"
-              class={"hidden sm:flex w-10 h-10 rounded-full backdrop-blur-sm border border-white/20 hover:bg-white/20 items-center justify-center cursor-pointer #{if @show_timeline_drawer, do: "bg-white/30", else: "bg-white/10"}"}
+              class={
+                if is_default_profile do
+                  "hidden sm:inline-flex btn btn-sm btn-ghost border border-base-300 hover:border-primary/40 #{if @show_timeline_drawer, do: "bg-base-100 border-primary/40", else: "bg-base-200/70"}"
+                else
+                  "hidden sm:flex w-10 h-10 rounded-full backdrop-blur-sm border border-white/20 hover:bg-white/20 items-center justify-center cursor-pointer #{if @show_timeline_drawer, do: "bg-white/30", else: "bg-white/10"}"
+                end
+              }
               title="View Timeline"
             >
-              <.icon name="hero-rectangle-stack" class="w-5 h-5 text-[var(--profile-text)]" />
+              <.icon
+                name="hero-rectangle-stack"
+                class={
+                  if is_default_profile, do: "w-4 h-4", else: "w-5 h-5 text-[var(--profile-text)]"
+                }
+              />
             </button>
           <% end %>
           <%= if not (@profile && @profile.hide_share_button) do %>
             <button
               phx-click="show_share_modal"
               data-action="show-share-modal"
-              class="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 flex items-center justify-center cursor-pointer"
+              class={
+                if is_default_profile do
+                  "btn btn-sm btn-ghost border border-base-300 hover:border-primary/40 bg-base-200/70"
+                else
+                  "w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 flex items-center justify-center cursor-pointer"
+                end
+              }
               title="Share profile"
             >
-              <.icon name="hero-share" class="w-5 h-5 text-[var(--profile-text)]" />
+              <.icon
+                name="hero-share"
+                class={
+                  if is_default_profile, do: "w-4 h-4", else: "w-5 h-5 text-[var(--profile-text)]"
+                }
+              />
             </button>
           <% end %>
         </div>
@@ -564,7 +617,10 @@
                   end
 
                 # CSS custom properties for avatar effects
-                accent_color = (@profile && @profile.accent_color) || "#22d3ee"
+                accent_color =
+                  (@profile && @profile.accent_color) ||
+                    if(is_default_profile, do: "#60a5fa", else: "#22d3ee")
+
                 {ar, ag, ab} = hex_to_rgb(accent_color)
                 accent_light = lighten_color(accent_color, 0.2) %>
                 <%= cond do %>
@@ -912,95 +968,65 @@
 <!-- Social Links (Mixed Styles) -->
           <%= if @links && length(@links) > 0 do %>
             <div class="mb-8 w-full">
-              <% # Get default style from profile
-              default_style = (@profile && @profile.link_display_style) || "circular"
-
-              # Group links by their individual display style (or use default)
-              {circular_links, full_width_links} =
-                Enum.split_with(@links, fn link ->
-                  (Map.get(link, :display_style) || default_style) == "circular"
-                end)
-
-              # Group full-width links by section
-              full_width_by_section =
-                Enum.group_by(full_width_links, &Map.get(&1, :section))
-                |> Enum.sort_by(fn {_section, section_links} ->
-                  section_links |> Enum.map(&Map.get(&1, :position, 0)) |> Enum.min(fn -> 0 end)
-                end)
-
-              # Sort circular links by position (all in one row, no sections)
-              circular_links = Enum.sort_by(circular_links, &Map.get(&1, :position, 0)) %>
-              
-<!-- Circular Icon Links -->
-              <%= if length(circular_links) > 0 do %>
-                <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-6">
-                  <%= for link <- circular_links do %>
-                    <% # Get link highlight effect (per-link or fallback to profile default)
-                    effect =
-                      Map.get(link, :highlight_effect) ||
-                        (@profile && @profile.link_highlight_effect) || "none"
-
-                    highlight_class =
-                      case effect do
-                        "glow" -> "link-effect-glow"
-                        "pulse" -> "link-effect-pulse"
-                        "border" -> "link-effect-border"
-                        "shine" -> "link-effect-shine"
-                        _ -> ""
-                      end %>
-                    <a
-                      href={if Map.get(link, :id), do: ~p"/l/#{link.id}", else: link.url}
-                      target={
-                        if String.starts_with?(link.url, "mailto:"), do: "_self", else: "_blank"
-                      }
-                      rel={
-                        if String.starts_with?(link.url, "http"),
-                          do: "noopener noreferrer",
-                          else: nil
-                      }
-                      class="group relative flex items-center justify-center"
-                      title={link.title}
-                    >
-                      <div
-                        class={"flex items-center justify-center w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all duration-300 #{highlight_class}"}
-                        style={"border-color: #{(@profile && @profile.accent_color) || "#fb923c"}50; --link-accent: #{(@profile && @profile.accent_color) || "#fb923c"};"}
+              <%= if is_default_profile do %>
+                <div class="card social-page-card border border-base-300 rounded-lg p-3 sm:p-4">
+                  <div class="text-sm font-semibold uppercase tracking-wide text-base-content/60 mb-3">
+                    Links
+                  </div>
+                  <div class="space-y-2">
+                    <%= for link <- @links do %>
+                      <a
+                        href={if Map.get(link, :id), do: ~p"/l/#{link.id}", else: link.url}
+                        target={
+                          if String.starts_with?(link.url, "mailto:"), do: "_self", else: "_blank"
+                        }
+                        rel={
+                          if String.starts_with?(link.url, "http"),
+                            do: "noopener noreferrer",
+                            else: nil
+                        }
+                        class="btn btn-ghost justify-between w-full border border-base-300 hover:border-primary/40 hover:bg-base-100 min-h-12 normal-case px-3"
                       >
-                        <div
-                          class="group-hover:text-white transition-colors"
-                          style={"color: #{(@profile && @profile.icon_color) || (@profile && @profile.accent_color) || "#fb923c"}"}
-                        >
-                          {Phoenix.HTML.raw(
-                            Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
-                          )}
-                        </div>
-                      </div>
-                      
-<!-- Tooltip -->
-                      <div class="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-3 py-1.5 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                        {link.title}
-                        <%= if link.description do %>
-                          <br /><span class="text-xs text-gray-300">{link.description}</span>
-                        <% end %>
-                      </div>
-                    </a>
-                  <% end %>
-                </div>
-              <% end %>
-              
-<!-- Full Width Links -->
-              <%= if length(full_width_links) > 0 do %>
-                <div class="space-y-3 sm:space-y-4 mb-6">
-                  <%= for {section, section_links} <- full_width_by_section do %>
-                    <%= if section do %>
-                      <h3
-                        class="text-center font-bold text-base sm:text-lg mb-2 sm:mb-3"
-                        style={"color: #{(@profile && @profile.text_color) || "white"}"}
-                      >
-                        {section}
-                      </h3>
+                        <span class="flex items-center gap-3 min-w-0">
+                          <span class="text-primary shrink-0">
+                            {Phoenix.HTML.raw(
+                              Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
+                            )}
+                          </span>
+                          <span class="truncate text-base-content">{link.title}</span>
+                        </span>
+                        <.icon
+                          name="hero-arrow-top-right-on-square"
+                          class="w-4 h-4 text-base-content/50 shrink-0"
+                        />
+                      </a>
                     <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <% # Get default style from profile
+                default_style = (@profile && @profile.link_display_style) || "circular"
 
-                    <%= for link <- section_links do %>
+                # Group links by their individual display style (or use default)
+                {circular_links, full_width_links} =
+                  Enum.split_with(@links, fn link ->
+                    (Map.get(link, :display_style) || default_style) == "circular"
+                  end)
+
+                # Group full-width links by section
+                full_width_by_section =
+                  Enum.group_by(full_width_links, &Map.get(&1, :section))
+                  |> Enum.sort_by(fn {_section, section_links} ->
+                    section_links |> Enum.map(&Map.get(&1, :position, 0)) |> Enum.min(fn -> 0 end)
+                  end)
+
+                # Sort circular links by position (all in one row, no sections)
+                circular_links = Enum.sort_by(circular_links, &Map.get(&1, :position, 0)) %>
+                
+<!-- Circular Icon Links -->
+                <%= if length(circular_links) > 0 do %>
+                  <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-6">
+                    <%= for link <- circular_links do %>
                       <% # Get link highlight effect (per-link or fallback to profile default)
                       effect =
                         Map.get(link, :highlight_effect) ||
@@ -1024,25 +1050,94 @@
                             do: "noopener noreferrer",
                             else: nil
                         }
-                        class={"group relative flex items-center min-h-14 sm:min-h-16 px-4 sm:px-6 py-3 sm:py-4 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 #{highlight_class}"}
-                        style={"background-color: #{(@profile && @profile.accent_color) || "#ffffff"}; color: #{(@profile && @profile.background_color) || "#000000"}; border: 2px solid #{(@profile && @profile.background_color) || "#000000"}; box-shadow: 2px 3px 0 #{(@profile && @profile.background_color) || "#000000"}; --link-accent: #{(@profile && @profile.accent_color) || "#ffffff"};"}
+                        class="group relative flex items-center justify-center"
+                        title={link.title}
                       >
-                        <%= if Map.get(link, :thumbnail_url) do %>
-                          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg mr-3 sm:mr-4 flex-shrink-0 overflow-hidden">
-                            <img
-                              src={Map.get(link, :thumbnail_url)}
-                              alt={link.title}
-                              class="w-full h-full object-cover"
-                            />
+                        <div
+                          class={"flex items-center justify-center w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all duration-300 #{highlight_class}"}
+                          style={"border-color: #{(@profile && @profile.accent_color) || "#fb923c"}50; --link-accent: #{(@profile && @profile.accent_color) || "#fb923c"};"}
+                        >
+                          <div
+                            class="group-hover:text-white transition-colors"
+                            style={"color: #{(@profile && @profile.icon_color) || (@profile && @profile.accent_color) || "#fb923c"}"}
+                          >
+                            {Phoenix.HTML.raw(
+                              Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
+                            )}
                           </div>
-                        <% end %>
-                        <span class="text-sm sm:text-base font-medium truncate flex-1 text-left">
+                        </div>
+                        
+<!-- Tooltip -->
+                        <div class="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-3 py-1.5 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
                           {link.title}
-                        </span>
+                          <%= if link.description do %>
+                            <br /><span class="text-xs text-gray-300">{link.description}</span>
+                          <% end %>
+                        </div>
                       </a>
                     <% end %>
-                  <% end %>
-                </div>
+                  </div>
+                <% end %>
+                
+<!-- Full Width Links -->
+                <%= if length(full_width_links) > 0 do %>
+                  <div class="space-y-3 sm:space-y-4 mb-6">
+                    <%= for {section, section_links} <- full_width_by_section do %>
+                      <%= if section do %>
+                        <h3
+                          class="text-center font-bold text-base sm:text-lg mb-2 sm:mb-3"
+                          style={"color: #{(@profile && @profile.text_color) || "white"}"}
+                        >
+                          {section}
+                        </h3>
+                      <% end %>
+
+                      <%= for link <- section_links do %>
+                        <% # Get link highlight effect (per-link or fallback to profile default)
+                        effect =
+                          Map.get(link, :highlight_effect) ||
+                            (@profile && @profile.link_highlight_effect) || "none"
+
+                        highlight_class =
+                          case effect do
+                            "glow" -> "link-effect-glow"
+                            "pulse" -> "link-effect-pulse"
+                            "border" -> "link-effect-border"
+                            "shine" -> "link-effect-shine"
+                            _ -> ""
+                          end %>
+                        <a
+                          href={if Map.get(link, :id), do: ~p"/l/#{link.id}", else: link.url}
+                          target={
+                            if String.starts_with?(link.url, "mailto:"),
+                              do: "_self",
+                              else: "_blank"
+                          }
+                          rel={
+                            if String.starts_with?(link.url, "http"),
+                              do: "noopener noreferrer",
+                              else: nil
+                          }
+                          class={"group relative flex items-center min-h-14 sm:min-h-16 px-4 sm:px-6 py-3 sm:py-4 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 #{highlight_class}"}
+                          style={"background-color: #{(@profile && @profile.accent_color) || "#ffffff"}; color: #{(@profile && @profile.background_color) || "#000000"}; border: 2px solid #{(@profile && @profile.background_color) || "#000000"}; box-shadow: 2px 3px 0 #{(@profile && @profile.background_color) || "#000000"}; --link-accent: #{(@profile && @profile.accent_color) || "#ffffff"};"}
+                        >
+                          <%= if Map.get(link, :thumbnail_url) do %>
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg mr-3 sm:mr-4 flex-shrink-0 overflow-hidden">
+                              <img
+                                src={Map.get(link, :thumbnail_url)}
+                                alt={link.title}
+                                class="w-full h-full object-cover"
+                              />
+                            </div>
+                          <% end %>
+                          <span class="text-sm sm:text-base font-medium truncate flex-1 text-left">
+                            {link.title}
+                          </span>
+                        </a>
+                      <% end %>
+                    <% end %>
+                  </div>
+                <% end %>
               <% end %>
             </div>
           <% end %>
@@ -1344,28 +1439,61 @@
 <!-- Stats Counter -->
           <%= if not (@profile && (@profile.hide_view_counter && @profile.hide_uid)) do %>
             <div class="text-center mb-6">
-              <div class="inline-flex items-center space-x-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2">
+              <div class={
+                if is_default_profile do
+                  "inline-flex items-center space-x-4 social-page-card border border-base-300 rounded-full px-4 py-2"
+                else
+                  "inline-flex items-center space-x-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2"
+                end
+              }>
                 <%= if not (@profile && @profile.hide_view_counter) do %>
                   <div class="flex items-center space-x-1">
-                    <div style={"color: #{(@profile && @profile.accent_color) || "#fb923c"}"}>
+                    <div style={"color: #{accent_color}"}>
                       <.icon name="hero-eye" class="h-4 w-4" />
                     </div>
-                    <span class="text-white text-sm font-medium">
+                    <span class={
+                      if is_default_profile,
+                        do: "text-base-content text-sm font-medium",
+                        else: "text-white text-sm font-medium"
+                    }>
                       {if @profile, do: @profile.page_views || 0, else: 0}
                     </span>
-                    <span class="text-gray-300 text-xs">views</span>
+                    <span class={
+                      if is_default_profile,
+                        do: "text-base-content/60 text-xs",
+                        else: "text-gray-300 text-xs"
+                    }>
+                      views
+                    </span>
                   </div>
                 <% end %>
                 <%= if not (@profile && @profile.hide_view_counter) && not (@profile && @profile.hide_uid) do %>
-                  <div class="w-px h-4 bg-white/20"></div>
+                  <div class={
+                    if is_default_profile,
+                      do: "w-px h-4 bg-base-300",
+                      else: "w-px h-4 bg-white/20"
+                  }>
+                  </div>
                 <% end %>
                 <%= if not (@profile && @profile.hide_uid) do %>
                   <div class="flex items-center space-x-1">
-                    <div style={"color: #{(@profile && @profile.accent_color) || "#fb923c"}"}>
+                    <div style={"color: #{accent_color}"}>
                       <.icon name="hero-hashtag" class="h-4 w-4" />
                     </div>
-                    <span class="text-white text-sm font-medium">#{@user_number}</span>
-                    <span class="text-gray-300 text-xs">uid</span>
+                    <span class={
+                      if is_default_profile,
+                        do: "text-base-content text-sm font-medium",
+                        else: "text-white text-sm font-medium"
+                    }>
+                      #{@user_number}
+                    </span>
+                    <span class={
+                      if is_default_profile,
+                        do: "text-base-content/60 text-xs",
+                        else: "text-gray-300 text-xs"
+                    }>
+                      uid
+                    </span>
                   </div>
                 <% end %>
               </div>
@@ -1378,12 +1506,19 @@
 <!-- Mobile Timeline Section (below profile) -->
     <%= if not (@profile && @profile.hide_timeline) do %>
       <% # Use same styling as middle column
-      mobile_container_color = (@profile && @profile.container_background_color) || "#000000"
-      mobile_container_opacity = (@profile && @profile.container_opacity) || 0.4
-      {mr, mg, mb} = hex_to_rgb(mobile_container_color) %>
+      mobile_timeline_style =
+        if is_default_profile do
+          "--profile-text: #{(@profile && @profile.text_color) || "#f1f5f9"}; --profile-accent: #{(@profile && @profile.accent_color) || "#60a5fa"}; background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-top: 1px solid oklch(var(--bc) / 0.14);"
+        else
+          mobile_container_color = (@profile && @profile.container_background_color) || "#000000"
+          mobile_container_opacity = (@profile && @profile.container_opacity) || 0.4
+          {mr, mg, mb} = hex_to_rgb(mobile_container_color)
+
+          "--profile-text: #{(@profile && @profile.text_color) || "white"}; --profile-accent: #{(@profile && @profile.accent_color) || "#22d3ee"}; background-color: rgba(#{mr}, #{mg}, #{mb}, #{mobile_container_opacity});"
+        end %>
       <div
         class="sm:hidden w-full max-w-full px-4 pt-4 pb-4"
-        style={"--profile-text: #{(@profile && @profile.text_color) || "white"}; --profile-accent: #{(@profile && @profile.accent_color) || "#22d3ee"}; background-color: rgba(#{mr}, #{mg}, #{mb}, #{mobile_container_opacity});"}
+        style={mobile_timeline_style}
       >
         <div>
           <div class="flex items-center gap-2 mb-4">

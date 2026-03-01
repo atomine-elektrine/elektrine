@@ -41,10 +41,10 @@ defmodule ElektrineWeb.PageLive.DevFlashTest do
             <section class="space-y-3">
               <h2 class="text-xl font-semibold">Controller Redirect Flash</h2>
               <div class="flex flex-wrap gap-2">
-                <.link href={~p"/dev/flash-test/controller/info"} class="btn btn-success">
+                <.link href="/dev/flash-test/controller/info" class="btn btn-success">
                   Trigger Controller Info
                 </.link>
-                <.link href={~p"/dev/flash-test/controller/error"} class="btn btn-error">
+                <.link href="/dev/flash-test/controller/error" class="btn btn-error">
                   Trigger Controller Error
                 </.link>
               </div>

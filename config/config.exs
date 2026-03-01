@@ -114,6 +114,18 @@ config :elektrine,
   passkey_rp_id: "localhost",
   passkey_origin: "http://localhost:4000"
 
+# Admin web security controls
+# - passkey-bound admin sessions
+# - short-lived elevation windows
+# - per-action passkey confirmation grants
+config :elektrine, :admin_security,
+  require_passkey: true,
+  access_ttl_seconds: 15 * 60,
+  elevation_ttl_seconds: 5 * 60,
+  action_grant_ttl_seconds: 90,
+  intent_ttl_seconds: 3 * 60,
+  replay_ttl_seconds: 10 * 60
+
 # Configure WebRTC STUN/TURN servers
 config :elektrine, :webrtc,
   ice_servers: [

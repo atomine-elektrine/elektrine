@@ -111,7 +111,7 @@ defmodule Elektrine.Email.Cached do
   def feed_messages_count(mailbox_id) do
     {:ok, count} =
       Cache.get_counts("mailbox:#{mailbox_id}:feed", fn ->
-        Email.list_feed_messages(mailbox_id) |> length()
+        Email.feed_messages_count(mailbox_id)
       end)
 
     count
@@ -123,7 +123,7 @@ defmodule Elektrine.Email.Cached do
   def ledger_messages_count(mailbox_id) do
     {:ok, count} =
       Cache.get_counts("mailbox:#{mailbox_id}:ledger", fn ->
-        Email.list_ledger_messages(mailbox_id) |> length()
+        Email.ledger_messages_count(mailbox_id)
       end)
 
     count
@@ -187,8 +187,10 @@ defmodule Elektrine.Email.Cached do
     # Invalidate counts
     Cache.invalidate_counts("mailbox:#{mailbox_id}:unread")
     Cache.invalidate_counts("user:#{user_id}:unread")
+    Cache.invalidate_counts("mailbox:#{mailbox_id}:feed")
     Cache.invalidate_counts("mailbox:#{mailbox_id}:digest")
     Cache.invalidate_counts("mailbox:#{mailbox_id}:ledger")
+    Cache.invalidate_counts("mailbox:#{mailbox_id}:unread_feed")
     Cache.invalidate_counts("mailbox:#{mailbox_id}:unread_digest")
     Cache.invalidate_counts("mailbox:#{mailbox_id}:unread_ledger")
     Cache.invalidate_counts("mailbox:#{mailbox_id}:unread_inbox")

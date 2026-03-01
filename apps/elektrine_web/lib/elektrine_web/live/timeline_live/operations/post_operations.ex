@@ -73,6 +73,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     {:noreply, assign(updated_socket, :new_post_content, content)}
   end
 
+  # Lightweight live updates used by the timeline composer to keep counters responsive
+  # without triggering draft persistence on every keystroke.
+  def handle_event("update_post_content_live", %{"value" => content}, socket) do
+    {:noreply, assign(socket, :new_post_content, content)}
+  end
+
   def handle_event("autosave_draft", params, socket) do
     user = socket.assigns.current_user
 

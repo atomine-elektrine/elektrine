@@ -1,221 +1,279 @@
 <div class="p-4 sm:p-6">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold">Content Moderation</h1>
-    <p class="text-base-content/70">
-      Review and moderate user-generated content across all platforms
-    </p>
-  </div>
-  
-<!-- Content Type Tabs -->
-  <div class="tabs tabs-boxed mb-6">
-    <a
-      href={~p"/pripyat/content-moderation?type=timeline"}
-      class={"tab " <> if(@content_type == "timeline", do: "tab-active", else: "")}
-    >
-      <.icon name="hero-newspaper" class="w-4 h-4 mr-1" /> Timeline ({@counts.timeline})
-    </a>
-    <a
-      href={~p"/pripyat/content-moderation?type=discussions"}
-      class={"tab " <> if(@content_type == "discussions", do: "tab-active", else: "")}
-    >
-      <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" />
-      Discussions ({@counts.discussions})
-    </a>
-    <a
-      href={~p"/pripyat/content-moderation?type=chat"}
-      class={"tab " <> if(@content_type == "chat", do: "tab-active", else: "")}
-    >
-      <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" />
-      Chat ({@counts.chat})
-    </a>
-  </div>
-  
-<!-- Search Box -->
-  <form method="get" action={~p"/pripyat/content-moderation"} class="mb-6">
-    <input type="hidden" name="type" value={@content_type} />
-    <div class="join w-full">
-      <input
-        type="text"
-        name="search"
-        value={@search_query}
-        placeholder={
-          case @content_type do
-            "timeline" -> "Search timeline posts by content, username, or @handle..."
-            "discussions" -> "Search discussions by content, username, @handle, or community..."
-            "chat" -> "Search chat messages by content, username, @handle, or conversation..."
-            _ -> "Search content..."
-          end
-        }
-        class="input flex-1 join-item w-full"
-      />
-      <button type="submit" class="btn btn-primary join-item">
-        <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
-      </button>
-      <%= if @search_query != "" do %>
-        <a
-          href={~p"/pripyat/content-moderation?type=#{@content_type}"}
-          class="btn btn-ghost join-item"
-        >
-          <.icon name="hero-x-mark" class="w-4 h-4" />
-        </a>
-      <% end %>
+  <% search_active = @search_query != "" %>
+  <% current_page_count = length(@content) %>
+  <% active_type_total =
+    case @content_type do
+      "timeline" -> @counts.timeline
+      "discussions" -> @counts.discussions
+      "chat" -> @counts.chat
+      _ -> @counts.timeline
+    end %>
+  <% content_label =
+    case @content_type do
+      "timeline" -> "Timeline"
+      "discussions" -> "Discussions"
+      "chat" -> "Chat"
+      _ -> "Timeline"
+    end %>
+  <% search_placeholder =
+    case @content_type do
+      "timeline" -> "Search timeline posts by content, username, or @handle"
+      "discussions" -> "Search discussions by content, username, @handle, or community"
+      "chat" -> "Search chat messages by content, username, @handle, or conversation"
+      _ -> "Search content"
+    end %>
+  <% base_path =
+    "/pripyat/content-moderation?type=#{@content_type}" <>
+      if(search_active, do: "&search=#{URI.encode_www_form(@search_query)}", else: "") %>
+
+  <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold sm:text-3xl">Content Moderation</h1>
+      <p class="mt-1 text-sm opacity-70 sm:text-base">
+        Review user-generated timeline posts, discussions, and chat messages.
+      </p>
     </div>
-    <%= if @search_query != "" do %>
-      <div class="text-sm text-base-content/70 mt-2">
-        Searching for:
-        <span class="font-medium bg-base-200 px-2 py-1 rounded">{@search_query}</span>
-      </div>
-    <% end %>
-  </form>
-  
-<!-- Content List -->
-  <%= if Enum.empty?(@content) do %>
-    <div class="alert alert-info">
-      <.icon name="hero-information-circle" class="w-5 h-5" />
-      <span>
-        <%= if @search_query != "" do %>
-          No {String.replace(@content_type, "_", " ")} found matching your search.
-        <% else %>
-          No {String.replace(@content_type, "_", " ")} content found.
-        <% end %>
-      </span>
+    <div class="flex items-center gap-2 text-xs sm:text-sm">
+      <.link href={~p"/pripyat/reports"} class="btn btn-sm btn-ghost">
+        <.icon name="hero-flag" class="w-4 h-4" /> Reports
+      </.link>
+      <span class="badge badge-outline">Page {@current_page} / {@total_pages}</span>
     </div>
-  <% else %>
-    <div class="space-y-4">
-      <%= for item <- @content do %>
-        <div class="card glass-card shadow">
-          <div class="card-body p-4">
-            <div class="flex justify-between items-start gap-4">
-              <div class="flex-1 min-w-0">
-                <!-- Header -->
-                <div class="flex items-center gap-2 mb-2 flex-wrap">
-                  <span class="font-bold">@{item.sender.handle}</span>
+  </div>
 
-                  <%= if @content_type == "discussions" && item.conversation.name do %>
-                    <span class="text-xs text-base-content/50">→</span>
-                    <span class="badge badge-secondary badge-sm">{item.conversation.name}</span>
-                  <% end %>
+  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">{content_label} Queue</div>
+      <div class="mt-1 text-xl font-semibold sm:text-2xl">{active_type_total}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Results</div>
+      <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{@total_count}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
+      <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">{current_page_count}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Mode</div>
+      <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">{content_label}</div>
+    </div>
+  </div>
 
-                  <%= if @content_type == "chat" do %>
-                    <span class={"badge badge-sm #{content_type_badge(item.conversation.type)}"}>
-                      {item.conversation.type}
-                    </span>
-                    <%= if item.conversation.name do %>
-                      <span class="text-xs text-base-content/50">{item.conversation.name}</span>
-                    <% end %>
-                  <% end %>
+  <div class="mb-6 overflow-x-auto">
+    <div class="tabs tabs-boxed inline-flex min-w-full sm:min-w-0">
+      <a
+        href={~p"/pripyat/content-moderation?type=timeline"}
+        class={"tab gap-2 " <> if(@content_type == "timeline", do: "tab-active", else: "")}
+      >
+        <.icon name="hero-newspaper" class="w-4 h-4" /> Timeline ({@counts.timeline})
+      </a>
+      <a
+        href={~p"/pripyat/content-moderation?type=discussions"}
+        class={"tab gap-2 " <> if(@content_type == "discussions", do: "tab-active", else: "")}
+      >
+        <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+        Discussions ({@counts.discussions})
+      </a>
+      <a
+        href={~p"/pripyat/content-moderation?type=chat"}
+        class={"tab gap-2 " <> if(@content_type == "chat", do: "tab-active", else: "")}
+      >
+        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" /> Chat ({@counts.chat})
+      </a>
+    </div>
+  </div>
 
-                  <span class="text-xs text-base-content/50">
-                    <.local_time
-                      datetime={item.inserted_at}
-                      format="datetime"
-                      timezone={@timezone}
-                      time_format={@time_format}
-                    />
-                  </span>
-                </div>
-                
-<!-- Content -->
-                <div class="prose max-w-none">
-                  <p class="whitespace-pre-wrap text-sm">{truncate_content(item.content)}</p>
-                </div>
+  <div class="card glass-card mb-6 shadow-xl">
+    <div class="card-body">
+      <form
+        method="get"
+        action={~p"/pripyat/content-moderation"}
+        class="grid grid-cols-1 gap-3 lg:grid-cols-12"
+      >
+        <input type="hidden" name="type" value={@content_type} />
+        <div class="lg:col-span-9">
+          <label class="label pt-0">
+            <span>Search {String.downcase(content_label)} content</span>
+          </label>
+          <input
+            type="text"
+            name="search"
+            value={@search_query}
+            placeholder={search_placeholder}
+            class="input w-full"
+          />
+        </div>
+        <div class="lg:col-span-3 flex items-end gap-2">
+          <button type="submit" class="btn btn-primary flex-1">
+            <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
+          </button>
+          <%= if search_active do %>
+            <a href={~p"/pripyat/content-moderation?type=#{@content_type}"} class="btn btn-ghost">
+              Reset
+            </a>
+          <% end %>
+        </div>
+      </form>
 
-                <%= if item.media_urls && length(item.media_urls) > 0 do %>
-                  <div class="badge badge-accent badge-sm mt-2">
-                    {length(item.media_urls)} media file(s)
-                  </div>
-                <% end %>
-              </div>
-              
-<!-- Actions -->
-              <div class="flex gap-2 flex-shrink-0">
-                <%= if @content_type == "timeline" do %>
-                  <.link
-                    navigate={~p"/timeline/post/#{item.id}"}
-                    class="btn btn-sm btn-ghost"
-                    target="_blank"
-                  >
-                    <.icon name="hero-eye" class="w-4 h-4" />
-                  </.link>
-                <% end %>
-
-                <%= if @content_type == "discussions" do %>
-                  <.link
-                    navigate={~p"/discussions/#{item.conversation.name}/post/#{item.id}"}
-                    class="btn btn-sm btn-ghost"
-                    target="_blank"
-                  >
-                    <.icon name="hero-eye" class="w-4 h-4" />
-                  </.link>
-                <% end %>
-
-                <.link
-                  href={~p"/pripyat/users/#{item.sender_id}/edit"}
-                  class="btn btn-sm btn-ghost"
-                >
-                  <.icon name="hero-user" class="w-4 h-4" />
-                </.link>
-
-                <.form for={%{}} action={~p"/pripyat/content-moderation/delete"} method="post">
-                  <input type="hidden" name="content_id" value={item.id} />
-                  <input type="hidden" name="type" value={@content_type} />
-                  <.button
-                    class="btn btn-sm btn-secondary"
-                    data-confirm={"Delete this #{String.replace(@content_type, "discussions", "discussion")} item by @#{item.sender.handle}?"}
-                  >
-                    <.icon name="hero-trash" class="w-4 h-4" />
-                  </.button>
-                </.form>
-              </div>
-            </div>
-          </div>
+      <%= if search_active do %>
+        <div class="mt-4 rounded-lg border border-info/30 bg-info/10 p-3 text-sm">
+          Showing results for <strong>{@search_query}</strong>
         </div>
       <% end %>
     </div>
-    
-<!-- Pagination -->
+  </div>
+
+  <%= if Enum.empty?(@content) do %>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
+      <.icon name="hero-shield-exclamation" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
+      <h3 class="text-lg font-medium">No {String.downcase(content_label)} content found</h3>
+      <p class="mt-1 text-sm opacity-70">
+        <%= if search_active do %>
+          Try changing your query or clearing filters.
+        <% else %>
+          New content will appear here as users post.
+        <% end %>
+      </p>
+    </div>
+  <% else %>
+    <div class="space-y-3">
+      <%= for item <- @content do %>
+        <% sender_handle =
+          if(item.sender && item.sender.handle, do: item.sender.handle, else: "unknown") %>
+        <% sender_username =
+          if(item.sender && item.sender.username, do: item.sender.username, else: sender_handle) %>
+        <% conversation_name = if(item.conversation, do: item.conversation.name, else: nil) %>
+        <% conversation_type = if(item.conversation, do: item.conversation.type, else: nil) %>
+        <% media_count = if(is_list(item.media_urls), do: length(item.media_urls), else: 0) %>
+        <article class="rounded-xl border border-base-300 bg-base-100/70 p-4 shadow-sm sm:p-5">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div class="mb-2 flex flex-wrap items-center gap-2 text-sm">
+                <span class="badge badge-ghost badge-sm">#{item.id}</span>
+                <span class="font-semibold">@{sender_handle}</span>
+                <span class="text-xs opacity-60">(@{sender_username})</span>
+
+                <%= if @content_type == "discussions" && conversation_name do %>
+                  <span class="text-xs opacity-50">in</span>
+                  <span class="badge badge-secondary badge-sm">{conversation_name}</span>
+                <% end %>
+
+                <%= if @content_type == "chat" do %>
+                  <span class={"badge badge-sm #{content_type_badge(conversation_type)}"}>
+                    {String.upcase(conversation_type || "chat")}
+                  </span>
+                  <%= if conversation_name do %>
+                    <span class="badge badge-outline badge-sm">{conversation_name}</span>
+                  <% end %>
+                <% end %>
+
+                <span class="text-xs opacity-60">
+                  <.local_time
+                    datetime={item.inserted_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </span>
+              </div>
+
+              <p class="whitespace-pre-wrap text-sm leading-relaxed">
+                {truncate_content(item.content)}
+              </p>
+
+              <%= if media_count > 0 do %>
+                <div class="mt-3">
+                  <span class="badge badge-accent badge-sm">
+                    {media_count} media attachment(s)
+                  </span>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="flex flex-wrap gap-2 lg:w-auto">
+              <%= if @content_type == "timeline" do %>
+                <.link
+                  navigate={~p"/timeline/post/#{item.id}"}
+                  class="btn btn-sm btn-ghost"
+                  target="_blank"
+                >
+                  <.icon name="hero-eye" class="w-4 h-4" /> View
+                </.link>
+              <% end %>
+
+              <%= if @content_type == "discussions" && conversation_name do %>
+                <.link
+                  navigate={~p"/discussions/#{conversation_name}/post/#{item.id}"}
+                  class="btn btn-sm btn-ghost"
+                  target="_blank"
+                >
+                  <.icon name="hero-eye" class="w-4 h-4" /> View
+                </.link>
+              <% end %>
+
+              <%= if @content_type == "chat" do %>
+                <.link
+                  href={~p"/pripyat/arblarg/messages/#{item.id}/view"}
+                  class="btn btn-sm btn-ghost"
+                >
+                  <.icon name="hero-eye" class="w-4 h-4" /> Review
+                </.link>
+              <% end %>
+
+              <.link href={~p"/pripyat/users/#{item.sender_id}/edit"} class="btn btn-sm btn-ghost">
+                <.icon name="hero-user" class="w-4 h-4" /> User
+              </.link>
+
+              <.form for={%{}} action={~p"/pripyat/content-moderation/delete"} method="post">
+                <input type="hidden" name="content_id" value={item.id} />
+                <input type="hidden" name="type" value={@content_type} />
+                <.button
+                  class="btn btn-sm btn-secondary"
+                  data-confirm={"Delete this #{String.replace(@content_type, "discussions", "discussion")} item by @#{sender_handle}?"}
+                >
+                  <.icon name="hero-trash" class="w-4 h-4" /> Delete
+                </.button>
+              </.form>
+            </div>
+          </div>
+        </article>
+      <% end %>
+    </div>
+
     <%= if @total_pages > 1 do %>
-      <div class="flex justify-center mt-6 gap-2">
+      <div class="mt-6 flex justify-center gap-2">
         <%= if @current_page > 1 do %>
-          <a
-            href={"/pripyat/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{@current_page - 1}"}
-            class="btn btn-sm"
-          >
-            «
-          </a>
+          <a href={"#{base_path}&page=#{@current_page - 1}"} class="btn btn-sm">«</a>
         <% end %>
 
         <div class="join">
           <%= for page_num <- @page_range do %>
-            <a
-              href={"/pripyat/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{page_num}"}
-              class={"join-item btn btn-sm " <> if(page_num == @current_page, do: "btn-active", else: "")}
-            >
-              {page_num}
-            </a>
+            <%= if page_num == :gap do %>
+              <span class="join-item btn btn-sm btn-disabled">...</span>
+            <% else %>
+              <a
+                href={"#{base_path}&page=#{page_num}"}
+                class={"join-item btn btn-sm " <> if(page_num == @current_page, do: "btn-active", else: "btn-ghost")}
+              >
+                {page_num}
+              </a>
+            <% end %>
           <% end %>
         </div>
 
         <%= if @current_page < @total_pages do %>
-          <a
-            href={"/pripyat/content-moderation?type=#{@content_type}" <> if(@search_query != "", do: "&search=#{URI.encode_www_form(@search_query)}", else: "") <> "&page=#{@current_page + 1}"}
-            class="btn btn-sm"
-          >
-            »
-          </a>
+          <a href={"#{base_path}&page=#{@current_page + 1}"} class="btn btn-sm">»</a>
         <% end %>
       </div>
 
-      <div class="text-center text-sm text-base-content/70 mt-4">
-        Page {@current_page} of {@total_pages} • {@total_count} total items
-        <%= if @search_query != "" do %>
-          matching "<span class="font-medium">{@search_query}</span>"
-        <% end %>
+      <div class="mt-4 text-center text-sm opacity-70">
+        Page {@current_page} of {@total_pages} • {@total_count} total item{if @total_count != 1,
+          do: "s"}
       </div>
     <% end %>
   <% end %>
-  
-<!-- Back Button -->
+
   <div class="mt-6">
     <.link href={~p"/pripyat"} class="btn btn-ghost">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Admin Dashboard

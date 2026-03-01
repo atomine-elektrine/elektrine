@@ -1,6 +1,5 @@
 defmodule Elektrine.Social.BoostsTest do
   use Elektrine.DataCase, async: true
-  import Ecto.Query
 
   alias Elektrine.Repo
   alias Elektrine.Social.Boosts

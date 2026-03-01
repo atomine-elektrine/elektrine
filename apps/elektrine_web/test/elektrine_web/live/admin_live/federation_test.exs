@@ -115,9 +115,13 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
 
   defp log_in_user(conn, user) do
     token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
+    now = System.system_time(:second)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+    |> Plug.Conn.put_session(:admin_auth_method, "password")
+    |> Plug.Conn.put_session(:admin_access_expires_at, now + 900)
+    |> Plug.Conn.put_session(:admin_elevated_until, now + 300)
   end
 end

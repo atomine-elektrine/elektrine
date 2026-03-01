@@ -56,6 +56,18 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     assert PostUtilities.has_community_uri?(post)
   end
 
+  test "community_post?/1 falls back to URL pattern when metadata is absent" do
+    post = %{activitypub_id: "https://lemmy.world/post/12345"}
+
+    assert PostUtilities.community_post?(post)
+  end
+
+  test "community_post?/1 does not match non-numeric /post URLs" do
+    post = %{activitypub_id: "https://bsky.app/profile/alice/post/3kfqj5"}
+
+    refute PostUtilities.community_post?(post)
+  end
+
   test "render_content_preview/2 strips html and decodes known emoji shortcodes" do
     content = "<p>Hello :smile: <strong>world</strong></p>"
 
@@ -74,5 +86,33 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     post = %{activitypub_id: "https://lemmy.world/post/123"}
 
     assert PostUtilities.get_instance_domain(post) == "lemmy.world"
+  end
+
+  test "get_reply_avatar_url/1 returns author_avatar for lemmy reply maps" do
+    reply = %{
+      author: "alice",
+      author_domain: "lemmy.world",
+      author_avatar: "https://lemmy.world/pictrs/image/alice.png"
+    }
+
+    assert PostUtilities.get_reply_avatar_url(reply) ==
+             "https://lemmy.world/pictrs/image/alice.png"
+  end
+
+  test "get_reply_avatar_url/1 supports string-keyed lemmy metadata" do
+    reply = %{
+      "_lemmy" => %{
+        "creator_name" => "bob",
+        "creator_avatar" => "https://lemmy.world/pictrs/image/bob.png"
+      }
+    }
+
+    assert PostUtilities.get_reply_avatar_url(reply) == "https://lemmy.world/pictrs/image/bob.png"
+  end
+
+  test "get_reply_author/1 supports string-keyed remote_actor maps" do
+    reply = %{"remote_actor" => %{"username" => "carol", "domain" => "remote.example"}}
+
+    assert PostUtilities.get_reply_author(reply) == "@carol@remote.example"
   end
 end

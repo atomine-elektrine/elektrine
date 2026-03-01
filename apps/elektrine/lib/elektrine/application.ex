@@ -80,6 +80,7 @@ defmodule Elektrine.Application do
       Elektrine.ActivityPub.DomainThrottler,
       Elektrine.ActivityPub.InboxQueue,
       Elektrine.ActivityPub.Nodeinfo,
+      Elektrine.ActivityPub.CommunityFetcher,
       ElektrineWeb.Endpoint
     ]
   end

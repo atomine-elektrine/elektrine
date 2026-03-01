@@ -377,12 +377,12 @@ defmodule Elektrine.ActivityPub.Helpers do
   - `get_or_store_remote_post(activitypub_id, actor_uri)` - uses provided actor_uri
   """
   def get_or_store_remote_post(activitypub_id) do
-    case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
+    case cached_remote_post(activitypub_id) do
       nil ->
         case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
           {:ok, post_object} ->
             actor_uri = post_object["actor"] || post_object["attributedTo"]
-            Elektrine.ActivityPub.Handler.store_remote_post(post_object, actor_uri)
+            store_or_resolve_remote_post(post_object, actor_uri)
 
           {:error, reason} ->
             {:error, reason}
@@ -394,11 +394,14 @@ defmodule Elektrine.ActivityPub.Helpers do
   end
 
   def get_or_store_remote_post(activitypub_id, actor_uri) do
-    case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
+    case cached_remote_post(activitypub_id) do
       nil ->
         case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
           {:ok, post_object} ->
-            Elektrine.ActivityPub.Handler.store_remote_post(post_object, actor_uri)
+            preferred_actor_uri =
+              actor_uri || post_object["actor"] || post_object["attributedTo"]
+
+            store_or_resolve_remote_post(post_object, preferred_actor_uri)
 
           {:error, reason} ->
             {:error, reason}
@@ -408,6 +411,57 @@ defmodule Elektrine.ActivityPub.Helpers do
         {:ok, message}
     end
   end
+
+  defp cached_remote_post(activitypub_id) when is_binary(activitypub_id) do
+    Elektrine.Messaging.get_message_by_activitypub_ref(activitypub_id)
+  end
+
+  defp cached_remote_post(activitypub_id) do
+    Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id)
+  end
+
+  defp store_or_resolve_remote_post(post_object, actor_uri) do
+    case Elektrine.ActivityPub.Handler.store_remote_post(post_object, actor_uri) do
+      {:ok, %Elektrine.Messaging.Message{} = message} ->
+        {:ok, message}
+
+      {:ok, status} ->
+        case resolve_cached_remote_post(post_object) do
+          {:ok, %Elektrine.Messaging.Message{} = message} -> {:ok, message}
+          :error -> {:error, status}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp resolve_cached_remote_post(post_object) when is_map(post_object) do
+    refs =
+      [post_object["id"], post_object["url"]]
+      |> Enum.flat_map(&expand_activitypub_refs/1)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    case Enum.find_value(refs, &cached_remote_post/1) do
+      %Elektrine.Messaging.Message{} = message -> {:ok, message}
+      _ -> :error
+    end
+  end
+
+  defp resolve_cached_remote_post(_), do: :error
+
+  defp expand_activitypub_refs(value) when is_binary(value), do: [value]
+
+  defp expand_activitypub_refs(values) when is_list(values),
+    do: Enum.flat_map(values, &expand_activitypub_refs/1)
+
+  defp expand_activitypub_refs(%{"id" => id}), do: expand_activitypub_refs(id)
+  defp expand_activitypub_refs(%{"href" => href}), do: expand_activitypub_refs(href)
+  defp expand_activitypub_refs(%{"url" => url}), do: expand_activitypub_refs(url)
+  defp expand_activitypub_refs(_), do: []
 
   @doc """
   Fetches fresh data for federated posts (counts and poll data).

@@ -73,7 +73,10 @@ defmodule ElektrineWeb.TwoFactorController do
                 end
 
               flash_message = UserAuth.login_flash_message(user, method: :totp)
-              UserAuth.complete_two_factor_login(conn, user, %{}, flash: {:info, flash_message})
+              UserAuth.complete_two_factor_login(conn, user, %{},
+                flash: {:info, flash_message},
+                auth_method: :totp
+              )
 
             {:ok, :backup_code} ->
               # Clear rate limiting on successful verification
@@ -99,7 +102,10 @@ defmodule ElektrineWeb.TwoFactorController do
                   backup_codes_remaining: remaining_count
                 )
 
-              UserAuth.complete_two_factor_login(conn, user, %{}, flash: {:info, flash_message})
+              UserAuth.complete_two_factor_login(conn, user, %{},
+                flash: {:info, flash_message},
+                auth_method: :backup_code
+              )
 
             {:error, :invalid_code} ->
               # Record failed attempt for rate limiting

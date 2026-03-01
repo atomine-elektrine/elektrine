@@ -187,6 +187,17 @@ defmodule ElektrineWeb.Router do
     post("/check_credentials", MatrixInternalAuthController, :check_credentials)
   end
 
+  # MongooseIM internal auth compatibility endpoint
+  scope "/_mongooseim/identity/v1", ElektrineWeb do
+    pipe_through([:api, :api_rate_limited])
+
+    post("/check_credentials", MongooseIMAuthController, :check_credentials)
+    get("/check_password", MongooseIMAuthController, :check_password)
+    post("/check_password", MongooseIMAuthController, :check_password)
+    get("/user_exists", MongooseIMAuthController, :user_exists)
+    post("/user_exists", MongooseIMAuthController, :user_exists)
+  end
+
   # Media proxy for federation privacy (no auth required)
   scope "/media_proxy", ElektrineWeb do
     pipe_through(:api)
@@ -357,6 +368,9 @@ defmodule ElektrineWeb.Router do
     get("/sitemap.xml", SitemapController, :index)
     get("/robots.txt", SitemapController, :robots)
 
+    # ActivityPub external interaction compatibility (Lemmy/Mastodon clients)
+    get("/activitypub/externalInteraction", ExternalInteractionController, :show)
+
     # Temporary email routes disabled
     # Guest temporary mail system has been disabled for security
 
@@ -526,6 +540,22 @@ defmodule ElektrineWeb.Router do
     post("/stop-impersonation", Admin.UsersController, :stop_impersonation)
   end
 
+  # Admin security routes (elevation + per-action passkey re-sign)
+  scope "/pripyat/security", ElektrineWeb do
+    pipe_through([
+      :browser,
+      :require_authenticated_user,
+      :require_admin_user,
+      ElektrineWeb.Plugs.RequireElektrineDomain
+    ])
+
+    get("/elevate", Admin.SecurityController, :elevate)
+    post("/elevate/start", Admin.SecurityController, :start_elevation)
+    post("/elevate/finish", Admin.SecurityController, :finish_elevation)
+    post("/action/start", Admin.SecurityController, :start_action)
+    post("/action/finish", Admin.SecurityController, :finish_action)
+  end
+
   # Admin routes - require admin privileges and elektrine.com domain
   scope "/pripyat", ElektrineWeb do
     pipe_through([
@@ -576,6 +606,11 @@ defmodule ElektrineWeb.Router do
     get("/users/:user_id/messages/:id", Admin.MessagesController, :view_user_message)
     get("/users/:user_id/messages/:id/raw", Admin.MessagesController, :view_user_message_raw)
     get("/messages/:id/iframe", Admin.MessagesController, :iframe)
+
+    # Arblarg chat message management (Admin.ChatMessagesController)
+    get("/arblarg/messages", Admin.ChatMessagesController, :index)
+    get("/arblarg/messages/:id/view", Admin.ChatMessagesController, :view)
+    get("/arblarg/messages/:id/raw", Admin.ChatMessagesController, :view_raw)
 
     # Monitoring (Admin.MonitoringController)
     get("/active-users", Admin.MonitoringController, :active_users)

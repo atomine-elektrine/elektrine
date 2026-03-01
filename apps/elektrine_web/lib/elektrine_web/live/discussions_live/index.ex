@@ -1433,14 +1433,17 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           )
         end
 
-      from(m in Messaging.Message,
-        where:
-          m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
-            is_nil(m.reply_to_id) and ^community_filter,
-        order_by: [desc: m.id],
-        limit: ^limit,
-        preload: [conversation: [], remote_actor: [], hashtags: [], link_preview: []]
+      Messaging.Message
+      |> where(
+        [m],
+        m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
+          is_nil(m.reply_to_id) and
+          fragment("?->>'inReplyTo' IS NULL OR ? IS NULL", m.media_metadata, m.media_metadata)
       )
+      |> where([m], ^community_filter)
+      |> order_by([m], desc: m.inserted_at, desc: m.id)
+      |> limit(^limit)
+      |> preload([:conversation, :remote_actor, :hashtags, :link_preview])
       |> Repo.all()
     end
   end
@@ -1612,7 +1615,16 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp sort_feed_posts(posts, "new", _lemmy_counts) do
-    Enum.sort_by(posts, & &1.id, :desc)
+    Enum.sort(posts, fn a, b ->
+      a_inserted_at = normalize_inserted_at(Map.get(a, :inserted_at))
+      b_inserted_at = normalize_inserted_at(Map.get(b, :inserted_at))
+
+      case NaiveDateTime.compare(a_inserted_at, b_inserted_at) do
+        :gt -> true
+        :lt -> false
+        :eq -> Map.get(a, :id, 0) >= Map.get(b, :id, 0)
+      end
+    end)
   end
 
   defp sort_feed_posts(posts, "top", lemmy_counts) do
@@ -1664,6 +1676,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   defp sort_feed_posts(posts, _, _lemmy_counts) do
     posts
   end
+
+  defp normalize_inserted_at(%NaiveDateTime{} = inserted_at), do: inserted_at
+  defp normalize_inserted_at(%DateTime{} = inserted_at), do: DateTime.to_naive(inserted_at)
+  defp normalize_inserted_at(_), do: ~N[1970-01-01 00:00:00]
 
   defp update_posts_with_counts(posts, message_id, counts) when is_list(posts) do
     Enum.map(posts, fn post ->

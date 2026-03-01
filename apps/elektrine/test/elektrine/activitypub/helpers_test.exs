@@ -1,7 +1,10 @@
 defmodule Elektrine.ActivityPub.HelpersTest do
-  use ExUnit.Case, async: true
+  use Elektrine.DataCase, async: true
 
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Helpers
+  alias Elektrine.Messaging
+  alias Elektrine.Repo
 
   describe "get_follower_count/1" do
     test "handles numeric strings and collection totals" do
@@ -45,6 +48,43 @@ defmodule Elektrine.ActivityPub.HelpersTest do
       metadata = %{"outbox" => %{"totalItems" => 7}}
 
       assert Helpers.get_status_count(metadata) == 7
+    end
+  end
+
+  describe "get_or_store_remote_post/1 and /2" do
+    test "returns cached message for equivalent ActivityPub ref variants" do
+      unique = System.unique_integer([:positive])
+      base_post_id = "https://127.0.0.1:1/post/#{unique}"
+      actor_uri = "https://127.0.0.1:1/u/test#{unique}"
+
+      remote_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: actor_uri,
+          username: "test#{unique}",
+          domain: "127.0.0.1",
+          inbox_url: "https://127.0.0.1:1/inbox/#{unique}",
+          public_key: "test-key-#{unique}"
+        })
+        |> Repo.insert!()
+
+      {:ok, message} =
+        Messaging.create_federated_message(%{
+          content: "cached remote post",
+          visibility: "public",
+          activitypub_id: base_post_id,
+          activitypub_url: base_post_id,
+          federated: true,
+          remote_actor_id: remote_actor.id
+        })
+
+      assert {:ok, cached_via_slash} = Helpers.get_or_store_remote_post("#{base_post_id}/")
+      assert cached_via_slash.id == message.id
+
+      assert {:ok, cached_via_query} =
+               Helpers.get_or_store_remote_post("#{base_post_id}?view=compact#top", actor_uri)
+
+      assert cached_via_query.id == message.id
     end
   end
 end

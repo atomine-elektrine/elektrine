@@ -1,0 +1,325 @@
+<div class="p-4 sm:p-6">
+  <% search_active = @search_query != "" %>
+  <% conversation_type_filter = assigns[:conversation_type_filter] || "all" %>
+  <% protocol_filter = assigns[:protocol_filter] || "all" %>
+  <% page_results_count = assigns[:page_results_count] || length(@messages) %>
+  <% stats = assigns[:stats] || %{local: 0, federated: 0, mirrored: 0} %>
+  <% base_params =
+    %{
+      "conversation_type" => conversation_type_filter,
+      "protocol" => protocol_filter
+    }
+    |> then(fn params ->
+      if search_active, do: Map.put(params, "search", @search_query), else: params
+    end) %>
+  <% base_params_without_search = Map.delete(base_params, "search") %>
+
+  <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold sm:text-3xl">Arblarg Message Console</h1>
+      <p class="mt-1 text-sm opacity-70 sm:text-base">
+        Admin view for Arblarg protocol chat traffic across DMs, groups, and channels.
+      </p>
+    </div>
+    <div class="text-xs opacity-60 sm:text-sm">
+      Page {@current_page} of {@total_pages}
+    </div>
+  </div>
+
+  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
+      <div class="mt-1 text-xl font-semibold sm:text-2xl">{page_results_count}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Local</div>
+      <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{stats.local}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Federated</div>
+      <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">{stats.federated}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Mirrored</div>
+      <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">{stats.mirrored}</div>
+    </div>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Total Matches</div>
+      <div class="mt-1 text-xl font-semibold sm:text-2xl">{@total_count}</div>
+    </div>
+  </div>
+
+  <div class="card glass-card mb-6 shadow-xl">
+    <div class="card-body">
+      <form
+        method="get"
+        action={~p"/pripyat/arblarg/messages"}
+        class="grid grid-cols-1 gap-3 lg:grid-cols-12"
+      >
+        <div class="lg:col-span-6">
+          <label class="label pt-0">
+            <span>Search messages</span>
+          </label>
+          <input
+            type="text"
+            name="search"
+            value={@search_query}
+            placeholder="Search by content, sender, conversation, source, or domain"
+            class="input w-full"
+          />
+        </div>
+        <div class="lg:col-span-3">
+          <label class="label pt-0">
+            <span>Conversation</span>
+          </label>
+          <select name="conversation_type" class="select w-full">
+            <option value="all" selected={conversation_type_filter == "all"}>All</option>
+            <option value="dm" selected={conversation_type_filter == "dm"}>DM</option>
+            <option value="group" selected={conversation_type_filter == "group"}>Group</option>
+            <option value="channel" selected={conversation_type_filter == "channel"}>
+              Channel
+            </option>
+          </select>
+        </div>
+        <div class="lg:col-span-3">
+          <label class="label pt-0">
+            <span>Protocol</span>
+          </label>
+          <select name="protocol" class="select w-full">
+            <option value="all" selected={protocol_filter == "all"}>All</option>
+            <option value="local" selected={protocol_filter == "local"}>Local</option>
+            <option value="federated" selected={protocol_filter == "federated"}>Federated</option>
+            <option value="mirrored" selected={protocol_filter == "mirrored"}>Mirrored</option>
+          </select>
+        </div>
+        <div class="lg:col-span-12 flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <.icon name="hero-magnifying-glass" class="h-4 w-4" /> Search
+          </button>
+          <%= if search_active or conversation_type_filter != "all" or protocol_filter != "all" do %>
+            <.link
+              href={~p"/pripyat/arblarg/messages?#{base_params_without_search}"}
+              class="btn btn-ghost"
+            >
+              Reset Search
+            </.link>
+          <% end %>
+        </div>
+      </form>
+
+      <%= if search_active do %>
+        <div class="mt-4 rounded-lg border border-info/30 bg-info/10 p-3 text-sm">
+          Showing results for <strong>{@search_query}</strong>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%= if @messages == [] do %>
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
+      <.icon
+        name="hero-chat-bubble-left-right"
+        class="mx-auto mb-3 h-10 w-10 text-base-content/30"
+      />
+      <h3 class="text-lg font-medium">No Arblarg messages found</h3>
+      <p class="mt-1 text-sm opacity-70">
+        Adjust your filters or search query.
+      </p>
+    </div>
+  <% else %>
+    <div class="card glass-card mb-6 shadow-xl">
+      <div class="card-body">
+        <div class="hidden overflow-x-auto lg:block">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>Message</th>
+                <th>Conversation</th>
+                <th>Sender</th>
+                <th>Protocol</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for message <- @messages do %>
+                <tr class="hover">
+                  <td>
+                    <div class="max-w-md">
+                      <div
+                        class="truncate font-medium"
+                        title={message.content || "(No text content)"}
+                      >
+                        {truncate_content(message.content || "(No text content)")}
+                      </div>
+                      <div class="mt-1 flex items-center gap-2 text-xs">
+                        <span class="badge badge-ghost badge-sm">{message.message_type}</span>
+                        <span class="opacity-60">ID: {message.id}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-medium">
+                      {message.conversation && (message.conversation.name || "(No name)")}
+                    </div>
+                    <div class="text-xs opacity-60">
+                      {message.conversation &&
+                        String.upcase(message.conversation.type || "unknown")}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="font-medium">{message.sender && message.sender.username}</div>
+                    <div class="text-xs opacity-60">
+                      @{message.sender && message.sender.handle}
+                    </div>
+                  </td>
+                  <td>
+                    <div class={
+                      case message.protocol_kind do
+                        "mirrored" -> "badge badge-warning badge-sm"
+                        "federated" -> "badge badge-success badge-sm"
+                        _ -> "badge badge-info badge-sm"
+                      end
+                    }>
+                      {String.capitalize(message.protocol_kind)}
+                    </div>
+                    <div
+                      class="mt-1 max-w-[14rem] truncate text-xs opacity-60"
+                      title={message.origin_domain || message.federated_source}
+                    >
+                      {message.origin_domain || message.federated_source || "local"}
+                    </div>
+                  </td>
+                  <td class="text-sm opacity-70">
+                    <.local_time
+                      datetime={message.inserted_at}
+                      format="datetime"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+                  <td>
+                    <div class="flex gap-1">
+                      <.link
+                        href={~p"/pripyat/arblarg/messages/#{message.id}/view"}
+                        class="btn btn-sm btn-ghost"
+                        title="View message"
+                      >
+                        <.icon name="hero-eye" class="h-4 w-4" />
+                      </.link>
+                      <.link
+                        href={~p"/pripyat/arblarg/messages/#{message.id}/raw"}
+                        class="btn btn-sm btn-ghost"
+                        target="_blank"
+                        title="View raw payload"
+                      >
+                        <.icon name="hero-code-bracket" class="h-4 w-4" />
+                      </.link>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="space-y-3 lg:hidden">
+          <%= for message <- @messages do %>
+            <div class="rounded-lg border border-base-300 bg-base-200 p-4">
+              <div class="mb-2 flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <h4
+                    class="truncate text-sm font-medium"
+                    title={message.content || "(No text content)"}
+                  >
+                    {truncate_content(message.content || "(No text content)")}
+                  </h4>
+                  <p class="mt-1 text-xs opacity-70">
+                    {message.conversation && (message.conversation.name || "(No name)")} • {message.conversation &&
+                      String.upcase(message.conversation.type || "unknown")}
+                  </p>
+                  <p class="mt-1 text-xs opacity-60">
+                    @{message.sender && message.sender.handle}
+                  </p>
+                </div>
+                <div class="flex flex-shrink-0 gap-1">
+                  <.link
+                    href={~p"/pripyat/arblarg/messages/#{message.id}/view"}
+                    class="btn btn-xs btn-ghost"
+                    title="View message"
+                  >
+                    <.icon name="hero-eye" class="h-3 w-3" />
+                  </.link>
+                  <.link
+                    href={~p"/pripyat/arblarg/messages/#{message.id}/raw"}
+                    class="btn btn-xs btn-ghost"
+                    target="_blank"
+                    title="View raw payload"
+                  >
+                    <.icon name="hero-code-bracket" class="h-3 w-3" />
+                  </.link>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="opacity-60">ID: {message.id}</span>
+                <span class="opacity-70">
+                  <.local_time
+                    datetime={message.inserted_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%= if @total_pages > 1 do %>
+    <div class="flex justify-center mt-6">
+      <div class="join">
+        <%= if @current_page > 1 do %>
+          <.link
+            href={
+              ~p"/pripyat/arblarg/messages?#{Map.put(base_params, "page", @current_page - 1)}"
+            }
+            class="join-item btn"
+          >
+            «
+          </.link>
+        <% end %>
+
+        <%= for page_num <- @page_range do %>
+          <.link
+            href={~p"/pripyat/arblarg/messages?#{Map.put(base_params, "page", page_num)}"}
+            class={
+              if page_num == @current_page,
+                do: "join-item btn btn-primary",
+                else: "join-item btn btn-ghost"
+            }
+          >
+            {page_num}
+          </.link>
+        <% end %>
+
+        <%= if @current_page < @total_pages do %>
+          <.link
+            href={
+              ~p"/pripyat/arblarg/messages?#{Map.put(base_params, "page", @current_page + 1)}"
+            }
+            class="join-item btn"
+          >
+            »
+          </.link>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="text-center mt-4 text-sm opacity-70">
+      {@total_count} total message{if @total_count != 1, do: "s"}
+    </div>
+  <% end %>
+</div>

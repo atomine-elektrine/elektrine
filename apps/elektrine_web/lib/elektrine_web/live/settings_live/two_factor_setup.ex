@@ -260,7 +260,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
 
                 <button type="submit" class="btn btn-primary btn-sm sm:btn-md" disabled={@submitting}>
                   <%= if @submitting do %>
-                    <span class="loading loading-spinner loading-sm"></span> Verifying...
+                    <.spinner size="sm" /> Verifying...
                   <% else %>
                     Enable Two-Factor Authentication
                   <% end %>

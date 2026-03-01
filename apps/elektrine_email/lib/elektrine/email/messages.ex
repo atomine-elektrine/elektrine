@@ -593,7 +593,9 @@ defmodule Elektrine.Email.Messages do
           )
         end
 
-        {:ok, updated_message}
+        CacheHooks.with_cache_invalidation({:ok, updated_message},
+          user_id: mailbox && mailbox.user_id
+        )
 
       error ->
         error
@@ -617,6 +619,7 @@ defmodule Elektrine.Email.Messages do
     message
     |> Message.unspam_changeset()
     |> Repo.update()
+    |> CacheHooks.with_cache_invalidation()
   end
 
   @doc """
@@ -925,9 +928,16 @@ defmodule Elektrine.Email.Messages do
       message ->
         changeset = Message.changeset(message, updates)
 
+        mailbox_id = message.mailbox_id
+        mailbox = Elektrine.Email.Mailboxes.get_mailbox(mailbox_id)
+        user_id = if mailbox, do: mailbox.user_id
+
         case Repo.update(changeset) do
           {:ok, updated_message} ->
-            {:ok, updated_message}
+            CacheHooks.with_cache_invalidation({:ok, updated_message},
+              user_id: user_id,
+              mailbox_id: mailbox_id
+            )
 
           {:error, changeset} ->
             {:error, changeset}

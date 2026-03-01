@@ -36,27 +36,27 @@
         <span>{gettext("Communities")}</span>
       </button>
       <%= if @current_user do %>
-        <%= if length(@followed_community_posts) > 0 do %>
-          <button
-            phx-click="set_view"
-            phx-value-view="feed"
-            role="tab"
-            aria-selected={@current_view == "feed"}
-            class={[
-              "flex-1 flex flex-col items-center justify-center py-3 px-3 rounded-xl text-sm font-medium transition-all min-h-[3rem] relative",
-              if(@current_view == "feed",
-                do: "bg-secondary text-secondary-content shadow-lg",
-                else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-rss" class="w-5 h-5 mb-1" />
-            <span>Feed</span>
+        <button
+          phx-click="set_view"
+          phx-value-view="feed"
+          role="tab"
+          aria-selected={@current_view == "feed"}
+          class={[
+            "flex-1 flex flex-col items-center justify-center py-3 px-3 rounded-xl text-sm font-medium transition-all min-h-[3rem] relative",
+            if(@current_view == "feed",
+              do: "bg-secondary text-secondary-content shadow-lg",
+              else: "bg-base-200/60 text-base-content/70 hover:bg-base-200"
+            )
+          ]}
+        >
+          <.icon name="hero-rss" class="w-5 h-5 mb-1" />
+          <span>Feed</span>
+          <%= if length(@followed_community_posts) > 0 do %>
             <span class="badge badge-xs badge-primary absolute top-1 right-1">
               {length(@followed_community_posts)}
             </span>
-          </button>
-        <% end %>
+          <% end %>
+        </button>
         <button
           phx-click="set_view"
           phx-value-view="my_activity"
@@ -112,7 +112,7 @@
               <.icon name="hero-users" class="w-4 h-4 mr-2" />
               {gettext("My Communities")}
             </button>
-            <%= if @current_user && length(@followed_community_posts) > 0 do %>
+            <%= if @current_user do %>
               <button
                 phx-click="set_view"
                 phx-value-view="feed"
@@ -122,9 +122,11 @@
                 ]}
               >
                 <.icon name="hero-rss" class="w-4 h-4 mr-2" /> Community Feed
-                <span class="badge badge-xs badge-primary ml-auto">
-                  {length(@followed_community_posts)}
-                </span>
+                <%= if length(@followed_community_posts) > 0 do %>
+                  <span class="badge badge-xs badge-primary ml-auto">
+                    {length(@followed_community_posts)}
+                  </span>
+                <% end %>
               </button>
             <% end %>
             <%= if @current_user do %>

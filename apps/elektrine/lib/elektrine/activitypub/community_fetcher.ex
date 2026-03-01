@@ -17,6 +17,8 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
   @max_communities_per_cycle 3
   # Delay between community fetches (5 seconds)
   @delay_between_fetches 5_000
+  # Trigger an initial sync shortly after boot so new follows populate promptly.
+  @initial_fetch_delay_ms 15_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -24,7 +26,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
 
   @impl true
   def init(state) do
-    Process.send_after(self(), :fetch_community_posts, 120_000)
+    Process.send_after(self(), :fetch_community_posts, @initial_fetch_delay_ms)
     {:ok, state}
   end
 
@@ -51,11 +53,18 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
   defp get_followed_communities do
     import Ecto.Query
 
-    # Get all remote Group actors that are being followed by local users
-    from(f in Elektrine.Profiles.Follow,
-      join: a in Actor,
-      on: f.remote_actor_id == a.id,
-      where: a.actor_type == "Group" and f.pending == false,
+    # Include communities from accepted follows and federated mirrors with active members.
+    # This keeps ingestion flowing even if remote instances delay or skip Follow Accept.
+    from(a in Actor,
+      left_join: f in Elektrine.Profiles.Follow,
+      on: f.remote_actor_id == a.id and not is_nil(f.follower_id),
+      left_join: c in Elektrine.Messaging.Conversation,
+      on:
+        c.remote_group_actor_id == a.id and c.is_federated_mirror == true and
+          c.type == "community",
+      left_join: cm in Elektrine.Messaging.ConversationMember,
+      on: cm.conversation_id == c.id and is_nil(cm.left_at),
+      where: a.actor_type == "Group" and (not is_nil(f.id) or not is_nil(cm.id)),
       distinct: a.id,
       select: a
     )

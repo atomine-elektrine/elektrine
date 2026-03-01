@@ -159,6 +159,14 @@ defmodule Elektrine.Accounts.Passkeys do
 
   @doc ~s|Verify passkey authentication assertion.\n\nThe assertion_response is expected to be a map with:\n- \"id\" or \"rawId\" => base64url encoded credential ID\n- \"response\" => %{\n    \"clientDataJSON\" => base64url encoded JSON string\n    \"authenticatorData\" => base64url encoded binary\n    \"signature\" => base64url encoded binary\n  }\n\nReturns {:ok, user} or {:error, reason}\n|
   def verify_authentication(challenge, assertion_response) do
+    case verify_authentication_with_credential(challenge, assertion_response) do
+      {:ok, user, _credential} -> {:ok, user}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc ~s|Verify passkey authentication assertion and return both user and credential.\n\nReturns {:ok, user, credential} or {:error, reason}\n|
+  def verify_authentication_with_credential(challenge, assertion_response) do
     credential_id_b64 = assertion_response["id"] || assertion_response["rawId"]
     response = assertion_response["response"] || %{}
 
@@ -199,7 +207,7 @@ defmodule Elektrine.Accounts.Passkeys do
                     |> Repo.update()
 
                     user = Repo.get!(User, credential.user_id)
-                    {:ok, user}
+                    {:ok, user, credential}
                   end
 
                 {:error, reason} ->

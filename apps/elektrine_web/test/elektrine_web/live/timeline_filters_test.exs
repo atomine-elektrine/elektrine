@@ -52,6 +52,21 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     refute html =~ "Community timeline post"
   end
 
+  test "composer character counter updates immediately while typing", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "toggle_post_composer", %{})
+    assert render(view) =~ "0/3 min"
+
+    render_hook(view, "update_post_content_live", %{"value" => "typed live"})
+    assert render(view) =~ "10/3 min"
+  end
+
   test "friends filter is visible in disconnected render when user has friends", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     friend = AccountsFixtures.user_fixture()

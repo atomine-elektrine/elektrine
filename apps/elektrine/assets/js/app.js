@@ -35,6 +35,7 @@ import { initLiveClock } from "./live_clock"
 import { initIpLookup } from "./ip_lookup"
 import { initTaglineCycler } from "./tagline_cycler"
 import { initProfileStatic } from "./profile_static"
+import { initAdminSecurity } from "./admin_security"
 
 // Import shared modules
 import { FlashMessageManager } from "./flash_message_manager"
@@ -87,6 +88,7 @@ window.addEventListener("phx:page-loading-stop", () => {
   initProfileStatic()
   initAutoDismissFlashes()
   syncCursorGlowForRoute()
+  initAdminSecurity()
 })
 
 // ============================================================================
@@ -216,6 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTabSwitcher()
   initIpLookup()
   initProfileStatic()
+  initAdminSecurity()
 
   // Auto-print functionality
   const body = document.querySelector('body[data-auto-print="true"]')

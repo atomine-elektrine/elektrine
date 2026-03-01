@@ -6,8 +6,11 @@ export const AutoExpandTextarea = {
     this.sendingMessage = false
     this.lastSentContent = ""
     this.lastSentTime = 0
+    this.lastLiveUpdateValue = null
     this.userResized = false // Track if user manually resized
     this.currentHeight = null // Track current height to preserve during LiveView updates
+    this.liveUpdateEvent = this.el.dataset.liveUpdateEvent
+    this.submitOnEnter = this.el.dataset.submitOnEnter !== 'false'
 
     // Get min/max heights from style attribute
     const style = this.el.getAttribute('style') || ''
@@ -63,6 +66,11 @@ export const AutoExpandTextarea = {
     // Adjust height on any input or change
     const handleInput = () => {
       requestAnimationFrame(() => adjustHeight())
+
+      if (this.liveUpdateEvent && this.el.value !== this.lastLiveUpdateValue) {
+        this.lastLiveUpdateValue = this.el.value
+        this.pushEvent(this.liveUpdateEvent, { value: this.el.value })
+      }
     }
 
     this.el.addEventListener('input', handleInput)
@@ -76,6 +84,11 @@ export const AutoExpandTextarea = {
       // Allow Shift+Enter for new line
       if (e.key === "Enter" && e.shiftKey) {
         // Let the default behavior happen (insert newline)
+        setTimeout(() => adjustHeight(), 10)
+        return
+      }
+
+      if (e.key === "Enter" && !e.shiftKey && !this.submitOnEnter) {
         setTimeout(() => adjustHeight(), 10)
         return
       }

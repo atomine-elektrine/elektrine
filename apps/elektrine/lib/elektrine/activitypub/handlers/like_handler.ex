@@ -6,6 +6,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   require Logger
 
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Fetcher
+  alias Elektrine.ActivityPub.Handlers.CreateHandler
   alias Elektrine.Messaging
 
   @doc """
@@ -86,7 +88,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
-         {:ok, message} <- get_local_message_from_uri(object_uri) do
+         {:ok, message} <- get_or_fetch_message_from_uri(object_uri) do
       case Elektrine.Messaging.Messages.create_federated_emoji_reaction(
              message.id,
              remote_actor.id,
@@ -263,4 +265,83 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   rescue
     Ecto.Query.CastError -> {:error, :message_not_found}
   end
+
+  # For remote EmojiReact races, try to fetch/cache the target object if we don't
+  # already have it locally.
+  defp get_or_fetch_message_from_uri(uri) do
+    case get_local_message_from_uri(uri) do
+      {:ok, message} ->
+        {:ok, message}
+
+      {:error, :message_not_found} ->
+        with {:ok, object, author_uri} <- fetch_reactable_object(uri),
+             :ok <- cache_reactable_object(object, author_uri),
+             {:ok, message} <- get_local_message_from_uri(object["id"] || uri) do
+          {:ok, message}
+        else
+          _ -> {:error, :message_not_found}
+        end
+    end
+  end
+
+  defp fetch_reactable_object(uri) do
+    with {:ok, object} <- Fetcher.fetch_object(uri),
+         {:ok, reactable_object, author_uri} <- normalize_reactable_object(object) do
+      {:ok, reactable_object, author_uri}
+    end
+  end
+
+  # Handles Note/Page/Article directly and Create wrappers with embedded/linked object.
+  defp normalize_reactable_object(%{"type" => type} = object)
+       when type in ["Note", "Page", "Article"] do
+    case normalize_actor_uri(object["attributedTo"]) do
+      actor_uri when is_binary(actor_uri) -> {:ok, object, actor_uri}
+      _ -> {:error, :missing_author}
+    end
+  end
+
+  defp normalize_reactable_object(%{"type" => "Create"} = object) do
+    creator_uri = normalize_actor_uri(object["actor"])
+
+    case object["object"] do
+      %{} = inner_object ->
+        inner_with_actor =
+          if creator_uri do
+            Map.put_new(inner_object, "attributedTo", creator_uri)
+          else
+            inner_object
+          end
+
+        normalize_reactable_object(inner_with_actor)
+
+      inner_uri when is_binary(inner_uri) ->
+        with {:ok, fetched_inner} <- Fetcher.fetch_object(inner_uri) do
+          inner_with_actor =
+            if creator_uri do
+              Map.put_new(fetched_inner, "attributedTo", creator_uri)
+            else
+              fetched_inner
+            end
+
+          normalize_reactable_object(inner_with_actor)
+        end
+
+      _ ->
+        {:error, :unsupported_object}
+    end
+  end
+
+  defp normalize_reactable_object(_), do: {:error, :unsupported_object}
+
+  defp cache_reactable_object(object, author_uri) do
+    case CreateHandler.create_note(object, author_uri) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp normalize_actor_uri(uri) when is_binary(uri), do: uri
+  defp normalize_actor_uri([head | _]), do: normalize_actor_uri(head)
+  defp normalize_actor_uri(%{"id" => id}) when is_binary(id), do: id
+  defp normalize_actor_uri(_), do: nil
 end

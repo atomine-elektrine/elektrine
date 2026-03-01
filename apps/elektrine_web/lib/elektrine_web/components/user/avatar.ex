@@ -15,7 +15,10 @@ defmodule ElektrineWeb.Components.User.Avatar do
       <.placeholder_avatar size="lg" class="ring ring-primary" />
       <.placeholder_avatar size="xl" icon="hero-user-group" />
   """
-  attr :size, :string, default: "md", doc: "Avatar size: xs, sm, md, lg, xl, 2xl, 3xl, profile"
+  attr :size, :string,
+    default: "md",
+    doc: "Avatar size: 2xs, xs, sm, md, lg, xl, 2xl, 3xl, profile"
+
   attr :icon, :string, default: "hero-user", doc: "Hero icon name to display"
   attr :class, :string, default: "", doc: "Additional CSS classes"
   attr :rest, :global, doc: "Additional HTML attributes"
@@ -35,6 +38,7 @@ defmodule ElektrineWeb.Components.User.Avatar do
     """
   end
 
+  defp placeholder_size_classes("2xs"), do: "w-4 h-4"
   defp placeholder_size_classes("xs"), do: "w-6 h-6"
   defp placeholder_size_classes("sm"), do: "w-8 h-8"
   defp placeholder_size_classes("md"), do: "w-10 h-10"
@@ -45,6 +49,7 @@ defmodule ElektrineWeb.Components.User.Avatar do
   defp placeholder_size_classes("profile"), do: "w-24 h-24 sm:w-32 sm:h-32"
   defp placeholder_size_classes(_), do: "w-10 h-10"
 
+  defp placeholder_icon_size("2xs"), do: "w-2.5 h-2.5"
   defp placeholder_icon_size("xs"), do: "w-4 h-4"
   defp placeholder_icon_size("sm"), do: "w-5 h-5"
   defp placeholder_icon_size("md"), do: "w-6 h-6"

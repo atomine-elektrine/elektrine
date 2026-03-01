@@ -16,7 +16,7 @@
       <div class="flex items-center gap-2">
         <.icon name="hero-fire" class="w-4 h-4 text-orange-500 flex-shrink-0" />
         <span class="text-xs font-semibold opacity-70 flex-shrink-0">POPULAR:</span>
-        <div class="overflow-hidden flex-1">
+        <div class="marquee-viewport overflow-hidden flex-1">
           <div class="marquee-container group">
             <%= for instance <- 1..2 do %>
               <div class="marquee-content" aria-hidden={instance > 1}>
@@ -385,7 +385,7 @@
                   </span>
                 <% end %>
                 <%= if @draft_saving do %>
-                  <span class="loading loading-spinner loading-xs"></span>
+                  <.spinner size="xs" />
                 <% else %>
                   <.icon name="hero-document-duplicate" class="w-5 h-5" />
                 <% end %>
@@ -641,6 +641,8 @@
               style="min-height: 4rem; max-height: 20rem;"
               rows="3"
               phx-hook="AutoExpandTextarea"
+              data-submit-on-enter="false"
+              data-live-update-event="update_post_content_live"
               id="timeline-post-textarea"
               phx-debounce="2000"
             ><%= @new_post_content %></textarea>
@@ -720,7 +722,7 @@
                   disabled={@draft_saving}
                 >
                   <%= if @draft_saving do %>
-                    <span class="loading loading-spinner loading-xs"></span>
+                    <.spinner size="xs" />
                     <span class="hidden sm:inline ml-1">{gettext("Saving...")}</span>
                   <% else %>
                     <.icon name="hero-bookmark" class="w-4 h-4" />

@@ -4,6 +4,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
   import Phoenix.Component
   use ElektrineWeb, :verified_routes
 
+  alias ElektrineWeb.AdminSecurity
+
   # Flash helper for auth on-mount hooks
   defp notify_error(socket, message), do: Phoenix.LiveView.put_flash(socket, :error, message)
 
@@ -97,7 +99,29 @@ defmodule ElektrineWeb.Live.AuthHooks do
           {:halt, socket}
         else
           # Verify admin session IP hasn't changed (match controller security)
-          verify_admin_session_ip(socket, session, user)
+          {:cont, socket} = verify_admin_session_ip(socket, session, user)
+
+          case AdminSecurity.validate_live_admin_session(session, user) do
+            :ok ->
+              socket =
+                socket
+                |> assign_admin_security_metadata(session)
+                |> attach_hook(
+                  :enforce_admin_event_security,
+                  :handle_event,
+                  &enforce_admin_live_event_security/3
+                )
+
+              {:cont, socket}
+
+            {:error, reason} ->
+              socket =
+                socket
+                |> notify_error(AdminSecurity.error_message(reason))
+                |> redirect(to: AdminSecurity.elevation_redirect_path("/pripyat"))
+
+              {:halt, socket}
+          end
         end
 
       %{banned: true} ->
@@ -193,6 +217,48 @@ defmodule ElektrineWeb.Live.AuthHooks do
       {:cont, socket}
     end
   end
+
+  defp assign_admin_security_metadata(socket, session) do
+    socket
+    |> assign(:admin_auth_method, session["admin_auth_method"])
+    |> assign(:admin_access_expires_at, parse_session_int(session["admin_access_expires_at"]))
+    |> assign(:admin_elevated_until, parse_session_int(session["admin_elevated_until"]))
+  end
+
+  defp enforce_admin_live_event_security(_event, _params, socket) do
+    now = System.system_time(:second)
+    auth_method = socket.assigns[:admin_auth_method]
+    access_expires_at = socket.assigns[:admin_access_expires_at] || 0
+    elevated_until = socket.assigns[:admin_elevated_until] || 0
+
+    passkey_required? =
+      Application.get_env(:elektrine, :admin_security, []) |> Keyword.get(:require_passkey, true)
+
+    passkey_ok = not passkey_required? or auth_method == "passkey"
+    ttl_ok = access_expires_at >= now and elevated_until >= now
+
+    if passkey_ok and ttl_ok do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> notify_error(AdminSecurity.error_message(:elevation_required))
+        |> push_navigate(to: AdminSecurity.elevation_redirect_path("/pripyat"))
+
+      {:halt, socket}
+    end
+  end
+
+  defp parse_session_int(value) when is_integer(value), do: value
+
+  defp parse_session_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      _ -> nil
+    end
+  end
+
+  defp parse_session_int(_), do: nil
 
   defp mount_current_user(socket, session) do
     socket =

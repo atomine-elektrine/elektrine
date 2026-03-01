@@ -8,6 +8,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.{Repo, Social}
   alias ElektrineWeb.Live.PostInteractions
+  alias ElektrineWeb.RemotePostLive.SurfaceHelpers
 
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
@@ -416,7 +417,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       current_local_posts = socket.assigns.local_posts
 
       all_local_posts =
-        (current_local_posts ++ stored_posts)
+        (stored_posts ++ current_local_posts)
         |> Enum.uniq_by(& &1.activitypub_id)
 
       # Update interactions for new posts
@@ -791,99 +792,144 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
     outbox_posts
     |> Enum.map(fn post ->
-      # Skip if no ID or already exists
-      if post["id"] && !Messaging.get_message_by_activitypub_id(post["id"]) do
-        # Get or fetch the author actor
-        author_uri = post["attributedTo"] || remote_actor.uri
+      case post["id"] do
+        activitypub_id when is_binary(activitypub_id) and activitypub_id != "" ->
+          case Messaging.get_message_by_activitypub_id(activitypub_id) do
+            nil ->
+              create_outbox_post(post, remote_actor)
 
-        author_actor =
-          case ActivityPub.get_or_fetch_actor(author_uri) do
-            {:ok, actor} -> actor
-            _ -> nil
+            existing ->
+              refresh_existing_outbox_post(existing, post, remote_actor)
           end
 
-        if author_actor do
-          # Extract content and metadata
-          content = post["content"] || post["name"] || ""
-          title = post["name"]
-
-          # Extract media
-          {media_urls, alt_texts} = extract_media_from_post(post)
-
-          # Extract like/reply/share counts from ActivityPub collections
-          like_count = extract_count_from_collection(post["likes"])
-
-          reply_count =
-            [
-              extract_count_from_collection(post["replies"]),
-              extract_count_from_collection(post["comments"]),
-              parse_non_negative_count(post["repliesCount"])
-            ]
-            |> Enum.max(fn -> 0 end)
-
-          share_count = extract_count_from_collection(post["shares"])
-
-          # Build metadata
-          metadata =
-            %{
-              "type" => post["type"],
-              "url" => post["url"],
-              "sensitive" => post["sensitive"],
-              "quoteUrl" => post["quoteUrl"] || post["_misskey_quote"],
-              "replies" => post["replies"],
-              "comments" => post["comments"],
-              "likes" => post["likes"],
-              "shares" => post["shares"]
-            }
-            |> maybe_put_community_actor_uri(remote_actor)
-            |> Map.merge(alt_texts)
-
-          # Parse the published date
-          inserted_at =
-            case post["published"] do
-              date when is_binary(date) ->
-                case DateTime.from_iso8601(date) do
-                  {:ok, dt, _} -> DateTime.to_naive(dt)
-                  _ -> NaiveDateTime.utc_now()
-                end
-
-              _ ->
-                NaiveDateTime.utc_now()
-            end
-
-          # Create the message
-          case Messaging.create_federated_message(%{
-                 content: content,
-                 title: title,
-                 visibility: "public",
-                 activitypub_id: post["id"],
-                 activitypub_url: post["url"] || post["id"],
-                 federated: true,
-                 remote_actor_id: author_actor.id,
-                 media_urls: media_urls,
-                 media_metadata: metadata,
-                 inserted_at: inserted_at,
-                 like_count: like_count,
-                 reply_count: reply_count,
-                 share_count: share_count
-               }) do
-            {:ok, message} ->
-              # Spawn background task to fetch like/reply counts from collection URLs
-              spawn_count_fetcher(message.id, post)
-              # Preload associations for display
-              Repo.preload(message, MessagingMessages.timeline_post_preloads())
-
-            {:error, _} ->
-              nil
-          end
-        else
+        _ ->
           nil
-        end
-      else
-        nil
       end
     end)
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp create_outbox_post(post, remote_actor) do
+    alias Elektrine.Messaging
+
+    # Get or fetch the author actor
+    author_uri = post["attributedTo"] || remote_actor.uri
+
+    author_actor =
+      case ActivityPub.get_or_fetch_actor(author_uri) do
+        {:ok, actor} -> actor
+        _ -> nil
+      end
+
+    if author_actor do
+      title = normalize_remote_post_title(post)
+      content = post["content"] || title || ""
+
+      # Extract media
+      {media_urls, alt_texts} = extract_media_from_post(post)
+
+      # Extract like/reply/share counts from ActivityPub collections
+      like_count = extract_count_from_collection(post["likes"])
+
+      reply_count =
+        [
+          extract_count_from_collection(post["replies"]),
+          extract_count_from_collection(post["comments"]),
+          parse_non_negative_count(post["repliesCount"])
+        ]
+        |> Enum.max(fn -> 0 end)
+
+      share_count = extract_count_from_collection(post["shares"])
+
+      metadata = build_outbox_metadata(post, alt_texts, remote_actor)
+
+      # Parse the published date
+      inserted_at =
+        case post["published"] do
+          date when is_binary(date) ->
+            case DateTime.from_iso8601(date) do
+              {:ok, dt, _} -> DateTime.to_naive(dt)
+              _ -> NaiveDateTime.utc_now()
+            end
+
+          _ ->
+            NaiveDateTime.utc_now()
+        end
+
+      # Create the message
+      case Messaging.create_federated_message(%{
+             content: content,
+             title: title,
+             visibility: "public",
+             activitypub_id: post["id"],
+             activitypub_url: post["url"] || post["id"],
+             federated: true,
+             remote_actor_id: author_actor.id,
+             media_urls: media_urls,
+             media_metadata: metadata,
+             inserted_at: inserted_at,
+             like_count: like_count,
+             reply_count: reply_count,
+             share_count: share_count
+           }) do
+        {:ok, message} ->
+          # Spawn background task to fetch like/reply counts from collection URLs
+          spawn_count_fetcher(message.id, post)
+          # Preload associations for display
+          Repo.preload(message, MessagingMessages.timeline_post_preloads())
+
+        {:error, _} ->
+          nil
+      end
+    else
+      nil
+    end
+  end
+
+  defp refresh_existing_outbox_post(existing, post, remote_actor) do
+    title = normalize_remote_post_title(post)
+    content = post["content"] || title || ""
+    {media_urls, alt_texts} = extract_media_from_post(post)
+
+    metadata =
+      build_outbox_metadata(post, alt_texts, remote_actor, existing.media_metadata || %{})
+
+    like_count = extract_count_from_collection(post["likes"])
+
+    reply_count =
+      [
+        extract_count_from_collection(post["replies"]),
+        extract_count_from_collection(post["comments"]),
+        parse_non_negative_count(post["repliesCount"])
+      ]
+      |> Enum.max(fn -> 0 end)
+
+    share_count = extract_count_from_collection(post["shares"])
+
+    updates =
+      %{}
+      |> maybe_put_if_blank(:title, existing.title, title)
+      |> maybe_put_if_blank(:content, existing.content, content)
+      |> maybe_put_if_empty_list(:media_urls, existing.media_urls || [], media_urls)
+      |> maybe_put_if_blank(:activitypub_url, existing.activitypub_url, post["url"] || post["id"])
+      |> maybe_put_if_changed(:media_metadata, existing.media_metadata || %{}, metadata)
+      |> maybe_put_if_greater(:like_count, existing.like_count || 0, like_count)
+      |> maybe_put_if_greater(:reply_count, existing.reply_count || 0, reply_count)
+      |> maybe_put_if_greater(:share_count, existing.share_count || 0, share_count)
+
+    if map_size(updates) > 0 do
+      case existing
+           |> Ecto.Changeset.change(updates)
+           |> Repo.update() do
+        {:ok, message} ->
+          Repo.preload(message, MessagingMessages.timeline_post_preloads())
+
+        {:error, _} ->
+          nil
+      end
+    else
+      nil
+    end
   end
 
   defp spawn_count_fetcher(message_id, post) do
@@ -941,6 +987,96 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   defp maybe_put_community_actor_uri(metadata, _remote_actor) when is_map(metadata), do: metadata
+
+  defp normalize_remote_post_title(post) when is_map(post) do
+    [post["name"], post["title"]]
+    |> Enum.find_value(fn
+      title when is_binary(title) ->
+        case String.trim(title) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp normalize_remote_post_title(_), do: nil
+
+  defp build_outbox_metadata(post, alt_texts, remote_actor, base_metadata \\ %{})
+       when is_map(base_metadata) do
+    base_metadata
+    |> maybe_put_metadata_field("type", post["type"])
+    |> maybe_put_metadata_field("url", post["url"])
+    |> maybe_put_metadata_field("sensitive", post["sensitive"])
+    |> maybe_put_metadata_field("quoteUrl", post["quoteUrl"] || post["_misskey_quote"])
+    |> maybe_put_metadata_field("replies", post["replies"])
+    |> maybe_put_metadata_field("comments", post["comments"])
+    |> maybe_put_metadata_field("likes", post["likes"])
+    |> maybe_put_metadata_field("shares", post["shares"])
+    |> maybe_put_community_actor_uri(remote_actor)
+    |> Map.merge(alt_texts)
+  end
+
+  defp maybe_put_metadata_field(metadata, _key, nil), do: metadata
+
+  defp maybe_put_metadata_field(metadata, key, value) when is_binary(value) do
+    if String.trim(value) == "" do
+      metadata
+    else
+      Map.put(metadata, key, value)
+    end
+  end
+
+  defp maybe_put_metadata_field(metadata, key, value), do: Map.put(metadata, key, value)
+
+  defp maybe_put_if_blank(updates, field, current, candidate) do
+    current_blank? =
+      case current do
+        value when is_binary(value) -> String.trim(value) == ""
+        _ -> true
+      end
+
+    candidate_present? =
+      case candidate do
+        value when is_binary(value) -> String.trim(value) != ""
+        _ -> false
+      end
+
+    if current_blank? && candidate_present? do
+      Map.put(updates, field, candidate)
+    else
+      updates
+    end
+  end
+
+  defp maybe_put_if_empty_list(updates, _field, current, _candidate)
+       when is_list(current) and current != [] do
+    updates
+  end
+
+  defp maybe_put_if_empty_list(updates, field, _current, candidate)
+       when is_list(candidate) and candidate != [] do
+    Map.put(updates, field, candidate)
+  end
+
+  defp maybe_put_if_empty_list(updates, _field, _current, _candidate), do: updates
+
+  defp maybe_put_if_changed(updates, field, current, candidate) do
+    if candidate != current do
+      Map.put(updates, field, candidate)
+    else
+      updates
+    end
+  end
+
+  defp maybe_put_if_greater(updates, field, current, candidate)
+       when is_integer(candidate) and candidate > current do
+    Map.put(updates, field, candidate)
+  end
+
+  defp maybe_put_if_greater(updates, _field, _current, _candidate), do: updates
 
   defp extract_media_from_post(post) do
     attachments = post["attachment"] || post["image"] || []
@@ -2568,6 +2704,55 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp reply_reaction_surface(_, _local_posts, _post_reactions) do
     %{target_id: nil, value_name: "post_id", reactions: []}
   end
+
+  defp preview_reply_author(reply) when is_map(reply) do
+    local_user = Map.get(reply, "_local_user") || Map.get(reply, :_local_user)
+
+    if is_map(local_user) do
+      username = Map.get(local_user, :username) || Map.get(local_user, "username")
+      handle = Map.get(local_user, :handle) || Map.get(local_user, "handle") || username
+      avatar = Map.get(local_user, :avatar) || Map.get(local_user, "avatar")
+
+      avatar_url =
+        if is_binary(avatar) && String.trim(avatar) != "" do
+          Elektrine.Uploads.avatar_url(avatar)
+        else
+          nil
+        end
+
+      %{
+        label: "@#{handle}@z.org",
+        avatar_url: avatar_url,
+        profile_path: if(is_binary(handle) && handle != "", do: "/#{handle}", else: nil)
+      }
+    else
+      author_uri =
+        Map.get(reply, "attributedTo") || Map.get(reply, :attributedTo) ||
+          Map.get(reply, "actor") || Map.get(reply, :actor)
+
+      fallback = SurfaceHelpers.build_reply_author_fallback(reply, author_uri)
+
+      label =
+        cond do
+          is_binary(fallback.acct_label) && String.trim(fallback.acct_label) != "" ->
+            fallback.acct_label
+
+          is_binary(author_uri) && String.trim(author_uri) != "" ->
+            "@#{extract_username_from_uri(author_uri)}"
+
+          true ->
+            "Remote user"
+        end
+
+      %{
+        label: label,
+        avatar_url: fallback.avatar_url,
+        profile_path: fallback.profile_path
+      }
+    end
+  end
+
+  defp preview_reply_author(_), do: %{label: "Remote user", avatar_url: nil, profile_path: nil}
 
   defp reaction_target_for_post_ref(post_ref, local_posts) do
     decoded_ref = decode_post_ref(post_ref)

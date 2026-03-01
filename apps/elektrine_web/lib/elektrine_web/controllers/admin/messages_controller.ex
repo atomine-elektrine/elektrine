@@ -84,6 +84,8 @@ defmodule ElektrineWeb.Admin.MessagesController do
           message
         end
 
+      log_admin_email_view(conn, message, mailbox, "html", "admin_messages")
+
       render(conn, :view_message, message: decrypted_message, user: user)
     else
       conn
@@ -129,6 +131,8 @@ defmodule ElektrineWeb.Admin.MessagesController do
       # Decrypt message for admin viewing
       decrypted_message = Elektrine.Email.Message.decrypt_content(message, mailbox.user_id)
 
+      log_admin_email_view(conn, message, mailbox, "html", "user_scoped")
+
       render(conn, :view_user_message, user: user, message: decrypted_message)
     else
       _ ->
@@ -157,6 +161,8 @@ defmodule ElektrineWeb.Admin.MessagesController do
       # Get raw email content from metadata
       raw_content = get_raw_email_content(decrypted_message)
 
+      log_admin_email_view(conn, message, mailbox, "raw", "admin_messages")
+
       conn
       |> put_resp_content_type("text/plain")
       |> send_resp(200, raw_content)
@@ -179,6 +185,8 @@ defmodule ElektrineWeb.Admin.MessagesController do
 
       # Get raw email content from metadata
       raw_content = get_raw_email_content(decrypted_message)
+
+      log_admin_email_view(conn, message, mailbox, "raw", "user_scoped")
 
       conn
       |> put_resp_content_type("text/plain")
@@ -236,6 +244,8 @@ defmodule ElektrineWeb.Admin.MessagesController do
           else
             "<p>No HTML content available</p>"
           end
+
+        log_admin_email_view(conn, message, mailbox, "iframe", "admin_messages")
 
         conn
         |> put_resp_content_type("text/html")
@@ -560,6 +570,37 @@ defmodule ElektrineWeb.Admin.MessagesController do
   defp format_attachments_info(%{}), do: "(No attachments - empty map)"
   defp format_attachments_info([]), do: "(No attachments - empty list)"
   defp format_attachments_info(other), do: "(Attachments in unknown format: #{inspect(other)})"
+
+  defp log_admin_email_view(conn, message, mailbox, view_format, route_context) do
+    case conn.assigns[:current_user] do
+      %{id: admin_id, is_admin: true, username: admin_username} ->
+        Elektrine.AuditLog.log(
+          admin_id,
+          "view_email",
+          "email_message",
+          target_user_id: mailbox && mailbox.user_id,
+          resource_id: message.id,
+          details: %{
+            view_format: view_format,
+            route_context: route_context,
+            message_db_id: message.id,
+            message_id: message.message_id,
+            mailbox_id: message.mailbox_id,
+            mailbox_email: mailbox && mailbox.email,
+            viewer_username: admin_username
+          },
+          ip_address: get_remote_ip(conn),
+          user_agent: get_req_header(conn, "user-agent") |> List.first()
+        )
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp get_remote_ip(conn) do
+    ElektrineWeb.ClientIP.client_ip(conn)
+  end
 
   defp pagination_range(_current_page, total_pages) when total_pages <= 7 do
     1..total_pages//1 |> Enum.to_list()

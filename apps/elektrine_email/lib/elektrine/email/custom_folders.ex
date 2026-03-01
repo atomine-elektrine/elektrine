@@ -3,7 +3,7 @@ defmodule Elektrine.Email.CustomFolders do
   Context module for managing custom email folders.
   """
   import Ecto.Query
-  alias Elektrine.Email.Folder
+  alias Elektrine.Email.{Folder, Mailbox, Message}
   alias Elektrine.Repo
 
   @max_folders_per_user 25
@@ -101,11 +101,16 @@ defmodule Elektrine.Email.CustomFolders do
   Accepts either a message struct or a message_id integer.
   """
   def move_message_to_folder(%Elektrine.Email.Message{} = message, folder_id) do
-    move_message_to_folder(message.id, folder_id)
+    with :ok <- validate_folder_for_message_owner(message, folder_id) do
+      Elektrine.Email.update_message_flags(message.id, message.mailbox_id, %{folder_id: folder_id})
+    end
   end
 
   def move_message_to_folder(message_id, folder_id) when is_integer(message_id) do
-    Elektrine.Email.update_message_flags(message_id, %{folder_id: folder_id})
+    case Elektrine.Email.get_message_internal(message_id) do
+      %Message{} = message -> move_message_to_folder(message, folder_id)
+      nil -> {:error, :not_found}
+    end
   end
 
   @doc """
@@ -118,18 +123,24 @@ defmodule Elektrine.Email.CustomFolders do
       offset = (page - 1) * per_page
 
       messages =
-        Elektrine.Email.Message
-        |> where(folder_id: ^folder_id)
-        |> where([m], m.deleted == false)
+        Message
+        |> join(:inner, [m], mb in Mailbox, on: mb.id == m.mailbox_id)
+        |> where(
+          [m, mb],
+          m.folder_id == ^folder_id and m.deleted == false and mb.user_id == ^user_id
+        )
         |> order_by(desc: :inserted_at)
         |> limit(^per_page)
         |> offset(^offset)
         |> Repo.all()
 
       total =
-        Elektrine.Email.Message
-        |> where(folder_id: ^folder_id)
-        |> where([m], m.deleted == false)
+        Message
+        |> join(:inner, [m], mb in Mailbox, on: mb.id == m.mailbox_id)
+        |> where(
+          [m, mb],
+          m.folder_id == ^folder_id and m.deleted == false and mb.user_id == ^user_id
+        )
         |> select(count())
         |> Repo.one()
 
@@ -145,6 +156,21 @@ defmodule Elektrine.Email.CustomFolders do
       %{messages: [], total: 0, page: page, per_page: per_page, has_next: false, has_prev: false}
     end
   end
+
+  defp validate_folder_for_message_owner(_message, nil), do: :ok
+
+  defp validate_folder_for_message_owner(%Message{mailbox_id: mailbox_id}, folder_id)
+       when is_integer(folder_id) do
+    with %Mailbox{user_id: user_id} when is_integer(user_id) <-
+           Elektrine.Email.get_mailbox_internal(mailbox_id),
+         %Folder{} <- get_folder(folder_id, user_id) do
+      :ok
+    else
+      _ -> {:error, :invalid_folder}
+    end
+  end
+
+  defp validate_folder_for_message_owner(_message, _folder_id), do: {:error, :invalid_folder}
 
   @doc """
   Gets folder hierarchy as a tree structure.
