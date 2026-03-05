@@ -18,8 +18,8 @@
         <div class="card-body p-6">
           <!-- Header -->
           <div class="flex items-center space-x-3 mb-6">
-            <div class="p-2 bg-primary/10 rounded-lg">
-              <.icon name="hero-magnifying-glass" class="h-6 w-6 text-primary" />
+            <div class="p-2 bg-secondary/10 rounded-lg">
+              <.icon name="hero-magnifying-glass" class="h-6 w-6 text-secondary" />
             </div>
             <div>
               <h2 class="text-2xl font-bold">{gettext("Search")}</h2>
@@ -55,7 +55,7 @@
                   </button>
                 <% end %>
               </div>
-              <button type="submit" class="btn btn-primary" disabled={@searching}>
+              <button type="submit" class="btn btn-secondary" disabled={@searching}>
                 <%= if @searching do %>
                   <.spinner size="sm" /> {gettext("Searching...")}
                 <% else %>
@@ -107,7 +107,7 @@
                   <%= for message <- @search_results.messages do %>
                     <div
                       id={"message-#{message.id}"}
-                      class={"card glass-card border hover:shadow-md transition-shadow #{if message.read, do: "border-base-300", else: "border-primary/30 bg-primary/5"}"}
+                      class={"card glass-card border hover:shadow-md transition-shadow #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
                     >
                       <div class="card-body p-4">
                         <div class="flex items-center justify-between">
@@ -116,7 +116,7 @@
                             <div class="flex items-center space-x-3">
                               <!-- Avatar -->
                               <div class="avatar">
-                                <div class="bg-primary text-primary-content rounded-lg w-10 h-10">
+                                <div class="bg-secondary text-secondary-content rounded-lg w-10 h-10">
                                   <div class="w-full h-full flex items-center justify-center">
                                     <span class="text-sm font-semibold">
                                       {get_sender_initials(message.from)}
@@ -128,7 +128,7 @@
 <!-- Message Details -->
                               <div class="flex-1 min-w-0">
                                 <div class="flex items-center space-x-2">
-                                  <span class={"font-semibold #{if message.read, do: "text-base-content", else: "text-primary"}"}>
+                                  <span class={"font-semibold #{if message.read, do: "text-base-content", else: "text-secondary"}"}>
                                     {get_sender_name(message.from)}
                                   </span>
                                   <span class="text-sm text-base-content/60">
@@ -157,7 +157,7 @@
                                   navigate={~p"/email/view/#{message.hash || message.id}"}
                                   class="block hover:underline"
                                 >
-                                  <div class={"text-sm #{if message.read, do: "text-base-content/80", else: "text-primary font-medium"}"}>
+                                  <div class={"text-sm #{if message.read, do: "text-base-content/80", else: "text-secondary font-medium"}"}>
                                     {truncate_subject(message.subject, 80)}
                                   </div>
                                   <div class="text-xs text-base-content/60 mt-1 line-clamp-2">

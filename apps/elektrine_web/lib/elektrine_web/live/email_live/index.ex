@@ -732,7 +732,7 @@ defmodule ElektrineWeb.EmailLive.Index do
 
     cond do
       message_unread_for_list?(message) ->
-        "#{base_classes} border-l-4 border-l-primary bg-primary/5"
+        "#{base_classes} border-l-4 border-l-secondary bg-secondary/5"
 
       current_tab == "spam" ->
         "#{base_classes} border-l-4 border-l-warning bg-warning/5"
@@ -966,7 +966,7 @@ defmodule ElektrineWeb.EmailLive.Index do
 
   defp day_class(date, current_date, view_date) do
     cond do
-      Date.compare(date, current_date) == :eq -> "bg-primary text-primary-content"
+      Date.compare(date, current_date) == :eq -> "bg-secondary text-secondary-content"
       date.month != view_date.month -> "text-base-content/30"
       true -> ""
     end

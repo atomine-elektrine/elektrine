@@ -22,8 +22,8 @@
           <!-- Header -->
           <div class="mb-6">
             <div class="flex items-start gap-4 mb-4">
-              <div class="p-3 bg-primary/10 rounded-lg flex-shrink-0">
-                <.icon name="hero-envelope-open" class="h-7 w-7 text-primary" />
+              <div class="p-3 bg-secondary/10 rounded-lg flex-shrink-0">
+                <.icon name="hero-envelope-open" class="h-7 w-7 text-secondary" />
               </div>
               <div class="flex-1 min-w-0">
                 <h2 class="text-3xl font-bold break-words mb-2">
@@ -52,7 +52,7 @@
                 )}
               </.link>
 
-              <button phx-click="reply" class="btn btn-sm btn-primary">
+              <button phx-click="reply" class="btn btn-sm btn-secondary">
                 <.icon name="hero-arrow-uturn-left" class="h-4 w-4 mr-1" /> {gettext("Reply")}
               </button>
               <%= if has_additional_recipients?(@message) do %>
@@ -177,7 +177,7 @@
                   <% row_classes = [
                     "block rounded-lg border p-3 transition-colors",
                     if(is_current,
-                      do: "border-primary bg-primary/10",
+                      do: "border-secondary bg-secondary/10",
                       else: "border-base-300 bg-base-100 hover:bg-base-200/70"
                     )
                   ] %>
@@ -303,7 +303,7 @@
                       <div class="flex-shrink-0">
                         <.icon
                           name={get_file_icon(attachment["content_type"])}
-                          class="h-6 w-6 text-primary"
+                          class="h-6 w-6 text-secondary"
                         />
                       </div>
                       <div class="flex-1 min-w-0">
@@ -318,7 +318,7 @@
                             ~p"/email/message/#{@message.id}/attachment/#{attachment_id}/download"
                           }
                           download={attachment["filename"]}
-                          class="text-xs text-primary hover:text-primary-focus mt-1 inline-flex items-center font-medium"
+                          class="text-xs text-secondary hover:text-secondary-focus mt-1 inline-flex items-center font-medium"
                         >
                           <.icon name="hero-arrow-down-tray" class="h-3 w-3 mr-1" /> {gettext(
                             "Download"
@@ -348,7 +348,7 @@
           
 <!-- Footer actions -->
           <div class="flex flex-wrap gap-2 pt-6 border-t border-base-300 mt-6">
-            <button phx-click="reply" class="btn btn-primary">
+            <button phx-click="reply" class="btn btn-secondary">
               <.icon name="hero-arrow-uturn-left" class="h-4 w-4 mr-2" /> {gettext("Reply")}
             </button>
             <%= if has_additional_recipients?(@message) do %>

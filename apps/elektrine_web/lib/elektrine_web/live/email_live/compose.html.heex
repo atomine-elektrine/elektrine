@@ -21,8 +21,8 @@
         <div class="card-body p-6">
           <!-- Header -->
           <div class="flex items-center space-x-3 mb-6">
-            <div class="p-2 bg-primary/10 rounded-lg">
-              <.icon name="hero-pencil-square" class="h-6 w-6 text-primary" />
+            <div class="p-2 bg-secondary/10 rounded-lg">
+              <.icon name="hero-pencil-square" class="h-6 w-6 text-secondary" />
             </div>
             <div>
               <h2 class="text-2xl font-bold">{@page_title}</h2>
@@ -168,9 +168,9 @@
                     <div
                       data-suggestion-email={suggestion.email}
                       data-suggestion-field="to"
-                      class="w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors flex items-center gap-3 cursor-pointer"
+                      class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
                     >
-                      <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+                      <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
                         {String.first(String.upcase(suggestion.name || suggestion.email))}
                       </div>
                       <div class="flex-1 min-w-0">
@@ -180,7 +180,7 @@
                         <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
                       </div>
                       <%= if suggestion.source == "contact" do %>
-                        <div class="badge badge-primary badge-xs">Contact</div>
+                        <div class="badge badge-secondary badge-xs">Contact</div>
                       <% else %>
                         <div class="badge badge-ghost badge-xs">Recent</div>
                       <% end %>
@@ -195,7 +195,7 @@
               <button
                 type="button"
                 phx-click="toggle_cc_bcc"
-                class="text-sm text-base-content/60 hover:text-primary transition-colors"
+                class="text-sm text-base-content/60 hover:text-secondary transition-colors"
               >
                 <span class="inline-flex items-center gap-1">
                   <.icon
@@ -261,9 +261,9 @@
                       <div
                         data-suggestion-email={suggestion.email}
                         data-suggestion-field="cc"
-                        class="w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors flex items-center gap-3 cursor-pointer"
+                        class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
                       >
-                        <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+                        <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
                           {String.first(String.upcase(suggestion.name || suggestion.email))}
                         </div>
                         <div class="flex-1 min-w-0">
@@ -274,7 +274,7 @@
                           <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
                         </div>
                         <%= if suggestion.source == "contact" do %>
-                          <div class="badge badge-primary badge-xs">Contact</div>
+                          <div class="badge badge-secondary badge-xs">Contact</div>
                         <% else %>
                           <div class="badge badge-ghost badge-xs">Recent</div>
                         <% end %>
@@ -332,9 +332,9 @@
                       <div
                         data-suggestion-email={suggestion.email}
                         data-suggestion-field="bcc"
-                        class="w-full text-left px-4 py-2 hover:bg-primary/10 transition-colors flex items-center gap-3 cursor-pointer"
+                        class="w-full text-left px-4 py-2 hover:bg-secondary/10 transition-colors flex items-center gap-3 cursor-pointer"
                       >
-                        <div class="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+                        <div class="w-8 h-8 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-semibold">
                           {String.first(String.upcase(suggestion.name || suggestion.email))}
                         </div>
                         <div class="flex-1 min-w-0">
@@ -345,7 +345,7 @@
                           <div class="text-xs opacity-70 truncate">{suggestion.email}</div>
                         </div>
                         <%= if suggestion.source == "contact" do %>
-                          <div class="badge badge-primary badge-xs">Contact</div>
+                          <div class="badge badge-secondary badge-xs">Contact</div>
                         <% else %>
                           <div class="badge badge-ghost badge-xs">Recent</div>
                         <% end %>
@@ -434,7 +434,7 @@
                           <div class="flex items-center gap-1">
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="bold"
                               data-target="new-message-area"
                               data-tip={gettext("Bold (Ctrl+B)")}
@@ -443,7 +443,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="italic"
                               data-target="new-message-area"
                               data-tip={gettext("Italic (Ctrl+I)")}
@@ -452,7 +452,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="code"
                               data-target="new-message-area"
                               data-tip={gettext("Code")}
@@ -468,7 +468,7 @@
                             <button
                               type="button"
                               tabindex="0"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 gap-1"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 gap-1"
                             >
                               <span class="text-sm font-bold">H</span>
                               <.icon name="hero-chevron-down" class="w-3 h-3" />
@@ -511,7 +511,7 @@
                           <div class="flex items-center gap-1">
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="list-bullet"
                               data-target="new-message-area"
                               data-tip={gettext("Bullet list")}
@@ -520,7 +520,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="list-number"
                               data-target="new-message-area"
                               data-tip={gettext("Numbered list")}
@@ -529,7 +529,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="link"
                               data-target="new-message-area"
                               data-tip={gettext("Insert link")}
@@ -544,7 +544,7 @@
                           <div class="flex items-center gap-1">
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="quote"
                               data-target="new-message-area"
                               data-tip={gettext("Quote")}
@@ -553,7 +553,7 @@
                             </button>
                             <button
                               type="button"
-                              class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                              class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                               data-markdown-format="code-block"
                               data-target="new-message-area"
                               data-tip={gettext("Code block")}
@@ -571,7 +571,7 @@
                               id="new-message-area"
                               name="email[new_message]"
                               rows="10"
-                              class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-primary"
+                              class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-secondary"
                               placeholder="Type your new message here..."
                               phx-hook="ReplyMarkdownEditor"
                             ></textarea>
@@ -691,7 +691,7 @@
                       <div class="flex items-center gap-1">
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="bold"
                           data-target="html-editor"
                           data-tip={gettext("Bold (Ctrl+B)")}
@@ -700,7 +700,7 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="italic"
                           data-target="html-editor"
                           data-tip={gettext("Italic (Ctrl+I)")}
@@ -709,7 +709,7 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="code"
                           data-target="html-editor"
                           data-tip={gettext("Code")}
@@ -725,7 +725,7 @@
                         <button
                           type="button"
                           tabindex="0"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 gap-1"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 gap-1"
                         >
                           <span class="text-sm font-bold">H</span>
                           <.icon name="hero-chevron-down" class="w-3 h-3" />
@@ -768,7 +768,7 @@
                       <div class="flex items-center gap-1">
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="list-bullet"
                           data-target="html-editor"
                           data-tip={gettext("Bullet list")}
@@ -777,7 +777,7 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="list-number"
                           data-target="html-editor"
                           data-tip={gettext("Numbered list")}
@@ -786,7 +786,7 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="link"
                           data-target="html-editor"
                           data-tip={gettext("Insert link")}
@@ -801,7 +801,7 @@
                       <div class="flex items-center gap-1">
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="quote"
                           data-target="html-editor"
                           data-tip={gettext("Quote")}
@@ -810,7 +810,7 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-sm btn-ghost hover:bg-primary/20 tooltip"
+                          class="btn btn-sm btn-ghost hover:bg-secondary/20 tooltip"
                           data-markdown-format="code-block"
                           data-target="html-editor"
                           data-tip={gettext("Code block")}
@@ -828,7 +828,7 @@
                           id="html-editor"
                           name="email[body]"
                           rows="15"
-                          class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-primary"
+                          class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-secondary"
                           placeholder="Type your message here..."
                         ><%= @form[:body].value %></textarea>
                       </div>
@@ -864,7 +864,7 @@
                 </label>
 
                 <div
-                  class="border-2 border-dashed border-base-300 rounded-lg p-6 hover:border-primary/50 transition-colors"
+                  class="border-2 border-dashed border-base-300 rounded-lg p-6 hover:border-secondary/50 transition-colors"
                   phx-drop-target={@uploads.attachments.ref}
                 >
                   <div class="flex flex-col items-center justify-center gap-2">
@@ -874,7 +874,7 @@
                     </p>
                     <label
                       for={@uploads.attachments.ref}
-                      class="btn btn-sm btn-ghost btn-primary cursor-pointer"
+                      class="btn btn-sm btn-ghost btn-secondary cursor-pointer"
                     >
                       <.icon name="hero-folder-open" class="w-4 h-4 mr-1" />
                       {gettext("Choose Files")}
@@ -935,7 +935,7 @@
               <div class="flex flex-col sm:flex-row gap-3 pt-4 items-center">
                 <button
                   type="submit"
-                  class="btn btn-primary"
+                  class="btn btn-secondary"
                   disabled={@rate_limit_status.daily.remaining == 0 || @sending}
                 >
                   <%= if @sending do %>

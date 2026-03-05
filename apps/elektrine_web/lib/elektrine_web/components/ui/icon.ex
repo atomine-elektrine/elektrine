@@ -27,7 +27,7 @@ defmodule ElektrineWeb.Components.UI.Icon do
 
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
-    <span class={[@name, @class]} />
+    <span class={["ui-icon", @name, @class]} />
     """
   end
 end

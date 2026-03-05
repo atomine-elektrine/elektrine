@@ -262,7 +262,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     if message.read do
       "bg-base-200 border-base-300"
     else
-      "bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20 shadow-sm"
+      "bg-gradient-to-r from-secondary/5 to-secondary/10 border-secondary/20 shadow-sm"
     end
   end
 
@@ -341,7 +341,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                     <span class={
                       cond do
                         @storage_info.over_limit -> "text-red-800 font-semibold"
-                        @storage_info.percentage > 0.8 -> "text-orange-500 font-medium"
+                        @storage_info.percentage > 0.8 -> "text-warning font-medium"
                         true -> "text-base-content/60"
                       end
                     }>
@@ -359,10 +359,10 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                                 "h-full bg-gradient-to-r from-red-700 to-red-800 transition-all duration-300"
 
                               @storage_info.percentage > 0.8 ->
-                                "h-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all duration-300"
+                                "h-full bg-gradient-to-r from-warning to-warning transition-all duration-300"
 
                               true ->
-                                "h-full bg-gradient-to-r from-primary to-primary transition-all duration-300"
+                                "h-full bg-gradient-to-r from-secondary to-secondary transition-all duration-300"
                             end
                           }
                           style={"width: #{min(@storage_info.percentage * 100, 100)}%"}
@@ -372,7 +372,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                     <span class={
                       cond do
                         @storage_info.over_limit -> "text-red-800 font-semibold text-xs"
-                        @storage_info.percentage > 0.8 -> "text-orange-500 font-medium text-xs"
+                        @storage_info.percentage > 0.8 -> "text-warning font-medium text-xs"
                         true -> "text-base-content/60 text-xs"
                       end
                     }>
@@ -387,7 +387,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                         {gettext("Storage limit exceeded")}
                       </div>
                     <% @storage_info.percentage > 0.8 -> %>
-                      <div class="mt-2 text-xs text-orange-500 font-medium flex items-center">
+                      <div class="mt-2 text-xs text-warning font-medium flex items-center">
                         <.icon name="hero-exclamation-triangle" class="h-3 w-3 mr-1" />
                         {gettext("Storage nearly full")}
                       </div>
@@ -416,8 +416,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "inbox",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -436,8 +436,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "sent",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -451,8 +451,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "drafts",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -466,8 +466,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "search",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -481,8 +481,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "spam",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -496,8 +496,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "trash",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -511,8 +511,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "archive",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -527,8 +527,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "contacts",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -542,8 +542,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 data-phx-link-state="push"
                 class={
                   if(@current_page == "calendar",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                   )
                 }
               >
@@ -555,8 +555,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 navigate={~p"/email/settings"}
                 class={
                   if @current_page == "settings",
-                    do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                    else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                    do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                    else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                 }
               >
                 <.icon name="hero-cog-6-tooth" class="h-5 w-5" /> {gettext("Settings")}
@@ -579,8 +579,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                     data-phx-link-state="push"
                     class={
                       if(is_active,
-                        do: "bg-orange-500/10 text-orange-500 font-semibold rounded-lg",
-                        else: "text-base-content hover:bg-orange-500/5 hover:text-orange-500"
+                        do: "bg-secondary/10 text-secondary font-semibold rounded-lg",
+                        else: "text-base-content hover:bg-secondary/5 hover:text-secondary"
                       )
                     }
                   >
@@ -605,7 +605,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
           <div class="mt-4">
             <.link
               navigate={~p"/email/compose?return_to=#{@current_page}"}
-              class="btn btn-primary w-full gap-2 flex items-center justify-center"
+              class="btn btn-secondary w-full gap-2 flex items-center justify-center"
             >
               <.icon name="hero-pencil-square" class="h-5 w-5" /> {gettext("Compose")}
             </.link>

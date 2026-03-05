@@ -825,8 +825,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
             <div class="card-body p-3 sm:p-6">
               <!-- Header -->
               <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
-                <div class="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
-                  <.icon name="hero-cog-6-tooth" class="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                <div class="p-1.5 sm:p-2 bg-secondary/10 rounded-lg">
+                  <.icon name="hero-cog-6-tooth" class="h-5 w-5 sm:h-6 sm:w-6 text-secondary" />
                 </div>
                 <div>
                   <h1 class="text-xl sm:text-2xl font-bold">Email Settings</h1>
@@ -962,7 +962,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           class="input input-bordered flex-1"
           required
         />
-        <button type="submit" class="btn btn-primary">Block</button>
+        <button type="submit" class="btn btn-secondary">Block</button>
       </form>
       
     <!-- List -->
@@ -1019,7 +1019,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           class="input input-bordered flex-1"
           required
         />
-        <button type="submit" class="btn btn-primary">Add</button>
+        <button type="submit" class="btn btn-secondary">Add</button>
       </form>
       
     <!-- List -->
@@ -1062,7 +1062,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
             Automatically organize incoming emails based on rules.
           </p>
         </div>
-        <button phx-click="show_filter_modal" phx-value-id="new" class="btn btn-primary">
+        <button phx-click="show_filter_modal" phx-value-id="new" class="btn btn-secondary">
           Create Filter
         </button>
       </div>
@@ -1224,7 +1224,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                 name="auto_reply[only_contacts]"
                 value="true"
                 checked={@auto_reply.only_contacts}
-                class="checkbox checkbox-sm checkbox-primary"
+                class="checkbox checkbox-sm checkbox-secondary"
               />
               <div>
                 <p class="text-sm font-medium">Contacts only</p>
@@ -1237,7 +1237,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                 name="auto_reply[exclude_mailing_lists]"
                 value="true"
                 checked={@auto_reply.exclude_mailing_lists}
-                class="checkbox checkbox-sm checkbox-primary"
+                class="checkbox checkbox-sm checkbox-secondary"
               />
               <div>
                 <p class="text-sm font-medium">Skip mailing lists</p>
@@ -1250,7 +1250,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                 name="auto_reply[reply_once_per_sender]"
                 value="true"
                 checked={@auto_reply.reply_once_per_sender}
-                class="checkbox checkbox-sm checkbox-primary"
+                class="checkbox checkbox-sm checkbox-secondary"
               />
               <div>
                 <p class="text-sm font-medium">Once per sender</p>
@@ -1262,7 +1262,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
         
     <!-- Save Button -->
         <div class="flex justify-end pt-4 border-t border-base-content/10">
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn btn-secondary">
             <.icon name="hero-check" class="h-4 w-4" /> Save Settings
           </button>
         </div>
@@ -1281,7 +1281,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
             Save commonly used email templates for quick access.
           </p>
         </div>
-        <button phx-click="show_template_modal" phx-value-id="new" class="btn btn-primary">
+        <button phx-click="show_template_modal" phx-value-id="new" class="btn btn-secondary">
           Create Template
         </button>
       </div>
@@ -1349,7 +1349,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           <option value="#ec4899">Pink</option>
           <option value="#6b7280">Gray</option>
         </select>
-        <button type="submit" class="btn btn-primary">Create</button>
+        <button type="submit" class="btn btn-secondary">Create</button>
       </form>
       
     <!-- List -->
@@ -1408,7 +1408,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           <option value="#ec4899">Pink</option>
           <option value="#6b7280">Gray</option>
         </select>
-        <button type="submit" class="btn btn-primary">Create</button>
+        <button type="submit" class="btn btn-secondary">Create</button>
       </form>
       
     <!-- List -->
@@ -1447,7 +1447,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
       
     <!-- Export Options -->
       <div class="flex gap-4 mb-6">
-        <button phx-click="start_export" phx-value-format="mbox" class="btn btn-primary">
+        <button phx-click="start_export" phx-value-format="mbox" class="btn btn-secondary">
           Export as MBOX
         </button>
         <button phx-click="start_export" phx-value-format="zip" class="btn btn-outline">
@@ -1540,7 +1540,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
               name="mailbox[forward_enabled]"
               value="true"
               checked={@mailbox.forward_enabled}
-              class="toggle toggle-primary"
+              class="toggle toggle-secondary"
             />
           </label>
         </div>
@@ -1570,7 +1570,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
         <% end %>
 
         <div class="flex justify-end">
-          <button type="submit" class="btn btn-primary">Save Main Forwarding</button>
+          <button type="submit" class="btn btn-secondary">Save Main Forwarding</button>
         </div>
       </.form>
       
@@ -1639,7 +1639,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           />
         </div>
         <div class="flex justify-end">
-          <button type="submit" class="btn btn-primary">Create Alias</button>
+          <button type="submit" class="btn btn-secondary">Create Alias</button>
         </div>
       </form>
       
@@ -1738,8 +1738,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
             <!-- Header -->
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-3">
-                <div class="p-2 bg-primary/10 rounded-lg">
-                  <.icon name="hero-funnel" class="h-5 w-5 text-primary" />
+                <div class="p-2 bg-secondary/10 rounded-lg">
+                  <.icon name="hero-funnel" class="h-5 w-5 text-secondary" />
                 </div>
                 <div>
                   <h3 class="font-bold text-lg">
@@ -1857,7 +1857,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       name="action_mark_read"
                       value="true"
                       checked={@filter_form[:action_mark_read].value == "true"}
-                      class="checkbox checkbox-sm checkbox-primary"
+                      class="checkbox checkbox-sm checkbox-secondary"
                     />
                     <span class="text-sm">Mark as read</span>
                   </label>
@@ -1867,7 +1867,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       name="action_archive"
                       value="true"
                       checked={@filter_form[:action_archive].value == "true"}
-                      class="checkbox checkbox-sm checkbox-primary"
+                      class="checkbox checkbox-sm checkbox-secondary"
                     />
                     <span class="text-sm">Archive</span>
                   </label>
@@ -1877,7 +1877,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       name="action_star"
                       value="true"
                       checked={@filter_form[:action_star].value == "true"}
-                      class="checkbox checkbox-sm checkbox-primary"
+                      class="checkbox checkbox-sm checkbox-secondary"
                     />
                     <span class="text-sm">Star</span>
                   </label>
@@ -1932,7 +1932,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                     name="enabled"
                     value="true"
                     checked={@filter_form[:enabled].value == "true"}
-                    class="toggle toggle-primary toggle-sm"
+                    class="toggle toggle-secondary toggle-sm"
                   />
                   <span class="text-sm font-medium">Enable filter</span>
                 </label>
@@ -1951,7 +1951,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
     <!-- Footer -->
               <div class="flex justify-end gap-2 pt-4 border-t border-base-content/10">
                 <button type="button" phx-click="close_modal" class="btn btn-ghost">Cancel</button>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-secondary">
                   <.icon name="hero-check" class="h-4 w-4" /> Save Filter
                 </button>
               </div>
@@ -1960,8 +1960,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
             <!-- Header -->
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-3">
-                <div class="p-2 bg-primary/10 rounded-lg">
-                  <.icon name="hero-document-text" class="h-5 w-5 text-primary" />
+                <div class="p-2 bg-secondary/10 rounded-lg">
+                  <.icon name="hero-document-text" class="h-5 w-5 text-secondary" />
                 </div>
                 <div>
                   <h3 class="font-bold text-lg">
@@ -2027,7 +2027,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
     <!-- Footer -->
               <div class="flex justify-end gap-2 pt-4 border-t border-base-content/10">
                 <button type="button" phx-click="close_modal" class="btn btn-ghost">Cancel</button>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-secondary">
                   <.icon name="hero-check" class="h-4 w-4" /> Save Template
                 </button>
               </div>

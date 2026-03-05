@@ -53,6 +53,31 @@
   box-shadow: none !important;
 }
 
+/* Shared icon behavior for consistent look across pages.
+   Explicit text-* / opacity-* icon classes keep full control. */
+.ui-icon {
+  color: currentColor;
+  vertical-align: middle;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.menu a .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.menu button .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.navbar a .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.navbar [role="button"] .ui-icon:not([class*="text-"]):not([class*="opacity-"]) {
+  opacity: 0.88;
+}
+
+.btn:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.btn:focus-visible .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.menu a:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.menu button:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.navbar a:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.navbar [role="button"]:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]) {
+  opacity: 1;
+}
+
 /* Primary - violet tint */
 .btn-primary {
   --btn-tint: rgba(168, 85, 247, 0.22);
