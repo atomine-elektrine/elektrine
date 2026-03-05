@@ -75,7 +75,11 @@ defmodule ElektrineWeb.ChatLive.Components.ChannelModal do
               <%= for entry <- @uploads.channel_avatar_upload.entries do %>
                 <div class="mt-2 flex items-center gap-2 text-xs">
                   <span class="truncate flex-1">{entry.client_name}</span>
-                  <progress class="progress progress-secondary w-28 h-2" value={entry.progress} max="100">
+                  <progress
+                    class="progress progress-secondary w-28 h-2"
+                    value={entry.progress}
+                    max="100"
+                  >
                   </progress>
                   <button
                     type="button"

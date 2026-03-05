@@ -15,15 +15,6 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     font/woff font/woff2 font/ttf font/otf application/font-woff application/font-woff2
   )
 
-  # Main application hosts where untrusted user static HTML should never be served directly.
-  # Static pages are isolated to profile subdomains to avoid same-origin XSS.
-  @primary_app_hosts ~w(
-    elektrine.com
-    www.elektrine.com
-    z.org
-    www.z.org
-  )
-
   # Content Security Policy for static site HTML
   # Intentionally permissive: static sites are user-controlled content and often depend on
   # third-party scripts/widgets/CDNs. We still keep frame-ancestors locked to 'self' so other
@@ -55,7 +46,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   def init(opts), do: opts
 
-  # Subdomain static site asset serving (e.g., https://handle.z.org/1.jpg)
+  # Subdomain static site asset serving (e.g., https://handle.example.com/1.jpg)
   # ProfileSubdomain assigns :subdomain_handle for static-mode profiles.
   def call(%{assigns: %{subdomain_handle: handle}, request_path: "/" <> asset_path} = conn, _opts)
       when is_binary(handle) and byte_size(handle) > 0 and byte_size(asset_path) > 0 do
@@ -189,7 +180,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   end
 
   defp isolate_static_site_on_subdomain?(conn, handle) do
-    conn.host in @primary_app_hosts and conn.assigns[:subdomain_handle] != handle
+    host = String.downcase(conn.host || "")
+    host in Elektrine.Domains.app_hosts() and conn.assigns[:subdomain_handle] != handle
   end
 
   defp profile_subdomain_url(conn, handle, path) do
@@ -198,8 +190,10 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     "https://#{handle}.#{base_domain}#{path}#{query}"
   end
 
-  defp profile_base_domain(host) when host in ["z.org", "www.z.org"], do: "z.org"
-  defp profile_base_domain(_host), do: "elektrine.com"
+  defp profile_base_domain(host) do
+    Elektrine.Domains.profile_base_domain_for_host(host) ||
+      Elektrine.Domains.primary_profile_domain()
+  end
 
   defp safe_asset_path?(path) do
     # Decode URL-encoded characters first to catch encoded traversal attacks

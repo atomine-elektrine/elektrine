@@ -3,6 +3,8 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
+  alias Elektrine.Domains
+  alias Elektrine.SocialFixtures
   alias Elektrine.System, as: SystemSettings
 
   describe "GET /.well-known/webfinger" do
@@ -18,6 +20,109 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       response = json_response(conn, 200)
       assert response["subject"] =~ user.username
       assert is_list(response["links"])
+    end
+
+    test "returns webfinger for community acct handle", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communityowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "community#{unique}"})
+
+      domain = Elektrine.ActivityPub.instance_domain()
+      resource = "acct:!#{community.name}@#{domain}"
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: resource})
+
+      response = json_response(conn, 200)
+      assert response["subject"] == resource
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "self" and
+                 link["href"] == "#{ActivityPub.instance_url()}/c/#{community.name}"
+             end)
+    end
+
+    test "supports legacy !community@domain webfinger resources", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communitylegacyowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "legacycommunity#{unique}"})
+
+      domain = Elektrine.ActivityPub.instance_domain()
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: "!#{community.name}@#{domain}"})
+
+      response = json_response(conn, 200)
+      assert response["subject"] == "acct:!#{community.name}@#{domain}"
+    end
+
+    test "resolves webfinger on configured non-canonical local domains", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(%{username: "legacydomainuser"})
+
+      instance_domain = ActivityPub.instance_domain()
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      Application.put_env(:elektrine, :profile_base_domains, [instance_domain, "z.org"])
+
+      requested_domain =
+        Domains.activitypub_domains()
+        |> Enum.find(&(&1 != instance_domain))
+
+      assert is_binary(requested_domain)
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: "acct:#{user.username}@#{requested_domain}"})
+
+      response = json_response(conn, 200)
+      assert response["subject"] == "acct:#{user.username}@#{requested_domain}"
+      assert Enum.any?(response["links"], &(&1["rel"] == "self"))
+    end
+
+    test "returns legacy-domain self link when migration domain is configured", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(%{username: "legacywebfingeruser"})
+      instance_domain = ActivityPub.instance_domain()
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains)
+      previous_move_domain = System.get_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+
+        case previous_move_domain do
+          nil -> System.delete_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")
+          value -> System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", value)
+        end
+      end)
+
+      Application.put_env(:elektrine, :profile_base_domains, [instance_domain, "z.org"])
+      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.org")
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: "acct:#{user.username}@z.org"})
+
+      response = json_response(conn, 200)
+      assert response["subject"] == "acct:#{user.username}@z.org"
+
+      legacy_actor_url = "#{ActivityPub.instance_url_for_domain("z.org")}/users/#{user.username}"
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "self" and link["href"] == legacy_actor_url
+             end)
     end
 
     test "returns 404 for non-existent user", %{conn: conn} do
@@ -133,6 +238,60 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert conn.status == 404
     end
+
+    test "returns legacy actor with movedTo on migration domain host", %{conn: conn, user: user} do
+      previous_move_domain = System.get_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")
+
+      on_exit(fn ->
+        case previous_move_domain do
+          nil -> System.delete_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")
+          value -> System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", value)
+        end
+      end)
+
+      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.org")
+
+      conn =
+        %{conn | host: "z.org"}
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      response = json_response(conn, 200)
+
+      assert response["id"] ==
+               "#{ActivityPub.instance_url_for_domain("z.org")}/users/#{user.username}"
+
+      assert response["movedTo"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
+    end
+
+    test "returns canonical actor with alsoKnownAs when migration domain is configured", %{
+      conn: conn,
+      user: user
+    } do
+      previous_move_domain = System.get_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")
+
+      on_exit(fn ->
+        case previous_move_domain do
+          nil -> System.delete_env("ACTIVITYPUB_MOVE_FROM_DOMAIN")
+          value -> System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", value)
+        end
+      end)
+
+      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.org")
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
+      assert is_list(response["alsoKnownAs"])
+
+      assert "#{ActivityPub.instance_url_for_domain("z.org")}/users/#{user.username}" in response[
+               "alsoKnownAs"
+             ]
+    end
   end
 
   describe "GET /users/:username/outbox" do
@@ -239,6 +398,54 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       response = json_response(conn, 200)
       assert response["type"] in ["OrderedCollection", "OrderedCollectionPage"]
+    end
+  end
+
+  describe "GET /c/:name/posts/:id" do
+    setup do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communityposter#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "communityposts#{unique}"})
+
+      post = SocialFixtures.discussion_post_fixture(%{user: owner, community: community})
+      %{community: community, post: post}
+    end
+
+    test "returns community post object", %{conn: conn, community: community, post: post} do
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/c/#{community.name}/posts/#{post.id}")
+
+      response = json_response(conn, 200)
+      community_url = "#{ActivityPub.instance_url()}/c/#{community.name}"
+      post_id = "#{community_url}/posts/#{post.id}"
+
+      assert response["type"] == "Page"
+      assert response["id"] == post_id
+      assert response["audience"] == community_url
+    end
+
+    test "returns create activity wrapper for community post", %{
+      conn: conn,
+      community: community,
+      post: post
+    } do
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/c/#{community.name}/posts/#{post.id}/activity")
+
+      response = json_response(conn, 200)
+      community_url = "#{ActivityPub.instance_url()}/c/#{community.name}"
+      post_id = "#{community_url}/posts/#{post.id}"
+
+      assert response["type"] == "Create"
+      assert response["id"] == "#{post_id}/activity"
+      assert response["actor"] == community_url
+      assert response["object"]["id"] == post_id
     end
   end
 

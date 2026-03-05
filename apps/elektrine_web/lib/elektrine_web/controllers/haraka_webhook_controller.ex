@@ -82,8 +82,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
     case authenticate(conn) do
       :ok ->
         domains =
-          Application.get_env(:elektrine, :email)[:supported_domains] ||
-            ["elektrine.com", "z.org"]
+          Elektrine.Domains.supported_email_domains()
 
         conn |> put_status(:ok) |> json(%{domains: domains})
 
@@ -125,7 +124,16 @@ defmodule ElektrineWeb.HarakaWebhookController do
                   "Security rejection for email from #{params["from"]} (#{duration}ms)"
                 )
               else
-                Logger.error("Failed to process Haraka email: #{inspect(reason)} (#{duration}ms)")
+                if no_mailbox_reason?(reason) do
+                  Logger.warning(
+                    "Failed to process Haraka email: #{inspect(reason)} (#{duration}ms)"
+                  )
+                else
+                  Logger.error(
+                    "Failed to process Haraka email: #{inspect(reason)} (#{duration}ms)"
+                  )
+                end
+
                 raw_attachments = params["attachments"]
 
                 attachment_info =
@@ -143,23 +151,25 @@ defmodule ElektrineWeb.HarakaWebhookController do
                       %{format: inspect(other.__struct__ || "unknown"), count: 0}
                   end
 
-                Sentry.capture_message("Failed to process inbound email",
-                  level:
-                    if reason == :no_mailbox do
-                      :warning
-                    else
-                      :error
-                    end,
-                  extra: %{
-                    reason: inspect(reason),
-                    duration_ms: duration,
-                    to: params["to"],
-                    rcpt_to: params["rcpt_to"],
-                    from: params["from"],
-                    attachment_info: attachment_info,
-                    subject: params["subject"]
-                  }
-                )
+                unless forwarding_failure_reason?(reason) do
+                  Sentry.capture_message("Failed to process inbound email",
+                    level:
+                      if no_mailbox_reason?(reason) do
+                        :warning
+                      else
+                        :error
+                      end,
+                    extra: %{
+                      reason: inspect(reason),
+                      duration_ms: duration,
+                      to: params["to"],
+                      rcpt_to: params["rcpt_to"],
+                      from: params["from"],
+                      attachment_info: attachment_info,
+                      subject: params["subject"]
+                    }
+                  )
+                end
               end
 
               {status_code, error_message} = get_bounce_status(reason)
@@ -478,16 +488,22 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
               {:error, reason} ->
                 forward_duration = System.monotonic_time(:millisecond) - forward_started_at
+                forwarding_reason = forwarding_failure_reason(reason)
 
                 Events.email_outbound(:forward, :failure, forward_duration, %{
                   route: :haraka,
                   source: :alias_forward,
-                  reason: reason
+                  reason: forwarding_reason
                 })
 
-                Logger.error(
+                log_line =
                   "Failed to forward Haraka email to #{target_email}: #{inspect(reason)}. Dashboard: #{admin_dashboard_url()}"
-                )
+
+                if no_mailbox_reason?(forwarding_reason) do
+                  Logger.warning(log_line)
+                else
+                  Logger.error(log_line)
+                end
 
                 capture_forwarding_failure_sentry(
                   reason,
@@ -495,10 +511,11 @@ defmodule ElektrineWeb.HarakaWebhookController do
                   target_email,
                   from,
                   subject,
-                  forward_duration
+                  forward_duration,
+                  forwarding_reason
                 )
 
-                {:error, :forwarding_failed}
+                {:error, forwarding_reason}
             end
 
           {:ok, mailbox} ->
@@ -983,6 +1000,16 @@ defmodule ElektrineWeb.HarakaWebhookController do
     decode_header_with_mail_library(text)
   end
 
+  @doc false
+  def classify_forwarding_failure_public(reason) do
+    forwarding_failure_reason(reason)
+  end
+
+  @doc false
+  def bounce_status_public(reason) do
+    get_bounce_status(reason)
+  end
+
   defp decode_header_with_mail_library(text) do
     HeaderDecoder.decode_mime_header(text)
   end
@@ -1423,12 +1450,13 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp supported_domains do
-    Application.get_env(:elektrine, :email)[:supported_domains] || ["elektrine.com", "z.org"]
+    Elektrine.Domains.supported_email_domains()
   end
 
   defp get_bounce_status(reason) do
     case reason do
       :no_mailbox -> {404, "Mailbox does not exist"}
+      {:forwarding_failed, :no_mailbox} -> {404, "Mailbox does not exist"}
       :invalid_email -> {400, "Invalid recipient address"}
       :haraka_email_routing_validation_failed -> {404, "Mailbox routing validation failed"}
       :security_rejection -> {403, "Message rejected for security reasons"}
@@ -1656,22 +1684,70 @@ defmodule ElektrineWeb.HarakaWebhookController do
          target_email,
          from,
          subject,
-         forward_duration
+         forward_duration,
+         forwarding_reason
        ) do
-    sentry_exception = RuntimeError.exception("Email forwarding failed: #{inspect(reason)}")
+    sentry_extra = %{
+      forward_reason: inspect(reason),
+      forwarding_reason: inspect(forwarding_reason),
+      alias_email: alias_email,
+      target_email: target_email,
+      original_from: from,
+      subject: subject,
+      forward_duration_ms: forward_duration,
+      dashboard_url: admin_dashboard_url()
+    }
 
-    Sentry.capture_exception(sentry_exception,
-      stacktrace: current_stacktrace(),
-      extra: %{
-        forward_reason: inspect(reason),
-        alias_email: alias_email,
-        target_email: target_email,
-        original_from: from,
-        subject: subject,
-        forward_duration_ms: forward_duration,
-        dashboard_url: admin_dashboard_url()
-      }
-    )
+    if no_mailbox_reason?(forwarding_reason) do
+      Sentry.capture_message("Email forwarding rejected: mailbox does not exist",
+        level: :warning,
+        extra: sentry_extra
+      )
+    else
+      sentry_exception = RuntimeError.exception("Email forwarding failed: #{inspect(reason)}")
+
+      Sentry.capture_exception(sentry_exception,
+        stacktrace: current_stacktrace(),
+        extra: sentry_extra
+      )
+    end
+  end
+
+  defp forwarding_failure_reason(reason) do
+    if no_mailbox_reason?(reason) do
+      {:forwarding_failed, :no_mailbox}
+    else
+      :forwarding_failed
+    end
+  end
+
+  defp forwarding_failure_reason?(reason) do
+    case reason do
+      :forwarding_failed -> true
+      {:forwarding_failed, _} -> true
+      _ -> false
+    end
+  end
+
+  defp no_mailbox_reason?(reason) do
+    case reason do
+      :no_mailbox ->
+        true
+
+      {:forwarding_failed, :no_mailbox} ->
+        true
+
+      reason when is_binary(reason) ->
+        downcased_reason = String.downcase(reason)
+
+        String.contains?(downcased_reason, "mailbox does not exist") ||
+          String.contains?(downcased_reason, "user unknown") ||
+          String.contains?(downcased_reason, "unknown user") ||
+          String.contains?(downcased_reason, "no such user")
+
+      _ ->
+        false
+    end
   end
 
   defp current_stacktrace do

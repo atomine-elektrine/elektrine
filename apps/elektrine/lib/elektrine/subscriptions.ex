@@ -146,7 +146,7 @@ defmodule Elektrine.Subscriptions do
 
   defp create_stripe_customer(user, product, existing_subscription) do
     customer_params = %{
-      email: "#{user.username}@z.org",
+      email: "#{user.username}@#{Elektrine.Domains.default_user_handle_domain()}",
       name: user.display_name || user.username,
       metadata: %{
         user_id: to_string(user.id),

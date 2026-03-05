@@ -10,8 +10,12 @@ defmodule Elektrine.ActivityPub.Builder do
   @doc """
   Builds an Actor document for a user.
   """
-  def build_actor(%User{} = user) do
-    base_url = ActivityPub.instance_url()
+  def build_actor(%User{} = user), do: build_actor(user, %{})
+
+  def build_actor(%User{} = user, opts) when is_map(opts) do
+    base_url = Map.get(opts, :base_url, ActivityPub.instance_url())
+    moved_to = Map.get(opts, :moved_to)
+    also_known_as = Map.get(opts, :also_known_as, [])
     actor_url = "#{base_url}/users/#{user.username}"
 
     %{
@@ -33,7 +37,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "manuallyApprovesFollowers" => user.activitypub_manually_approve_followers || false,
       "discoverable" => user.profile_visibility == "public",
       "icon" => build_icon(user),
-      "image" => build_header_image(user),
+      "image" => build_header_image(user, base_url),
       "publicKey" => %{
         "id" => "#{actor_url}#main-key",
         "owner" => actor_url,
@@ -43,6 +47,8 @@ defmodule Elektrine.ActivityPub.Builder do
         "sharedInbox" => "#{base_url}/inbox"
       }
     }
+    |> maybe_put("movedTo", moved_to)
+    |> maybe_put_list("alsoKnownAs", also_known_as)
   end
 
   defp build_user_summary(user) do
@@ -69,7 +75,7 @@ defmodule Elektrine.ActivityPub.Builder do
     end
   end
 
-  defp build_header_image(user) do
+  defp build_header_image(user, base_url) do
     # Check if user has a banner image
     case user.profile do
       %Ecto.Association.NotLoaded{} ->
@@ -87,7 +93,7 @@ defmodule Elektrine.ActivityPub.Builder do
             if String.starts_with?(banner, "http") do
               banner
             else
-              "#{ActivityPub.instance_url()}#{banner}"
+              "#{base_url}#{banner}"
             end
 
           %{
@@ -555,6 +561,27 @@ defmodule Elektrine.ActivityPub.Builder do
   end
 
   @doc """
+  Builds a Move activity for account migration.
+  """
+  def build_move_activity(%User{}, old_actor_uri, new_actor_uri)
+      when is_binary(old_actor_uri) and is_binary(new_actor_uri) do
+    base_url = actor_base_url_from_uri(old_actor_uri) || ActivityPub.instance_url()
+    activity_id = "#{base_url}/activities/#{Ecto.UUID.generate()}"
+
+    %{
+      "@context" => "https://www.w3.org/ns/activitystreams",
+      "id" => activity_id,
+      "type" => "Move",
+      "actor" => old_actor_uri,
+      "object" => old_actor_uri,
+      "target" => new_actor_uri,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => ["#{old_actor_uri}/followers"],
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+  end
+
+  @doc """
   Builds an Accept activity (for accepting follows).
   """
   def build_accept_activity(%User{} = user, follow_activity) do
@@ -764,6 +791,42 @@ defmodule Elektrine.ActivityPub.Builder do
       activity
     end
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_put_list(map, _key, values) when values in [nil, []], do: map
+
+  defp maybe_put_list(map, key, values) when is_list(values) do
+    normalized =
+      values
+      |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+      |> Enum.uniq()
+
+    if normalized == [] do
+      map
+    else
+      Map.put(map, key, normalized)
+    end
+  end
+
+  defp actor_base_url_from_uri(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{scheme: scheme, host: host, port: port}
+      when scheme in ["http", "https"] and is_binary(host) ->
+        if is_nil(port) do
+          "#{scheme}://#{host}"
+        else
+          "#{scheme}://#{host}:#{port}"
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp actor_base_url_from_uri(_), do: nil
 
   # Walk up the reply chain to find community_actor_uri (for Lemmy posts)
   # This ensures replies to replies in a Lemmy thread have the correct audience

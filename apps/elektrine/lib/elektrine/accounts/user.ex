@@ -4,6 +4,9 @@ defmodule Elektrine.Accounts.User do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
+  @default_preferred_email_domain Application.compile_env(:elektrine, :email, [])
+                                  |> Keyword.get(:domain, "elektrine.com")
+
   schema "users" do
     # Authentication
     field :username, :string
@@ -90,7 +93,7 @@ defmodule Elektrine.Accounts.User do
 
     # Email Settings
     field :email_signature, :string
-    field :preferred_email_domain, :string, default: "z.org"
+    field :preferred_email_domain, :string, default: @default_preferred_email_domain
 
     # Email Sending Restrictions (anti-spam)
     field :email_sending_restricted, :boolean, default: false
@@ -347,8 +350,10 @@ defmodule Elektrine.Accounts.User do
     |> validate_inclusion(:default_post_visibility, ["public", "followers", "friends", "private"])
     |> validate_inclusion(:locale, ~w(en zh), message: "is not a supported locale")
     |> validate_inclusion(:time_format, ~w(12 24), message: "must be 12 or 24")
-    |> validate_inclusion(:preferred_email_domain, ~w(elektrine.com z.org),
-      message: "must be elektrine.com or z.org"
+    |> validate_inclusion(
+      :preferred_email_domain,
+      Elektrine.Domains.supported_email_domains(),
+      message: "must be one of the configured domains"
     )
     |> validate_bluesky_settings()
   end
@@ -578,7 +583,7 @@ defmodule Elektrine.Accounts.User do
 
     if username do
       # Check if this username would conflict with existing aliases on our domains
-      allowed_domains = ["elektrine.com", "z.org"]
+      allowed_domains = Elektrine.Domains.supported_email_domains()
 
       # Check each domain for conflicts (case-insensitive)
       conflicts =

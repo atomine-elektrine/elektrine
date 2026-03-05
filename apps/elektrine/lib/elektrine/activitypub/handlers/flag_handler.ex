@@ -113,39 +113,36 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandler do
   defp user_uri?(nil), do: false
 
   defp user_uri?(uri) do
-    base_url = ActivityPub.instance_url()
-    String.starts_with?(uri, "#{base_url}/users/")
+    match?({:ok, _username}, ActivityPub.local_username_from_uri(uri))
   end
 
   defp find_local_users(uris) do
-    base_url = ActivityPub.instance_url()
-
     uris
     |> Enum.filter(& &1)
     |> Enum.map(fn uri ->
-      if String.starts_with?(uri, "#{base_url}/users/") do
-        username = String.replace_prefix(uri, "#{base_url}/users/", "")
-        Accounts.get_user_by_username(username)
+      case ActivityPub.local_username_from_uri(uri) do
+        {:ok, username} -> Accounts.get_user_by_username(username)
+        _ -> nil
       end
     end)
     |> Enum.filter(& &1)
   end
 
   defp find_local_messages(uris) do
-    base_url = ActivityPub.instance_url()
-
     uris
     |> Enum.filter(& &1)
     |> Enum.flat_map(fn uri ->
+      local_path = local_path_if_local_domain(uri)
+
       cond do
         # Format: /posts/{id}
-        String.starts_with?(uri, "#{base_url}/posts/") ->
-          id_str = String.replace_prefix(uri, "#{base_url}/posts/", "")
+        is_binary(local_path) and String.starts_with?(local_path, "/posts/") ->
+          id_str = String.replace_prefix(local_path, "/posts/", "")
           get_message_by_id_string(id_str)
 
         # Format: /users/{username}/statuses/{id}
-        String.match?(uri, ~r{#{base_url}/users/[^/]+/statuses/}) ->
-          id_str = uri |> String.split("/statuses/") |> List.last()
+        is_binary(local_path) and String.match?(local_path, ~r{^/users/[^/]+/statuses/}) ->
+          id_str = local_path |> String.split("/statuses/") |> List.last()
           get_message_by_id_string(id_str)
 
         # Check by activitypub_id
@@ -157,6 +154,22 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandler do
       end
     end)
   end
+
+  defp local_path_if_local_domain(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host, path: path} when is_binary(host) and is_binary(path) ->
+        if Elektrine.Domains.local_activitypub_domain?(String.downcase(host)) do
+          path
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp local_path_if_local_domain(_), do: nil
 
   # Safely parse ID string and fetch message
   defp get_message_by_id_string(id_str) do

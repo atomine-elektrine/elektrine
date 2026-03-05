@@ -224,15 +224,15 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert response["error"] =~ "Mailbox"
     end
 
-    test "handles z.org domain in rcpt_to for mailing lists", %{conn: conn} do
-      # Create a z.org mailbox
+    test "handles elektrine.net domain in rcpt_to for mailing lists", %{conn: conn} do
+      # Create a elektrine.net mailbox
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "zorguser@z.org"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "zorguser@elektrine.net"})
 
       params = %{
         "from" => "sender@lists.debian.org",
         "to" => "debian-announce@lists.debian.org",
-        "rcpt_to" => "zorguser@z.org",
+        "rcpt_to" => "zorguser@elektrine.net",
         "subject" => "Debian announcement",
         "text_body" => "Important announcement",
         "message_id" => "test-zorg-#{System.system_time(:millisecond)}"
@@ -369,6 +369,30 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     end
   end
 
+  describe "forwarding failure classification" do
+    test "classifies mailbox-not-found forwarding failures as permanent" do
+      reason =
+        "Haraka HTTP API returned status 400: HTTP 404: {\"error\":\"Mailbox does not exist\",\"bounce\":true,\"processing_time_ms\":195}"
+
+      assert ElektrineWeb.HarakaWebhookController.classify_forwarding_failure_public(reason) ==
+               {:forwarding_failed, :no_mailbox}
+
+      assert ElektrineWeb.HarakaWebhookController.bounce_status_public(
+               {:forwarding_failed, :no_mailbox}
+             ) == {404, "Mailbox does not exist"}
+    end
+
+    test "keeps non-mailbox forwarding failures as retryable failures" do
+      reason = "Haraka HTTP API returned status 503: upstream timeout"
+
+      assert ElektrineWeb.HarakaWebhookController.classify_forwarding_failure_public(reason) ==
+               :forwarding_failed
+
+      assert ElektrineWeb.HarakaWebhookController.bounce_status_public(:forwarding_failed) ==
+               {503, "Temporary server error: :forwarding_failed"}
+    end
+  end
+
   describe "verify_recipient endpoint" do
     setup do
       user = user_fixture()
@@ -389,9 +413,9 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       conn =
         conn
         |> auth_conn()
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@z.org"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@elektrine.net"})
 
-      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@z.org"}
+      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@elektrine.net"}
     end
 
     test "returns exists: false for non-existing mailbox", %{conn: conn} do
@@ -437,7 +461,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "dev-list@lists.example.org",
-        "rcpt_to" => "asyncuser@z.org",
+        "rcpt_to" => "asyncuser@elektrine.net",
         "subject" => "Async ingest metadata test",
         "text_body" => "payload body",
         "message_id" => "async-metadata-#{System.system_time(:millisecond)}"
@@ -464,7 +488,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
 
       assert length(messages) == 1
       [message] = messages
-      assert message.metadata["envelope_rcpt_to"] == "asyncuser@z.org"
+      assert message.metadata["envelope_rcpt_to"] == "asyncuser@elektrine.net"
       assert message.metadata["ingest_mode"] == "async"
       assert is_binary(message.metadata["ingest_idempotency_key"])
     end
@@ -475,7 +499,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "updates@lists.example.org",
-        "rcpt_to" => "asyncuser@z.org",
+        "rcpt_to" => "asyncuser@elektrine.net",
         "subject" => "Duplicate async payload",
         "text_body" => "same body",
         "message_id" => "async-dup-#{unique_suffix}"
@@ -647,17 +671,17 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   end
 
   describe "cross-domain mailing lists" do
-    test "delivers mailing list email to elektrine.com user from z.org rcpt_to format", %{
+    test "delivers mailing list email to elektrine.com user from elektrine.net rcpt_to format", %{
       conn: conn
     } do
-      # User has elektrine.com mailbox but could receive via z.org address
+      # User has elektrine.com mailbox but could receive via elektrine.net address
       user = user_fixture()
       mailbox = mailbox_fixture(%{user_id: user.id, email: "crossdomain@elektrine.com"})
 
       params = %{
         "from" => "list-owner@lists.example.org",
         "to" => "discussion@lists.example.org",
-        "rcpt_to" => "crossdomain@z.org",
+        "rcpt_to" => "crossdomain@elektrine.net",
         "subject" => "Cross domain test",
         "text_body" => "Testing cross domain delivery",
         "message_id" => "test-cross-#{System.system_time(:millisecond)}"
@@ -680,16 +704,19 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert length(messages) == 1
     end
 
-    test "verify endpoint accepts z.org address for elektrine.com mailbox", %{conn: conn} do
+    test "verify endpoint accepts elektrine.net address for elektrine.com mailbox", %{conn: conn} do
       user = user_fixture()
       _mailbox = mailbox_fixture(%{user_id: user.id, email: "crossverify@elektrine.com"})
 
       conn =
         conn
         |> auth_conn()
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "crossverify@z.org"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "crossverify@elektrine.net"})
 
-      assert json_response(conn, 200) == %{"exists" => true, "email" => "crossverify@z.org"}
+      assert json_response(conn, 200) == %{
+               "exists" => true,
+               "email" => "crossverify@elektrine.net"
+             }
     end
   end
 
@@ -924,7 +951,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert is_list(response["domains"])
       # Should include built-in domains
       assert "elektrine.com" in response["domains"]
-      assert "z.org" in response["domains"]
+      assert "elektrine.net" in response["domains"]
     end
 
     test "rejects request without API key", %{conn: conn} do

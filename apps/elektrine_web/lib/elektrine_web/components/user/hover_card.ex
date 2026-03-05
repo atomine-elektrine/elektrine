@@ -108,7 +108,9 @@ defmodule ElektrineWeb.Components.User.HoverCard do
               class="font-semibold"
             />
           </.link>
-          <div class="text-sm opacity-60 truncate">@{@user.handle || @user.username}@z.org</div>
+          <div class="text-sm opacity-60 truncate">
+            @{@user.handle || @user.username}@{Elektrine.Domains.default_user_handle_domain()}
+          </div>
         </div>
       </div>
       

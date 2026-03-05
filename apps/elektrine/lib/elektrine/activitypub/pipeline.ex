@@ -12,6 +12,7 @@ defmodule Elektrine.ActivityPub.Pipeline do
     DeleteHandler,
     FollowHandler,
     LikeHandler,
+    MoveHandler,
     UpdateHandler
   }
 
@@ -101,6 +102,10 @@ defmodule Elektrine.ActivityPub.Pipeline do
 
   def handle_activity(%{"type" => "Announce"} = activity, actor_uri, target_user) do
     AnnounceHandler.handle(activity, actor_uri, target_user)
+  end
+
+  def handle_activity(%{"type" => "Move"} = activity, actor_uri, target_user) do
+    MoveHandler.handle(activity, actor_uri, target_user)
   end
 
   def handle_activity(%{"type" => "Undo"} = activity, actor_uri, target_user) do

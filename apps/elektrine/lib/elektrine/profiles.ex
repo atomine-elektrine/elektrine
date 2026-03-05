@@ -48,7 +48,7 @@ defmodule Elektrine.Profiles do
 
   @doc """
   Gets a public user profile by the user's handle.
-  Used for subdomain profile lookups (e.g., handle.z.org).
+  Used for subdomain profile lookups (e.g., handle.example.com).
   """
   def get_profile_by_handle(handle) do
     links_query = from(l in ProfileLink, where: l.is_active == true, order_by: l.position)
@@ -887,21 +887,21 @@ defmodule Elektrine.Profiles do
            actor_type: "Group"
          } = remote_actor
        ) do
-    with {:ok, mirror} <-
-           Elektrine.Messaging.FederatedCommunities.create_or_get_mirror_community(remote_actor) do
-      case Elektrine.Messaging.join_conversation(mirror.id, user_id) do
-        {:ok, _member} ->
-          :ok
+    case Elektrine.Messaging.FederatedCommunities.create_or_get_mirror_community(remote_actor) do
+      {:ok, mirror} ->
+        case Elektrine.Messaging.join_conversation(mirror.id, user_id) do
+          {:ok, _member} ->
+            :ok
 
-        {:error, :already_member} ->
-          :ok
+          {:error, :already_member} ->
+            :ok
 
-        {:error, reason} ->
-          Logger.warning(
-            "Failed to auto-join mirror community #{mirror.id} for remote group #{remote_actor.uri}: #{inspect(reason)}"
-          )
-      end
-    else
+          {:error, reason} ->
+            Logger.warning(
+              "Failed to auto-join mirror community #{mirror.id} for remote group #{remote_actor.uri}: #{inspect(reason)}"
+            )
+        end
+
       {:error, reason} ->
         Logger.warning(
           "Failed to create/get mirror community for remote group #{remote_actor.uri}: #{inspect(reason)}"

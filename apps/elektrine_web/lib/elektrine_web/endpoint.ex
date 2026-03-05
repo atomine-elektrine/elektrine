@@ -22,7 +22,7 @@ defmodule ElektrineWeb.Endpoint do
       extra: "SameSite=Lax"
     ]
 
-    # Intentionally host-only (no Domain=.z.org) to isolate user subdomains from app sessions.
+    # Intentionally host-only (no Domain=.example.com) to isolate user subdomains from app sessions.
     case encryption_salt do
       nil -> base_opts
       value -> Keyword.put(base_opts, :encryption_salt, value)

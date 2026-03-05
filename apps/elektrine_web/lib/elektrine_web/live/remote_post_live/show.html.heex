@@ -635,12 +635,17 @@
                         <% else %>
                           <div class={[
                             "rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center",
-                            if(@is_community_post, do: "w-8 h-8 sm:w-10 sm:h-10", else: "w-12 h-12")
+                            if(@is_community_post,
+                              do: "w-8 h-8 sm:w-10 sm:h-10",
+                              else: "w-12 h-12"
+                            )
                           ]}>
                             <.icon
                               name="hero-user"
                               class={
-                                if @is_community_post, do: "w-4 h-4 sm:w-5 sm:h-5", else: "w-6 h-6"
+                                if @is_community_post,
+                                  do: "w-4 h-4 sm:w-5 sm:h-5",
+                                  else: "w-6 h-6"
                               }
                             />
                           </div>
@@ -669,7 +674,9 @@
                                 !{@community_actor.username}
                               </.link>
                             <% else %>
-                              <span class="text-secondary font-medium text-sm opacity-60">!community</span>
+                              <span class="text-secondary font-medium text-sm opacity-60">
+                                !community
+                              </span>
                             <% end %>
                           <% end %>
                         </div>

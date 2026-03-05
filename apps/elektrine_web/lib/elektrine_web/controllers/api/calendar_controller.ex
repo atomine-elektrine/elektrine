@@ -10,6 +10,7 @@ defmodule ElektrineWeb.API.CalendarController do
   alias Elektrine.Calendar.Calendar, as: CalendarSchema
   alias Elektrine.Calendar.Event, as: EventSchema
   alias Elektrine.Repo
+  alias ElektrineWeb.API.Response
 
   action_fallback ElektrineWeb.FallbackController
 
@@ -20,9 +21,7 @@ defmodule ElektrineWeb.API.CalendarController do
     user = conn.assigns.current_user
     calendars = CalendarContext.list_calendars(user.id)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{calendars: Enum.map(calendars, &format_calendar/1)})
+    Response.ok(conn, %{calendars: Enum.map(calendars, &format_calendar/1)})
   end
 
   @doc """
@@ -34,9 +33,7 @@ defmodule ElektrineWeb.API.CalendarController do
 
     case CalendarContext.create_calendar(attrs) do
       {:ok, calendar} ->
-        conn
-        |> put_status(:created)
-        |> json(%{calendar: format_calendar(calendar)})
+        Response.created(conn, %{calendar: format_calendar(calendar)})
 
       {:error, changeset} ->
         {:error, changeset}
@@ -48,27 +45,49 @@ defmodule ElektrineWeb.API.CalendarController do
   """
   def events(conn, %{"id" => id} = params) do
     user = conn.assigns.current_user
+    limit = parse_positive_int(params["limit"], 100) |> min(500)
+    offset = parse_non_negative_int(params["offset"], 0)
 
     with {:ok, calendar} <- get_user_calendar(user.id, id),
          {:ok, range_mode, start_dt, end_dt} <- parse_range(params) do
-      events =
+      all_events =
         case range_mode do
           :all -> CalendarContext.list_events(calendar.id)
           :range -> CalendarContext.list_events_in_range(calendar.id, start_dt, end_dt)
         end
 
-      conn
-      |> put_status(:ok)
-      |> json(%{
-        calendar: format_calendar(calendar),
-        events: Enum.map(events, &format_event/1)
-      })
+      events = all_events |> Enum.drop(offset) |> Enum.take(limit)
+
+      Response.ok(
+        conn,
+        %{
+          calendar: format_calendar(calendar),
+          events: Enum.map(events, &format_event/1)
+        },
+        %{
+          pagination: %{
+            limit: limit,
+            offset: offset,
+            total_count: length(all_events)
+          }
+        }
+      )
     else
       {:error, :invalid_range} ->
-        bad_request(conn, "Invalid date range. Use ISO8601 start/end values.")
+        Response.error(
+          conn,
+          :bad_request,
+          "invalid_range",
+          "Invalid date range. Use ISO8601 start/end values."
+        )
 
       {:error, :partial_range} ->
-        bad_request(conn, "Both start and end are required when filtering by range.")
+        Response.error(
+          conn,
+          :bad_request,
+          "partial_range",
+          "Both start and end are required when filtering by range."
+        )
 
       {:error, reason} ->
         {:error, reason}
@@ -86,9 +105,7 @@ defmodule ElektrineWeb.API.CalendarController do
 
       case CalendarContext.create_event(attrs) do
         {:ok, event} ->
-          conn
-          |> put_status(:created)
-          |> json(%{event: format_event(event)})
+          Response.created(conn, %{event: format_event(event)})
 
         {:error, changeset} ->
           {:error, changeset}
@@ -105,9 +122,7 @@ defmodule ElektrineWeb.API.CalendarController do
     with {:ok, event} <- get_user_event(user.id, id) do
       case CalendarContext.update_event(event, event_payload(params)) do
         {:ok, updated_event} ->
-          conn
-          |> put_status(:ok)
-          |> json(%{event: format_event(updated_event)})
+          Response.ok(conn, %{event: format_event(updated_event)})
 
         {:error, changeset} ->
           {:error, changeset}
@@ -123,9 +138,7 @@ defmodule ElektrineWeb.API.CalendarController do
 
     with {:ok, event} <- get_user_event(user.id, id),
          {:ok, _deleted_event} <- CalendarContext.delete_event(event) do
-      conn
-      |> put_status(:ok)
-      |> json(%{message: "Event deleted"})
+      Response.ok(conn, %{message: "Event deleted"})
     end
   end
 
@@ -236,11 +249,27 @@ defmodule ElektrineWeb.API.CalendarController do
 
   defp parse_id(_), do: :error
 
-  defp bad_request(conn, message) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: message})
+  defp parse_positive_int(value, _default) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> default
+    end
   end
+
+  defp parse_positive_int(_, default), do: default
+
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0, do: value
+
+  defp parse_non_negative_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int >= 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_non_negative_int(_, default), do: default
 
   defp format_calendar(calendar) do
     %{

@@ -28,7 +28,13 @@ defmodule Elektrine.Messaging.FederationPresenceState do
       :server_id,
       :remote_actor_id
     ])
-    |> validate_required([:origin_domain, :status, :updated_at_remote, :server_id, :remote_actor_id])
+    |> validate_required([
+      :origin_domain,
+      :status,
+      :updated_at_remote,
+      :server_id,
+      :remote_actor_id
+    ])
     |> validate_length(:origin_domain, max: 255)
     |> validate_inclusion(:status, @valid_statuses)
     |> foreign_key_constraint(:server_id)

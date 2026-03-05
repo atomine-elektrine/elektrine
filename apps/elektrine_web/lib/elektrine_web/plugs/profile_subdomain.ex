@@ -2,7 +2,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   @moduledoc """
   Extracts a user handle from supported profile subdomains for profile pages.
 
-  Subdomains use handles (e.g., maxfield.z.org or maxfield.elektrine.com where
+  Subdomains use handles (e.g., maxfield.example.com where
   "maxfield" is the user's handle).
   The subdomain serves the profile page at root (/). Most other paths redirect to the main domain.
 
@@ -34,8 +34,6 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
     cdn
     images
   )
-  @profile_base_domains ~w(z.org elektrine.com)
-
   def init(opts), do: opts
 
   def call(conn, _opts) do
@@ -104,7 +102,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
     end
   end
 
-  # Extract the handle from a subdomain like "maxfield.z.org" or "maxfield.elektrine.com"
+  # Extract the handle from a subdomain like "maxfield.example.com"
   defp extract_handle(host) do
     case profile_base_domain(host) do
       nil ->
@@ -169,7 +167,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   defp profile_subdomain_host?(_), do: false
 
   defp profile_base_domain(host) when is_binary(host) do
-    Enum.find(@profile_base_domains, fn base_domain ->
+    Enum.find(Elektrine.Domains.profile_base_domains(), fn base_domain ->
       String.ends_with?(host, ".#{base_domain}")
     end)
   end

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.WebFingerController do
 
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub
+  alias Elektrine.Domains
 
   @doc """
   WebFinger endpoint for user and community discovery.
@@ -14,11 +15,11 @@ defmodule ElektrineWeb.WebFingerController do
   """
   def webfinger(conn, %{"resource" => resource}) do
     case parse_resource(resource) do
-      {:ok, :user, username} ->
-        handle_user_lookup(conn, username)
+      {:ok, :user, username, requested_domain} ->
+        handle_user_lookup(conn, username, requested_domain)
 
-      {:ok, :community, community_name} ->
-        handle_community_lookup(conn, community_name)
+      {:ok, :community, community_name, requested_domain} ->
+        handle_community_lookup(conn, community_name, requested_domain)
 
       {:error, :invalid_resource} ->
         conn
@@ -54,11 +55,15 @@ defmodule ElektrineWeb.WebFingerController do
   end
 
   defp parse_resource("acct:" <> acct) do
-    # Format: acct:username@domain.com (user accounts)
+    # Format:
+    # - acct:username@domain.com (users)
+    # - acct:!community@domain.com (communities, Lemmy/PieFed style)
     case String.split(acct, "@") do
-      [username, domain] ->
-        if domain == ActivityPub.instance_domain() do
-          {:ok, :user, username}
+      [username_or_community, domain] ->
+        requested_domain = normalize_domain(domain)
+
+        if Domains.local_activitypub_domain?(requested_domain) do
+          parse_local_acct_identifier(username_or_community, requested_domain)
         else
           {:error, :invalid_resource}
         end
@@ -76,8 +81,10 @@ defmodule ElektrineWeb.WebFingerController do
 
       case String.split(community_acct, "@") do
         [community_name, domain] ->
-          if domain == ActivityPub.instance_domain() do
-            {:ok, :community, community_name}
+          requested_domain = normalize_domain(domain)
+
+          if Domains.local_activitypub_domain?(requested_domain) do
+            {:ok, :community, community_name, requested_domain}
           else
             {:error, :invalid_resource}
           end
@@ -90,7 +97,19 @@ defmodule ElektrineWeb.WebFingerController do
     end
   end
 
-  defp handle_user_lookup(conn, username) do
+  defp parse_local_acct_identifier("!" <> community_name, requested_domain)
+       when community_name != "" do
+    {:ok, :community, community_name, requested_domain}
+  end
+
+  defp parse_local_acct_identifier(username, requested_domain)
+       when is_binary(username) and username != "" do
+    {:ok, :user, username, requested_domain}
+  end
+
+  defp parse_local_acct_identifier(_, _), do: {:error, :invalid_resource}
+
+  defp handle_user_lookup(conn, username, requested_domain) do
     case Accounts.get_user_by_username(username) do
       nil ->
         conn
@@ -100,7 +119,7 @@ defmodule ElektrineWeb.WebFingerController do
       user ->
         # Check if user has federation enabled
         if user.activitypub_enabled do
-          render_webfinger(conn, user)
+          render_webfinger(conn, user, requested_domain)
         else
           conn
           |> put_status(:not_found)
@@ -109,7 +128,7 @@ defmodule ElektrineWeb.WebFingerController do
     end
   end
 
-  defp handle_community_lookup(conn, community_name) do
+  defp handle_community_lookup(conn, community_name, requested_domain) do
     case Elektrine.Messaging.get_conversation_by_name(community_name) do
       nil ->
         conn
@@ -118,7 +137,7 @@ defmodule ElektrineWeb.WebFingerController do
 
       community ->
         if community.type == "community" && community.is_public do
-          render_community_webfinger(conn, community)
+          render_community_webfinger(conn, community, requested_domain)
         else
           conn
           |> put_status(:not_found)
@@ -127,11 +146,12 @@ defmodule ElektrineWeb.WebFingerController do
     end
   end
 
-  defp render_webfinger(conn, user) do
-    base_url = ActivityPub.instance_url()
+  defp render_webfinger(conn, user, requested_domain) do
+    base_url = webfinger_base_url(requested_domain)
     actor_url = "#{base_url}/users/#{user.username}"
     profile_url = "#{base_url}/#{user.handle}"
-    subject = "acct:#{user.username}@#{ActivityPub.instance_domain()}"
+    subject_domain = requested_domain || ActivityPub.instance_domain()
+    subject = "acct:#{user.username}@#{subject_domain}"
 
     links = [
       %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: profile_url},
@@ -152,12 +172,13 @@ defmodule ElektrineWeb.WebFingerController do
     end
   end
 
-  defp render_community_webfinger(conn, community) do
-    base_url = ActivityPub.instance_url()
+  defp render_community_webfinger(conn, community, requested_domain) do
+    base_url = webfinger_base_url(requested_domain)
     community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
     actor_url = "#{base_url}/c/#{community_slug}"
     web_url = "#{base_url}/communities/#{community.name}"
-    subject = "!#{community.name}@#{ActivityPub.instance_domain()}"
+    subject_domain = requested_domain || ActivityPub.instance_domain()
+    subject = "acct:!#{community.name}@#{subject_domain}"
 
     links = [
       %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: web_url},
@@ -238,5 +259,29 @@ defmodule ElektrineWeb.WebFingerController do
     |> String.replace(">", "&gt;")
     |> String.replace("\"", "&quot;")
     |> String.replace("'", "&apos;")
+  end
+
+  defp normalize_domain(domain) when is_binary(domain) do
+    domain
+    |> String.trim()
+    |> String.downcase()
+    |> String.trim_leading("www.")
+  end
+
+  defp webfinger_base_url(requested_domain) do
+    requested = normalize_domain(requested_domain || "")
+    move_from_domain = Domains.activitypub_move_from_domain()
+    canonical_domain = ActivityPub.instance_domain()
+
+    cond do
+      requested != "" and requested == move_from_domain ->
+        ActivityPub.instance_url_for_domain(requested)
+
+      requested != "" and requested == canonical_domain ->
+        ActivityPub.instance_url()
+
+      true ->
+        ActivityPub.instance_url()
+    end
   end
 end

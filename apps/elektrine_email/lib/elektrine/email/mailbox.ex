@@ -1,6 +1,6 @@
 defmodule Elektrine.Email.Mailbox do
   @moduledoc """
-  Schema for email mailboxes supporting both elektrine.com and z.org domains.
+  Schema for email mailboxes supporting configured local domains.
   Handles domain-agnostic username-based email addresses with forwarding capabilities.
   """
   use Ecto.Schema
@@ -22,17 +22,17 @@ defmodule Elektrine.Email.Mailbox do
 
   @doc """
   Gets all primary email addresses for this mailbox.
-  Returns both elektrine.com and z.org versions.
+  Returns all configured local-domain variants for the mailbox username.
   """
   def get_all_emails(%__MODULE__{username: username}) when is_binary(username) do
-    ["#{username}@elektrine.com", "#{username}@z.org"]
+    Elektrine.Domains.local_addresses_for_username(username)
   end
 
   def get_all_emails(%__MODULE__{email: email}) when is_binary(email) do
     # Fallback for legacy mailboxes without username field
-    case String.split(email, "@") do
+    case String.split(email, "@", parts: 2) do
       [username, _domain] ->
-        ["#{username}@elektrine.com", "#{username}@z.org"]
+        Elektrine.Domains.local_addresses_for_username(username)
 
       _ ->
         [email]
@@ -89,12 +89,12 @@ defmodule Elektrine.Email.Mailbox do
 
   @doc """
   Creates a domain-agnostic mailbox for a user.
-  Uses elektrine.com as the primary email but stores the username for domain-agnostic lookup.
-  Both elektrine.com and z.org addresses will resolve to this same mailbox.
+  Uses the configured primary email domain as storage but keeps username for domain-agnostic lookup.
+  All configured local-domain addresses will resolve to this same mailbox.
   """
   def create_for_user(user, _domain \\ nil) do
-    # Always use elektrine.com as primary email for storage, but store username for domain-agnostic access
-    primary_domain = "elektrine.com"
+    # Always use configured primary domain for storage, but keep username for domain-agnostic access.
+    primary_domain = Elektrine.Domains.primary_email_domain()
     email = "#{user.username}@#{primary_domain}"
 
     %Elektrine.Email.Mailbox{}
@@ -133,7 +133,7 @@ defmodule Elektrine.Email.Mailbox do
       # Check both email and username@domain variants
       mailbox_addresses =
         if username do
-          ["#{username}@elektrine.com", "#{username}@z.org"]
+          Elektrine.Domains.local_addresses_for_username(username)
         else
           [email]
         end
@@ -158,7 +158,7 @@ defmodule Elektrine.Email.Mailbox do
       # Get all addresses for this mailbox
       original_addresses =
         if username do
-          ["#{username}@elektrine.com", "#{username}@z.org"]
+          Elektrine.Domains.local_addresses_for_username(username)
         else
           [email]
         end
@@ -234,21 +234,27 @@ defmodule Elektrine.Email.Mailbox do
               _ ->
                 # Also check by username (domain-agnostic)
                 case String.split(target, "@") do
-                  [target_username, target_domain]
-                  when target_domain in ["elektrine.com", "z.org"] ->
-                    case Elektrine.Repo.get_by(Elektrine.Email.Mailbox, username: target_username) do
-                      %Elektrine.Email.Mailbox{forward_enabled: true, forward_to: next_target}
-                      when is_binary(next_target) and next_target != "" ->
-                        detect_mailbox_forwarding_loop(
-                          next_target,
-                          originals,
-                          [target | visited],
-                          depth - 1
-                        )
+                  [target_username, target_domain] ->
+                    if Elektrine.Domains.local_email_domain?(target_domain) do
+                      case Elektrine.Repo.get_by(Elektrine.Email.Mailbox,
+                             username: target_username
+                           ) do
+                        %Elektrine.Email.Mailbox{forward_enabled: true, forward_to: next_target}
+                        when is_binary(next_target) and next_target != "" ->
+                          detect_mailbox_forwarding_loop(
+                            next_target,
+                            originals,
+                            [target | visited],
+                            depth - 1
+                          )
 
-                      _ ->
-                        # Chain ends safely
-                        :safe
+                        _ ->
+                          # Chain ends safely
+                          :safe
+                      end
+                    else
+                      # External address - chain ends safely
+                      :safe
                     end
 
                   _ ->
@@ -264,61 +270,11 @@ defmodule Elektrine.Email.Mailbox do
     email = get_field(changeset, :email)
     username = get_field(changeset, :username)
 
-    # Same reserved addresses as in alias validation - prevent direct mailbox creation
-    reserved_addresses = [
-      "admin@elektrine.com",
-      "admin@z.org",
-      "administrator@elektrine.com",
-      "administrator@z.org",
-      "support@elektrine.com",
-      "support@z.org",
-      "noreply@elektrine.com",
-      "noreply@z.org",
-      "no-reply@elektrine.com",
-      "no-reply@z.org",
-      "postmaster@elektrine.com",
-      "postmaster@z.org",
-      "hostmaster@elektrine.com",
-      "hostmaster@z.org",
-      # ActivityPub endpoints
-      "inbox@elektrine.com",
-      "inbox@z.org",
-      "outbox@elektrine.com",
-      "outbox@z.org",
-      "followers@elektrine.com",
-      "followers@z.org",
-      "following@elektrine.com",
-      "following@z.org",
-      "actor@elektrine.com",
-      "actor@z.org",
-      "users@elektrine.com",
-      "users@z.org",
-      "webmaster@elektrine.com",
-      "webmaster@z.org",
-      "abuse@elektrine.com",
-      "abuse@z.org",
-      "security@elektrine.com",
-      "security@z.org",
-      "help@elektrine.com",
-      "help@z.org",
-      "info@elektrine.com",
-      "info@z.org",
-      "contact@elektrine.com",
-      "contact@z.org",
-      "mail@elektrine.com",
-      "mail@z.org",
-      "email@elektrine.com",
-      "email@z.org"
-    ]
+    reserved_addresses = Elektrine.Domains.reserved_addresses()
 
     # Extract reserved usernames from reserved addresses
     reserved_usernames =
-      reserved_addresses
-      |> Enum.map(fn addr ->
-        [username, _domain] = String.split(addr, "@")
-        username
-      end)
-      |> Enum.uniq()
+      Elektrine.Domains.reserved_local_parts()
 
     changeset =
       if email && String.downcase(email) in reserved_addresses do

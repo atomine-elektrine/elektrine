@@ -9,6 +9,7 @@ defmodule ElektrineWeb.API.ExportController do
 
   alias Elektrine.Developer
   alias Elektrine.Developer.DataExport
+  alias ElektrineWeb.API.Response
 
   action_fallback ElektrineWeb.FallbackController
 
@@ -22,11 +23,11 @@ defmodule ElektrineWeb.API.ExportController do
 
     exports = Developer.list_exports(user.id, limit: limit)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      exports: Enum.map(exports, &format_export/1)
-    })
+    Response.ok(
+      conn,
+      %{exports: Enum.map(exports, &format_export/1)},
+      %{pagination: %{limit: limit, total_count: length(exports)}}
+    )
   end
 
   @doc """
@@ -46,9 +47,7 @@ defmodule ElektrineWeb.API.ExportController do
     filters = params["filters"] || %{}
 
     if is_nil(export_type) do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{error: "Missing required parameter: type"})
+      Response.error(conn, :bad_request, "missing_parameter", "Missing required parameter: type")
     else
       attrs = %{
         export_type: export_type,
@@ -63,9 +62,7 @@ defmodule ElektrineWeb.API.ExportController do
           |> Elektrine.Developer.ExportWorker.new()
           |> Oban.insert()
 
-          conn
-          |> put_status(:accepted)
-          |> json(%{
+          Response.accepted(conn, %{
             message: "Export queued successfully",
             export: format_export(export)
           })
@@ -73,9 +70,13 @@ defmodule ElektrineWeb.API.ExportController do
         {:error, changeset} ->
           errors = format_changeset_errors(changeset)
 
-          conn
-          |> put_status(:unprocessable_entity)
-          |> json(%{error: "Failed to create export", details: errors})
+          Response.error(
+            conn,
+            :unprocessable_entity,
+            "invalid_export",
+            "Failed to create export",
+            errors
+          )
       end
     end
   end
@@ -89,14 +90,10 @@ defmodule ElektrineWeb.API.ExportController do
 
     case Developer.get_export(user.id, id) do
       nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Export not found"})
+        Response.error(conn, :not_found, "not_found", "Export not found")
 
       export ->
-        conn
-        |> put_status(:ok)
-        |> json(%{export: format_export(export)})
+        Response.ok(conn, %{export: format_export(export)})
     end
   end
 
@@ -109,21 +106,20 @@ defmodule ElektrineWeb.API.ExportController do
 
     case Developer.get_export(user.id, id) do
       nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Export not found"})
+        Response.error(conn, :not_found, "not_found", "Export not found")
 
       export ->
         case Developer.delete_export(export) do
           {:ok, _} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{message: "Export deleted successfully"})
+            Response.ok(conn, %{message: "Export deleted successfully"})
 
           {:error, _reason} ->
-            conn
-            |> put_status(:internal_server_error)
-            |> json(%{error: "Failed to delete export"})
+            Response.error(
+              conn,
+              :internal_server_error,
+              "delete_failed",
+              "Failed to delete export"
+            )
         end
     end
   end
@@ -139,22 +135,16 @@ defmodule ElektrineWeb.API.ExportController do
     download_token = params["token"]
 
     if is_nil(download_token) || download_token == "" do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{error: "Missing required parameter: token"})
+      Response.error(conn, :bad_request, "missing_parameter", "Missing required parameter: token")
     else
       case Developer.get_export_by_token(download_token) do
         nil ->
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: "Export not found or invalid token"})
+          Response.error(conn, :not_found, "not_found", "Export not found or invalid token")
 
         export ->
           # Verify the ID matches
           if to_string(export.id) != to_string(id) do
-            conn
-            |> put_status(:not_found)
-            |> json(%{error: "Export not found"})
+            Response.error(conn, :not_found, "not_found", "Export not found")
           else
             serve_export_file(conn, export)
           end
@@ -162,18 +152,35 @@ defmodule ElektrineWeb.API.ExportController do
     end
   end
 
+  @doc """
+  GET /api/ext/v1/exports/:id/download
+  Downloads the export file using authenticated PAT/session API access.
+  """
+  def download_authenticated(conn, %{"id" => id}) do
+    user = conn.assigns[:current_user]
+
+    case Developer.get_export(user.id, id) do
+      nil ->
+        Response.error(conn, :not_found, "not_found", "Export not found")
+
+      export ->
+        serve_export_file(conn, export)
+    end
+  end
+
   # Serve the export file for download
   defp serve_export_file(conn, export) do
     cond do
       not DataExport.downloadable?(export) ->
-        conn
-        |> put_status(:gone)
-        |> json(%{error: "Export has expired or is not ready for download"})
+        Response.error(
+          conn,
+          :gone,
+          "export_not_downloadable",
+          "Export has expired or is not ready for download"
+        )
 
       is_nil(export.file_path) or not File.exists?(export.file_path) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Export file not found"})
+        Response.error(conn, :not_found, "file_not_found", "Export file not found")
 
       true ->
         # Record the download
@@ -210,6 +217,7 @@ defmodule ElektrineWeb.API.ExportController do
       item_count: export.item_count,
       download_count: export.download_count,
       download_url: download_url(export),
+      authenticated_download_url: "/api/ext/v1/exports/#{export.id}/download",
       expires_at: export.expires_at,
       started_at: export.started_at,
       completed_at: export.completed_at,

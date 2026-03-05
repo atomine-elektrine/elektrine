@@ -73,6 +73,7 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
 
   defp validate_type_specific(%{"type" => "Like"} = activity), do: validate_like(activity)
   defp validate_type_specific(%{"type" => "Announce"} = activity), do: validate_announce(activity)
+  defp validate_type_specific(%{"type" => "Move"} = activity), do: validate_move(activity)
   defp validate_type_specific(%{"type" => "Undo"} = activity), do: validate_undo(activity)
   defp validate_type_specific(%{"type" => "Flag"} = activity), do: validate_flag(activity)
   defp validate_type_specific(%{"type" => "Block"} = activity), do: validate_block(activity)
@@ -152,6 +153,15 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
   end
 
   defp validate_announce(_), do: {:error, "Announce activity missing object"}
+
+  # Move validation
+  defp validate_move(%{"object" => object, "target" => target} = activity)
+       when (is_binary(object) or is_map(object)) and (is_binary(target) or is_map(target)) do
+    {:ok, activity}
+  end
+
+  defp validate_move(%{"object" => _}), do: {:error, "Move activity missing target"}
+  defp validate_move(_), do: {:error, "Move activity missing object"}
 
   defp announce_object_ref?(object) when is_binary(object) or is_map(object), do: true
   defp announce_object_ref?(_), do: false

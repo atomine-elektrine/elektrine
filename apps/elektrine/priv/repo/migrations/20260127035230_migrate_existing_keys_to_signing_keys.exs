@@ -2,9 +2,9 @@ defmodule Elektrine.Repo.Migrations.MigrateExistingKeysToSigningKeys do
   use Ecto.Migration
 
   def up do
-    # Get base URL - in production this would be https://z.org
+    # Get base URL - in production this should match your instance profile domain.
     # The key_id format is: {base_url}/users/{username}#main-key
-    base_url = System.get_env("INSTANCE_URL") || "https://z.org"
+    base_url = System.get_env("INSTANCE_URL") || "https://elektrine.com"
 
     # Migrate local user keys
     execute """

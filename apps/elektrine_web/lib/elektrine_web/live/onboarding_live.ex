@@ -350,7 +350,11 @@ defmodule ElektrineWeb.OnboardingLive do
                         <div class="flex-1">
                           <h3 class="font-bold text-lg mb-2">Email</h3>
                           <p class="text-sm opacity-70 mb-3">
-                            Your personal email address (@elektrine.com and @z.org). Access via web, IMAP, POP3, or SMTP. Full email client with folders, search, and attachments.
+                            Your personal email address on local domains ({Enum.map_join(
+                              Elektrine.Domains.supported_email_domains(),
+                              ", ",
+                              &("@" <> &1)
+                            )}). Access via web, IMAP, POP3, or SMTP. Full email client with folders, search, and attachments.
                           </p>
                           <.link navigate={~p"/email"} class="btn btn-sm btn-primary">
                             <.icon name="hero-arrow-right" class="w-4 h-4 mr-1" /> Go to Email

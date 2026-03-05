@@ -213,9 +213,9 @@ defmodule Elektrine.Email do
   This prevents unauthorized email access by validating ownership.
 
   Checks in order:
-  1. User's main mailbox (user@elektrine.com or user@z.org)
+  1. User's main mailbox on local domains
   2. User's email aliases
-  3. Cross-domain matching (elektrine.com <-> z.org)
+  3. Cross-domain matching across configured local domains
   """
   def verify_email_ownership(email_address, user_id)
       when is_binary(email_address) and is_integer(user_id) do
@@ -249,7 +249,7 @@ defmodule Elektrine.Email do
         {:error, {:owned_by_other_user, other_user_id}}
 
       nil ->
-        # Check 3: Cross-domain matching (user@elektrine.com <-> user@z.org)
+        # Check 3: Cross-domain matching across configured local domains
         check_cross_domain_ownership(email_address, user_id)
     end
   end
@@ -259,8 +259,7 @@ defmodule Elektrine.Email do
     case String.split(email_address, "@") do
       [username, domain] ->
         supported_domains =
-          Application.get_env(:elektrine, :email)[:supported_domains] ||
-            ["elektrine.com", "z.org"]
+          Elektrine.Domains.supported_email_domains()
 
         if domain in supported_domains do
           # Check if user's username matches the local part

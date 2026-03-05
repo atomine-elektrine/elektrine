@@ -6,6 +6,7 @@ defmodule ElektrineWeb.ActivityPubController do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Builder
   alias Elektrine.ActivityPub.InboxQueue
+  alias Elektrine.Domains
   alias Elektrine.Telemetry.Events
 
   @doc """
@@ -75,7 +76,31 @@ defmodule ElektrineWeb.ActivityPubController do
 
           # Preload profile to include bio and banner
           user = Elektrine.Repo.preload(user, :profile)
-          actor_data = Builder.build_actor(user)
+
+          base_url = activitypub_base_url_for_conn(conn)
+          canonical_base_url = ActivityPub.instance_url()
+
+          legacy_base_url =
+            case Domains.activitypub_move_from_domain() do
+              nil -> nil
+              domain -> ActivityPub.instance_url_for_domain(domain)
+            end
+
+          legacy_actor_uri =
+            if is_binary(legacy_base_url) do
+              "#{legacy_base_url}/users/#{user.username}"
+            else
+              nil
+            end
+
+          canonical_actor_uri = "#{canonical_base_url}/users/#{user.username}"
+
+          actor_opts =
+            %{base_url: base_url}
+            |> maybe_put_actor_moved_to(base_url, legacy_base_url, canonical_actor_uri)
+            |> maybe_put_actor_aliases(base_url, canonical_base_url, legacy_actor_uri)
+
+          actor_data = Builder.build_actor(user, actor_opts)
 
           conn
           |> put_resp_content_type("application/activity+json")
@@ -254,13 +279,9 @@ defmodule ElektrineWeb.ActivityPubController do
 
           %Elektrine.Accounts.User{} = user ->
             # Local user signature - verify actor matches
-            base_url = ElektrineWeb.Endpoint.url()
-            expected_uri = "#{base_url}/users/#{user.username}"
-
-            if actor_uri == expected_uri do
-              :ok
-            else
-              {:error, "signature actor mismatch"}
+            case ActivityPub.local_username_from_uri(actor_uri) do
+              {:ok, username} when username == user.username -> :ok
+              _ -> {:error, "signature actor mismatch"}
             end
 
           _ ->
@@ -328,6 +349,50 @@ defmodule ElektrineWeb.ActivityPubController do
     ElektrineWeb.ClientIP.client_ip(conn)
   end
 
+  defp activitypub_base_url_for_conn(conn) do
+    request_host =
+      (conn.host || "")
+      |> String.trim()
+      |> String.downcase()
+      |> String.trim_leading("www.")
+
+    move_from_domain = Domains.activitypub_move_from_domain()
+    canonical_domain = ActivityPub.instance_domain()
+
+    cond do
+      request_host != "" and request_host == move_from_domain ->
+        ActivityPub.instance_url_for_domain(request_host)
+
+      request_host != "" and request_host == canonical_domain ->
+        ActivityPub.instance_url()
+
+      true ->
+        ActivityPub.instance_url()
+    end
+  end
+
+  defp maybe_put_actor_moved_to(opts, base_url, legacy_base_url, canonical_actor_uri)
+       when is_binary(legacy_base_url) and is_binary(canonical_actor_uri) do
+    if base_url == legacy_base_url do
+      Map.put(opts, :moved_to, canonical_actor_uri)
+    else
+      opts
+    end
+  end
+
+  defp maybe_put_actor_moved_to(opts, _base_url, _legacy_base_url, _canonical_actor_uri), do: opts
+
+  defp maybe_put_actor_aliases(opts, base_url, canonical_base_url, legacy_actor_uri)
+       when is_binary(legacy_actor_uri) do
+    if base_url == canonical_base_url do
+      Map.put(opts, :also_known_as, [legacy_actor_uri])
+    else
+      opts
+    end
+  end
+
+  defp maybe_put_actor_aliases(opts, _base_url, _canonical_base_url, _legacy_actor_uri), do: opts
+
   @doc """
   Returns the outbox collection for a user.
   """
@@ -352,7 +417,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
   defp render_outbox(conn, user, nil) do
     # Return the collection metadata
-    base_url = ActivityPub.instance_url()
+    base_url = activitypub_base_url_for_conn(conn)
     outbox_url = "#{base_url}/users/#{user.username}/outbox"
     total_items = ActivityPub.count_outbox_activities(user.id)
     page_size = 20
@@ -387,7 +452,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
     items = Enum.map(activities, & &1.data)
 
-    base_url = ActivityPub.instance_url()
+    base_url = activitypub_base_url_for_conn(conn)
     outbox_url = "#{base_url}/users/#{user.username}/outbox"
 
     collection_page = %{
@@ -438,7 +503,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
       user ->
         if user.activitypub_enabled do
-          base_url = ActivityPub.instance_url()
+          base_url = activitypub_base_url_for_conn(conn)
           followers_url = "#{base_url}/users/#{user.username}/followers"
 
           # Return count but empty items for privacy (standard Mastodon behavior)
@@ -475,7 +540,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
       user ->
         if user.activitypub_enabled do
-          base_url = ActivityPub.instance_url()
+          base_url = activitypub_base_url_for_conn(conn)
           following_url = "#{base_url}/users/#{user.username}/following"
 
           # Return count but empty items for privacy (standard Mastodon behavior)
@@ -1001,6 +1066,81 @@ defmodule ElektrineWeb.ActivityPubController do
           |> put_status(:not_found)
           |> json(%{error: "Community not found"})
         end
+    end
+  end
+
+  @doc """
+  Returns an individual community post object by ActivityPub ID path.
+  """
+  def community_object(conn, %{"name" => community_name, "id" => message_id}) do
+    conn = put_resp_header(conn, "content-type", "application/activity+json; charset=utf-8")
+
+    with {:ok, community} <- fetch_public_community(community_name),
+         {:ok, post} <- fetch_public_community_post(community.id, message_id) do
+      conn
+      |> put_resp_content_type("application/activity+json")
+      |> json(build_community_note(post, community))
+    else
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Not found"})
+    end
+  end
+
+  @doc """
+  Returns the Create activity wrapping an individual community post object.
+  """
+  def community_object_activity(conn, %{"name" => community_name, "id" => message_id}) do
+    conn = put_resp_header(conn, "content-type", "application/activity+json; charset=utf-8")
+
+    with {:ok, community} <- fetch_public_community(community_name),
+         {:ok, post} <- fetch_public_community_post(community.id, message_id) do
+      note = build_community_note(post, community)
+      base_url = ActivityPub.instance_url()
+      community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
+
+      create_activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "#{note["id"]}/activity",
+        "type" => "Create",
+        "actor" => "#{base_url}/c/#{community_slug}",
+        "published" => format_datetime(post.inserted_at),
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => ["#{base_url}/c/#{community_slug}/followers"],
+        "object" => note
+      }
+
+      conn
+      |> put_resp_content_type("application/activity+json")
+      |> json(create_activity)
+    else
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Not found"})
+    end
+  end
+
+  defp fetch_public_community(community_name) do
+    case Elektrine.Messaging.get_conversation_by_name(community_name) do
+      community
+      when not is_nil(community) and community.type == "community" and community.is_public ->
+        {:ok, community}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  defp fetch_public_community_post(community_id, message_id) do
+    with {id, ""} <- Integer.parse(message_id),
+         post when not is_nil(post) <- Elektrine.Messaging.get_message(id),
+         true <- post.conversation_id == community_id and is_nil(post.deleted_at),
+         true <- post.visibility == "public" do
+      {:ok, Elektrine.Repo.preload(post, :sender)}
+    else
+      _ -> {:error, :not_found}
     end
   end
 

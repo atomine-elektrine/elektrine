@@ -68,7 +68,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
               @{@shared_message.remote_actor.username}@{@shared_message.remote_actor.domain}
             <% else %>
               <%= if Ecto.assoc_loaded?(@shared_message.sender) && @shared_message.sender do %>
-                @{@shared_message.sender.handle || @shared_message.sender.username}@z.org
+                @{@shared_message.sender.handle || @shared_message.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
               <% else %>
                 @unknown
               <% end %>

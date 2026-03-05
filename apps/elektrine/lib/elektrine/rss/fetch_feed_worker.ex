@@ -9,7 +9,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
   alias Elektrine.RSS
   alias Elektrine.RSS.Feed
 
-  @user_agent "Elektrine/1.0 (RSS Reader; +https://z.org)"
+  @user_agent "Elektrine/1.0 (RSS Reader)"
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"feed_id" => feed_id}}) do

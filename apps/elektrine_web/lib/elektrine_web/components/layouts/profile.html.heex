@@ -104,9 +104,9 @@
       property="og:url"
       content={
         if assigns[:user] && @user do
-          "https://#{@user.handle || @user.username}.z.org"
+          "https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"
         else
-          "https://z.org"
+          "https://#{Elektrine.Domains.primary_profile_domain()}"
         end
       }
     />
@@ -134,14 +134,20 @@
           />
           <meta property="og:image:alt" content={"#{@user.username}'s profile background"} />
         <% true -> %>
-          <meta property="og:image" content="https://z.org/images/og-default.png" />
+          <meta
+            property="og:image"
+            content={"https://#{Elektrine.Domains.primary_profile_domain()}/images/og-default.png"}
+          />
       <% end %>
     <% else %>
       <%= if assigns[:user] && @user && @user.avatar do %>
         <meta property="og:image" content={Elektrine.Uploads.avatar_url(@user.avatar)} />
         <meta property="og:image:alt" content={"#{@user.username}'s avatar"} />
       <% else %>
-        <meta property="og:image" content="https://z.org/images/og-default.png" />
+        <meta
+          property="og:image"
+          content={"https://#{Elektrine.Domains.primary_profile_domain()}/images/og-default.png"}
+        />
       <% end %>
     <% end %>
     
@@ -212,13 +218,19 @@
             content={Elektrine.Uploads.background_url(@profile.background_url)}
           />
         <% true -> %>
-          <meta name="twitter:image" content="https://z.org/images/og-default.png" />
+          <meta
+            name="twitter:image"
+            content={"https://#{Elektrine.Domains.primary_profile_domain()}/images/og-default.png"}
+          />
       <% end %>
     <% else %>
       <%= if assigns[:user] && @user && @user.avatar do %>
         <meta name="twitter:image" content={Elektrine.Uploads.avatar_url(@user.avatar)} />
       <% else %>
-        <meta name="twitter:image" content="https://z.org/images/og-default.png" />
+        <meta
+          name="twitter:image"
+          content={"https://#{Elektrine.Domains.primary_profile_domain()}/images/og-default.png"}
+        />
       <% end %>
     <% end %>
     

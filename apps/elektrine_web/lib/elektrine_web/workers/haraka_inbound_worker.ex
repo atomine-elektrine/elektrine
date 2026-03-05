@@ -23,7 +23,8 @@ defmodule ElektrineWeb.HarakaInboundWorker do
     :no_mailbox,
     :invalid_email,
     :security_rejection,
-    :haraka_email_routing_validation_failed
+    :haraka_email_routing_validation_failed,
+    {:forwarding_failed, :no_mailbox}
   ]
 
   @doc """

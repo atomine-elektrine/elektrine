@@ -4,8 +4,8 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
   import Elektrine.AccountsFixtures
 
   alias Elektrine.Accounts.Authentication
-  alias Elektrine.API.RateLimiter, as: APIRateLimiter
   alias Elektrine.ActivityPub
+  alias Elektrine.API.RateLimiter, as: APIRateLimiter
   alias Elektrine.Auth.RateLimiter, as: AuthRateLimiter
   alias Elektrine.Repo
 

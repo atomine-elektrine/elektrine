@@ -209,7 +209,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
           if existing_follow.pending do
             {:ok, :pending}
           else
-            send_accept(followed_user, remote_actor, existing_follow)
+            send_accept(followed_user, remote_actor, existing_follow, object_uri)
             {:ok, :already_following}
           end
         else
@@ -232,7 +232,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
 
                 {:ok, :pending}
               else
-                send_accept(followed_user, remote_actor, follow)
+                send_accept(followed_user, remote_actor, follow, object_uri)
 
                 Task.start(fn ->
                   Elektrine.Notifications.FederationNotifications.notify_remote_follow(
@@ -275,13 +275,15 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     end
   end
 
-  defp send_accept(user, remote_actor, follow) do
+  defp send_accept(user, remote_actor, follow, object_uri) do
+    target_uri = object_uri || "#{ActivityPub.instance_url()}/users/#{user.username}"
+
     accept_activity =
       Builder.build_accept_activity(user, %{
         "id" => follow.activitypub_id,
         "type" => "Follow",
         "actor" => remote_actor.uri,
-        "object" => "#{ActivityPub.instance_url()}/users/#{user.username}"
+        "object" => target_uri
       })
 
     Publisher.publish(accept_activity, user, [remote_actor.inbox_url])
@@ -329,26 +331,14 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
   end
 
   defp get_local_user_from_uri(uri) do
-    base_url = ActivityPub.instance_url()
-
-    cond do
-      String.starts_with?(uri, "#{base_url}/users/") ->
-        username = String.replace_prefix(uri, "#{base_url}/users/", "")
-
+    case ActivityPub.local_username_from_uri(uri) do
+      {:ok, username} ->
         case Elektrine.Accounts.get_user_by_username(username) do
           nil -> {:error, :not_found}
           user -> {:ok, user}
         end
 
-      String.starts_with?(uri, "#{base_url}/@") ->
-        username = String.replace_prefix(uri, "#{base_url}/@", "")
-
-        case Elektrine.Accounts.get_user_by_username(username) do
-          nil -> {:error, :not_found}
-          user -> {:ok, user}
-        end
-
-      true ->
+      {:error, _reason} ->
         {:error, :not_local}
     end
   end

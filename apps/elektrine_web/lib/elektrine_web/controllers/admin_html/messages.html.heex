@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-6">
+<div class="p-4 sm:p-6 overflow-x-hidden">
   <% search_active = @search_query != "" %>
   <% status_filter = assigns[:status_filter] || "received" %>
   <% show_domain_stats = assigns[:show_domain_stats] || false %>
@@ -184,52 +184,60 @@
 
   <%= if length(received_messages) > 0 do %>
     <div class="card glass-card mb-6 shadow-xl">
-      <div class="card-body">
-        <h3 class="card-title mb-4 text-lg">
+      <div class="card-body p-4 sm:p-5">
+        <h3 class="card-title mb-3 text-base sm:text-lg">
           <.icon name="hero-arrow-down-tray" class="mr-2 h-5 w-5" />
           Received Messages ({length(received_messages)})
         </h3>
 
-        <div class="hidden overflow-x-auto lg:block">
-          <table class="table table-zebra w-full">
-            <thead>
+        <div class="hidden lg:block">
+          <table class="table table-zebra table-sm w-full table-fixed">
+            <thead class="text-xs">
               <tr>
-                <th>Subject & From</th>
-                <th>Recipient</th>
-                <th>User</th>
-                <th>Received</th>
-                <th>Actions</th>
+                <th class="w-[34%]">Subject & From</th>
+                <th class="w-[24%]">Recipient</th>
+                <th class="w-[12%]">User</th>
+                <th class="w-[20%]">Received</th>
+                <th class="w-[10%]">Actions</th>
               </tr>
             </thead>
             <tbody>
               <%= for message <- received_messages do %>
-                <tr class="hover">
-                  <td>
+                <tr class="hover align-top text-sm">
+                  <td class="py-2">
                     <div
-                      class="max-w-xs truncate font-medium"
+                      class="max-w-full truncate font-medium leading-tight"
                       title={decode_email_subject(message.subject)}
                     >
                       {decode_email_subject(message.subject)}
                     </div>
-                    <div class="max-w-xs truncate text-sm opacity-70" title={message.from}>
+                    <div class="max-w-full truncate text-xs opacity-70" title={message.from}>
                       From: {message.from || "(Unknown)"}
                     </div>
-                    <div class="text-xs opacity-50">ID: {message.id}</div>
+                    <div class="text-[11px] opacity-50">ID: {message.id}</div>
                   </td>
-                  <td>
-                    <div class="max-w-xs truncate text-sm font-medium" title={message.to}>
+                  <td class="py-2">
+                    <div class="max-w-full truncate text-sm font-medium" title={message.to}>
                       {message.to || "(Unknown)"}
                     </div>
-                    <div class="text-xs opacity-50">
+                    <div
+                      class="truncate text-[11px] opacity-50"
+                      title={message.mailbox && message.mailbox.email}
+                    >
                       → {message.mailbox && message.mailbox.email}
                     </div>
                   </td>
-                  <td>
-                    <div class="font-medium">
+                  <td class="py-2">
+                    <div
+                      class="max-w-[10rem] truncate font-medium"
+                      title={
+                        message.mailbox && message.mailbox.user && message.mailbox.user.username
+                      }
+                    >
                       {message.mailbox && message.mailbox.user && message.mailbox.user.username}
                     </div>
                   </td>
-                  <td class="text-sm opacity-70">
+                  <td class="py-2 text-xs opacity-70 whitespace-nowrap">
                     <.local_time
                       datetime={message.inserted_at}
                       format="datetime"
@@ -237,18 +245,18 @@
                       time_format={@time_format}
                     />
                   </td>
-                  <td>
-                    <div class="flex gap-1">
+                  <td class="py-2">
+                    <div class="flex justify-end gap-1">
                       <.link
                         href={~p"/pripyat/messages/#{message.id}/view"}
-                        class="btn btn-sm btn-ghost"
+                        class="btn btn-xs btn-ghost"
                         title="View message"
                       >
                         <.icon name="hero-eye" class="h-4 w-4" />
                       </.link>
                       <.link
                         href={~p"/pripyat/messages/#{message.id}/raw"}
-                        class="btn btn-sm btn-ghost"
+                        class="btn btn-xs btn-ghost"
                         target="_blank"
                         title="View raw email"
                       >
@@ -262,10 +270,10 @@
           </table>
         </div>
 
-        <div class="space-y-3 lg:hidden">
+        <div class="space-y-2 lg:hidden">
           <%= for message <- received_messages do %>
-            <div class="rounded-lg border border-base-300 bg-base-200 p-4">
-              <div class="mb-2 flex items-start justify-between gap-2">
+            <div class="rounded-lg border border-base-300 bg-base-200 p-3">
+              <div class="mb-1.5 flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
                   <h4
                     class="truncate text-sm font-medium"
@@ -311,8 +319,13 @@
                 </div>
               </div>
 
-              <div class="mt-2 flex items-center justify-between text-xs">
-                <span class="opacity-50">→ {message.mailbox && message.mailbox.email}</span>
+              <div class="mt-1.5 flex min-w-0 items-center justify-between gap-2 text-xs">
+                <span
+                  class="min-w-0 truncate opacity-50"
+                  title={message.mailbox && message.mailbox.email}
+                >
+                  → {message.mailbox && message.mailbox.email}
+                </span>
                 <span class="opacity-70">
                   <.local_time
                     datetime={message.inserted_at}
@@ -331,52 +344,60 @@
 
   <%= if length(sent_messages) > 0 do %>
     <div class="card glass-card shadow-xl">
-      <div class="card-body">
-        <h3 class="card-title mb-4 text-lg">
+      <div class="card-body p-4 sm:p-5">
+        <h3 class="card-title mb-3 text-base sm:text-lg">
           <.icon name="hero-arrow-up-tray" class="mr-2 h-5 w-5" />
           Sent Messages ({length(sent_messages)})
         </h3>
 
-        <div class="hidden overflow-x-auto lg:block">
-          <table class="table table-zebra w-full">
-            <thead>
+        <div class="hidden lg:block">
+          <table class="table table-zebra table-sm w-full table-fixed">
+            <thead class="text-xs">
               <tr>
-                <th>Subject & To</th>
-                <th>From</th>
-                <th>User</th>
-                <th>Sent</th>
-                <th>Actions</th>
+                <th class="w-[34%]">Subject & To</th>
+                <th class="w-[24%]">From</th>
+                <th class="w-[12%]">User</th>
+                <th class="w-[20%]">Sent</th>
+                <th class="w-[10%]">Actions</th>
               </tr>
             </thead>
             <tbody>
               <%= for message <- sent_messages do %>
-                <tr class="hover">
-                  <td>
+                <tr class="hover align-top text-sm">
+                  <td class="py-2">
                     <div
-                      class="max-w-xs truncate font-medium"
+                      class="max-w-full truncate font-medium leading-tight"
                       title={decode_email_subject(message.subject)}
                     >
                       {decode_email_subject(message.subject)}
                     </div>
-                    <div class="max-w-xs truncate text-sm opacity-70" title={message.to}>
+                    <div class="max-w-full truncate text-xs opacity-70" title={message.to}>
                       To: {message.to || "(Unknown)"}
                     </div>
-                    <div class="text-xs opacity-50">ID: {message.id}</div>
+                    <div class="text-[11px] opacity-50">ID: {message.id}</div>
                   </td>
-                  <td>
-                    <div class="max-w-xs truncate text-sm font-medium" title={message.from}>
+                  <td class="py-2">
+                    <div class="max-w-full truncate text-sm font-medium" title={message.from}>
                       {message.from || "(Unknown)"}
                     </div>
-                    <div class="text-xs opacity-50">
+                    <div
+                      class="truncate text-[11px] opacity-50"
+                      title={message.mailbox && message.mailbox.email}
+                    >
                       ← {message.mailbox && message.mailbox.email}
                     </div>
                   </td>
-                  <td>
-                    <div class="font-medium">
+                  <td class="py-2">
+                    <div
+                      class="max-w-[10rem] truncate font-medium"
+                      title={
+                        message.mailbox && message.mailbox.user && message.mailbox.user.username
+                      }
+                    >
                       {message.mailbox && message.mailbox.user && message.mailbox.user.username}
                     </div>
                   </td>
-                  <td class="text-sm opacity-70">
+                  <td class="py-2 text-xs opacity-70 whitespace-nowrap">
                     <.local_time
                       datetime={message.inserted_at}
                       format="datetime"
@@ -384,18 +405,18 @@
                       time_format={@time_format}
                     />
                   </td>
-                  <td>
-                    <div class="flex gap-1">
+                  <td class="py-2">
+                    <div class="flex justify-end gap-1">
                       <.link
                         href={~p"/pripyat/messages/#{message.id}/view"}
-                        class="btn btn-sm btn-ghost"
+                        class="btn btn-xs btn-ghost"
                         title="View message"
                       >
                         <.icon name="hero-eye" class="h-4 w-4" />
                       </.link>
                       <.link
                         href={~p"/pripyat/messages/#{message.id}/raw"}
-                        class="btn btn-sm btn-ghost"
+                        class="btn btn-xs btn-ghost"
                         target="_blank"
                         title="View raw email"
                       >
@@ -409,10 +430,10 @@
           </table>
         </div>
 
-        <div class="space-y-3 lg:hidden">
+        <div class="space-y-2 lg:hidden">
           <%= for message <- sent_messages do %>
-            <div class="rounded-lg border border-base-300 bg-base-200 p-4">
-              <div class="mb-2 flex items-start justify-between gap-2">
+            <div class="rounded-lg border border-base-300 bg-base-200 p-3">
+              <div class="mb-1.5 flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
                   <h4
                     class="truncate text-sm font-medium"
@@ -458,8 +479,13 @@
                 </div>
               </div>
 
-              <div class="mt-2 flex items-center justify-between text-xs">
-                <span class="opacity-50">← {message.mailbox && message.mailbox.email}</span>
+              <div class="mt-1.5 flex min-w-0 items-center justify-between gap-2 text-xs">
+                <span
+                  class="min-w-0 truncate opacity-50"
+                  title={message.mailbox && message.mailbox.email}
+                >
+                  ← {message.mailbox && message.mailbox.email}
+                </span>
                 <span class="opacity-70">
                   <.local_time
                     datetime={message.inserted_at}

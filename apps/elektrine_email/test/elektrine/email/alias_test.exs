@@ -107,7 +107,7 @@ defmodule Elektrine.Email.AliasTest do
 
     test "validates allowed domains for alias_email" do
       # Valid domains
-      for domain <- ["elektrine.com", "z.org"] do
+      for domain <- ["elektrine.com", "elektrine.com"] do
         attrs = %{
           alias_email: "tester@#{domain}",
           user_id: 1
@@ -140,7 +140,7 @@ defmodule Elektrine.Email.AliasTest do
 
     test "domain validation is case insensitive" do
       # Mixed case domains should work
-      for domain <- ["ELEKTRINE.COM", "Z.ORG", "Elektrine.Com", "z.Org"] do
+      for domain <- ["ELEKTRINE.COM", "Elektrine.Com", "eLeKtRiNe.CoM"] do
         attrs = %{
           alias_email: "tester@#{domain}",
           user_id: 1

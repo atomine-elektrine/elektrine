@@ -251,15 +251,6 @@ defmodule Elektrine.Email.PGPTest do
       assert {:ok, "test key"} = PGP.get_key_by_email(email)
     end
 
-    test "returns key for user with z.org email", %{user: user} do
-      user
-      |> Ecto.Changeset.change(%{pgp_public_key: "test key"})
-      |> Repo.update!()
-
-      email = "#{user.username}@z.org"
-      assert {:ok, "test key"} = PGP.get_key_by_email(email)
-    end
-
     test "returns error for external domain" do
       assert {:error, :not_our_domain} = PGP.get_key_by_email("user@external.com")
     end

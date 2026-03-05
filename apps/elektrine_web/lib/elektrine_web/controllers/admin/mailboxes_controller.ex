@@ -77,6 +77,7 @@ defmodule ElektrineWeb.Admin.MailboxesController do
 
   defp get_all_mailboxes_paginated(page, per_page) do
     offset = (page - 1) * per_page
+    domain_count = max(length(Elektrine.Domains.supported_email_domains()), 1)
 
     query =
       from(m in Email.Mailbox,
@@ -91,15 +92,15 @@ defmodule ElektrineWeb.Admin.MailboxesController do
         }
       )
 
-    # Get total count but multiply by 2 since each mailbox represents 2 email addresses
+    # Multiply by configured domain count since each mailbox expands to one address per local domain.
     base_count = Repo.aggregate(Email.Mailbox, :count, :id)
-    total_count = base_count * 2
+    total_count = base_count * domain_count
 
     base_mailboxes =
       query
-      # Get half the requested amount since we'll expand each
-      |> limit(^div(per_page + 1, 2))
-      |> offset(^div(offset, 2))
+      # Get a proportion of requested rows since each expands to multiple local-domain addresses.
+      |> limit(^div(per_page + domain_count - 1, domain_count))
+      |> offset(^div(offset, domain_count))
       |> Repo.all()
 
     # Expand each mailbox into both domain addresses
@@ -114,6 +115,16 @@ defmodule ElektrineWeb.Admin.MailboxesController do
   defp search_mailboxes_paginated(search_query, page, per_page) do
     offset = (page - 1) * per_page
     search_term = "%#{search_query}%"
+    supported_domains = Elektrine.Domains.supported_email_domains()
+    domain_count = max(length(supported_domains), 1)
+
+    username_domain_dynamic =
+      Enum.reduce(supported_domains, false, fn domain, dynamic_expr ->
+        dynamic(
+          [m],
+          ^dynamic_expr or ilike(fragment("? || '@' || ?", m.username, ^domain), ^search_term)
+        )
+      end)
 
     # Search for mailboxes where either the stored email, username, or potential domain addresses match
     query =
@@ -121,8 +132,7 @@ defmodule ElektrineWeb.Admin.MailboxesController do
         where:
           ilike(m.email, ^search_term) or
             ilike(m.username, ^search_term) or
-            ilike(fragment("? || '@elektrine.com'", m.username), ^search_term) or
-            ilike(fragment("? || '@z.org'", m.username), ^search_term),
+            ^username_domain_dynamic,
         order_by: [desc: m.inserted_at],
         select: %{
           id: m.id,
@@ -139,18 +149,17 @@ defmodule ElektrineWeb.Admin.MailboxesController do
         where:
           ilike(m.email, ^search_term) or
             ilike(m.username, ^search_term) or
-            ilike(fragment("? || '@elektrine.com'", m.username), ^search_term) or
-            ilike(fragment("? || '@z.org'", m.username), ^search_term)
+            ^username_domain_dynamic
       )
       |> Repo.aggregate(:count, :id)
 
-    # Multiply by 2 since each mailbox represents 2 addresses
-    total_count = base_count * 2
+    # Multiply by configured domain count since each mailbox expands to one address per local domain.
+    total_count = base_count * domain_count
 
     base_mailboxes =
       query
-      |> limit(^div(per_page + 1, 2))
-      |> offset(^div(offset, 2))
+      |> limit(^div(per_page + domain_count - 1, domain_count))
+      |> offset(^div(offset, domain_count))
       |> Repo.all()
 
     # Expand each mailbox into both domain addresses and filter by search term
@@ -175,28 +184,20 @@ defmodule ElektrineWeb.Admin.MailboxesController do
 
   # Helper function to expand mailboxes to show both domain addresses
   defp expand_mailboxes_to_domains(mailboxes) do
+    supported_domains = Elektrine.Domains.supported_email_domains()
+
     Enum.flat_map(mailboxes, fn mailbox ->
       if mailbox.username do
-        [
-          # elektrine.com address
+        Enum.map(supported_domains, fn domain ->
           %{
             id: mailbox.id,
-            email: "#{mailbox.username}@elektrine.com",
-            username: mailbox.username,
-            user_id: mailbox.user_id,
-            orphaned: mailbox.orphaned,
-            inserted_at: mailbox.inserted_at
-          },
-          # z.org address
-          %{
-            id: mailbox.id,
-            email: "#{mailbox.username}@z.org",
+            email: "#{mailbox.username}@#{domain}",
             username: mailbox.username,
             user_id: mailbox.user_id,
             orphaned: mailbox.orphaned,
             inserted_at: mailbox.inserted_at
           }
-        ]
+        end)
       else
         # Fallback for mailboxes without username (legacy)
         [mailbox]

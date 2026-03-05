@@ -483,8 +483,7 @@ defmodule Elektrine.Email.Receiver do
     case extract_username_and_domain(email) do
       {username, domain} ->
         supported_domains =
-          Application.get_env(:elektrine, :email)[:supported_domains] ||
-            ["elektrine.com", "z.org"]
+          Elektrine.Domains.supported_email_domains()
 
         if domain in supported_domains do
           import Ecto.Query
@@ -742,8 +741,7 @@ defmodule Elektrine.Email.Receiver do
     case extract_username_and_domain(email) do
       {username, domain} ->
         supported_domains =
-          Application.get_env(:elektrine, :email)[:supported_domains] ||
-            ["elektrine.com", "z.org"]
+          Elektrine.Domains.supported_email_domains()
 
         if domain in supported_domains do
           user = find_user_for_email(username, email)
@@ -791,8 +789,7 @@ defmodule Elektrine.Email.Receiver do
     case String.split(mailbox.email, "@") do
       [username, domain] ->
         supported_domains =
-          Application.get_env(:elektrine, :email)[:supported_domains] ||
-            ["elektrine.com", "z.org"]
+          Elektrine.Domains.supported_email_domains()
 
         if domain in supported_domains do
           case Elektrine.Accounts.get_user_by_username(username) do

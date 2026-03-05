@@ -40,8 +40,8 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
-                 "crossroute@z.org",
-                 "crossroute@z.org"
+                 "crossroute@elektrine.com",
+                 "crossroute@elektrine.com"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -73,7 +73,7 @@ defmodule Elektrine.Email.InboundRoutingTest do
       assert :ok =
                InboundRouting.validate_mailbox_route(
                  "list@lists.example.org",
-                 "owner@z.org",
+                 "owner@elektrine.com",
                  mailbox
                )
     end
@@ -96,7 +96,7 @@ defmodule Elektrine.Email.InboundRoutingTest do
   describe "routing classification" do
     test "outbound_email?/2 identifies local -> external envelopes" do
       assert InboundRouting.outbound_email?("user@elektrine.com", "friend@example.com")
-      refute InboundRouting.outbound_email?("user@elektrine.com", "friend@z.org")
+      refute InboundRouting.outbound_email?("user@elektrine.com", "friend@elektrine.com")
       refute InboundRouting.outbound_email?("sender@example.com", "user@elektrine.com")
     end
 

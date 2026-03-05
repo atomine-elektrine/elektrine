@@ -808,34 +808,24 @@ defmodule ElektrineWeb.UserSettingsLive do
     user = socket.assigns.current_user
     scopes = Map.get(token_params, "scopes", [])
 
-    expires_at =
-      case token_params["expires_in"] do
-        "" ->
-          nil
+    case parse_token_expiration(token_params["expires_in"]) do
+      {:ok, expires_at} ->
+        attrs = %{name: token_params["name"], scopes: scopes, expires_at: expires_at}
 
-        nil ->
-          nil
+        case Developer.create_api_token(user.id, attrs) do
+          {:ok, token} ->
+            {:noreply,
+             socket
+             |> assign(:new_token, token.token)
+             |> assign(:api_tokens, Developer.list_api_tokens(user.id))}
 
-        days ->
-          days_int = String.to_integer(days)
+          {:error, changeset} ->
+            error_msg = changeset_error_to_string(changeset)
+            {:noreply, notify_error(socket, "Failed to create token: #{error_msg}")}
+        end
 
-          DateTime.utc_now()
-          |> DateTime.add(days_int * 24 * 60 * 60, :second)
-          |> DateTime.truncate(:second)
-      end
-
-    attrs = %{name: token_params["name"], scopes: scopes, expires_at: expires_at}
-
-    case Developer.create_api_token(user.id, attrs) do
-      {:ok, token} ->
-        {:noreply,
-         socket
-         |> assign(:new_token, token.token)
-         |> assign(:api_tokens, Developer.list_api_tokens(user.id))}
-
-      {:error, changeset} ->
-        error_msg = changeset_error_to_string(changeset)
-        {:noreply, notify_error(socket, "Failed to create token: #{error_msg}")}
+      :error ->
+        {:noreply, notify_error(socket, "Invalid token expiration. Use 30, 90, or 365 days.")}
     end
   end
 
@@ -843,18 +833,24 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_event("revoke_token", %{"id" => token_id}, socket) do
     user = socket.assigns.current_user
 
-    case Developer.revoke_api_token(user.id, String.to_integer(token_id)) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:api_tokens, Developer.list_api_tokens(user.id))
-         |> notify_success("Token revoked successfully")}
+    case Integer.parse(token_id) do
+      {id, ""} ->
+        case Developer.revoke_api_token(user.id, id) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:api_tokens, Developer.list_api_tokens(user.id))
+             |> notify_success("Token revoked successfully")}
 
-      {:error, :not_found} ->
-        {:noreply, notify_error(socket, "Token not found")}
+          {:error, :not_found} ->
+            {:noreply, notify_error(socket, "Token not found")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to revoke token")}
+          {:error, _} ->
+            {:noreply, notify_error(socket, "Failed to revoke token")}
+        end
+
+      _ ->
+        {:noreply, notify_error(socket, "Invalid token id")}
     end
   end
 
@@ -1346,181 +1342,182 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp developer_modals(assigns) do
     ~H"""
-<!-- Create Token Modal -->
-<%= if @show_create_token_modal do %>
-  <div class="modal modal-open">
-    <div class="modal-box max-w-md">
-      <h3 class="font-bold text-lg mb-4">{gettext("Create API Token")}</h3>
+    <!-- Create Token Modal -->
+    <%= if @show_create_token_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-md">
+          <h3 class="font-bold text-lg mb-4">{gettext("Create API Token")}</h3>
 
-      <%= if @new_token do %>
-        <!-- Token Created Successfully -->
-        <div class="alert alert-warning mb-4">
-          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-          <span>{gettext("Copy this token now. It will only be shown once!")}</span>
-        </div>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text font-medium">{gettext("Your new token")}</span>
-          </label>
-          <div class="join w-full">
-            <input
-              type="text"
-              value={@new_token}
-              readonly
-              class="input input-bordered join-item flex-1 font-mono text-sm"
-              id="new-token-input"
-            />
-            <button
-              type="button"
-              class="btn btn-primary join-item"
-              phx-hook="CopyToClipboard"
-              id="copy-token-btn"
-              data-copy-target="new-token-input"
-            >
-              <.icon name="hero-clipboard-document" class="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <div class="modal-action">
-          <button phx-click="close_token_modal" class="btn btn-primary">{gettext("Done")}</button>
-        </div>
-      <% else %>
-        <!-- Token Creation Form -->
-        <.form for={@token_form} phx-submit="create_token" class="space-y-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">{gettext("Token Name")}</span></label>
-            <input
-              type="text"
-              name="token[name]"
-              value={@token_form[:name].value}
-              placeholder={gettext("e.g., My CLI Tool")}
-              class="input input-bordered w-full"
-              required
-              maxlength="100"
-            />
-          </div>
-
-          <div class="form-control">
-            <label class="label"><span class="label-text">{gettext("Expiration")}</span></label>
-            <select name="token[expires_in]" class="select select-bordered w-full">
-              <option value="">{gettext("Never")}</option>
-              <option value="30">{gettext("30 days")}</option>
-              <option value="90">{gettext("90 days")}</option>
-              <option value="365">{gettext("1 year")}</option>
-            </select>
-          </div>
-
-          <div class="form-control">
-            <label class="label"><span class="label-text">{gettext("Scopes")}</span></label>
-            <div class="max-h-52 overflow-y-auto border border-base-300 rounded-lg p-3 space-y-3">
-              <%= for {category, scopes} <- Elektrine.Developer.ApiToken.scopes_by_category() do %>
-                <div>
-                  <div class="font-medium text-sm text-base-content/70 mb-2">{category}</div>
-                  <div class="space-y-1">
-                    <%= for {scope, description} <- scopes do %>
-                      <label class="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="token[scopes][]"
-                          value={scope}
-                          class="checkbox checkbox-sm checkbox-primary"
-                        />
-                        <span class="text-sm font-mono">{scope}</span>
-                        <span class="text-sm text-base-content/50 hidden sm:inline">
-                          - {description}
-                        </span>
-                      </label>
-                    <% end %>
-                  </div>
-                </div>
-              <% end %>
+          <%= if @new_token do %>
+            <!-- Token Created Successfully -->
+            <div class="alert alert-warning mb-4">
+              <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+              <span>{gettext("Copy this token now. It will only be shown once!")}</span>
             </div>
-          </div>
 
-          <div class="modal-action">
-            <button type="button" phx-click="close_token_modal" class="btn btn-ghost">
-              {gettext("Cancel")}
-            </button>
-            <button type="submit" class="btn btn-primary">
-              {gettext("Create Token")}
-            </button>
-          </div>
-        </.form>
-      <% end %>
-    </div>
-    <div class="modal-backdrop" phx-click="close_token_modal"></div>
-  </div>
-<% end %>
-
-<!-- Create Webhook Modal -->
-<%= if @show_create_webhook_modal do %>
-  <div class="modal modal-open">
-    <div class="modal-box max-w-md">
-      <h3 class="font-bold text-lg mb-4">{gettext("Add Webhook")}</h3>
-
-      <.form for={@webhook_form} phx-submit="create_webhook" class="space-y-4">
-        <div class="form-control">
-          <label class="label"><span class="label-text">{gettext("Name")}</span></label>
-          <input
-            type="text"
-            name="webhook[name]"
-            value={@webhook_form[:name].value}
-            placeholder={gettext("e.g., My Server")}
-            class="input input-bordered w-full"
-            required
-            maxlength="100"
-          />
-        </div>
-
-        <div class="form-control">
-          <label class="label"><span class="label-text">{gettext("URL")}</span></label>
-          <input
-            type="url"
-            name="webhook[url]"
-            value={@webhook_form[:url].value}
-            placeholder="https://example.com/webhook"
-            class="input input-bordered w-full font-mono text-sm"
-            required
-          />
-          <label class="label">
-            <span class="label-text-alt text-base-content/60">{gettext("Must be HTTPS")}</span>
-          </label>
-        </div>
-
-        <div class="form-control">
-          <label class="label"><span class="label-text">{gettext("Events")}</span></label>
-          <div class="grid grid-cols-2 gap-2">
-            <%= for event <- Elektrine.Developer.Webhook.valid_events() do %>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="webhook[events][]"
-                  value={event}
-                  class="checkbox checkbox-sm checkbox-primary"
-                />
-                <span class="text-sm font-mono">{event}</span>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">{gettext("Your new token")}</span>
               </label>
-            <% end %>
-          </div>
-        </div>
+              <div class="join w-full">
+                <input
+                  type="text"
+                  value={@new_token}
+                  readonly
+                  class="input input-bordered join-item flex-1 font-mono text-sm"
+                  id="new-token-input"
+                />
+                <button
+                  type="button"
+                  class="btn btn-primary join-item"
+                  phx-hook="CopyToClipboard"
+                  id="copy-token-btn"
+                  data-copy-target="new-token-input"
+                >
+                  <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
 
-        <div class="modal-action">
-          <button type="button" phx-click="close_webhook_modal" class="btn btn-ghost">
-            {gettext("Cancel")}
-          </button>
-          <button type="submit" class="btn btn-primary">
-            {gettext("Add Webhook")}
-          </button>
+            <div class="modal-action">
+              <button phx-click="close_token_modal" class="btn btn-primary">{gettext("Done")}</button>
+            </div>
+          <% else %>
+            <!-- Token Creation Form -->
+            <.form for={@token_form} phx-submit="create_token" class="space-y-4">
+              <div class="form-control">
+                <label class="label"><span class="label-text">{gettext("Token Name")}</span></label>
+                <input
+                  type="text"
+                  name="token[name]"
+                  value={@token_form[:name].value}
+                  placeholder={gettext("e.g., My CLI Tool")}
+                  class="input input-bordered w-full"
+                  required
+                  maxlength="100"
+                />
+              </div>
+
+              <div class="form-control">
+                <label class="label"><span class="label-text">{gettext("Expiration")}</span></label>
+                <select name="token[expires_in]" class="select select-bordered w-full">
+                  <option value="">{gettext("Never")}</option>
+                  <option value="30">{gettext("30 days")}</option>
+                  <option value="90">{gettext("90 days")}</option>
+                  <option value="365">{gettext("1 year")}</option>
+                </select>
+              </div>
+
+              <div class="form-control">
+                <label class="label"><span class="label-text">{gettext("Scopes")}</span></label>
+                <div class="max-h-52 overflow-y-auto border border-base-300 rounded-lg p-3 space-y-3">
+                  <%= for {category, scopes} <- Elektrine.Developer.ApiToken.scopes_by_category() do %>
+                    <div>
+                      <div class="font-medium text-sm text-base-content/70 mb-2">{category}</div>
+                      <div class="space-y-1">
+                        <%= for {scope, description} <- scopes do %>
+                          <label class="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              name="token[scopes][]"
+                              value={scope}
+                              class="checkbox checkbox-sm checkbox-primary"
+                            />
+                            <span class="text-sm font-mono">{scope}</span>
+                            <span class="text-sm text-base-content/50 hidden sm:inline">
+                              - {description}
+                            </span>
+                          </label>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="modal-action">
+                <button type="button" phx-click="close_token_modal" class="btn btn-ghost">
+                  {gettext("Cancel")}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  {gettext("Create Token")}
+                </button>
+              </div>
+            </.form>
+          <% end %>
         </div>
-      </.form>
-    </div>
-    <div class="modal-backdrop" phx-click="close_webhook_modal"></div>
-  </div>
-<% end %>
-"""
+        <div class="modal-backdrop" phx-click="close_token_modal"></div>
+      </div>
+    <% end %>
+
+    <!-- Create Webhook Modal -->
+    <%= if @show_create_webhook_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-md">
+          <h3 class="font-bold text-lg mb-4">{gettext("Add Webhook")}</h3>
+
+          <.form for={@webhook_form} phx-submit="create_webhook" class="space-y-4">
+            <div class="form-control">
+              <label class="label"><span class="label-text">{gettext("Name")}</span></label>
+              <input
+                type="text"
+                name="webhook[name]"
+                value={@webhook_form[:name].value}
+                placeholder={gettext("e.g., My Server")}
+                class="input input-bordered w-full"
+                required
+                maxlength="100"
+              />
+            </div>
+
+            <div class="form-control">
+              <label class="label"><span class="label-text">{gettext("URL")}</span></label>
+              <input
+                type="url"
+                name="webhook[url]"
+                value={@webhook_form[:url].value}
+                placeholder="https://example.com/webhook"
+                class="input input-bordered w-full font-mono text-sm"
+                required
+              />
+              <label class="label">
+                <span class="label-text-alt text-base-content/60">{gettext("Must be HTTPS")}</span>
+              </label>
+            </div>
+
+            <div class="form-control">
+              <label class="label"><span class="label-text">{gettext("Events")}</span></label>
+              <div class="grid grid-cols-2 gap-2">
+                <%= for event <- Elektrine.Developer.Webhook.valid_events() do %>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="webhook[events][]"
+                      value={event}
+                      class="checkbox checkbox-sm checkbox-primary"
+                    />
+                    <span class="text-sm font-mono">{event}</span>
+                  </label>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="modal-action">
+              <button type="button" phx-click="close_webhook_modal" class="btn btn-ghost">
+                {gettext("Cancel")}
+              </button>
+              <button type="submit" class="btn btn-primary">
+                {gettext("Add Webhook")}
+              </button>
+            </div>
+          </.form>
+        </div>
+        <div class="modal-backdrop" phx-click="close_webhook_modal"></div>
+      </div>
+    <% end %>
+    """
   end
+
   def days_until_can_change_handle(user) do
     if user.handle_changed_at do
       thirty_days_from_change = DateTime.add(user.handle_changed_at, 30 * 24 * 60 * 60, :second)
@@ -1590,6 +1587,26 @@ defmodule ElektrineWeb.UserSettingsLive do
   defp parse_entry_id(_id) do
     :error
   end
+
+  defp parse_token_expiration(nil), do: {:ok, nil}
+  defp parse_token_expiration(""), do: {:ok, nil}
+
+  defp parse_token_expiration(days) when is_binary(days) do
+    case Integer.parse(days) do
+      {days_int, ""} when days_int in [30, 90, 365] ->
+        expires_at =
+          DateTime.utc_now()
+          |> DateTime.add(days_int * 24 * 60 * 60, :second)
+          |> DateTime.truncate(:second)
+
+        {:ok, expires_at}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp parse_token_expiration(_), do: :error
 
   defp decode_setup_params(params) when is_map(params) do
     decode_payload_field(params, "encrypted_verifier", required: true)

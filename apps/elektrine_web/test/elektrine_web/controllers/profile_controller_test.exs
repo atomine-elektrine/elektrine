@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.ProfileControllerTest do
   @moduledoc """
   Tests for profile page rendering via ProfileController.
-  Tests both main domain (z.org/handle) and subdomain (handle.z.org) access.
+  Tests both main domain (elektrine.net/handle) and subdomain (handle.elektrine.net) access.
   """
   use ElektrineWeb.ConnCase, async: false
 

@@ -4,7 +4,9 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
   Provides consistent styling and behavior across all post types.
   """
   use Phoenix.Component
+  import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
+  import ElektrineWeb.HtmlHelpers, only: [render_custom_emojis: 1]
 
   @default_emojis ["👍", "❤️", "😂", "🔥", "😮", "😢"]
 
@@ -151,7 +153,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
             type="button"
             data-tip={tooltip}
           >
-            <span>{reaction.emoji}</span>
+            <span>{raw(render_custom_emojis(reaction.emoji))}</span>
             <span class={@text_class}>{reaction.count}</span>
           </button>
         <% end %>
@@ -159,7 +161,13 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
     <!-- Quick reaction picker -->
         <%= if @current_user && @show_picker do %>
           <div class="dropdown dropdown-top">
-            <button type="button" class={@picker_btn_class} title="Add reaction">
+            <button
+              type="button"
+              tabindex="0"
+              class={@picker_btn_class}
+              title="Add reaction"
+              onclick="event.stopPropagation(); this.focus();"
+            >
               <.icon name="hero-face-smile" class={@picker_icon_class} />
             </button>
             <div

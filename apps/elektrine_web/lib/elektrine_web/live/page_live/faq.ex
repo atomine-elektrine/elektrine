@@ -152,7 +152,13 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Your mailbox works on both username@elektrine.com and username@z.org.
+                    Your mailbox works on all local domains: {Enum.map_join(
+                      Elektrine.Domains.supported_email_domains(),
+                      ", ",
+                      fn domain ->
+                        "username@" <> domain
+                      end
+                    )}.
                   </p>
                 </div>
               </div>

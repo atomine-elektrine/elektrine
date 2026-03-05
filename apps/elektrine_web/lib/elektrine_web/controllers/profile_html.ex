@@ -3,7 +3,7 @@ defmodule ElektrineWeb.ProfileHTML do
   Templates for profile pages rendered by ProfileController.
 
   This module provides helpers for rendering static profile pages that work
-  correctly on both the main domain and subdomains (e.g., username.z.org).
+  correctly on both the main domain and subdomains (e.g., username.example.com).
 
   Note: Uses `profile_url/2` from HtmlHelpers to build absolute URLs that
   ensure navigation goes to the main domain when accessed via subdomains.

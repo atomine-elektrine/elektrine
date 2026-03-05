@@ -163,7 +163,7 @@ defmodule Elektrine.Email.Search do
         result.rows
         |> Enum.map(fn [domain, count] -> %{domain: domain, count: count} end)
         # Exclude our own domains
-        |> Enum.reject(&(&1.domain in ["elektrine.com", "z.org"]))
+        |> Enum.reject(&(&1.domain in Elektrine.Domains.supported_email_domains()))
 
       {:error, _} ->
         []
@@ -229,7 +229,7 @@ defmodule Elektrine.Email.Search do
         domains =
           result.rows
           |> Enum.map(fn [domain, count] -> %{domain: domain, count: count} end)
-          |> Enum.reject(&(&1.domain in ["elektrine.com", "z.org"]))
+          |> Enum.reject(&(&1.domain in Elektrine.Domains.supported_email_domains()))
 
         total_count = count_result.rows |> List.first() |> List.first() || 0
         {domains, total_count}

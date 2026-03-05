@@ -15,7 +15,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   describe "subdomain extraction" do
     test "extracts handle from valid subdomain" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/")
+        build_conn_with_host("maxfield.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.assigns[:subdomain_handle] == "maxfield"
@@ -31,7 +31,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "rewrites root path to /subdomain/:handle" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/")
+        build_conn_with_host("maxfield.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.request_path == "/subdomain/maxfield"
@@ -40,7 +40,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "does not modify main domain requests" do
       conn =
-        build_conn_with_host("z.org", "/timeline")
+        build_conn_with_host("elektrine.com", "/timeline")
         |> ProfileSubdomain.call([])
 
       refute conn.assigns[:subdomain_handle]
@@ -69,32 +69,32 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   describe "reserved subdomains" do
     test "redirects www subdomain to main domain" do
       conn =
-        build_conn_with_host("www.z.org", "/")
+        build_conn_with_host("www.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://z.org/"]
+      assert get_resp_header(conn, "location") == ["https://elektrine.com/"]
     end
 
     test "redirects admin subdomain to main domain" do
       conn =
-        build_conn_with_host("admin.z.org", "/")
+        build_conn_with_host("admin.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://z.org/"]
+      assert get_resp_header(conn, "location") == ["https://elektrine.com/"]
     end
 
     test "redirects api subdomain to main domain" do
       conn =
-        build_conn_with_host("api.z.org", "/")
+        build_conn_with_host("api.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://z.org/"]
+      assert get_resp_header(conn, "location") == ["https://elektrine.com/"]
     end
 
     test "redirects pripyat subdomain to admin path on main domain" do
@@ -109,7 +109,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "redirects mail subdomain to main domain" do
       conn =
-        build_conn_with_host("mail.z.org", "/")
+        build_conn_with_host("mail.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
@@ -130,27 +130,27 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   describe "path handling on subdomains" do
     test "redirects non-root paths to main domain" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/timeline")
+        build_conn_with_host("maxfield.elektrine.com", "/timeline")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://z.org/timeline"]
+      assert get_resp_header(conn, "location") == ["https://elektrine.com/timeline"]
     end
 
     test "redirects nested paths to main domain" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/timeline/post/123")
+        build_conn_with_host("maxfield.elektrine.com", "/timeline/post/123")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://z.org/timeline/post/123"]
+      assert get_resp_header(conn, "location") == ["https://elektrine.com/timeline/post/123"]
     end
 
     test "redirects /handle to root on subdomain" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/maxfield")
+        build_conn_with_host("maxfield.elektrine.com", "/maxfield")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
@@ -160,7 +160,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "does not redirect asset-like paths (allows static-site assets on subdomains)" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/1.jpg")
+        build_conn_with_host("maxfield.elektrine.com", "/1.jpg")
         |> ProfileSubdomain.call([])
 
       refute conn.halted
@@ -190,7 +190,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "bypasses /profiles/* API paths (for browser_api pipeline)" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/profiles/maxfield/followers")
+        build_conn_with_host("maxfield.elektrine.com", "/profiles/maxfield/followers")
         |> ProfileSubdomain.call([])
 
       # /profiles/* paths are bypassed entirely so they can be handled by browser_api pipeline
@@ -201,7 +201,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "bypasses /profiles/:handle/follow API path" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/profiles/maxfield/follow")
+        build_conn_with_host("maxfield.elektrine.com", "/profiles/maxfield/follow")
         |> ProfileSubdomain.call([])
 
       # /profiles/* paths are bypassed for API calls
@@ -212,7 +212,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   describe "bypass paths" do
     test "bypasses /assets paths" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/assets/app.js")
+        build_conn_with_host("maxfield.elektrine.com", "/assets/app.js")
         |> ProfileSubdomain.call([])
 
       refute conn.halted
@@ -222,7 +222,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "bypasses /uploads paths" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/uploads/avatar.png")
+        build_conn_with_host("maxfield.elektrine.com", "/uploads/avatar.png")
         |> ProfileSubdomain.call([])
 
       refute conn.halted
@@ -230,7 +230,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "bypasses /live paths for LiveView" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/live/websocket")
+        build_conn_with_host("maxfield.elektrine.com", "/live/websocket")
         |> ProfileSubdomain.call([])
 
       refute conn.halted
@@ -238,7 +238,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "bypasses favicon.ico" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/favicon.ico")
+        build_conn_with_host("maxfield.elektrine.com", "/favicon.ico")
         |> ProfileSubdomain.call([])
 
       refute conn.halted
@@ -246,7 +246,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "bypasses robots.txt" do
       conn =
-        build_conn_with_host("maxfield.z.org", "/robots.txt")
+        build_conn_with_host("maxfield.elektrine.com", "/robots.txt")
         |> ProfileSubdomain.call([])
 
       refute conn.halted
@@ -256,7 +256,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   describe "invalid subdomains" do
     test "subdomains with extra dots are not matched" do
       conn =
-        build_conn_with_host("some.thing.z.org", "/")
+        build_conn_with_host("some.thing.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       # Multi-label subdomains are not treated as profile subdomains.
@@ -265,7 +265,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
     test "numerical subdomains are allowed" do
       conn =
-        build_conn_with_host("user123.z.org", "/")
+        build_conn_with_host("user123.elektrine.com", "/")
         |> ProfileSubdomain.call([])
 
       assert conn.assigns[:subdomain_handle] == "user123"
@@ -277,7 +277,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
       conn =
         Plug.Test.conn(:get, "/")
         |> Map.put(:host, "internal-server")
-        |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.z.org")
+        |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.elektrine.com")
         |> ProfileSubdomain.call([])
 
       assert conn.assigns[:subdomain_handle] == "maxfield"
@@ -286,8 +286,8 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
     test "prioritizes subdomain host over main domain in forwarded headers" do
       conn =
         Plug.Test.conn(:get, "/")
-        |> Map.put(:host, "z.org")
-        |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.z.org, z.org")
+        |> Map.put(:host, "elektrine.com")
+        |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.elektrine.com, elektrine.com")
         |> ProfileSubdomain.call([])
 
       assert conn.assigns[:subdomain_handle] == "maxfield"

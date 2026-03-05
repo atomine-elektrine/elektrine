@@ -31,7 +31,13 @@ defmodule ElektrineWeb.PageLive.Terms do
                 <h2 class="text-2xl font-semibold mb-4">2. Description of Service</h2>
                 <p>Elektrine provides:</p>
                 <ul class="list-disc pl-6 space-y-2">
-                  <li>Email services through the @elektrine.com and @z.org domains</li>
+                  <li>
+                    Email services through local domains ({Enum.map_join(
+                      Elektrine.Domains.supported_email_domains(),
+                      ", ",
+                      &("@" <> &1)
+                    )})
+                  </li>
                   <li>Real-time chat and messaging capabilities</li>
                   <li>Social timeline and discussion features</li>
                   <li>File sharing and collaboration tools</li>

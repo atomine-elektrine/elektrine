@@ -78,6 +78,97 @@ defmodule Elektrine.IMAP.CommandsTest do
     :gen_tcp.close(server_socket)
   end
 
+  test "AUTHENTICATE PLAIN succeeds in read-only transaction for regular password auth" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+    encoded =
+      Base.encode64("\u0000#{user.username}\u0000#{valid_user_password()}", padding: false)
+
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :not_authenticated,
+      authenticated: false,
+      user: nil,
+      username: nil,
+      mailbox: nil,
+      uid_validity: nil,
+      selected_folder: nil,
+      messages: [],
+      client_ip: "127.0.0.3"
+    }
+
+    assert {:ok, {:continue, new_state}} =
+             Repo.transaction(fn ->
+               Repo.query!("SET TRANSACTION READ ONLY")
+               Commands.process_command("A006", "AUTHENTICATE", "PLAIN #{encoded}", state)
+             end)
+
+    assert new_state.state == :authenticated
+    assert new_state.authenticated == true
+    assert new_state.user.id == user.id
+    assert new_state.mailbox.id == mailbox.id
+
+    response = read_until(client_socket, "A006 OK")
+    assert response =~ "A006 OK [CAPABILITY"
+    assert response =~ "Logged in"
+
+    refreshed_user = Repo.get!(User, user.id)
+    assert is_nil(refreshed_user.last_imap_access)
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
+  test "AUTHENTICATE PLAIN succeeds in read-only transaction for app password auth" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+    {:ok, app_password} = Elektrine.Accounts.create_app_password(user.id, %{name: "IMAP test"})
+
+    encoded = Base.encode64("\u0000#{user.username}\u0000#{app_password.token}", padding: false)
+
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :not_authenticated,
+      authenticated: false,
+      user: nil,
+      username: nil,
+      mailbox: nil,
+      uid_validity: nil,
+      selected_folder: nil,
+      messages: [],
+      client_ip: "127.0.0.4"
+    }
+
+    assert {:ok, {:continue, new_state}} =
+             Repo.transaction(fn ->
+               Repo.query!("SET TRANSACTION READ ONLY")
+               Commands.process_command("A007", "AUTHENTICATE", "PLAIN #{encoded}", state)
+             end)
+
+    assert new_state.state == :authenticated
+    assert new_state.authenticated == true
+    assert new_state.user.id == user.id
+    assert new_state.mailbox.id == mailbox.id
+
+    response = read_until(client_socket, "A007 OK")
+    assert response =~ "A007 OK [CAPABILITY"
+    assert response =~ "Logged in"
+
+    refreshed_app_password = Repo.get!(Elektrine.Accounts.AppPassword, app_password.id)
+    assert is_nil(refreshed_app_password.last_used_at)
+
+    refreshed_user = Repo.get!(User, user.id)
+    assert is_nil(refreshed_user.last_imap_access)
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
   test "GETQUOTA returns dynamic user storage values in RFC 2087 units" do
     user = user_fixture()
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)

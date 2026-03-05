@@ -265,25 +265,15 @@ export const TimelineReply = {
   mounted() {
     this.replyFocusPending = false
     this.queuedAnchor = null
+    this.prePatchAnchor = null
+    this.prePatchScrollY = null
+    this.prePatchHadTimelineSkeleton = this.timelineSkeletonVisible()
 
     this.handleQueuedClick = (event) => {
       const queuedBtn = event.target.closest('[data-load-queued-posts]')
       if (!queuedBtn) return
 
-      const postCards = Array.from(document.querySelectorAll('[data-post-id]'))
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight
-
-      const anchor = postCards.find((card) => {
-        const rect = card.getBoundingClientRect()
-        return rect.bottom > 0 && rect.top < viewportHeight
-      })
-
-      if (anchor && anchor.dataset.postId) {
-        this.queuedAnchor = {
-          postId: anchor.dataset.postId,
-          top: anchor.getBoundingClientRect().top
-        }
-      }
+      this.queuedAnchor = this.findVisiblePostAnchor()
     }
 
     this.el.addEventListener('click', this.handleQueuedClick)
@@ -318,12 +308,14 @@ export const TimelineReply = {
   },
 
   beforeUpdate() {
-    // Intentionally no generic scroll preservation here.
-    // Restoring window.scrollY on every LiveView patch can fight natural scrolling
-    // when background timeline updates arrive.
+    this.prePatchHadTimelineSkeleton = this.timelineSkeletonVisible()
+    this.prePatchAnchor = this.findVisiblePostAnchor()
+    this.prePatchScrollY = window.scrollY
   },
 
   updated() {
+    const hasTimelineSkeleton = this.timelineSkeletonVisible()
+
     if (this.queuedAnchor) {
       const anchor = document.querySelector(`[data-post-id="${this.queuedAnchor.postId}"]`)
 
@@ -334,11 +326,54 @@ export const TimelineReply = {
       }
 
       this.queuedAnchor = null
+      this.prePatchAnchor = null
+      this.prePatchScrollY = null
+      this.prePatchHadTimelineSkeleton = hasTimelineSkeleton
       this.replyFocusPending = false
       return
     }
 
+    // Preserve viewport when transitioning between skeleton and loaded timeline content.
+    if (this.prePatchHadTimelineSkeleton !== hasTimelineSkeleton) {
+      if (this.prePatchAnchor?.postId) {
+        const anchor = document.querySelector(`[data-post-id="${this.prePatchAnchor.postId}"]`)
+        if (anchor) {
+          const newTop = anchor.getBoundingClientRect().top
+          const delta = newTop - this.prePatchAnchor.top
+          if (delta !== 0) window.scrollBy(0, delta)
+        } else if (typeof this.prePatchScrollY === 'number') {
+          window.scrollTo({ top: this.prePatchScrollY, behavior: "instant" })
+        }
+      } else if (typeof this.prePatchScrollY === 'number') {
+        window.scrollTo({ top: this.prePatchScrollY, behavior: "instant" })
+      }
+    }
+
+    this.prePatchAnchor = null
+    this.prePatchScrollY = null
+    this.prePatchHadTimelineSkeleton = hasTimelineSkeleton
     this.replyFocusPending = false
+  },
+
+  findVisiblePostAnchor() {
+    const postCards = Array.from(document.querySelectorAll('[data-post-id]'))
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+
+    const anchor = postCards.find((card) => {
+      const rect = card.getBoundingClientRect()
+      return rect.bottom > 0 && rect.top < viewportHeight
+    })
+
+    if (!(anchor && anchor.dataset.postId)) return null
+
+    return {
+      postId: anchor.dataset.postId,
+      top: anchor.getBoundingClientRect().top
+    }
+  },
+
+  timelineSkeletonVisible() {
+    return this.el.querySelector('[data-timeline-loading-skeleton]') !== null
   },
 
   destroyed() {

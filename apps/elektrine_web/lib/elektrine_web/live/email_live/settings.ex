@@ -140,6 +140,11 @@ defmodule ElektrineWeb.EmailLive.Settings do
     {:noreply, push_patch(socket, to: ~p"/email/settings?tab=#{tab}")}
   end
 
+  @impl true
+  def handle_event("show_keyboard_shortcuts", _params, socket) do
+    {:noreply, push_event(socket, "show-keyboard-shortcuts", %{})}
+  end
+
   # Blocked Senders Events
   @impl true
   def handle_event("block_sender", %{"type" => type, "value" => value}, socket) do
@@ -1518,8 +1523,9 @@ defmodule ElektrineWeb.EmailLive.Settings do
 
         <div class="flex flex-wrap gap-2">
           <%= if @mailbox.username do %>
-            <span class="badge badge-outline">{@mailbox.username}@elektrine.com</span>
-            <span class="badge badge-outline">{@mailbox.username}@z.org</span>
+            <%= for domain <- Elektrine.Domains.supported_email_domains() do %>
+              <span class="badge badge-outline">{@mailbox.username}@{domain}</span>
+            <% end %>
           <% else %>
             <span class="badge badge-outline">{@mailbox.email}</span>
           <% end %>
@@ -1592,8 +1598,9 @@ defmodule ElektrineWeb.EmailLive.Settings do
             <div class="flex items-center gap-2">
               <span class="text-base-content/50 text-lg">@</span>
               <select name="domain" class="select select-bordered text-lg">
-                <option value="elektrine.com">elektrine.com</option>
-                <option value="z.org">z.org</option>
+                <%= for domain <- Elektrine.Domains.supported_email_domains() do %>
+                  <option value={domain}>{domain}</option>
+                <% end %>
               </select>
             </div>
           </div>

@@ -48,26 +48,14 @@ defmodule Elektrine.ActivityPub.Handlers.BlockHandler do
   end
 
   defp get_local_user_from_uri(uri) do
-    base_url = ActivityPub.instance_url()
-
-    cond do
-      String.starts_with?(uri, "#{base_url}/users/") ->
-        username = String.replace_prefix(uri, "#{base_url}/users/", "")
-
+    case ActivityPub.local_username_from_uri(uri) do
+      {:ok, username} ->
         case Elektrine.Accounts.get_user_by_username(username) do
           nil -> {:error, :not_found}
           user -> {:ok, user}
         end
 
-      String.starts_with?(uri, "#{base_url}/@") ->
-        username = String.replace_prefix(uri, "#{base_url}/@", "")
-
-        case Elektrine.Accounts.get_user_by_username(username) do
-          nil -> {:error, :not_found}
-          user -> {:ok, user}
-        end
-
-      true ->
+      {:error, _reason} ->
         {:error, :not_local}
     end
   end

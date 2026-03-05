@@ -711,7 +711,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     url
   end
 
-  @doc ~s|Build an absolute URL for navigation links on profile pages.\nOn subdomains (e.g., username.z.org), prepends the main domain to ensure\nlinks go to the main site instead of staying on the subdomain.\nOn main domain, returns the path as-is.\n\n## Examples\n\n    # On subdomain (base_url = \"https://z.org\"):\n    profile_url(\"https://z.org\", \"/timeline/post/123\")\n    # => \"https://z.org/timeline/post/123\"\n\n    # On main domain (base_url = \"\"):\n    profile_url(\"\", \"/timeline/post/123\")\n    # => \"/timeline/post/123\"\n|
+  @doc ~s|Build an absolute URL for navigation links on profile pages.\nOn subdomains (e.g., username.example.com), prepends the main domain to ensure\nlinks go to the main site instead of staying on the subdomain.\nOn main domain, returns the path as-is.\n\n## Examples\n\n    # On subdomain (base_url = \"https://example.com\"):\n    profile_url(\"https://example.com\", \"/timeline/post/123\")\n    # => \"https://example.com/timeline/post/123\"\n\n    # On main domain (base_url = \"\"):\n    profile_url(\"\", \"/timeline/post/123\")\n    # => \"/timeline/post/123\"\n|
   def profile_url(base_url, path) when is_binary(base_url) and is_binary(path) do
     base_url <> path
   end

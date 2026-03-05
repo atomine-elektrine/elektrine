@@ -1864,7 +1864,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
       is_map(reply_parent) && is_map(reply_parent["_local_user"]) ->
         local_user = reply_parent["_local_user"]
-        "@#{local_user.handle || local_user.username}@z.org"
+
+        "@#{local_user.handle || local_user.username}@#{Elektrine.Domains.default_user_handle_domain()}"
 
       is_map(reply_parent) && is_binary(reply_parent["_fallback_author"]) ->
         reply_parent["_fallback_author"]
@@ -3836,7 +3837,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         end
 
       %{
-        label: "@#{handle}@z.org",
+        label: "@#{handle}@#{Elektrine.Domains.default_user_handle_domain()}",
         avatar_url: avatar_url,
         profile_path: if(is_binary(handle) && handle != "", do: "/#{handle}", else: nil)
       }

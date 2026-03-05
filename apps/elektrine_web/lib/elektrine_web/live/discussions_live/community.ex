@@ -634,872 +634,871 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
 
   defp community_modals(assigns) do
     ~H"""
-<!-- Report Modal -->
-  <%= if @show_report_modal do %>
-    <.live_component
-      module={ElektrineWeb.Components.ReportModal}
-      id="report-modal"
-      reporter_id={@current_user.id}
-      reportable_type={@report_type}
-      reportable_id={@report_id}
-      additional_metadata={@report_metadata}
-    />
-  <% end %>
-  
-<!-- Flair Modal -->
-  <%= if @show_flair_modal && @is_moderator do %>
-    <div class="modal modal-open">
-      <div class="modal-box">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-bold text-lg">
-            {if @editing_flair, do: "Edit Flair", else: "Add New Flair"}
-          </h3>
-          <button type="button" phx-click="cancel_flair" class="btn btn-ghost btn-sm btn-circle">
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
+    <!-- Report Modal -->
+    <%= if @show_report_modal do %>
+      <.live_component
+        module={ElektrineWeb.Components.ReportModal}
+        id="report-modal"
+        reporter_id={@current_user.id}
+        reportable_type={@report_type}
+        reportable_id={@report_id}
+        additional_metadata={@report_metadata}
+      />
+    <% end %>
+
+    <!-- Flair Modal -->
+    <%= if @show_flair_modal && @is_moderator do %>
+      <div class="modal modal-open">
+        <div class="modal-box">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-lg">
+              {if @editing_flair, do: "Edit Flair", else: "Add New Flair"}
+            </h3>
+            <button type="button" phx-click="cancel_flair" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <.form for={%{}} phx-submit={if @editing_flair, do: "update_flair", else: "create_flair"}>
+            <%= if @editing_flair do %>
+              <input type="hidden" name="flair_id" value={@editing_flair.id} />
+            <% end %>
+
+            <div class="form-control mb-4">
+              <label class="label">
+                <span class="label-text">Flair Name</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={if @editing_flair, do: @editing_flair.name, else: ""}
+                class="input input-bordered"
+                placeholder="e.g., Discussion, Question, News"
+                maxlength="30"
+                required
+              />
+            </div>
+
+            <div class="form-control mb-4">
+              <label class="label cursor-pointer">
+                <span class="label-text">Moderator Only</span>
+                <input
+                  type="checkbox"
+                  name="is_mod_only"
+                  checked={if @editing_flair, do: @editing_flair.is_mod_only, else: false}
+                  class="checkbox checkbox-error"
+                />
+              </label>
+            </div>
+
+            <div class="form-control mb-4">
+              <label class="label cursor-pointer">
+                <span class="label-text">Enabled</span>
+                <input
+                  type="checkbox"
+                  name="is_enabled"
+                  checked={if @editing_flair, do: @editing_flair.is_enabled, else: true}
+                  class="checkbox checkbox-error"
+                />
+              </label>
+            </div>
+
+            <div class="modal-action">
+              <button type="button" phx-click="cancel_flair" class="btn btn-ghost">Cancel</button>
+              <button type="submit" class="btn btn-secondary">
+                {if @editing_flair, do: "Update", else: "Create"}
+              </button>
+            </div>
+          </.form>
         </div>
+        <div class="modal-backdrop" phx-click="cancel_flair"></div>
+      </div>
+    <% end %>
 
-        <.form for={%{}} phx-submit={if @editing_flair, do: "update_flair", else: "create_flair"}>
-          <%= if @editing_flair do %>
-            <input type="hidden" name="flair_id" value={@editing_flair.id} />
-          <% end %>
-
-          <div class="form-control mb-4">
-            <label class="label">
-              <span class="label-text">Flair Name</span>
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={if @editing_flair, do: @editing_flair.name, else: ""}
-              class="input input-bordered"
-              placeholder="e.g., Discussion, Question, News"
-              maxlength="30"
-              required
-            />
+    <!-- Voters Modal -->
+    <%= if @show_voters_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-2xl">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-lg">Votes</h3>
+            <button
+              type="button"
+              phx-click="close_voters_modal"
+              class="btn btn-ghost btn-sm btn-circle"
+            >
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
           </div>
 
-          <div class="form-control mb-4">
-            <label class="label cursor-pointer">
-              <span class="label-text">Moderator Only</span>
-              <input
-                type="checkbox"
-                name="is_mod_only"
-                checked={if @editing_flair, do: @editing_flair.is_mod_only, else: false}
-                class="checkbox checkbox-error"
-              />
-            </label>
+          <div class="tabs tabs-boxed mb-4">
+            <button
+              class={["tab", if(@voters_tab == "upvotes", do: "tab-active")]}
+              phx-click="switch_voters_tab"
+              phx-value-tab="upvotes"
+            >
+              <.icon name="hero-arrow-up" class="w-4 h-4 mr-1" /> Upvotes ({length(@upvoters || [])})
+            </button>
+            <button
+              class={["tab", if(@voters_tab == "downvotes", do: "tab-active")]}
+              phx-click="switch_voters_tab"
+              phx-value-tab="downvotes"
+            >
+              <.icon name="hero-arrow-down" class="w-4 h-4 mr-1" />
+              Downvotes ({length(@downvoters || [])})
+            </button>
           </div>
 
-          <div class="form-control mb-4">
-            <label class="label cursor-pointer">
-              <span class="label-text">Enabled</span>
-              <input
-                type="checkbox"
-                name="is_enabled"
-                checked={if @editing_flair, do: @editing_flair.is_enabled, else: true}
-                class="checkbox checkbox-error"
-              />
-            </label>
+          <div class="space-y-2 max-h-96 overflow-y-auto">
+            <%= if @voters_tab == "upvotes" do %>
+              <%= if @upvoters && length(@upvoters) > 0 do %>
+                <%= for voter <- @upvoters do %>
+                  <.link
+                    href={~p"/#{voter.handle || voter.username}"}
+                    class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                  >
+                    <.user_avatar user={voter} size="sm" />
+                    <div>
+                      <div class="font-medium">
+                        <.username_with_effects user={voter} display_name={true} verified_size="sm" />
+                      </div>
+                      <div class="text-sm opacity-70">@{voter.handle || voter.username}</div>
+                    </div>
+                  </.link>
+                <% end %>
+              <% else %>
+                <p class="text-center py-4 opacity-50">No upvotes yet</p>
+              <% end %>
+            <% else %>
+              <%= if @downvoters && length(@downvoters) > 0 do %>
+                <%= for voter <- @downvoters do %>
+                  <.link
+                    href={~p"/#{voter.handle || voter.username}"}
+                    class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                  >
+                    <.user_avatar user={voter} size="sm" />
+                    <div>
+                      <div class="font-medium">
+                        <.username_with_effects user={voter} display_name={true} verified_size="sm" />
+                      </div>
+                      <div class="text-sm opacity-70">@{voter.handle || voter.username}</div>
+                    </div>
+                  </.link>
+                <% end %>
+              <% else %>
+                <p class="text-center py-4 opacity-50">No downvotes yet</p>
+              <% end %>
+            <% end %>
           </div>
 
           <div class="modal-action">
-            <button type="button" phx-click="cancel_flair" class="btn btn-ghost">Cancel</button>
-            <button type="submit" class="btn btn-secondary">
-              {if @editing_flair, do: "Update", else: "Create"}
+            <button phx-click="close_voters" class="btn btn-ghost">Close</button>
+          </div>
+        </div>
+        <div class="modal-backdrop" phx-click="close_voters"></div>
+      </div>
+    <% end %>
+
+    <!-- User Moderation Status Modal -->
+    <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-3xl">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-lg">User Moderation Status</h3>
+            <button
+              type="button"
+              phx-click="close_user_mod_status"
+              class="btn btn-ghost btn-sm btn-circle"
+            >
+              <.icon name="hero-x-mark" class="w-5 h-5" />
             </button>
           </div>
-        </.form>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_flair"></div>
-    </div>
-  <% end %>
-  
-<!-- Voters Modal -->
-  <%= if @show_voters_modal do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-bold text-lg">Votes</h3>
-          <button
-            type="button"
-            phx-click="close_voters_modal"
-            class="btn btn-ghost btn-sm btn-circle"
-          >
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
-        </div>
 
-        <div class="tabs tabs-boxed mb-4">
-          <button
-            class={["tab", if(@voters_tab == "upvotes", do: "tab-active")]}
-            phx-click="switch_voters_tab"
-            phx-value-tab="upvotes"
-          >
-            <.icon name="hero-arrow-up" class="w-4 h-4 mr-1" />
-            Upvotes ({length(@upvoters || [])})
-          </button>
-          <button
-            class={["tab", if(@voters_tab == "downvotes", do: "tab-active")]}
-            phx-click="switch_voters_tab"
-            phx-value-tab="downvotes"
-          >
-            <.icon name="hero-arrow-down" class="w-4 h-4 mr-1" />
-            Downvotes ({length(@downvoters || [])})
-          </button>
-        </div>
-
-        <div class="space-y-2 max-h-96 overflow-y-auto">
-          <%= if @voters_tab == "upvotes" do %>
-            <%= if @upvoters && length(@upvoters) > 0 do %>
-              <%= for voter <- @upvoters do %>
-                <.link
-                  href={~p"/#{voter.handle || voter.username}"}
-                  class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
-                >
-                  <.user_avatar user={voter} size="sm" />
-                  <div>
-                    <div class="font-medium">
-                      <.username_with_effects user={voter} display_name={true} verified_size="sm" />
-                    </div>
-                    <div class="text-sm opacity-70">@{voter.handle || voter.username}</div>
-                  </div>
-                </.link>
-              <% end %>
-            <% else %>
-              <p class="text-center py-4 opacity-50">No upvotes yet</p>
-            <% end %>
-          <% else %>
-            <%= if @downvoters && length(@downvoters) > 0 do %>
-              <%= for voter <- @downvoters do %>
-                <.link
-                  href={~p"/#{voter.handle || voter.username}"}
-                  class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
-                >
-                  <.user_avatar user={voter} size="sm" />
-                  <div>
-                    <div class="font-medium">
-                      <.username_with_effects user={voter} display_name={true} verified_size="sm" />
-                    </div>
-                    <div class="text-sm opacity-70">@{voter.handle || voter.username}</div>
-                  </div>
-                </.link>
-              <% end %>
-            <% else %>
-              <p class="text-center py-4 opacity-50">No downvotes yet</p>
-            <% end %>
-          <% end %>
-        </div>
-
-        <div class="modal-action">
-          <button phx-click="close_voters" class="btn btn-ghost">Close</button>
-        </div>
-      </div>
-      <div class="modal-backdrop" phx-click="close_voters"></div>
-    </div>
-  <% end %>
-  
-<!-- User Moderation Status Modal -->
-  <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-3xl">
-        <div class="flex justify-between items-center mb-6">
-          <h3 class="font-bold text-lg">User Moderation Status</h3>
-          <button
-            type="button"
-            phx-click="close_user_mod_status"
-            class="btn btn-ghost btn-sm btn-circle"
-          >
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
-        </div>
-
-        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
-          <.user_avatar user={@mod_status_target_user} size="lg" />
-          <div class="text-center">
-            <div class="font-medium text-base">
-              <.username_with_effects
-                user={@mod_status_target_user}
-                display_name={true}
-                verified_size="sm"
-              />
-            </div>
-            <div class="text-sm opacity-70">
-              @{@mod_status_target_user.handle || @mod_status_target_user.username}
+          <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+            <.user_avatar user={@mod_status_target_user} size="lg" />
+            <div class="text-center">
+              <div class="font-medium text-base">
+                <.username_with_effects
+                  user={@mod_status_target_user}
+                  display_name={true}
+                  verified_size="sm"
+                />
+              </div>
+              <div class="text-sm opacity-70">
+                @{@mod_status_target_user.handle || @mod_status_target_user.username}
+              </div>
             </div>
           </div>
-        </div>
 
-        <% mod_data = Map.get(@user_mod_data, @mod_status_target_user.id, %{}) %>
-        
-<!-- Current Restrictions -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <!-- Ban Status -->
-          <div class={[
-            "card glass-card border-2",
-            if(mod_data[:ban], do: "border-error", else: "border-base-300")
-          ]}>
-            <div class="card-body p-4">
-              <div class="flex items-center justify-between mb-2">
-                <h4 class="font-semibold flex items-center gap-2">
-                  <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban Status
-                </h4>
+          <% mod_data = Map.get(@user_mod_data, @mod_status_target_user.id, %{}) %>
+          
+    <!-- Current Restrictions -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- Ban Status -->
+            <div class={[
+              "card glass-card border-2",
+              if(mod_data[:ban], do: "border-error", else: "border-base-300")
+            ]}>
+              <div class="card-body p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <h4 class="font-semibold flex items-center gap-2">
+                    <.icon name="hero-no-symbol" class="w-4 h-4" /> Ban Status
+                  </h4>
+                  <%= if mod_data[:ban] do %>
+                    <div class="badge badge-error">Banned</div>
+                  <% else %>
+                    <div class="badge badge-ghost">Not Banned</div>
+                  <% end %>
+                </div>
                 <%= if mod_data[:ban] do %>
-                  <div class="badge badge-error">Banned</div>
+                  <div class="text-sm space-y-1 mb-3">
+                    <div class="opacity-70">Reason: {mod_data[:ban].reason}</div>
+                    <%= if mod_data[:ban].expires_at do %>
+                      <div class="opacity-70">
+                        Expires:
+                        <.local_time
+                          datetime={mod_data[:ban].expires_at}
+                          format="relative"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </div>
+                    <% else %>
+                      <div class="opacity-70">Permanent ban</div>
+                    <% end %>
+                  </div>
+                  <button
+                    phx-click="unban_from_status"
+                    phx-value-user_id={@mod_status_target_user.id}
+                    class="btn btn-success btn-sm w-full"
+                  >
+                    <.icon name="hero-check" class="w-4 h-4 mr-1" /> Unban User
+                  </button>
                 <% else %>
-                  <div class="badge badge-ghost">Not Banned</div>
+                  <p class="text-sm opacity-50">No active ban</p>
                 <% end %>
               </div>
-              <%= if mod_data[:ban] do %>
-                <div class="text-sm space-y-1 mb-3">
-                  <div class="opacity-70">Reason: {mod_data[:ban].reason}</div>
-                  <%= if mod_data[:ban].expires_at do %>
+            </div>
+            
+    <!-- Timeout Status -->
+            <div class={[
+              "card glass-card border-2",
+              if(mod_data[:timeout], do: "border-warning", else: "border-base-300")
+            ]}>
+              <div class="card-body p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <h4 class="font-semibold flex items-center gap-2">
+                    <.icon name="hero-clock" class="w-4 h-4" /> Timeout Status
+                  </h4>
+                  <%= if mod_data[:timeout] do %>
+                    <div class="badge badge-warning">Timed Out</div>
+                  <% else %>
+                    <div class="badge badge-ghost">Not Timed Out</div>
+                  <% end %>
+                </div>
+                <%= if mod_data[:timeout] do %>
+                  <div class="text-sm space-y-1 mb-3">
+                    <div class="opacity-70">Reason: {mod_data[:timeout].reason}</div>
                     <div class="opacity-70">
                       Expires:
                       <.local_time
-                        datetime={mod_data[:ban].expires_at}
+                        datetime={mod_data[:timeout].timeout_until}
                         format="relative"
                         timezone={@timezone}
                         time_format={@time_format}
                       />
                     </div>
-                  <% else %>
-                    <div class="opacity-70">Permanent ban</div>
+                  </div>
+                  <button
+                    phx-click="remove_timeout_from_status"
+                    phx-value-user_id={@mod_status_target_user.id}
+                    class="btn btn-success btn-sm w-full"
+                  >
+                    <.icon name="hero-check" class="w-4 h-4 mr-1" /> Remove Timeout
+                  </button>
+                <% else %>
+                  <p class="text-sm opacity-50">No active timeout</p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+          
+    <!-- Warnings -->
+          <div class={[
+            "card glass-card border-2 mb-4",
+            if(mod_data[:warning_count] && mod_data[:warning_count] > 0,
+              do: "border-info",
+              else: "border-base-300"
+            )
+          ]}>
+            <div class="card-body p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-semibold flex items-center gap-2">
+                  <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> Warnings
+                </h4>
+                <div class={[
+                  "badge",
+                  if(mod_data[:warning_count] && mod_data[:warning_count] >= 3,
+                    do: "badge-error",
+                    else: "badge-info"
+                  )
+                ]}>
+                  {mod_data[:warning_count] || 0} Warning{if mod_data[:warning_count] != 1, do: "s"}
+                </div>
+              </div>
+              <%= if mod_data[:warnings] && length(mod_data[:warnings]) > 0 do %>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                  <%= for warning <- Enum.take(mod_data[:warnings], 5) do %>
+                    <div class="bg-base-200 p-3 rounded-lg text-sm">
+                      <div class="flex items-center gap-2 mb-1">
+                        <% severity_class =
+                          case warning.severity do
+                            "high" -> "badge-error"
+                            "medium" -> "badge-warning"
+                            _ -> "badge-info"
+                          end %>
+                        <div class={["badge badge-xs", severity_class]}>
+                          {String.upcase(warning.severity)}
+                        </div>
+                        <span class="opacity-70">
+                          <.local_time
+                            datetime={warning.inserted_at}
+                            format="relative"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </span>
+                      </div>
+                      <p>{warning.reason}</p>
+                    </div>
                   <% end %>
                 </div>
-                <button
-                  phx-click="unban_from_status"
-                  phx-value-user_id={@mod_status_target_user.id}
-                  class="btn btn-success btn-sm w-full"
-                >
-                  <.icon name="hero-check" class="w-4 h-4 mr-1" /> Unban User
-                </button>
               <% else %>
-                <p class="text-sm opacity-50">No active ban</p>
+                <p class="text-sm opacity-50">No warnings</p>
               <% end %>
             </div>
           </div>
           
-<!-- Timeout Status -->
-          <div class={[
-            "card glass-card border-2",
-            if(mod_data[:timeout], do: "border-warning", else: "border-base-300")
-          ]}>
+    <!-- Moderator Notes Preview -->
+          <div class="card glass-card border-2 border-base-300 mb-4">
             <div class="card-body p-4">
-              <div class="flex items-center justify-between mb-2">
-                <h4 class="font-semibold flex items-center gap-2">
-                  <.icon name="hero-clock" class="w-4 h-4" /> Timeout Status
-                </h4>
-                <%= if mod_data[:timeout] do %>
-                  <div class="badge badge-warning">Timed Out</div>
-                <% else %>
-                  <div class="badge badge-ghost">Not Timed Out</div>
-                <% end %>
-              </div>
-              <%= if mod_data[:timeout] do %>
-                <div class="text-sm space-y-1 mb-3">
-                  <div class="opacity-70">Reason: {mod_data[:timeout].reason}</div>
-                  <div class="opacity-70">
-                    Expires:
-                    <.local_time
-                      datetime={mod_data[:timeout].timeout_until}
-                      format="relative"
-                      timezone={@timezone}
-                      time_format={@time_format}
-                    />
-                  </div>
-                </div>
-                <button
-                  phx-click="remove_timeout_from_status"
-                  phx-value-user_id={@mod_status_target_user.id}
-                  class="btn btn-success btn-sm w-full"
-                >
-                  <.icon name="hero-check" class="w-4 h-4 mr-1" /> Remove Timeout
-                </button>
-              <% else %>
-                <p class="text-sm opacity-50">No active timeout</p>
-              <% end %>
-            </div>
-          </div>
-        </div>
-        
-<!-- Warnings -->
-        <div class={[
-          "card glass-card border-2 mb-4",
-          if(mod_data[:warning_count] && mod_data[:warning_count] > 0,
-            do: "border-info",
-            else: "border-base-300"
-          )
-        ]}>
-          <div class="card-body p-4">
-            <div class="flex items-center justify-between mb-3">
-              <h4 class="font-semibold flex items-center gap-2">
-                <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> Warnings
+              <h4 class="font-semibold flex items-center gap-2 mb-3">
+                <.icon name="hero-document-text" class="w-4 h-4" />
+                Moderator Notes ({length(mod_data[:notes] || [])})
               </h4>
-              <div class={[
-                "badge",
-                if(mod_data[:warning_count] && mod_data[:warning_count] >= 3,
-                  do: "badge-error",
-                  else: "badge-info"
-                )
-              ]}>
-                {mod_data[:warning_count] || 0} Warning{if mod_data[:warning_count] != 1, do: "s"}
-              </div>
-            </div>
-            <%= if mod_data[:warnings] && length(mod_data[:warnings]) > 0 do %>
-              <div class="space-y-2 max-h-48 overflow-y-auto">
-                <%= for warning <- Enum.take(mod_data[:warnings], 5) do %>
-                  <div class="bg-base-200 p-3 rounded-lg text-sm">
-                    <div class="flex items-center gap-2 mb-1">
-                      <% severity_class =
-                        case warning.severity do
-                          "high" -> "badge-error"
-                          "medium" -> "badge-warning"
-                          _ -> "badge-info"
-                        end %>
-                      <div class={["badge badge-xs", severity_class]}>
-                        {String.upcase(warning.severity)}
-                      </div>
-                      <span class="opacity-70">
-                        <.local_time
-                          datetime={warning.inserted_at}
-                          format="relative"
-                          timezone={@timezone}
-                          time_format={@time_format}
-                        />
-                      </span>
-                    </div>
-                    <p>{warning.reason}</p>
-                  </div>
-                <% end %>
-              </div>
-            <% else %>
-              <p class="text-sm opacity-50">No warnings</p>
-            <% end %>
-          </div>
-        </div>
-        
-<!-- Moderator Notes Preview -->
-        <div class="card glass-card border-2 border-base-300 mb-4">
-          <div class="card-body p-4">
-            <h4 class="font-semibold flex items-center gap-2 mb-3">
-              <.icon name="hero-document-text" class="w-4 h-4" />
-              Moderator Notes ({length(mod_data[:notes] || [])})
-            </h4>
-            <%= if mod_data[:notes] && length(mod_data[:notes]) > 0 do %>
-              <div class="space-y-2 max-h-48 overflow-y-auto">
-                <%= for note <- Enum.take(mod_data[:notes], 3) do %>
-                  <div class={[
-                    "bg-base-200 p-3 rounded-lg text-sm",
-                    if(note.is_important, do: "border-l-4 border-warning")
-                  ]}>
-                    <%= if note.is_important do %>
-                      <div class="badge badge-warning badge-xs mb-1">Important</div>
-                    <% end %>
-                    <p class="mb-1">{note.note}</p>
-                    <div class="opacity-60 text-xs">
-                      By @{note.created_by.handle || note.created_by.username}
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-              <%= if length(mod_data[:notes]) > 3 do %>
-                <div class="text-xs opacity-50 mt-2">
-                  And {length(mod_data[:notes]) - 3} more...
-                </div>
-              <% end %>
-            <% else %>
-              <p class="text-sm opacity-50">No moderator notes</p>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="modal-action justify-center">
-          <button phx-click="close_user_mod_status" class="btn btn-ghost">Close</button>
-        </div>
-      </div>
-      <div class="modal-backdrop" phx-click="close_user_mod_status"></div>
-    </div>
-  <% end %>
-  
-<!-- Moderator Note Modal -->
-  <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
-        <div class="flex justify-between items-center mb-6">
-          <h3 class="font-bold text-lg">Moderator Notes</h3>
-          <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm btn-circle">
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
-        </div>
-
-        <div class="flex items-center justify-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
-          <.user_avatar user={@note_target_user} size="md" />
-          <div class="text-center">
-            <div class="font-medium">
-              <.username_with_effects
-                user={@note_target_user}
-                display_name={true}
-                verified_size="sm"
-              />
-            </div>
-            <div class="text-sm opacity-70">
-              @{@note_target_user.handle || @note_target_user.username}
-            </div>
-          </div>
-        </div>
-
-        <div class="divider my-6">Add New Note</div>
-
-        <.form for={%{}} phx-submit="add_moderator_note" class="mb-6">
-          <input type="hidden" name="user_id" value={@note_target_user.id} />
-
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Note Text</span>
-            </label>
-            <textarea
-              name="note"
-              placeholder="Add a private note about this user (visible only to moderators)..."
-              class="textarea textarea-bordered w-full"
-              rows="3"
-              required
-            ></textarea>
-          </div>
-
-          <div class="form-control w-full mb-4">
-            <label class="label cursor-pointer justify-center gap-2">
-              <input
-                type="checkbox"
-                name="is_important"
-                class="checkbox checkbox-warning checkbox-sm"
-              />
-              <span class="label-text">Mark as important</span>
-            </label>
-          </div>
-
-          <div class="flex justify-center">
-            <button type="submit" class="btn btn-secondary">
-              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Note
-            </button>
-          </div>
-        </.form>
-
-        <div class="divider my-6">Existing Notes</div>
-
-        <div class="space-y-3 max-h-64 overflow-y-auto">
-          <%= if Map.get(@user_notes, @note_target_user.id, []) != [] do %>
-            <%= for note <- Map.get(@user_notes, @note_target_user.id, []) do %>
-              <div class={"card glass-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
-                <%= if note.is_important do %>
-                  <div class="badge badge-warning badge-sm mb-3">Important</div>
-                <% end %>
-                <p class="text-sm mb-3 leading-relaxed">{note.note}</p>
-                <div class="flex justify-between items-center text-xs opacity-60">
-                  <span>@{note.created_by.handle || note.created_by.username}</span>
-                  <span>
-                    <.local_time
-                      datetime={note.inserted_at}
-                      format="relative"
-                      timezone={@timezone}
-                      time_format={@time_format}
-                    />
-                  </span>
-                </div>
-              </div>
-            <% end %>
-          <% else %>
-            <p class="text-center py-8 opacity-50 text-sm">No notes yet</p>
-          <% end %>
-        </div>
-
-        <div class="modal-action justify-center">
-          <button phx-click="cancel_note" class="btn btn-ghost">Close</button>
-        </div>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_note"></div>
-    </div>
-  <% end %>
-  
-<!-- Timeout Modal -->
-  <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-md">
-        <div class="flex justify-between items-center mb-6">
-          <h3 class="font-bold text-lg">Timeout User</h3>
-          <button type="button" phx-click="cancel_timeout" class="btn btn-ghost btn-sm btn-circle">
-            <.icon name="hero-x-mark" class="w-5 h-5" />
-          </button>
-        </div>
-
-        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
-          <.user_avatar user={@timeout_target_user} size="lg" />
-          <div class="text-center">
-            <div class="font-medium text-base">
-              <.username_with_effects
-                user={@timeout_target_user}
-                display_name={true}
-                verified_size="sm"
-              />
-            </div>
-            <div class="text-sm opacity-70">
-              @{@timeout_target_user.handle || @timeout_target_user.username}
-            </div>
-          </div>
-        </div>
-
-        <div class="alert alert-info mb-6">
-          <.icon name="hero-information-circle" class="w-5 h-5" />
-          <span class="text-sm">User will be unable to post but can still view content</span>
-        </div>
-
-        <.form for={%{}} phx-submit="timeout_user">
-          <input type="hidden" name="user_id" value={@timeout_target_user.id} />
-
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Duration</span>
-            </label>
-            <select name="duration_minutes" class="select select-bordered w-full">
-              <option value="5">5 Minutes</option>
-              <option value="30">30 Minutes</option>
-              <option value="60">1 Hour</option>
-              <option value="360">6 Hours</option>
-              <option value="720">12 Hours</option>
-              <option value="1440">1 Day</option>
-              <option value="4320">3 Days</option>
-              <option value="10080">7 Days</option>
-            </select>
-          </div>
-
-          <div class="form-control w-full mb-6">
-            <label class="label">
-              <span class="label-text font-medium">Reason</span>
-            </label>
-            <textarea
-              name="reason"
-              placeholder="Explain why this timeout is being issued..."
-              class="textarea textarea-bordered w-full"
-              rows="3"
-              required
-            ></textarea>
-          </div>
-
-          <div class="modal-action justify-center gap-3">
-            <button type="button" phx-click="cancel_timeout" class="btn btn-ghost">Cancel</button>
-            <button type="submit" class="btn btn-warning">
-              <.icon name="hero-clock" class="w-4 h-4 mr-2" /> Timeout User
-            </button>
-          </div>
-        </.form>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_timeout"></div>
-    </div>
-  <% end %>
-  
-<!-- Warning Modal -->
-  <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-md">
-        <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
-
-        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
-          <.user_avatar user={@warning_target_user} size="lg" />
-          <div class="text-center">
-            <div class="font-medium text-base">
-              <.username_with_effects
-                user={@warning_target_user}
-                display_name={true}
-                verified_size="sm"
-              />
-            </div>
-            <div class="text-sm opacity-70">
-              @{@warning_target_user.handle || @warning_target_user.username}
-            </div>
-          </div>
-        </div>
-
-        <div class="alert alert-info mb-6">
-          <.icon name="hero-information-circle" class="w-5 h-5" />
-          <span class="text-sm">3 warnings will result in automatic 7-day ban</span>
-        </div>
-
-        <.form for={%{}} phx-submit="warn_user">
-          <input type="hidden" name="user_id" value={@warning_target_user.id} />
-          <%= if @warning_message_id do %>
-            <input type="hidden" name="message_id" value={@warning_message_id} />
-          <% end %>
-
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Warning Severity</span>
-            </label>
-            <select name="severity" class="select select-bordered w-full">
-              <option value="low" selected>Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-
-          <div class="form-control w-full mb-6">
-            <label class="label">
-              <span class="label-text font-medium">Warning Reason</span>
-            </label>
-            <textarea
-              name="reason"
-              placeholder="Explain why this warning is being issued..."
-              class="textarea textarea-bordered w-full"
-              rows="3"
-              required
-            ></textarea>
-          </div>
-
-          <div class="modal-action justify-center gap-3">
-            <button type="button" phx-click="cancel_warning" class="btn btn-ghost">Cancel</button>
-            <button type="submit" class="btn btn-warning">
-              <.icon name="hero-exclamation-triangle" class="w-4 h-4 mr-2" /> Issue Warning
-            </button>
-          </div>
-        </.form>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_warning"></div>
-    </div>
-  <% end %>
-  
-<!-- Auto-Mod Rule Modal -->
-  <%= if @show_rule_modal && (@is_moderator || @current_user.is_admin) do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-lg">
-        <h3 class="font-bold text-lg mb-6 text-center">Add Auto-Mod Rule</h3>
-
-        <.form for={%{}} phx-submit="create_automod_rule">
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Rule Name</span>
-            </label>
-            <input
-              type="text"
-              name="name"
-              placeholder="Spam Filter"
-              class="input input-bordered w-full"
-              required
-            />
-          </div>
-
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Rule Type</span>
-            </label>
-            <select name="rule_type" class="select select-bordered w-full" required>
-              <option value="keyword">Keyword Match</option>
-              <option value="link_domain">Link Domain</option>
-            </select>
-          </div>
-
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Pattern</span>
-            </label>
-            <input
-              type="text"
-              name="pattern"
-              placeholder="spam, scam, phishing"
-              class="input input-bordered w-full"
-              required
-            />
-            <label class="label">
-              <span class="label-text-alt opacity-70">Comma-separated for keywords/domains</span>
-            </label>
-          </div>
-
-          <div class="form-control w-full mb-6">
-            <label class="label">
-              <span class="label-text font-medium">Action</span>
-            </label>
-            <select name="action" class="select select-bordered w-full" required>
-              <option value="flag">Flag for Review</option>
-              <option value="hold_for_review">Hold for Approval</option>
-              <option value="remove">Auto-Remove</option>
-            </select>
-          </div>
-
-          <div class="modal-action justify-center gap-3">
-            <button type="button" phx-click="cancel_automod_rule" class="btn btn-ghost">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-secondary">
-              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Rule
-            </button>
-          </div>
-        </.form>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_automod_rule"></div>
-    </div>
-  <% end %>
-  
-<!-- Ban User Modal -->
-  <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-md">
-        <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
-
-        <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
-          <.user_avatar user={@ban_target_user} size="lg" />
-          <div class="text-center">
-            <div class="font-medium text-base">
-              <.username_with_effects
-                user={@ban_target_user}
-                display_name={true}
-                verified_size="sm"
-              />
-            </div>
-            <div class="text-sm opacity-70">
-              @{@ban_target_user.handle || @ban_target_user.username}
-            </div>
-          </div>
-        </div>
-
-        <div class="alert alert-warning mb-6">
-          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-          <span class="text-sm">
-            This will prevent the user from viewing or participating in this community.
-          </span>
-        </div>
-
-        <.form for={%{}} phx-submit="ban_user">
-          <input type="hidden" name="user_id" value={@ban_target_user.id} />
-
-          <div class="form-control w-full mb-4">
-            <label class="label">
-              <span class="label-text font-medium">Ban Reason</span>
-            </label>
-            <textarea
-              name="reason"
-              placeholder="Explain why this user is being banned..."
-              class="textarea textarea-bordered w-full"
-              rows="3"
-              required
-            ></textarea>
-          </div>
-
-          <div class="form-control w-full mb-6">
-            <label class="label">
-              <span class="label-text font-medium">Ban Duration</span>
-            </label>
-            <select name="duration_days" class="select select-bordered w-full">
-              <option value="1">1 Day</option>
-              <option value="3">3 Days</option>
-              <option value="7">7 Days</option>
-              <option value="14">14 Days</option>
-              <option value="30">30 Days</option>
-              <option value="0" selected>Permanent</option>
-            </select>
-          </div>
-
-          <div class="modal-action justify-center gap-3">
-            <button type="button" phx-click="cancel_ban" class="btn btn-ghost">Cancel</button>
-            <button type="submit" class="btn btn-secondary">
-              <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Ban User
-            </button>
-          </div>
-        </.form>
-      </div>
-      <div class="modal-backdrop" phx-click="cancel_ban"></div>
-    </div>
-  <% end %>
-  
-<!-- Media Upload Modal -->
-  <%= if @show_image_upload_modal && @current_user do %>
-    <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
-
-        <.form
-          for={%{}}
-          phx-submit="upload_discussion_images"
-          phx-change="validate_discussion_upload"
-        >
-          <!-- Media Upload Area -->
-          <div class="form-control w-full mb-4">
-            <label
-              for={@uploads.discussion_attachments.ref}
-              class="block border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors"
-            >
-              <.live_file_input upload={@uploads.discussion_attachments} class="hidden" />
-              <%= if Enum.empty?(@uploads.discussion_attachments.entries) do %>
-                <.icon name="hero-photo" class="w-12 h-12 mx-auto opacity-30 mb-2" />
-                <p class="text-sm opacity-70">Click to upload or drag and drop</p>
-                <p class="text-xs opacity-50 mt-1">Images: JPG, PNG, GIF, WEBP</p>
-                <p class="text-xs opacity-50">Videos: MP4, WEBM, OGV, MOV | Audio: MP3, WAV</p>
-                <p class="text-xs opacity-50 mt-1">Up to 4 files, 50MB each</p>
-              <% else %>
-                <div class="space-y-4">
-                  <%= for {entry, idx} <- Enum.with_index(@uploads.discussion_attachments.entries) do %>
-                    <div class="border border-base-300 rounded-lg p-3">
-                      <div class="flex gap-3">
-                        <.live_img_preview
-                          entry={entry}
-                          class="rounded-lg w-24 h-24 object-cover flex-shrink-0"
-                        />
-                        <div class="flex-1 min-w-0">
-                          <div class="text-sm font-medium mb-2 truncate">{entry.client_name}</div>
-                          <input
-                            type="text"
-                            name={"alt_text_#{idx}"}
-                            placeholder="Add description (optional)"
-                            class="input input-bordered input-sm w-full"
-                            maxlength="1000"
-                          />
-                          <div class="text-xs opacity-60 mt-1">
-                            Helps visually impaired users understand the content
-                          </div>
-                        </div>
+              <%= if mod_data[:notes] && length(mod_data[:notes]) > 0 do %>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                  <%= for note <- Enum.take(mod_data[:notes], 3) do %>
+                    <div class={[
+                      "bg-base-200 p-3 rounded-lg text-sm",
+                      if(note.is_important, do: "border-l-4 border-warning")
+                    ]}>
+                      <%= if note.is_important do %>
+                        <div class="badge badge-warning badge-xs mb-1">Important</div>
+                      <% end %>
+                      <p class="mb-1">{note.note}</p>
+                      <div class="opacity-60 text-xs">
+                        By @{note.created_by.handle || note.created_by.username}
                       </div>
                     </div>
                   <% end %>
                 </div>
+                <%= if length(mod_data[:notes]) > 3 do %>
+                  <div class="text-xs opacity-50 mt-2">
+                    And {length(mod_data[:notes]) - 3} more...
+                  </div>
+                <% end %>
+              <% else %>
+                <p class="text-sm opacity-50">No moderator notes</p>
               <% end %>
-            </label>
-            <%= for entry <- @uploads.discussion_attachments.entries do %>
-              <%= for err <- upload_errors(@uploads.discussion_attachments, entry) do %>
-                <div class="alert alert-error mt-2">
-                  <span class="text-sm">{error_to_string(err)}</span>
+            </div>
+          </div>
+
+          <div class="modal-action justify-center">
+            <button phx-click="close_user_mod_status" class="btn btn-ghost">Close</button>
+          </div>
+        </div>
+        <div class="modal-backdrop" phx-click="close_user_mod_status"></div>
+      </div>
+    <% end %>
+
+    <!-- Moderator Note Modal -->
+    <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-2xl">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-lg">Moderator Notes</h3>
+            <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="flex items-center justify-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+            <.user_avatar user={@note_target_user} size="md" />
+            <div class="text-center">
+              <div class="font-medium">
+                <.username_with_effects
+                  user={@note_target_user}
+                  display_name={true}
+                  verified_size="sm"
+                />
+              </div>
+              <div class="text-sm opacity-70">
+                @{@note_target_user.handle || @note_target_user.username}
+              </div>
+            </div>
+          </div>
+
+          <div class="divider my-6">Add New Note</div>
+
+          <.form for={%{}} phx-submit="add_moderator_note" class="mb-6">
+            <input type="hidden" name="user_id" value={@note_target_user.id} />
+
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Note Text</span>
+              </label>
+              <textarea
+                name="note"
+                placeholder="Add a private note about this user (visible only to moderators)..."
+                class="textarea textarea-bordered w-full"
+                rows="3"
+                required
+              ></textarea>
+            </div>
+
+            <div class="form-control w-full mb-4">
+              <label class="label cursor-pointer justify-center gap-2">
+                <input
+                  type="checkbox"
+                  name="is_important"
+                  class="checkbox checkbox-warning checkbox-sm"
+                />
+                <span class="label-text">Mark as important</span>
+              </label>
+            </div>
+
+            <div class="flex justify-center">
+              <button type="submit" class="btn btn-secondary">
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Note
+              </button>
+            </div>
+          </.form>
+
+          <div class="divider my-6">Existing Notes</div>
+
+          <div class="space-y-3 max-h-64 overflow-y-auto">
+            <%= if Map.get(@user_notes, @note_target_user.id, []) != [] do %>
+              <%= for note <- Map.get(@user_notes, @note_target_user.id, []) do %>
+                <div class={"card glass-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
+                  <%= if note.is_important do %>
+                    <div class="badge badge-warning badge-sm mb-3">Important</div>
+                  <% end %>
+                  <p class="text-sm mb-3 leading-relaxed">{note.note}</p>
+                  <div class="flex justify-between items-center text-xs opacity-60">
+                    <span>@{note.created_by.handle || note.created_by.username}</span>
+                    <span>
+                      <.local_time
+                        datetime={note.inserted_at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </span>
+                  </div>
                 </div>
               <% end %>
+            <% else %>
+              <p class="text-center py-8 opacity-50 text-sm">No notes yet</p>
             <% end %>
           </div>
 
-          <div class="modal-action">
-            <button type="button" class="btn" phx-click="close_image_upload">Cancel</button>
-            <button
-              type="submit"
-              class="btn btn-secondary"
-              disabled={Enum.empty?(@uploads.discussion_attachments.entries)}
-            >
-              <.icon name="hero-check" class="w-4 h-4 mr-1" /> Add Media
+          <div class="modal-action justify-center">
+            <button phx-click="cancel_note" class="btn btn-ghost">Close</button>
+          </div>
+        </div>
+        <div class="modal-backdrop" phx-click="cancel_note"></div>
+      </div>
+    <% end %>
+
+    <!-- Timeout Modal -->
+    <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-md">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-lg">Timeout User</h3>
+            <button type="button" phx-click="cancel_timeout" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
             </button>
           </div>
-        </.form>
+
+          <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+            <.user_avatar user={@timeout_target_user} size="lg" />
+            <div class="text-center">
+              <div class="font-medium text-base">
+                <.username_with_effects
+                  user={@timeout_target_user}
+                  display_name={true}
+                  verified_size="sm"
+                />
+              </div>
+              <div class="text-sm opacity-70">
+                @{@timeout_target_user.handle || @timeout_target_user.username}
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info mb-6">
+            <.icon name="hero-information-circle" class="w-5 h-5" />
+            <span class="text-sm">User will be unable to post but can still view content</span>
+          </div>
+
+          <.form for={%{}} phx-submit="timeout_user">
+            <input type="hidden" name="user_id" value={@timeout_target_user.id} />
+
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Duration</span>
+              </label>
+              <select name="duration_minutes" class="select select-bordered w-full">
+                <option value="5">5 Minutes</option>
+                <option value="30">30 Minutes</option>
+                <option value="60">1 Hour</option>
+                <option value="360">6 Hours</option>
+                <option value="720">12 Hours</option>
+                <option value="1440">1 Day</option>
+                <option value="4320">3 Days</option>
+                <option value="10080">7 Days</option>
+              </select>
+            </div>
+
+            <div class="form-control w-full mb-6">
+              <label class="label">
+                <span class="label-text font-medium">Reason</span>
+              </label>
+              <textarea
+                name="reason"
+                placeholder="Explain why this timeout is being issued..."
+                class="textarea textarea-bordered w-full"
+                rows="3"
+                required
+              ></textarea>
+            </div>
+
+            <div class="modal-action justify-center gap-3">
+              <button type="button" phx-click="cancel_timeout" class="btn btn-ghost">Cancel</button>
+              <button type="submit" class="btn btn-warning">
+                <.icon name="hero-clock" class="w-4 h-4 mr-2" /> Timeout User
+              </button>
+            </div>
+          </.form>
+        </div>
+        <div class="modal-backdrop" phx-click="cancel_timeout"></div>
       </div>
-    </div>
-  <% end %>
-  
-<!-- Image Modal -->
-  <.image_modal
-    show={@show_image_modal}
-    image_url={@modal_image_url}
-    images={@modal_images}
-    image_index={@modal_image_index}
-    post={@modal_post}
-    timezone={@timezone}
-    time_format={@time_format}
-    current_user={@current_user}
-    is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
-    like_count={(@modal_post && @modal_post.like_count) || 0}
-  />
-  
-"""
+    <% end %>
+
+    <!-- Warning Modal -->
+    <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-md">
+          <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
+
+          <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+            <.user_avatar user={@warning_target_user} size="lg" />
+            <div class="text-center">
+              <div class="font-medium text-base">
+                <.username_with_effects
+                  user={@warning_target_user}
+                  display_name={true}
+                  verified_size="sm"
+                />
+              </div>
+              <div class="text-sm opacity-70">
+                @{@warning_target_user.handle || @warning_target_user.username}
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info mb-6">
+            <.icon name="hero-information-circle" class="w-5 h-5" />
+            <span class="text-sm">3 warnings will result in automatic 7-day ban</span>
+          </div>
+
+          <.form for={%{}} phx-submit="warn_user">
+            <input type="hidden" name="user_id" value={@warning_target_user.id} />
+            <%= if @warning_message_id do %>
+              <input type="hidden" name="message_id" value={@warning_message_id} />
+            <% end %>
+
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Warning Severity</span>
+              </label>
+              <select name="severity" class="select select-bordered w-full">
+                <option value="low" selected>Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            <div class="form-control w-full mb-6">
+              <label class="label">
+                <span class="label-text font-medium">Warning Reason</span>
+              </label>
+              <textarea
+                name="reason"
+                placeholder="Explain why this warning is being issued..."
+                class="textarea textarea-bordered w-full"
+                rows="3"
+                required
+              ></textarea>
+            </div>
+
+            <div class="modal-action justify-center gap-3">
+              <button type="button" phx-click="cancel_warning" class="btn btn-ghost">Cancel</button>
+              <button type="submit" class="btn btn-warning">
+                <.icon name="hero-exclamation-triangle" class="w-4 h-4 mr-2" /> Issue Warning
+              </button>
+            </div>
+          </.form>
+        </div>
+        <div class="modal-backdrop" phx-click="cancel_warning"></div>
+      </div>
+    <% end %>
+
+    <!-- Auto-Mod Rule Modal -->
+    <%= if @show_rule_modal && (@is_moderator || @current_user.is_admin) do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-lg">
+          <h3 class="font-bold text-lg mb-6 text-center">Add Auto-Mod Rule</h3>
+
+          <.form for={%{}} phx-submit="create_automod_rule">
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Rule Name</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                placeholder="Spam Filter"
+                class="input input-bordered w-full"
+                required
+              />
+            </div>
+
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Rule Type</span>
+              </label>
+              <select name="rule_type" class="select select-bordered w-full" required>
+                <option value="keyword">Keyword Match</option>
+                <option value="link_domain">Link Domain</option>
+              </select>
+            </div>
+
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Pattern</span>
+              </label>
+              <input
+                type="text"
+                name="pattern"
+                placeholder="spam, scam, phishing"
+                class="input input-bordered w-full"
+                required
+              />
+              <label class="label">
+                <span class="label-text-alt opacity-70">Comma-separated for keywords/domains</span>
+              </label>
+            </div>
+
+            <div class="form-control w-full mb-6">
+              <label class="label">
+                <span class="label-text font-medium">Action</span>
+              </label>
+              <select name="action" class="select select-bordered w-full" required>
+                <option value="flag">Flag for Review</option>
+                <option value="hold_for_review">Hold for Approval</option>
+                <option value="remove">Auto-Remove</option>
+              </select>
+            </div>
+
+            <div class="modal-action justify-center gap-3">
+              <button type="button" phx-click="cancel_automod_rule" class="btn btn-ghost">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-secondary">
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Rule
+              </button>
+            </div>
+          </.form>
+        </div>
+        <div class="modal-backdrop" phx-click="cancel_automod_rule"></div>
+      </div>
+    <% end %>
+
+    <!-- Ban User Modal -->
+    <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-md">
+          <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
+
+          <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
+            <.user_avatar user={@ban_target_user} size="lg" />
+            <div class="text-center">
+              <div class="font-medium text-base">
+                <.username_with_effects
+                  user={@ban_target_user}
+                  display_name={true}
+                  verified_size="sm"
+                />
+              </div>
+              <div class="text-sm opacity-70">
+                @{@ban_target_user.handle || @ban_target_user.username}
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-warning mb-6">
+            <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+            <span class="text-sm">
+              This will prevent the user from viewing or participating in this community.
+            </span>
+          </div>
+
+          <.form for={%{}} phx-submit="ban_user">
+            <input type="hidden" name="user_id" value={@ban_target_user.id} />
+
+            <div class="form-control w-full mb-4">
+              <label class="label">
+                <span class="label-text font-medium">Ban Reason</span>
+              </label>
+              <textarea
+                name="reason"
+                placeholder="Explain why this user is being banned..."
+                class="textarea textarea-bordered w-full"
+                rows="3"
+                required
+              ></textarea>
+            </div>
+
+            <div class="form-control w-full mb-6">
+              <label class="label">
+                <span class="label-text font-medium">Ban Duration</span>
+              </label>
+              <select name="duration_days" class="select select-bordered w-full">
+                <option value="1">1 Day</option>
+                <option value="3">3 Days</option>
+                <option value="7">7 Days</option>
+                <option value="14">14 Days</option>
+                <option value="30">30 Days</option>
+                <option value="0" selected>Permanent</option>
+              </select>
+            </div>
+
+            <div class="modal-action justify-center gap-3">
+              <button type="button" phx-click="cancel_ban" class="btn btn-ghost">Cancel</button>
+              <button type="submit" class="btn btn-secondary">
+                <.icon name="hero-no-symbol" class="w-4 h-4 mr-2" /> Ban User
+              </button>
+            </div>
+          </.form>
+        </div>
+        <div class="modal-backdrop" phx-click="cancel_ban"></div>
+      </div>
+    <% end %>
+
+    <!-- Media Upload Modal -->
+    <%= if @show_image_upload_modal && @current_user do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-2xl">
+          <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
+
+          <.form
+            for={%{}}
+            phx-submit="upload_discussion_images"
+            phx-change="validate_discussion_upload"
+          >
+            <!-- Media Upload Area -->
+            <div class="form-control w-full mb-4">
+              <label
+                for={@uploads.discussion_attachments.ref}
+                class="block border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors"
+              >
+                <.live_file_input upload={@uploads.discussion_attachments} class="hidden" />
+                <%= if Enum.empty?(@uploads.discussion_attachments.entries) do %>
+                  <.icon name="hero-photo" class="w-12 h-12 mx-auto opacity-30 mb-2" />
+                  <p class="text-sm opacity-70">Click to upload or drag and drop</p>
+                  <p class="text-xs opacity-50 mt-1">Images: JPG, PNG, GIF, WEBP</p>
+                  <p class="text-xs opacity-50">Videos: MP4, WEBM, OGV, MOV | Audio: MP3, WAV</p>
+                  <p class="text-xs opacity-50 mt-1">Up to 4 files, 50MB each</p>
+                <% else %>
+                  <div class="space-y-4">
+                    <%= for {entry, idx} <- Enum.with_index(@uploads.discussion_attachments.entries) do %>
+                      <div class="border border-base-300 rounded-lg p-3">
+                        <div class="flex gap-3">
+                          <.live_img_preview
+                            entry={entry}
+                            class="rounded-lg w-24 h-24 object-cover flex-shrink-0"
+                          />
+                          <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium mb-2 truncate">{entry.client_name}</div>
+                            <input
+                              type="text"
+                              name={"alt_text_#{idx}"}
+                              placeholder="Add description (optional)"
+                              class="input input-bordered input-sm w-full"
+                              maxlength="1000"
+                            />
+                            <div class="text-xs opacity-60 mt-1">
+                              Helps visually impaired users understand the content
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </label>
+              <%= for entry <- @uploads.discussion_attachments.entries do %>
+                <%= for err <- upload_errors(@uploads.discussion_attachments, entry) do %>
+                  <div class="alert alert-error mt-2">
+                    <span class="text-sm">{error_to_string(err)}</span>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+
+            <div class="modal-action">
+              <button type="button" class="btn" phx-click="close_image_upload">Cancel</button>
+              <button
+                type="submit"
+                class="btn btn-secondary"
+                disabled={Enum.empty?(@uploads.discussion_attachments.entries)}
+              >
+                <.icon name="hero-check" class="w-4 h-4 mr-1" /> Add Media
+              </button>
+            </div>
+          </.form>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Image Modal -->
+    <.image_modal
+      show={@show_image_modal}
+      image_url={@modal_image_url}
+      images={@modal_images}
+      image_index={@modal_image_index}
+      post={@modal_post}
+      timezone={@timezone}
+      time_format={@time_format}
+      current_user={@current_user}
+      is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
+      like_count={(@modal_post && @modal_post.like_count) || 0}
+    />
+    """
   end
+
   defp error_to_string(:too_large), do: "Image is too large (max 10MB)"
 
   defp error_to_string(:not_accepted),

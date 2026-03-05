@@ -2721,7 +2721,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         end
 
       %{
-        label: "@#{handle}@z.org",
+        label: "@#{handle}@#{Elektrine.Domains.default_user_handle_domain()}",
         avatar_url: avatar_url,
         profile_path: if(is_binary(handle) && handle != "", do: "/#{handle}", else: nil)
       }

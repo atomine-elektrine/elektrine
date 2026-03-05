@@ -226,7 +226,6 @@ defmodule Elektrine.Email.HeaderSanitizer do
     false
   end
 
-  @local_domains ["elektrine.com", "z.org"]
   @doc "Checks for multiple From headers in raw email data.\nReturns {:ok, :valid} or {:error, reason}.\n"
   def check_multiple_from_headers(nil) do
     {:ok, :valid}
@@ -262,7 +261,7 @@ defmodule Elektrine.Email.HeaderSanitizer do
       is_nil(from_domain) ->
         {:ok, :valid}
 
-      not Enum.member?(@local_domains, String.downcase(from_domain)) ->
+      not Enum.member?(local_domains(), String.downcase(from_domain)) ->
         {:ok, :valid}
 
       not is_nil(authenticated_user) ->
@@ -318,7 +317,7 @@ defmodule Elektrine.Email.HeaderSanitizer do
     if is_bounce do
       to_domain = extract_domain(to)
 
-      if to_domain && Enum.member?(@local_domains, String.downcase(to_domain)) do
+      if to_domain && Enum.member?(local_domains(), String.downcase(to_domain)) do
         to_local = extract_local_part(to)
 
         if to_local && user_exists?(to_local, to_domain) do
@@ -425,5 +424,9 @@ defmodule Elektrine.Email.HeaderSanitizer do
     end
   rescue
     _ -> true
+  end
+
+  defp local_domains do
+    Elektrine.Domains.supported_email_domains()
   end
 end
