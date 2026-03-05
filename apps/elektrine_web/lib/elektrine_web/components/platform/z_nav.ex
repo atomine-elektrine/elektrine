@@ -34,14 +34,19 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="rounded-box border border-base-300 bg-base-100/90 backdrop-blur-sm shadow-sm">
           <div class="overflow-x-auto px-2 py-2 sm:px-3 lg:overflow-x-visible">
-            <div class="mx-auto flex min-w-max items-center justify-center gap-1 lg:grid lg:w-full lg:min-w-0 lg:grid-flow-col lg:auto-cols-fr">
+            <div class="mx-auto flex min-w-max items-center justify-start gap-1 lg:w-full lg:min-w-0 lg:justify-center">
               <%= for item <- @items do %>
-                <.link href={item.href} class={tab_class(@active_tab, item.id)}>
+                <.link
+                  href={item.href}
+                  class={tab_class(@active_tab, item.id)}
+                  title={item.label}
+                  style={tab_style(item.label)}
+                >
                   <.icon
                     name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
-                    class="h-4 w-4 shrink-0 lg:h-3.5 lg:w-3.5 xl:h-4 xl:w-4"
+                    class={icon_class(@active_tab, item.id)}
                   />
-                  <span class="hidden min-w-0 sm:block lg:flex-1 lg:text-center lg:text-[11px] xl:text-sm">
+                  <span class="hidden min-w-0 sm:block lg:truncate lg:text-center lg:text-[11px] xl:text-sm">
                     {item.label}
                   </span>
                 </.link>
@@ -138,11 +143,32 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
 
   defp tab_class(active_tab, tab_id) do
     [
-      "flex min-w-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors lg:gap-0.5 lg:justify-center lg:overflow-hidden lg:px-1 xl:gap-1 xl:px-2",
+      "group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors lg:min-w-0 lg:basis-0 lg:gap-0.5 lg:justify-center lg:px-1.5 xl:gap-1 xl:px-2",
       if(active_tab == tab_id,
         do: "bg-base-200 text-base-content font-medium",
         else: "text-base-content/75 hover:bg-base-200 hover:text-base-content"
       )
     ]
+  end
+
+  defp icon_class(active_tab, tab_id) do
+    [
+      "h-4 w-4 shrink-0 transition-colors lg:h-3.5 lg:w-3.5 xl:h-4 xl:w-4",
+      if(active_tab == tab_id,
+        do: "text-primary",
+        else: "text-base-content/60 group-hover:text-base-content/85"
+      )
+    ]
+  end
+
+  defp tab_style(label) do
+    "flex-grow: #{tab_weight(label)};"
+  end
+
+  defp tab_weight(label) when is_binary(label) do
+    label
+    |> String.length()
+    |> max(4)
+    |> min(14)
   end
 end

@@ -90,7 +90,7 @@
         </form>
       </div>
     </div>
-    <div class="navbar-end">
+    <div class="navbar-end items-center gap-1 sm:gap-2 lg:gap-3">
       <%= if @current_user do %>
         <!-- Status Selector (desktop only) -->
         <div
@@ -227,7 +227,7 @@
         <!-- Notification Bell -->
         <.link
           href="/notifications"
-          class="indicator mr-4 flex items-center no-glow"
+          class="indicator flex items-center no-glow flex-shrink-0"
           title={gettext("Notifications")}
         >
           <%= if assigns[:notification_count] && @notification_count > 0 do %>

@@ -6,6 +6,19 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   @max_links Constants.max_profile_links()
   @max_widgets Constants.max_profile_widgets()
+  @profile_tabs [
+    {"basic", "hero-user", "Basic Info"},
+    {"appearance", "hero-paint-brush", "Appearance"},
+    {"avatar", "hero-photo", "Avatar Effects"},
+    {"username", "hero-sparkles", "Username Effects"},
+    {"links", "hero-link", "Links"},
+    {"widgets", "hero-squares-2x2", "Widgets"},
+    {"badges", "hero-check-badge", "Badges"},
+    {"advanced", "hero-cog-6-tooth", "Advanced"},
+    {"static_site", "hero-code-bracket", "Static Site"}
+  ]
+  @valid_tabs Enum.map(@profile_tabs, fn {tab, _icon, _label} -> tab end)
+  @default_tab "basic"
 
   @impl true
   def mount(_params, _session, socket) do
@@ -79,13 +92,13 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   @impl true
   def handle_params(%{"tab" => tab}, _url, socket) do
     # Set tab from URL parameter
-    {:noreply, assign(socket, :selected_tab, tab)}
+    {:noreply, assign(socket, :selected_tab, normalize_selected_tab(tab))}
   end
 
   @impl true
   def handle_params(_params, _url, socket) do
     # Default to basic tab if no tab specified
-    {:noreply, assign(socket, :selected_tab, "basic")}
+    {:noreply, assign(socket, :selected_tab, @default_tab)}
   end
 
   @impl true
@@ -1488,4 +1501,25 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   defp humanize_error(:not_accepted), do: "File type not accepted. Only ZIP files are allowed."
   defp humanize_error(:too_many_files), do: "Only one file can be uploaded at a time"
   defp humanize_error(err), do: "Upload error: #{inspect(err)}"
+
+  defp normalize_selected_tab(tab) when tab in @valid_tabs do
+    tab
+  end
+
+  defp normalize_selected_tab(_tab), do: @default_tab
+
+  defp profile_tabs do
+    @profile_tabs
+  end
+
+  defp profile_tab_link_class(selected_tab, tab_id) do
+    base =
+      "text-sm rounded-lg flex items-center gap-2 px-3 py-2 border transition-all duration-200"
+
+    if selected_tab == tab_id do
+      "#{base} border-primary/35 bg-base-200/70 text-base-content font-medium"
+    else
+      "#{base} border-transparent text-base-content/80 hover:text-base-content hover:bg-base-200/60 hover:border-base-300"
+    end
+  end
 end

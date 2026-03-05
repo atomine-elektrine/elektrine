@@ -87,7 +87,8 @@ defmodule Elektrine.Accounts.Storage do
 
     if user do
       used = user.storage_used_bytes || 0
-      limit = user.storage_limit_bytes || 26_214_400
+      # 500MB default (matches schema + enforcement paths)
+      limit = user.storage_limit_bytes || 524_288_000
 
       %{
         used_bytes: used,

@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.StorageLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Accounts.Storage
+  require Logger
 
   @impl true
   def mount(_params, _session, socket) do
@@ -66,6 +67,8 @@ defmodule ElektrineWeb.StorageLive do
 
     case Elektrine.Email.get_user_message(message_id, socket.assigns.current_user.id) do
       {:ok, message} when is_map_key(message.attachments, attachment_id) ->
+        attachment_to_delete = Map.get(message.attachments, attachment_id)
+
         # Remove the attachment from the message
         updated_attachments = Map.delete(message.attachments, attachment_id)
         has_attachments = map_size(updated_attachments) > 0
@@ -76,6 +79,7 @@ defmodule ElektrineWeb.StorageLive do
                has_attachments
              ) do
           {:ok, _} ->
+            maybe_delete_email_attachment_storage(attachment_to_delete)
             Storage.update_user_storage(socket.assigns.current_user.id)
 
             # Refresh all storage data
@@ -107,6 +111,8 @@ defmodule ElektrineWeb.StorageLive do
     message = Elektrine.Repo.get(Elektrine.Messaging.Message, message_id)
 
     if message && message.sender_id == socket.assigns.current_user.id do
+      media_urls_to_delete = message.media_urls || []
+
       # If message has no content, mark as deleted; otherwise just clear media
       result =
         if is_nil(message.content) || String.trim(message.content || "") == "" do
@@ -127,6 +133,7 @@ defmodule ElektrineWeb.StorageLive do
 
       case result do
         {:ok, _} ->
+          maybe_delete_chat_media_storage(media_urls_to_delete)
           Storage.update_user_storage(socket.assigns.current_user.id)
 
           # Refresh all storage data
@@ -152,52 +159,67 @@ defmodule ElektrineWeb.StorageLive do
   def handle_event("delete_profile_image", %{"type" => type}, socket) do
     user_id = socket.assigns.current_user.id
 
-    result =
+    {result, file_to_delete} =
       case type do
         "avatar" ->
-          Elektrine.Accounts.update_user(socket.assigns.current_user, %{
-            avatar: nil,
-            avatar_size: 0
-          })
+          {
+            Elektrine.Accounts.update_user(socket.assigns.current_user, %{
+              avatar: nil,
+              avatar_size: 0
+            }),
+            socket.assigns.current_user.avatar
+          }
 
         "background" ->
           case Elektrine.Profiles.get_user_profile(user_id) do
             nil ->
-              {:error, :not_found}
+              {{:error, :not_found}, nil}
 
             profile ->
-              Elektrine.Profiles.update_user_profile(profile, %{
-                background_url: nil,
-                background_size: 0
-              })
+              {
+                Elektrine.Profiles.update_user_profile(profile, %{
+                  background_url: nil,
+                  background_size: 0
+                }),
+                profile.background_url
+              }
           end
 
         "banner" ->
           case Elektrine.Profiles.get_user_profile(user_id) do
             nil ->
-              {:error, :not_found}
+              {{:error, :not_found}, nil}
 
             profile ->
-              Elektrine.Profiles.update_user_profile(profile, %{banner_url: nil, banner_size: 0})
+              {
+                Elektrine.Profiles.update_user_profile(profile, %{
+                  banner_url: nil,
+                  banner_size: 0
+                }),
+                profile.banner_url
+              }
           end
 
         _ ->
-          {:error, :invalid_type}
+          {{:error, :invalid_type}, nil}
       end
 
     case result do
       {:ok, _} ->
+        maybe_delete_uploaded_file(file_to_delete)
         Storage.update_user_storage(user_id)
 
         # Refresh all storage data
         storage_info = Storage.get_storage_info(user_id)
         breakdown = get_storage_breakdown(user_id)
+        fresh_user = Elektrine.Accounts.get_user!(user_id)
 
         {:noreply,
          socket
          |> assign(:storage_info, storage_info)
          |> assign(:breakdown, breakdown)
          |> assign(:profile_images, get_profile_images(user_id))
+         |> assign(:current_user, fresh_user)
          |> put_flash(:info, "Image deleted successfully")}
 
       {:error, _} ->
@@ -436,5 +458,53 @@ defmodule ElektrineWeb.StorageLive do
       }
     end)
     |> Enum.sort_by(& &1.path)
+  end
+
+  defp profile_image_url(%{type: "avatar", url: url}) do
+    Elektrine.Uploads.avatar_url(url)
+  end
+
+  defp profile_image_url(%{type: type, url: url}) when type in ["background", "banner"] do
+    Elektrine.Uploads.background_url(url)
+  end
+
+  defp profile_image_url(%{url: url}), do: url
+
+  defp maybe_delete_email_attachment_storage(attachment) when is_map(attachment) do
+    case Elektrine.Email.AttachmentStorage.delete_attachment(attachment) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to delete email attachment from storage: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp maybe_delete_email_attachment_storage(_), do: :ok
+
+  defp maybe_delete_chat_media_storage(media_urls) when is_list(media_urls) do
+    media_urls
+    |> Enum.reject(&String.contains?(&1, "giphy.com"))
+    |> Enum.each(&maybe_delete_uploaded_file/1)
+  end
+
+  defp maybe_delete_chat_media_storage(_), do: :ok
+
+  defp maybe_delete_uploaded_file(nil), do: :ok
+  defp maybe_delete_uploaded_file(""), do: :ok
+
+  defp maybe_delete_uploaded_file(value) when is_binary(value) do
+    case Elektrine.Uploads.delete_uploaded_file(value) do
+      :ok ->
+        :ok
+
+      {:error, reason} when reason in [:invalid_upload_key, :invalid_s3_key] ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to delete uploaded file #{inspect(value)}: #{inspect(reason)}")
+        :ok
+    end
   end
 end

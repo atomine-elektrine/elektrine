@@ -754,11 +754,26 @@ defmodule ElektrineWeb.EmailLive.Compose do
          |> assign(:form, to_form(email_params))}
 
       {:error, :storage_limit_exceeded} ->
+        storage_limit =
+          case socket.assigns[:storage_info] do
+            %{limit_formatted: limit_formatted} when is_binary(limit_formatted) ->
+              limit_formatted
+
+            _ ->
+              case Elektrine.Accounts.Storage.get_storage_info(user.id) do
+                %{limit_formatted: limit_formatted} when is_binary(limit_formatted) ->
+                  limit_formatted
+
+                _ ->
+                  "configured limit"
+              end
+          end
+
         {:noreply,
          socket
          |> assign(:sending, false)
          |> notify_error(
-           "Cannot send email: your mailbox storage limit (5MB) has been exceeded. Please delete some emails first."
+           "Cannot send email: your mailbox storage limit (#{storage_limit}) has been exceeded. Please delete some emails first."
          )
          |> assign(:form, to_form(email_params))}
 

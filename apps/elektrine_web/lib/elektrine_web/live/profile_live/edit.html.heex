@@ -19,87 +19,17 @@
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-4">Sections</h3>
             <ul class="menu menu-compact w-full p-0 space-y-1">
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="basic"
-                  class={"text-sm rounded-lg #{if @selected_tab == "basic", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-user" class="w-4 h-4" /> Basic Info
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="appearance"
-                  class={"text-sm rounded-lg #{if @selected_tab == "appearance", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-paint-brush" class="w-4 h-4" /> Appearance
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="avatar"
-                  class={"text-sm rounded-lg #{if @selected_tab == "avatar", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-photo" class="w-4 h-4" /> Avatar Effects
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="username"
-                  class={"text-sm rounded-lg #{if @selected_tab == "username", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-sparkles" class="w-4 h-4" /> Username Effects
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="links"
-                  class={"text-sm rounded-lg #{if @selected_tab == "links", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-link" class="w-4 h-4" /> Links
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="widgets"
-                  class={"text-sm rounded-lg #{if @selected_tab == "widgets", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-squares-2x2" class="w-4 h-4" /> Widgets
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="badges"
-                  class={"text-sm rounded-lg #{if @selected_tab == "badges", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-check-badge" class="w-4 h-4" /> Badges
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="advanced"
-                  class={"text-sm rounded-lg #{if @selected_tab == "advanced", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> Advanced
-                </a>
-              </li>
-              <li>
-                <a
-                  phx-click="change_tab"
-                  phx-value-tab="static_site"
-                  class={"text-sm rounded-lg #{if @selected_tab == "static_site", do: "bg-primary text-primary-content", else: "hover:bg-base-200"}"}
-                >
-                  <.icon name="hero-code-bracket" class="w-4 h-4" /> Static Site
-                </a>
-              </li>
+              <%= for {tab_id, tab_icon, tab_label} <- profile_tabs() do %>
+                <li>
+                  <a
+                    phx-click="change_tab"
+                    phx-value-tab={tab_id}
+                    class={profile_tab_link_class(@selected_tab, tab_id)}
+                  >
+                    <.icon name={tab_icon} class="w-4 h-4" /> {tab_label}
+                  </a>
+                </li>
+              <% end %>
             </ul>
 
             <div class="divider my-4"></div>
@@ -132,9 +62,9 @@
       <!-- Basic Info Tab -->
       <%= if @selected_tab == "basic" do %>
         <div class="card glass-card shadow-lg">
-          <div class="card-body p-6">
+          <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
-              <h2 class="card-title text-2xl mb-2">
+              <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-user" class="w-6 h-6" /> Basic Information
               </h2>
               <p class="text-sm text-base-content/60">
@@ -425,12 +355,12 @@
       
 <!-- Appearance Tab -->
       <%= if @selected_tab == "appearance" do %>
-        <div class="space-y-6">
+        <div class="space-y-4 sm:space-y-6">
           <!-- Color Palette Generator -->
           <div class="card glass-card shadow-lg border-2 border-primary/20">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-sparkles" class="w-6 h-6" /> Quick Color Palette
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -438,7 +368,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="generate_palette" class="space-y-6">
+              <.form for={%{}} phx-submit="generate_palette" class="space-y-4 sm:space-y-6">
                 <div class="flex items-center gap-4">
                   <input
                     type="color"
@@ -463,15 +393,20 @@
           
 <!-- Colors & Theme -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-swatch" class="w-6 h-6" /> Individual Colors
                 </h2>
                 <p class="text-sm text-base-content/60">Fine-tune each color separately</p>
               </div>
 
-              <.form for={%{}} phx-submit="update_profile" multipart class="space-y-6">
+              <.form
+                for={%{}}
+                phx-submit="update_profile"
+                multipart
+                class="space-y-4 sm:space-y-6"
+              >
                 <div class="flex items-center gap-4">
                   <input
                     type="color"
@@ -866,9 +801,9 @@
           
 <!-- Visual Effects -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Visual Effects
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -876,10 +811,15 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="update_profile" multipart class="space-y-6">
+              <.form
+                for={%{}}
+                phx-submit="update_profile"
+                multipart
+                class="space-y-4 sm:space-y-6"
+              >
                 
 <!-- Effect Sliders -->
-                <div class="space-y-6">
+                <div class="space-y-4 sm:space-y-6">
                   <div>
                     <label class="label">
                       <span class="label-text font-medium">Profile Opacity</span>
@@ -992,9 +932,9 @@
           
 <!-- Typewriter Effect -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-pencil-square" class="w-6 h-6" /> Typewriter Effect
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -1002,7 +942,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+              <.form for={%{}} phx-submit="update_profile" class="space-y-4 sm:space-y-6">
                 <div class="form-control">
                   <label class="label cursor-pointer justify-start gap-3">
                     <input type="hidden" name="profile[typewriter_title]" value="false" />
@@ -1087,9 +1027,9 @@
 <!-- Avatar Effects Tab -->
       <%= if @selected_tab == "avatar" do %>
         <div class="card glass-card shadow-lg">
-          <div class="card-body p-6">
+          <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
-              <h2 class="card-title text-2xl mb-2">
+              <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-photo" class="w-6 h-6" /> Avatar Effects
               </h2>
               <p class="text-sm text-base-content/60">
@@ -1097,7 +1037,7 @@
               </p>
             </div>
 
-            <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+            <.form for={%{}} phx-submit="update_profile" class="space-y-4 sm:space-y-6">
               <!-- Effect Type Selector -->
               <div>
                 <label class="label">
@@ -1169,9 +1109,9 @@
 <!-- Username Effects Tab -->
       <%= if @selected_tab == "username" do %>
         <div class="card glass-card shadow-lg">
-          <div class="card-body p-6">
+          <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
-              <h2 class="card-title text-2xl mb-2">
+              <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-sparkles" class="w-6 h-6" /> Username Effects
               </h2>
               <p class="text-sm text-base-content/60">
@@ -1179,7 +1119,7 @@
               </p>
             </div>
 
-            <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+            <.form for={%{}} phx-submit="update_profile" class="space-y-4 sm:space-y-6">
               <!-- Effect Type Selector -->
               <div>
                 <label class="label">
@@ -1417,12 +1357,12 @@
       
 <!-- Links Tab -->
       <%= if @selected_tab == "links" do %>
-        <div class="space-y-6">
+        <div class="space-y-4 sm:space-y-6">
           <!-- Link Display Style -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-2x2" class="w-6 h-6" /> Link Display Style
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -1430,7 +1370,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+              <.form for={%{}} phx-submit="update_profile" class="space-y-4 sm:space-y-6">
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Display Style</span>
@@ -1517,9 +1457,9 @@
           
 <!-- Add New Link -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-plus" class="w-6 h-6" /> Add New Link
                   <span class="text-sm font-normal text-base-content/60">
                     ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
@@ -1530,7 +1470,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="add_link" multipart class="space-y-6">
+              <.form for={%{}} phx-submit="add_link" multipart class="space-y-4 sm:space-y-6">
                 <!-- Platform Selection -->
                 <div>
                   <label class="label">
@@ -1701,7 +1641,7 @@
                 </div>
 
                 <div class="card-actions">
-                  <button type="submit" class="btn btn-primary btn-lg w-full">
+                  <button type="submit" class="btn btn-primary w-full">
                     Add Link
                   </button>
                 </div>
@@ -1711,9 +1651,9 @@
           
 <!-- Current Links -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-link" class="w-6 h-6" /> Your Links
                   <span class="text-sm font-normal text-base-content/60">
                     ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
@@ -2053,12 +1993,12 @@
       
 <!-- Widgets Tab -->
       <%= if @selected_tab == "widgets" do %>
-        <div class="space-y-6">
+        <div class="space-y-4 sm:space-y-6">
           <!-- Add New Widget -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-plus" class="w-6 h-6" /> Add Widget
                   <span class="text-sm font-normal text-base-content/60">
                     ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
@@ -2069,7 +2009,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="add_widget" class="space-y-6">
+              <.form for={%{}} phx-submit="add_widget" class="space-y-4 sm:space-y-6">
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Widget Type</span>
@@ -2133,9 +2073,9 @@
           
 <!-- Current Widgets -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-2x2" class="w-6 h-6" /> Your Widgets
                   <span class="text-sm font-normal text-base-content/60">
                     ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
@@ -2214,9 +2154,9 @@
 <!-- Badges Tab -->
       <%= if @selected_tab == "badges" do %>
         <div class="card glass-card shadow-lg">
-          <div class="card-body p-6">
+          <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
-              <h2 class="card-title text-2xl mb-2">
+              <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-check-badge" class="w-6 h-6" /> Manage Your Badges
               </h2>
               <p class="text-sm text-base-content/60">
@@ -2287,12 +2227,12 @@
       
 <!-- Advanced Tab -->
       <%= if @selected_tab == "advanced" do %>
-        <div class="space-y-6">
+        <div class="space-y-4 sm:space-y-6">
           <!-- Text Fonts -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-document-text" class="w-6 h-6" /> Text Fonts
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -2300,7 +2240,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+              <.form for={%{}} phx-submit="update_profile" class="space-y-4 sm:space-y-6">
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Font Family</span>
@@ -2449,9 +2389,9 @@
           
 <!-- Cursor Effects -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-cursor-arrow-rays" class="w-6 h-6" /> Cursor Effects
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -2459,7 +2399,7 @@
                 </p>
               </div>
 
-              <.form for={%{}} phx-submit="update_profile" class="space-y-6">
+              <.form for={%{}} phx-submit="update_profile" class="space-y-4 sm:space-y-6">
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Cursor Style</span>
@@ -2568,9 +2508,9 @@
           
 <!-- Favicon -->
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-globe-alt" class="w-6 h-6" /> Favicon
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -2582,7 +2522,7 @@
                 for={%{}}
                 phx-submit="update_profile"
                 phx-change="validate_favicon_upload"
-                class="space-y-6"
+                class="space-y-4 sm:space-y-6"
               >
                 <!-- Current Favicon Preview -->
                 <%= if @profile && @profile.favicon_url do %>
@@ -2657,11 +2597,11 @@
       
 <!-- Static Site Tab -->
       <%= if @selected_tab == "static_site" do %>
-        <div class="space-y-6">
+        <div class="space-y-4 sm:space-y-6">
           <div class="card glass-card shadow-lg">
-            <div class="card-body p-6">
+            <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
-                <h2 class="card-title text-2xl mb-2">
+                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-code-bracket" class="w-6 h-6" /> Profile Mode
                 </h2>
                 <p class="text-sm text-base-content/60">
@@ -2724,9 +2664,9 @@
 <!-- Static Site Upload (only shown when static mode is enabled) -->
           <%= if @profile && @profile.profile_mode == "static" do %>
             <div class="card glass-card shadow-lg">
-              <div class="card-body p-6">
+              <div class="card-body p-4 sm:p-6">
                 <div class="mb-6">
-                  <h2 class="card-title text-2xl mb-2">
+                  <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                     <.icon name="hero-arrow-up-tray" class="w-6 h-6" /> Upload Static Site
                   </h2>
                   <p class="text-sm text-base-content/60">

@@ -83,6 +83,17 @@ defmodule Elektrine.Uploads do
     ~r/union\s+select/i,
     ~r/drop\s+table/i
   ]
+  @deletable_upload_prefixes [
+    "avatars/",
+    "backgrounds/",
+    "chat-attachments/",
+    "timeline-attachments/",
+    "discussion-attachments/",
+    "gallery-attachments/",
+    "voice-messages/",
+    "favicons/",
+    "email-attachments/"
+  ]
   @magic_bytes %{
     "image/jpeg" => [<<255, 216, 255>>],
     "image/png" => [<<137, 80, 78, 71, 13, 10, 26, 10>>],
@@ -675,11 +686,7 @@ defmodule Elektrine.Uploads do
   end
 
   def delete_avatar(url) when is_binary(url) do
-    result =
-      case get_config(:adapter) do
-        :local -> delete_local(url)
-        :s3 -> delete_s3(url)
-      end
+    result = delete_storage_object(url)
 
     emit_upload_result(:delete_avatar, normalize_delete_result(result))
     result
@@ -695,36 +702,61 @@ defmodule Elektrine.Uploads do
   end
 
   def delete_background(url) when is_binary(url) do
-    result =
-      case get_config(:adapter) do
-        :local -> delete_local(url)
-        :s3 -> delete_s3(url)
-      end
+    result = delete_storage_object(url)
 
     emit_upload_result(:delete_background, normalize_delete_result(result))
     result
   end
 
-  defp delete_local(url) do
-    case String.split(url, "/") do
-      [_, "uploads", folder, filename] when folder in ["avatars", "backgrounds"] ->
-        uploads_dir = get_config(:uploads_dir) || "priv/static/uploads"
-        filepath = Path.join([uploads_dir, folder, filename])
-        File.rm(filepath)
+  @doc """
+  Deletes an uploaded file from storage.
 
-      _ ->
-        {:error, :invalid_url}
+  Accepts:
+  - S3 key (for example `chat-attachments/123_file.jpg`)
+  - Local upload path (`/uploads/chat-attachments/123_file.jpg`)
+  - Full URL (`https://bucket.endpoint/chat-attachments/123_file.jpg`)
+  """
+  def delete_uploaded_file(nil), do: :ok
+  def delete_uploaded_file(""), do: :ok
+
+  def delete_uploaded_file(value) when is_binary(value) do
+    result = delete_storage_object(value)
+    emit_upload_result(:delete_uploaded_file, normalize_delete_result(result))
+    result
+  end
+
+  defp delete_storage_object(value) when is_binary(value) do
+    case get_config(:adapter) do
+      :local -> delete_local_object(value)
+      :s3 -> delete_s3_object(value)
     end
   end
 
-  defp delete_s3(url) do
-    bucket = get_config(:bucket)
+  defp delete_local_object(value) do
+    uploads_dir = get_config(:uploads_dir) || "priv/static/uploads"
+    uploads_root = Path.expand(uploads_dir)
 
-    case extract_s3_key_from_url(url) do
+    case normalize_local_delete_key(value) do
       {:ok, key} ->
-        case ExAws.S3.delete_object(bucket, key) |> ExAws.request() do
-          {:ok, _response} -> :ok
-          {:error, reason} -> {:error, reason}
+        cond do
+          invalid_delete_key?(key) ->
+            {:error, :invalid_upload_key}
+
+          not allowed_delete_prefix?(key) ->
+            {:error, :invalid_upload_key}
+
+          true ->
+            filepath = Path.expand(Path.join(uploads_root, key))
+
+            if String.starts_with?(filepath, uploads_root <> "/") do
+              case File.rm(filepath) do
+                :ok -> :ok
+                {:error, :enoent} -> :ok
+                {:error, reason} -> {:error, reason}
+              end
+            else
+              {:error, :invalid_upload_key}
+            end
         end
 
       {:error, reason} ->
@@ -732,13 +764,95 @@ defmodule Elektrine.Uploads do
     end
   end
 
-  defp extract_s3_key_from_url(url) do
-    uri = URI.parse(url)
+  defp delete_s3_object(value) do
+    bucket = get_config(:bucket)
 
-    case uri.path do
-      "/" <> path -> {:ok, path}
-      _ -> {:error, :invalid_s3_url}
+    case normalize_s3_delete_key(value) do
+      {:ok, key} ->
+        cond do
+          invalid_delete_key?(key) ->
+            {:error, :invalid_s3_key}
+
+          not allowed_delete_prefix?(key) ->
+            {:error, :invalid_s3_key}
+
+          true ->
+            case ExAws.S3.delete_object(bucket, key) |> ExAws.request() do
+              {:ok, _response} -> :ok
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
+  end
+
+  defp normalize_local_delete_key(value) when is_binary(value) do
+    key =
+      cond do
+        String.starts_with?(value, "/uploads/") ->
+          String.trim_leading(value, "/uploads/")
+
+        String.starts_with?(value, "uploads/") ->
+          String.trim_leading(value, "uploads/")
+
+        String.starts_with?(value, "http://") or String.starts_with?(value, "https://") ->
+          value
+          |> URI.parse()
+          |> Map.get(:path, "")
+          |> String.trim_leading("/uploads/")
+          |> String.trim_leading("/")
+
+        String.starts_with?(value, "/") ->
+          String.trim_leading(value, "/")
+
+        true ->
+          value
+      end
+
+    if key == "" do
+      {:error, :invalid_upload_key}
+    else
+      {:ok, key}
+    end
+  end
+
+  defp normalize_s3_delete_key(value) when is_binary(value) do
+    key =
+      cond do
+        String.starts_with?(value, "http://") or String.starts_with?(value, "https://") ->
+          value
+          |> URI.parse()
+          |> Map.get(:path, "")
+          |> String.trim_leading("/")
+
+        String.starts_with?(value, "/uploads/") ->
+          String.trim_leading(value, "/uploads/")
+
+        String.starts_with?(value, "uploads/") ->
+          String.trim_leading(value, "uploads/")
+
+        String.starts_with?(value, "/") ->
+          String.trim_leading(value, "/")
+
+        true ->
+          value
+      end
+
+    if key == "" do
+      {:error, :invalid_s3_key}
+    else
+      {:ok, key}
+    end
+  end
+
+  defp allowed_delete_prefix?(key) when is_binary(key) do
+    Enum.any?(@deletable_upload_prefixes, &String.starts_with?(key, &1))
+  end
+
+  defp invalid_delete_key?(key) when is_binary(key) do
+    String.contains?(key, ["..", "\\"])
   end
 
   @doc "Returns the public URL for an avatar.\n\nThe avatar value could be a filename or a full URL depending on storage adapter.\n"
