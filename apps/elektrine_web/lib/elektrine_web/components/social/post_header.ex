@@ -115,7 +115,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
               </.user_hover_card>
               <div class="text-sm opacity-70 flex items-center gap-2 truncate">
                 <span class="truncate">
-                  @{@normalized.handle}@z.org ·
+                  @{@normalized.handle}@{Elektrine.Domains.default_user_handle_domain()} ·
                   <.local_time
                     datetime={@normalized.timestamp}
                     format="relative"

@@ -21,7 +21,7 @@ defmodule Elektrine.Email.Mailboxes do
   end
 
   @doc """
-  Gets all mailboxes for a user (both elektrine.com and z.org).
+  Gets all mailboxes for a user across configured local domains.
   Returns a list of mailboxes.
   """
   def get_user_mailboxes(user_id) do
@@ -60,11 +60,15 @@ defmodule Elektrine.Email.Mailboxes do
 
       nil ->
         # Try username-based lookup for domain-agnostic approach
-        case String.split(email, "@") do
-          [username, domain] when domain in ["elektrine.com", "z.org"] ->
-            # Support plus addressing (e.g., username+tag@domain.com -> username@domain.com)
-            base_username = username |> String.split("+") |> List.first()
-            get_mailbox_by_username(base_username)
+        case String.split(email, "@", parts: 2) do
+          [username, domain] ->
+            if Elektrine.Domains.local_email_domain?(domain) do
+              # Support plus addressing (e.g., username+tag@domain.com -> username@domain.com)
+              base_username = username |> String.split("+") |> List.first()
+              get_mailbox_by_username(base_username)
+            else
+              nil
+            end
 
           _ ->
             nil

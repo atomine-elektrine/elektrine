@@ -148,9 +148,7 @@ defmodule Elektrine.Email.MailboxAdapter do
     case {String.split(email1, "@"), String.split(email2, "@")} do
       {[local1, domain1], [local2, domain2]} ->
         # Get supported domains
-        supported_domains =
-          Application.get_env(:elektrine, :email)[:supported_domains] ||
-            ["elektrine.com", "z.org"]
+        supported_domains = Elektrine.Domains.supported_email_domains()
 
         # Both domains must be supported and local parts must match
         String.downcase(local1) == String.downcase(local2) &&

@@ -33,4 +33,29 @@ defmodule Elektrine.ActivityPub.ObjectValidatorTest do
                ObjectValidator.validate(activity)
     end
   end
+
+  describe "validate/1 move activities" do
+    test "accepts valid move activity" do
+      activity = %{
+        "id" => "https://old.example/activities/move/1",
+        "type" => "Move",
+        "actor" => "https://old.example/users/alice",
+        "object" => "https://old.example/users/alice",
+        "target" => "https://new.example/users/alice"
+      }
+
+      assert {:ok, _} = ObjectValidator.validate(activity)
+    end
+
+    test "rejects move activity missing target" do
+      activity = %{
+        "id" => "https://old.example/activities/move/2",
+        "type" => "Move",
+        "actor" => "https://old.example/users/alice",
+        "object" => "https://old.example/users/alice"
+      }
+
+      assert {:error, "Move activity missing target"} = ObjectValidator.validate(activity)
+    end
+  end
 end

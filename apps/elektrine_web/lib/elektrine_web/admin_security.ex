@@ -67,9 +67,8 @@ defmodule ElektrineWeb.AdminSecurity do
   def validate_live_admin_session(session, user) when is_map(session) do
     with :ok <- ensure_live_passkey_enrolled(user),
          :ok <- ensure_live_passkey_auth_method(session),
-         :ok <- ensure_live_access_ttl(session),
-         :ok <- ensure_live_elevation(session) do
-      :ok
+         :ok <- ensure_live_access_ttl(session) do
+      ensure_live_elevation(session)
     end
   end
 
@@ -413,12 +412,10 @@ defmodule ElektrineWeb.AdminSecurity do
   end
 
   defp derive_return_to(conn) do
-    cond do
-      conn.method == "GET" ->
-        normalize_return_to(request_path_with_query(conn))
-
-      true ->
-        referer_return_to(conn) || @admin_root_path
+    if conn.method == "GET" do
+      normalize_return_to(request_path_with_query(conn))
+    else
+      referer_return_to(conn) || @admin_root_path
     end
   end
 

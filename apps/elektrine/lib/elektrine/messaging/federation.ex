@@ -105,7 +105,7 @@ defmodule Elektrine.Messaging.Federation do
       System.get_env("INSTANCE_DOMAIN")
       |> normalize_optional_string()
       |> case do
-        nil -> "z.org"
+        nil -> Elektrine.Domains.instance_domain()
         domain -> String.downcase(domain)
       end
   end
@@ -3489,6 +3489,7 @@ defmodule Elektrine.Messaging.Federation do
   end
 
   defp normalize_incoming_event_payload(payload), do: payload
+
   defp delivery_concurrency do
     Config.delivery_concurrency(federation_config())
   end

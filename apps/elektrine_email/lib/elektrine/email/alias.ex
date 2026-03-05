@@ -89,7 +89,7 @@ defmodule Elektrine.Email.Alias do
       # Extract domain from email
       case String.split(alias_email, "@") do
         [_local, domain] ->
-          allowed_domains = ["elektrine.com", "z.org"]
+          allowed_domains = Elektrine.Domains.supported_email_domains()
 
           if String.downcase(domain) in allowed_domains do
             changeset
@@ -138,7 +138,7 @@ defmodule Elektrine.Email.Alias do
     # Extract local part from email (before @)
     case String.split(alias_email, "@") do
       [local_part, domain] ->
-        allowed_domains = ["elektrine.com", "z.org"]
+        allowed_domains = Elektrine.Domains.supported_email_domains()
 
         # Only check for username conflicts on our domains
         if String.downcase(domain) in allowed_domains do
@@ -248,58 +248,7 @@ defmodule Elektrine.Email.Alias do
         # Admin users can create aliases with reserved addresses
         changeset
       else
-        # List of reserved email addresses that shouldn't be aliased by regular users
-        reserved_addresses = [
-          "admin@elektrine.com",
-          "admin@z.org",
-          "administrator@elektrine.com",
-          "administrator@z.org",
-          "support@elektrine.com",
-          "support@z.org",
-          "noreply@elektrine.com",
-          "noreply@z.org",
-          "no-reply@elektrine.com",
-          "no-reply@z.org",
-          "postmaster@elektrine.com",
-          "postmaster@z.org",
-          "hostmaster@elektrine.com",
-          "hostmaster@z.org",
-          "webmaster@elektrine.com",
-          "webmaster@z.org",
-          "abuse@elektrine.com",
-          "abuse@z.org",
-          "security@elektrine.com",
-          "security@z.org",
-          "help@elektrine.com",
-          "help@z.org",
-          "info@elektrine.com",
-          "info@z.org",
-          "contact@elektrine.com",
-          "contact@z.org",
-          "mail@elektrine.com",
-          "mail@z.org",
-          "email@elektrine.com",
-          "email@z.org",
-          # ActivityPub endpoints (critical - would break federation)
-          "inbox@elektrine.com",
-          "inbox@z.org",
-          "outbox@elektrine.com",
-          "outbox@z.org",
-          "followers@elektrine.com",
-          "followers@z.org",
-          "following@elektrine.com",
-          "following@z.org",
-          "actor@elektrine.com",
-          "actor@z.org",
-          "users@elektrine.com",
-          "users@z.org",
-          "activities@elektrine.com",
-          "activities@z.org",
-          "relay@elektrine.com",
-          "relay@z.org",
-          "ap@elektrine.com",
-          "ap@z.org"
-        ]
+        reserved_addresses = Elektrine.Domains.reserved_addresses()
 
         if String.downcase(alias_email) in reserved_addresses do
           add_error(

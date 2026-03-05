@@ -7,8 +7,15 @@ defmodule Elektrine.Developer do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Developer.ApiToken
-  alias Elektrine.Developer.Webhook
+
+  alias Elektrine.Developer.{
+    ApiToken,
+    DataExport,
+    Webhook,
+    WebhookDelivery,
+    WebhookDeliveryWorker
+  }
+
   alias Elektrine.Repo
 
   # =============================================================================
@@ -61,23 +68,35 @@ defmodule Elektrine.Developer do
   - `:expires_at` - Optional. Expiration datetime.
   """
   def create_api_token(user_id, attrs) do
-    {raw_token, token_hash, token_prefix} = ApiToken.generate_token()
+    if count_api_tokens(user_id) >= max_tokens_per_user() do
+      changeset =
+        %ApiToken{}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.add_error(
+          :name,
+          "token limit reached (maximum #{max_tokens_per_user()} active tokens)"
+        )
 
-    attrs =
-      attrs
-      |> Map.put(:user_id, user_id)
-      |> Map.put(:token_hash, token_hash)
-      |> Map.put(:token_prefix, token_prefix)
+      {:error, changeset}
+    else
+      {raw_token, token_hash, token_prefix} = ApiToken.generate_token()
 
-    case %ApiToken{}
-         |> ApiToken.changeset(attrs)
-         |> Repo.insert() do
-      {:ok, token} ->
-        # Return with raw token in virtual field (only time it's available)
-        {:ok, %{token | token: raw_token}}
+      attrs =
+        attrs
+        |> Map.put(:user_id, user_id)
+        |> Map.put(:token_hash, token_hash)
+        |> Map.put(:token_prefix, token_prefix)
 
-      {:error, changeset} ->
-        {:error, changeset}
+      case %ApiToken{}
+           |> ApiToken.changeset(attrs)
+           |> Repo.insert() do
+        {:ok, token} ->
+          # Return with raw token in virtual field (only time it's available)
+          {:ok, %{token | token: raw_token}}
+
+        {:error, changeset} ->
+          {:error, changeset}
+      end
     end
   end
 
@@ -130,12 +149,7 @@ defmodule Elektrine.Developer do
             {:error, :token_revoked}
 
           true ->
-            # Update last used (async to not block auth)
-            Task.start(fn ->
-              token
-              |> ApiToken.touch_changeset(ip_address)
-              |> Repo.update()
-            end)
+            touch_api_token(token, ip_address)
 
             {:ok, token}
         end
@@ -220,6 +234,48 @@ defmodule Elektrine.Developer do
   end
 
   @doc """
+  Rotates the signing secret for a webhook.
+  """
+  def rotate_webhook_secret(user_id, webhook_id) do
+    case get_webhook(user_id, webhook_id) do
+      nil ->
+        {:error, :not_found}
+
+      webhook ->
+        new_secret = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+
+        webhook
+        |> Ecto.Changeset.change(%{secret: new_secret})
+        |> Repo.update()
+    end
+  end
+
+  @doc """
+  Lists recent webhook deliveries for a user.
+  """
+  def list_webhook_deliveries(user_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 20)
+    webhook_id = Keyword.get(opts, :webhook_id)
+
+    WebhookDelivery
+    |> where([d], d.user_id == ^user_id)
+    |> maybe_filter_webhook(webhook_id)
+    |> order_by([d], desc: d.inserted_at)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a webhook delivery by id.
+  """
+  def get_webhook_delivery(delivery_id) do
+    WebhookDelivery
+    |> where([d], d.id == ^delivery_id)
+    |> preload(:webhook)
+    |> Repo.one()
+  end
+
+  @doc """
   Sends a test webhook delivery.
   """
   def test_webhook(user_id, webhook_id) do
@@ -234,7 +290,9 @@ defmodule Elektrine.Developer do
           user_id: user_id
         }
 
-        deliver_webhook(webhook, "webhook.test", test_payload)
+        with {:ok, delivery} <- create_webhook_delivery(webhook, "webhook.test", test_payload) do
+          run_webhook_delivery(%{delivery | webhook: webhook}, 1)
+        end
     end
   end
 
@@ -249,51 +307,184 @@ defmodule Elektrine.Developer do
       |> Repo.all()
 
     Enum.map(webhooks, fn webhook ->
-      {webhook.id, deliver_webhook(webhook, event, payload)}
+      {webhook.id, enqueue_webhook_delivery(webhook, event, payload)}
     end)
   end
 
-  defp deliver_webhook(%Webhook{} = webhook, event, payload) do
+  @doc """
+  Processes one queued webhook delivery attempt.
+  """
+  def process_webhook_delivery(delivery_id, attempt \\ 1) do
+    case get_webhook_delivery(delivery_id) do
+      nil ->
+        {:error, :not_found}
+
+      delivery ->
+        run_webhook_delivery(delivery, attempt)
+    end
+  end
+
+  defp enqueue_webhook_delivery(%Webhook{} = webhook, event, payload) do
+    with {:ok, delivery} <- create_webhook_delivery(webhook, event, payload) do
+      case %{delivery_id: delivery.id}
+           |> WebhookDeliveryWorker.new()
+           |> Oban.insert() do
+        {:ok, _job} ->
+          {:ok, :queued}
+
+        {:error, reason} ->
+          _ =
+            update_webhook_delivery_result(delivery, %{
+              status: "failed",
+              attempt_count: 0,
+              error: "Failed to enqueue delivery: #{inspect(reason)}"
+            })
+
+          {:error, {:enqueue_failed, reason}}
+      end
+    end
+  end
+
+  defp create_webhook_delivery(%Webhook{} = webhook, event, payload) do
+    %WebhookDelivery{}
+    |> WebhookDelivery.changeset(%{
+      webhook_id: webhook.id,
+      user_id: webhook.user_id,
+      event: event,
+      event_id: Ecto.UUID.generate(),
+      payload: payload,
+      status: "pending"
+    })
+    |> Repo.insert()
+  end
+
+  defp run_webhook_delivery(%WebhookDelivery{status: "delivered"} = delivery, _attempt) do
+    {:ok, delivery.response_status || 200}
+  end
+
+  defp run_webhook_delivery(%WebhookDelivery{} = delivery, attempt) do
+    webhook = delivery.webhook
+
+    cond do
+      is_nil(webhook) ->
+        timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+
+        _ =
+          update_webhook_delivery_result(delivery, %{
+            status: "failed",
+            attempt_count: attempt,
+            error: "Webhook not found",
+            last_attempted_at: timestamp
+          })
+
+        {:error, :not_found}
+
+      not webhook.enabled ->
+        timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+
+        _ =
+          update_webhook_delivery_result(delivery, %{
+            status: "failed",
+            attempt_count: attempt,
+            error: "Webhook is disabled",
+            last_attempted_at: timestamp
+          })
+
+        {:error, :webhook_disabled}
+
+      true ->
+        deliver_webhook(webhook, delivery, attempt)
+    end
+  end
+
+  defp deliver_webhook(%Webhook{} = webhook, %WebhookDelivery{} = delivery, attempt) do
     case Webhook.validate_url(webhook.url) do
       :ok ->
         timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
-        body = build_webhook_body(event, payload, timestamp)
+        started_ms = System.monotonic_time(:millisecond)
+        body = build_webhook_body(delivery.event, delivery.payload, timestamp, delivery.event_id)
         signature = sign_webhook_payload(webhook.secret, body)
 
         headers = [
           {"content-type", "application/json"},
           {"user-agent", "Elektrine-Webhooks/1.0"},
-          {"x-elektrine-event", event},
+          {"x-elektrine-event", delivery.event},
+          {"x-elektrine-delivery-id", delivery.event_id},
           {"x-elektrine-timestamp", DateTime.to_iso8601(timestamp)},
           {"x-elektrine-signature", "sha256=#{signature}"}
         ]
 
         request = Finch.build(:post, webhook.url, headers, body)
+        duration_ms = fn -> System.monotonic_time(:millisecond) - started_ms end
 
         case Finch.request(request, Elektrine.Finch, receive_timeout: 5_000, pool_timeout: 5_000) do
           {:ok, %Finch.Response{status: status}} when status >= 200 and status < 300 ->
+            _ =
+              update_webhook_delivery_result(delivery, %{
+                status: "delivered",
+                attempt_count: attempt,
+                response_status: status,
+                error: nil,
+                duration_ms: duration_ms.(),
+                last_attempted_at: timestamp,
+                delivered_at: timestamp
+              })
+
             update_webhook_delivery_status(webhook, timestamp, status, nil)
             {:ok, status}
 
           {:ok, %Finch.Response{status: status}} ->
+            _ =
+              update_webhook_delivery_result(delivery, %{
+                status: "failed",
+                attempt_count: attempt,
+                response_status: status,
+                error: "HTTP #{status}",
+                duration_ms: duration_ms.(),
+                last_attempted_at: timestamp
+              })
+
             update_webhook_delivery_status(webhook, timestamp, status, "HTTP #{status}")
             {:error, {:http_error, status}}
 
           {:error, reason} ->
+            error_message = request_error_message(reason)
+
+            _ =
+              update_webhook_delivery_result(delivery, %{
+                status: "failed",
+                attempt_count: attempt,
+                response_status: nil,
+                error: error_message,
+                duration_ms: duration_ms.(),
+                last_attempted_at: timestamp
+              })
+
             update_webhook_delivery_status(webhook, timestamp, nil, request_error_message(reason))
             {:error, {:request_failed, reason}}
         end
 
       {:error, reason} ->
         timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+
+        _ =
+          update_webhook_delivery_result(delivery, %{
+            status: "failed",
+            attempt_count: attempt,
+            response_status: nil,
+            error: "Unsafe webhook URL: #{reason}",
+            duration_ms: 0,
+            last_attempted_at: timestamp
+          })
+
         update_webhook_delivery_status(webhook, timestamp, nil, "Unsafe webhook URL: #{reason}")
         {:error, {:unsafe_url, reason}}
     end
   end
 
-  defp build_webhook_body(event, payload, timestamp) do
+  defp build_webhook_body(event, payload, timestamp, event_id) do
     Jason.encode!(%{
-      id: Ecto.UUID.generate(),
+      id: event_id,
       event: event,
       sent_at: DateTime.to_iso8601(timestamp),
       data: payload
@@ -315,14 +506,51 @@ defmodule Elektrine.Developer do
     |> Repo.update()
   end
 
+  defp update_webhook_delivery_result(delivery, attrs) do
+    delivery
+    |> WebhookDelivery.result_changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp maybe_filter_webhook(query, nil), do: query
+
+  defp maybe_filter_webhook(query, webhook_id) do
+    where(query, [d], d.webhook_id == ^webhook_id)
+  end
+
   defp request_error_message(reason) when is_exception(reason), do: Exception.message(reason)
   defp request_error_message(reason), do: inspect(reason)
+
+  defp touch_api_token(token, ip_address) do
+    update_fun = fn ->
+      token
+      |> ApiToken.touch_changeset(ip_address)
+      |> Repo.update()
+    end
+
+    if test_env?() do
+      _ = update_fun.()
+      :ok
+    else
+      Task.start(fn ->
+        try do
+          _ = update_fun.()
+        rescue
+          _ -> :ok
+        end
+      end)
+
+      :ok
+    end
+  end
+
+  defp test_env? do
+    Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :test
+  end
 
   # =============================================================================
   # Data Exports
   # =============================================================================
-
-  alias Elektrine.Developer.DataExport
 
   @doc """
   Lists recent exports for a user.

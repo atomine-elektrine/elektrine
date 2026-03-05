@@ -259,6 +259,6 @@ defmodule Elektrine.Email.Suppressions do
   end
 
   defp supported_domains do
-    Application.get_env(:elektrine, :email)[:supported_domains] || ["elektrine.com", "z.org"]
+    Elektrine.Domains.supported_email_domains()
   end
 end

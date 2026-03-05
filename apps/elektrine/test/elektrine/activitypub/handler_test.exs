@@ -28,13 +28,13 @@ defmodule Elektrine.ActivityPub.HandlerTest do
   end
 
   describe "extract_local_mentions/1" do
-    test "extracts username from z.org mention" do
+    test "extracts username from elektrine.net mention" do
       object = %{
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://z.org/users/testuser",
-            "name" => "@testuser@z.org"
+            "href" => "https://elektrine.net/users/testuser",
+            "name" => "@testuser@elektrine.net"
           }
         ]
       }
@@ -78,8 +78,8 @@ defmodule Elektrine.ActivityPub.HandlerTest do
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://z.org/users/alice",
-            "name" => "@alice@z.org"
+            "href" => "https://elektrine.net/users/alice",
+            "name" => "@alice@elektrine.net"
           },
           %{
             "type" => "Mention",
@@ -93,7 +93,7 @@ defmodule Elektrine.ActivityPub.HandlerTest do
           },
           %{
             "type" => "Hashtag",
-            "href" => "https://z.org/tags/test",
+            "href" => "https://elektrine.net/tags/test",
             "name" => "#test"
           }
         ]

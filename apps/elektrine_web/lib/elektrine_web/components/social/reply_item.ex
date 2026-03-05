@@ -137,7 +137,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
                   </button>
                 </.user_hover_card>
                 <div class="text-xs opacity-70 truncate">
-                  @{@normalized.handle}@z.org
+                  @{@normalized.handle}@{Elektrine.Domains.default_user_handle_domain()}
                   <%= if @normalized.timestamp do %>
                     · {format_timestamp(@normalized.timestamp)}
                   <% end %>

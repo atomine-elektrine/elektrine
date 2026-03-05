@@ -168,7 +168,7 @@
                 />
                 <div class="label">
                   <span class="text-xs text-base-content/60 block">
-                    {gettext("Profile URL:")} z.org/{@user.handle}<br />
+                    {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br />
                     {gettext("Mentions:")} @{@user.handle}<br />
                     {gettext("1-20 chars, alphanumeric + underscore")}
                   </span>
@@ -2111,15 +2111,18 @@
                     name="user[preferred_email_domain]"
                     class="select select-bordered w-full"
                   >
-                    <option value="z.org" selected={@user.preferred_email_domain == "z.org"}>
-                      {@user.username}@z.org
-                    </option>
-                    <option
-                      value="elektrine.com"
-                      selected={@user.preferred_email_domain == "elektrine.com"}
-                    >
-                      {@user.username}@elektrine.com
-                    </option>
+                    <%= for domain <- Elektrine.Domains.supported_email_domains() do %>
+                      <option
+                        value={domain}
+                        selected={
+                          (@user.preferred_email_domain ||
+                             Elektrine.Domains.default_user_handle_domain()) ==
+                            domain
+                        }
+                      >
+                        {@user.username}@{domain}
+                      </option>
+                    <% end %>
                   </select>
                   <label class="label">
                     <span class="label-text-alt">
@@ -2223,7 +2226,9 @@
                     {gettext("WKD Discovery URL")}
                   </div>
                   <code class="text-xs font-mono break-all">
-                    https://z.org/.well-known/openpgpkey/hu/{wkd_hash(@user.username)}
+                    https://{Elektrine.Domains.default_user_handle_domain()}/.well-known/openpgpkey/hu/{wkd_hash(
+                      @user.username
+                    )}
                   </code>
                   <div class="text-xs text-base-content/50 mt-2">
                     {gettext("Email clients can automatically discover your key at this URL.")}
@@ -2538,12 +2543,17 @@
                 <div class="text-sm text-base-content/60">
                   <p class="font-semibold mb-2">{gettext("API Documentation")}</p>
                   <p class="mb-2">
-                    {gettext("Use your token in the Authorization header:")}
+                    {gettext("Use personal access tokens with the versioned external API:")}
                   </p>
                   <code class="block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
                     curl -H "Authorization: Bearer ekt_xxxxx" \<br />
-                    &nbsp;&nbsp;https://elektrine.com/api/emails
+                    &nbsp;&nbsp;"https://elektrine.com/api/ext/v1/search?q=inbox"
                   </code>
+                  <p class="mt-2">
+                    {gettext(
+                      "Note: /api/* routes are first-party mobile/session APIs. PAT integrations should use /api/ext/v1/*."
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
@@ -2733,7 +2743,12 @@
 
                 <div class="prose prose-sm max-w-none">
                   <p class="text-base-content/70">
-                    {gettext("Available API endpoints:")}
+                    {gettext("External PAT endpoints (/api/ext/v1):")}
+                  </p>
+                  <p>
+                    <a href="/openapi/ext-v1.yaml" target="_blank" class="link link-primary">
+                      {gettext("OpenAPI spec")}
+                    </a>
                   </p>
                   <div class="overflow-x-auto">
                     <table class="table table-xs">
@@ -2746,34 +2761,39 @@
                       </thead>
                       <tbody>
                         <tr>
-                          <td><code>GET /api/emails</code></td>
-                          <td><code>read:email</code></td>
-                          <td>{gettext("List emails")}</td>
+                          <td><code>GET /api/ext/v1/search</code></td>
+                          <td><code>read:* (any)</code></td>
+                          <td>{gettext("Global search across account data")}</td>
                         </tr>
                         <tr>
-                          <td><code>POST /api/emails</code></td>
-                          <td><code>write:email</code></td>
-                          <td>{gettext("Send email")}</td>
+                          <td><code>POST /api/ext/v1/search/actions/execute</code></td>
+                          <td><code>varies by action</code></td>
+                          <td>{gettext("Execute scoped actions")}</td>
                         </tr>
                         <tr>
-                          <td><code>GET /api/social/timeline</code></td>
-                          <td><code>read:social</code></td>
-                          <td>{gettext("Get timeline posts")}</td>
+                          <td><code>GET /api/ext/v1/calendars</code></td>
+                          <td><code>read:calendar</code></td>
+                          <td>{gettext("List calendars")}</td>
                         </tr>
                         <tr>
-                          <td><code>POST /api/social/posts</code></td>
-                          <td><code>write:social</code></td>
-                          <td>{gettext("Create post")}</td>
+                          <td><code>POST /api/ext/v1/calendars/:id/events</code></td>
+                          <td><code>write:calendar</code></td>
+                          <td>{gettext("Create calendar events")}</td>
                         </tr>
                         <tr>
-                          <td><code>GET /api/conversations</code></td>
-                          <td><code>read:chat</code></td>
-                          <td>{gettext("List conversations")}</td>
+                          <td><code>GET /api/ext/v1/password-manager/entries</code></td>
+                          <td><code>read:account</code></td>
+                          <td>{gettext("List encrypted vault entries")}</td>
                         </tr>
                         <tr>
-                          <td><code>POST /api/export</code></td>
+                          <td><code>POST /api/ext/v1/exports</code></td>
                           <td><code>export</code></td>
                           <td>{gettext("Trigger data export")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/webhooks</code></td>
+                          <td><code>webhook</code></td>
+                          <td>{gettext("List and inspect webhooks + delivery history")}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2824,7 +2844,7 @@
                 <div class="card-actions">
                   <.link
                     href={~p"/account/delete"}
-                    class="btn btn-ghost btn-secondary btn-sm w-full"
+                    class="btn btn-secondary btn-sm w-full"
                   >
                     {gettext("Request Deletion")}
                   </.link>

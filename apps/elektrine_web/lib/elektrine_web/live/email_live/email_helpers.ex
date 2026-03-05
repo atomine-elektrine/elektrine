@@ -312,24 +312,26 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                   <.icon name="hero-clipboard-document" class="w-3 h-3" />
                 </button>
               </div>
-              <div class="flex items-center gap-2">
-                <p
-                  class="text-xs text-base-content/50 font-mono truncate flex-1"
-                  title={String.replace(@mailbox.email, "@elektrine.com", "@z.org")}
-                >
-                  {String.replace(@mailbox.email, "@elektrine.com", "@z.org")}
-                </p>
-                <button
-                  id={"copy-email-alternate-#{@mailbox.id}"}
-                  type="button"
-                  phx-hook="CopyEmail"
-                  data-email={String.replace(@mailbox.email, "@elektrine.com", "@z.org")}
-                  class="btn btn-ghost btn-xs flex-shrink-0"
-                  title={gettext("Copy to clipboard")}
-                >
-                  <.icon name="hero-clipboard-document" class="w-3 h-3" />
-                </button>
-              </div>
+              <%= for alternate_email <- Elektrine.Domains.alternate_local_addresses(@mailbox.email) do %>
+                <div class="flex items-center gap-2">
+                  <p
+                    class="text-xs text-base-content/50 font-mono truncate flex-1"
+                    title={alternate_email}
+                  >
+                    {alternate_email}
+                  </p>
+                  <button
+                    id={"copy-email-alternate-#{@mailbox.id}-#{:erlang.phash2(alternate_email)}"}
+                    type="button"
+                    phx-hook="CopyEmail"
+                    data-email={alternate_email}
+                    class="btn btn-ghost btn-xs flex-shrink-0"
+                    title={gettext("Copy to clipboard")}
+                  >
+                    <.icon name="hero-clipboard-document" class="w-3 h-3" />
+                  </button>
+                </div>
+              <% end %>
               
     <!-- Storage Usage Display - Hidden on smaller screens -->
               <%= if @storage_info do %>

@@ -70,6 +70,7 @@ defmodule ElektrineWeb.UserSessionController do
             Events.auth(:password_login, :success, %{reason: :trusted_device})
 
             flash_message = UserAuth.login_flash_message(user, method: :trusted_device)
+
             UserAuth.log_in_user(conn, user, user_params,
               flash: {:info, flash_message},
               auth_method: :trusted_device
@@ -85,6 +86,7 @@ defmodule ElektrineWeb.UserSessionController do
         else
           Events.auth(:password_login, :success, %{reason: :password})
           flash_message = UserAuth.login_flash_message(user, method: :password)
+
           UserAuth.log_in_user(conn, user, user_params,
             flash: {:info, flash_message},
             auth_method: :password

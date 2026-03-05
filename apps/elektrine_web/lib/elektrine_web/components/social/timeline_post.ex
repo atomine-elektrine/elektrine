@@ -477,7 +477,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       </.user_hover_card>
       <div class="text-sm opacity-70 flex items-center gap-2 truncate">
         <span class="truncate">
-          @{@post.sender.handle || @post.sender.username}@z.org ·
+          @{@post.sender.handle || @post.sender.username}@{Elektrine.Domains.default_user_handle_domain()} ·
           <.local_time
             datetime={@post.inserted_at}
             format="relative"
@@ -834,7 +834,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   defp ancestor_author_subtitle(ancestor) when is_map(ancestor) do
     cond do
       is_map(ancestor.local_sender) ->
-        "@#{ancestor.local_sender.handle || ancestor.local_sender.username}@z.org"
+        "@#{ancestor.local_sender.handle || ancestor.local_sender.username}@#{Elektrine.Domains.default_user_handle_domain()}"
 
       is_map(ancestor.remote_actor) ->
         "@#{ancestor.remote_actor.username}@#{ancestor.remote_actor.domain}"
@@ -1192,7 +1192,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
       assoc_loaded_map?(Map.get(message, :sender)) ->
         sender = message.sender
-        %{name: "@#{sender.handle || sender.username}@z.org", type: :local}
+
+        %{
+          name:
+            "@#{sender.handle || sender.username}@#{Elektrine.Domains.default_user_handle_domain()}",
+          type: :local
+        }
 
       is_binary(fallback_author) ->
         normalize_reply_author_info(fallback_author, activitypub_ref)
@@ -2551,7 +2556,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                     ]}
                     data-tip={tooltip}
                   >
-                    <span>{emoji}</span>
+                    <span>{raw(render_custom_emojis(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </button>
                 <% else %>
@@ -2559,7 +2564,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                     class="px-1.5 py-0.5 rounded text-xs bg-base-200 border border-base-300 flex items-center gap-1 tooltip tooltip-top"
                     data-tip={tooltip}
                   >
-                    <span>{emoji}</span>
+                    <span>{raw(render_custom_emojis(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </span>
                 <% end %>

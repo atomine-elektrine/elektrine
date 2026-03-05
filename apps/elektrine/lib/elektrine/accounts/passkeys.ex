@@ -6,7 +6,7 @@ defmodule Elektrine.Accounts.Passkeys do
   alias Elektrine.Repo
   require Logger
   @challenge_timeout 300_000
-  @doc ~s|Generate a registration challenge for adding a new passkey.\n\nReturns {:ok, challenge_data} or {:error, reason}\n\nThe challenge_data contains all information needed by the browser's\nWebAuthn API to create a new credential.\n\nOptions:\n  - :host - The request host (e.g., \"z.org\" or \"elektrine.com\") for multi-domain support\n|
+  @doc ~s|Generate a registration challenge for adding a new passkey.\n\nReturns {:ok, challenge_data} or {:error, reason}\n\nThe challenge_data contains all information needed by the browser's\nWebAuthn API to create a new credential.\n\nOptions:\n  - :host - The request host (e.g., \"example.com\" or \"elektrine.com\") for multi-domain support\n|
   def generate_registration_challenge(user, opts \\ []) do
     passkey_count = count_user_passkeys(user)
 
@@ -83,7 +83,7 @@ defmodule Elektrine.Accounts.Passkeys do
     end
   end
 
-  @doc ~s|Generate an authentication challenge for passkey login.\n\nFor discoverable credentials (passkey login without username):\n- Pass nil for user\n- Browser will prompt user to select a passkey\n\nFor non-discoverable credentials (after username entry):\n- Pass the user struct\n- Challenge will include allowed credentials for that user\n\nOptions:\n  - :host - The request host (e.g., \"z.org\" or \"elektrine.com\") for multi-domain support\n|
+  @doc ~s|Generate an authentication challenge for passkey login.\n\nFor discoverable credentials (passkey login without username):\n- Pass nil for user\n- Browser will prompt user to select a passkey\n\nFor non-discoverable credentials (after username entry):\n- Pass the user struct\n- Challenge will include allowed credentials for that user\n\nOptions:\n  - :host - The request host (e.g., \"example.com\" or \"elektrine.com\") for multi-domain support\n|
   def generate_authentication_challenge(user \\ nil, opts \\ []) do
     rp_id = get_rp_id(opts[:host])
     origin = get_origin(opts[:host])
@@ -296,7 +296,6 @@ defmodule Elektrine.Accounts.Passkeys do
     "Passkey #{count}"
   end
 
-  @allowed_passkey_domains ["z.org", "elektrine.com", "localhost"]
   defp get_rp_id(nil) do
     Application.get_env(:elektrine, :passkey_rp_id, "localhost")
   end
@@ -304,7 +303,7 @@ defmodule Elektrine.Accounts.Passkeys do
   defp get_rp_id(host) when is_binary(host) do
     rp_id = extract_registrable_domain(host)
 
-    if rp_id in @allowed_passkey_domains do
+    if rp_id in Elektrine.Domains.local_passkey_domains() do
       rp_id
     else
       Application.get_env(:elektrine, :passkey_rp_id, "localhost")

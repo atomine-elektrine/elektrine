@@ -92,6 +92,8 @@
       data-profile-user-id={@user.id}
       data-current-user-id={@current_user && @current_user.id}
       data-profile-accent={accent_color}
+      data-main-domain={Elektrine.Domains.primary_profile_domain()}
+      data-local-domain={Elektrine.Domains.default_user_handle_domain()}
       phx-hook={
         if @profile && @profile.typewriter_title && @profile.page_title,
           do: "TabTitleTypewriter",
@@ -749,7 +751,9 @@
               </h1>
             <% end %>
             <p class={"mb-1 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""} text-[var(--profile-accent)]"}>
-              <span class="font-medium">@{@user.handle || @user.username}@z.org</span>
+              <span class="font-medium">
+                @{@user.handle || @user.username}@{Elektrine.Domains.default_user_handle_domain()}
+              </span>
             </p>
             
 <!-- User Badges -->
@@ -1823,7 +1827,7 @@
                             )}
                           </span>
                           <p class="text-xs opacity-70">
-                            @{follower.user.handle || follower.user.username}@z.org
+                            @{follower.user.handle || follower.user.username}@{Elektrine.Domains.default_user_handle_domain()}
                           </p>
                         </div>
                       </.link>
@@ -1942,7 +1946,7 @@
                               )}
                             </span>
                             <p class="text-xs opacity-70">
-                              @{following.user.handle || following.user.username}@z.org
+                              @{following.user.handle || following.user.username}@{Elektrine.Domains.default_user_handle_domain()}
                             </p>
                           </div>
                         </.link>

@@ -73,6 +73,7 @@ defmodule ElektrineWeb.TwoFactorController do
                 end
 
               flash_message = UserAuth.login_flash_message(user, method: :totp)
+
               UserAuth.complete_two_factor_login(conn, user, %{},
                 flash: {:info, flash_message},
                 auth_method: :totp

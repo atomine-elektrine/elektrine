@@ -394,10 +394,12 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       |> community_uri_candidates(fallback_uri)
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
-      |> Enum.reject(&public_audience_uri?/1)
-      |> Enum.reject(&collection_uri?/1)
-      |> Enum.reject(&post_reference_uri?/1)
-      |> Enum.reject(&(&1 == author_uri))
+      |> Enum.reject(fn uri ->
+        public_audience_uri?(uri) or
+          collection_uri?(uri) or
+          post_reference_uri?(uri) or
+          uri == author_uri
+      end)
       |> Enum.find(&community_actor_uri?/1)
 
     direct_candidate || community_uri_from_reply_chain(object["inReplyTo"])
@@ -453,17 +455,15 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       end
       |> normalize_uri()
 
-    cond do
-      is_binary(current_uri) && community_actor_uri?(current_uri) ->
-        current_uri
-
-      true ->
-        with reply_to_id when is_integer(reply_to_id) <- Map.get(message, :reply_to_id),
-             %{} = parent <- Messaging.get_message(reply_to_id) do
-          get_community_uri_from_chain(parent, depth + 1)
-        else
-          _ -> nil
-        end
+    if is_binary(current_uri) && community_actor_uri?(current_uri) do
+      current_uri
+    else
+      with reply_to_id when is_integer(reply_to_id) <- Map.get(message, :reply_to_id),
+           %{} = parent <- Messaging.get_message(reply_to_id) do
+        get_community_uri_from_chain(parent, depth + 1)
+      else
+        _ -> nil
+      end
     end
   end
 

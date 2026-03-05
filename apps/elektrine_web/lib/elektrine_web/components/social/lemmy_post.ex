@@ -355,7 +355,7 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
                     ]}
                     data-tip={tooltip}
                   >
-                    <span>{emoji}</span>
+                    <span>{raw(render_custom_emojis(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </button>
                 <% else %>
@@ -363,7 +363,7 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
                     class="px-1.5 py-0.5 rounded text-xs bg-base-200 border border-base-300 flex items-center gap-1 tooltip tooltip-top"
                     data-tip={tooltip}
                   >
-                    <span>{emoji}</span>
+                    <span>{raw(render_custom_emojis(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </span>
                 <% end %>

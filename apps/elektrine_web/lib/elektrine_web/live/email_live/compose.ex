@@ -1285,11 +1285,9 @@ Subject: #{message.subject}#{attachment_info}
           []
 
         email when is_binary(email) ->
-          if String.ends_with?(email, "@elektrine.com") do
-            z_org_email = String.replace(email, "@elektrine.com", "@z.org")
-            [email, z_org_email]
-          else
-            [email]
+          case Elektrine.Domains.local_address_variants(email) do
+            [] -> [email]
+            variants -> variants
           end
       end
 
@@ -1301,13 +1299,11 @@ Subject: #{message.subject}#{attachment_info}
 
   defp determine_from_address(nil, mailbox) do
     user = Elektrine.Repo.get(Elektrine.Accounts.User, mailbox.user_id)
-    preferred_domain = Map.get(user, :preferred_email_domain, "z.org")
 
-    if preferred_domain == "z.org" do
-      String.replace(mailbox.email, "@elektrine.com", "@z.org")
-    else
-      mailbox.email
-    end
+    preferred_domain =
+      Map.get(user, :preferred_email_domain, Elektrine.Domains.default_user_handle_domain())
+
+    mailbox_address_for_domain(mailbox.email, preferred_domain) || mailbox.email
   end
 
   defp determine_from_address(original_message, mailbox) do
@@ -1322,14 +1318,18 @@ Subject: #{message.subject}#{attachment_info}
       matching_alias != nil ->
         matching_alias.alias_email
 
-      String.contains?(to_address, "@z.org") ->
-        String.replace(mailbox.email, "@elektrine.com", "@z.org")
-
-      String.contains?(to_address, "@elektrine.com") ->
-        mailbox.email
-
       true ->
-        mailbox.email
+        case extract_domain(recipient_email) do
+          domain when is_binary(domain) ->
+            if domain in Elektrine.Domains.supported_email_domains() do
+              mailbox_address_for_domain(mailbox.email, domain) || mailbox.email
+            else
+              mailbox.email
+            end
+
+          _ ->
+            mailbox.email
+        end
     end
   end
 
@@ -1347,6 +1347,25 @@ Subject: #{message.subject}#{attachment_info}
   defp extract_email_address(_) do
     ""
   end
+
+  defp extract_domain(address) when is_binary(address) do
+    case String.split(String.downcase(String.trim(address)), "@", parts: 2) do
+      [_local, domain] -> domain
+      _ -> nil
+    end
+  end
+
+  defp extract_domain(_), do: nil
+
+  defp mailbox_address_for_domain(base_email, domain)
+       when is_binary(base_email) and is_binary(domain) do
+    downcased_domain = String.downcase(domain)
+
+    Elektrine.Domains.local_address_variants(base_email)
+    |> Enum.find(fn address -> String.ends_with?(address, "@#{downcased_domain}") end)
+  end
+
+  defp mailbox_address_for_domain(_, _), do: nil
 
   defp get_return_url(assigns) do
     return_to = assigns[:return_to] || "inbox"

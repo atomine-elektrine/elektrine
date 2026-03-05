@@ -6,7 +6,7 @@ defmodule ElektrineWeb.ProfileController do
 
   1. **Profile Page Rendering** (`show/2`)
      Renders user profile pages as static HTML. Used for:
-     - Subdomain access (e.g., username.z.org) where LiveView websockets don't work
+     - Subdomain access (e.g., username.example.com) where LiveView websockets don't work
      - SEO-friendly profile pages
      - Fallback when LiveView is unavailable
 
@@ -32,7 +32,7 @@ defmodule ElektrineWeb.ProfileController do
   """
 
   use ElektrineWeb, :controller
-  alias Elektrine.{Accounts, Friends, Messaging, Profiles, Social, StaticSites}
+  alias Elektrine.{Accounts, Domains, Friends, Messaging, Profiles, Social, StaticSites}
 
   # Reserved usernames that conflict with routes
   @reserved_usernames [
@@ -71,10 +71,9 @@ defmodule ElektrineWeb.ProfileController do
       |> put_view(html: ElektrineWeb.ErrorHTML)
       |> render(:"404")
     else
-      # Only allow profiles in dev/test environment or on z.org/elektrine.com domains
+      # Only allow profiles in dev/test environment or on configured profile domains
       if Application.get_env(:elektrine, :environment) in [:dev, :test] or
-           String.ends_with?(conn.host, "z.org") or
-           String.ends_with?(conn.host, "elektrine.com") do
+           allowed_profile_host?(conn.host) do
         # Check if handle is reserved
         if handle in @reserved_usernames do
           conn
@@ -174,7 +173,7 @@ defmodule ElektrineWeb.ProfileController do
           end
         end
       else
-        # Not z.org domain - 404
+        # Not an allowed profile domain - 404
         conn
         |> put_status(:not_found)
         |> put_view(html: ElektrineWeb.ErrorHTML)
@@ -188,7 +187,7 @@ defmodule ElektrineWeb.ProfileController do
     default_links = [
       %{
         title: "Contact",
-        url: "mailto:#{user.username}@z.org",
+        url: "mailto:#{user.username}@#{Domains.default_user_handle_domain()}",
         description: "Send me an email",
         icon: "hero-at-symbol",
         platform: "email"
@@ -528,7 +527,8 @@ defmodule ElektrineWeb.ProfileController do
 
   defp assign_profile_defaults(conn, user) do
     # Subdomain URLs use the user's handle
-    profile_url = "https://#{user.handle}.z.org"
+    local_handle = user.handle || user.username
+    profile_url = "https://#{local_handle}.#{Domains.primary_profile_domain()}"
     # Base URL for absolute links - ensures navigation goes to main domain, not subdomain
     base_url = get_base_url(conn)
 
@@ -599,25 +599,29 @@ defmodule ElektrineWeb.ProfileController do
   end
 
   # Get the base URL for absolute links.
-  # On subdomains (e.g., username.z.org, username.elektrine.com), returns the main domain.
+  # On subdomains (e.g., username.example.com), returns the main domain.
   # On main domain or localhost, returns empty string (relative URLs work fine).
   defp get_base_url(conn) do
-    host = conn.host
+    host = String.downcase(conn.host || "")
 
-    cond do
-      # Subdomain pattern: username.z.org
-      String.ends_with?(host, ".z.org") ->
-        "https://z.org"
-
-      # Subdomain pattern: username.elektrine.com
-      String.ends_with?(host, ".elektrine.com") ->
-        "https://elektrine.com"
-
-      # Main domain or localhost - use relative URLs
-      true ->
+    case Domains.profile_base_domain_for_host(host) do
+      nil ->
         ""
+
+      domain ->
+        if host == domain or host == "www." <> domain do
+          ""
+        else
+          "https://#{domain}"
+        end
     end
   end
+
+  defp allowed_profile_host?(host) when is_binary(host) do
+    not is_nil(Domains.profile_base_domain_for_host(host))
+  end
+
+  defp allowed_profile_host?(_), do: false
 
   defp require_current_user(conn) do
     case conn.assigns[:current_user] do

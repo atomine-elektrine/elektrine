@@ -94,21 +94,32 @@
   --btn-border: rgba(148, 163, 184, 0.58);
 }
 
-/* Ghost - subtle glass effect */
+/* Ghost - subtle but always visible glass effect */
 .btn-ghost {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  color: oklch(var(--bc) / 0.9);
+  background:
+    linear-gradient(135deg, var(--btn-tint), rgba(15, 23, 42, 0.04) 50%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(135deg, oklch(var(--b1) / 0.74), oklch(var(--b2) / 0.58));
+  border-color: var(--btn-border);
+  box-shadow:
+    0 8px 20px -20px rgba(0, 0, 0, 0.92),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(6px) saturate(1.04);
+  -webkit-backdrop-filter: blur(6px) saturate(1.04);
+  color: var(--btn-text);
 }
 
 .btn-ghost:hover {
-  background: rgba(168, 85, 247, 0.1);
-  border-color: rgba(168, 85, 247, 0.2);
-  color: oklch(var(--bc));
-  box-shadow: 0 2px 12px rgba(168, 85, 247, 0.15);
+  background:
+    linear-gradient(135deg, var(--btn-tint), rgba(15, 23, 42, 0.08) 55%, rgba(0, 0, 0, 0) 100%),
+    linear-gradient(135deg, oklch(var(--b1) / 0.88), oklch(var(--b2) / 0.68));
+  border-color: var(--btn-border);
+  color: var(--btn-text);
+  box-shadow:
+    0 12px 26px -22px rgba(0, 0, 0, 0.94),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 18px -14px var(--btn-glow);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Ghost with orange active state (for filters) */

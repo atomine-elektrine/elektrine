@@ -15,7 +15,7 @@ defmodule ElektrineWeb.ChatLive.Index do
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.Live.NotificationHelpers
-  import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1]
+  import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1, render_custom_emojis: 1]
 
   # Import operation modules
   alias ElektrineWeb.ChatLive.Bootstrap
@@ -1953,7 +1953,8 @@ defmodule ElektrineWeb.ChatLive.Index do
             <button
               data-external-link={
                 if @profile_user.profile,
-                  do: "https://#{@profile_user.handle || @profile_user.username}.z.org",
+                  do:
+                    "https://#{@profile_user.handle || @profile_user.username}.#{Elektrine.Domains.primary_profile_domain()}",
                   else: "/#{@profile_user.handle || @profile_user.username}"
               }
               class="avatar mb-4 cursor-pointer"
@@ -1989,7 +1990,8 @@ defmodule ElektrineWeb.ChatLive.Index do
             <button
               data-external-link={
                 if @profile_user.profile,
-                  do: "https://#{@profile_user.handle || @profile_user.username}.z.org",
+                  do:
+                    "https://#{@profile_user.handle || @profile_user.username}.#{Elektrine.Domains.primary_profile_domain()}",
                   else: "/#{@profile_user.handle || @profile_user.username}"
               }
               class="btn btn-ghost w-full"

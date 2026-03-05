@@ -1002,7 +1002,7 @@
       <div class="p-4 space-y-4 isolate" data-timeline-container id="timeline-posts-container">
         <!-- Loading Skeleton -->
         <%= if @loading_timeline do %>
-          <div class="space-y-4 animate-pulse">
+          <div class="space-y-4 animate-pulse" data-timeline-loading-skeleton>
             <div class="rounded-xl border border-base-300 bg-base-100 p-3 text-sm text-base-content/70">
               Loading timeline updates...
             </div>
@@ -1191,7 +1191,7 @@
                           {gettext("Replying to")}
                           <span class="font-medium text-error">
                             <%= if @reply_to_post.sender do %>
-                              @{@reply_to_post.sender.handle || @reply_to_post.sender.username}@z.org
+                              @{@reply_to_post.sender.handle || @reply_to_post.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
                             <% else %>
                               <%= if Ecto.assoc_loaded?(@reply_to_post.remote_actor) && @reply_to_post.remote_actor do %>
                                 @{@reply_to_post.remote_actor.username}@{@reply_to_post.remote_actor.domain}

@@ -150,7 +150,7 @@ defmodule Elektrine.Email.Sender do
 
     # Determine routing strategy: internal or external
     # Email is internal ONLY if:
-    # 1. All TO recipients are our domains (elektrine.com, z.org)
+    # 1. All TO recipients are our local domains
     # 2. None of the TO recipients have external forwarding
     routing_strategy = determine_routing_strategy(to_emails, resolution_cache)
 
@@ -478,11 +478,12 @@ defmodule Elektrine.Email.Sender do
   defp format_from_header(params, user, mailbox) do
     email_address = params[:from]
 
-    # Check if sending from main mailbox addresses
-    main_addresses = [
-      mailbox.email,
-      String.replace(mailbox.email, "@elektrine.com", "@z.org")
-    ]
+    # Check if sending from main mailbox addresses across configured local domains.
+    main_addresses =
+      case Elektrine.Domains.local_address_variants(mailbox.email) do
+        [] -> [mailbox.email]
+        variants -> variants
+      end
 
     formatted_from =
       if user.display_name && String.trim(user.display_name) != "" &&
@@ -737,7 +738,7 @@ defmodule Elektrine.Email.Sender do
 
   # Check if email is internal (between our domains)
   defp is_internal_email?(to_emails) when is_list(to_emails) do
-    our_domains = ["elektrine.com", "z.org"]
+    our_domains = Elektrine.Domains.supported_email_domains()
 
     Enum.all?(to_emails, fn email ->
       case String.split(String.trim(email), "@") do
@@ -857,7 +858,7 @@ defmodule Elektrine.Email.Sender do
     bcc_emails = parse_email_list(params[:bcc] || "")
 
     # Only validate external recipients (not our domains)
-    our_domains = ["elektrine.com", "z.org"]
+    our_domains = Elektrine.Domains.supported_email_domains()
 
     external_recipients =
       (to_emails ++ cc_emails ++ bcc_emails)
@@ -1277,7 +1278,7 @@ defmodule Elektrine.Email.Sender do
               {:ok, mailbox}
 
             nil ->
-              # Try cross-domain lookup (e.g., user@z.org -> user@elektrine.com)
+              # Try cross-domain lookup (same username across local domains)
               case try_cross_domain_mailbox_lookup(clean_email) do
                 {:ok, mailbox} ->
                   # Check if cross-domain mailbox has forwarding
@@ -1318,7 +1319,7 @@ defmodule Elektrine.Email.Sender do
     case {parse_email_parts(email1), parse_email_parts(email2)} do
       {{username1, domain1}, {username2, domain2}} ->
         # Same username and both are our domains
-        supported_domains = ["elektrine.com", "z.org"]
+        supported_domains = Elektrine.Domains.supported_email_domains()
 
         String.downcase(username1) == String.downcase(username2) &&
           domain1 in supported_domains &&
@@ -1346,7 +1347,7 @@ defmodule Elektrine.Email.Sender do
          db_attachments
        ) do
     # Check if this is an internal recipient or the sender themselves
-    # Also check cross-domain (elektrine.com <-> z.org)
+    # Also check cross-domain matches across local domains
     is_internal = is_internal_email?([recipient_email])
 
     is_sender =
@@ -1474,30 +1475,25 @@ defmodule Elektrine.Email.Sender do
     :ok
   end
 
-  # Try to find a mailbox by cross-domain lookup (e.g., user@z.org -> user@elektrine.com)
+  # Try to find a mailbox by cross-domain lookup (same username across local domains)
   defp try_cross_domain_mailbox_lookup(email_address) do
     case String.split(email_address, "@") do
-      [username, domain] ->
-        supported_domains = ["elektrine.com", "z.org"]
+      [_username, domain] ->
+        supported_domains = Elektrine.Domains.supported_email_domains()
 
         if domain in supported_domains do
-          # Try the other supported domain
-          other_domain =
-            case domain do
-              "elektrine.com" -> "z.org"
-              "z.org" -> "elektrine.com"
-              _ -> nil
-            end
+          case Elektrine.Domains.alternate_local_addresses(email_address) do
+            [] ->
+              {:error, :not_found}
 
-          if other_domain do
-            other_email = "#{username}@#{other_domain}"
-
-            case Email.get_mailbox_by_email(other_email) do
-              %Mailbox{} = mailbox -> {:ok, mailbox}
-              _ -> {:error, :not_found}
-            end
-          else
-            {:error, :not_found}
+            alternate_addresses ->
+              alternate_addresses
+              |> Enum.find_value({:error, :not_found}, fn alternate_email ->
+                case Email.get_mailbox_by_email(alternate_email) do
+                  %Mailbox{} = mailbox -> {:ok, mailbox}
+                  _ -> nil
+                end
+              end)
           end
         else
           {:error, :not_found}

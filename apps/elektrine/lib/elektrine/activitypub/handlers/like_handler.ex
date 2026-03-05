@@ -285,9 +285,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   end
 
   defp fetch_reactable_object(uri) do
-    with {:ok, object} <- Fetcher.fetch_object(uri),
-         {:ok, reactable_object, author_uri} <- normalize_reactable_object(object) do
-      {:ok, reactable_object, author_uri}
+    with {:ok, object} <- Fetcher.fetch_object(uri) do
+      normalize_reactable_object(object)
     end
   end
 

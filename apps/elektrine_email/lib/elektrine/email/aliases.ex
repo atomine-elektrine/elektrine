@@ -42,14 +42,22 @@ defmodule Elektrine.Email.Aliases do
 
       nil ->
         # Support plus addressing: username+tag@domain.com -> check username@domain.com
-        case String.split(alias_email, "@") do
-          [username_part, domain] when domain in ["elektrine.com", "z.org"] ->
-            # Extract base username (before +)
-            base_username = username_part |> String.split("+") |> List.first()
-            base_email = "#{String.downcase(base_username)}@#{domain}"
+        case String.split(alias_email, "@", parts: 2) do
+          [username_part, domain] ->
+            domain = String.downcase(domain)
 
-            # Try lookup with base email (case-insensitive)
-            Alias |> where([a], fragment("lower(?)", a.alias_email) == ^base_email) |> Repo.one()
+            if Elektrine.Domains.local_email_domain?(domain) do
+              # Extract base username (before +)
+              base_username = username_part |> String.split("+") |> List.first()
+              base_email = "#{String.downcase(base_username)}@#{domain}"
+
+              # Try lookup with base email (case-insensitive)
+              Alias
+              |> where([a], fragment("lower(?)", a.alias_email) == ^base_email)
+              |> Repo.one()
+            else
+              nil
+            end
 
           _ ->
             nil
@@ -58,8 +66,8 @@ defmodule Elektrine.Email.Aliases do
   end
 
   @doc """
-  Creates email aliases for both supported domains (elektrine.com and z.org).
-  Takes a username and user_id, automatically creates aliases for both domains.
+  Creates email aliases for all configured local domains.
+  Takes a username and user_id, automatically creates aliases for each domain.
   """
   def create_alias(attrs \\ %{}) do
     # Check if domain is specified for single-domain creation
@@ -114,14 +122,16 @@ defmodule Elektrine.Email.Aliases do
     end
   end
 
-  # Create aliases for both domains (legacy, kept for backwards compatibility)
+  # Create aliases for all configured local domains (legacy, kept for backwards compatibility)
   defp create_dual_domain_aliases(username, user_id, attrs) do
-    domains = [alias_elektrine: "elektrine.com", alias_zorg: "z.org"]
+    domains = Elektrine.Domains.supported_email_domains()
     target_email = attrs[:target_email] || attrs["target_email"] || ""
     description = attrs[:description] || attrs["description"] || ""
 
     multi =
-      Enum.reduce(domains, Multi.new(), fn {operation, domain}, acc ->
+      Enum.reduce(domains, Multi.new(), fn domain, acc ->
+        operation = {:alias, domain}
+
         alias_attrs = %{
           alias_email: "#{username}@#{domain}",
           target_email: target_email,
@@ -134,9 +144,9 @@ defmodule Elektrine.Email.Aliases do
       end)
 
     case Repo.transaction(multi) do
-      {:ok, %{alias_elektrine: alias1, alias_zorg: alias2}} ->
+      {:ok, results} ->
         Elektrine.Email.Cached.invalidate_aliases(user_id)
-        {:ok, %{elektrine: alias1, zorg: alias2}}
+        {:ok, results}
 
       {:error, _operation, changeset, _changes} ->
         {:error, changeset}

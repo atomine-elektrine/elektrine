@@ -6,6 +6,7 @@ defmodule Elektrine.Accounts.Tracking do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.User
+  alias Elektrine.DB.WriteGuard
   alias Elektrine.Repo
 
   @doc """
@@ -27,16 +28,14 @@ defmodule Elektrine.Accounts.Tracking do
   Record IMAP access for a user.
   """
   def record_imap_access(user_id) do
-    from(u in User, where: u.id == ^user_id)
-    |> Repo.update_all(set: [last_imap_access: DateTime.utc_now() |> DateTime.truncate(:second)])
+    record_protocol_access(user_id, :last_imap_access, :imap)
   end
 
   @doc """
   Record POP3 access for a user.
   """
   def record_pop3_access(user_id) do
-    from(u in User, where: u.id == ^user_id)
-    |> Repo.update_all(set: [last_pop3_access: DateTime.utc_now() |> DateTime.truncate(:second)])
+    record_protocol_access(user_id, :last_pop3_access, :pop3)
   end
 
   @doc """
@@ -108,5 +107,14 @@ defmodule Elektrine.Accounts.Tracking do
         {:ok,
          %{status: user.status, message: user.status_message, updated_at: user.status_updated_at}}
     end
+  end
+
+  defp record_protocol_access(user_id, field, protocol) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    WriteGuard.run("#{protocol} access timestamp update for user_id=#{user_id}", fn ->
+      from(u in User, where: u.id == ^user_id)
+      |> Repo.update_all(set: [{field, now}])
+    end)
   end
 end

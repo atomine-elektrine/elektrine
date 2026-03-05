@@ -23,6 +23,14 @@ export function closeAllDropdowns() {
  * Handle clicks that should close dropdowns
  */
 function handleDropdownClick(e) {
+  const clickedDropdown = e.target.closest(".dropdown")
+  const clickedDropdownContent = e.target.closest(".dropdown-content")
+
+  // Keep dropdowns open when the trigger itself is clicked.
+  if (clickedDropdown && !clickedDropdownContent) {
+    return
+  }
+
   if (e.target.closest("[phx-click]")) {
     setTimeout(closeAllDropdowns, 50)
   }

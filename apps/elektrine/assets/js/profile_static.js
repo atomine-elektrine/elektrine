@@ -2,7 +2,7 @@
  * Profile Static Page Handler
  * 
  * This module handles interactive functionality for static (non-LiveView) profile pages.
- * Used when profiles are accessed via subdomains (e.g., username.z.org) where LiveView
+ * Used when profiles are accessed via subdomains (e.g., username.example.com) where LiveView
  * websockets don't work properly due to cross-origin restrictions.
  * 
  * Features:
@@ -61,7 +61,12 @@ const ICONS = {
   user: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>'
 }
 
-// Main domain for absolute URLs (handles subdomains like username.z.org -> z.org)
+const profileContainer = document.querySelector(SELECTORS.container)
+const CONFIGURED_MAIN_DOMAIN = profileContainer?.dataset.mainDomain || ""
+const LOCAL_HANDLE_DOMAIN =
+  profileContainer?.dataset.localDomain || CONFIGURED_MAIN_DOMAIN || window.location.hostname
+
+// Main domain for absolute URLs (handles subdomains like username.example.com -> example.com)
 const MAIN_DOMAIN = getMainDomain()
 
 const FRIEND_ACTIONS = [
@@ -79,22 +84,32 @@ const COPY_FEEDBACK_DURATION = 2000
 
 /**
  * Get the main domain URL for absolute links.
- * Converts subdomain URLs (e.g., username.z.org) to main domain (z.org).
+ * Converts subdomain URLs (e.g., username.example.com) to main domain (example.com).
  * This ensures links in modals navigate to the main site, not the subdomain.
  */
 function getMainDomain() {
-  const host = window.location.host
+  const host = window.location.host.toLowerCase()
   const protocol = window.location.protocol
-  
-  // Check if we're on a subdomain (e.g., username.z.org)
-  // Main domain patterns: z.org, localhost:4000
-  const parts = host.split('.')
-  
-  if (parts.length > 2 && host.endsWith('.z.org')) {
-    // On subdomain like username.z.org -> return https://z.org
-    return `${protocol}//z.org`
+
+  const hostname = host.split(":")[0]
+
+  if (CONFIGURED_MAIN_DOMAIN) {
+    const onConfiguredDomain =
+      hostname === CONFIGURED_MAIN_DOMAIN ||
+      hostname === `www.${CONFIGURED_MAIN_DOMAIN}` ||
+      hostname.endsWith(`.${CONFIGURED_MAIN_DOMAIN}`)
+
+    if (onConfiguredDomain) {
+      return `${protocol}//${CONFIGURED_MAIN_DOMAIN}`
+    }
   }
-  
+
+  // Best effort fallback for unexpected domains: assume registrable domain is last 2 labels.
+  const parts = hostname.split(".")
+  if (parts.length > 2) {
+    return `${protocol}//${parts.slice(-2).join(".")}`
+  }
+
   // On main domain or localhost, use current origin
   return window.location.origin
 }
@@ -259,7 +274,7 @@ function buildUserRow(entry) {
   const isRemote = entry.type === "remote"
   const displayHandle = isRemote 
     ? `@${entry.username}@${entry.domain}`
-    : `@${entry.handle || entry.username}@z.org`
+    : `@${entry.handle || entry.username}@${LOCAL_HANDLE_DOMAIN}`
   
   // Use absolute URLs to main domain so links work correctly from subdomains
   row.href = isRemote 

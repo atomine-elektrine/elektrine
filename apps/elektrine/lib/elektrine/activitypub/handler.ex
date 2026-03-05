@@ -7,6 +7,7 @@ defmodule Elektrine.ActivityPub.Handler do
   - CreateHandler: Create activities for Notes, Pages, Articles, Questions
   - LikeHandler: Like, Dislike, EmojiReact activities
   - AnnounceHandler: Announce (boost/share) activities
+  - MoveHandler: Account migration activities
   - DeleteHandler: Delete activities
   - UpdateHandler: Update activities
   - BlockHandler: Block activities
@@ -25,6 +26,7 @@ defmodule Elektrine.ActivityPub.Handler do
     FlagHandler,
     FollowHandler,
     LikeHandler,
+    MoveHandler,
     UpdateHandler
   }
 
@@ -138,6 +140,9 @@ defmodule Elektrine.ActivityPub.Handler do
 
       "Announce" ->
         AnnounceHandler.handle(activity, actor_uri, target_user)
+
+      "Move" ->
+        MoveHandler.handle(activity, actor_uri, target_user)
 
       "Undo" ->
         handle_undo(activity, actor_uri, target_user)

@@ -29,7 +29,8 @@ if runtime_profile == :chat_auth do
   config :elektrine, Oban,
     queues: [
       default: 2,
-      messaging_federation: 4
+      messaging_federation: 4,
+      webhooks: 1
     ],
     plugins: [
       {Oban.Plugins.Pruner, max_age: 60 * 60 * 24},
@@ -560,7 +561,67 @@ if config_env() == :prod do
 
   present? = fn value -> is_binary(value) and String.trim(value) != "" end
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  normalize_domain = fn domain ->
+    domain
+    |> String.trim()
+    |> String.downcase()
+    |> String.trim_leading("www.")
+  end
+
+  parse_domain_list = fn value, default ->
+    domains =
+      case value do
+        nil -> default
+        "" -> default
+        raw -> String.split(raw, ",", trim: true)
+      end
+
+    domains
+    |> Enum.map(normalize_domain)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  default_supported_domains = ["elektrine.com", "elektrine.net", "elektrine.org", "z.org"]
+
+  primary_domain =
+    System.get_env("PRIMARY_DOMAIN")
+    |> case do
+      nil -> System.get_env("EMAIL_DOMAIN")
+      value -> value
+    end
+    |> case do
+      nil -> "elektrine.com"
+      value -> normalize_domain.(value)
+    end
+
+  supported_domains_env =
+    System.get_env("SUPPORTED_DOMAINS") || System.get_env("EMAIL_SUPPORTED_DOMAINS")
+
+  supported_email_domains =
+    ([primary_domain] ++ parse_domain_list.(supported_domains_env, default_supported_domains))
+    |> Enum.uniq()
+
+  profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS") || supported_domains_env
+
+  profile_base_domains =
+    parse_domain_list.(profile_domains_env, supported_email_domains)
+
+  host = System.get_env("PHX_HOST") || primary_domain
+  host_domain = normalize_domain.(host)
+
+  all_public_domains =
+    ([host_domain] ++ supported_email_domains ++ profile_base_domains)
+    |> Enum.uniq()
+
+  config :elektrine, :email,
+    domain: primary_domain,
+    allow_insecure_receiver_webhook: false,
+    supported_domains: supported_email_domains
+
+  config :elektrine, :profile_base_domains, profile_base_domains
+  config :elektrine, :primary_domain, primary_domain
+
   port = String.to_integer(System.get_env("PORT") || "4000")
   onion_tls_port = String.to_integer(System.get_env("ONION_TLS_PORT") || "8443")
   onion_tls_certfile = System.get_env("ONION_TLS_CERTFILE") || "/data/certs/live/onion-cert.pem"
@@ -603,17 +664,21 @@ if config_env() == :prod do
 
   # Allowed origins for WebSocket connections
   # Includes primary domains, subdomains, and fly.dev for staging
-  allowed_origins = [
-    "https://elektrine.com",
-    "https://www.elektrine.com",
-    "//*.elektrine.com",
-    "https://z.org",
-    "https://www.z.org",
-    "//*.z.org",
-    "//*.onion",
-    "https://elektrine.fly.dev",
-    "//*.fly.dev"
-  ]
+  allowed_origins =
+    all_public_domains
+    |> Enum.flat_map(fn domain ->
+      [
+        "https://#{domain}",
+        "https://www.#{domain}",
+        "//*.#{domain}"
+      ]
+    end)
+    |> Kernel.++([
+      "//*.onion",
+      "https://elektrine.fly.dev",
+      "//*.fly.dev"
+    ])
+    |> Enum.uniq()
 
   endpoint_config = [
     url: [host: host, port: 443, scheme: "https"],

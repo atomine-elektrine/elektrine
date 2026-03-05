@@ -38,6 +38,8 @@ config :elektrine, Oban,
     rss: 2,
     # Data exports (low priority, can take time)
     exports: 2,
+    # Outbound developer webhook deliveries
+    webhooks: 2,
     # Federation metadata fetching (nodeinfo, favicons)
     federation_metadata: 2,
     # Federated timeline background refresh/ingestion workers
@@ -80,17 +82,67 @@ config :elektrine, Oban,
 # Timezone conversions use Tzdata explicitly in shift_zone/3
 config :elixir, :time_zone_database, Calendar.UTCOnlyTimeZoneDatabase
 
+primary_domain =
+  (System.get_env("PRIMARY_DOMAIN") || System.get_env("EMAIL_DOMAIN") || "elektrine.com")
+  |> String.trim()
+  |> String.downcase()
+
+supported_domains_env =
+  System.get_env("SUPPORTED_DOMAINS") || System.get_env("EMAIL_SUPPORTED_DOMAINS")
+
+default_supported_domains = ["elektrine.com", "elektrine.net", "elektrine.org", "z.org"]
+
+normalize_domains = fn domains ->
+  domains
+  |> Enum.map(&String.trim/1)
+  |> Enum.reject(&(&1 == ""))
+  |> Enum.map(&String.downcase/1)
+  |> Enum.uniq()
+end
+
+configured_supported_domains =
+  case supported_domains_env do
+    nil ->
+      default_supported_domains
+
+    value ->
+      String.split(value, ",", trim: true)
+  end
+
+supported_email_domains =
+  ([primary_domain] ++ configured_supported_domains)
+  |> normalize_domains.()
+
+profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS") || supported_domains_env
+
+profile_base_domains =
+  case profile_domains_env do
+    nil ->
+      supported_email_domains
+
+    value ->
+      ([primary_domain] ++ String.split(value, ",", trim: true))
+      |> normalize_domains.()
+  end
+
+profile_host_scope =
+  case profile_base_domains do
+    [domain | _] -> "*.#{domain}"
+    _ -> "*.#{primary_domain}"
+  end
+
 # Configure email settings
 config :elektrine, :email,
-  domain: System.get_env("EMAIL_DOMAIN") || "elektrine.com",
+  domain: primary_domain,
   # Legacy receiver webhook auth fallback:
   # keep permissive in dev/test, fail-closed in prod unless explicitly configured.
   allow_insecure_receiver_webhook: config_env() != :prod,
   # Supported domains for multi-domain access
-  supported_domains: [
-    "elektrine.com",
-    "z.org"
-  ]
+  supported_domains: supported_email_domains
+
+config :elektrine, :profile_base_domains, profile_base_domains
+config :elektrine, :profile_host_scope, profile_host_scope
+config :elektrine, :primary_domain, primary_domain
 
 # Process Haraka inbound payloads asynchronously through Oban.
 # Can be overridden with HARAKA_ASYNC_INGEST at runtime.

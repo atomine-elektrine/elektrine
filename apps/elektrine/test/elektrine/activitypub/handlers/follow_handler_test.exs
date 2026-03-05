@@ -81,6 +81,38 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
 
       assert accept_count == 0
     end
+
+    test "accepts follow activity targeting a configured legacy local domain", %{user: user} do
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      Application.put_env(:elektrine, :profile_base_domains, [
+        ActivityPub.instance_domain(),
+        "z.org"
+      ])
+
+      remote_actor =
+        remote_actor_fixture(%{
+          uri: "https://remote.server/users/legacy-domain-follower",
+          username: "legacy_domain_follower",
+          inbox_url: "https://remote.server/users/legacy-domain-follower/inbox"
+        })
+
+      legacy_base_url = ActivityPub.instance_url_for_domain("z.org")
+
+      activity = %{
+        "type" => "Follow",
+        "id" => "https://remote.server/activities/follow/legacy-domain",
+        "actor" => remote_actor.uri,
+        "object" => "#{legacy_base_url}/users/#{user.username}"
+      }
+
+      assert {:ok, :pending} = FollowHandler.handle(activity, remote_actor.uri, nil)
+      assert Profiles.get_follow_by_remote_actor(remote_actor.id, user.id)
+    end
   end
 
   describe "handle_accept/3" do

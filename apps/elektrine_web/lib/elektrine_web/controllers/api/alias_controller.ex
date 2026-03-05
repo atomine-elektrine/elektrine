@@ -48,7 +48,7 @@ defmodule ElektrineWeb.API.AliasController do
 
   Params:
     - username: The local part of the alias email (required)
-    - domain: The domain for the alias (elektrine.com or z.org) (required)
+    - domain: The domain for the alias (must be one of configured local domains) (required)
     - target_email: Optional forwarding target
     - description: Optional description
   """

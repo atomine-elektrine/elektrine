@@ -33,10 +33,10 @@ defmodule ElektrineWeb.Plugs.PATAuth do
       X-API-Key: ekt_xxxxx
   """
   import Plug.Conn
-  import Phoenix.Controller
 
   alias Elektrine.Developer
   alias Elektrine.Developer.ApiToken
+  alias ElektrineWeb.API.Response
   alias ElektrineWeb.ClientIP
 
   def init(opts) do
@@ -58,7 +58,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
             if opts.optional do
               conn
             else
-              unauthorized(conn, error_message(reason))
+              auth_error(conn, reason)
             end
         end
 
@@ -71,7 +71,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
             conn
 
           is_nil(token) ->
-            unauthorized(conn, "API token required")
+            auth_error(conn, :missing_token)
 
           # Token doesn't have correct prefix
           not String.starts_with?(token, "ekt_") ->
@@ -79,7 +79,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
             if opts.optional do
               conn
             else
-              unauthorized(conn, "Invalid token format")
+              auth_error(conn, :invalid_token_format)
             end
 
           # Verify token
@@ -95,7 +95,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
                 if opts.optional do
                   conn
                 else
-                  unauthorized(conn, error_message(reason))
+                  auth_error(conn, reason)
                 end
             end
         end
@@ -158,19 +158,44 @@ defmodule ElektrineWeb.Plugs.PATAuth do
     end
   end
 
-  defp unauthorized(conn, message) do
+  defp auth_error(conn, :insufficient_scope) do
     conn
-    |> put_status(:unauthorized)
-    |> put_view(json: ElektrineWeb.ErrorJSON)
-    |> json(%{error: "unauthorized", message: message})
+    |> Response.error(
+      :forbidden,
+      "insufficient_scope",
+      "Token does not have required permissions"
+    )
     |> halt()
   end
 
-  defp error_message(:invalid_token), do: "Invalid or unknown token"
-  defp error_message(:token_expired), do: "Token has expired"
-  defp error_message(:token_revoked), do: "Token has been revoked"
-  defp error_message(:insufficient_scope), do: "Token does not have required permissions"
-  defp error_message(_), do: "Authentication failed"
+  defp auth_error(conn, :missing_token) do
+    conn
+    |> Response.error(:unauthorized, "missing_token", "API token required")
+    |> halt()
+  end
+
+  defp auth_error(conn, :invalid_token_format) do
+    conn
+    |> Response.error(:unauthorized, "invalid_token_format", "Invalid token format")
+    |> halt()
+  end
+
+  defp auth_error(conn, reason) do
+    message =
+      case reason do
+        :invalid_token -> "Invalid or unknown token"
+        :token_expired -> "Token has expired"
+        :token_revoked -> "Token has been revoked"
+        _ -> "Authentication failed"
+      end
+
+    conn
+    |> Response.error(:unauthorized, normalize_error_code(reason), message)
+    |> halt()
+  end
+
+  defp normalize_error_code(code) when is_atom(code), do: Atom.to_string(code)
+  defp normalize_error_code(_), do: "authentication_failed"
 
   defp get_client_ip(conn) do
     ClientIP.client_ip(conn)

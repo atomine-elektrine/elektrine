@@ -6,7 +6,8 @@
   <div class="mb-6 sm:mb-8">
     <h1 class="text-2xl sm:text-3xl font-bold text-base-content">Customize Your Profile</h1>
     <p class="text-base-content/70 mt-2">
-      Create your personal page at z.org/{@user.handle || @user.username}
+      Create your personal page at {Elektrine.Domains.primary_profile_domain()}/{@user.handle ||
+        @user.username}
     </p>
   </div>
 
@@ -108,7 +109,7 @@
                 <.icon name="hero-arrow-left" class="w-4 h-4" /> Account
               </.link>
               <.link
-                href={"https://#{@user.handle || @user.username}.z.org"}
+                href={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
                 target="_blank"
                 class="btn btn-ghost btn-sm w-full justify-start"
               >

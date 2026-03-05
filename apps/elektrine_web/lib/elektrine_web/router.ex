@@ -103,6 +103,14 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:account"])
   end
 
+  pipeline :api_pat_export_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["export"])
+  end
+
+  pipeline :api_pat_webhook_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["webhook"])
+  end
+
   pipeline :activitypub do
     # Custom plug that accepts any content type for ActivityPub federation
     plug(ElektrineWeb.Plugs.ActivityPubAccept)
@@ -451,6 +459,8 @@ defmodule ElektrineWeb.Router do
     get("/outbox", ActivityPubController, :community_outbox)
     get("/followers", ActivityPubController, :community_followers)
     get("/moderators", ActivityPubController, :community_moderators)
+    get("/posts/:id", ActivityPubController, :community_object)
+    get("/posts/:id/activity", ActivityPubController, :community_object_activity)
   end
 
   # Relay actor inbox (for receiving Accept/Reject from relays)
@@ -984,6 +994,73 @@ defmodule ElektrineWeb.Router do
   end
 
   # External PAT-authenticated API endpoints for integrations.
+  scope "/api/ext/v1/search", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_search_read_scope])
+
+    get("/", GlobalSearchController, :index)
+    get("/actions", GlobalSearchController, :actions)
+    post("/actions/execute", GlobalSearchController, :execute)
+  end
+
+  scope "/api/ext/v1/calendars", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_calendar_read_scope])
+
+    get("/", CalendarController, :index)
+    get("/:id/events", CalendarController, :events)
+  end
+
+  scope "/api/ext/v1/calendars", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_calendar_write_scope])
+
+    post("/", CalendarController, :create)
+    post("/:id/events", CalendarController, :create_event)
+  end
+
+  scope "/api/ext/v1/events", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_calendar_write_scope])
+
+    put("/:id", CalendarController, :update_event)
+    delete("/:id", CalendarController, :delete_event)
+  end
+
+  scope "/api/ext/v1/password-manager", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
+
+    get("/entries", PasswordManagerController, :index)
+    get("/entries/:id", PasswordManagerController, :show)
+  end
+
+  scope "/api/ext/v1/password-manager", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_account_write_scope])
+
+    post("/vault/setup", PasswordManagerController, :setup)
+    post("/entries", PasswordManagerController, :create)
+    delete("/entries/:id", PasswordManagerController, :delete)
+  end
+
+  scope "/api/ext/v1/exports", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_export_scope])
+
+    get("/", ExportController, :index)
+    post("/", ExportController, :create)
+    get("/:id", ExportController, :show)
+    delete("/:id", ExportController, :delete)
+    get("/:id/download", ExportController, :download_authenticated)
+  end
+
+  scope "/api/ext/v1/webhooks", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_webhook_scope])
+
+    get("/", WebhookController, :index)
+    post("/", WebhookController, :create)
+    get("/:id", WebhookController, :show)
+    delete("/:id", WebhookController, :delete)
+    post("/:id/test", WebhookController, :test)
+    post("/:id/rotate-secret", WebhookController, :rotate_secret)
+    get("/:id/deliveries", WebhookController, :deliveries)
+  end
+
+  # Backward-compatible unversioned external endpoints.
   scope "/api/ext/search", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_search_read_scope])
 
@@ -1089,7 +1166,9 @@ defmodule ElektrineWeb.Router do
 
   # Main LiveView routes - MUST be at end of router due to /:handle catch-all
   # All pages in single live_session for seamless navigation
-  scope "/", ElektrineWeb, host: "*.z.org" do
+  scope "/",
+        ElektrineWeb,
+        host: Application.compile_env(:elektrine, :profile_host_scope, "*.elektrine.com") do
     pipe_through(:profile)
 
     get("/", ProfileController, :show)
@@ -1246,7 +1325,7 @@ defmodule ElektrineWeb.Router do
   end
 
   # Profile page - Renders static HTML profile
-  # Used for subdomain access (username.z.org) and SEO
+  # Used for subdomain access (username.<profile-domain>) and SEO
   # IMPORTANT: This catch-all route MUST be last in the router
   scope "/", ElektrineWeb do
     pipe_through(:browser)

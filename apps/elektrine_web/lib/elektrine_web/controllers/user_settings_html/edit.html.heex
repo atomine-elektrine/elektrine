@@ -173,18 +173,22 @@
 
           <p class="text-sm text-base-content/70 mb-4">
             Create your personal link-in-bio page at
-            <strong>z.org/{@user.handle || @user.username}</strong>
+            <strong>
+              {Elektrine.Domains.primary_profile_domain()}/{@user.handle || @user.username}
+            </strong>
           </p>
 
           <div class="space-y-3">
             <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
               <div>
                 <p class="font-medium text-sm">Your Profile URL</p>
-                <p class="text-xs text-base-content/60">z.org/{@user.handle || @user.username}</p>
+                <p class="text-xs text-base-content/60">
+                  {Elektrine.Domains.primary_profile_domain()}/{@user.handle || @user.username}
+                </p>
               </div>
               <div class="flex gap-2">
                 <.link
-                  href={"https://#{@user.handle || @user.username}.z.org"}
+                  href={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
                   target="_blank"
                   class="btn btn-secondary btn-sm"
                 >

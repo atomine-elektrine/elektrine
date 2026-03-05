@@ -140,9 +140,15 @@ defmodule Elektrine.Email.AutoReply do
     user = Elektrine.Accounts.get_user!(user_id)
     mailbox = Elektrine.Email.get_user_mailbox(user_id)
 
-    email == String.downcase(user.username <> "@elektrine.com") ||
-      email == String.downcase(user.username <> "@z.org") ||
-      (mailbox && email == String.downcase(mailbox.email))
+    own_addresses =
+      Elektrine.Domains.local_addresses_for_username(user.username)
+      |> Enum.map(&String.downcase/1)
+      |> case do
+        addresses when is_map(mailbox) -> [String.downcase(mailbox.email) | addresses]
+        addresses -> addresses
+      end
+
+    email in own_addresses
   end
 
   defp extract_email(email_string) when is_binary(email_string) do

@@ -4,7 +4,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   import ElektrineWeb.Components.Profile.Containers
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
-  alias Elektrine.{Accounts, Messaging, Profiles, Social}
+  alias Elektrine.{Accounts, Domains, Messaging, Profiles, Social}
   @impl true
   def mount(%{"handle" => handle}, session, socket) do
     if !String.valid?(handle) or String.length(handle) > 100 or handle =~ ~r/[\x00-\x1f]/ do
@@ -93,7 +93,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
             [
               %{
                 title: "Contact",
-                url: "mailto:#{user.username}@z.org",
+                url: "mailto:#{user.username}@#{Domains.default_user_handle_domain()}",
                 description: "Send me an email",
                 platform: "email"
               }
@@ -138,7 +138,10 @@ defmodule ElektrineWeb.ProfileLive.Show do
          |> assign(:report_modal_type, nil)
          |> assign(:report_modal_id, nil)
          |> assign(:show_share_modal, false)
-         |> assign(:profile_url, "https://#{user.handle}.z.org")
+         |> assign(
+           :profile_url,
+           "https://#{user.handle || user.username}.#{Domains.primary_profile_domain()}"
+         )
          |> assign(:base_url, "")
          |> assign(:show_timeline_drawer, false)
          |> assign(:show_image_modal, false)

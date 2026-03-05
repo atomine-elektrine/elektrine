@@ -42,12 +42,12 @@ defmodule ElektrineWeb.ChatLive.HandleFormatter do
     case Federation.local_domain() do
       domain when is_binary(domain) ->
         case String.trim(domain) do
-          "" -> "z.org"
+          "" -> Elektrine.Domains.default_user_handle_domain()
           value -> String.downcase(value)
         end
 
       _ ->
-        "z.org"
+        Elektrine.Domains.default_user_handle_domain()
     end
   end
 

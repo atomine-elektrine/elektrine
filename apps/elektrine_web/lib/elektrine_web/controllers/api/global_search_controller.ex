@@ -5,6 +5,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Search
+  alias ElektrineWeb.API.Response
   alias ElektrineWeb.ClientIP
 
   @default_limit 50
@@ -18,19 +19,19 @@ defmodule ElektrineWeb.API.GlobalSearchController do
     limit = parse_positive_int(params["limit"], @default_limit) |> min(@max_limit)
     result = Search.global_search(user, query, limit: limit)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      query: query,
-      total_count: result.total_count,
-      results: result.results
-    })
+    Response.ok(
+      conn,
+      %{
+        query: query,
+        total_count: result.total_count,
+        results: result.results
+      },
+      %{pagination: %{limit: limit}}
+    )
   end
 
   def index(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "Missing required parameter: q"})
+    Response.error(conn, :bad_request, "missing_parameter", "Missing required parameter: q")
   end
 
   @doc """
@@ -43,9 +44,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
         enforce_scopes: true
       )
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
+    Response.ok(conn, %{
       actions: Enum.map(actions, &format_action/1)
     })
   end
@@ -58,9 +57,12 @@ defmodule ElektrineWeb.API.GlobalSearchController do
     command = params["command"] || params["action"] || params["id"]
 
     if is_nil(command) or String.trim(to_string(command)) == "" do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{error: "Missing required parameter: command"})
+      Response.error(
+        conn,
+        :bad_request,
+        "missing_parameter",
+        "Missing required parameter: command"
+      )
     else
       opts = [
         scopes: token_scopes(conn),
@@ -72,29 +74,30 @@ defmodule ElektrineWeb.API.GlobalSearchController do
 
       case Search.execute_action(user, command, opts) do
         {:ok, result} ->
-          conn
-          |> put_status(:ok)
-          |> json(%{result: format_result(result)})
+          Response.ok(conn, %{result: format_result(result)})
 
         {:error, :unknown_action} ->
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: "Unknown action"})
+          Response.error(conn, :not_found, "unknown_action", "Unknown action")
 
         {:error, :insufficient_scope} ->
-          conn
-          |> put_status(:forbidden)
-          |> json(%{error: "Token is missing required scope"})
+          Response.error(
+            conn,
+            :forbidden,
+            "insufficient_scope",
+            "Token is missing required scope"
+          )
 
         {:error, :unauthorized} ->
-          conn
-          |> put_status(:unauthorized)
-          |> json(%{error: "Unauthorized"})
+          Response.error(conn, :unauthorized, "unauthorized", "Unauthorized")
 
         {:error, reason} ->
-          conn
-          |> put_status(:unprocessable_entity)
-          |> json(%{error: "Action execution failed", reason: inspect(reason)})
+          Response.error(
+            conn,
+            :unprocessable_entity,
+            "action_execution_failed",
+            "Action execution failed",
+            inspect(reason)
+          )
       end
     end
   end

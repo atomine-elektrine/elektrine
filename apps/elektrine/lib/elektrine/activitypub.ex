@@ -29,17 +29,29 @@ defmodule Elektrine.ActivityPub do
   Gets the instance domain for this server.
   """
   def instance_domain do
-    System.get_env("INSTANCE_DOMAIN") || "z.org"
+    Elektrine.Domains.instance_domain()
   end
 
   @doc """
   Gets the instance base URL.
   """
   def instance_url do
-    domain = instance_domain()
+    instance_url_for_domain(instance_domain())
+  end
+
+  @doc """
+  Gets an instance-style base URL for a specific domain.
+  """
+  def instance_url_for_domain(domain) when is_binary(domain) do
+    normalized_domain =
+      domain
+      |> String.trim()
+      |> String.downcase()
 
     # Check if using ngrok or other external tunnel (contains a dot and not localhost)
-    is_tunnel = String.contains?(domain, ".") and not String.starts_with?(domain, "localhost")
+    is_tunnel =
+      String.contains?(normalized_domain, ".") and
+        not String.starts_with?(normalized_domain, "localhost")
 
     # Use HTTPS for production or tunnels (ngrok, etc.)
     scheme = if System.get_env("MIX_ENV") == "prod" or is_tunnel, do: "https", else: "http"
@@ -47,9 +59,9 @@ defmodule Elektrine.ActivityPub do
 
     # Don't include port for HTTPS, standard ports, or tunnels
     if scheme == "https" or port == "80" or port == "443" or is_tunnel do
-      "#{scheme}://#{domain}"
+      "#{scheme}://#{normalized_domain}"
     else
-      "#{scheme}://#{domain}:#{port}"
+      "#{scheme}://#{normalized_domain}:#{port}"
     end
   end
 
@@ -57,14 +69,7 @@ defmodule Elektrine.ActivityPub do
   Returns local actor URI prefixes used to detect local `/users/:username` actor URLs.
   """
   def local_actor_prefixes do
-    configured_domains =
-      Application.get_env(:elektrine, :email, [])
-      |> Keyword.get(:supported_domains, [])
-
-    domains =
-      ([instance_domain()] ++ configured_domains)
-      |> Enum.uniq()
-      |> Enum.reject(&is_nil/1)
+    domains = Elektrine.Domains.activitypub_domains()
 
     urls =
       [instance_url()] ++
@@ -75,6 +80,47 @@ defmodule Elektrine.ActivityPub do
     |> Enum.map(&(String.trim_trailing(&1, "/") <> "/users/"))
   end
 
+  @doc """
+  Extracts a local username from a local actor/profile URI.
+  """
+  def local_username_from_uri(uri) when is_binary(uri) do
+    normalized_uri = String.trim(uri)
+
+    if normalized_uri == "" do
+      {:error, :invalid_uri}
+    else
+      case URI.parse(normalized_uri) do
+        %URI{host: host, path: path} when is_binary(host) and is_binary(path) ->
+          if Elektrine.Domains.local_activitypub_domain?(String.downcase(host)) do
+            case extract_local_username_from_path(path) do
+              nil -> {:error, :not_local}
+              username -> {:ok, username}
+            end
+          else
+            {:error, :not_local}
+          end
+
+        _ ->
+          {:error, :invalid_uri}
+      end
+    end
+  end
+
+  def local_username_from_uri(_), do: {:error, :invalid_uri}
+
+  defp extract_local_username_from_path(path) when is_binary(path) do
+    case path |> String.trim_leading("/") |> String.split("/", trim: true) do
+      ["users", username | _] when username != "" ->
+        username
+
+      [<<"@", username::binary>> | _] when username != "" ->
+        username
+
+      _ ->
+        nil
+    end
+  end
+
   ## Actors
 
   @doc """
@@ -82,11 +128,37 @@ defmodule Elektrine.ActivityPub do
   Fetches the actor document if not cached or stale.
   Uses in-memory caching to reduce database load during high traffic.
   """
-  def get_or_fetch_actor(uri) when is_binary(uri) do
-    Elektrine.AppCache.get_actor(uri, fn ->
-      do_get_or_fetch_actor(uri)
-    end)
+  def get_or_fetch_actor(uri) do
+    case normalize_actor_uri_input(uri) do
+      normalized_uri when is_binary(normalized_uri) ->
+        Elektrine.AppCache.get_actor(normalized_uri, fn ->
+          do_get_or_fetch_actor(normalized_uri)
+        end)
+
+      _ ->
+        {:error, :invalid_actor_uri}
+    end
   end
+
+  defp normalize_actor_uri_input(uri) when is_binary(uri) do
+    case String.trim(uri) do
+      "" -> nil
+      normalized_uri -> normalized_uri
+    end
+  end
+
+  defp normalize_actor_uri_input(values) when is_list(values) do
+    Enum.find_value(values, &normalize_actor_uri_input/1)
+  end
+
+  defp normalize_actor_uri_input(value) when is_map(value) do
+    value
+    |> Map.take(["id", "url", "href", :id, :url, :href])
+    |> Map.values()
+    |> Enum.find_value(&normalize_actor_uri_input/1)
+  end
+
+  defp normalize_actor_uri_input(_), do: nil
 
   defp do_get_or_fetch_actor(uri) do
     case get_actor_by_uri(uri) do

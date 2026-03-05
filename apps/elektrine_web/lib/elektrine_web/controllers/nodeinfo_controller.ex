@@ -5,6 +5,7 @@ defmodule ElektrineWeb.NodeinfoController do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.MRF
   alias Elektrine.AppCache
+  alias Elektrine.Domains
   alias Elektrine.Messaging
   alias Elektrine.System, as: SystemSettings
 
@@ -84,7 +85,7 @@ defmodule ElektrineWeb.NodeinfoController do
     %{
       name: software_name(),
       version: Application.spec(:elektrine, :vsn) |> to_string(),
-      homepage: "https://z.org"
+      homepage: "https://#{Domains.primary_profile_domain()}"
     }
   end
 

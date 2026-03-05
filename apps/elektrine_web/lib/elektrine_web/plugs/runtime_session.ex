@@ -25,7 +25,7 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
   defp build_session_opts do
     base_opts = [
       store: :cookie,
-      # In production, use a host-only cookie (no Domain=.z.org) so user subdomains cannot
+      # In production, use a host-only cookie (no Domain=.example.com) so user subdomains cannot
       # ride the authenticated session via ambient cookies.
       key: session_cookie_key(),
       signing_salt: get_signing_salt(),
@@ -46,7 +46,7 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
 
   defp session_cookie_key do
     # Changing the prod cookie name avoids ambiguous "two cookies with the same name"
-    # after removing Domain=.z.org (host-only + domain cookie can coexist otherwise).
+    # after removing a domain-scoped cookie (host-only + domain cookie can coexist otherwise).
     if Application.get_env(:elektrine, :environment) == :prod do
       "_elektrine_host"
     else

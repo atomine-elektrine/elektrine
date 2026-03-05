@@ -669,61 +669,67 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if socket.assigns[:current_user] do
       user_id = socket.assigns.current_user.id
 
-      post =
-        Enum.find(socket.assigns.filtered_community_posts, fn p ->
-          to_string(p.id) == to_string(post_id)
-        end)
+      case Enum.find(socket.assigns.filtered_community_posts, fn p ->
+             to_string(p.id) == to_string(post_id)
+           end) do
+        nil ->
+          {:noreply, put_flash(socket, :error, "Failed to react to post")}
 
-      activitypub_id = post && post.activitypub_id
+        post ->
+          interaction_id =
+            case post.activitypub_id do
+              activitypub_id when is_binary(activitypub_id) and activitypub_id != "" ->
+                activitypub_id
 
-      if activitypub_id do
-        case Elektrine.ActivityPub.Helpers.get_or_store_remote_post(activitypub_id) do
-          {:ok, message} ->
-            alias Elektrine.Messaging.Reactions
-
-            existing_reaction =
-              Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
-                message_id: message.id,
-                user_id: user_id,
-                emoji: emoji
-              )
-
-            if existing_reaction do
-              case Reactions.remove_reaction(message.id, user_id, emoji) do
-                {:ok, _} ->
-                  updated_reactions =
-                    update_post_reactions(
-                      socket,
-                      post.id,
-                      %{emoji: emoji, user_id: user_id},
-                      :remove
-                    )
-
-                  {:noreply, assign(socket, :post_reactions, updated_reactions)}
-
-                {:error, _} ->
-                  {:noreply, socket}
-              end
-            else
-              case Reactions.add_reaction(message.id, user_id, emoji) do
-                {:ok, reaction} ->
-                  reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
-                  updated_reactions = update_post_reactions(socket, post.id, reaction, :add)
-                  {:noreply, assign(socket, :post_reactions, updated_reactions)}
-
-                {:error, :rate_limited} ->
-                  {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
-
-                {:error, _} ->
-                  {:noreply, socket}
-              end
+              _ ->
+                post.id
             end
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to react to post")}
-        end
-      else
-        {:noreply, socket}
+          case ElektrineWeb.Live.PostInteractions.resolve_message_for_interaction(interaction_id) do
+            {:ok, message} ->
+              alias Elektrine.Messaging.Reactions
+
+              existing_reaction =
+                Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
+                  message_id: message.id,
+                  user_id: user_id,
+                  emoji: emoji
+                )
+
+              if existing_reaction do
+                case Reactions.remove_reaction(message.id, user_id, emoji) do
+                  {:ok, _} ->
+                    updated_reactions =
+                      update_post_reactions(
+                        socket,
+                        post.id,
+                        %{emoji: emoji, user_id: user_id},
+                        :remove
+                      )
+
+                    {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+                  {:error, _} ->
+                    {:noreply, socket}
+                end
+              else
+                case Reactions.add_reaction(message.id, user_id, emoji) do
+                  {:ok, reaction} ->
+                    reaction = Elektrine.Repo.preload(reaction, [:user, :remote_actor])
+                    updated_reactions = update_post_reactions(socket, post.id, reaction, :add)
+                    {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+                  {:error, :rate_limited} ->
+                    {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+
+                  {:error, _} ->
+                    {:noreply, socket}
+                end
+              end
+
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to react to post")}
+          end
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to react")}

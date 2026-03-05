@@ -71,7 +71,7 @@ defmodule Elektrine.Email.PGP do
   def get_key_by_email(email) when is_binary(email) do
     clean_email = String.downcase(String.trim(email))
     [local_part, domain] = String.split(clean_email, "@")
-    our_domains = ["elektrine.com", "z.org"]
+    our_domains = Elektrine.Domains.supported_email_domains()
 
     if domain in our_domains do
       case Repo.get_by(User, username: local_part) do

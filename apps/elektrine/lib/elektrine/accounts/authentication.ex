@@ -2,6 +2,7 @@ defmodule Elektrine.Accounts.Authentication do
   @moduledoc ~s|Authentication context for user authentication, password management, and 2FA.\nHandles password verification, 2FA setup/verification, app passwords, and password recovery.\n|
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.{AppPassword, TwoFactor, User}
+  alias Elektrine.DB.WriteGuard
   alias Elektrine.Email.Mailbox
   alias Elektrine.Repo
   require Logger
@@ -318,9 +319,30 @@ defmodule Elektrine.Accounts.Authentication do
         {:error, :invalid_token}
 
       app_password ->
-        {:ok, updated} = app_password |> AppPassword.update_last_used(ip_address) |> Repo.update()
-        {:ok, updated}
+        case update_app_password_last_used(app_password, ip_address) do
+          {:ok, updated} ->
+            {:ok, updated}
+
+          {:error, _changeset} ->
+            Logger.warning(
+              "Failed to persist app password last_used_at for user_id=#{app_password.user_id}; allowing authentication"
+            )
+
+            {:ok, app_password}
+        end
     end
+  end
+
+  defp update_app_password_last_used(app_password, ip_address) do
+    WriteGuard.run(
+      "app password last_used_at update for user_id=#{app_password.user_id}",
+      fn ->
+        app_password
+        |> AppPassword.update_last_used(ip_address)
+        |> Repo.update()
+      end,
+      on_read_only: {:ok, app_password}
+    )
   end
 
   defp get_user_by_username_or_email(identifier) do
@@ -333,7 +355,7 @@ defmodule Elektrine.Accounts.Authentication do
           domain = String.downcase(domain)
 
           user =
-            if domain in ["elektrine.com", "z.org"] do
+            if Elektrine.Domains.local_email_domain?(domain) do
               get_user_by_username_case_insensitive(username)
             else
               get_user_by_mailbox_email(normalized_identifier)

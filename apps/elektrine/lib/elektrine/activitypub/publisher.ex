@@ -96,7 +96,7 @@ defmodule Elektrine.ActivityPub.Publisher do
 
   Accepts either a User or Actor struct for signing.
   """
-  def deliver(activity, entity, inbox_url) do
+  def deliver(activity, entity, inbox_url, opts \\ []) do
     # Ensure entity has keys before signing
     {:ok, entity} = Elektrine.ActivityPub.KeyManager.ensure_user_has_keys(entity)
     body = Jason.encode!(activity)
@@ -115,7 +115,7 @@ defmodule Elektrine.ActivityPub.Publisher do
     ]
 
     # Sign the request - extract key info based on entity type
-    {private_key, key_id} = get_signing_info(entity)
+    {private_key, key_id} = get_signing_info(entity, opts)
     signature_headers = HTTPSignature.sign(inbox_url, body, private_key, key_id)
 
     all_headers = base_headers ++ signature_headers
@@ -227,19 +227,25 @@ defmodule Elektrine.ActivityPub.Publisher do
   end
 
   # Extracts signing key and key_id based on entity type (User or Actor)
-  defp get_signing_info(%User{} = user) do
-    key_id = "#{ActivityPub.instance_url()}/users/#{user.username}#main-key"
+  defp get_signing_info(%User{} = user, opts) do
+    key_id_base =
+      case Keyword.get(opts, :key_id_base_url) do
+        value when is_binary(value) and value != "" -> String.trim_trailing(value, "/")
+        _ -> ActivityPub.instance_url()
+      end
+
+    key_id = "#{key_id_base}/users/#{user.username}#main-key"
     {user.activitypub_private_key, key_id}
   end
 
-  defp get_signing_info(%ActivityPub.Actor{username: "relay"} = actor) do
+  defp get_signing_info(%ActivityPub.Actor{username: "relay"} = actor, _opts) do
     # For relay actor, use dynamic URL to match current instance domain
     private_key = get_in(actor.metadata, ["private_key"])
     key_id = "#{ActivityPub.instance_url()}/relay#main-key"
     {private_key, key_id}
   end
 
-  defp get_signing_info(%ActivityPub.Actor{} = actor) do
+  defp get_signing_info(%ActivityPub.Actor{} = actor, _opts) do
     private_key = get_in(actor.metadata, ["private_key"])
     key_id = "#{actor.uri}#main-key"
     {private_key, key_id}
