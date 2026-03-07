@@ -168,12 +168,15 @@ defmodule ElektrineWeb.ChatLive.Index do
     end
   end
 
-  def handle_params(_params, _url, socket) do
+  def handle_params(params, _url, socket) do
+    show_new_chat = params["composer"] == "message"
+
     # Clear selected conversation when navigating to /chat without a conversation_id
     {:noreply,
      socket
      |> assign(:conversation, %{socket.assigns.conversation | selected: nil})
      |> assign(:initial_messages_loading, false)
+     |> assign(:ui, %{socket.assigns.ui | show_new_chat: show_new_chat})
      |> assign(:federation_presence, presence_map_for_server(socket.assigns[:active_server_id]))}
   end
 

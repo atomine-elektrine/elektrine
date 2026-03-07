@@ -24,31 +24,33 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
 
   """
   attr :active_tab, :string, required: true
-  attr :class, :string, default: "mb-6"
+  attr :class, :string, default: "mb-4"
 
   def z_nav(assigns) do
     assigns = assign(assigns, :items, nav_items())
 
     ~H"""
-    <nav class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
+    <nav aria-label="Primary modes" class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="rounded-box border border-base-300 bg-base-100/90 backdrop-blur-sm shadow-sm">
-          <div class="overflow-x-auto px-2 py-2 sm:px-3 lg:overflow-x-visible">
-            <div class="mx-auto flex min-w-max items-center justify-start gap-1 lg:w-full lg:min-w-0 lg:justify-center">
+        <div class="rounded-2xl border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
+          <div class="overflow-x-auto px-2 py-2 sm:px-3">
+            <div class="flex min-w-max items-center gap-1 sm:gap-2">
+              <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
+                Modes
+              </div>
+
               <%= for item <- @items do %>
                 <.link
                   href={item.href}
+                  aria-current={if @active_tab == item.id, do: "page", else: "false"}
                   class={tab_class(@active_tab, item.id)}
                   title={item.label}
-                  style={tab_style(item.label)}
                 >
                   <.icon
                     name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
                     class={icon_class(@active_tab, item.id)}
                   />
-                  <span class="hidden min-w-0 sm:block lg:truncate lg:text-center lg:text-[11px] xl:text-sm">
-                    {item.label}
-                  </span>
+                  <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
                 </.link>
               <% end %>
             </div>
@@ -65,8 +67,8 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "overview",
         label: gettext("Overview"),
         href: ~p"/overview",
-        icon: "hero-sparkles",
-        active_icon: "hero-sparkles-solid"
+        icon: "hero-squares-2x2",
+        active_icon: "hero-squares-2x2-solid"
       },
       %{
         id: "search",
@@ -143,32 +145,21 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
 
   defp tab_class(active_tab, tab_id) do
     [
-      "group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm whitespace-nowrap transition-colors lg:min-w-0 lg:basis-0 lg:gap-0.5 lg:justify-center lg:px-1.5 xl:gap-1 xl:px-2",
+      "group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
       if(active_tab == tab_id,
-        do: "bg-base-200 text-base-content font-medium",
-        else: "text-base-content/75 hover:bg-base-200 hover:text-base-content"
+        do: "bg-base-200 text-base-content",
+        else: "text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
       )
     ]
   end
 
   defp icon_class(active_tab, tab_id) do
     [
-      "h-4 w-4 shrink-0 transition-colors lg:h-3.5 lg:w-3.5 xl:h-4 xl:w-4",
+      "h-4 w-4 shrink-0 transition-colors",
       if(active_tab == tab_id,
         do: "text-primary",
         else: "text-base-content/60 group-hover:text-base-content/85"
       )
     ]
-  end
-
-  defp tab_style(label) do
-    "flex-grow: #{tab_weight(label)};"
-  end
-
-  defp tab_weight(label) when is_binary(label) do
-    label
-    |> String.length()
-    |> max(4)
-    |> min(14)
   end
 end

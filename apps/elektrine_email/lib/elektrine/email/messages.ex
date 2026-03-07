@@ -282,19 +282,26 @@ defmodule Elektrine.Email.Messages do
       |> get_attr(:mailbox_id)
       |> normalize_mailbox_id()
 
+    mailbox =
+      if is_integer(mailbox_id) do
+        Elektrine.Email.Mailboxes.get_mailbox(mailbox_id)
+      else
+        nil
+      end
+
+    mailbox_user_id =
+      case mailbox do
+        %Mailbox{user_id: user_id} when is_integer(user_id) -> user_id
+        _ -> nil
+      end
+
     # Check storage limit using centralized user storage
     storage_check =
-      if mailbox_id do
-        case Elektrine.Email.Mailboxes.get_mailbox(mailbox_id) do
-          %Mailbox{user_id: user_id} when not is_nil(user_id) ->
-            if Elektrine.Accounts.Storage.would_exceed_limit?(user_id, message_size) do
-              {:error, :storage_limit_exceeded}
-            else
-              :ok
-            end
-
-          _ ->
-            :ok
+      if mailbox_user_id do
+        if Elektrine.Accounts.Storage.would_exceed_limit?(mailbox_user_id, message_size) do
+          {:error, :storage_limit_exceeded}
+        else
+          :ok
         end
       else
         :ok
@@ -306,14 +313,20 @@ defmodule Elektrine.Email.Messages do
 
       :ok ->
         # Categorize the message before inserting (only if category not already set)
+        status = get_attr(attrs, :status)
+        is_spam_message = truthy?(get_attr(attrs, :spam))
+        categorize_opts = if mailbox_user_id, do: [user_id: mailbox_user_id], else: []
+
         categorized_attrs =
-          if attrs[:status] != "sent" and attrs["status"] != "sent" do
+          if status != "sent" and !is_spam_message do
             # Only categorize incoming messages, not sent messages
             # Skip categorization if category is already explicitly set
             has_category = Map.has_key?(attrs, :category) or Map.has_key?(attrs, "category")
 
             categorized =
-              if has_category, do: %{}, else: Elektrine.Email.Processing.categorize_message(attrs)
+              if has_category,
+                do: %{},
+                else: Elektrine.Email.Processing.categorize_message(attrs, categorize_opts)
 
             # Merge categorization results, using the same key type as input
             # Detect key type by checking if any key is an atom
@@ -347,14 +360,8 @@ defmodule Elektrine.Email.Messages do
 
         # Encrypt email content before storing
         encrypted_attrs =
-          if mailbox_id do
-            case Elektrine.Email.Mailboxes.get_mailbox(mailbox_id) do
-              %Mailbox{user_id: user_id} when not is_nil(user_id) ->
-                Message.encrypt_content(threaded_attrs, user_id)
-
-              _ ->
-                threaded_attrs
-            end
+          if mailbox_user_id do
+            Message.encrypt_content(threaded_attrs, mailbox_user_id)
           else
             threaded_attrs
           end
@@ -375,19 +382,17 @@ defmodule Elektrine.Email.Messages do
               )
 
               # Also broadcast to user topic for notifications
-              mailbox = Elektrine.Email.Mailboxes.get_mailbox(mailbox_id)
-
-              if mailbox && mailbox.user_id do
+              if mailbox_user_id do
                 Phoenix.PubSub.broadcast!(
                   Elektrine.PubSub,
-                  "user:#{mailbox.user_id}",
+                  "user:#{mailbox_user_id}",
                   {:new_email, message}
                 )
 
                 # Only create notification for received emails (not sent emails)
                 if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" do
                   # Create notification for new email if user has enabled it
-                  user = Elektrine.Accounts.get_user!(mailbox.user_id)
+                  user = Elektrine.Accounts.get_user!(mailbox_user_id)
 
                   if Map.get(user, :notify_on_email_received, true) do
                     from_email =
@@ -397,7 +402,7 @@ defmodule Elektrine.Email.Messages do
                       threaded_attrs[:subject] || threaded_attrs["subject"] || "(No subject)"
 
                     Elektrine.Notifications.create_notification(%{
-                      user_id: mailbox.user_id,
+                      user_id: mailbox_user_id,
                       type: "email_received",
                       title: "Email from #{from_email}",
                       body: subject,
@@ -413,14 +418,8 @@ defmodule Elektrine.Email.Messages do
 
             # Decrypt message before returning
             decrypted_message =
-              if mailbox_id do
-                case Elektrine.Email.Mailboxes.get_mailbox(mailbox_id) do
-                  %Mailbox{user_id: user_id} when not is_nil(user_id) ->
-                    Message.decrypt_content(message, user_id)
-
-                  _ ->
-                    message
-                end
+              if mailbox_user_id do
+                Message.decrypt_content(message, mailbox_user_id)
               else
                 message
               end
@@ -1225,6 +1224,17 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp parse_reference_ids(_), do: []
+
+  defp truthy?(value) when is_binary(value) do
+    normalized =
+      value
+      |> String.trim()
+      |> String.downcase()
+
+    Enum.member?(["true", "1", "yes", "on"], normalized)
+  end
+
+  defp truthy?(value), do: value == true
 
   defp get_attr(attrs, atom_key) when is_map(attrs) and is_atom(atom_key) do
     Map.get(attrs, atom_key) || Map.get(attrs, Atom.to_string(atom_key))

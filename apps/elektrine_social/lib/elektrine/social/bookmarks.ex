@@ -119,6 +119,7 @@ defmodule Elektrine.Social.Bookmarks do
   def get_saved_posts(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
+    search_query = Keyword.get(opts, :search_query)
 
     # First get the message IDs in saved order
     message_ids_query =
@@ -126,12 +127,33 @@ defmodule Elektrine.Social.Bookmarks do
         where: s.user_id == ^user_id and not is_nil(s.message_id),
         join: m in Message,
         on: m.id == s.message_id,
+        left_join: sender in assoc(m, :sender),
+        left_join: remote_actor in assoc(m, :remote_actor),
         where: is_nil(m.deleted_at),
         order_by: [desc: s.inserted_at],
         limit: ^limit,
         offset: ^offset,
         select: {m.id, s.inserted_at}
       )
+
+    message_ids_query =
+      if is_binary(search_query) && String.trim(search_query) != "" do
+        pattern = "%" <> search_query <> "%"
+
+        from([s, m, sender, remote_actor] in message_ids_query,
+          where:
+            ilike(m.content, ^pattern) or
+              (not is_nil(m.title) and ilike(m.title, ^pattern)) or
+              (not is_nil(sender.username) and ilike(sender.username, ^pattern)) or
+              (not is_nil(sender.display_name) and ilike(sender.display_name, ^pattern)) or
+              (not is_nil(remote_actor.username) and ilike(remote_actor.username, ^pattern)) or
+              (not is_nil(remote_actor.display_name) and
+                 ilike(remote_actor.display_name, ^pattern)) or
+              (not is_nil(remote_actor.domain) and ilike(remote_actor.domain, ^pattern))
+        )
+      else
+        message_ids_query
+      end
 
     # Get the IDs and their order
     id_order_pairs = Repo.all(message_ids_query)

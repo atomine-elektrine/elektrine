@@ -156,6 +156,14 @@ defmodule Elektrine.Email.Filters do
     Elektrine.Email.update_message(message, %{priority: priority})
   end
 
+  defp execute_action(message, "move_to_digest", true) do
+    Elektrine.Email.move_to_digest(message)
+  end
+
+  defp execute_action(message, "move_to_ledger", true) do
+    Elektrine.Email.move_to_ledger(message)
+  end
+
   defp execute_action(message, "move_to_folder", folder_id) do
     Elektrine.Email.update_message(message, %{folder_id: folder_id})
   end

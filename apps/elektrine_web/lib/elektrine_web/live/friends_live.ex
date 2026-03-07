@@ -8,6 +8,9 @@ defmodule ElektrineWeb.FriendsLive do
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Live.NotificationHelpers
 
+  @friend_status_filters ~w(all active offline)
+  @friend_sort_options ~w(activity recent name)
+
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
@@ -22,6 +25,8 @@ defmodule ElektrineWeb.FriendsLive do
       Elektrine.AppCache.get_pending_friend_requests(user.id, fn ->
         Friends.list_pending_requests(user.id)
       end)
+
+    friend_follow_status = build_friend_follow_status(user.id, cached_friends)
 
     if connected?(socket) do
       # Subscribe to friend request notifications and incoming calls
@@ -40,9 +45,11 @@ defmodule ElektrineWeb.FriendsLive do
      |> assign(:suggested_friends, [])
      |> assign(:blocked_users, [])
      |> assign(:pending_follow_requests, [])
-     |> assign(:friend_follow_status, %{})
+     |> assign(:friend_follow_status, friend_follow_status)
      |> assign(:current_tab, "friends")
      |> assign(:search_query, "")
+     |> assign(:friend_status_filter, "all")
+     |> assign(:friend_sort, "activity")
      |> assign(:friend_request_message, "")
      |> assign(:show_unfriend_modal, false)
      |> assign(:unfriend_user, nil)
@@ -79,6 +86,16 @@ defmodule ElektrineWeb.FriendsLive do
   @impl true
   def handle_event("clear_search", _params, socket) do
     {:noreply, assign(socket, :search_query, "")}
+  end
+
+  @impl true
+  def handle_event("set_friend_status_filter", %{"filter" => filter}, socket) do
+    {:noreply, assign(socket, :friend_status_filter, normalize_friend_status_filter(filter))}
+  end
+
+  @impl true
+  def handle_event("set_friend_sort", %{"sort" => sort}, socket) do
+    {:noreply, assign(socket, :friend_sort, normalize_friend_sort(sort))}
   end
 
   @impl true
@@ -138,10 +155,14 @@ defmodule ElektrineWeb.FriendsLive do
         friends = Friends.list_friends(socket.assigns.current_user.id)
         pending_requests = Friends.list_pending_requests(socket.assigns.current_user.id)
 
+        friend_follow_status =
+          build_friend_follow_status(socket.assigns.current_user.id, friends)
+
         socket =
           socket
           |> assign(:friends, friends)
           |> assign(:pending_requests, pending_requests)
+          |> assign(:friend_follow_status, friend_follow_status)
           |> notify_info("Friend request accepted")
 
         {:noreply, socket}
@@ -364,9 +385,13 @@ defmodule ElektrineWeb.FriendsLive do
         # Refresh friends list
         friends = Friends.list_friends(socket.assigns.current_user.id)
 
+        friend_follow_status =
+          build_friend_follow_status(socket.assigns.current_user.id, friends)
+
         socket =
           socket
           |> assign(:friends, friends)
+          |> assign(:friend_follow_status, friend_follow_status)
           |> assign(:show_unfriend_modal, false)
           |> assign(:unfriend_user, nil)
           |> notify_info("Friend removed")
@@ -437,7 +462,12 @@ defmodule ElektrineWeb.FriendsLive do
   def handle_info({:friend_request_accepted, _request}, socket) do
     # Refresh friends list
     friends = Friends.list_friends(socket.assigns.current_user.id)
-    {:noreply, assign(socket, :friends, friends)}
+    friend_follow_status = build_friend_follow_status(socket.assigns.current_user.id, friends)
+
+    {:noreply,
+     socket
+     |> assign(:friends, friends)
+     |> assign(:friend_follow_status, friend_follow_status)}
   end
 
   # Async data loading handler
@@ -463,12 +493,7 @@ defmodule ElektrineWeb.FriendsLive do
     pending_follow_requests = Task.await(follow_requests_task, 5000)
 
     # Get follow status for each friend
-    friend_follow_status =
-      friends
-      |> Enum.map(fn friend ->
-        {friend.id, Friends.get_relationship_status(user.id, friend.id)}
-      end)
-      |> Map.new()
+    friend_follow_status = build_friend_follow_status(user.id, friends)
 
     {:noreply,
      socket
@@ -485,5 +510,140 @@ defmodule ElektrineWeb.FriendsLive do
   @impl true
   def handle_info(_msg, socket) do
     {:noreply, socket}
+  end
+
+  defp normalize_friend_status_filter(filter) when filter in @friend_status_filters, do: filter
+  defp normalize_friend_status_filter(_filter), do: "all"
+
+  defp normalize_friend_sort(sort) when sort in @friend_sort_options, do: sort
+  defp normalize_friend_sort(_sort), do: "activity"
+
+  defp build_friend_follow_status(user_id, friends) do
+    friends
+    |> Enum.map(fn friend ->
+      {friend.id, Friends.get_relationship_status(user_id, friend.id)}
+    end)
+    |> Map.new()
+  end
+
+  defp friend_roster_stats(friends, user_statuses, friend_follow_status) do
+    Enum.reduce(
+      friends,
+      %{total: length(friends), active: 0, offline: 0, mutual_follow: 0},
+      fn friend, acc ->
+        presence = friend_presence(friend, user_statuses)
+        follow_status = Map.get(friend_follow_status, friend.id, %{})
+
+        acc
+        |> Map.update!(:active, fn count ->
+          if friend_active?(presence), do: count + 1, else: count
+        end)
+        |> Map.update!(:offline, fn count ->
+          if friend_active?(presence), do: count, else: count + 1
+        end)
+        |> Map.update!(:mutual_follow, fn count ->
+          if follow_status[:mutual_follow], do: count + 1, else: count
+        end)
+      end
+    )
+  end
+
+  defp visible_friends(friends, query, status_filter, sort, user_statuses) do
+    friends
+    |> Enum.filter(&friend_matches_query?(&1, query))
+    |> Enum.filter(&friend_matches_status_filter?(&1, status_filter, user_statuses))
+    |> Enum.sort_by(&friend_sort_key(&1, sort, user_statuses))
+  end
+
+  defp friend_matches_query?(_friend, ""), do: true
+
+  defp friend_matches_query?(friend, query) do
+    normalized_query = String.downcase(String.trim(query))
+
+    Enum.any?(
+      [
+        friend.username || "",
+        friend.display_name || "",
+        friend.handle || ""
+      ],
+      &String.contains?(String.downcase(&1), normalized_query)
+    )
+  end
+
+  defp friend_matches_status_filter?(_friend, "all", _user_statuses), do: true
+
+  defp friend_matches_status_filter?(friend, "active", user_statuses) do
+    friend
+    |> friend_presence(user_statuses)
+    |> friend_active?()
+  end
+
+  defp friend_matches_status_filter?(friend, "offline", user_statuses) do
+    friend
+    |> friend_presence(user_statuses)
+    |> friend_active?()
+    |> Kernel.not()
+  end
+
+  defp friend_sort_key(friend, "recent", user_statuses) do
+    presence = friend_presence(friend, user_statuses)
+    {-(presence.last_seen_at || 0), presence_rank(presence.status), friend_sort_name(friend)}
+  end
+
+  defp friend_sort_key(friend, "name", user_statuses) do
+    presence = friend_presence(friend, user_statuses)
+    {friend_sort_name(friend), presence_rank(presence.status), -(presence.last_seen_at || 0)}
+  end
+
+  defp friend_sort_key(friend, _sort, user_statuses) do
+    presence = friend_presence(friend, user_statuses)
+    {presence_rank(presence.status), -(presence.last_seen_at || 0), friend_sort_name(friend)}
+  end
+
+  defp friend_sort_name(friend) do
+    (friend.display_name || friend.username || friend.handle || "")
+    |> String.downcase()
+  end
+
+  defp friend_presence(friend, user_statuses) do
+    fallback_last_seen = friend.last_seen_at && DateTime.to_unix(friend.last_seen_at)
+
+    user_statuses
+    |> Map.get(to_string(friend.id), %{})
+    |> Map.update(:status, "offline", &(&1 || "offline"))
+    |> Map.update(:last_seen_at, fallback_last_seen, &(&1 || fallback_last_seen))
+  end
+
+  defp friend_active?(%{status: status}), do: status in ["online", "away", "dnd"]
+  defp friend_active?(_presence), do: false
+
+  defp presence_rank("online"), do: 0
+  defp presence_rank("away"), do: 1
+  defp presence_rank("dnd"), do: 2
+  defp presence_rank("offline"), do: 3
+  defp presence_rank(_status), do: 4
+
+  defp friend_status_badge_class("online"), do: "badge badge-success badge-xs"
+  defp friend_status_badge_class("away"), do: "badge badge-warning badge-xs"
+  defp friend_status_badge_class("dnd"), do: "badge badge-error badge-xs"
+  defp friend_status_badge_class(_status), do: "badge badge-ghost badge-xs"
+
+  defp friend_status_label("online"), do: "Online"
+  defp friend_status_label("away"), do: "Away"
+  defp friend_status_label("dnd"), do: "Busy"
+  defp friend_status_label(_status), do: "Offline"
+
+  defp tab_button_class(current_tab, tab) do
+    [
+      "btn btn-sm",
+      if(current_tab == tab, do: "btn-secondary", else: "btn-ghost")
+    ]
+  end
+
+  defp friend_filter_button_class(current_filter, filter) do
+    [
+      "btn btn-xs",
+      if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
+    ]
   end
 end

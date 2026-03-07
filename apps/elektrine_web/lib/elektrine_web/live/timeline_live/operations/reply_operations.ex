@@ -48,6 +48,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
             |> assign(:reply_to_post, reply_to_post)
             |> assign(:reply_to_post_recent_replies, recent_replies)
             |> maybe_fetch_remote_replies_preview(message_id, reply_to_post, recent_replies)
+            |> Helpers.refresh_filtered_posts(
+              Enum.reject(
+                [current_reply && current_reply.id, message_id],
+                &is_nil/1
+              )
+            )
             |> push_event("focus_reply_form", %{
               textarea_id: "reply-textarea-#{message_id}",
               container_id: "reply-form-#{message_id}"
@@ -63,12 +69,15 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
 
   # Cancels the reply form and clears reply state.
   def handle_event("cancel_reply", _params, socket) do
+    active_post_id = socket.assigns.reply_to_post && socket.assigns.reply_to_post.id
+
     {:noreply,
      socket
      |> assign(:reply_to_post, nil)
      |> assign(:reply_to_post_recent_replies, [])
      |> assign(:reply_to_reply_id, nil)
-     |> assign(:reply_content, "")}
+     |> assign(:reply_content, "")
+     |> Helpers.refresh_filtered_post(active_post_id)}
   end
 
   # Shows the reply form for replying to a reply.
@@ -90,7 +99,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
            :reply_to_post_recent_replies,
            recent_replies_for_post(socket, post_id, reply_to_post)
          )
-         |> assign(:reply_content, "")}
+         |> assign(:reply_content, "")
+         |> Helpers.refresh_filtered_post(post_id)}
 
       {:error, :invalid_id} ->
         {:noreply, socket}
@@ -177,6 +187,29 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
   # Updates the reply content as the user types.
   def handle_event("update_reply_content", %{"content" => content}, socket) do
     {:noreply, assign(socket, :reply_content, content)}
+  end
+
+  def handle_event("load_remote_replies", %{"post_id" => post_id}, socket) do
+    case SafeConvert.parse_id(post_id) do
+      {:ok, normalized_post_id} ->
+        loading_set = socket.assigns[:loading_remote_replies] || MapSet.new()
+
+        if MapSet.member?(loading_set, normalized_post_id) do
+          {:noreply, socket}
+        else
+          send(self(), {:refresh_remote_replies, normalized_post_id, 1})
+
+          {:noreply,
+           assign(
+             socket,
+             :loading_remote_replies,
+             MapSet.put(loading_set, normalized_post_id)
+           )}
+        end
+
+      {:error, :invalid_id} ->
+        {:noreply, socket}
+    end
   end
 
   # Navigates to the original context of a cross-posted message.

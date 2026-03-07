@@ -228,6 +228,61 @@ defmodule ElektrineWeb.Layouts do
       "email service, free email, VPN, social network, ActivityPub, Mastodon, fediverse, private messaging, encrypted chat, community forums, Elixir, Phoenix LiveView, privacy-focused, ad-free social media, federated social network"
   end
 
+  @doc ~s|Returns the global composer menu entries used by the app shell.\n|
+  def global_composer_items do
+    [
+      %{
+        id: "post",
+        label: "Post",
+        detail: "Share to timeline",
+        href: ~p"/timeline?#{[composer: "post"]}",
+        icon: "hero-rectangle-stack"
+      },
+      %{
+        id: "message",
+        label: "Message",
+        detail: "Start a direct message",
+        href: ~p"/chat?#{[composer: "message"]}",
+        icon: "hero-chat-bubble-left-right"
+      },
+      %{
+        id: "email",
+        label: "Email",
+        detail: "Compose a new email",
+        href: ~p"/email/compose",
+        icon: "hero-envelope"
+      },
+      %{
+        id: "task",
+        label: "Task",
+        detail: "Capture something to do",
+        href: ~p"/calendar?#{[composer: "task"]}",
+        icon: "hero-check-circle"
+      },
+      %{
+        id: "event",
+        label: "Event",
+        detail: "Schedule calendar time",
+        href: ~p"/calendar?#{[composer: "event"]}",
+        icon: "hero-calendar"
+      },
+      %{
+        id: "list",
+        label: "List",
+        detail: "Create a saved set of people",
+        href: "/lists#create-list-panel",
+        icon: "hero-queue-list"
+      },
+      %{
+        id: "note",
+        label: "Note",
+        detail: "Keep a private note",
+        href: ~p"/timeline?#{[composer: "note"]}",
+        icon: "hero-document-text"
+      }
+    ]
+  end
+
   @doc ~s|Gets the current URL from assigns if available.\n|
   def current_url(assigns) do
     assigns[:current_url]

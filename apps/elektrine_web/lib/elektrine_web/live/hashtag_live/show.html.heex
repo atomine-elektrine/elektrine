@@ -246,6 +246,7 @@
   image_index={@modal_image_index}
   post={@modal_post}
   current_user={@current_user}
+  can_like={true}
   is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
   like_count={(@modal_post && @modal_post.like_count) || 0}
 />

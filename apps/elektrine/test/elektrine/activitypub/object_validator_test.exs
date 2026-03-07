@@ -58,4 +58,17 @@ defmodule Elektrine.ActivityPub.ObjectValidatorTest do
       assert {:error, "Move activity missing target"} = ObjectValidator.validate(activity)
     end
   end
+
+  describe "validate/1 actor host safety" do
+    test "rejects actor URIs pointing at private hosts" do
+      activity = %{
+        "id" => "https://remote.example/activities/3",
+        "type" => "Follow",
+        "actor" => "http://127.0.0.1/users/alice",
+        "object" => "https://remote.example/users/bob"
+      }
+
+      assert {:error, "Invalid actor URI"} = ObjectValidator.validate(activity)
+    end
+  end
 end

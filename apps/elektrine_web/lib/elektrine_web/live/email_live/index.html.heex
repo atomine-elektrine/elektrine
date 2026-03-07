@@ -1273,7 +1273,11 @@
   <div class="modal modal-open">
     <div class="modal-box max-w-lg">
       <h3 class="font-bold text-lg mb-4">
-        {if @editing_event, do: gettext("Edit Event"), else: gettext("New Event")}
+        {cond do
+          @editing_event -> gettext("Edit Event")
+          @calendar_composer_kind == "task" -> gettext("New Task")
+          true -> gettext("New Event")
+        end}
       </h3>
 
       <.form
@@ -1292,7 +1296,11 @@
                 ""
             }
             class="input input-bordered"
-            placeholder={gettext("Add title")}
+            placeholder={
+              if @calendar_composer_kind == "task",
+                do: gettext("Add task title"),
+                else: gettext("Add title")
+            }
             required
           />
         </div>

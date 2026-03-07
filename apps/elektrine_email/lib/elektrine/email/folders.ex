@@ -5,7 +5,7 @@ defmodule Elektrine.Email.Folders do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Email.{CacheHooks, Mailbox, Message}
+  alias Elektrine.Email.{CacheHooks, CategoryPreferences, Mailbox, Message}
   alias Elektrine.Repo
 
   # Private helper to decrypt email messages and preload labels
@@ -813,6 +813,7 @@ defmodule Elektrine.Email.Folders do
     |> Message.changeset(%{category: "feed"})
     |> Repo.update()
     |> CacheHooks.with_cache_invalidation()
+    |> maybe_learn_category_preference(message, "feed")
   end
 
   @doc """
@@ -823,6 +824,7 @@ defmodule Elektrine.Email.Folders do
     |> Message.changeset(%{category: "ledger"})
     |> Repo.update()
     |> CacheHooks.with_cache_invalidation()
+    |> maybe_learn_category_preference(message, "ledger")
   end
 
   @doc """
@@ -847,6 +849,20 @@ defmodule Elektrine.Email.Folders do
     |> Repo.update()
     |> CacheHooks.with_cache_invalidation()
   end
+
+  defp maybe_learn_category_preference({:ok, _updated} = result, %Message{} = message, category)
+       when category in ["feed", "ledger"] do
+    case Elektrine.Email.Mailboxes.get_mailbox(message.mailbox_id) do
+      %Mailbox{user_id: user_id} when is_integer(user_id) and is_binary(message.from) ->
+        _ = CategoryPreferences.learn_from_manual_move(user_id, message.from, category)
+        result
+
+      _ ->
+        result
+    end
+  end
+
+  defp maybe_learn_category_preference(result, _message, _category), do: result
 
   ## IMAP Folder Operations
 

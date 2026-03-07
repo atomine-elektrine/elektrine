@@ -26,8 +26,11 @@ defmodule ElektrineWeb.GalleryLive.Index do
       |> assign(:page_title, "Gallery")
       |> assign(:gallery_posts, [])
       |> assign(:current_filter, "discover")
+      |> assign(:gallery_search, "")
+      |> assign(:gallery_sort, "fresh")
       |> assign(:software_filter, "all")
       |> assign(:user_likes, MapSet.new())
+      |> assign(:user_saved_posts, MapSet.new())
       |> assign(:show_upload_modal, false)
       |> assign(:upload_title, "")
       |> assign(:upload_description, "")
@@ -36,6 +39,8 @@ defmodule ElektrineWeb.GalleryLive.Index do
       |> assign(:filtered_posts, [])
       |> assign(:gallery_filter, "all")
       |> assign(:user_gallery_stats, nil)
+      |> assign(:recent_uploads, [])
+      |> assign(:top_upload, nil)
       |> assign(:suggested_photographers, [])
       |> assign(:trending_tags, [])
       |> assign(:uploading, false)
@@ -70,18 +75,15 @@ defmodule ElektrineWeb.GalleryLive.Index do
     else
       posts = get_gallery_feed(filter, socket.assigns.current_user)
 
-      user_likes =
-        if socket.assigns[:current_user] do
-          get_user_likes_set(socket.assigns.current_user.id, posts)
-        else
-          MapSet.new()
-        end
+      {user_likes, user_saved_posts} =
+        load_gallery_engagement_state(socket.assigns[:current_user], posts)
 
       {:noreply,
        socket
        |> assign(:current_filter, filter)
        |> assign(:gallery_posts, posts)
        |> assign(:user_likes, user_likes)
+       |> assign(:user_saved_posts, user_saved_posts)
        |> assign(:end_of_feed, false)
        |> apply_gallery_filter()}
     end
@@ -101,6 +103,28 @@ defmodule ElektrineWeb.GalleryLive.Index do
     else
       {:noreply, socket |> assign(:gallery_filter, filter) |> apply_gallery_filter()}
     end
+  end
+
+  def handle_event("set_gallery_sort", %{"sort" => sort}, socket) do
+    if socket.assigns.gallery_sort == sort do
+      {:noreply, socket}
+    else
+      {:noreply, socket |> assign(:gallery_sort, sort) |> apply_gallery_filter()}
+    end
+  end
+
+  def handle_event("search_gallery", %{"query" => query}, socket) do
+    {:noreply,
+     socket |> assign(:gallery_search, String.trim(query || "")) |> apply_gallery_filter()}
+  end
+
+  def handle_event("clear_gallery_search", _params, socket) do
+    {:noreply, socket |> assign(:gallery_search, "") |> apply_gallery_filter()}
+  end
+
+  def handle_event("apply_tag_search", %{"tag" => tag}, socket) do
+    normalized_tag = tag |> to_string() |> String.trim_leading("#") |> String.trim()
+    {:noreply, socket |> assign(:gallery_search, normalized_tag) |> apply_gallery_filter()}
   end
 
   def handle_event("toggle_upload_modal", _params, socket) do
@@ -223,14 +247,9 @@ defmodule ElektrineWeb.GalleryLive.Index do
              socket
              |> update(:user_likes, &MapSet.delete(&1, photo_id))
              |> update(:gallery_posts, fn posts ->
-               Enum.map(posts, fn post ->
-                 if post.id == photo_id do
-                   %{post | like_count: max(0, (post.like_count || 0) - 1)}
-                 else
-                   post
-                 end
-               end)
+               update_gallery_like_count(posts, photo_id, -1)
              end)
+             |> maybe_remove_from_collection_filter("liked", photo_id)
              |> apply_gallery_filter()}
 
           {:error, _} ->
@@ -243,13 +262,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
              socket
              |> update(:user_likes, &MapSet.put(&1, photo_id))
              |> update(:gallery_posts, fn posts ->
-               Enum.map(posts, fn post ->
-                 if post.id == photo_id do
-                   %{post | like_count: (post.like_count || 0) + 1}
-                 else
-                   post
-                 end
-               end)
+               update_gallery_like_count(posts, photo_id, 1)
              end)
              |> apply_gallery_filter()}
 
@@ -259,6 +272,63 @@ defmodule ElektrineWeb.GalleryLive.Index do
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to like photos")}
+    end
+  end
+
+  def handle_event("save_post", %{"photo_id" => photo_id}, socket) do
+    handle_event("save_post", %{"message_id" => photo_id}, socket)
+  end
+
+  def handle_event("save_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      user_id = socket.assigns.current_user.id
+      photo_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
+
+      case Social.save_post(user_id, photo_id) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> update(:user_saved_posts, &MapSet.put(&1, photo_id))
+           |> notify_info("Saved to your collection")}
+
+        {:error, _} ->
+          {:noreply,
+           socket
+           |> update(:user_saved_posts, &MapSet.put(&1, photo_id))
+           |> notify_info("Already saved")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to save photos")}
+    end
+  end
+
+  def handle_event("unsave_post", %{"photo_id" => photo_id}, socket) do
+    handle_event("unsave_post", %{"message_id" => photo_id}, socket)
+  end
+
+  def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      user_id = socket.assigns.current_user.id
+      photo_id = if is_binary(message_id), do: String.to_integer(message_id), else: message_id
+
+      case Social.unsave_post(user_id, photo_id) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> update(:user_saved_posts, &MapSet.delete(&1, photo_id))
+           |> maybe_remove_from_collection_filter("saved", photo_id)
+           |> apply_gallery_filter()
+           |> notify_info("Removed from saved")}
+
+        {:error, _} ->
+          {:noreply,
+           socket
+           |> update(:user_saved_posts, &MapSet.delete(&1, photo_id))
+           |> maybe_remove_from_collection_filter("saved", photo_id)
+           |> apply_gallery_filter()}
+      end
+    else
+      {:noreply, socket}
     end
   end
 
@@ -319,19 +389,22 @@ defmodule ElektrineWeb.GalleryLive.Index do
       more_posts = Enum.reject(more_posts, fn post -> MapSet.member?(existing_ids, post.id) end)
       end_of_feed = Enum.empty?(more_posts)
 
-      user_likes =
+      {new_likes, new_saved_posts} =
         if socket.assigns[:current_user] && !Enum.empty?(more_posts) do
-          new_likes = get_user_likes_set(socket.assigns.current_user.id, more_posts)
-          MapSet.union(socket.assigns.user_likes, new_likes)
+          load_gallery_engagement_state(socket.assigns.current_user, more_posts)
         else
-          socket.assigns.user_likes
+          {MapSet.new(), MapSet.new()}
         end
 
       {:noreply,
        socket
        |> assign(:loading_more, false)
        |> assign(:end_of_feed, end_of_feed)
-       |> assign(:user_likes, user_likes)
+       |> assign(:user_likes, MapSet.union(socket.assigns.user_likes, new_likes))
+       |> assign(
+         :user_saved_posts,
+         MapSet.union(socket.assigns.user_saved_posts, new_saved_posts)
+       )
        |> update(:gallery_posts, fn posts -> posts ++ more_posts end)
        |> apply_gallery_filter()}
     end
@@ -525,13 +598,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
              |> assign(:modal_is_liked, false)
              |> update(:user_likes, &MapSet.delete(&1, photo_id))
              |> update(:gallery_posts, fn posts ->
-               Enum.map(posts, fn post ->
-                 if post.id == photo_id do
-                   %{post | like_count: max(0, (post.like_count || 0) - 1)}
-                 else
-                   post
-                 end
-               end)
+               update_gallery_like_count(posts, photo_id, -1)
              end)
              |> update(:modal_post, fn post ->
                if post && post.id == photo_id do
@@ -540,6 +607,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
                  post
                end
              end)
+             |> maybe_remove_from_collection_filter("liked", photo_id)
              |> apply_gallery_filter()
              |> notify_info("Removed like")}
 
@@ -557,13 +625,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
              |> assign(:modal_is_liked, true)
              |> update(:user_likes, &MapSet.put(&1, photo_id))
              |> update(:gallery_posts, fn posts ->
-               Enum.map(posts, fn post ->
-                 if post.id == photo_id do
-                   %{post | like_count: (post.like_count || 0) + 1}
-                 else
-                   post
-                 end
-               end)
+               update_gallery_like_count(posts, photo_id, 1)
              end)
              |> update(:modal_post, fn post ->
                if post && post.id == photo_id do
@@ -589,12 +651,16 @@ defmodule ElektrineWeb.GalleryLive.Index do
 
   @impl true
   def handle_info({:new_gallery_post, post}, socket) do
-    post_with_associations = Elektrine.Repo.preload(post, [:sender, sender: :profile])
+    if socket.assigns.current_filter in ["discover", "trending"] do
+      post_with_associations = Elektrine.Repo.preload(post, [:sender, sender: :profile])
 
-    {:noreply,
-     socket
-     |> update(:gallery_posts, fn posts -> [post_with_associations | posts] end)
-     |> apply_gallery_filter()}
+      {:noreply,
+       socket
+       |> update(:gallery_posts, fn posts -> [post_with_associations | posts] end)
+       |> apply_gallery_filter()}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:post_liked, %{message_id: message_id, like_count: like_count}}, socket) do
@@ -649,28 +715,24 @@ defmodule ElektrineWeb.GalleryLive.Index do
   def handle_info(:load_gallery_data, socket) do
     user = socket.assigns[:current_user]
     gallery_posts = get_gallery_feed("discover", user)
+    {user_likes, user_saved_posts} = load_gallery_engagement_state(user, gallery_posts)
 
-    user_likes =
-      if user do
-        get_user_likes_set(user.id, gallery_posts)
-      else
-        MapSet.new()
-      end
-
-    {user_gallery_stats, suggested_photographers, trending_tags} =
+    {user_gallery_stats, recent_uploads, top_upload, suggested_photographers, trending_tags} =
       if user do
         stats_task = Task.async(fn -> get_user_gallery_stats(user.id) end)
+        highlights_task = Task.async(fn -> get_user_gallery_highlights(user.id) end)
         photographers_task = Task.async(fn -> get_suggested_photographers(user.id, limit: 5) end)
 
         tags_task =
           Task.async(fn ->
             Social.get_trending_hashtags(limit: 8)
             |> Enum.filter(fn hashtag ->
-              String.contains?(hashtag.name, ["photo", "art", "design", "anime"])
+              String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
             end)
           end)
 
         stats = Task.await(stats_task, 5000)
+        {recent_uploads, top_upload} = Task.await(highlights_task, 5000)
 
         photographers =
           if !stats || stats.photo_count == 0 do
@@ -680,15 +742,15 @@ defmodule ElektrineWeb.GalleryLive.Index do
           end
 
         tags = Task.await(tags_task, 5000)
-        {stats, photographers, tags}
+        {stats, recent_uploads, top_upload, photographers, tags}
       else
         tags =
           Social.get_trending_hashtags(limit: 8)
           |> Enum.filter(fn hashtag ->
-            String.contains?(hashtag.name, ["photo", "art", "design", "anime"])
+            String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
           end)
 
-        {nil, [], tags}
+        {nil, [], nil, [], tags}
       end
 
     {:noreply,
@@ -696,7 +758,10 @@ defmodule ElektrineWeb.GalleryLive.Index do
      |> assign(:gallery_posts, gallery_posts)
      |> assign(:filtered_posts, gallery_posts)
      |> assign(:user_likes, user_likes)
+     |> assign(:user_saved_posts, user_saved_posts)
      |> assign(:user_gallery_stats, user_gallery_stats)
+     |> assign(:recent_uploads, recent_uploads)
+     |> assign(:top_upload, top_upload)
      |> assign(:suggested_photographers, suggested_photographers)
      |> assign(:trending_tags, trending_tags)
      |> assign(:loading_gallery, false)
@@ -866,6 +931,74 @@ defmodule ElektrineWeb.GalleryLive.Index do
     end
   end
 
+  defp get_gallery_feed("liked", user, opts) do
+    if user do
+      import Ecto.Query
+      before_timestamp = Keyword.get(opts, :before_timestamp)
+      limit = Keyword.get(opts, :limit, 60)
+      before_naive = normalize_to_naive(before_timestamp)
+
+      query =
+        from(m in Messaging.Message,
+          join: l in Elektrine.Social.PostLike,
+          on: l.message_id == m.id,
+          where:
+            l.user_id == ^user.id and
+              is_nil(m.deleted_at) and
+              is_nil(m.reply_to_id) and
+              fragment("array_length(?, 1)", m.media_urls) > 0,
+          order_by: [desc: l.created_at, desc: m.inserted_at],
+          limit: ^limit,
+          preload: [sender: [:profile], remote_actor: []]
+        )
+
+      query =
+        if before_naive do
+          from(m in query, where: m.inserted_at < ^before_naive)
+        else
+          query
+        end
+
+      Elektrine.Repo.all(query)
+    else
+      []
+    end
+  end
+
+  defp get_gallery_feed("saved", user, opts) do
+    if user do
+      import Ecto.Query
+      before_timestamp = Keyword.get(opts, :before_timestamp)
+      limit = Keyword.get(opts, :limit, 60)
+      before_naive = normalize_to_naive(before_timestamp)
+
+      query =
+        from(m in Messaging.Message,
+          join: s in Elektrine.Social.SavedItem,
+          on: s.message_id == m.id,
+          where:
+            s.user_id == ^user.id and
+              is_nil(m.deleted_at) and
+              is_nil(m.reply_to_id) and
+              fragment("array_length(?, 1)", m.media_urls) > 0,
+          order_by: [desc: s.inserted_at, desc: m.inserted_at],
+          limit: ^limit,
+          preload: [sender: [:profile], remote_actor: []]
+        )
+
+      query =
+        if before_naive do
+          from(m in query, where: m.inserted_at < ^before_naive)
+        else
+          query
+        end
+
+      Elektrine.Repo.all(query)
+    else
+      []
+    end
+  end
+
   defp get_gallery_feed("trending", _user, opts) do
     import Ecto.Query
     before_timestamp = Keyword.get(opts, :before_timestamp)
@@ -967,16 +1100,42 @@ defmodule ElektrineWeb.GalleryLive.Index do
         end
 
       streak = calculate_upload_streak(user_id)
+      saved_count = Social.count_saved_posts(user_id)
 
       %{
         photo_count: photo_count,
         total_likes: total_likes,
         total_views: total_views,
-        upload_streak: streak
+        upload_streak: streak,
+        saved_count: saved_count
       }
     else
       nil
     end
+  end
+
+  defp get_user_gallery_highlights(user_id) do
+    import Ecto.Query
+
+    recent_uploads =
+      from(m in Messaging.Message,
+        where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
+        order_by: [desc: m.inserted_at],
+        limit: 3,
+        preload: [sender: [:profile]]
+      )
+      |> Elektrine.Repo.all()
+
+    top_upload =
+      from(m in Messaging.Message,
+        where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
+        order_by: [desc: m.like_count, desc: m.inserted_at],
+        limit: 1,
+        preload: [sender: [:profile]]
+      )
+      |> Elektrine.Repo.one()
+
+    {recent_uploads, top_upload}
   end
 
   defp calculate_upload_streak(user_id) do
@@ -1035,11 +1194,26 @@ defmodule ElektrineWeb.GalleryLive.Index do
     |> Elektrine.Repo.preload(:profile)
   end
 
-  defp apply_gallery_filter(socket) do
-    category_filtered =
-      filter_posts_by_category(socket.assigns.gallery_posts, socket.assigns.gallery_filter)
+  defp load_gallery_engagement_state(nil, _posts), do: {MapSet.new(), MapSet.new()}
 
-    filtered_posts = filter_posts_by_software(category_filtered, socket.assigns.software_filter)
+  defp load_gallery_engagement_state(_user, []), do: {MapSet.new(), MapSet.new()}
+
+  defp load_gallery_engagement_state(user, posts) do
+    {get_user_likes_set(user.id, posts), get_user_saved_posts_set(user.id, posts)}
+  end
+
+  defp get_user_saved_posts_set(user_id, posts) do
+    Social.list_user_saved_posts(user_id, Enum.map(posts, & &1.id))
+  end
+
+  defp apply_gallery_filter(socket) do
+    filtered_posts =
+      socket.assigns.gallery_posts
+      |> filter_posts_by_category(socket.assigns.gallery_filter)
+      |> filter_posts_by_software(socket.assigns.software_filter)
+      |> filter_posts_by_search(socket.assigns.gallery_search)
+      |> sort_gallery_posts(socket.assigns.gallery_sort)
+
     assign(socket, :filtered_posts, filtered_posts)
   end
 
@@ -1049,6 +1223,28 @@ defmodule ElektrineWeb.GalleryLive.Index do
 
   defp filter_posts_by_category(posts, category) do
     Enum.filter(posts, fn post -> post.category == category end)
+  end
+
+  defp filter_posts_by_search(posts, query) when query in [nil, ""], do: posts
+
+  defp filter_posts_by_search(posts, query) do
+    normalized_query = String.downcase(String.trim(query))
+
+    Enum.filter(posts, fn post ->
+      searchable_terms =
+        [
+          post.title,
+          post.content,
+          post.category,
+          gallery_creator_name(post),
+          gallery_creator_handle(post),
+          gallery_source_label(post)
+        ]
+        |> Enum.filter(&is_binary/1)
+        |> Enum.map(&String.downcase/1)
+
+      Enum.any?(searchable_terms, &String.contains?(&1, normalized_query))
+    end)
   end
 
   defp normalize_to_naive(nil) do
@@ -1065,6 +1261,22 @@ defmodule ElektrineWeb.GalleryLive.Index do
 
   defp normalize_to_naive(_) do
     nil
+  end
+
+  defp sort_gallery_posts(posts, "popular") do
+    Enum.sort_by(posts, &{-gallery_like_score(&1), -gallery_inserted_at_unix(&1)}, :asc)
+  end
+
+  defp sort_gallery_posts(posts, "discussed") do
+    Enum.sort_by(
+      posts,
+      &{-(Map.get(&1, :reply_count, 0) || 0), -gallery_inserted_at_unix(&1)},
+      :asc
+    )
+  end
+
+  defp sort_gallery_posts(posts, _sort) do
+    Enum.sort_by(posts, &gallery_inserted_at_unix/1, :desc)
   end
 
   defp filter_posts_by_software(posts, "all") do
@@ -1117,4 +1329,141 @@ defmodule ElektrineWeb.GalleryLive.Index do
       _ -> instance_sw == filter
     end
   end
+
+  defp update_gallery_like_count(posts, photo_id, delta) do
+    Enum.map(posts, fn post ->
+      if post.id == photo_id do
+        %{post | like_count: max(0, (post.like_count || 0) + delta)}
+      else
+        post
+      end
+    end)
+  end
+
+  defp maybe_remove_from_collection_filter(socket, filter, photo_id) do
+    if socket.assigns.current_filter == filter do
+      update(socket, :gallery_posts, fn posts -> Enum.reject(posts, &(&1.id == photo_id)) end)
+    else
+      socket
+    end
+  end
+
+  defp gallery_like_score(post), do: post.like_count || 0
+
+  defp gallery_inserted_at_unix(post) do
+    case post.inserted_at do
+      %DateTime{} = dt -> DateTime.to_unix(dt)
+      %NaiveDateTime{} = ndt -> DateTime.from_naive!(ndt, "Etc/UTC") |> DateTime.to_unix()
+      _ -> 0
+    end
+  end
+
+  defp gallery_creator_name(post) do
+    cond do
+      post.sender && Ecto.assoc_loaded?(post.sender) ->
+        post.sender.display_name || post.sender.username
+
+      post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
+        post.remote_actor.display_name || post.remote_actor.username
+
+      true ->
+        nil
+    end
+  end
+
+  defp gallery_creator_handle(post) do
+    cond do
+      post.sender && Ecto.assoc_loaded?(post.sender) ->
+        "@#{post.sender.handle || post.sender.username}"
+
+      post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
+        "@#{post.remote_actor.username}@#{post.remote_actor.domain}"
+
+      true ->
+        nil
+    end
+  end
+
+  defp gallery_source_label(post) do
+    cond do
+      post.federated && post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
+        post.remote_actor.domain || "Fediverse"
+
+      post.federated ->
+        "Fediverse"
+
+      true ->
+        "Local"
+    end
+  end
+
+  defp gallery_display_title(post) do
+    title = String.trim(post.title || "")
+
+    cond do
+      title != "" ->
+        title
+
+      String.trim(post.content || "") != "" ->
+        post.content |> String.trim() |> String.slice(0, 70)
+
+      true ->
+        "#{String.capitalize(post.category || "gallery")} post"
+    end
+  end
+
+  defp gallery_primary_image(post) do
+    post.media_urls
+    |> List.first()
+    |> case do
+      nil -> nil
+      url -> Elektrine.Uploads.attachment_url(url)
+    end
+  end
+
+  defp gallery_image_urls(post) do
+    Enum.map(post.media_urls || [], &Elektrine.Uploads.attachment_url/1)
+  end
+
+  defp gallery_image?(post) do
+    case gallery_primary_image(post) do
+      nil -> false
+      url -> String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i)
+    end
+  end
+
+  defp gallery_empty_state(assigns) do
+    cond do
+      assigns.gallery_search != "" ->
+        {"No results for that search", "Try a different title, creator, source, or tag."}
+
+      assigns.current_filter == "following" ->
+        {"Nothing from people you follow yet",
+         "Follow a few creators and their work will land here."}
+
+      assigns.current_filter == "liked" ->
+        {"No liked work yet", "Heart a few pieces and this view turns into a quick moodboard."}
+
+      assigns.current_filter == "saved" ->
+        {"Your saved collection is empty", "Bookmark standout work to keep a personal gallery."}
+
+      assigns.current_filter == "trending" ->
+        {"No trending work yet",
+         "Fresh uploads will appear here once the gallery has some momentum."}
+
+      true ->
+        {"No gallery posts yet", "Upload your first image or broaden the filters."}
+    end
+  end
+
+  defp format_gallery_count(value) when is_integer(value) and value >= 1_000_000 do
+    "#{Float.round(value / 1_000_000, 1)}M"
+  end
+
+  defp format_gallery_count(value) when is_integer(value) and value >= 1_000 do
+    "#{Float.round(value / 1_000, 1)}K"
+  end
+
+  defp format_gallery_count(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_gallery_count(_), do: "0"
 end

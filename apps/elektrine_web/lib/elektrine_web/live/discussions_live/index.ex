@@ -38,7 +38,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> assign(:recent_activity, [])
       |> assign(:popular_communities, [])
       |> assign(:my_community_posts, [])
-      |> assign(:current_view, "feed")
+      |> assign(:current_view, default_communities_view(user))
       |> assign(:show_create_community, false)
       |> assign(:show_quick_post, false)
       |> assign(:quick_post_content, "")
@@ -89,8 +89,18 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    view = params["view"] || "feed"
-    {:noreply, assign(socket, :current_view, view)}
+    view = params["view"] || default_communities_view(socket.assigns[:current_user])
+
+    show_create_community =
+      params["composer"] == "community" and not is_nil(socket.assigns.current_user)
+
+    {:noreply,
+     socket
+     |> assign(:current_view, view)
+     |> assign(
+       :show_create_community,
+       show_create_community || socket.assigns.show_create_community
+     )}
   end
 
   @impl true
@@ -280,23 +290,31 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_event("search_communities", %{"query" => query}, socket) do
-    if String.trim(query) == "" do
+    query = String.trim(query)
+
+    if query == "" do
       {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
     else
-      {:noreply, socket |> assign(:searching, true) |> assign(:search_query, query)}
+      results =
+        Messaging.CommunitySearch.search_communities(query,
+          user_id: socket.assigns[:current_user] && socket.assigns.current_user.id,
+          limit: 20
+        )
+
+      {:noreply,
+       socket
+       |> assign(:search_query, query)
+       |> assign(:search_results, results)
+       |> assign(:searching, false)}
     end
   end
 
-  def handle_event("perform_search", _params, socket) do
-    query = socket.assigns.search_query
+  def handle_event("perform_search", params, socket) do
+    handle_event("search_communities", params, socket)
+  end
 
-    results =
-      Messaging.CommunitySearch.search_communities(query,
-        user_id: socket.assigns[:current_user] && socket.assigns.current_user.id,
-        limit: 20
-      )
-
-    {:noreply, socket |> assign(:search_results, results) |> assign(:searching, false)}
+  def handle_event("clear_community_search", _params, socket) do
+    {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
   end
 
   def handle_event("follow_remote_group", %{"actor_id" => actor_id}, socket) do
@@ -1822,6 +1840,283 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       end)
     end
   end
+
+  defp default_communities_view(_user), do: "communities"
+
+  defp format_compact_number(value) when is_integer(value) and value >= 1_000_000 do
+    "#{Float.round(value / 1_000_000, 1)}M"
+  end
+
+  defp format_compact_number(value) when is_integer(value) and value >= 1_000 do
+    "#{Float.round(value / 1_000, 1)}K"
+  end
+
+  defp format_compact_number(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_compact_number(_), do: "0"
+
+  defp community_route(%Messaging.Conversation{} = community),
+    do: ~p"/communities/#{community.name}"
+
+  defp community_route(%Actor{} = actor), do: "/remote/!#{actor.username}@#{actor.domain}"
+  defp community_route(%{community: community}), do: community_route(community)
+  defp community_route(%{remote_actor: actor}), do: community_route(actor)
+  defp community_route(%{name: name}) when is_binary(name), do: ~p"/communities/#{name}"
+
+  defp community_address(%Messaging.Conversation{} = community) do
+    if community.is_federated_mirror &&
+         Ecto.assoc_loaded?(community.remote_group_actor) &&
+         community.remote_group_actor do
+      "!#{community.remote_group_actor.username}@#{community.remote_group_actor.domain}"
+    else
+      slug =
+        community.name
+        |> String.downcase()
+        |> String.replace(~r/[^a-z0-9]+/, "-")
+
+      "!#{slug}@#{Elektrine.Domains.default_user_handle_domain()}"
+    end
+  end
+
+  defp community_address(%Actor{} = actor), do: "!#{actor.username}@#{actor.domain}"
+  defp community_address(%{community: community}), do: community_address(community)
+  defp community_address(%{remote_actor: actor}), do: community_address(actor)
+
+  defp community_address(%{name: name}) when is_binary(name) do
+    slug =
+      name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+
+    "!#{slug}@#{Elektrine.Domains.default_user_handle_domain()}"
+  end
+
+  defp community_display_name(%Messaging.Conversation{} = community) do
+    cond do
+      community.is_federated_mirror &&
+        Ecto.assoc_loaded?(community.remote_group_actor) &&
+          community.remote_group_actor ->
+        community.remote_group_actor.display_name ||
+          humanize_community_name(community.remote_group_actor.username)
+
+      true ->
+        community.name
+    end
+  end
+
+  defp community_display_name(%Actor{} = actor) do
+    actor.display_name || humanize_community_name(actor.username)
+  end
+
+  defp community_display_name(%{community: community}), do: community_display_name(community)
+  defp community_display_name(%{remote_actor: actor}), do: community_display_name(actor)
+  defp community_display_name(%{name: name}) when is_binary(name), do: name
+  defp community_display_name(_), do: "Community"
+
+  defp community_category_label(%Messaging.Conversation{} = community) do
+    community.community_category |> to_string() |> String.replace("_", " ") |> String.capitalize()
+  end
+
+  defp community_category_label(%Actor{} = actor) do
+    actor.uri |> infer_community_category() |> String.replace("_", " ") |> String.capitalize()
+  end
+
+  defp community_category_label(%{category: category}) when is_binary(category) do
+    category |> String.replace("_", " ") |> String.capitalize()
+  end
+
+  defp community_category_label(%{community: community}), do: community_category_label(community)
+  defp community_category_label(%{remote_actor: actor}), do: community_category_label(actor)
+  defp community_category_label(_), do: "General"
+
+  defp community_activity_text(%Messaging.Conversation{} = community) do
+    cond do
+      community.last_message_at ->
+        "Active #{Elektrine.Social.time_ago_in_words(community.last_message_at)}"
+
+      true ->
+        nil
+    end
+  end
+
+  defp community_activity_text(%{weekly_posts: weekly_posts}) when is_integer(weekly_posts) do
+    "#{weekly_posts} posts this week"
+  end
+
+  defp community_activity_text(_), do: nil
+
+  defp community_creator_label(%Messaging.Conversation{} = community) do
+    cond do
+      community.is_federated_mirror &&
+        Ecto.assoc_loaded?(community.remote_group_actor) &&
+          community.remote_group_actor ->
+        community.remote_group_actor.display_name || community.remote_group_actor.username
+
+      Ecto.assoc_loaded?(community.creator) && community.creator ->
+        community.creator.display_name || community.creator.username
+
+      true ->
+        nil
+    end
+  end
+
+  defp community_creator_label(%Actor{} = actor), do: actor.display_name || actor.username
+  defp community_creator_label(%{community: community}), do: community_creator_label(community)
+  defp community_creator_label(%{remote_actor: actor}), do: community_creator_label(actor)
+  defp community_creator_label(_), do: nil
+
+  defp humanize_community_name(name) when is_binary(name) do
+    name
+    |> String.replace(~r/[_-]+/, " ")
+    |> String.trim()
+  end
+
+  defp build_discovery_cards(spotlight_communities, discover_public_communities) do
+    [
+      {:popular, spotlight_communities},
+      {:open, discover_public_communities}
+    ]
+    |> Enum.reduce({%{}, []}, fn {tag, communities}, {cards, order} ->
+      Enum.reduce(communities, {cards, order}, fn community, {cards, order} ->
+        key = discovery_card_key(community)
+
+        case cards do
+          %{^key => card} ->
+            {Map.put(cards, key, %{card | tags: Enum.uniq(card.tags ++ [tag])}), order}
+
+          _ ->
+            {Map.put(cards, key, %{community: community, tags: [tag]}), order ++ [key]}
+        end
+      end)
+    end)
+    |> then(fn {cards, order} -> Enum.map(order, &Map.fetch!(cards, &1)) end)
+  end
+
+  defp discovery_card_key(%Messaging.Conversation{} = community), do: {:community, community.id}
+  defp discovery_card_key(%{id: id, name: _name}) when is_integer(id), do: {:community, id}
+  defp discovery_card_key(%Actor{} = actor), do: {:actor, actor.id}
+  defp discovery_card_key(%{name: name}) when is_binary(name), do: {:name, name}
+
+  defp discovery_card_tags(%{tags: tags}) do
+    tags
+    |> Enum.map(fn
+      :popular -> "Popular"
+      :open -> "Open"
+    end)
+  end
+
+  defp discovery_card_meta(%{community: community, tags: tags}) do
+    base_meta = ["#{format_compact_number(community.member_count || 0)} members"]
+
+    base_meta =
+      if :popular in tags do
+        base_meta ++ ["#{community.weekly_posts || 0} posts this week"]
+      else
+        base_meta
+      end
+
+    case community_creator_label(community) do
+      creator when is_binary(creator) -> base_meta ++ ["by #{creator}"]
+      _ -> base_meta
+    end
+  end
+
+  defp build_active_thread_cards(trending_threads, recent_threads, federated_threads) do
+    [
+      {:trending, trending_threads},
+      {:recent, recent_threads},
+      {:remote, federated_threads}
+    ]
+    |> Enum.reduce({%{}, []}, fn {kind, posts}, {cards, order} ->
+      Enum.reduce(posts, {cards, order}, fn post, {cards, order} ->
+        key = active_thread_key(post)
+
+        case cards do
+          %{^key => card} ->
+            {Map.put(cards, key, %{card | kinds: Enum.uniq(card.kinds ++ [kind])}), order}
+
+          _ ->
+            {Map.put(cards, key, %{post: post, kinds: [kind]}), order ++ [key]}
+        end
+      end)
+    end)
+    |> then(fn {cards, order} -> Enum.map(order, &Map.fetch!(cards, &1)) end)
+  end
+
+  defp active_thread_key(post), do: post.activitypub_id || {:post, post.id}
+
+  defp active_thread_labels(%{kinds: kinds}) do
+    kinds
+    |> Enum.map(fn
+      :trending -> "Trending"
+      :recent -> "Recent"
+      :remote -> "Remote"
+    end)
+  end
+
+  defp active_thread_metric(%{post: post, kinds: kinds}) do
+    cond do
+      :trending in kinds ->
+        "#{format_compact_number(post.like_count || post.score || 0)} votes"
+
+      :recent in kinds ->
+        "#{post.reply_count || 0} replies"
+
+      true ->
+        "#{post.reply_count || 0} replies"
+    end
+  end
+
+  defp discussion_route(post) do
+    cond do
+      post.conversation && post.conversation.type == "community" ->
+        slug =
+          Elektrine.Utils.Slug.discussion_url_slug(
+            post.id,
+            String.trim(post.title || "") |> blank_to("discussion")
+          )
+
+        ~p"/communities/#{post.conversation.name}/post/#{slug}"
+
+      true ->
+        "/remote/post/#{post.id}"
+    end
+  end
+
+  defp discussion_community_label(post) do
+    cond do
+      post.conversation && post.conversation.type == "community" ->
+        "!#{post.conversation.name}"
+
+      community_uri = get_in(post.media_metadata || %{}, ["community_actor_uri"]) ->
+        extract_remote_community_display(community_uri)
+
+      post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
+        "!#{post.remote_actor.username}@#{post.remote_actor.domain}"
+
+      true ->
+        "Community"
+    end
+  end
+
+  defp discussion_title(post) do
+    post.title
+    |> to_string()
+    |> String.trim()
+    |> blank_to("Untitled discussion")
+  end
+
+  defp extract_remote_community_display(community_uri) when is_binary(community_uri) do
+    uri = URI.parse(community_uri)
+    path_parts = String.split(uri.path || "", "/") |> Enum.reject(&(&1 == ""))
+    community_name = List.last(path_parts) || "community"
+    "!#{community_name}@#{uri.host}"
+  end
+
+  defp extract_remote_community_display(_), do: "Community"
+
+  defp blank_to("", fallback), do: fallback
+  defp blank_to(nil, fallback), do: fallback
+  defp blank_to(value, _fallback), do: value
 
   defp get_or_store_remote_post(activitypub_id) do
     APHelpers.get_or_store_remote_post(activitypub_id)

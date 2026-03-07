@@ -22,6 +22,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
   attr :is_liked, :boolean, default: false
   attr :like_count, :integer, default: 0
   attr :current_user, :map, default: nil
+  attr :can_like, :boolean, default: false
 
   def image_modal(assigns) do
     # Generate unique ID based on image URL to ensure hook remounts properly
@@ -55,6 +56,8 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
               @post && Map.get(@post, :activitypub_id) -> @post.activitypub_id
               true -> nil
             end
+
+          can_like_in_modal = @can_like && not is_nil(post_id_for_like)
 
           # Check if sender is actually loaded (not Ecto.Association.NotLoaded)
           sender_loaded = @post && Map.get(@post, :sender) && Ecto.assoc_loaded?(@post.sender)
@@ -170,7 +173,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
                   </audio>
                 </div>
               <% true -> %>
-                <%= if @current_user && post_id_for_like do %>
+                <%= if @current_user && can_like_in_modal do %>
                   <img
                     src={@image_url}
                     alt="Full size image"
@@ -218,7 +221,8 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
             end
 
           show_footer =
-            (@post && @post.content && @post.content != "") || derived_post_url || @current_user %>
+            (@post && @post.content && @post.content != "") ||
+              derived_post_url || (@current_user && can_like_in_modal) %>
           <%= if show_footer do %>
             <div class="p-4 bg-base-200 border-t border-base-300">
               <%= if @post && @post.content && @post.content != "" do %>
@@ -238,25 +242,27 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <!-- Like Button -->
-                  <%= if @current_user && post_id_for_like do %>
-                    <button
-                      type="button"
-                      phx-click="toggle_modal_like"
-                      phx-value-post_id={post_id_for_like}
-                      class="btn btn-ghost btn-sm gap-1"
-                    >
-                      <%= if @is_liked do %>
-                        <.icon name="hero-heart-solid" class="w-4 h-4 text-error" />
-                      <% else %>
+                  <%= if can_like_in_modal do %>
+                    <%= if @current_user do %>
+                      <button
+                        type="button"
+                        phx-click="toggle_modal_like"
+                        phx-value-post_id={post_id_for_like}
+                        class="btn btn-ghost btn-sm gap-1"
+                      >
+                        <%= if @is_liked do %>
+                          <.icon name="hero-heart-solid" class="w-4 h-4 text-error" />
+                        <% else %>
+                          <.icon name="hero-heart" class="w-4 h-4" />
+                        <% end %>
+                        <span>{@like_count}</span>
+                      </button>
+                    <% else %>
+                      <div class="flex items-center gap-1 text-sm opacity-70">
                         <.icon name="hero-heart" class="w-4 h-4" />
-                      <% end %>
-                      <span>{@like_count}</span>
-                    </button>
-                  <% else %>
-                    <div class="flex items-center gap-1 text-sm opacity-70">
-                      <.icon name="hero-heart" class="w-4 h-4" />
-                      <span>{@like_count}</span>
-                    </div>
+                        <span>{@like_count}</span>
+                      </div>
+                    <% end %>
                   <% end %>
                   <!-- Timestamp -->
                   <%= if @post && @post.inserted_at do %>

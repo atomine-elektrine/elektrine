@@ -5,7 +5,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.UIOperations do
   """
 
   import Phoenix.Component
-  alias ElektrineWeb.TimelineLive.Operations.Helpers
+  import Phoenix.LiveView
+  use Phoenix.VerifiedRoutes, endpoint: ElektrineWeb.Endpoint, router: ElektrineWeb.Router
 
   # Handles the stop_event event.
   # Used to stop event propagation without taking any action.
@@ -43,66 +44,21 @@ defmodule ElektrineWeb.TimelineLive.Operations.UIOperations do
 
   # Handles the search_timeline event.
   # Filters posts based on search query.
-  def handle_event("search_timeline", %{"query" => query}, socket) do
-    query = String.trim(query)
-    base_socket = Helpers.apply_timeline_filter(assign(socket, :search_query, ""))
-    base_posts = base_socket.assigns.filtered_posts
+  def handle_event("search_timeline", params, socket) do
+    query =
+      params
+      |> extract_search_query()
+      |> String.trim()
 
-    filtered_posts =
-      if query == "" do
-        base_posts
-      else
-        query_lower = String.downcase(query)
+    path = search_path(socket, query)
 
-        Enum.filter(base_posts, fn post ->
-          content_match =
-            post.content &&
-              String.contains?(String.downcase(post.content), query_lower)
-
-          title_match =
-            post.title &&
-              String.contains?(String.downcase(post.title), query_lower)
-
-          author_match =
-            cond do
-              post.sender ->
-                String.contains?(
-                  String.downcase(post.sender.username || ""),
-                  query_lower
-                ) ||
-                  String.contains?(
-                    String.downcase(post.sender.display_name || ""),
-                    query_lower
-                  )
-
-              post.remote_actor ->
-                String.contains?(
-                  String.downcase(post.remote_actor.username || ""),
-                  query_lower
-                ) ||
-                  String.contains?(
-                    String.downcase(post.remote_actor.display_name || ""),
-                    query_lower
-                  )
-
-              true ->
-                false
-            end
-
-          content_match || title_match || author_match
-        end)
-      end
-
-    {:noreply,
-     socket
-     |> assign(:search_query, query)
-     |> assign(:filtered_posts, filtered_posts)}
+    {:noreply, push_patch(socket, to: path)}
   end
 
   # Handles the clear_search event.
   # Resets search query and shows all posts.
   def handle_event("clear_search", _params, socket) do
-    {:noreply, socket |> assign(:search_query, "") |> Helpers.apply_timeline_filter()}
+    {:noreply, push_patch(socket, to: search_path(socket, ""))}
   end
 
   # Handles the toggle_mobile_filters event.
@@ -110,4 +66,33 @@ defmodule ElektrineWeb.TimelineLive.Operations.UIOperations do
   def handle_event("toggle_mobile_filters", _params, socket) do
     {:noreply, assign(socket, :show_mobile_filters, !socket.assigns.show_mobile_filters)}
   end
+
+  defp search_path(socket, query) do
+    params = %{
+      "filter" => socket.assigns.current_filter,
+      "view" => socket.assigns.timeline_filter
+    }
+
+    params =
+      if query == "" do
+        params
+      else
+        Map.put(params, "q", query)
+      end
+
+    ~p"/timeline?#{params}"
+  end
+
+  defp extract_search_query(%{"query" => query}) when is_binary(query), do: query
+  defp extract_search_query(%{"value" => query}) when is_binary(query), do: query
+
+  defp extract_search_query(params) when is_map(params) do
+    Enum.find_value(params, "", fn
+      {_key, %{"query" => query}} when is_binary(query) -> query
+      {_key, %{"value" => query}} when is_binary(query) -> query
+      _ -> nil
+    end)
+  end
+
+  defp extract_search_query(_), do: ""
 end

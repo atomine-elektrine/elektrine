@@ -1,7 +1,11 @@
 defmodule ElektrineWeb.NotificationsLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
+  import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.User.Avatar
+
+  @state_filters %{"all" => :all, "unread" => :unread, "unseen" => :unseen}
+  @source_filters ~w(all chat email requests social system)
 
   @impl true
   def mount(_params, session, socket) do
@@ -30,31 +34,30 @@ defmodule ElektrineWeb.NotificationsLive do
      |> assign(:loading_notifications, true)
      # Initialize with cached unread count to prevent flicker
      |> assign(:grouped_notifications, [])
+     |> assign(:filtered_notifications, [])
      |> assign(:expanded_groups, MapSet.new())
      |> assign(:unread_count, cached_unread)
      |> assign(:unseen_count, 0)
      |> assign(:filter, :all)
+     |> assign(:source_filter, "all")
+     |> assign(:notification_stats, default_notification_stats())
      |> assign(:loading_more, false)}
   end
 
   @impl true
   def handle_params(params, _url, socket) do
-    filter =
-      case params["filter"] do
-        "unread" -> :unread
-        "unseen" -> :unseen
-        _ -> :all
-      end
+    filter = parse_state_filter(params["filter"])
+    source_filter = parse_source_filter(params["source"])
 
-    socket = assign(socket, :filter, filter)
+    socket =
+      socket
+      |> assign(:filter, filter)
+      |> assign(:source_filter, source_filter)
 
     # Only load data synchronously if we're connected and not in initial loading state
     # The initial load is handled by send(self(), :load_notifications) in mount
     if connected?(socket) && !socket.assigns.loading_notifications do
-      grouped_notifications =
-        Notifications.list_grouped_notifications(socket.assigns.current_user.id, filter: filter)
-
-      {:noreply, assign(socket, :grouped_notifications, grouped_notifications)}
+      {:noreply, reload_notification_data(socket)}
     else
       # Trigger async load for filter change when connected
       if connected?(socket) do
@@ -70,90 +73,64 @@ defmodule ElektrineWeb.NotificationsLive do
     notification_id = String.to_integer(notification_id)
     Notifications.mark_as_read(notification_id, socket.assigns.current_user.id)
 
-    # Refresh groups
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> update(:unread_count, &max(&1 - 1, 0))}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_event("mark_visible_as_read", %{"notification_ids" => notification_ids}, socket) do
-    # Mark only the visible notifications as read
     user_id = socket.assigns.current_user.id
 
-    Enum.each(notification_ids, fn id ->
-      Notifications.mark_as_read(String.to_integer(id), user_id)
+    notification_ids
+    |> Enum.uniq()
+    |> Enum.flat_map(fn id ->
+      case Integer.parse(to_string(id)) do
+        {parsed_id, ""} -> [parsed_id]
+        _ -> []
+      end
     end)
+    |> Enum.each(&Notifications.mark_as_read(&1, user_id))
 
-    # Refresh groups
-    grouped_notifications =
-      Notifications.list_grouped_notifications(user_id, filter: socket.assigns.filter)
-
-    unread_count = Notifications.get_unread_count(user_id)
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, unread_count)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_event("mark_all_as_read", _params, socket) do
     Notifications.mark_all_as_read(socket.assigns.current_user.id)
 
-    # Refresh groups
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, 0)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_event("dismiss", %{"id" => notification_id}, socket) do
     notification_id = String.to_integer(notification_id)
     Notifications.dismiss_notification(notification_id, socket.assigns.current_user.id)
 
-    # Refresh groups
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> update(:unread_count, &max(&1 - 1, 0))}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_event("dismiss_all", _params, socket) do
     Notifications.dismiss_all_notifications(socket.assigns.current_user.id)
 
-    # Refresh groups (should be empty now)
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, 0)}
+    {:noreply, reload_notification_data(socket)}
   end
 
-  def handle_event("filter", %{"type" => filter_type}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/notifications?filter=#{filter_type}")}
+  def handle_event("set_filter", %{"type" => filter_type}, socket) do
+    filter = parse_state_filter(filter_type)
+
+    {:noreply,
+     push_patch(
+       socket,
+       to:
+         ~p"/notifications?#{[filter: state_filter_param(filter), source: socket.assigns.source_filter]}"
+     )}
+  end
+
+  def handle_event("set_source_filter", %{"source" => source_filter}, socket) do
+    source_filter = parse_source_filter(source_filter)
+
+    {:noreply,
+     push_patch(
+       socket,
+       to:
+         ~p"/notifications?#{[filter: state_filter_param(socket.assigns.filter), source: source_filter]}"
+     )}
   end
 
   def handle_event("toggle_group", %{"group_key" => group_key}, socket) do
@@ -169,37 +146,15 @@ defmodule ElektrineWeb.NotificationsLive do
     {:noreply, assign(socket, :expanded_groups, new_expanded)}
   end
 
-  def handle_event("mark_group_as_read", %{"group_index" => group_index_str}, socket) do
-    group_index = String.to_integer(group_index_str)
-    group = Enum.at(socket.assigns.grouped_notifications, group_index)
+  def handle_event("mark_group_as_read", %{"group_key" => group_key}, socket) do
+    group = find_group_by_key(socket.assigns.grouped_notifications, group_key)
 
     if group do
       user_id = socket.assigns.current_user.id
 
-      notification_ids =
-        case group.type do
-          type when type in [:chat_group, :email_group] ->
-            Enum.map(group.notifications, & &1.id)
+      Enum.each(notification_ids_for_group(group), &Notifications.mark_as_read(&1, user_id))
 
-          :single ->
-            [group.notification.id]
-        end
-
-      # Mark all as read
-      Enum.each(notification_ids, fn id ->
-        Notifications.mark_as_read(id, user_id)
-      end)
-
-      # Refresh
-      grouped_notifications =
-        Notifications.list_grouped_notifications(user_id, filter: socket.assigns.filter)
-
-      unread_count = Notifications.get_unread_count(user_id)
-
-      {:noreply,
-       socket
-       |> assign(:grouped_notifications, grouped_notifications)
-       |> assign(:unread_count, unread_count)}
+      {:noreply, reload_notification_data(socket)}
     else
       {:noreply, socket}
     end
@@ -210,10 +165,13 @@ defmodule ElektrineWeb.NotificationsLive do
     notification_id = String.to_integer(notification_id)
     Notifications.mark_as_read(notification_id, socket.assigns.current_user.id)
 
-    {:noreply,
-     socket
-     |> update(:unread_count, &max(&1 - 1, 0))
-     |> push_navigate(to: url)}
+    socket = reload_notification_data(socket)
+
+    if is_binary(url) and url != "" do
+      {:noreply, push_navigate(socket, to: url)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -237,96 +195,32 @@ defmodule ElektrineWeb.NotificationsLive do
     {:noreply,
      socket
      |> assign(:loading_notifications, false)
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, unread_count)
-     |> assign(:unseen_count, unseen_count)}
+     |> assign_notification_data(grouped_notifications, unread_count, unseen_count)}
   end
 
   @impl true
   def handle_info({:new_notification, _notification}, socket) do
-    # Refresh groups when new notification arrives
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> update(:unread_count, &(&1 + 1))
-     |> update(:unseen_count, &(&1 + 1))}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_info(:notification_updated, socket) do
-    # Refresh the entire notification list to show updated read status
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    # Refresh counts
-    unread_count = Notifications.get_unread_count(socket.assigns.current_user.id)
-    unseen_count = Notifications.get_unseen_count(socket.assigns.current_user.id)
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, unread_count)
-     |> assign(:unseen_count, unseen_count)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_info(:all_notifications_read, socket) do
-    # Refresh groups
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, 0)
-     |> assign(:unseen_count, 0)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_info(:all_notifications_dismissed, socket) do
-    # Refresh groups (should be empty now)
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, 0)
-     |> assign(:unseen_count, 0)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_info(:notification_dismissed, socket) do
-    # Refresh groups when a notification is dismissed
-    grouped_notifications =
-      Notifications.list_grouped_notifications(
-        socket.assigns.current_user.id,
-        filter: socket.assigns.filter
-      )
-
-    unread_count = Notifications.get_unread_count(socket.assigns.current_user.id)
-
-    {:noreply,
-     socket
-     |> assign(:grouped_notifications, grouped_notifications)
-     |> assign(:unread_count, unread_count)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_info(:notifications_seen, socket) do
-    # Handle notifications being marked as seen
-    unseen_count = Notifications.get_unseen_count(socket.assigns.current_user.id)
-    {:noreply, assign(socket, :unseen_count, unseen_count)}
+    {:noreply, reload_notification_data(socket)}
   end
 
   def handle_info(_message, socket) do
@@ -334,10 +228,276 @@ defmodule ElektrineWeb.NotificationsLive do
     {:noreply, socket}
   end
 
+  defp reload_notification_data(socket) do
+    user_id = socket.assigns.current_user.id
+
+    grouped_notifications =
+      Notifications.list_grouped_notifications(user_id, filter: socket.assigns.filter)
+
+    unread_count = Notifications.get_unread_count(user_id)
+    unseen_count = Notifications.get_unseen_count(user_id)
+
+    assign_notification_data(socket, grouped_notifications, unread_count, unseen_count)
+  end
+
+  defp assign_notification_data(socket, grouped_notifications, unread_count, unseen_count) do
+    enriched_groups = Enum.map(grouped_notifications, &decorate_group/1)
+
+    socket
+    |> assign(:grouped_notifications, enriched_groups)
+    |> assign(
+      :filtered_notifications,
+      filter_groups(enriched_groups, socket.assigns.source_filter)
+    )
+    |> assign(:unread_count, unread_count)
+    |> assign(:unseen_count, unseen_count)
+    |> assign(
+      :notification_stats,
+      build_notification_stats(enriched_groups, unread_count, unseen_count)
+    )
+  end
+
+  defp decorate_group(group) do
+    latest_notification = latest_notification_for_group(group)
+    source = notification_source_for_group(group)
+
+    group
+    |> Map.put(:group_key, notification_group_key(group))
+    |> Map.put(:source, source)
+    |> Map.put(:title, notification_group_title(group))
+    |> Map.put(:detail, notification_group_detail(group))
+    |> Map.put(:icon_name, notification_icon_for_group(group))
+    |> Map.put(:destination, notification_destination_for_group(group))
+    |> Map.put(:unread_count, unread_count_for_group(group))
+    |> Map.put(:notification_ids, notification_ids_for_group(group))
+    |> Map.put(:unread_notification_ids, unread_notification_ids_for_group(group))
+    |> Map.put(:latest_notification, latest_notification)
+    |> Map.put(:priority, (latest_notification && latest_notification.priority) || "normal")
+  end
+
+  defp filter_groups(groups, "all"), do: groups
+
+  defp filter_groups(groups, source_filter),
+    do: Enum.filter(groups, &(&1.source == source_filter))
+
+  defp build_notification_stats(groups, unread_count, unseen_count) do
+    source_counts =
+      Enum.reduce(@source_filters, %{}, fn source, acc ->
+        Map.put(acc, source, 0)
+      end)
+
+    source_counts =
+      Enum.reduce(groups, source_counts, fn group, acc ->
+        Map.update(acc, group.source, 1, &(&1 + 1))
+      end)
+
+    %{
+      total_groups: length(groups),
+      unread: unread_count,
+      unseen: unseen_count,
+      waiting_groups: Enum.count(groups, &(&1.unread_count > 0)),
+      source_counts: Map.put(source_counts, "all", length(groups))
+    }
+  end
+
+  defp default_notification_stats do
+    %{
+      total_groups: 0,
+      unread: 0,
+      unseen: 0,
+      waiting_groups: 0,
+      source_counts:
+        Enum.reduce(@source_filters, %{}, fn source, acc ->
+          Map.put(acc, source, 0)
+        end)
+        |> Map.put("all", 0)
+    }
+  end
+
+  defp parse_state_filter(filter), do: Map.get(@state_filters, filter || "all", :all)
+  defp parse_source_filter(source) when source in @source_filters, do: source
+  defp parse_source_filter(_source), do: "all"
+
+  defp state_filter_param(filter) do
+    Enum.find_value(@state_filters, "all", fn {param, value} ->
+      if value == filter, do: param, else: nil
+    end)
+  end
+
+  defp notification_group_key(%{type: :chat_group, conversation_id: conversation_id}) do
+    "chat-#{conversation_id}"
+  end
+
+  defp notification_group_key(%{type: :email_group, sender: %{id: sender_id}}) do
+    "email-#{sender_id}"
+  end
+
+  defp notification_group_key(%{type: :email_group, latest_notification: notification}) do
+    "email-#{notification.id}"
+  end
+
+  defp notification_group_key(%{type: :single, notification: notification}) do
+    "single-#{notification.id}"
+  end
+
+  defp latest_notification_for_group(%{type: :single, notification: notification}),
+    do: notification
+
+  defp latest_notification_for_group(group), do: group.latest_notification
+
+  defp notification_source_for_group(%{type: :chat_group}), do: "chat"
+  defp notification_source_for_group(%{type: :email_group}), do: "email"
+
+  defp notification_source_for_group(%{type: :single, notification: notification}) do
+    case {notification.type, notification.source_type} do
+      {"new_message", _} -> "chat"
+      {"reply", "message"} -> "chat"
+      {"email_received", _} -> "email"
+      {"follow", _} -> "requests"
+      {"mention", _} -> "social"
+      {"reply", _} -> "social"
+      {"like", _} -> "social"
+      {"comment", _} -> "social"
+      {"discussion_reply", _} -> "social"
+      _ -> "system"
+    end
+  end
+
+  defp notification_group_title(%{type: :chat_group, conversation_name: conversation_name}) do
+    conversation_name
+  end
+
+  defp notification_group_title(%{type: :email_group, sender: %{handle: handle}})
+       when is_binary(handle) and handle != "" do
+    "Email from @#{handle}"
+  end
+
+  defp notification_group_title(%{type: :email_group}) do
+    "Email"
+  end
+
+  defp notification_group_title(%{type: :single, notification: notification}) do
+    notification.title || "Notification"
+  end
+
+  defp notification_group_detail(%{type: :chat_group, latest_notification: notification}) do
+    notification.body || "New chat activity"
+  end
+
+  defp notification_group_detail(%{type: :email_group, latest_notification: notification}) do
+    notification.body || "New email activity"
+  end
+
+  defp notification_group_detail(%{type: :single, notification: notification}) do
+    notification.body || notification.title || "New activity"
+  end
+
+  defp notification_icon_for_group(%{type: :chat_group}), do: "hero-chat-bubble-left-right"
+  defp notification_icon_for_group(%{type: :email_group}), do: "hero-envelope"
+
+  defp notification_icon_for_group(%{type: :single, notification: notification}) do
+    notification.icon || notification_icon(notification.type)
+  end
+
+  defp notification_destination_for_group(%{type: :single, notification: notification}) do
+    notification.url ||
+      default_source_path(
+        notification_source_for_group(%{type: :single, notification: notification})
+      )
+  end
+
+  defp notification_destination_for_group(group) do
+    latest_notification = latest_notification_for_group(group)
+    latest_notification.url || default_source_path(notification_source_for_group(group))
+  end
+
+  defp unread_count_for_group(%{type: :single, notification: notification}) do
+    if is_nil(notification.read_at), do: 1, else: 0
+  end
+
+  defp unread_count_for_group(group), do: group.unread_count
+
+  defp notification_ids_for_group(%{type: :single, notification: notification}),
+    do: [notification.id]
+
+  defp notification_ids_for_group(group), do: Enum.map(group.notifications, & &1.id)
+
+  defp unread_notification_ids_for_group(%{type: :single, notification: notification}) do
+    if is_nil(notification.read_at), do: [notification.id], else: []
+  end
+
+  defp unread_notification_ids_for_group(group) do
+    group.notifications
+    |> Enum.filter(&is_nil(&1.read_at))
+    |> Enum.map(& &1.id)
+  end
+
+  defp find_group_by_key(groups, group_key), do: Enum.find(groups, &(&1.group_key == group_key))
+
+  defp default_source_path("chat"), do: ~p"/chat"
+  defp default_source_path("email"), do: ~p"/email?tab=inbox&filter=unread"
+  defp default_source_path("requests"), do: ~p"/friends?tab=requests"
+  defp default_source_path("social"), do: ~p"/timeline"
+  defp default_source_path(_source), do: ~p"/overview"
+
+  defp notification_source_label("all"), do: "All"
+  defp notification_source_label("chat"), do: "Chat"
+  defp notification_source_label("email"), do: "Email"
+  defp notification_source_label("requests"), do: "Requests"
+  defp notification_source_label("social"), do: "Social"
+  defp notification_source_label("system"), do: "System"
+  defp notification_source_label(source), do: String.capitalize(source)
+
+  defp notification_state_label(:all), do: "All"
+  defp notification_state_label(:unread), do: "Unread"
+  defp notification_state_label(:unseen), do: "Unseen"
+
+  defp notification_state_count(:all, stats), do: stats.total_groups
+  defp notification_state_count(:unread, stats), do: stats.waiting_groups
+  defp notification_state_count(:unseen, stats), do: stats.unseen
+
+  defp state_filter_button_class(current_filter, filter) do
+    [
+      "btn btn-sm",
+      if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
+    ]
+  end
+
+  defp notification_source_badge_class("chat"), do: "badge badge-primary badge-xs"
+  defp notification_source_badge_class("email"), do: "badge badge-info badge-xs"
+  defp notification_source_badge_class("requests"), do: "badge badge-warning badge-xs"
+  defp notification_source_badge_class("social"), do: "badge badge-secondary badge-xs"
+  defp notification_source_badge_class(_source), do: "badge badge-ghost badge-xs"
+
+  defp notification_state_badge_class(0), do: "badge badge-ghost badge-xs"
+  defp notification_state_badge_class(_count), do: "badge badge-primary badge-xs"
+
+  defp notification_priority_badge_class("urgent"), do: "badge badge-error badge-xs"
+  defp notification_priority_badge_class("high"), do: "badge badge-warning badge-xs"
+  defp notification_priority_badge_class("low"), do: "badge badge-ghost badge-xs"
+  defp notification_priority_badge_class(_priority), do: "badge badge-neutral badge-xs"
+
+  defp group_card_class(group) do
+    [
+      "rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm transition-colors",
+      if(group.unread_count > 0,
+        do: "border-l-4 border-l-primary hover:bg-base-200/40",
+        else: "hover:bg-base-200/20"
+      )
+    ]
+  end
+
+  defp source_filter_button_class(current_filter, filter) do
+    [
+      "btn btn-xs",
+      if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
+    ]
+  end
+
   # Helper functions
   defp notification_icon(type) do
     case type do
-      "new_message" -> "hero-chat-bubble-left"
+      "new_message" -> "hero-chat-bubble-left-right"
       "mention" -> "hero-at-symbol"
       "reply" -> "hero-chat-bubble-left-right"
       "follow" -> "hero-user-plus"
@@ -347,15 +507,6 @@ defmodule ElektrineWeb.NotificationsLive do
       "email_received" -> "hero-envelope"
       "system" -> "hero-information-circle"
       _ -> "hero-bell"
-    end
-  end
-
-  defp notification_color(priority) do
-    case priority do
-      "urgent" -> "text-error"
-      "high" -> "text-warning"
-      "low" -> "text-base-content/60"
-      _ -> "text-base-content"
     end
   end
 end

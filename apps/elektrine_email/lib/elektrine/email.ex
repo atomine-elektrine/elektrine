@@ -194,9 +194,18 @@ defmodule Elektrine.Email do
     to: Elektrine.Email.Search
 
   # Delegate processing functions to Processing module
-  defdelegate categorize_message(message_attrs), to: Elektrine.Email.Processing
+  defdelegate categorize_message(message_attrs, opts \\ []), to: Elektrine.Email.Processing
   defdelegate process_uncategorized_messages(), to: Elektrine.Email.Processing
   defdelegate recategorize_messages(mailbox_id), to: Elektrine.Email.Processing
+
+  # Delegate learned category preference functions
+  defdelegate match_category_preference(user_id, from_email),
+    to: Elektrine.Email.CategoryPreferences,
+    as: :match_category
+
+  defdelegate learn_category_preference(user_id, from_email, category),
+    to: Elektrine.Email.CategoryPreferences,
+    as: :learn_from_manual_move
 
   # Delegate alias functions to Aliases module
   defdelegate list_aliases(user_id), to: Elektrine.Email.Aliases

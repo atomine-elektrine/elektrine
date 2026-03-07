@@ -3,6 +3,7 @@ defmodule Elektrine.Email.FiltersTest do
 
   import Elektrine.AccountsFixtures
 
+  alias Elektrine.Email
   alias Elektrine.Email.Filter
   alias Elektrine.Email.Filters
 
@@ -801,6 +802,19 @@ defmodule Elektrine.Email.FiltersTest do
 
       assert result == message
     end
+
+    test "supports move_to_digest and move_to_ledger actions" do
+      user = user_fixture()
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      message = create_filter_test_message(mailbox.id)
+
+      {:ok, digest_message} = Filters.execute_actions(message, %{"move_to_digest" => true})
+      assert digest_message.category == "feed"
+
+      {:ok, ledger_message} = Filters.execute_actions(digest_message, %{"move_to_ledger" => true})
+      assert ledger_message.category == "ledger"
+    end
   end
 
   describe "filter validation edge cases" do
@@ -849,6 +863,29 @@ defmodule Elektrine.Email.FiltersTest do
 
       {:error, changeset} = Filters.create_filter(attrs)
       assert errors_on(changeset).actions != nil
+    end
+
+    test "accepts digest and ledger move actions", %{user: user} do
+      digest_attrs = %{
+        user_id: user.id,
+        name: "Digest Action",
+        conditions: %{
+          "rules" => [%{"field" => "from", "operator" => "contains", "value" => "newsletter"}]
+        },
+        actions: %{"move_to_digest" => true}
+      }
+
+      ledger_attrs = %{
+        user_id: user.id,
+        name: "Ledger Action",
+        conditions: %{
+          "rules" => [%{"field" => "from", "operator" => "contains", "value" => "billing"}]
+        },
+        actions: %{"move_to_ledger" => true}
+      }
+
+      assert {:ok, _filter} = Filters.create_filter(digest_attrs)
+      assert {:ok, _filter} = Filters.create_filter(ledger_attrs)
     end
 
     test "rejects filter with invalid priority value", %{user: user} do
@@ -909,5 +946,20 @@ defmodule Elektrine.Email.FiltersTest do
       },
       actions: %{"mark_as_read" => true}
     })
+  end
+
+  defp create_filter_test_message(mailbox_id, attrs \\ %{}) do
+    default_attrs = %{
+      message_id: "filter-test-#{System.unique_integer([:positive])}",
+      from: "sender@example.com",
+      to: "user@elektrine.com",
+      subject: "Filter Test Message",
+      text_body: "Test body",
+      status: "received",
+      mailbox_id: mailbox_id
+    }
+
+    {:ok, message} = Email.create_message(Map.merge(default_attrs, attrs))
+    message
   end
 end

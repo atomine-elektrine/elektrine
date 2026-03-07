@@ -43,7 +43,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert render(view) =~ "Community timeline post"
 
     render_hook(view, "filter_timeline", %{"filter" => "posts"})
-    assert_patch(view, ~p"/timeline?filter=all&view=posts")
+    assert_patch(view, ~p"/timeline?filter=explore&view=posts")
 
     html = render(view)
 
@@ -65,6 +65,163 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
     render_hook(view, "update_post_content_live", %{"value" => "typed live"})
     assert render(view) =~ "10/3 min"
+  end
+
+  test "note composer route opens a private note template", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?composer=note")
+
+    html = render(view)
+
+    assert html =~ "New note"
+    assert html =~ "Capture a private note"
+    assert html =~ ~s(id="timeline-visibility-select")
+    assert html =~ ~s(name="visibility")
+    assert html =~ ~s(value="private")
+  end
+
+  test "search_timeline handles value payloads from input events", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    other_author = AccountsFixtures.user_fixture()
+
+    {:ok, _post} =
+      Social.create_timeline_post(
+        author.id,
+        "Search payload compatibility post",
+        visibility: "public"
+      )
+
+    {:ok, _other_post} =
+      Social.create_timeline_post(
+        other_author.id,
+        "Completely unrelated timeline post",
+        visibility: "public"
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Search payload compatibility post"
+
+    render_hook(view, "search_timeline", %{"value" => "no-such-fragment"})
+    assert_patch(view, "/timeline?filter=explore&q=no-such-fragment&view=all")
+    assert render(view) =~ "No matching posts"
+
+    render_hook(view, "search_timeline", %{"value" => "compatibility"})
+    assert_patch(view, "/timeline?filter=explore&q=compatibility&view=all")
+    assert render(view) =~ "Search payload compatibility post"
+    refute render(view) =~ "Completely unrelated timeline post"
+
+    send(
+      view.pid,
+      {:post_counts_updated,
+       %{message_id: 999_999, counts: %{like_count: 0, share_count: 0, reply_count: 0}}}
+    )
+
+    html = render(view)
+    assert html =~ "Search payload compatibility post"
+    refute html =~ "Completely unrelated timeline post"
+  end
+
+  test "timeline search form filters the default home feed", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    matched_author = AccountsFixtures.user_fixture()
+    other_author = AccountsFixtures.user_fixture()
+
+    {:ok, _follow} = Social.follow_user(viewer.id, matched_author.id)
+    {:ok, _follow} = Social.follow_user(viewer.id, other_author.id)
+
+    {:ok, _matched_post} =
+      Social.create_timeline_post(
+        matched_author.id,
+        "Home feed compatibility search post",
+        visibility: "public"
+      )
+
+    {:ok, _other_post} =
+      Social.create_timeline_post(
+        other_author.id,
+        "Home feed unrelated post",
+        visibility: "public"
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline")
+
+    html = render(view)
+    assert html =~ "Home feed compatibility search post"
+    assert html =~ "Home feed unrelated post"
+
+    view
+    |> form("#timeline-left-sidebar-search", %{"query" => "compatibility"})
+    |> render_change()
+
+    assert_patch(view, "/timeline?filter=home&q=compatibility&view=all")
+
+    html = render(view)
+    assert html =~ "Home feed compatibility search post"
+    refute html =~ "Home feed unrelated post"
+  end
+
+  test "signed-in timeline defaults to the home feed", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    followed_author = AccountsFixtures.user_fixture()
+    stranger = AccountsFixtures.user_fixture()
+
+    {:ok, _follow} = Social.follow_user(viewer.id, followed_author.id)
+
+    {:ok, _followed_post} =
+      Social.create_timeline_post(followed_author.id, "Post from followed user",
+        visibility: "public"
+      )
+
+    {:ok, _stranger_post} =
+      Social.create_timeline_post(stranger.id, "Public explore-only post", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline")
+
+    html = render(view)
+    assert html =~ "Post from followed user"
+    refute html =~ "Public explore-only post"
+  end
+
+  test "for_you feed uses personalized recommendations", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    followed_author = AccountsFixtures.user_fixture()
+    stranger = AccountsFixtures.user_fixture()
+
+    {:ok, _follow} = Social.follow_user(viewer.id, followed_author.id)
+
+    {:ok, _recommended_post} =
+      Social.create_timeline_post(followed_author.id, "Recommended for you post",
+        visibility: "public"
+      )
+
+    {:ok, _stranger_post} =
+      Social.create_timeline_post(stranger.id, "Stranger post without signals",
+        visibility: "public"
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=for_you&view=all")
+
+    html = render(view)
+    assert html =~ "Recommended for you post"
+    refute html =~ "Stranger post without signals"
   end
 
   test "friends filter is visible in disconnected render when user has friends", %{conn: conn} do
@@ -111,7 +268,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     render_hook(view, "filter_timeline", %{"filter" => "my_posts"})
-    assert_patch(view, ~p"/timeline?filter=all&view=my_posts")
+    assert_patch(view, ~p"/timeline?filter=explore&view=my_posts")
 
     html = render(view)
     assert html =~ "My dedicated timeline post"
@@ -148,7 +305,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     render_hook(view, "filter_timeline", %{"filter" => "trusted"})
-    assert_patch(view, ~p"/timeline?filter=all&view=trusted")
+    assert_patch(view, ~p"/timeline?filter=explore&view=trusted")
 
     html = render(view)
     assert html =~ "Trusted timeline post"
@@ -218,7 +375,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     render_hook(view, "filter_timeline", %{"filter" => "replies"})
-    assert_patch(view, ~p"/timeline?filter=all&view=replies")
+    assert_patch(view, ~p"/timeline?filter=explore&view=replies")
 
     html = render(view)
     assert html =~ "Reply to federated parent"
@@ -410,7 +567,19 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       "activitypub_id" => activitypub_id
     })
 
-    assert render(view) =~ "Loading replies..."
+    loading_html =
+      Enum.reduce_while(1..10, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "Loading replies..." do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert loading_html =~ "Loading replies..."
 
     {:ok, _reply} =
       Social.create_timeline_post(author.id, "Reply imported from remote",
@@ -480,8 +649,61 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert render(view) =~ "Show 1 new post"
 
     render_hook(view, "filter_timeline", %{"filter" => "replies"})
-    assert_patch(view, ~p"/timeline?filter=all&view=replies")
+    assert_patch(view, ~p"/timeline?filter=explore&view=replies")
 
     refute render(view) =~ "Show 1 new post"
+  end
+
+  test "load more shows a single loading state", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    author_timeline = timeline_conversation_fixture(author)
+
+    for i <- 1..25 do
+      _post =
+        post_fixture(
+          user: author,
+          conversation: author_timeline,
+          content: "Load more timeline post #{i}"
+        )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Load More"
+
+    html =
+      view
+      |> element("button[phx-click='load_more_posts']")
+      |> render_click()
+
+    assert length(Regex.scan(~r/Loading more posts\.\.\./, html)) == 1
+    refute html =~ "Fetching more posts"
+  end
+
+  test "hide_post removes the post from the timeline immediately", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Hide me from timeline", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Hide me from timeline"
+
+    view
+    |> element("button[phx-click='hide_post'][phx-value-post_id='#{post.id}']")
+    |> render_click()
+
+    html = render(view)
+    refute html =~ "Hide me from timeline"
+    assert html =~ "Post hidden from your timeline."
   end
 end

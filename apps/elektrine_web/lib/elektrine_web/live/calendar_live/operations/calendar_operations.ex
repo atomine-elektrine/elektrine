@@ -52,6 +52,9 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
 
   # Event CRUD
   def handle_calendar_event("new_event", params, socket) do
+    composer_kind =
+      normalize_event_template(Map.get(params, "template") || Map.get(params, "composer"))
+
     date =
       case params do
         %{"date" => date_str} ->
@@ -64,17 +67,25 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
 
     # Default to 9am start, 10am end
     dtstart = DateTime.new!(date, ~T[09:00:00], "Etc/UTC")
-    dtend = DateTime.new!(date, ~T[10:00:00], "Etc/UTC")
+
+    dtend =
+      if composer_kind == "task" do
+        nil
+      else
+        DateTime.new!(date, ~T[10:00:00], "Etc/UTC")
+      end
 
     changeset =
       Event.changeset(%Event{}, %{
         dtstart: dtstart,
         dtend: dtend,
-        calendar_id: socket.assigns.default_calendar.id
+        calendar_id: socket.assigns.default_calendar.id,
+        all_day: composer_kind == "task"
       })
 
     {:noreply,
      socket
+     |> assign(:calendar_composer_kind, composer_kind)
      |> assign(:show_event_modal, true)
      |> assign(:editing_event, nil)
      |> assign(:event_changeset, changeset)}
@@ -86,6 +97,7 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
 
     {:noreply,
      socket
+     |> assign(:calendar_composer_kind, "event")
      |> assign(:show_event_modal, true)
      |> assign(:editing_event, event)
      |> assign(:event_changeset, changeset)}
@@ -103,6 +115,7 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   def handle_calendar_event("cancel_event_modal", _params, socket) do
     {:noreply,
      socket
+     |> assign(:calendar_composer_kind, "event")
      |> assign(:show_event_modal, false)
      |> assign(:editing_event, nil)}
   end
@@ -274,6 +287,9 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
     Logger.warning("Unhandled calendar event: #{event} with params: #{inspect(params)}")
     {:noreply, socket}
   end
+
+  defp normalize_event_template("task"), do: "task"
+  defp normalize_event_template(_template), do: "event"
 
   # Helper functions
   defp reload_events(socket, new_date) do

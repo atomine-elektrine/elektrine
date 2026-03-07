@@ -6,18 +6,33 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   alias Elektrine.Messaging
   alias Elektrine.Social
   alias Elektrine.Social.Drafts
+  alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineWeb.TimelineLive.Operations.Helpers
 
   def handle_event("toggle_post_composer", _params, socket) do
+    show_post_composer = !socket.assigns.show_post_composer
+    current_user = socket.assigns[:current_user]
+
     {:noreply,
      socket
-     |> update(:show_post_composer, &(!&1))
+     |> assign(:show_post_composer, show_post_composer)
+     |> assign(
+       :composer_intent,
+       if(show_post_composer, do: "post", else: socket.assigns.composer_intent)
+     )
      |> assign(:new_post_title, nil)
      |> assign(:new_post_content, "")
      |> assign(:new_post_content_warning, nil)
      |> assign(:new_post_sensitive, false)
      |> assign(:show_cw_input, false)
+     |> assign(
+       :new_post_visibility,
+       if(show_post_composer,
+         do: (current_user && current_user.default_post_visibility) || "public",
+         else: socket.assigns.new_post_visibility
+       )
+     )
      |> assign(:editing_draft_id, nil)
      |> assign(:draft_auto_saved, false)
      |> assign(:draft_saving, false)}
@@ -388,7 +403,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     if filter == current_view do
       {:noreply, assign(socket, :filter_dropdown_open, false)}
     else
-      path = ~p"/timeline?filter=#{socket.assigns.current_filter}&view=#{filter}"
+      path = timeline_path(socket, socket.assigns.current_filter, filter)
 
       cond do
         special_timeline_view?(filter) ->
@@ -438,7 +453,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       {:noreply, socket}
     else
       current_view = socket.assigns.timeline_filter || "all"
-      {:noreply, push_patch(socket, to: ~p"/timeline?filter=#{filter}&view=#{current_view}")}
+      {:noreply, push_patch(socket, to: timeline_path(socket, filter, current_view))}
     end
   end
 
@@ -612,6 +627,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
   defp do_handle_load_more(socket) do
     current_posts = socket.assigns.timeline_posts
+    search_query = socket.assigns[:search_query] || ""
+    session_context = socket.assigns[:session_context] || %{}
 
     before_id =
       if Enum.empty?(current_posts) do
@@ -629,12 +646,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           Social.get_federated_replies(
             limit: 20,
             before_id: before_id,
-            user_id: current_user && current_user.id
+            user_id: current_user && current_user.id,
+            search_query: search_query
           )
 
         "friends" ->
           if current_user do
-            Social.get_friends_timeline(current_user.id, limit: 20, before_id: before_id)
+            Social.get_friends_timeline(current_user.id,
+              limit: 20,
+              before_id: before_id,
+              search_query: search_query
+            )
           else
             []
           end
@@ -644,7 +666,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
             Social.get_user_timeline_posts(current_user.id,
               limit: 20,
               before_id: before_id,
-              viewer_id: current_user.id
+              viewer_id: current_user.id,
+              search_query: search_query
             )
           else
             []
@@ -654,7 +677,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           Social.get_trusted_timeline(
             limit: 20,
             before_id: before_id,
-            user_id: current_user && current_user.id
+            user_id: current_user && current_user.id,
+            search_query: search_query
           )
 
         "communities" ->
@@ -662,30 +686,100 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
             Social.get_public_community_posts(
               limit: 20,
               before_id: before_id,
-              user_id: current_user.id
+              user_id: current_user.id,
+              search_query: search_query
             )
           else
-            Social.get_public_community_posts(limit: 20, before_id: before_id)
+            Social.get_public_community_posts(
+              limit: 20,
+              before_id: before_id,
+              search_query: search_query
+            )
           end
 
         _ ->
           case socket.assigns.current_filter do
+            "home" ->
+              if current_user do
+                Social.get_combined_feed(
+                  current_user.id,
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
+              else
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
+              end
+
+            "for_you" ->
+              if current_user do
+                current_ids = MapSet.new(Enum.map(current_posts, & &1.id))
+
+                Recommendations.get_for_you_feed(current_user.id,
+                  limit: length(current_posts) + 20,
+                  session_context: session_context
+                )
+                |> Helpers.filter_posts_by_search_query(search_query)
+                |> Enum.reject(fn post -> MapSet.member?(current_ids, post.id) end)
+                |> Enum.take(20)
+              else
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
+              end
+
             "all" ->
               if current_user do
                 Social.get_public_timeline(
                   limit: 20,
                   before_id: before_id,
-                  user_id: current_user.id
+                  user_id: current_user.id,
+                  search_query: search_query
                 )
               else
-                Social.get_public_timeline(limit: 20, before_id: before_id)
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
               end
 
             "following" ->
               if current_user do
-                Social.get_combined_feed(current_user.id, limit: 20, before_id: before_id)
+                Social.get_combined_feed(
+                  current_user.id,
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
               else
-                Social.get_public_timeline(limit: 20, before_id: before_id)
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
+              end
+
+            "explore" ->
+              if current_user do
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  user_id: current_user.id,
+                  search_query: search_query
+                )
+              else
+                Social.get_public_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
               end
 
             "local" ->
@@ -693,14 +787,34 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
                 Social.get_local_timeline(
                   limit: 20,
                   before_id: before_id,
-                  user_id: current_user.id
+                  user_id: current_user.id,
+                  search_query: search_query
                 )
               else
-                Social.get_local_timeline(limit: 20, before_id: before_id)
+                Social.get_local_timeline(
+                  limit: 20,
+                  before_id: before_id,
+                  search_query: search_query
+                )
               end
 
             "federated" ->
-              Social.get_public_federated_posts(limit: 20, before_id: before_id)
+              Social.get_public_federated_posts(
+                limit: 20,
+                before_id: before_id,
+                search_query: search_query
+              )
+
+            "saved" ->
+              if current_user do
+                Social.get_saved_posts(current_user.id,
+                  limit: 20,
+                  offset: length(current_posts),
+                  search_query: search_query
+                )
+              else
+                []
+              end
 
             _ ->
               []
@@ -742,7 +856,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
     merged_post_replies = Map.merge(socket.assigns.post_replies || %{}, new_post_replies)
     no_more_posts = Enum.empty?(more_posts)
-    updated_timeline_posts = current_posts ++ more_posts
+    updated_timeline_posts = Helpers.dedupe_posts(current_posts ++ more_posts)
 
     updated_base_timeline_posts =
       if special_timeline_view?(timeline_view) do
@@ -751,9 +865,16 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
         updated_timeline_posts
       end
 
+    updated_base_timeline_key =
+      if special_timeline_view?(timeline_view) do
+        Map.get(socket.assigns, :base_timeline_key)
+      else
+        {socket.assigns.current_filter, search_query}
+      end
+
     updated_special_view_cache =
       if special_timeline_view?(timeline_view) do
-        cache_key = {socket.assigns.current_filter, timeline_view}
+        cache_key = {socket.assigns.current_filter, timeline_view, search_query}
         special_view_cache = Map.get(socket.assigns, :special_view_cache, %{})
 
         existing_cache =
@@ -780,6 +901,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     |> assign(:no_more_posts, no_more_posts)
     |> assign(:lemmy_counts, merged_lemmy_counts)
     |> assign(:base_timeline_posts, updated_base_timeline_posts)
+    |> assign(:base_timeline_key, updated_base_timeline_key)
     |> assign(:special_view_cache, updated_special_view_cache)
     |> assign(:user_follows, merged_user_follows)
     |> assign(:pending_follows, merged_pending_follows)
@@ -874,5 +996,17 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     else
       socket
     end
+  end
+
+  defp timeline_path(socket, filter, view) do
+    params = %{"filter" => filter, "view" => view}
+
+    params =
+      case socket.assigns[:search_query] do
+        query when is_binary(query) and query != "" -> Map.put(params, "q", query)
+        _ -> params
+      end
+
+    ~p"/timeline?#{params}"
   end
 end

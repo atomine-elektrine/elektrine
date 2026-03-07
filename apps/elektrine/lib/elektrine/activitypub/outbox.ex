@@ -169,11 +169,7 @@ defmodule Elektrine.ActivityPub.Outbox do
         shared_inbox = get_in(remote_actor.metadata || %{}, ["endpoints", "sharedInbox"])
         author_inbox = shared_inbox || remote_actor.inbox_url
 
-        # Also get the instance's shared inbox from the activitypub_id domain
-        # This is important for Lemmy where the shared inbox receives all community activity
-        instance_inbox = get_instance_shared_inbox(parent.activitypub_id)
-
-        inboxes = [author_inbox, instance_inbox | base_inboxes]
+        inboxes = [author_inbox | base_inboxes]
 
         Enum.uniq(Enum.reject(inboxes, &is_nil/1))
       else
@@ -184,19 +180,6 @@ defmodule Elektrine.ActivityPub.Outbox do
       base_inboxes
     end
   end
-
-  # Get the shared inbox for an instance based on an ActivityPub ID
-  defp get_instance_shared_inbox(activitypub_id) when is_binary(activitypub_id) do
-    case URI.parse(activitypub_id) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        "#{scheme}://#{host}/inbox"
-
-      _ ->
-        nil
-    end
-  end
-
-  defp get_instance_shared_inbox(_), do: nil
 
   # Walk up the reply chain to find community_actor_uri (for Lemmy posts)
   # This ensures replies to replies in a Lemmy thread still get sent to the community

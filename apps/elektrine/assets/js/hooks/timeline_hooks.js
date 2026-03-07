@@ -4,8 +4,6 @@
  * dwell time tracking, hover cards, and image modals.
  */
 
-import { initGlassCard, destroyGlassCard } from '../glass_card'
-
 // Dwell time tracking constants
 const SCROLL_PAST_THRESHOLD_MS = 500
 const MIN_DWELL_TIME_MS = 1000
@@ -183,64 +181,167 @@ export const PostClick = {
 export const InfiniteScroll = {
   mounted() {
     this.pending = false
-    this.disabled = false
-    this.offset = parseInt(this.el.dataset.offset) || 300
+    this.disabled =
+      this.el.dataset.noMore === 'true' || this.el.dataset.loadingMore === 'true'
+    this.offset = parseInt(this.el.dataset.offset, 10) || 300
     this.lastRequestTime = 0
     this.minRequestInterval = 500
-    this.throttleTimeout = null
+    this.pendingResetTimeout = null
+    this.checkRAF = null
+    this.sentinel = null
+    this.observer = null
+    this.loadingMore = this.el.dataset.loadingMore === 'true'
+    this.prePatchLoadingMore = false
+    this.prePatchScrollY = null
+    this.prePatchAnchor = null
+    this.loadCycleStartY = null
 
-    // Initialize glass card effect if element has glass-card class
-    if (this.el.classList.contains('glass-card')) {
-      initGlassCard(this.el)
-    }
-
-    this.scrollHandler = () => {
-      if (this.throttleTimeout) return
-      this.throttleTimeout = setTimeout(() => {
-        this.throttleTimeout = null
-        this.checkScroll()
-      }, 150)
-    }
-
-    window.addEventListener('scroll', this.scrollHandler, { passive: true })
-    setTimeout(() => this.checkScroll(), 500)
+    this.setupObserver()
+    this.requestCheck()
   },
 
-  checkScroll() {
+  beforeUpdate() {
+    this.prePatchLoadingMore = this.loadingMore
+
+    if (this.prePatchLoadingMore) {
+      this.prePatchScrollY = window.scrollY
+      this.prePatchAnchor = this.findVisiblePostAnchor()
+    } else {
+      this.prePatchScrollY = null
+      this.prePatchAnchor = null
+    }
+  },
+
+  setupObserver() {
+    if (this.observer) {
+      this.observer.disconnect()
+      this.observer = null
+    }
+
+    this.sentinel = this.el.querySelector('[data-infinite-scroll-sentinel]')
+    if (!this.sentinel) return
+
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry?.isIntersecting) this.loadMore()
+      },
+      {
+        root: null,
+        rootMargin: `0px 0px ${this.offset}px 0px`,
+        threshold: 0
+      }
+    )
+
+    this.observer.observe(this.sentinel)
+  },
+
+  requestCheck() {
+    if (this.checkRAF) cancelAnimationFrame(this.checkRAF)
+    this.checkRAF = requestAnimationFrame(() => {
+      this.checkRAF = null
+      this.checkViewportDistance()
+    })
+  },
+
+  checkViewportDistance() {
+    if (!this.sentinel) return
+
+    const sentinelTop = this.sentinel.getBoundingClientRect().top
+    const threshold = (window.innerHeight || document.documentElement.clientHeight) + this.offset
+
+    if (sentinelTop <= threshold) this.loadMore()
+  },
+
+  loadMore() {
     if (this.pending || this.disabled) return
 
     const now = Date.now()
     if (now - this.lastRequestTime < this.minRequestInterval) return
 
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-    const scrollHeight = document.documentElement.scrollHeight
-    const clientHeight = window.innerHeight
+    this.pending = true
+    this.lastRequestTime = now
+    this.loadCycleStartY = window.scrollY
+    if (this.observer) this.observer.disconnect()
 
-    if (scrollHeight <= clientHeight) return
-
-    if (scrollHeight - scrollTop - clientHeight < this.offset) {
-      this.pending = true
-      this.lastRequestTime = now
-      try { this.pushEvent("load-more", {}) } catch (e) { this.pending = false; return }
-      setTimeout(() => { this.pending = false }, 3000)
+    try {
+      this.pushEvent("load-more", {})
+    } catch (e) {
+      this.pending = false
+      return
     }
+
+    if (this.pendingResetTimeout) clearTimeout(this.pendingResetTimeout)
+    this.pendingResetTimeout = setTimeout(() => {
+      this.pending = false
+      this.pendingResetTimeout = null
+    }, 3000)
   },
 
   updated() {
-    this.pending = false
-    const now = Date.now()
-    if (now - this.lastRequestTime > this.minRequestInterval) {
-      setTimeout(() => this.checkScroll(), 200)
+    this.loadingMore = this.el.dataset.loadingMore === 'true'
+
+    if (this.prePatchLoadingMore && !this.loadingMore) {
+      let restored = false
+
+      if (this.prePatchAnchor?.postId) {
+        const anchor = this.findPostById(this.prePatchAnchor.postId)
+
+        if (anchor) {
+          const newTop = anchor.getBoundingClientRect().top
+          const delta = newTop - this.prePatchAnchor.top
+
+          if (delta !== 0) window.scrollBy(0, delta)
+          restored = true
+        }
+      }
+
+      if (!restored && Number.isFinite(this.prePatchScrollY)) {
+        window.scrollTo({ top: this.prePatchScrollY, behavior: "auto" })
+      } else if (!restored && Number.isFinite(this.loadCycleStartY)) {
+        window.scrollTo({ top: this.loadCycleStartY, behavior: "auto" })
+      }
     }
+
+    this.prePatchLoadingMore = false
+    this.prePatchScrollY = null
+    this.prePatchAnchor = null
+    if (!this.loadingMore) this.loadCycleStartY = null
+    this.pending = false
+    this.disabled =
+      this.el.dataset.noMore === 'true' || this.el.dataset.loadingMore === 'true'
+    this.setupObserver()
+    this.requestCheck()
+  },
+
+  findVisiblePostAnchor() {
+    const postCards = this.el.querySelectorAll('[data-post-id]')
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+
+    for (const card of postCards) {
+      const rect = card.getBoundingClientRect()
+      if (rect.bottom <= 0 || rect.top >= viewportHeight) continue
+
+      const postId = card.dataset.postId
+      if (!postId) continue
+
+      return { postId, top: rect.top }
+    }
+
+    return null
+  },
+
+  findPostById(postId) {
+    if (!postId) return null
+
+    const escapedPostId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(postId) : postId
+    return this.el.querySelector(`[data-post-id="${escapedPostId}"]`)
   },
 
   destroyed() {
-    if (this.throttleTimeout) clearTimeout(this.throttleTimeout)
-    window.removeEventListener('scroll', this.scrollHandler)
-    // Clean up glass card effect
-    if (this.el.classList.contains('glass-card')) {
-      destroyGlassCard(this.el)
-    }
+    if (this.pendingResetTimeout) clearTimeout(this.pendingResetTimeout)
+    if (this.checkRAF) cancelAnimationFrame(this.checkRAF)
+    if (this.observer) this.observer.disconnect()
   }
 }
 

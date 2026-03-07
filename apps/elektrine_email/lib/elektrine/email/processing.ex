@@ -12,9 +12,9 @@ defmodule Elektrine.Email.Processing do
   @doc """
   Categorizes an incoming message based on content analysis.
   """
-  def categorize_message(message_attrs) do
+  def categorize_message(message_attrs, opts \\ []) do
     # Delegate to the new sophisticated categorizer
-    Elektrine.Email.Categorizer.categorize_message(message_attrs)
+    Elektrine.Email.Categorizer.categorize_message(message_attrs, opts)
   end
 
   @doc """

@@ -351,6 +351,11 @@ div.message-selected:hover {
   contain: layout;
 }
 
+.timeline-feed-region,
+.timeline-load-more-zone {
+  overflow-anchor: none;
+}
+
 /* --------------------------------------------------------------------------
    MOBILE RESPONSIVE
    -------------------------------------------------------------------------- */

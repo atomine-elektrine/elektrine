@@ -24,6 +24,7 @@ defmodule Elektrine.ActivityPub do
   }
 
   alias Elektrine.Messaging.Conversations
+  alias Elektrine.Security.URLValidator
 
   @doc """
   Gets the instance domain for this server.
@@ -211,8 +212,20 @@ defmodule Elektrine.ActivityPub do
   @doc """
   Fetches an actor document from a remote instance and caches it.
   """
-  def fetch_and_cache_actor(uri, existing_actor \\ nil) do
-    with {:ok, actor_data} <- Fetcher.fetch_actor(uri),
+  def fetch_and_cache_actor(uri, existing_actor_or_opts \\ nil)
+
+  def fetch_and_cache_actor(uri, opts) when is_list(opts) do
+    do_fetch_and_cache_actor(uri, nil, opts)
+  end
+
+  def fetch_and_cache_actor(uri, existing_actor) do
+    do_fetch_and_cache_actor(uri, existing_actor, [])
+  end
+
+  defp do_fetch_and_cache_actor(uri, existing_actor, opts) do
+    with {:ok, actor_data} <- Fetcher.fetch_actor(uri, opts),
+         :ok <- validate_fetched_actor_identity(uri, actor_data),
+         :ok <- validate_fetched_actor_urls(actor_data),
          {:ok, actor_data} <- apply_actor_policies(actor_data, uri),
          {:ok, actor} <- cache_actor(actor_data, existing_actor) do
       {:ok, actor}
@@ -234,6 +247,87 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp apply_actor_policies(actor_data, _uri), do: {:ok, actor_data}
+
+  defp validate_fetched_actor_identity(uri, %{"id" => actor_id})
+       when is_binary(uri) and is_binary(actor_id) do
+    if comparable_actor_uri(uri) == comparable_actor_uri(actor_id) do
+      :ok
+    else
+      Logger.warning(
+        "Rejected fetched actor due to id mismatch: requested=#{inspect(uri)} returned=#{inspect(actor_id)}"
+      )
+
+      {:error, :actor_id_mismatch}
+    end
+  end
+
+  defp validate_fetched_actor_identity(_uri, _actor_data), do: {:error, :actor_id_mismatch}
+
+  defp validate_fetched_actor_urls(actor_data) when is_map(actor_data) do
+    actor_data
+    |> actor_document_urls()
+    |> Enum.reduce_while(:ok, fn {field, url}, :ok ->
+      case URLValidator.validate(url) do
+        :ok ->
+          {:cont, :ok}
+
+        {:error, reason} ->
+          Logger.warning(
+            "Rejected fetched actor due to unsafe #{field} URL #{inspect(url)}: #{inspect(reason)}"
+          )
+
+          {:halt, {:error, :unsafe_actor_document}}
+      end
+    end)
+  end
+
+  defp validate_fetched_actor_urls(_actor_data), do: {:error, :unsafe_actor_document}
+
+  defp actor_document_urls(actor_data) do
+    [
+      {:id, actor_data["id"]},
+      {:inbox, actor_data["inbox"]},
+      {:outbox, actor_data["outbox"]},
+      {:followers, actor_data["followers"]},
+      {:following, actor_data["following"]},
+      {:shared_inbox, get_in(actor_data, ["endpoints", "sharedInbox"])}
+    ]
+    |> Enum.filter(fn {_field, url} -> is_binary(url) and String.trim(url) != "" end)
+  end
+
+  defp comparable_actor_uri(uri) when is_binary(uri) do
+    uri
+    |> String.trim()
+    |> case do
+      "" ->
+        nil
+
+      trimmed ->
+        case URI.parse(trimmed) do
+          %URI{scheme: scheme, host: host} = parsed
+          when is_binary(scheme) and is_binary(host) and host != "" ->
+            normalized_path =
+              parsed.path
+              |> Kernel.||("/")
+              |> case do
+                "/" -> "/"
+                path -> String.trim_trailing(path, "/")
+              end
+
+            parsed
+            |> Map.put(:scheme, String.downcase(scheme))
+            |> Map.put(:host, String.downcase(host))
+            |> Map.put(:path, normalized_path)
+            |> Map.put(:fragment, nil)
+            |> URI.to_string()
+
+          _ ->
+            trimmed
+        end
+    end
+  end
+
+  defp comparable_actor_uri(_), do: nil
 
   defp cache_actor(actor_data, existing_actor) do
     uri = URI.parse(actor_data["id"])
