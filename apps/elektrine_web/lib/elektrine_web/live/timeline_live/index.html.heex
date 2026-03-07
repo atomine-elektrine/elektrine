@@ -73,37 +73,53 @@
           <%= if @current_user do %>
             <button
               phx-click="set_filter"
-              phx-value-filter="all"
+              phx-value-filter="home"
               class={[
                 "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
-                if(@current_filter == "all",
+                if(@current_filter == "home",
                   do: "bg-secondary text-secondary-content shadow-lg",
                   else: "bg-base-100 text-base-content/70 hover:bg-base-200"
                 )
               ]}
-              aria-label="Show all posts"
-              aria-pressed={@current_filter == "all"}
+              aria-label="Show your home feed"
+              aria-pressed={@current_filter == "home"}
             >
               <.icon name="hero-squares-2x2" class="w-5 h-5 mb-1" />
-              <span>All</span>
+              <span>Home</span>
             </button>
             <button
               phx-click="set_filter"
-              phx-value-filter="following"
+              phx-value-filter="for_you"
               class={[
                 "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
-                if(@current_filter == "following",
+                if(@current_filter == "for_you",
                   do: "bg-secondary text-secondary-content shadow-lg",
                   else: "bg-base-100 text-base-content/70 hover:bg-base-200"
                 )
               ]}
-              aria-label="Show posts from people you follow"
-              aria-pressed={@current_filter == "following"}
+              aria-label="Show personalized recommended posts"
+              aria-pressed={@current_filter == "for_you"}
             >
-              <.icon name="hero-user-group" class="w-5 h-5 mb-1" />
-              <span>Following</span>
+              <.icon name="hero-sparkles" class="w-5 h-5 mb-1" />
+              <span>For You</span>
             </button>
           <% end %>
+          <button
+            phx-click="set_filter"
+            phx-value-filter="explore"
+            class={[
+              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+              if(@current_filter == "explore",
+                do: "bg-secondary text-secondary-content shadow-lg",
+                else: "bg-base-100 text-base-content/70 hover:bg-base-200"
+              )
+            ]}
+            aria-label="Show public discovery posts"
+            aria-pressed={@current_filter == "explore"}
+          >
+            <.icon name="hero-globe-alt" class="w-5 h-5 mb-1" />
+            <span>Explore</span>
+          </button>
           <button
             phx-click="set_filter"
             phx-value-filter="local"
@@ -324,7 +340,12 @@
     <% end %>
     
 <!-- Search bar (always visible on mobile) -->
-    <div class="relative">
+    <form
+      id="timeline-mobile-search"
+      phx-change="search_timeline"
+      phx-submit="search_timeline"
+      class="relative"
+    >
       <.icon
         name="hero-magnifying-glass"
         class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-base-content/40"
@@ -333,7 +354,6 @@
         type="text"
         placeholder={gettext("Search posts...")}
         value={@search_query}
-        phx-change="search_timeline"
         phx-debounce="300"
         name="query"
         class="input input-bordered w-full pl-10 pr-10 min-h-[2.75rem]"
@@ -341,6 +361,7 @@
       />
       <%= if @search_query != "" do %>
         <button
+          type="button"
           phx-click="clear_search"
           class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
           aria-label={gettext("Clear search")}
@@ -348,7 +369,7 @@
           <.icon name="hero-x-mark" class="w-4 h-4" />
         </button>
       <% end %>
-    </div>
+    </form>
   </div>
 
   <div class="flex flex-col sm:flex-row gap-0 sm:gap-4 lg:gap-6">
@@ -394,7 +415,12 @@
           <% end %>
           
 <!-- Search -->
-          <div class="relative">
+          <form
+            id="timeline-left-sidebar-search"
+            phx-change="search_timeline"
+            phx-submit="search_timeline"
+            class="relative"
+          >
             <.icon
               name="hero-magnifying-glass"
               class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40"
@@ -403,7 +429,6 @@
               type="text"
               placeholder={gettext("Search posts...")}
               value={@search_query}
-              phx-change="search_timeline"
               phx-debounce="300"
               name="query"
               class="input input-bordered input-sm w-full pl-9 pr-8"
@@ -411,6 +436,7 @@
             />
             <%= if @search_query != "" do %>
               <button
+                type="button"
                 phx-click="clear_search"
                 class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-xs"
                 aria-label={gettext("Clear search")}
@@ -418,18 +444,19 @@
                 <.icon name="hero-x-mark" class="w-3 h-3" />
               </button>
             <% end %>
-          </div>
+          </form>
         </div>
       </div>
     </div>
     
 <!-- Main Timeline -->
     <div
-      class="flex-1 min-w-0 max-w-full sm:max-w-full card social-page-card glass-card shadow-lg"
+      class="flex-1 min-w-0 max-w-full sm:max-w-full card social-page-card shadow-lg"
       phx-hook="InfiniteScroll"
       id="timeline-infinite-scroll"
-      data-glass-card="true"
       data-offset="500"
+      data-no-more={@no_more_posts}
+      data-loading-more={@loading_more}
     >
       <!-- Unified Timeline Header with Filters -->
       <div class="p-4 border-b border-base-300 bg-base-50 space-y-3">
@@ -439,7 +466,7 @@
             Communities
           </.link>
         </div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Source</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Feed</p>
         
 <!-- Filter Pills Row -->
         <div
@@ -450,39 +477,56 @@
           <%= if @current_user do %>
             <button
               phx-click="set_filter"
-              phx-value-filter="all"
+              phx-value-filter="home"
               role="tab"
-              aria-selected={@current_filter == "all"}
-              aria-label="Show all posts"
+              aria-selected={@current_filter == "home"}
+              aria-label="Show your home feed"
               class={[
                 "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@current_filter == "all",
+                if(@current_filter == "home",
                   do: "btn-secondary",
                   else: "btn-ghost bg-base-100 hover:bg-base-200"
                 )
               ]}
             >
               <.icon name="hero-squares-2x2" class="w-4 h-4" />
-              <span>All</span>
+              <span>Home</span>
             </button>
             <button
               phx-click="set_filter"
-              phx-value-filter="following"
+              phx-value-filter="for_you"
               role="tab"
-              aria-selected={@current_filter == "following"}
-              aria-label="Show posts from people you follow"
+              aria-selected={@current_filter == "for_you"}
+              aria-label="Show personalized recommended posts"
               class={[
                 "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@current_filter == "following",
+                if(@current_filter == "for_you",
                   do: "btn-secondary",
                   else: "btn-ghost bg-base-100 hover:bg-base-200"
                 )
               ]}
             >
-              <.icon name="hero-user-group" class="w-4 h-4" />
-              <span>Following</span>
+              <.icon name="hero-sparkles" class="w-4 h-4" />
+              <span>For You</span>
             </button>
           <% end %>
+          <button
+            phx-click="set_filter"
+            phx-value-filter="explore"
+            role="tab"
+            aria-selected={@current_filter == "explore"}
+            aria-label="Show public discovery posts"
+            class={[
+              "btn btn-sm min-h-10 px-3 rounded-full",
+              if(@current_filter == "explore",
+                do: "btn-secondary",
+                else: "btn-ghost bg-base-100 hover:bg-base-200"
+              )
+            ]}
+          >
+            <.icon name="hero-globe-alt" class="w-4 h-4" />
+            <span>Explore</span>
+          </button>
           <button
             phx-click="set_filter"
             phx-value-filter="local"
@@ -612,6 +656,32 @@
             class="space-y-4"
             id="post-composer-form"
           >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-medium">
+                  <%= if @composer_intent == "note" do %>
+                    New note
+                  <% else %>
+                    New post
+                  <% end %>
+                </p>
+                <p class="text-xs opacity-70">
+                  <%= if @composer_intent == "note" do %>
+                    Private by default. Use this for quick personal capture.
+                  <% else %>
+                    Share something with your timeline.
+                  <% end %>
+                </p>
+              </div>
+              <span class="badge badge-ghost badge-sm">
+                <%= if @composer_intent == "note" do %>
+                  Note
+                <% else %>
+                  Post
+                <% end %>
+              </span>
+            </div>
+
             <input
               type="text"
               name="title"
@@ -636,7 +706,13 @@
 
             <textarea
               name="content"
-              placeholder={gettext("What's on your mind?")}
+              placeholder={
+                if @composer_intent == "note" do
+                  gettext("Capture a private note")
+                else
+                  gettext("What's on your mind?")
+                end
+              }
               class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
               style="min-height: 4rem; max-height: 20rem;"
               rows="3"
@@ -999,7 +1075,11 @@
       <% end %>
       
 <!-- Timeline Feed -->
-      <div class="p-4 space-y-4 isolate" data-timeline-container id="timeline-posts-container">
+      <div
+        class="p-4 space-y-4 isolate timeline-feed-region"
+        data-timeline-container
+        id="timeline-posts-container"
+      >
         <!-- Loading Skeleton -->
         <%= if @loading_timeline do %>
           <div class="space-y-4 animate-pulse" data-timeline-loading-skeleton>
@@ -1086,7 +1166,7 @@
             <% end %>
             
 <!-- RSS Items for All/Following filters -->
-            <%= if @current_filter in ["all", "following"] && !Enum.empty?(@rss_items) do %>
+            <%= if @current_filter in ["explore", "home"] && !Enum.empty?(@rss_items) do %>
               <div class="mb-4">
                 <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-2">
                   <.icon name="hero-rss" class="w-4 h-4 text-warning" /> From Your RSS Feeds
@@ -1110,287 +1190,314 @@
               Enum.find(@filtered_posts, fn post -> MapSet.member?(recent_post_ids, post.id) end) %>
             <% first_recent_post_id = if first_recent_post, do: first_recent_post.id, else: nil %>
 
-            <%= for post <- @filtered_posts do %>
-              <%= if first_recent_post_id && post.id == first_recent_post_id do %>
-                <div class="divider text-xs font-semibold text-secondary/80">
-                  {if @recently_loaded_count > 0,
-                    do: "#{@recently_loaded_count} new posts",
-                    else: "New posts"}
-                </div>
-              <% end %>
-              <% # Community posts include URI-tagged posts and mirror-linked federated posts.
-              is_lemmy_post =
-                PostUtilities.community_post?(post) %>
-              <%= if is_lemmy_post do %>
-                <!-- Lemmy-style compact post -->
-                <.timeline_post
-                  post={post}
-                  layout={:lemmy}
-                  current_user={@current_user}
-                  timezone={@timezone}
-                  time_format={@time_format}
-                  user_likes={@user_likes}
-                  user_downvotes={@user_downvotes}
-                  user_boosts={@user_boosts}
-                  user_saves={@user_saves}
-                  user_follows={@user_follows}
-                  pending_follows={@pending_follows}
-                  user_statuses={@user_statuses}
-                  lemmy_counts={@lemmy_counts}
-                  post_interactions={@post_interactions}
-                  post_reactions_map={@post_reactions}
-                  reactions={Map.get(@post_reactions, post.id, [])}
-                  replies={Map.get(@post_replies, post.id, [])}
-                  resolve_reply_refs={true}
-                  show_ancestor_actions={true}
-                  on_image_click="open_image_modal"
-                  source="timeline"
-                />
-              <% else %>
-                <!-- Timeline-style post using consolidated component -->
-                <.timeline_post
-                  post={post}
-                  layout={:timeline}
-                  current_user={@current_user}
-                  timezone={@timezone}
-                  time_format={@time_format}
-                  user_likes={@user_likes}
-                  user_boosts={@user_boosts}
-                  user_saves={@user_saves}
-                  user_downvotes={@user_downvotes}
-                  user_follows={@user_follows}
-                  pending_follows={@pending_follows}
-                  user_statuses={@user_statuses}
-                  lemmy_counts={@lemmy_counts}
-                  post_interactions={@post_interactions}
-                  post_reactions_map={@post_reactions}
-                  post_replies={@post_replies}
-                  reactions={Map.get(@post_reactions, post.id, [])}
-                  resolve_reply_refs={true}
-                  show_ancestor_actions={true}
-                  on_image_click="open_image_modal"
-                  source="timeline"
-                />
-                
-<!-- Reply Form -->
-                <%= if @current_user && @reply_to_post && @reply_to_post.id == post.id do %>
-                  <div
-                    id={"reply-form-#{post.id}"}
-                    class="mt-3 p-4 bg-base-50 rounded-lg border border-base-200"
-                  >
-                    <div class="flex items-start gap-3">
-                      <div class="w-8 h-8 flex-shrink-0 overflow-visible">
-                        <.user_avatar
-                          user={@current_user}
-                          size="sm"
-                          user_statuses={@user_statuses}
-                        />
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <div class="text-sm opacity-70 mb-3">
-                          {gettext("Replying to")}
-                          <span class="font-medium text-error">
-                            <%= if @reply_to_post.sender do %>
-                              @{@reply_to_post.sender.handle || @reply_to_post.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
-                            <% else %>
-                              <%= if Ecto.assoc_loaded?(@reply_to_post.remote_actor) && @reply_to_post.remote_actor do %>
-                                @{@reply_to_post.remote_actor.username}@{@reply_to_post.remote_actor.domain}
-                              <% else %>
-                                a remote user
-                              <% end %>
-                            <% end %>
-                          </span>
-                        </div>
-                        
-<!-- Recent Replies Preview -->
-                        <%= if length(@reply_to_post_recent_replies) > 0 &&
-                                Map.get(@post_replies, post.id, []) == [] do %>
-                          <div class="mb-3 border-l-2 border-cyan-500/60 pl-3 space-y-2">
-                            <div class="text-xs font-semibold opacity-60 mb-2">
-                              Recent Replies:
-                            </div>
-                            <%= for reply <- @reply_to_post_recent_replies do %>
-                              <% has_sender = Map.get(reply, :sender) != nil
-
-                              has_remote_actor =
-                                case Map.get(reply, :remote_actor) do
-                                  nil -> false
-                                  %Ecto.Association.NotLoaded{} -> false
-                                  _actor -> true
-                                end
-
-                              has_author = Map.get(reply, :author) != nil
-                              reply_content = Map.get(reply, :content) || ""
-
-                              reply_preview =
-                                reply_content
-                                |> HtmlSanitizeEx.strip_tags()
-                                |> String.replace(~r/\s+/, " ")
-                                |> String.trim()
-
-                              reply_preview =
-                                if String.length(reply_preview) > 150 do
-                                  String.slice(reply_preview, 0, 150) <> "..."
-                                else
-                                  reply_preview
-                                end %>
-                              <div class="text-sm">
-                                <div class="flex items-center gap-2 mb-1">
-                                  <%= if has_sender do %>
-                                    <.username_with_effects
-                                      user={reply.sender}
-                                      display_name={false}
-                                      verified_size="xs"
-                                    />
-                                  <% else %>
-                                    <%= if has_remote_actor do %>
-                                      <span class="font-medium">
-                                        @{reply.remote_actor.username}@{reply.remote_actor.domain}
-                                      </span>
-                                    <% else %>
-                                      <%= if has_author do %>
-                                        <span class="font-medium">
-                                          @{reply.author}{if reply.author_domain,
-                                            do: "@#{reply.author_domain}"}
-                                        </span>
-                                      <% else %>
-                                        <span class="font-medium opacity-50">Remote user</span>
-                                      <% end %>
-                                    <% end %>
-                                  <% end %>
-                                  <span class="text-xs opacity-50">
-                                    ·
-                                    <.local_time
-                                      datetime={reply.inserted_at}
-                                      format="relative"
-                                      timezone={@timezone}
-                                      time_format={@time_format}
-                                    />
-                                  </span>
-                                </div>
-                                <div class="text-xs opacity-70 line-clamp-2">
-                                  {reply_preview}
-                                </div>
-                              </div>
-                            <% end %>
-                          </div>
-                        <% end %>
-
-                        <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
-                          wrapper_class=""
-                          content={@reply_content}
-                          hidden_fields={[{"reply_to_id", @reply_to_post.id}]}
-                          textarea_id={"reply-textarea-#{@reply_to_post.id}"}
-                          placeholder={gettext("Post your reply...")}
-                          textarea_class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
-                          textarea_style="min-height: 3rem; max-height: 15rem;"
-                          rows={3}
-                          on_submit="create_timeline_reply"
-                          on_change="update_reply_content"
-                          on_cancel="cancel_reply"
-                          cancel_class="btn btn-ghost btn-sm"
-                          submit_class="btn btn-secondary btn-sm"
-                          submit_label={gettext("Reply")}
-                          submit_icon="hero-paper-airplane"
-                          submit_disable_with="Posting..."
-                          form_class="space-y-3"
-                          textarea_hook="AutoExpandTextarea"
-                          textarea_mounted={JS.focus()}
-                          textarea_update="ignore"
-                          content_min={3}
-                          counter_suffix={gettext(" required chars")}
-                          show_counter={true}
-                        />
-                      </div>
+            <div id="timeline-posts-stream" phx-update="stream" class="space-y-4">
+              <%= for {stream_id, post} <- @streams.timeline_filtered_posts do %>
+                <div id={stream_id} class="timeline-stream-entry">
+                  <%= if first_recent_post_id && post.id == first_recent_post_id do %>
+                    <div class="divider text-xs font-semibold text-secondary/80">
+                      {if @recently_loaded_count > 0,
+                        do: "#{@recently_loaded_count} new posts",
+                        else: "New posts"}
                     </div>
-                  </div>
-                <% end %>
-                
-<!-- Direct Replies (Threaded) -->
-                <% replies = Map.get(@post_replies, post.id, []) %>
-                <%= if length(replies) > 0 do %>
-                  <div class="mt-3 pl-4 border-l-2 border-purple-500/60 space-y-3">
-                    <%= for reply <- replies do %>
-                      <% normalized =
-                        ElektrineWeb.Components.Social.ReplyItem.normalize_reply(reply)
-
-                      reply_target_id =
-                        Map.get(reply, :id) ||
-                          Map.get(reply, :activitypub_id) ||
-                          Map.get(reply, :ap_id) ||
-                          normalized.ap_id %>
-                      <.reply_item
-                        reply={reply}
-                        post={post}
-                        current_user={@current_user}
-                        user_statuses={@user_statuses}
-                        user_follows={@user_follows}
-                        pending_follows={@pending_follows}
-                        user_likes={@user_likes}
-                        timezone={@timezone}
-                        time_format={@time_format}
-                      />
-                      
-<!-- Quick Reply Form (for replying to this reply) -->
-                      <%= if @current_user && @reply_to_reply_id == reply_target_id do %>
-                        <div class="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
-                          <div class="flex items-start gap-2">
-                            <div class="w-8 h-8 flex-shrink-0">
-                              <.user_avatar user={@current_user} size="xs" />
-                            </div>
-                            <div class="flex-1 min-w-0">
-                              <div class="text-xs opacity-70 mb-2">
-                                Replying to
-                                <span class="font-medium text-error">
-                                  @{normalized.handle}{if normalized.domain,
-                                    do: "@#{normalized.domain}"}
-                                </span>
-                              </div>
-
-                              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
-                                wrapper_class=""
-                                content={@reply_content}
-                                hidden_fields={[{"reply_to_id", reply_target_id}]}
-                                placeholder="Post your reply..."
-                                textarea_class="textarea textarea-bordered textarea-sm w-full"
-                                rows={2}
-                                on_submit="create_timeline_reply"
-                                on_change="update_reply_content"
-                                on_cancel="cancel_reply"
-                                cancel_class="btn btn-ghost btn-xs"
-                                submit_class="btn btn-secondary btn-xs"
-                                submit_label="Reply"
-                                submit_icon="hero-paper-airplane"
-                                submit_icon_class="w-3 h-3 mr-1"
-                                submit_disable_with="Posting..."
-                                form_class="space-y-2"
-                                textarea_mounted={JS.focus()}
-                                content_min={3}
-                                counter_suffix={gettext(" required chars")}
-                                show_counter={true}
-                              />
-                            </div>
+                  <% end %>
+                  <% # Community posts include URI-tagged posts and mirror-linked federated posts.
+                  is_lemmy_post =
+                    PostUtilities.community_post?(post) %>
+                  <%= if is_lemmy_post do %>
+                    <!-- Lemmy-style compact post -->
+                    <.timeline_post
+                      post={post}
+                      layout={:lemmy}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      time_format={@time_format}
+                      user_likes={@user_likes}
+                      user_downvotes={@user_downvotes}
+                      user_boosts={@user_boosts}
+                      user_saves={@user_saves}
+                      user_follows={@user_follows}
+                      pending_follows={@pending_follows}
+                      user_statuses={@user_statuses}
+                      lemmy_counts={@lemmy_counts}
+                      post_interactions={@post_interactions}
+                      post_reactions_map={@post_reactions}
+                      reactions={Map.get(@post_reactions, post.id, [])}
+                      replies={Map.get(@post_replies, post.id, [])}
+                      resolve_reply_refs={true}
+                      show_ancestor_actions={true}
+                      on_image_click="open_image_modal"
+                      source="timeline"
+                    />
+                  <% else %>
+                    <!-- Timeline-style post using consolidated component -->
+                    <.timeline_post
+                      post={post}
+                      layout={:timeline}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      time_format={@time_format}
+                      user_likes={@user_likes}
+                      user_boosts={@user_boosts}
+                      user_saves={@user_saves}
+                      user_downvotes={@user_downvotes}
+                      user_follows={@user_follows}
+                      pending_follows={@pending_follows}
+                      user_statuses={@user_statuses}
+                      lemmy_counts={@lemmy_counts}
+                      post_interactions={@post_interactions}
+                      post_reactions_map={@post_reactions}
+                      post_replies={@post_replies}
+                      reactions={Map.get(@post_reactions, post.id, [])}
+                      resolve_reply_refs={true}
+                      show_ancestor_actions={true}
+                      on_image_click="open_image_modal"
+                      source="timeline"
+                    />
+                    
+<!-- Reply Form -->
+                    <%= if @current_user && @reply_to_post && @reply_to_post.id == post.id do %>
+                      <div
+                        id={"reply-form-#{post.id}"}
+                        class="mt-3 p-4 bg-base-50 rounded-lg border border-base-200"
+                      >
+                        <div class="flex items-start gap-3">
+                          <div class="w-8 h-8 flex-shrink-0 overflow-visible">
+                            <.user_avatar
+                              user={@current_user}
+                              size="sm"
+                              user_statuses={@user_statuses}
+                            />
                           </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="text-sm opacity-70 mb-3">
+                              {gettext("Replying to")}
+                              <span class="font-medium text-error">
+                                <%= if @reply_to_post.sender do %>
+                                  @{@reply_to_post.sender.handle || @reply_to_post.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
+                                <% else %>
+                                  <%= if Ecto.assoc_loaded?(@reply_to_post.remote_actor) && @reply_to_post.remote_actor do %>
+                                    @{@reply_to_post.remote_actor.username}@{@reply_to_post.remote_actor.domain}
+                                  <% else %>
+                                    a remote user
+                                  <% end %>
+                                <% end %>
+                              </span>
+                            </div>
+                            
+<!-- Recent Replies Preview -->
+                            <%= if length(@reply_to_post_recent_replies) > 0 &&
+                                Map.get(@post_replies, post.id, []) == [] do %>
+                              <div class="mb-3 border-l-2 border-cyan-500/60 pl-3 space-y-2">
+                                <div class="text-xs font-semibold opacity-60 mb-2">
+                                  Recent Replies:
+                                </div>
+                                <%= for reply <- @reply_to_post_recent_replies do %>
+                                  <% has_sender = Map.get(reply, :sender) != nil
+
+                                  has_remote_actor =
+                                    case Map.get(reply, :remote_actor) do
+                                      nil -> false
+                                      %Ecto.Association.NotLoaded{} -> false
+                                      _actor -> true
+                                    end
+
+                                  has_author = Map.get(reply, :author) != nil
+                                  reply_content = Map.get(reply, :content) || ""
+
+                                  reply_preview =
+                                    reply_content
+                                    |> HtmlSanitizeEx.strip_tags()
+                                    |> String.replace(~r/\s+/, " ")
+                                    |> String.trim()
+
+                                  reply_preview =
+                                    if String.length(reply_preview) > 150 do
+                                      String.slice(reply_preview, 0, 150) <> "..."
+                                    else
+                                      reply_preview
+                                    end %>
+                                  <div class="text-sm">
+                                    <div class="flex items-center gap-2 mb-1">
+                                      <%= if has_sender do %>
+                                        <.username_with_effects
+                                          user={reply.sender}
+                                          display_name={false}
+                                          verified_size="xs"
+                                        />
+                                      <% else %>
+                                        <%= if has_remote_actor do %>
+                                          <span class="font-medium">
+                                            @{reply.remote_actor.username}@{reply.remote_actor.domain}
+                                          </span>
+                                        <% else %>
+                                          <%= if has_author do %>
+                                            <span class="font-medium">
+                                              @{reply.author}{if reply.author_domain,
+                                                do: "@#{reply.author_domain}"}
+                                            </span>
+                                          <% else %>
+                                            <span class="font-medium opacity-50">
+                                              Remote user
+                                            </span>
+                                          <% end %>
+                                        <% end %>
+                                      <% end %>
+                                      <span class="text-xs opacity-50">
+                                        ·
+                                        <.local_time
+                                          datetime={reply.inserted_at}
+                                          format="relative"
+                                          timezone={@timezone}
+                                          time_format={@time_format}
+                                        />
+                                      </span>
+                                    </div>
+                                    <div class="text-xs opacity-70 line-clamp-2">
+                                      {reply_preview}
+                                    </div>
+                                  </div>
+                                <% end %>
+                              </div>
+                            <% end %>
+
+                            <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                              wrapper_class=""
+                              content={@reply_content}
+                              hidden_fields={[{"reply_to_id", @reply_to_post.id}]}
+                              textarea_id={"reply-textarea-#{@reply_to_post.id}"}
+                              placeholder={gettext("Post your reply...")}
+                              textarea_class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+                              textarea_style="min-height: 3rem; max-height: 15rem;"
+                              rows={3}
+                              on_submit="create_timeline_reply"
+                              on_change="update_reply_content"
+                              on_cancel="cancel_reply"
+                              cancel_class="btn btn-ghost btn-sm"
+                              submit_class="btn btn-secondary btn-sm"
+                              submit_label={gettext("Reply")}
+                              submit_icon="hero-paper-airplane"
+                              submit_disable_with="Posting..."
+                              form_class="space-y-3"
+                              textarea_hook="AutoExpandTextarea"
+                              textarea_mounted={JS.focus()}
+                              textarea_update="ignore"
+                              content_min={3}
+                              counter_suffix={gettext(" required chars")}
+                              show_counter={true}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                    
+<!-- Direct Replies (Threaded) -->
+                    <% replies = Map.get(@post_replies, post.id, []) %>
+                    <%= if length(replies) > 0 do %>
+                      <div class="mt-3 pl-4 border-l-2 border-purple-500/60 space-y-3">
+                        <%= for reply <- replies do %>
+                          <% normalized =
+                            ElektrineWeb.Components.Social.ReplyItem.normalize_reply(reply)
+
+                          reply_target_id =
+                            Map.get(reply, :id) ||
+                              Map.get(reply, :activitypub_id) ||
+                              Map.get(reply, :ap_id) ||
+                              normalized.ap_id %>
+                          <.reply_item
+                            reply={reply}
+                            post={post}
+                            current_user={@current_user}
+                            user_statuses={@user_statuses}
+                            user_follows={@user_follows}
+                            pending_follows={@pending_follows}
+                            user_likes={@user_likes}
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                          
+<!-- Quick Reply Form (for replying to this reply) -->
+                          <%= if @current_user && @reply_to_reply_id == reply_target_id do %>
+                            <div class="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
+                              <div class="flex items-start gap-2">
+                                <div class="w-8 h-8 flex-shrink-0">
+                                  <.user_avatar user={@current_user} size="xs" />
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                  <div class="text-xs opacity-70 mb-2">
+                                    Replying to
+                                    <span class="font-medium text-error">
+                                      @{normalized.handle}{if normalized.domain,
+                                        do: "@#{normalized.domain}"}
+                                    </span>
+                                  </div>
+
+                                  <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                                    wrapper_class=""
+                                    content={@reply_content}
+                                    hidden_fields={[{"reply_to_id", reply_target_id}]}
+                                    placeholder="Post your reply..."
+                                    textarea_class="textarea textarea-bordered textarea-sm w-full"
+                                    rows={2}
+                                    on_submit="create_timeline_reply"
+                                    on_change="update_reply_content"
+                                    on_cancel="cancel_reply"
+                                    cancel_class="btn btn-ghost btn-xs"
+                                    submit_class="btn btn-secondary btn-xs"
+                                    submit_label="Reply"
+                                    submit_icon="hero-paper-airplane"
+                                    submit_icon_class="w-3 h-3 mr-1"
+                                    submit_disable_with="Posting..."
+                                    form_class="space-y-2"
+                                    textarea_mounted={JS.focus()}
+                                    content_min={3}
+                                    counter_suffix={gettext(" required chars")}
+                                    show_counter={true}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          <% end %>
+                        <% end %>
+                        
+<!-- View All Replies Link -->
+                        <%= if post.reply_count > length(replies) do %>
+                          <button
+                            phx-click="navigate_to_post"
+                            phx-value-id={post.id}
+                            class="text-sm text-primary hover:underline font-medium"
+                            type="button"
+                          >
+                            View all {post.reply_count} replies →
+                          </button>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <%= if (post.reply_count || 0) > 0 do %>
+                        <div class="mt-3 pl-4 border-l-2 border-base-300">
+                          <%= if MapSet.member?(@loading_remote_replies, post.id) do %>
+                            <div class="flex items-center gap-2 text-sm text-base-content/70">
+                              <.spinner size="xs" />
+                              <span>Loading replies...</span>
+                            </div>
+                          <% else %>
+                            <button
+                              phx-click="load_remote_replies"
+                              phx-value-post_id={post.id}
+                              phx-value-activitypub_id={post.activitypub_id || ""}
+                              class="text-sm text-primary hover:underline font-medium"
+                              type="button"
+                            >
+                              Load replies
+                            </button>
+                          <% end %>
                         </div>
                       <% end %>
                     <% end %>
-                    
-<!-- View All Replies Link -->
-                    <%= if post.reply_count > length(replies) do %>
-                      <button
-                        phx-click="navigate_to_post"
-                        phx-value-id={post.id}
-                        class="text-sm text-primary hover:underline font-medium"
-                        type="button"
-                      >
-                        View all {post.reply_count} replies →
-                      </button>
-                    <% end %>
-                  </div>
-                <% end %>
+                  <% end %>
+                  <!-- Close else block for is_lemmy_post -->
+                </div>
               <% end %>
-              <!-- Close else block for is_lemmy_post -->
-            <% end %>
+            </div>
           <% end %>
           <!-- Close else for non-RSS filter -->
 
@@ -1432,31 +1539,25 @@
           
 <!-- Load More Button -->
           <%= if length(@timeline_posts) >= 20 do %>
-            <div class="py-4">
+            <div class="py-4 timeline-load-more-zone">
               <%= if @loading_more do %>
-                <div class="flex items-center justify-center gap-2 mb-4 text-sm text-base-content/70">
-                  <.spinner size="sm" />
-                  <span>Loading more posts...</span>
+                <div class="h-16 rounded-xl border border-base-300 bg-base-100/70 flex items-center justify-center">
+                  <div class="flex items-center gap-2 text-sm text-base-content/70">
+                    <.spinner size="sm" />
+                    <span>Loading more posts...</span>
+                  </div>
                 </div>
-              <% end %>
-              <div class="text-center mb-4">
-                <button
-                  phx-click="load_more_posts"
-                  class="btn btn-ghost"
-                  disabled={@loading_more}
-                >
-                  {if @loading_more, do: "Loading...", else: "Load More"}
-                </button>
-              </div>
-              <%= if @loading_more do %>
-                <div class="space-y-4">
-                  <%= for _ <- 1..3 do %>
-                    <.post_skeleton />
-                  <% end %>
+              <% else %>
+                <div class="text-center mb-4">
+                  <button phx-click="load_more_posts" class="btn btn-ghost">
+                    Load More
+                  </button>
                 </div>
               <% end %>
             </div>
           <% end %>
+
+          <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true"></div>
         <% end %>
         <!-- End of loading_timeline check -->
       </div>
@@ -1639,6 +1740,7 @@
     time_format={@time_format}
     user_statuses={@user_statuses || %{}}
     current_user={@current_user}
+    can_like={true}
     is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
     like_count={(@modal_post && @modal_post.like_count) || 0}
   />

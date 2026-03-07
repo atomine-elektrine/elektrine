@@ -23,9 +23,9 @@
 
 <div class="navbar bg-base-200/80 backdrop-blur-sm shadow-md sticky top-0 z-50">
   <div class="max-w-7xl mx-auto w-full flex items-center px-4 sm:px-6 lg:px-8">
-    <div class="navbar-start">
-      <div class="dropdown">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-square lg:hidden">
+    <div class="navbar-start items-center gap-2 sm:gap-3">
+      <div class="dropdown flex-shrink-0">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-square lg:hidden flex-shrink-0">
           <.icon name="hero-bars-3" class="h-6 w-6" />
         </div>
         <ul
@@ -68,7 +68,7 @@
           <% end %>
         </ul>
       </div>
-      <a href="/" class="btn btn-ghost px-1 sm:px-2">
+      <a href="/" class="btn btn-ghost px-2 sm:px-3 flex-shrink-0">
         <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
       </a>
     </div>
@@ -90,9 +90,50 @@
         </form>
       </div>
     </div>
-    <div class="navbar-end items-center gap-1 sm:gap-2 lg:gap-3">
+    <div class="navbar-end items-center gap-2 sm:gap-3 lg:gap-3">
       <%= if @current_user do %>
-        <!-- Status Selector (desktop only) -->
+        <div class="dropdown dropdown-end flex-shrink-0" data-test="global-composer">
+          <div
+            tabindex="0"
+            role="button"
+            class="btn btn-secondary btn-sm rounded-full gap-2 px-3 shadow-sm"
+            title="Create"
+          >
+            <.icon name="hero-plus" class="w-4 h-4" />
+            <span class="hidden sm:inline">Create</span>
+          </div>
+          <div
+            tabindex="0"
+            class="dropdown-content z-[100] mt-3 w-80 rounded-2xl border border-base-300/70 bg-base-100/95 p-2 shadow-xl backdrop-blur-sm"
+          >
+            <div class="px-3 py-2">
+              <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/50">
+                Quick Create
+              </p>
+              <p class="mt-1 text-sm text-base-content/70">
+                Start a post, message, email, task, event, list, or note.
+              </p>
+            </div>
+            <div class="mt-1 space-y-1">
+              <%= for item <- global_composer_items() do %>
+                <a
+                  href={item.href}
+                  class="flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-base-200/80"
+                >
+                  <div class="mt-0.5 rounded-lg border border-base-300 bg-base-200 p-2">
+                    <.icon name={item.icon} class="h-4 w-4" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium">{item.label}</p>
+                    <p class="text-xs text-base-content/65">{item.detail}</p>
+                  </div>
+                </a>
+              <% end %>
+            </div>
+          </div>
+        </div>
+        
+<!-- Status Selector (desktop only) -->
         <div
           class="dropdown dropdown-end hidden lg:flex"
           id="status-selector-desktop"
@@ -248,11 +289,11 @@
           </div>
         </.link>
 
-        <div class="dropdown dropdown-end" data-test="user-menu">
+        <div class="dropdown dropdown-end flex-shrink-0" data-test="user-menu">
           <div
             tabindex="0"
             role="button"
-            class="cursor-pointer rounded-full rainbow-glow-hover p-0 leading-none flex"
+            class="cursor-pointer rounded-full rainbow-glow-hover p-0 leading-none flex flex-shrink-0"
           >
             <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
           </div>

@@ -16,7 +16,7 @@ defmodule Elektrine.Email.Receiver do
       with :ok <- validate_webhook(params),
            {:ok, mailbox} <- find_recipient_mailbox(params),
            :ok <- check_blocked_sender(mailbox.user_id, params),
-           {:ok, message} <- store_incoming_message(mailbox.id, params) do
+           {:ok, message} <- store_incoming_message(mailbox, params) do
         message = apply_user_filters(message, mailbox.user_id)
 
         if mailbox do
@@ -505,7 +505,10 @@ defmodule Elektrine.Email.Receiver do
     end
   end
 
-  defp store_incoming_message(mailbox_id, params) do
+  defp store_incoming_message(%Mailbox{} = mailbox, params) do
+    mailbox_id = mailbox.id
+    mailbox_user_id = mailbox.user_id
+
     sender_email = sanitize_address_header(params["from"] || params["mail_from"])
     attachments_metadata = prepare_attachments_metadata(params["attachments"])
     in_reply_to = extract_thread_header(params, ["in_reply_to", "in-reply-to"])
@@ -537,7 +540,7 @@ defmodule Elektrine.Email.Receiver do
       if message_attrs["spam"] do
         message_attrs
       else
-        Email.categorize_message(message_attrs)
+        Email.categorize_message(message_attrs, user_id: mailbox_user_id)
       end
 
     valid_message_keys = ~w(

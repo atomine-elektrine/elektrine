@@ -19,9 +19,13 @@
 
 <div class="navbar bg-base-200/80 backdrop-blur-sm shadow-md sticky top-0 z-50">
   <div class="max-w-7xl mx-auto w-full flex items-center px-4 sm:px-6 lg:px-8 gap-2">
-    <div class="navbar-start !w-auto flex-1 min-w-0">
-      <div class="dropdown">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-square 2xl:hidden">
+    <div class="navbar-start !w-auto flex-1 min-w-0 items-center gap-2 sm:gap-3">
+      <div class="dropdown flex-shrink-0">
+        <div
+          tabindex="0"
+          role="button"
+          class="btn btn-ghost btn-square 2xl:hidden flex-shrink-0"
+        >
           <.icon name="hero-bars-3" class="h-6 w-6" />
         </div>
         <ul
@@ -181,7 +185,7 @@
       </div>
       <.link
         href={~p"/pripyat"}
-        class="btn btn-ghost text-sm sm:text-xl px-1 sm:px-4 font-serif-accent"
+        class="btn btn-ghost text-sm sm:text-xl px-2 sm:px-4 flex-shrink-0 font-serif-accent"
       >
         <img src="/images/logo.svg" alt="Elektrine" class="h-6 w-auto" />
         <span class="badge badge-sm badge-primary ml-2 hidden sm:inline-flex">Admin</span>
@@ -274,7 +278,7 @@
       </ul>
     </div>
 
-    <div class="navbar-end !w-auto flex-shrink-0 gap-1 sm:gap-2 overflow-visible">
+    <div class="navbar-end !w-auto flex-shrink-0 gap-2 sm:gap-3 overflow-visible">
       <%= if @current_user do %>
         <div class="hidden 2xl:block mr-1">
           <label for="admin-quick-jump" class="sr-only">Quick jump</label>
@@ -306,7 +310,7 @@
 <!-- Notification Bell -->
         <.link
           href="/notifications"
-          class="indicator mr-1 sm:mr-2 flex items-center no-glow flex-shrink-0"
+          class="indicator flex items-center no-glow flex-shrink-0"
           title="Notifications"
         >
           <%= if assigns[:notification_count] && @notification_count > 0 do %>
@@ -330,7 +334,7 @@
 <!-- Exit Admin Button -->
         <.link
           href={~p"/email"}
-          class="btn btn-ghost btn-sm mr-1 sm:mr-2 hidden xl:flex flex-shrink-0"
+          class="btn btn-ghost btn-sm hidden xl:flex flex-shrink-0"
         >
           <.icon name="hero-arrow-left" class="w-4 h-4" /> Exit Admin
         </.link>
@@ -340,7 +344,7 @@
           <div
             tabindex="0"
             role="button"
-            class="cursor-pointer rounded-full rainbow-glow-hover p-0 leading-none flex"
+            class="cursor-pointer rounded-full rainbow-glow-hover p-0 leading-none flex flex-shrink-0"
           >
             <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
           </div>

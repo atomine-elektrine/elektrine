@@ -20,6 +20,8 @@ defmodule Elektrine.Email.Filter do
   ## Actions Structure
   ```
   %{
+    "move_to_digest" => true,
+    "move_to_ledger" => true,
     "move_to_folder" => folder_id,
     "add_label" => label_id,
     "mark_as_read" => true,
@@ -54,7 +56,7 @@ defmodule Elektrine.Email.Filter do
     matches_regex not_matches_regex
     greater_than less_than
   )
-  @valid_actions ~w(move_to_folder add_label remove_label mark_as_read mark_as_unread mark_as_spam archive delete star unstar set_priority forward_to)
+  @valid_actions ~w(move_to_digest move_to_ledger move_to_folder add_label remove_label mark_as_read mark_as_unread mark_as_spam archive delete star unstar set_priority forward_to)
   @valid_priorities ~w(high normal low)
 
   @doc """

@@ -4,6 +4,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
   """
 
   import Phoenix.Component
+  import Phoenix.LiveView
   alias ElektrineWeb.Components.Social.PostUtilities
 
   # Apply timeline filter to socket
@@ -75,10 +76,95 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
         _ ->
           socket.assigns.timeline_posts
       end
+      |> dedupe_posts()
 
     filtered_posts = filter_posts_by_software(filtered_posts, socket.assigns.software_filter)
+    filtered_posts = filter_posts_by_search_query(filtered_posts, socket.assigns[:search_query])
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
-    assign(socket, :filtered_posts, filtered_posts)
+    filtered_posts = dedupe_posts(filtered_posts)
+    assign_filtered_posts(socket, filtered_posts)
+  end
+
+  def assign_filtered_posts(socket, filtered_posts) when is_list(filtered_posts) do
+    previous_posts = socket.assigns[:filtered_posts] || []
+    previous_ids = socket.assigns[:filtered_post_ids] || []
+    previous_posts_by_id = Map.new(previous_posts, fn post -> {post.id, post} end)
+    current_ids = Enum.map(filtered_posts, & &1.id)
+
+    socket =
+      socket
+      |> assign(:filtered_posts, filtered_posts)
+      |> assign(:filtered_post_ids, current_ids)
+
+    cond do
+      previous_ids == current_ids ->
+        changed_posts =
+          Enum.filter(filtered_posts, fn post ->
+            Map.get(previous_posts_by_id, post.id) != post
+          end)
+
+        Enum.reduce(changed_posts, socket, fn post, acc ->
+          stream_insert(acc, :timeline_filtered_posts, post)
+        end)
+
+      ids_prefixed?(previous_ids, current_ids) ->
+        appended_posts = Enum.drop(filtered_posts, length(previous_ids))
+
+        Enum.reduce(appended_posts, socket, fn post, acc ->
+          stream_insert(acc, :timeline_filtered_posts, post, at: -1)
+        end)
+
+      true ->
+        stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
+    end
+  end
+
+  def assign_filtered_posts(socket, _), do: assign_filtered_posts(socket, [])
+
+  def refresh_filtered_posts_stream(socket) do
+    stream(socket, :timeline_filtered_posts, socket.assigns[:filtered_posts] || [], reset: true)
+  end
+
+  def refresh_filtered_posts(socket, post_ids) when is_list(post_ids) do
+    post_ids
+    |> Enum.uniq()
+    |> Enum.reduce(socket, fn post_id, acc -> refresh_filtered_post(acc, post_id) end)
+  end
+
+  def refresh_filtered_posts(socket, _), do: socket
+
+  def refresh_filtered_post(socket, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    case Enum.find(socket.assigns[:filtered_posts] || [], fn post ->
+           post.id == normalized_post_id
+         end) do
+      nil ->
+        socket
+
+      post ->
+        stream_insert(socket, :timeline_filtered_posts, post)
+    end
+  end
+
+  def refresh_posts_for_remote_actor(socket, remote_actor_id) do
+    post_ids =
+      socket.assigns[:filtered_posts]
+      |> Kernel.||([])
+      |> Enum.filter(&(&1.remote_actor_id == remote_actor_id))
+      |> Enum.map(& &1.id)
+
+    refresh_filtered_posts(socket, post_ids)
+  end
+
+  def refresh_posts_for_sender(socket, sender_id) do
+    post_ids =
+      socket.assigns[:filtered_posts]
+      |> Kernel.||([])
+      |> Enum.filter(&(&1.sender_id == sender_id))
+      |> Enum.map(& &1.id)
+
+    refresh_filtered_posts(socket, post_ids)
   end
 
   def filter_posts_by_software(posts, "all"), do: posts
@@ -114,6 +200,71 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
     end)
   end
 
+  def filter_posts_by_search_query(posts, query) when is_list(posts) do
+    normalized_query = normalize_search_query(query)
+
+    if normalized_query == "" do
+      posts
+    else
+      Enum.filter(posts, &post_matches_search_query?(&1, normalized_query))
+    end
+  end
+
+  def filter_posts_by_search_query(_, _), do: []
+
+  def remove_post_from_socket(socket, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    updated_recent_ids =
+      Enum.reject(socket.assigns[:recently_loaded_post_ids] || [], &(&1 == normalized_post_id))
+
+    updated_special_view_cache =
+      socket.assigns[:special_view_cache]
+      |> Kernel.||(%{})
+      |> Enum.into(%{}, fn {key, entry} ->
+        updated_entry =
+          entry
+          |> Map.update(:posts, [], fn posts ->
+            Enum.reject(posts, &(&1.id == normalized_post_id))
+          end)
+          |> Map.update(:post_replies, %{}, fn replies ->
+            replies
+            |> Map.delete(normalized_post_id)
+            |> Map.new(fn {parent_id, reply_list} ->
+              {parent_id, Enum.reject(reply_list, &(Map.get(&1, :id) == normalized_post_id))}
+            end)
+          end)
+
+        {key, updated_entry}
+      end)
+
+    socket
+    |> update(:timeline_posts, fn posts ->
+      Enum.reject(posts || [], &(&1.id == normalized_post_id))
+    end)
+    |> assign(
+      :base_timeline_posts,
+      Enum.reject(socket.assigns[:base_timeline_posts] || [], &(&1.id == normalized_post_id))
+    )
+    |> assign(
+      :queued_posts,
+      Enum.reject(socket.assigns[:queued_posts] || [], &(&1.id == normalized_post_id))
+    )
+    |> assign(
+      :post_replies,
+      remove_post_from_replies(socket.assigns[:post_replies] || %{}, normalized_post_id)
+    )
+    |> assign(:special_view_cache, updated_special_view_cache)
+    |> assign(
+      :loading_remote_replies,
+      MapSet.delete(socket.assigns[:loading_remote_replies] || MapSet.new(), normalized_post_id)
+    )
+    |> assign(:recently_loaded_post_ids, updated_recent_ids)
+    |> assign(:recently_loaded_count, length(updated_recent_ids))
+    |> maybe_clear_reply_targets(normalized_post_id)
+    |> apply_timeline_filter()
+  end
+
   defp software_matches?(nil, _), do: false
 
   defp software_matches?(instance_sw, filter) do
@@ -128,7 +279,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
   end
 
   defp maybe_prioritize_non_community_posts(posts, socket) do
-    if socket.assigns.current_filter in ["all", "following", "federated", "public"] &&
+    if socket.assigns.current_filter in [
+         "all",
+         "explore",
+         "following",
+         "home",
+         "federated",
+         "public"
+       ] &&
          socket.assigns.timeline_filter == "all" &&
          socket.assigns.software_filter == "all" do
       {non_community, community} =
@@ -184,9 +342,20 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
 
   def merge_and_sort_posts(existing_posts, new_posts) do
     (existing_posts ++ new_posts)
-    |> Enum.uniq_by(& &1.id)
+    |> dedupe_posts()
     |> Enum.sort_by(& &1.inserted_at, {:desc, NaiveDateTime})
   end
+
+  def dedupe_posts(posts) when is_list(posts) do
+    Enum.uniq_by(posts, fn post ->
+      Map.get(post, :id) ||
+        Map.get(post, :activitypub_id) ||
+        Map.get(post, :ap_id) ||
+        inspect(post)
+    end)
+  end
+
+  def dedupe_posts(_), do: []
 
   def get_pending_follows(user_id, posts) do
     remote_actor_ids =
@@ -201,6 +370,88 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
       Elektrine.Profiles.remote_following_status_batch(user_id, remote_actor_ids)
       |> Enum.filter(fn {_actor_id, status} -> status == :pending end)
       |> Map.new(fn {actor_id, _status} -> {{:remote, actor_id}, true} end)
+    end
+  end
+
+  defp ids_prefixed?(prefix_ids, full_ids) do
+    prefix_length = length(prefix_ids)
+    prefix_length <= length(full_ids) && Enum.take(full_ids, prefix_length) == prefix_ids
+  end
+
+  defp normalize_post_id(post_id) when is_integer(post_id), do: post_id
+
+  defp normalize_post_id(post_id) when is_binary(post_id) do
+    case Integer.parse(post_id) do
+      {id, ""} -> id
+      _ -> post_id
+    end
+  end
+
+  defp normalize_post_id(post_id), do: post_id
+
+  defp normalize_search_query(query) when is_binary(query), do: String.trim(query)
+  defp normalize_search_query(_), do: ""
+
+  defp post_matches_search_query?(post, normalized_query) do
+    sender = Map.get(post, :sender)
+    remote_actor = Map.get(post, :remote_actor)
+
+    searchable_values =
+      [
+        Map.get(post, :content),
+        Map.get(post, :title),
+        (is_map(sender) && Map.get(sender, :username)) || nil,
+        (is_map(sender) && Map.get(sender, :display_name)) || nil,
+        (is_map(remote_actor) && Map.get(remote_actor, :username)) || nil,
+        (is_map(remote_actor) && Map.get(remote_actor, :display_name)) || nil,
+        (is_map(remote_actor) && Map.get(remote_actor, :domain)) || nil
+      ]
+
+    Enum.any?(searchable_values, fn
+      value when is_binary(value) ->
+        value
+        |> String.downcase()
+        |> String.contains?(normalized_query)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp remove_post_from_replies(replies_by_post_id, normalized_post_id) do
+    replies_by_post_id
+    |> Map.delete(normalized_post_id)
+    |> Map.new(fn {parent_id, replies} ->
+      {parent_id, Enum.reject(replies, &(Map.get(&1, :id) == normalized_post_id))}
+    end)
+  end
+
+  defp maybe_clear_reply_targets(socket, normalized_post_id) do
+    socket
+    |> maybe_clear_reply_to_post(normalized_post_id)
+    |> maybe_clear_reply_to_reply(normalized_post_id)
+  end
+
+  defp maybe_clear_reply_to_post(socket, normalized_post_id) do
+    case socket.assigns[:reply_to_post] do
+      %{id: ^normalized_post_id} ->
+        socket
+        |> assign(:reply_to_post, nil)
+        |> assign(:reply_to_post_recent_replies, [])
+        |> assign(:reply_content, "")
+
+      _ ->
+        socket
+    end
+  end
+
+  defp maybe_clear_reply_to_reply(socket, normalized_post_id) do
+    if socket.assigns[:reply_to_reply_id] == normalized_post_id do
+      socket
+      |> assign(:reply_to_reply_id, nil)
+      |> assign(:reply_content, "")
+    else
+      socket
     end
   end
 end

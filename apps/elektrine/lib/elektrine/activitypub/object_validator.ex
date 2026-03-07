@@ -7,6 +7,7 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
   """
 
   require Logger
+  alias Elektrine.Security.URLValidator
 
   @doc """
   Validates an activity before processing.
@@ -44,7 +45,11 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
   defp validate_actor(%{"actor" => actor} = activity) when is_binary(actor) do
     case URI.parse(actor) do
       %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        {:ok, activity}
+        if URLValidator.private_ip?(host) do
+          {:error, "Invalid actor URI"}
+        else
+          {:ok, activity}
+        end
 
       _ ->
         {:error, "Invalid actor URI"}

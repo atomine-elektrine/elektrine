@@ -10,9 +10,9 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-alias Elektrine.Accounts
-alias Elektrine.Email
-alias Elektrine.Repo
+alias Elektrine.{Accounts, Calendar, Email, Messaging, PasswordManager, Profiles, Repo, Social}
+alias Elektrine.Email.Contacts
+import Ecto.Query
 
 # Only run in development environment
 if Mix.env() == :dev do
@@ -136,8 +136,6 @@ if Mix.env() == :dev do
 
   # Helper function to get mailbox by email
   get_mailbox_by_email = fn email ->
-    import Ecto.Query
-
     Email.Mailbox
     |> where(email: ^email)
     |> Repo.one()
@@ -177,498 +175,1964 @@ if Mix.env() == :dev do
         existing
     end
 
-  # Check if we already have seed emails
-  existing_count = Repo.aggregate(Email.Message, :count, :id)
+  IO.puts("Seeding email coverage...")
 
-  if existing_count == 0 do
-    IO.puts("Creating seed emails...")
+  now = DateTime.utc_now() |> DateTime.truncate(:second)
+  days_ago = fn days -> DateTime.add(now, -days * 86_400, :second) end
+  hours_ago = fn hours -> DateTime.add(now, -hours * 3_600, :second) end
+  days_from_now = fn days -> DateTime.add(now, days * 86_400, :second) end
+  hours_from_now = fn hours -> DateTime.add(now, hours * 3_600, :second) end
+  seed_message_id = fn seed_key -> "seed-#{seed_key}@elektrine.dev" end
 
-    # Helper function to create messages
-    create_message = fn attrs ->
-      base_attrs = %{
-        message_id: "seed-#{System.unique_integer()}@elektrine.com",
-        inserted_at: DateTime.add(DateTime.utc_now(), -Enum.random(1..30), :day),
-        updated_at: DateTime.add(DateTime.utc_now(), -Enum.random(1..30), :day)
-      }
+  {legacy_feed_updates, _} =
+    from(m in Email.Message,
+      where: m.mailbox_id == ^test_mailbox.id and m.category == "paper_pile"
+    )
+    |> Repo.update_all(set: [category: "feed"])
 
-      attrs = Map.merge(base_attrs, attrs)
-      changeset = Email.Message.changeset(%Email.Message{}, attrs)
-      Repo.insert!(changeset)
+  if legacy_feed_updates > 0 do
+    IO.puts("✓ Migrated #{legacy_feed_updates} legacy paper_pile messages to feed")
+  end
+
+  create_seed_message = fn attrs ->
+    seed_key = Map.fetch!(attrs, :seed_key)
+    attrs = Map.delete(attrs, :seed_key)
+    inserted_at = Map.get(attrs, :inserted_at, hours_ago.(24))
+
+    attrs =
+      attrs
+      |> Map.put_new(:message_id, seed_message_id.(seed_key))
+      |> Map.put_new(:inserted_at, inserted_at)
+      |> Map.put_new(:updated_at, inserted_at)
+
+    mailbox_id = Map.fetch!(attrs, :mailbox_id)
+    message_id = Map.fetch!(attrs, :message_id)
+
+    case Repo.get_by(Email.Message, mailbox_id: mailbox_id, message_id: message_id) do
+      nil ->
+        case Map.get(attrs, :status) do
+          "draft" ->
+            attrs
+            |> then(&Email.Message.changeset(%Email.Message{}, &1))
+            |> Repo.insert!()
+
+          _ ->
+            case Email.create_message(attrs) do
+              {:ok, _message} ->
+                :ok
+
+              {:error, reason} ->
+                raise "Failed to create seed email #{message_id}: #{inspect(reason)}"
+            end
+        end
+
+        :created
+
+      _existing ->
+        :existing
     end
+  end
 
-    # INBOX EMAILS (Regular important emails)
-    inbox_emails = [
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "sarah@company.com",
-        to: "testuser@elektrine.com",
-        subject: "Q4 Planning Meeting Tomorrow",
-        text_body:
-          "Hi there,\n\nJust a reminder about our Q4 planning meeting tomorrow at 2 PM. Please bring your project updates.\n\nBest,\nSarah",
-        html_body:
-          "<p>Hi there,</p><p>Just a reminder about our Q4 planning meeting tomorrow at 2 PM. Please bring your project updates.</p><p>Best,<br>Sarah</p>",
-        category: "inbox",
-        status: "received",
-        read: false
-      },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "mike@client.org",
-        to: "testuser@elektrine.com",
-        subject: "Project Approval - Next Steps",
-        text_body:
-          "Great news! The project has been approved. Let's schedule a kickoff meeting next week.",
-        html_body:
-          "<p>Great news! The project has been approved. Let's schedule a kickoff meeting next week.</p>",
-        category: "inbox",
-        status: "received",
-        read: true
-      },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "security@bank.com",
-        to: "testuser@elektrine.com",
-        subject: "Your Account Statement is Ready",
-        text_body:
-          "Your monthly account statement is now available for download in your online banking portal.",
-        html_body:
-          "<p>Your monthly account statement is now available for download in your online banking portal.</p>",
-        category: "inbox",
-        status: "received",
-        read: false,
-        is_receipt: true
-      },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "john.doe@business.com",
-        to: "testuser@elektrine.com",
-        subject: "Project Documents - Please Review",
-        text_body: """
-        Hi there,
+  launch_root_id = seed_message_id.("thread-launch-blockers-root")
+  launch_reply_id = seed_message_id.("thread-launch-blockers-reply")
 
-        Please find the attached documents for your review:
+  inbox_emails = [
+    %{
+      seed_key: "inbox-planning-meeting",
+      mailbox_id: test_mailbox.id,
+      from: "sarah@company.com",
+      to: "testuser@elektrine.com",
+      cc: "ops@company.com, design@agency.com",
+      subject: "Q4 Planning Meeting Tomorrow",
+      text_body:
+        "Hi there,\n\nJust a reminder about our Q4 planning meeting tomorrow at 2 PM. Please bring your project updates and the revised launch timeline.\n\nBest,\nSarah",
+      html_body:
+        "<p>Hi there,</p><p>Just a reminder about our Q4 planning meeting tomorrow at <strong>2 PM</strong>. Please bring your project updates and the revised launch timeline.</p><p>Best,<br>Sarah</p>",
+      category: "inbox",
+      status: "received",
+      priority: "high",
+      read: false,
+      inserted_at: hours_ago.(4),
+      metadata: %{"sender_verified" => true, "meeting" => true}
+    },
+    %{
+      seed_key: "inbox-contract-review",
+      mailbox_id: test_mailbox.id,
+      from: "john.doe@business.com",
+      to: "testuser@elektrine.com",
+      subject: "Project Documents - Please Review",
+      text_body: """
+      Hi there,
 
-        1. project-proposal.pdf - Detailed project specifications
-        2. mockup-design.png - UI/UX design mockup  
-        3. budget-breakdown.xlsx - Cost analysis and timeline
+      Please find the attached documents for your review:
 
-        Let me know if you have any questions or need clarification on anything.
+      1. project-proposal.pdf
+      2. mockup-design.png
+      3. budget-breakdown.xlsx
 
-        Best regards,
-        John Doe
-        Senior Project Manager
-        """,
-        html_body: """
-        <p>Hi there,</p>
+      Let me know if you have any questions or need clarification on anything.
 
-        <p>Please find the attached documents for your review:</p>
-
-        <ol>
-          <li><strong>project-proposal.pdf</strong> - Detailed project specifications</li>
-          <li><strong>mockup-design.png</strong> - UI/UX design mockup</li>
-          <li><strong>budget-breakdown.xlsx</strong> - Cost analysis and timeline</li>
-        </ol>
-
-        <p>Let me know if you have any questions or need clarification on anything.</p>
-
-        <p>Best regards,<br>
-        <strong>John Doe</strong><br>
-        Senior Project Manager</p>
-        """,
-        attachments: %{
-          "1" => %{
-            "filename" => "project-proposal.pdf",
-            "content_type" => "application/pdf",
-            "size" => 245_760,
-            "content_id" => "attachment1@business.com"
-          },
-          "2" => %{
-            "filename" => "mockup-design.png",
-            "content_type" => "image/png",
-            "size" => 89432,
-            "content_id" => "attachment2@business.com"
-          },
-          "3" => %{
-            "filename" => "budget-breakdown.xlsx",
-            "content_type" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "size" => 12856,
-            "content_id" => "attachment3@business.com"
-          }
+      Best regards,
+      John Doe
+      Senior Project Manager
+      """,
+      html_body: """
+      <p>Hi there,</p>
+      <p>Please find the attached documents for your review:</p>
+      <ol>
+        <li><strong>project-proposal.pdf</strong></li>
+        <li><strong>mockup-design.png</strong></li>
+        <li><strong>budget-breakdown.xlsx</strong></li>
+      </ol>
+      <p>Let me know if you have any questions or need clarification on anything.</p>
+      <p>Best regards,<br><strong>John Doe</strong><br>Senior Project Manager</p>
+      """,
+      attachments: %{
+        "1" => %{
+          "filename" => "project-proposal.pdf",
+          "content_type" => "application/pdf",
+          "size" => 245_760,
+          "content_id" => "attachment1@business.com"
         },
-        has_attachments: true,
-        category: "inbox",
-        status: "received",
-        read: false,
-        metadata: %{
-          "attachment_count" => 3,
-          "total_attachment_size" => 348_048,
-          "sender_verified" => true
+        "2" => %{
+          "filename" => "mockup-design.png",
+          "content_type" => "image/png",
+          "size" => 89_432,
+          "content_id" => "attachment2@business.com"
+        },
+        "3" => %{
+          "filename" => "budget-breakdown.xlsx",
+          "content_type" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "size" => 12_856,
+          "content_id" => "attachment3@business.com"
         }
+      },
+      category: "inbox",
+      status: "received",
+      flagged: true,
+      read: false,
+      inserted_at: days_ago.(1),
+      metadata: %{
+        "attachment_count" => 3,
+        "total_attachment_size" => 348_048,
+        "sender_verified" => true
       }
-    ]
+    },
+    %{
+      seed_key: "thread-launch-blockers-root",
+      mailbox_id: test_mailbox.id,
+      from: "nina@company.com",
+      to: "testuser@elektrine.com",
+      subject: "Q2 launch blockers before Thursday",
+      text_body: """
+      Hey,
 
-    # THE PAPER PILE (Bulk/promotional emails)
-    paper_pile_emails = [
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "deals@retailstore.com",
-        to: "testuser@elektrine.com",
-        subject: "Black Friday Sale - Up to 70% Off Everything!",
-        text_body:
-          "Don't miss our biggest sale of the year! Shop now and save big on all your favorite items.",
-        html_body: """
-        <html>
-        <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                  <!-- Header Banner -->
-                  <tr>
-                    <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">BLACK FRIDAY SALE</h1>
-                      <p style="color: #ffffff; margin: 10px 0 0 0; font-size: 18px;">Up to 70% Off Everything!</p>
-                    </td>
-                  </tr>
+      Before Thursday's review, can you send over:
 
-                  <!-- Product Showcase -->
-                  <tr>
-                    <td style="padding: 30px 20px;">
-                      <table width="100%" cellpadding="10" cellspacing="0" border="0">
-                        <tr>
-                          <td width="50%" align="center" style="vertical-align: top;">
-                            <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin-bottom: 10px;">
-                              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23667eea' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='20' text-anchor='middle' dy='.3em'%3EProduct 1%3C/text%3E%3C/svg%3E" width="200" height="200" alt="Product 1" style="display: block; border-radius: 4px;">
-                              <h3 style="margin: 15px 0 5px 0; color: #333;">Smart Watch Pro</h3>
-                              <p style="color: #666; margin: 0; text-decoration: line-through;">$299.99</p>
-                              <p style="color: #667eea; margin: 5px 0; font-size: 24px; font-weight: bold;">$89.99</p>
-                              <a href="#" style="display: inline-block; background-color: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Shop Now</a>
-                            </div>
-                          </td>
-                          <td width="50%" align="center" style="vertical-align: top;">
-                            <div style="background-color: #f8f8f8; padding: 20px; border-radius: 8px; margin-bottom: 10px;">
-                              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23764ba2' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='20' text-anchor='middle' dy='.3em'%3EProduct 2%3C/text%3E%3C/svg%3E" width="200" height="200" alt="Product 2" style="display: block; border-radius: 4px;">
-                              <h3 style="margin: 15px 0 5px 0; color: #333;">Wireless Earbuds</h3>
-                              <p style="color: #666; margin: 0; text-decoration: line-through;">$149.99</p>
-                              <p style="color: #764ba2; margin: 5px 0; font-size: 24px; font-weight: bold;">$44.99</p>
-                              <a href="#" style="display: inline-block; background-color: #764ba2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Shop Now</a>
-                            </div>
-                          </td>
-                        </tr>
-                      </table>
+      - the final risk register
+      - the fallback plan for payments
+      - the customer comms draft
 
-                      <p style="text-align: center; color: #666; margin: 20px 0; font-size: 14px;">Sale ends Sunday at midnight. Don't miss out!</p>
-                    </td>
-                  </tr>
+      I only need rough bullets, not polished copy.
 
-                  <!-- Footer -->
-                  <tr>
-                    <td style="background-color: #f8f8f8; padding: 20px; text-align: center;">
-                      <p style="color: #999; font-size: 12px; margin: 0;">RetailStore Inc. | 123 Shopping St, Mall City, MC 12345</p>
-                      <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
-                        <a href="#" style="color: #667eea; text-decoration: none;">Unsubscribe</a> |
-                        <a href="#" style="color: #667eea; text-decoration: none;">View in Browser</a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
+      Nina
+      """,
+      html_body: nil,
+      category: "inbox",
+      status: "received",
+      read: true,
+      answered: true,
+      open_count: 2,
+      first_opened_at: days_ago.(3),
+      opened_at: days_ago.(2),
+      inserted_at: days_ago.(3)
+    },
+    %{
+      seed_key: "thread-launch-blockers-followup",
+      mailbox_id: test_mailbox.id,
+      from: "nina@company.com",
+      to: "testuser@elektrine.com",
+      subject: "Re: Q2 launch blockers before Thursday",
+      text_body:
+        "Thanks. The customer comms outline is enough. Can you add one note on rollback ownership before tomorrow morning?",
+      html_body:
+        "<p>Thanks. The customer comms outline is enough. Can you add one note on rollback ownership before tomorrow morning?</p>",
+      category: "inbox",
+      status: "received",
+      read: false,
+      in_reply_to: launch_reply_id,
+      inserted_at: hours_ago.(18)
+    },
+    %{
+      seed_key: "inbox-plaintext-notes",
+      mailbox_id: test_mailbox.id,
+      from: "alice@example.com",
+      to: "testuser@elektrine.com",
+      subject: "Simple plaintext message",
+      text_body: """
+      Hello! This is a simple plaintext email with no HTML formatting.
+
+      It has multiple paragraphs and should display with proper line breaks.
+
+      The mobile show view should still feel good with:
+      - bullets
+      - long lines that wrap cleanly
+      - a signature block
+
+      Best regards,
+      Alice
+      """,
+      html_body: nil,
+      category: "inbox",
+      status: "received",
+      read: false,
+      inserted_at: hours_ago.(9)
+    }
+  ]
+
+  digest_emails = [
+    %{
+      seed_key: "digest-tech-roundup",
+      mailbox_id: test_mailbox.id,
+      from: "newsletter@techblog.com",
+      to: "testuser@elektrine.com",
+      subject: "Weekly Tech Digest - AI Breakthroughs & More",
+      text_body:
+        "This week in tech: new AI models, startup funding rounds, and the latest gadget reviews.",
+      html_body: """
+      <html>
+      <body style="margin:0;padding:24px;background:#0f172a;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="center">
+              <table width="620" cellpadding="0" cellspacing="0" border="0" style="background:#111827;border-radius:18px;overflow:hidden;">
+                <tr>
+                  <td style="padding:36px;background:linear-gradient(135deg,#1d4ed8,#06b6d4);color:#fff;">
+                    <p style="margin:0;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;">TechBlog Weekly</p>
+                    <h1 style="margin:12px 0 8px;font-size:28px;">AI models, cloud spend, and the gadget cycle</h1>
+                    <p style="margin:0;color:#dbeafe;">A compact issue with three stories worth forwarding.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:28px;color:#d1d5db;">
+                    <h2 style="margin:0 0 10px;color:#fff;font-size:20px;">Top Story</h2>
+                    <p style="margin:0 0 18px;line-height:1.6;">Leading labs are shipping smaller models with better reasoning-per-dollar, which is already changing internal tooling budgets.</p>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="width:50%;padding-right:12px;vertical-align:top;">
+                          <div style="background:#1f2937;border-radius:12px;padding:16px;">
+                            <h3 style="margin:0 0 8px;color:#fff;font-size:16px;">Funding</h3>
+                            <p style="margin:0;line-height:1.5;">Enterprise infra startup closes a large Series C round.</p>
+                          </div>
+                        </td>
+                        <td style="width:50%;padding-left:12px;vertical-align:top;">
+                          <div style="background:#1f2937;border-radius:12px;padding:16px;">
+                            <h3 style="margin:0 0 8px;color:#fff;font-size:16px;">Review</h3>
+                            <p style="margin:0;line-height:1.5;">A practical take on the newest flagship phone.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+      """,
+      category: "feed",
+      status: "received",
+      read: true,
+      is_newsletter: true,
+      open_count: 3,
+      first_opened_at: days_ago.(6),
+      opened_at: days_ago.(2),
+      inserted_at: days_ago.(6)
+    },
+    %{
+      seed_key: "digest-retail-sale",
+      mailbox_id: test_mailbox.id,
+      from: "deals@retailstore.com",
+      to: "testuser@elektrine.com",
+      subject: "Weekend Sale - Up to 70% Off",
+      text_body:
+        "Don't miss our biggest sale of the month. Smart home gear, headphones, and travel accessories are all discounted.",
+      html_body: """
+      <html>
+      <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;">
+        <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
+          <div style="padding:36px;text-align:center;background:linear-gradient(135deg,#7c3aed,#ef4444);color:#fff;">
+            <p style="margin:0 0 8px;font-size:13px;letter-spacing:1px;text-transform:uppercase;">RetailStore</p>
+            <h1 style="margin:0;font-size:34px;">Weekend Sale</h1>
+            <p style="margin:12px 0 0;font-size:18px;">Up to 70% off select gear</p>
+          </div>
+          <div style="padding:28px;">
+            <p style="margin:0 0 18px;color:#334155;line-height:1.6;">Fast picks for people who waited until the last minute.</p>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+              <div style="background:#f8fafc;border-radius:12px;padding:14px;text-align:center;">Smart Watch<br><strong>$89</strong></div>
+              <div style="background:#f8fafc;border-radius:12px;padding:14px;text-align:center;">Earbuds<br><strong>$44</strong></div>
+              <div style="background:#f8fafc;border-radius:12px;padding:14px;text-align:center;">Carry-on<br><strong>$59</strong></div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+      """,
+      category: "feed",
+      status: "received",
+      read: false,
+      is_newsletter: true,
+      inserted_at: days_ago.(2)
+    },
+    %{
+      seed_key: "digest-social-updates",
+      mailbox_id: test_mailbox.id,
+      from: "updates@socialmedia.com",
+      to: "testuser@elektrine.com",
+      subject: "You have 5 new notifications",
+      text_body:
+        "Check out what's happening in your network. 3 likes, 1 comment, and 1 new follower.",
+      html_body:
+        "<p>Check out what's happening in your network. <strong>3 likes</strong>, <strong>1 comment</strong>, and <strong>1 new follower</strong>.</p>",
+      category: "feed",
+      status: "received",
+      read: false,
+      is_notification: true,
+      inserted_at: hours_ago.(14)
+    },
+    %{
+      seed_key: "digest-community-plaintext",
+      mailbox_id: test_mailbox.id,
+      from: "newsletter@community.org",
+      to: "testuser@elektrine.com",
+      subject: "Weekly community update",
+      text_body: """
+      WEEKLY COMMUNITY NEWSLETTER
+      ==========================
+
+      - Tuesday: design systems meetup
+      - Wednesday: Elixir office hours
+      - Friday: shipping retrospective notes
+
+      Featured link:
+      https://community.example.com/notes
+
+      Unsubscribe:
+      https://community.example.com/unsubscribe
+      """,
+      html_body: nil,
+      category: "feed",
+      status: "received",
+      read: true,
+      is_newsletter: true,
+      inserted_at: days_ago.(9)
+    }
+  ]
+
+  ledger_emails = [
+    %{
+      seed_key: "ledger-bank-statement",
+      mailbox_id: test_mailbox.id,
+      from: "security@bank.com",
+      to: "testuser@elektrine.com",
+      subject: "Your Account Statement is Ready",
+      text_body:
+        "Your monthly account statement is now available for download in your online banking portal.",
+      html_body:
+        "<p>Your monthly account statement is now available for download in your online banking portal.</p>",
+      attachments: %{
+        "1" => %{
+          "filename" => "statement-september.pdf",
+          "content_type" => "application/pdf",
+          "size" => 432_188,
+          "content_id" => "statement@bank.com"
+        }
+      },
+      category: "ledger",
+      status: "received",
+      read: false,
+      is_receipt: true,
+      inserted_at: days_ago.(5)
+    },
+    %{
+      seed_key: "ledger-cloud-invoice",
+      mailbox_id: test_mailbox.id,
+      from: "billing@cloudvendor.com",
+      to: "testuser@elektrine.com",
+      subject: "Invoice #48291 for March",
+      text_body:
+        "Your March invoice is attached. Total due: $429.33. Auto-pay will run in 3 days.",
+      html_body: """
+      <html>
+      <body style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;">
+        <div style="max-width:620px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <p style="margin:0;color:#64748b;text-transform:uppercase;font-size:12px;">CloudVendor</p>
+              <h1 style="margin:8px 0 0;font-size:28px;color:#0f172a;">Invoice #48291</h1>
+            </div>
+            <div style="text-align:right;">
+              <p style="margin:0;color:#64748b;font-size:13px;">Amount due</p>
+              <p style="margin:8px 0 0;font-size:26px;color:#0f172a;"><strong>$429.33</strong></p>
+            </div>
+          </div>
+          <table width="100%" cellpadding="8" cellspacing="0" border="0" style="margin-top:24px;border-collapse:collapse;">
+            <tr><td style="border-top:1px solid #e2e8f0;color:#334155;">Compute</td><td style="border-top:1px solid #e2e8f0;text-align:right;color:#334155;">$214.11</td></tr>
+            <tr><td style="border-top:1px solid #e2e8f0;color:#334155;">Storage</td><td style="border-top:1px solid #e2e8f0;text-align:right;color:#334155;">$87.42</td></tr>
+            <tr><td style="border-top:1px solid #e2e8f0;color:#334155;">Bandwidth</td><td style="border-top:1px solid #e2e8f0;text-align:right;color:#334155;">$127.80</td></tr>
           </table>
-        </body>
-        </html>
-        """,
-        category: "paper_pile",
-        status: "received",
-        read: false,
-        is_newsletter: true
+        </div>
+      </body>
+      </html>
+      """,
+      attachments: %{
+        "1" => %{
+          "filename" => "cloudvendor-invoice-48291.pdf",
+          "content_type" => "application/pdf",
+          "size" => 182_440,
+          "content_id" => "invoice48291@cloudvendor.com"
+        }
       },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "newsletter@techblog.com",
-        to: "testuser@elektrine.com",
-        subject: "Weekly Tech Digest - AI Breakthroughs & More",
-        text_body:
-          "This week in tech: New AI models, startup funding rounds, and the latest gadget reviews.",
-        html_body: """
-        <html>
-        <body style="margin: 0; padding: 0; background-color: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #1a1a1a; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #2a2a2a; border-radius: 12px; overflow: hidden;">
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 40px 30px; text-align: center; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);">
-                      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40'%3E%3Crect fill='white' width='120' height='40' rx='4'/%3E%3Ctext x='50%25' y='50%25' fill='%231e3a8a' font-size='16' font-weight='bold' text-anchor='middle' dy='.3em'%3ETechBlog%3C/text%3E%3C/svg%3E" width="120" height="40" alt="TechBlog" style="display: block; margin: 0 auto;">
-                      <h1 style="color: #ffffff; margin: 20px 0 0 0; font-size: 28px; font-weight: 600;">Weekly Tech Digest</h1>
-                      <p style="color: #93c5fd; margin: 5px 0 0 0; font-size: 14px;">Your weekly dose of technology news</p>
-                    </td>
-                  </tr>
+      category: "ledger",
+      status: "received",
+      read: true,
+      is_receipt: true,
+      inserted_at: days_ago.(7),
+      metadata: %{"vendor" => "CloudVendor", "auto_pay" => true}
+    },
+    %{
+      seed_key: "ledger-flight-confirmation",
+      mailbox_id: test_mailbox.id,
+      from: "travel@airline.com",
+      to: "testuser@elektrine.com",
+      subject: "Flight Confirmation - NYC to LA",
+      text_body:
+        "Your flight is confirmed. Flight AA123 on June 15th, departing at 8:00 AM from JFK.",
+      html_body:
+        "<p>Your flight is confirmed. <strong>Flight AA123</strong> on June 15th, departing at 8:00 AM from JFK.</p>",
+      category: "ledger",
+      status: "received",
+      read: true,
+      is_receipt: true,
+      inserted_at: days_ago.(12)
+    },
+    %{
+      seed_key: "ledger-domain-renewal",
+      mailbox_id: test_mailbox.id,
+      from: "receipts@registrar.com",
+      to: "testuser@elektrine.com",
+      subject: "Receipt for domain renewal",
+      text_body:
+        "Your domain renewal for elektrine.dev has been processed successfully. Total charged: $18.99.",
+      html_body:
+        "<p>Your domain renewal for <strong>elektrine.dev</strong> has been processed successfully. Total charged: <strong>$18.99</strong>.</p>",
+      category: "ledger",
+      status: "received",
+      read: false,
+      is_receipt: true,
+      inserted_at: hours_ago.(30)
+    }
+  ]
 
-                  <!-- Main Article -->
-                  <tr>
-                    <td style="padding: 30px;">
-                      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='540' height='300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%2306b6d4'/%3E%3Cstop offset='100%25' style='stop-color:%233b82f6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='540' height='300'/%3E%3Ctext x='50%25' y='45%25' fill='white' font-size='24' font-weight='bold' text-anchor='middle'%3EAI Breakthrough:%3C/text%3E%3Ctext x='50%25' y='55%25' fill='white' font-size='20' text-anchor='middle'%3ENext-Gen Language Models%3C/text%3E%3C/svg%3E" width="540" height="300" alt="AI Feature" style="display: block; width: 100%; border-radius: 8px; margin-bottom: 20px;">
-
-                      <h2 style="color: #ffffff; margin: 0 0 10px 0; font-size: 24px;">Revolutionary AI Models Released</h2>
-                      <p style="color: #9ca3af; margin: 0 0 15px 0; line-height: 1.6;">Leading AI research labs have unveiled groundbreaking language models that demonstrate unprecedented reasoning capabilities, marking a significant leap forward in artificial intelligence development.</p>
-                      <a href="#" style="display: inline-block; color: #3b82f6; text-decoration: none; font-weight: 500;">Read more →</a>
-                    </td>
-                  </tr>
-
-                  <!-- Article Grid -->
-                  <tr>
-                    <td style="padding: 0 30px 30px 30px;">
-                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td width="48%" style="vertical-align: top; padding-right: 10px;">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='140'%3E%3Crect fill='%2310b981' width='250' height='140'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='16' text-anchor='middle' dy='.3em'%3EStartup Funding%3C/text%3E%3C/svg%3E" width="250" height="140" alt="Startup News" style="display: block; width: 100%; border-radius: 6px; margin-bottom: 10px;">
-                            <h3 style="color: #ffffff; margin: 0 0 5px 0; font-size: 16px;">$500M Series C Round</h3>
-                            <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.4;">Tech startup secures major funding for expansion.</p>
-                          </td>
-                          <td width="4%"></td>
-                          <td width="48%" style="vertical-align: top; padding-left: 10px;">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='140'%3E%3Crect fill='%23f59e0b' width='250' height='140'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='16' text-anchor='middle' dy='.3em'%3EGadget Review%3C/text%3E%3C/svg%3E" width="250" height="140" alt="Gadget Review" style="display: block; width: 100%; border-radius: 6px; margin-bottom: 10px;">
-                            <h3 style="color: #ffffff; margin: 0 0 5px 0; font-size: 16px;">Latest Smartphone Review</h3>
-                            <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.4;">In-depth look at the newest flagship device.</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-
-                  <!-- Footer -->
-                  <tr>
-                    <td style="background-color: #1a1a1a; padding: 20px 30px; text-align: center;">
-                      <p style="color: #6b7280; font-size: 12px; margin: 0;">TechBlog Weekly | Delivered every Monday</p>
-                      <p style="color: #6b7280; font-size: 12px; margin: 10px 0 0 0;">
-                        <a href="#" style="color: #3b82f6; text-decoration: none;">Unsubscribe</a> |
-                        <a href="#" style="color: #3b82f6; text-decoration: none;">Update Preferences</a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-        """,
-        category: "paper_pile",
-        status: "received",
-        read: true,
-        is_newsletter: true
+  stack_emails = [
+    %{
+      seed_key: "stack-design-feedback",
+      mailbox_id: test_mailbox.id,
+      from: "pm@client.org",
+      to: "testuser@elektrine.com",
+      subject: "Need your eyes on the onboarding redesign",
+      text_body:
+        "Could you take a pass through the new onboarding flow when you have 20 minutes? The edge cases are in the attached notes.",
+      html_body:
+        "<p>Could you take a pass through the new onboarding flow when you have 20 minutes? The edge cases are in the attached notes.</p>",
+      category: "stack",
+      stack_at: days_ago.(2),
+      stack_reason: "Waiting for stakeholder notes",
+      status: "received",
+      read: false,
+      inserted_at: days_ago.(4)
+    },
+    %{
+      seed_key: "stack-rfp-brief",
+      mailbox_id: test_mailbox.id,
+      from: "procurement@enterprise.com",
+      to: "testuser@elektrine.com",
+      subject: "RFP response draft for review",
+      text_body:
+        "The draft RFP response is attached. I mainly need a gut check on scope, risk, and where we are promising too much.",
+      html_body:
+        "<p>The draft RFP response is attached. I mainly need a gut check on scope, risk, and where we are promising too much.</p>",
+      attachments: %{
+        "1" => %{
+          "filename" => "rfp-response-draft.docx",
+          "content_type" =>
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "size" => 98_440,
+          "content_id" => "rfp-response@enterprise.com"
+        }
       },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "promotions@fooddelivery.com",
-        to: "testuser@elektrine.com",
-        subject: "Free Delivery on Your Next Order!",
-        text_body:
-          "Use code FREEDEL at checkout for free delivery on orders over $20. Valid until Sunday!",
-        html_body: """
-        <html>
-        <body style="margin: 0; padding: 0; background-color: #fef3c7; font-family: Arial, sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fef3c7; padding: 20px;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                  <!-- Hero Banner -->
-                  <tr>
-                    <td style="padding: 0;">
-                      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='250'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23f59e0b'/%3E%3Cstop offset='100%25' style='stop-color:%23ef4444'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23bg)' width='600' height='250'/%3E%3Ctext x='50%25' y='35%25' fill='white' font-size='48' font-weight='bold' text-anchor='middle'%3EFREE%3C/text%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='36' text-anchor='middle'%3EDELIVERY%3C/text%3E%3Ctext x='50%25' y='70%25' fill='white' font-size='20' text-anchor='middle'%3EOn Orders Over $20%3C/text%3E%3C/svg%3E" width="600" height="250" alt="Free Delivery" style="display: block; width: 100%;">
-                    </td>
-                  </tr>
+      category: "stack",
+      stack_at: hours_ago.(16),
+      stack_reason: "Needs a long-form response",
+      status: "received",
+      priority: "high",
+      flagged: true,
+      read: false,
+      inserted_at: days_ago.(2)
+    },
+    %{
+      seed_key: "stack-founder-update",
+      mailbox_id: test_mailbox.id,
+      from: "founder@startup.io",
+      to: "testuser@elektrine.com",
+      subject: "Async update before Monday",
+      text_body:
+        "No immediate action needed. Parking this here until after the retrospective because it will be easier to answer with the final numbers.",
+      html_body:
+        "<p>No immediate action needed. Parking this here until after the retrospective because it will be easier to answer with the final numbers.</p>",
+      category: "stack",
+      stack_at: hours_ago.(6),
+      stack_reason: "Review after launch retrospective",
+      status: "received",
+      read: true,
+      inserted_at: hours_ago.(20)
+    }
+  ]
 
-                  <!-- Promo Code Section -->
-                  <tr>
-                    <td style="padding: 40px 30px; text-align: center;">
-                      <h2 style="color: #dc2626; margin: 0 0 15px 0; font-size: 28px;">Limited Time Offer!</h2>
-                      <p style="color: #4b5563; margin: 0 0 25px 0; font-size: 16px; line-height: 1.6;">Enjoy free delivery on your next order. Use promo code at checkout:</p>
+  boomerang_emails = [
+    %{
+      seed_key: "boomerang-vendor-contract",
+      mailbox_id: test_mailbox.id,
+      from: "procurement@vendor.com",
+      to: "testuser@elektrine.com",
+      subject: "Reminder: vendor contract redlines",
+      text_body:
+        "Pinging this back up in a couple of days once legal has reviewed the draft. No need to answer immediately.",
+      html_body:
+        "<p>Pinging this back up in a couple of days once legal has reviewed the draft. No need to answer immediately.</p>",
+      category: "inbox",
+      status: "received",
+      read: false,
+      priority: "high",
+      reply_later_at: days_from_now.(2),
+      reply_later_reminder: true,
+      inserted_at: hours_ago.(10)
+    },
+    %{
+      seed_key: "boomerang-school-form",
+      mailbox_id: test_mailbox.id,
+      from: "teacher@school.org",
+      to: "testuser@elektrine.com",
+      subject: "Field trip form still needed",
+      text_body:
+        "This got snoozed for later, but the due date has already passed. Good sample for the overdue boomerang state.",
+      html_body:
+        "<p>This got snoozed for later, but the due date has already passed. Good sample for the <strong>overdue</strong> boomerang state.</p>",
+      category: "inbox",
+      status: "received",
+      read: false,
+      reply_later_at: hours_ago.(12),
+      reply_later_reminder: true,
+      inserted_at: days_ago.(2)
+    },
+    %{
+      seed_key: "boomerang-recruiter-followup",
+      mailbox_id: test_mailbox.id,
+      from: "recruiter@company.dev",
+      to: "testuser@elektrine.com",
+      subject: "Checking back on next week",
+      text_body:
+        "You asked to see this again later today after calendar cleanup. Following up here.",
+      html_body:
+        "<p>You asked to see this again later today after calendar cleanup. Following up here.</p>",
+      category: "inbox",
+      status: "received",
+      read: true,
+      reply_later_at: hours_from_now.(6),
+      inserted_at: hours_ago.(3)
+    }
+  ]
 
-                      <div style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); border-radius: 8px; padding: 20px; margin: 0 0 25px 0; display: inline-block;">
-                        <p style="color: #78350f; margin: 0 0 5px 0; font-size: 14px; font-weight: 600; letter-spacing: 1px;">PROMO CODE</p>
-                        <p style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 3px; font-family: 'Courier New', monospace;">FREEDEL</p>
-                      </div>
-
-                      <p style="color: #6b7280; margin: 0 0 30px 0; font-size: 14px;">Valid until Sunday at midnight</p>
-
-                      <a href="#" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; padding: 16px 48px; text-decoration: none; border-radius: 50px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 6px rgba(220,38,38,0.3);">Order Now</a>
-                    </td>
-                  </tr>
-
-                  <!-- Featured Items -->
-                  <tr>
-                    <td style="padding: 0 30px 40px 30px;">
-                      <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px; text-align: center;">Popular Right Now</h3>
-                      <table width="100%" cellpadding="10" cellspacing="0" border="0">
-                        <tr>
-                          <td width="33%" align="center">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ccircle cx='75' cy='75' r='75' fill='%23fef3c7'/%3E%3Ccircle cx='75' cy='75' r='60' fill='%23fbbf24'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='16' font-weight='bold' text-anchor='middle' dy='.3em'%3EPizza%3C/text%3E%3C/svg%3E" width="150" height="150" alt="Pizza" style="display: block; border-radius: 50%;">
-                            <p style="color: #374151; margin: 10px 0 0 0; font-size: 14px; font-weight: 600;">Pizza</p>
-                          </td>
-                          <td width="33%" align="center">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ccircle cx='75' cy='75' r='75' fill='%23fee2e2'/%3E%3Ccircle cx='75' cy='75' r='60' fill='%23ef4444'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='16' font-weight='bold' text-anchor='middle' dy='.3em'%3EBurgers%3C/text%3E%3C/svg%3E" width="150" height="150" alt="Burgers" style="display: block; border-radius: 50%;">
-                            <p style="color: #374151; margin: 10px 0 0 0; font-size: 14px; font-weight: 600;">Burgers</p>
-                          </td>
-                          <td width="33%" align="center">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Ccircle cx='75' cy='75' r='75' fill='%23dcfce7'/%3E%3Ccircle cx='75' cy='75' r='60' fill='%2310b981'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='16' font-weight='bold' text-anchor='middle' dy='.3em'%3ESalads%3C/text%3E%3C/svg%3E" width="150" height="150" alt="Salads" style="display: block; border-radius: 50%;">
-                            <p style="color: #374151; margin: 10px 0 0 0; font-size: 14px; font-weight: 600;">Salads</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-
-                  <!-- Footer -->
-                  <tr>
-                    <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                      <p style="color: #6b7280; font-size: 12px; margin: 0;">FoodDelivery Inc. | Available 24/7</p>
-                      <p style="color: #6b7280; font-size: 12px; margin: 10px 0 0 0;">
-                        <a href="#" style="color: #f59e0b; text-decoration: none;">Manage Preferences</a> |
-                        <a href="#" style="color: #f59e0b; text-decoration: none;">Unsubscribe</a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-        """,
-        category: "paper_pile",
-        status: "received",
-        read: false,
-        is_newsletter: true
+  sent_emails = [
+    %{
+      seed_key: "thread-launch-blockers-reply",
+      mailbox_id: test_mailbox.id,
+      from: "testuser@elektrine.com",
+      to: "nina@company.com",
+      cc: "product@company.com",
+      subject: "Re: Q2 launch blockers before Thursday",
+      text_body:
+        "Sending rough bullets now. I will tighten the rollback owner note tomorrow morning once payments signs off.",
+      html_body:
+        "<p>Sending rough bullets now. I will tighten the rollback owner note tomorrow morning once payments signs off.</p>",
+      status: "sent",
+      read: true,
+      answered: true,
+      in_reply_to: launch_root_id,
+      inserted_at: days_ago.(2)
+    },
+    %{
+      seed_key: "sent-budget-proposal",
+      mailbox_id: test_mailbox.id,
+      from: "testuser@elektrine.com",
+      to: "colleague@work.com",
+      subject: "Re: Budget Proposal Review",
+      text_body:
+        "Thanks for the feedback on the budget proposal. I've made the requested changes and attached the updated version.",
+      html_body:
+        "<p>Thanks for the feedback on the budget proposal. I've made the requested changes and attached the updated version.</p>",
+      attachments: %{
+        "1" => %{
+          "filename" => "budget-proposal-v3.pdf",
+          "content_type" => "application/pdf",
+          "size" => 154_280,
+          "content_id" => "budget-v3@elektrine.com"
+        }
       },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "updates@socialmedia.com",
-        to: "testuser@elektrine.com",
-        subject: "You have 5 new notifications",
-        text_body:
-          "Check out what's happening in your network. 3 likes, 1 comment, and 1 new follower.",
-        html_body:
-          "<p>Check out what's happening in your network. 3 likes, 1 comment, and 1 new follower.</p>",
-        category: "paper_pile",
-        status: "received",
-        read: false,
-        is_notification: true
-      }
-    ]
+      status: "sent",
+      read: true,
+      inserted_at: days_ago.(8)
+    },
+    %{
+      seed_key: "sent-dinner-plans",
+      mailbox_id: test_mailbox.id,
+      from: "testuser@elektrine.com",
+      to: "friend@gmail.com",
+      bcc: "partner@example.com",
+      subject: "Dinner plans for Saturday?",
+      text_body:
+        "Hey! Are we still on for dinner this Saturday? Let me know if you need to reschedule.",
+      html_body:
+        "<p>Hey! Are we still on for dinner this Saturday? Let me know if you need to reschedule.</p>",
+      status: "sent",
+      read: true,
+      inserted_at: days_ago.(1)
+    }
+  ]
 
-    # SENT EMAILS
-    sent_emails = [
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "testuser@elektrine.com",
-        to: "colleague@work.com",
-        subject: "Re: Budget Proposal Review",
-        text_body:
-          "Thanks for the feedback on the budget proposal. I've made the requested changes and attached the updated version.",
-        html_body:
-          "<p>Thanks for the feedback on the budget proposal. I've made the requested changes and attached the updated version.</p>",
-        category: "sent",
-        status: "sent",
-        read: true
-      },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "testuser@elektrine.com",
-        to: "friend@gmail.com",
-        subject: "Dinner plans for Saturday?",
-        text_body:
-          "Hey! Are we still on for dinner this Saturday? Let me know if you need to reschedule.",
-        html_body:
-          "<p>Hey! Are we still on for dinner this Saturday? Let me know if you need to reschedule.</p>",
-        category: "sent",
-        status: "sent",
-        read: true
-      }
-    ]
+  draft_emails = [
+    %{
+      seed_key: "draft-launch-plan",
+      mailbox_id: test_mailbox.id,
+      from: "testuser@elektrine.com",
+      to: "leadership@company.com",
+      cc: "ops@company.com",
+      bcc: "archive@elektrine.com",
+      subject: "Draft: launch plan risks",
+      text_body: """
+      Draft outline:
 
-    # ARCHIVED EMAILS (Old but kept)
-    archived_emails = [
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "hr@oldcompany.com",
-        to: "testuser@elektrine.com",
-        subject: "Final Paycheck and Benefits Information",
-        text_body:
-          "Please find attached your final paycheck details and information about continuing your benefits.",
-        html_body:
-          "<p>Please find attached your final paycheck details and information about continuing your benefits.</p>",
-        category: "inbox",
-        status: "received",
-        read: true,
-        archived: true
-      },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "travel@airline.com",
-        to: "testuser@elektrine.com",
-        subject: "Flight Confirmation - NYC to LA",
-        text_body: "Your flight is confirmed. Flight AA123 on June 15th, departing 8:00 AM.",
-        html_body:
-          "<p>Your flight is confirmed. Flight AA123 on June 15th, departing 8:00 AM.</p>",
-        category: "inbox",
-        status: "received",
-        read: true,
-        archived: true,
-        is_receipt: true
-      }
-    ]
+      1. Payment fallback owner
+      2. Support coverage if migration slips
+      3. Customer comms if we need a partial rollback
+      """,
+      status: "draft",
+      priority: "high",
+      inserted_at: hours_ago.(2)
+    },
+    %{
+      seed_key: "draft-weekend-note",
+      mailbox_id: test_mailbox.id,
+      from: "testuser@elektrine.com",
+      subject: "Weekend notes",
+      text_body: """
+      Quick scratch draft:
+      - send photos
+      - remember parking pass
+      - ask about Sunday brunch
+      """,
+      status: "draft",
+      inserted_at: hours_ago.(1)
+    }
+  ]
 
-    # SPAM EMAILS
-    spam_emails = [
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "winner@lottery.fake",
-        to: "testuser@elektrine.com",
-        subject: "CONGRATULATIONS! You've Won $1,000,000!",
-        text_body:
-          "You are the lucky winner of our international lottery! Send us your bank details to claim your prize.",
-        html_body:
-          "<h1>CONGRATULATIONS!</h1><p>You are the lucky winner of our international lottery! Send us your bank details to claim your prize.</p>",
-        category: "inbox",
-        status: "received",
-        read: false,
-        spam: true
-      },
-      %{
-        mailbox_id: test_mailbox.id,
-        from: "urgent@phishing.com",
-        to: "testuser@elektrine.com",
-        subject: "URGENT: Verify Your Account Now!",
-        text_body:
-          "Your account will be suspended unless you click this link and verify your information immediately.",
-        html_body:
-          "<p><strong>URGENT:</strong> Your account will be suspended unless you click this link and verify your information immediately.</p>",
-        category: "inbox",
-        status: "received",
-        read: false,
-        spam: true
-      }
-    ]
+  archived_emails = [
+    %{
+      seed_key: "archive-benefits",
+      mailbox_id: test_mailbox.id,
+      from: "hr@oldcompany.com",
+      to: "testuser@elektrine.com",
+      subject: "Final Paycheck and Benefits Information",
+      text_body:
+        "Please find attached your final paycheck details and information about continuing your benefits.",
+      html_body:
+        "<p>Please find attached your final paycheck details and information about continuing your benefits.</p>",
+      category: "inbox",
+      status: "received",
+      read: true,
+      archived: true,
+      inserted_at: days_ago.(120)
+    },
+    %{
+      seed_key: "archive-travel-receipt",
+      mailbox_id: test_mailbox.id,
+      from: "travel@airline.com",
+      to: "testuser@elektrine.com",
+      subject: "Trip receipt for Seattle itinerary",
+      text_body: "This trip receipt is archived but still useful for expense reports and audits.",
+      html_body:
+        "<p>This trip receipt is archived but still useful for expense reports and audits.</p>",
+      category: "ledger",
+      status: "received",
+      read: true,
+      archived: true,
+      is_receipt: true,
+      inserted_at: days_ago.(45)
+    },
+    %{
+      seed_key: "archive-newsletter",
+      mailbox_id: test_mailbox.id,
+      from: "newsletter@designweekly.com",
+      to: "testuser@elektrine.com",
+      subject: "Design Weekly archive issue",
+      text_body:
+        "Old newsletter issue kept around for reference while refreshing the design system.",
+      html_body:
+        "<p>Old newsletter issue kept around for reference while refreshing the design system.</p>",
+      category: "feed",
+      status: "received",
+      read: true,
+      archived: true,
+      is_newsletter: true,
+      inserted_at: days_ago.(20)
+    }
+  ]
 
-    all_emails =
-      inbox_emails ++ paper_pile_emails ++ sent_emails ++ archived_emails ++ spam_emails
+  trash_emails = [
+    %{
+      seed_key: "trash-rsvp",
+      mailbox_id: test_mailbox.id,
+      from: "events@conference.io",
+      to: "testuser@elektrine.com",
+      subject: "Last call for RSVP",
+      text_body:
+        "This is a plain deleted message so the trash tab has a non-spam, non-draft example.",
+      html_body:
+        "<p>This is a plain deleted message so the trash tab has a non-spam, non-draft example.</p>",
+      category: "inbox",
+      status: "received",
+      deleted: true,
+      read: false,
+      inserted_at: days_ago.(5)
+    },
+    %{
+      seed_key: "trash-boomerang-renewal",
+      mailbox_id: test_mailbox.id,
+      from: "subscriptions@app.com",
+      to: "testuser@elektrine.com",
+      subject: "Renewal reminder",
+      text_body:
+        "Deleted boomerang sample. Trash should still show this even though reply_later_at is set.",
+      html_body:
+        "<p>Deleted boomerang sample. Trash should still show this even though <code>reply_later_at</code> is set.</p>",
+      category: "inbox",
+      status: "received",
+      deleted: true,
+      reply_later_at: days_from_now.(1),
+      reply_later_reminder: true,
+      inserted_at: days_ago.(1)
+    }
+  ]
 
-    Enum.each(all_emails, fn email_attrs ->
-      create_message.(email_attrs)
+  spam_emails = [
+    %{
+      seed_key: "spam-lottery",
+      mailbox_id: test_mailbox.id,
+      from: "winner@lottery.fake",
+      to: "testuser@elektrine.com",
+      subject: "CONGRATULATIONS! You've Won $1,000,000!",
+      text_body:
+        "You are the lucky winner of our international lottery! Send us your bank details to claim your prize.",
+      html_body:
+        "<h1>CONGRATULATIONS!</h1><p>You are the lucky winner of our international lottery! Send us your bank details to claim your prize.</p>",
+      category: "inbox",
+      status: "received",
+      read: false,
+      spam: true,
+      inserted_at: days_ago.(15)
+    },
+    %{
+      seed_key: "spam-phishing",
+      mailbox_id: test_mailbox.id,
+      from: "urgent@phishing.com",
+      to: "testuser@elektrine.com",
+      subject: "URGENT: Verify Your Account Now!",
+      text_body:
+        "Your account will be suspended unless you click this link and verify your information immediately.",
+      html_body:
+        "<p><strong>URGENT:</strong> Your account will be suspended unless you click this link and verify your information immediately.</p>",
+      category: "inbox",
+      status: "received",
+      read: false,
+      spam: true,
+      inserted_at: days_ago.(11)
+    }
+  ]
+
+  seed_groups = [
+    {"inbox", inbox_emails},
+    {"digest", digest_emails},
+    {"ledger", ledger_emails},
+    {"stack", stack_emails},
+    {"boomerang", boomerang_emails},
+    {"sent", sent_emails},
+    {"draft", draft_emails},
+    {"archived", archived_emails},
+    {"trash", trash_emails},
+    {"spam", spam_emails}
+  ]
+
+  seed_results =
+    seed_groups
+    |> Enum.flat_map(fn {_group, emails} -> emails end)
+    |> Enum.reduce(%{created: 0, existing: 0}, fn email_attrs, acc ->
+      case create_seed_message.(email_attrs) do
+        :created -> %{acc | created: acc.created + 1}
+        :existing -> %{acc | existing: acc.existing + 1}
+      end
     end)
 
-    IO.puts("✓ Created #{length(all_emails)} seed emails:")
-    IO.puts("  - #{length(inbox_emails)} inbox emails")
-    IO.puts("  - #{length(paper_pile_emails)} paper pile emails")
-    IO.puts("  - #{length(sent_emails)} sent emails")
-    IO.puts("  - #{length(archived_emails)} archived emails")
-    IO.puts("  - #{length(spam_emails)} spam emails")
-  else
-    IO.puts("✓ Emails already exist (#{existing_count} messages)")
+  configured_count =
+    seed_groups
+    |> Enum.map(fn {_group, emails} -> length(emails) end)
+    |> Enum.sum()
+
+  IO.puts(
+    "✓ Seed email coverage configured for #{configured_count} scenarios (#{seed_results.created} created, #{seed_results.existing} already present)"
+  )
+
+  Enum.each(seed_groups, fn {group, emails} ->
+    IO.puts("  - #{length(emails)} #{group} emails")
+  end)
+
+  IO.puts("Seeding broader app coverage...")
+
+  local_mail_domain =
+    case String.split(test_mailbox.email || "", "@", parts: 2) do
+      [_local, domain] when domain != "" -> domain
+      _ -> Elektrine.Domains.primary_email_domain()
+    end
+
+  ensure_seed_password = fn user, username ->
+    case Accounts.admin_reset_password(user, %{password: test_password}) do
+      {:ok, updated_user} ->
+        IO.puts("✓ Set seed password for '#{username}'")
+        updated_user
+
+      {:error, password_error} ->
+        IO.puts("✗ Failed to set seed password for '#{username}': #{inspect(password_error)}")
+        user
+    end
   end
+
+  ensure_seed_user = fn username ->
+    case Accounts.get_user_by_username(username) do
+      nil ->
+        IO.puts("Creating seed user: #{username}")
+
+        case Accounts.create_user(%{
+               username: username,
+               password: test_password,
+               password_confirmation: test_password
+             }) do
+          {:ok, user} ->
+            IO.puts("✓ Seed user created with username: #{username}")
+            ensure_seed_password.(user, username)
+
+          {:error, reason} ->
+            raise "Failed to create seed user #{username}: #{inspect(reason)}"
+        end
+
+      existing_user ->
+        IO.puts("✓ Seed user '#{username}' already exists")
+        ensure_seed_password.(existing_user, username)
+    end
+  end
+
+  ensure_user_mailbox = fn user ->
+    email = "#{user.username}@#{local_mail_domain}"
+
+    case get_mailbox_by_email.(email) do
+      nil ->
+        case Email.create_mailbox(%{email: email, user_id: user.id}) do
+          {:ok, mailbox} ->
+            IO.puts("✓ Created mailbox for '#{user.username}': #{email}")
+            mailbox
+
+          {:error, reason} ->
+            raise "Failed to create mailbox for #{user.username}: #{inspect(reason)}"
+        end
+
+      mailbox ->
+        IO.puts("✓ Mailbox already exists for '#{user.username}': #{email}")
+        mailbox
+    end
+  end
+
+  ensure_profile = fn user, attrs ->
+    case Profiles.get_user_profile(user.id) do
+      nil ->
+        case Profiles.create_user_profile(user.id, attrs) do
+          {:ok, profile} ->
+            profile
+
+          {:error, reason} ->
+            raise "Failed to create profile for #{user.username}: #{inspect(reason)}"
+        end
+
+      profile ->
+        profile
+    end
+  end
+
+  ensure_profile_link = fn profile, attrs ->
+    title = Map.fetch!(attrs, :title)
+
+    case Repo.get_by(Profiles.ProfileLink, profile_id: profile.id, title: title) do
+      nil ->
+        case Profiles.create_profile_link(profile.id, attrs) do
+          {:ok, link} -> link
+          {:error, reason} -> raise "Failed to create profile link #{title}: #{inspect(reason)}"
+        end
+
+      link ->
+        link
+    end
+  end
+
+  ensure_follow = fn follower_id, followed_id ->
+    case Repo.get_by(Profiles.Follow, follower_id: follower_id, followed_id: followed_id) do
+      nil ->
+        case Profiles.follow_user(follower_id, followed_id) do
+          {:ok, _follow} ->
+            :created
+
+          {:error, reason} ->
+            raise "Failed to create follow #{follower_id}->#{followed_id}: #{inspect(reason)}"
+        end
+
+      _follow ->
+        :existing
+    end
+  end
+
+  ensure_timeline_post = fn user_id, content, opts ->
+    post_type = Keyword.get(opts, :post_type, "post")
+    reply_to_id = Keyword.get(opts, :reply_to_id)
+
+    existing_post_query =
+      from(m in Messaging.Message,
+        join: c in Messaging.Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          c.type == "timeline" and
+            m.sender_id == ^user_id and
+            m.post_type == ^post_type and
+            m.content == ^content and
+            is_nil(m.deleted_at),
+        limit: 1
+      )
+
+    existing_post_query =
+      if is_nil(reply_to_id) do
+        from(m in existing_post_query, where: is_nil(m.reply_to_id))
+      else
+        from(m in existing_post_query, where: m.reply_to_id == ^reply_to_id)
+      end
+
+    existing_post = Repo.one(existing_post_query)
+
+    case existing_post do
+      nil ->
+        case Social.create_timeline_post(user_id, content, opts) do
+          {:ok, post} ->
+            post
+
+          {:error, reason} ->
+            raise "Failed to create timeline post for #{user_id}: #{inspect(reason)}"
+        end
+
+      post ->
+        post
+    end
+  end
+
+  ensure_timeline_draft = fn user_id, content, opts ->
+    existing_draft =
+      from(m in Messaging.Message,
+        join: c in Messaging.Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          c.type == "timeline" and
+            m.sender_id == ^user_id and
+            m.content == ^content and
+            m.is_draft == true and
+            is_nil(m.deleted_at),
+        limit: 1
+      )
+      |> Repo.one()
+
+    case existing_draft do
+      nil ->
+        case Social.Drafts.save_draft(user_id, Keyword.put(opts, :content, content)) do
+          {:ok, draft} -> draft
+          {:error, reason} -> raise "Failed to create draft for #{user_id}: #{inspect(reason)}"
+        end
+
+      draft ->
+        draft
+    end
+  end
+
+  ensure_list = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Repo.get_by(Social.List, user_id: user_id, name: name) do
+      nil ->
+        case Social.create_list(attrs) do
+          {:ok, list} -> list
+          {:error, reason} -> raise "Failed to create list #{name}: #{inspect(reason)}"
+        end
+
+      list ->
+        list
+    end
+  end
+
+  ensure_list_member = fn list_id, user_id ->
+    case Repo.get_by(Social.ListMember, list_id: list_id, user_id: user_id) do
+      nil ->
+        case Social.Lists.add_to_list(list_id, %{user_id: user_id}) do
+          {:ok, _member} ->
+            :created
+
+          {:error, reason} ->
+            raise "Failed to add user #{user_id} to list #{list_id}: #{inspect(reason)}"
+        end
+
+      _member ->
+        :existing
+    end
+  end
+
+  ensure_server = fn creator_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    existing_server =
+      from(s in Messaging.Server,
+        where: s.creator_id == ^creator_id and s.name == ^name,
+        limit: 1
+      )
+      |> Repo.one()
+
+    case existing_server do
+      nil ->
+        case Messaging.create_server(creator_id, attrs) do
+          {:ok, server} -> server
+          {:error, reason} -> raise "Failed to create server #{name}: #{inspect(reason)}"
+        end
+
+      server ->
+        server
+    end
+  end
+
+  ensure_server_membership = fn server_id, user_id ->
+    case Messaging.get_server_member(server_id, user_id) do
+      nil ->
+        case Messaging.join_server(server_id, user_id) do
+          {:ok, _member} ->
+            :created
+
+          {:error, reason} ->
+            raise "Failed to join server #{server_id} for #{user_id}: #{inspect(reason)}"
+        end
+
+      _member ->
+        :existing
+    end
+  end
+
+  ensure_server_channel = fn server_id, creator_id, attrs ->
+    name = attrs |> Map.get(:name, "general") |> String.downcase()
+
+    case Repo.get_by(Messaging.Conversation, server_id: server_id, type: "channel", name: name) do
+      nil ->
+        case Messaging.create_server_channel(server_id, creator_id, attrs) do
+          {:ok, channel} -> channel
+          {:error, reason} -> raise "Failed to create server channel #{name}: #{inspect(reason)}"
+        end
+
+      channel ->
+        channel
+    end
+  end
+
+  ensure_group_conversation = fn creator_id, attrs, member_ids ->
+    name = attrs |> Map.fetch!(:name) |> String.downcase()
+
+    existing_group =
+      from(c in Messaging.Conversation,
+        where:
+          c.creator_id == ^creator_id and
+            c.type == "group" and
+            c.name == ^name and
+            is_nil(c.server_id),
+        limit: 1
+      )
+      |> Repo.one()
+
+    group =
+      case existing_group do
+        nil ->
+          case Messaging.create_group_conversation(creator_id, attrs, member_ids) do
+            {:ok, conversation} ->
+              conversation
+
+            {:ok, conversation, _failed_count} ->
+              conversation
+
+            {:error, reason} ->
+              raise "Failed to create group conversation #{name}: #{inspect(reason)}"
+          end
+
+        conversation ->
+          conversation
+      end
+
+    Enum.each([creator_id | member_ids], fn member_id ->
+      case Messaging.Conversations.add_member_to_conversation(group.id, member_id) do
+        {:ok, _member} ->
+          :ok
+
+        {:error, reason} ->
+          raise "Failed to add #{member_id} to group #{group.id}: #{inspect(reason)}"
+      end
+    end)
+
+    group
+  end
+
+  ensure_chat_message = fn conversation_id, sender_id, content, opts ->
+    reply_to_id = Keyword.get(opts, :reply_to_id)
+
+    existing_message_query =
+      from(m in Messaging.ChatMessage,
+        where:
+          m.conversation_id == ^conversation_id and
+            m.sender_id == ^sender_id and
+            m.content == ^content,
+        limit: 1
+      )
+
+    existing_message_query =
+      if is_nil(reply_to_id) do
+        from(m in existing_message_query, where: is_nil(m.reply_to_id))
+      else
+        from(m in existing_message_query, where: m.reply_to_id == ^reply_to_id)
+      end
+
+    case Repo.one(existing_message_query) do
+      nil ->
+        case Messaging.create_text_message(conversation_id, sender_id, content, reply_to_id) do
+          {:ok, message} ->
+            message
+
+          {:error, reason} ->
+            raise "Failed to create chat message in #{conversation_id}: #{inspect(reason)}"
+        end
+
+      message ->
+        message
+    end
+  end
+
+  ensure_calendar = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Calendar.get_calendar_by_name(user_id, name) do
+      nil ->
+        case Calendar.create_calendar(attrs) do
+          {:ok, calendar} -> calendar
+          {:error, reason} -> raise "Failed to create calendar #{name}: #{inspect(reason)}"
+        end
+
+      calendar ->
+        calendar
+    end
+  end
+
+  ensure_event = fn calendar_id, uid, attrs ->
+    case Calendar.get_event_by_uid(calendar_id, uid) do
+      nil ->
+        event_attrs =
+          attrs
+          |> Map.put(:calendar_id, calendar_id)
+          |> Map.put(:uid, uid)
+
+        case Calendar.create_event(event_attrs) do
+          {:ok, event} -> event
+          {:error, reason} -> raise "Failed to create event #{uid}: #{inspect(reason)}"
+        end
+
+      event ->
+        event
+    end
+  end
+
+  ensure_contact_group = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Repo.get_by(Email.ContactGroup, user_id: user_id, name: name) do
+      nil ->
+        case Contacts.create_contact_group(attrs) do
+          {:ok, group} -> group
+          {:error, reason} -> raise "Failed to create contact group #{name}: #{inspect(reason)}"
+        end
+
+      group ->
+        group
+    end
+  end
+
+  ensure_contact = fn user_id, attrs ->
+    email = Map.fetch!(attrs, :email)
+
+    case Contacts.get_contact_by_email(user_id, email) do
+      nil ->
+        case Contacts.create_contact(attrs) do
+          {:ok, contact} -> contact
+          {:error, reason} -> raise "Failed to create contact #{email}: #{inspect(reason)}"
+        end
+
+      contact ->
+        contact
+    end
+  end
+
+  ensure_folder = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Repo.get_by(Email.Folder, user_id: user_id, name: name) do
+      nil ->
+        case Email.create_custom_folder(attrs) do
+          {:ok, folder} -> folder
+          {:error, reason} -> raise "Failed to create folder #{name}: #{inspect(reason)}"
+        end
+
+      folder ->
+        folder
+    end
+  end
+
+  ensure_label = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Email.get_label_by_name(name, user_id) do
+      nil ->
+        case Email.create_label(attrs) do
+          {:ok, label} -> label
+          {:error, reason} -> raise "Failed to create label #{name}: #{inspect(reason)}"
+        end
+
+      label ->
+        label
+    end
+  end
+
+  ensure_template = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Email.get_template_by_name(name, user_id) do
+      nil ->
+        case Email.create_template(attrs) do
+          {:ok, template} -> template
+          {:error, reason} -> raise "Failed to create template #{name}: #{inspect(reason)}"
+        end
+
+      template ->
+        template
+    end
+  end
+
+  ensure_filter = fn user_id, attrs ->
+    name = Map.fetch!(attrs, :name)
+
+    case Repo.get_by(Email.Filter, user_id: user_id, name: name) do
+      nil ->
+        case Email.create_filter(attrs) do
+          {:ok, filter} -> filter
+          {:error, reason} -> raise "Failed to create filter #{name}: #{inspect(reason)}"
+        end
+
+      filter ->
+        filter
+    end
+  end
+
+  ensure_alias = fn alias_email, create_attrs ->
+    case Email.get_alias_by_email(alias_email) do
+      nil ->
+        case Email.create_alias(create_attrs) do
+          {:ok, alias_record} -> alias_record
+          {:error, reason} -> raise "Failed to create alias #{alias_email}: #{inspect(reason)}"
+        end
+
+      alias_record ->
+        alias_record
+    end
+  end
+
+  demo_user_specs = [
+    %{
+      username: "orbitdev",
+      profile: %{
+        display_name: "Orbit Dev",
+        description: "Shipping product, cleanup, and infrastructure notes in one place.",
+        location: "Detroit, MI",
+        theme: "blue",
+        accent_color: "#38bdf8",
+        background_color: "#0f172a",
+        icon_color: "#38bdf8",
+        font_family: "Consolas"
+      },
+      links: [
+        %{title: "Code Notes", url: "https://example.com/orbitdev", platform: "website"},
+        %{title: "GitHub", url: "https://github.com/orbitdev", platform: "github"}
+      ]
+    },
+    %{
+      username: "mapsmith",
+      profile: %{
+        display_name: "Map Smith",
+        description: "Calendar-heavy operator keeping launches, travel, and errands in sync.",
+        location: "Ann Arbor, MI",
+        theme: "green",
+        accent_color: "#34d399",
+        background_color: "#052e16",
+        icon_color: "#34d399",
+        font_family: "Verdana"
+      },
+      links: [
+        %{title: "Field Notes", url: "https://example.com/mapsmith", platform: "blog"},
+        %{title: "Contact", url: "mailto:mapsmith@example.com", platform: "email"}
+      ]
+    },
+    %{
+      username: "pixelvera",
+      profile: %{
+        display_name: "Pixel Vera",
+        description: "Collecting design references, gallery posts, and mobile layout edge cases.",
+        location: "Chicago, IL",
+        theme: "pink",
+        accent_color: "#f472b6",
+        background_color: "#500724",
+        icon_color: "#f472b6",
+        font_family: "Georgia"
+      },
+      links: [
+        %{title: "Portfolio", url: "https://example.com/pixelvera", platform: "portfolio"},
+        %{title: "Design Mail", url: "mailto:pixelvera@example.com", platform: "email"}
+      ]
+    },
+    %{
+      username: "opsnova",
+      profile: %{
+        display_name: "Ops Nova",
+        description: "Keeping launch rooms tidy, receipts filed, and follow-up loops short.",
+        location: "Cleveland, OH",
+        theme: "orange",
+        accent_color: "#fb923c",
+        background_color: "#431407",
+        icon_color: "#fb923c",
+        font_family: "Trebuchet MS"
+      },
+      links: [
+        %{title: "Runbook", url: "https://example.com/opsnova", platform: "website"},
+        %{title: "GitLab", url: "https://gitlab.com/opsnova", platform: "gitlab"}
+      ]
+    }
+  ]
+
+  demo_users =
+    Enum.reduce(demo_user_specs, %{}, fn spec, acc ->
+      user = ensure_seed_user.(spec.username)
+      mailbox = ensure_user_mailbox.(user)
+
+      Map.put(acc, spec.username, %{
+        user: user,
+        mailbox: mailbox,
+        profile: spec.profile,
+        links: spec.links
+      })
+    end)
+
+  profile_seed_specs =
+    [
+      %{
+        user: test_user,
+        profile: %{
+          display_name: "Test User",
+          description: "Seed account with realistic inbox, social, chat, and planning data.",
+          location: "Detroit, MI",
+          theme: "blue",
+          accent_color: "#60a5fa",
+          background_color: "#111827",
+          icon_color: "#60a5fa",
+          font_family: "Inter"
+        },
+        links: [
+          %{title: "Status Page", url: "https://example.com/testuser", platform: "website"},
+          %{title: "Inbox Alias", url: "mailto:testuser@#{local_mail_domain}", platform: "email"}
+        ]
+      }
+    ] ++
+      Enum.map(demo_user_specs, fn spec ->
+        %{user: demo_users[spec.username].user, profile: spec.profile, links: spec.links}
+      end)
+
+  Enum.each(profile_seed_specs, fn %{user: user, profile: profile_attrs, links: links} ->
+    profile = ensure_profile.(user, profile_attrs)
+
+    links
+    |> Enum.with_index()
+    |> Enum.each(fn {link_attrs, position} ->
+      ensure_profile_link.(profile, Map.put(link_attrs, :position, position))
+    end)
+  end)
+
+  orbitdev = demo_users["orbitdev"].user
+  mapsmith = demo_users["mapsmith"].user
+  pixelvera = demo_users["pixelvera"].user
+  opsnova = demo_users["opsnova"].user
+
+  follow_pairs = [
+    {test_user.id, orbitdev.id},
+    {test_user.id, mapsmith.id},
+    {test_user.id, pixelvera.id},
+    {test_user.id, opsnova.id},
+    {orbitdev.id, test_user.id},
+    {mapsmith.id, test_user.id}
+  ]
+
+  Enum.each(follow_pairs, fn {follower_id, followed_id} ->
+    ensure_follow.(follower_id, followed_id)
+  end)
+
+  orbit_public_post =
+    ensure_timeline_post.(
+      orbitdev.id,
+      "Seed refresh check: timelines, chat, and calendars now have believable demo state. #elektrine #buildinpublic",
+      visibility: "public"
+    )
+
+  _orbit_followers_post =
+    ensure_timeline_post.(
+      orbitdev.id,
+      "Followers note: the dev seed now carries a clean DM thread and a war-room server. #shipping",
+      visibility: "followers"
+    )
+
+  _map_public_post =
+    ensure_timeline_post.(
+      mapsmith.id,
+      "Blocking out next week's travel and review windows in one calendar keeps the rest of the day calmer. #workflow",
+      visibility: "public"
+    )
+
+  _map_friends_post =
+    ensure_timeline_post.(
+      mapsmith.id,
+      "Friends-only note: lunch after the launch retro is still on if the calendar holds. #friends",
+      visibility: "friends"
+    )
+
+  pixel_gallery_post =
+    ensure_timeline_post.(
+      pixelvera.id,
+      "Pinned a fresh moodboard for the mobile email pass so the gallery has a real design sample. #design",
+      visibility: "public",
+      post_type: "gallery",
+      category: "design"
+    )
+
+  ops_public_post =
+    ensure_timeline_post.(
+      opsnova.id,
+      "The new server channels are a better home for launch checklists than another wandering thread. #ops",
+      visibility: "public"
+    )
+
+  _test_public_post =
+    ensure_timeline_post.(
+      test_user.id,
+      "Using the seed accounts as a smoke test: inbox, vault, chat, and lists all have enough state to feel real. #qa",
+      visibility: "public"
+    )
+
+  _timeline_draft =
+    ensure_timeline_draft.(
+      test_user.id,
+      "Drafting a longer note about the seed audit once the last mobile pass settles.",
+      visibility: "followers",
+      title: "Seed Audit Notes"
+    )
+
+  launch_watch_list =
+    ensure_list.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Launch Watch",
+      description: "Seeded list with the demo accounts that post most of the launch chatter.",
+      visibility: "public"
+    })
+
+  Enum.each([orbitdev.id, mapsmith.id, pixelvera.id], fn user_id ->
+    ensure_list_member.(launch_watch_list.id, user_id)
+  end)
+
+  unless Social.Likes.user_liked_post?(test_user.id, pixel_gallery_post.id) do
+    case Social.like_post(test_user.id, pixel_gallery_post.id) do
+      {:ok, _like} ->
+        :ok
+
+      {:error, reason} ->
+        raise "Failed to like seed post #{pixel_gallery_post.id}: #{inspect(reason)}"
+    end
+  end
+
+  unless Social.Bookmarks.post_saved?(test_user.id, ops_public_post.id) do
+    case Social.save_post(test_user.id, ops_public_post.id) do
+      {:ok, _saved} ->
+        :ok
+
+      {:error, reason} ->
+        raise "Failed to bookmark seed post #{ops_public_post.id}: #{inspect(reason)}"
+    end
+  end
+
+  unless Social.Boosts.user_boosted?(test_user.id, orbit_public_post.id) do
+    case Social.boost_post(test_user.id, orbit_public_post.id) do
+      {:ok, _boost} ->
+        :ok
+
+      {:error, reason} ->
+        raise "Failed to boost seed post #{orbit_public_post.id}: #{inspect(reason)}"
+    end
+  end
+
+  dm_with_orbit =
+    case Messaging.create_dm_conversation(test_user.id, orbitdev.id) do
+      {:ok, conversation} -> conversation
+      {:error, reason} -> raise "Failed to create DM conversation: #{inspect(reason)}"
+    end
+
+  seed_group =
+    ensure_group_conversation.(
+      test_user.id,
+      %{
+        name: "Seed QA Room",
+        description: "Small group thread for checking seeded UI states."
+      },
+      [orbitdev.id, pixelvera.id]
+    )
+
+  seed_server =
+    ensure_server.(test_user.id, %{
+      name: "Elektrine Crew",
+      description: "Seeded public server for launch, design, and ops chatter.",
+      is_public: true
+    })
+
+  Enum.each([orbitdev.id, mapsmith.id, pixelvera.id, opsnova.id], fn user_id ->
+    ensure_server_membership.(seed_server.id, user_id)
+  end)
+
+  general_channel = ensure_server_channel.(seed_server.id, test_user.id, %{name: "general"})
+
+  product_updates_channel =
+    ensure_server_channel.(seed_server.id, test_user.id, %{
+      name: "product-updates",
+      description: "Shipped work, launch notes, and seed script updates."
+    })
+
+  design_review_channel =
+    ensure_server_channel.(seed_server.id, test_user.id, %{
+      name: "design-review",
+      description: "Layout feedback and mobile polish threads."
+    })
+
+  ensure_chat_message.(
+    dm_with_orbit.id,
+    orbitdev.id,
+    "Can you sanity-check the broader seed data before lunch?",
+    []
+  )
+
+  ensure_chat_message.(
+    dm_with_orbit.id,
+    test_user.id,
+    "Yes. Timeline, inbox, and chat all look populated now.",
+    []
+  )
+
+  ensure_chat_message.(
+    seed_group.id,
+    test_user.id,
+    "Dropping screenshots in here after the next seed run.",
+    []
+  )
+
+  ensure_chat_message.(
+    seed_group.id,
+    pixelvera.id,
+    "Mobile email is much easier to review once the thread view has real content.",
+    []
+  )
+
+  ensure_chat_message.(
+    general_channel.id,
+    test_user.id,
+    "Using this server as the seeded home for team chatter.",
+    []
+  )
+
+  ensure_chat_message.(
+    general_channel.id,
+    opsnova.id,
+    "I left the launch checklist in product-updates.",
+    []
+  )
+
+  ensure_chat_message.(
+    product_updates_channel.id,
+    orbitdev.id,
+    "Seed coverage now includes contacts, calendars, vault entries, and social lists.",
+    []
+  )
+
+  ensure_chat_message.(
+    design_review_channel.id,
+    pixelvera.id,
+    "The email show view finally has enough content to break layouts on purpose.",
+    []
+  )
+
+  work_calendar =
+    ensure_calendar.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Work",
+      color: "#3b82f6",
+      description: "Launch reviews, stakeholder calls, and design crits.",
+      timezone: "America/Detroit",
+      order: 1
+    })
+
+  personal_calendar =
+    ensure_calendar.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Personal",
+      color: "#22c55e",
+      description: "Travel, family, and after-hours plans.",
+      timezone: "America/Detroit",
+      order: 2
+    })
+
+  _launch_review_event =
+    ensure_event.(work_calendar.id, "seed-launch-review@elektrine.dev", %{
+      summary: "Launch review",
+      description: "Review blockers, fallback plan, and final comms copy.",
+      location: "War Room / Video",
+      dtstart: hours_from_now.(18),
+      dtend: hours_from_now.(19),
+      timezone: "America/Detroit",
+      attendees: [
+        %{"email" => "orbitdev@#{local_mail_domain}", "name" => "Orbit Dev"},
+        %{"email" => "opsnova@#{local_mail_domain}", "name" => "Ops Nova"}
+      ],
+      categories: ["launch", "review"]
+    })
+
+  _design_crit_event =
+    ensure_event.(work_calendar.id, "seed-design-crit@elektrine.dev", %{
+      summary: "Design crit",
+      description: "Walk through mobile inbox and email show refinements.",
+      location: "Studio B",
+      dtstart: days_from_now.(2),
+      dtend: DateTime.add(days_from_now.(2), 3_600, :second),
+      timezone: "America/Detroit",
+      attendees: [
+        %{"email" => "pixelvera@#{local_mail_domain}", "name" => "Pixel Vera"}
+      ],
+      categories: ["design", "mobile"]
+    })
+
+  _retro_event =
+    ensure_event.(work_calendar.id, "seed-launch-retro@elektrine.dev", %{
+      summary: "Launch retro",
+      description: "Capture what worked, what slipped, and what should be automated next.",
+      location: "Conference Room 2",
+      dtstart: days_from_now.(4),
+      dtend: DateTime.add(days_from_now.(4), 5_400, :second),
+      timezone: "America/Detroit",
+      categories: ["retro"]
+    })
+
+  _family_event =
+    ensure_event.(personal_calendar.id, "seed-family-dinner@elektrine.dev", %{
+      summary: "Family dinner",
+      description: "Keep one non-work event in the seed so personal calendar views feel real.",
+      location: "Grand Rapids",
+      dtstart: days_from_now.(3),
+      dtend: DateTime.add(days_from_now.(3), 7_200, :second),
+      timezone: "America/Detroit",
+      categories: ["family"]
+    })
+
+  clients_group =
+    ensure_contact_group.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Clients",
+      color: "#0ea5e9"
+    })
+
+  friends_group =
+    ensure_contact_group.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Friends",
+      color: "#22c55e"
+    })
+
+  _nina_contact =
+    ensure_contact.(test_user.id, %{
+      user_id: test_user.id,
+      group_id: clients_group.id,
+      name: "Nina Shah",
+      email: "nina@company.com",
+      organization: "Company Inc",
+      notes: "Owns launch reviews and escalation notes.",
+      favorite: true
+    })
+
+  _john_contact =
+    ensure_contact.(test_user.id, %{
+      user_id: test_user.id,
+      group_id: clients_group.id,
+      name: "John Doe",
+      email: "john.doe@business.com",
+      organization: "Business Co",
+      notes: "Project documents and budget approvals."
+    })
+
+  _casey_contact =
+    ensure_contact.(test_user.id, %{
+      user_id: test_user.id,
+      group_id: friends_group.id,
+      name: "Casey Rivera",
+      email: "casey@example.com",
+      phone: "+1-313-555-0199",
+      notes: "Weekend plans and travel check-ins."
+    })
+
+  _orbit_contact =
+    ensure_contact.(test_user.id, %{
+      user_id: test_user.id,
+      group_id: friends_group.id,
+      name: "Orbit Dev",
+      email: "orbitdev@#{local_mail_domain}",
+      organization: "Elektrine",
+      favorite: true
+    })
+
+  projects_folder =
+    ensure_folder.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Projects",
+      color: "#3b82f6",
+      icon: "briefcase"
+    })
+
+  travel_folder =
+    ensure_folder.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Travel",
+      color: "#10b981",
+      icon: "bookmark"
+    })
+
+  follow_up_label =
+    ensure_label.(test_user.id, %{
+      user_id: test_user.id,
+      name: "FollowUp",
+      color: "#f59e0b"
+    })
+
+  travel_label =
+    ensure_label.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Travel",
+      color: "#06b6d4"
+    })
+
+  _weekly_status_template =
+    ensure_template.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Weekly status",
+      subject: "Weekly status update",
+      body: "Wins:\n- \n\nRisks:\n- \n\nNext:\n- "
+    })
+
+  _quick_intro_template =
+    ensure_template.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Quick intro",
+      subject: "Intro",
+      body: "Hi,\n\nMaking the introduction below.\n\nBest,\nTest User"
+    })
+
+  _cloud_invoice_filter =
+    ensure_filter.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Route cloud invoices",
+      priority: 10,
+      stop_processing: false,
+      conditions: %{
+        "match_type" => "all",
+        "rules" => [
+          %{"field" => "from", "operator" => "contains", "value" => "cloudvendor.com"}
+        ]
+      },
+      actions: %{
+        "move_to_ledger" => true,
+        "mark_as_read" => true
+      }
+    })
+
+  _review_filter =
+    ensure_filter.(test_user.id, %{
+      user_id: test_user.id,
+      name: "Flag project reviews",
+      priority: 20,
+      stop_processing: false,
+      conditions: %{
+        "match_type" => "any",
+        "rules" => [
+          %{"field" => "subject", "operator" => "contains", "value" => "review"},
+          %{"field" => "subject", "operator" => "contains", "value" => "documents"}
+        ]
+      },
+      actions: %{
+        "move_to_folder" => projects_folder.id,
+        "add_label" => follow_up_label.id,
+        "star" => true
+      }
+    })
+
+  _seed_alias =
+    ensure_alias.("testbriefs@#{local_mail_domain}", %{
+      username: "testbriefs",
+      domain: local_mail_domain,
+      user_id: test_user.id,
+      description: "Seed alias for testing alternate mailbox routes"
+    })
+
+  contract_review_message =
+    Repo.get_by(
+      Email.Message,
+      mailbox_id: test_mailbox.id,
+      message_id: seed_message_id.("inbox-contract-review")
+    )
+
+  if contract_review_message do
+    :ok = Email.add_label_to_message(contract_review_message.id, follow_up_label.id)
+
+    case Email.move_message_to_folder(contract_review_message.id, projects_folder.id) do
+      {:ok, _message} -> :ok
+      {:error, reason} -> raise "Failed to move contract review email: #{inspect(reason)}"
+    end
+  end
+
+  flight_confirmation_message =
+    Repo.get_by(
+      Email.Message,
+      mailbox_id: test_mailbox.id,
+      message_id: seed_message_id.("ledger-flight-confirmation")
+    )
+
+  if flight_confirmation_message do
+    :ok = Email.add_label_to_message(flight_confirmation_message.id, travel_label.id)
+
+    case Email.move_message_to_folder(flight_confirmation_message.id, travel_folder.id) do
+      {:ok, _message} -> :ok
+      {:error, reason} -> raise "Failed to move travel email: #{inspect(reason)}"
+    end
+  end
+
+  seed_encrypted_payload = fn ciphertext ->
+    %{
+      "version" => 1,
+      "algorithm" => "AES-GCM",
+      "kdf" => "PBKDF2-SHA256",
+      "iterations" => 150_000,
+      "salt" => Base.encode64("0123456789abcdef"),
+      "iv" => Base.encode64("seed-initvec"),
+      "ciphertext" => Base.encode64(ciphertext)
+    }
+  end
+
+  unless PasswordManager.vault_configured?(test_user.id) do
+    case PasswordManager.setup_vault(test_user.id, %{
+           encrypted_verifier: seed_encrypted_payload.("seed-vault-verifier")
+         }) do
+      {:ok, _settings} -> :ok
+      {:error, reason} -> raise "Failed to set up vault: #{inspect(reason)}"
+    end
+  end
+
+  Enum.each(
+    [
+      %{
+        title: "Linear",
+        login_username: "testuser@#{local_mail_domain}",
+        website: "https://linear.app",
+        encrypted_password: seed_encrypted_payload.("linear-password-seed"),
+        encrypted_notes: seed_encrypted_payload.("Workspace owner: Orbit Dev")
+      },
+      %{
+        title: "Fly.io",
+        login_username: "deployments@#{local_mail_domain}",
+        website: "https://fly.io",
+        encrypted_password: seed_encrypted_payload.("fly-password-seed"),
+        encrypted_notes: seed_encrypted_payload.("Remember to check release health after deploy")
+      }
+    ],
+    fn entry_attrs ->
+      case Repo.get_by(PasswordManager.VaultEntry,
+             user_id: test_user.id,
+             title: entry_attrs.title
+           ) do
+        nil ->
+          case PasswordManager.create_entry(test_user.id, entry_attrs) do
+            {:ok, _entry} ->
+              :ok
+
+            {:error, reason} ->
+              raise "Failed to create vault entry #{entry_attrs.title}: #{inspect(reason)}"
+          end
+
+        _entry ->
+          :ok
+      end
+    end
+  )
+
+  IO.puts("✓ Seeded broader app coverage")
+  IO.puts("  - 4 demo users with profiles and mailboxes")
+  IO.puts("  - 7 timeline posts, 1 draft, and 1 public list")
+  IO.puts("  - 1 DM, 1 group conversation, 1 public server, and 3 server channels")
+  IO.puts("  - 2 calendars with 4 events and 4 contacts across 2 groups")
+  IO.puts("  - 2 folders, 2 labels, 2 templates, 2 filters, 1 alias, and 2 vault entries")
 
   IO.puts("Development seeding complete!")
   IO.puts("")
@@ -681,8 +2145,13 @@ if Mix.env() == :dev do
   end
 
   IO.puts("  Test User: testuser (testuser@elektrine.com)")
+
+  Enum.each(demo_user_specs, fn %{username: username} ->
+    IO.puts("  Demo: #{username} (#{username}@#{local_mail_domain})")
+  end)
+
   IO.puts("")
-  IO.puts("Seed password (admin + test): #{admin_password}")
+  IO.puts("Seed password (admin + test + demo): #{admin_password}")
 else
   IO.puts("Skipping seeds - not in development environment")
 end

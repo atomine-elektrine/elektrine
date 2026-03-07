@@ -1,401 +1,329 @@
-<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-  <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
-    <div class="flex items-center gap-2 sm:gap-3">
-      <h1 class="text-xl sm:text-2xl font-bold flex items-center gap-2">
-        <.icon name="hero-bell" class="w-6 h-6 sm:w-7 sm:h-7" />
-        {gettext("Notifications")}
-      </h1>
-      <%= if @unread_count > 0 do %>
-        <span class="badge badge-primary badge-xs sm:badge-sm">
-          <span class="hidden sm:inline">
-            {@unread_count} {ngettext("unread", "unread", @unread_count)}
-          </span>
-          <span class="sm:hidden">{@unread_count}</span>
-        </span>
-      <% end %>
+<div class="mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+  <.z_nav active_tab="overview" />
+
+  <div class="space-y-6">
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-4 sm:p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-xl font-bold sm:text-2xl">Notifications</h1>
+              <%= if @unread_count > 0 do %>
+                <span class="badge badge-primary badge-sm">{@unread_count} unread</span>
+              <% end %>
+            </div>
+            <p class="mt-1 text-sm opacity-70">
+              {@notification_stats.total_groups} groups in queue, {@notification_stats.waiting_groups} waiting, {@unseen_count} unseen.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <.link navigate={~p"/overview"} class="btn btn-ghost btn-sm">
+              <.icon name="hero-squares-2x2" class="mr-2 h-4 w-4" /> Overview
+            </.link>
+            <.link navigate={~p"/chat"} class="btn btn-ghost btn-sm">
+              <.icon name="hero-chat-bubble-left-right" class="mr-2 h-4 w-4" /> Chat
+            </.link>
+            <.link navigate={~p"/email?tab=inbox&filter=unread"} class="btn btn-ghost btn-sm">
+              <.icon name="hero-envelope" class="mr-2 h-4 w-4" /> Email
+            </.link>
+            <.link navigate={~p"/friends?tab=requests"} class="btn btn-ghost btn-sm">
+              <.icon name="hero-user-group" class="mr-2 h-4 w-4" /> Requests
+            </.link>
+            <%= if @unread_count > 0 do %>
+              <button phx-click="mark_all_as_read" class="btn btn-secondary btn-sm">
+                <.icon name="hero-check-circle" class="mr-2 h-4 w-4" /> Mark all read
+              </button>
+            <% end %>
+            <%= if @notification_stats.total_groups > 0 do %>
+              <button
+                phx-click="dismiss_all"
+                class="btn btn-ghost btn-sm"
+                data-confirm="Clear every notification from this queue?"
+              >
+                <.icon name="hero-trash" class="mr-2 h-4 w-4" /> Clear queue
+              </button>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div class="rounded-lg border border-base-300 p-3">
+            <p class="text-xs uppercase tracking-wide opacity-60">Unread</p>
+            <p class="mt-1 text-xl font-semibold">{@unread_count}</p>
+          </div>
+          <div class="rounded-lg border border-base-300 p-3">
+            <p class="text-xs uppercase tracking-wide opacity-60">Unseen</p>
+            <p class="mt-1 text-xl font-semibold">{@unseen_count}</p>
+          </div>
+          <div class="rounded-lg border border-base-300 p-3">
+            <p class="text-xs uppercase tracking-wide opacity-60">Waiting Groups</p>
+            <p class="mt-1 text-xl font-semibold">{@notification_stats.waiting_groups}</p>
+          </div>
+          <div class="rounded-lg border border-base-300 p-3">
+            <p class="text-xs uppercase tracking-wide opacity-60">Visible Groups</p>
+            <p class="mt-1 text-xl font-semibold">{length(@filtered_notifications)}</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <%= if length(@grouped_notifications) > 0 do %>
-      <div class="flex gap-2">
-        <%= if @unread_count > 0 do %>
-          <button
-            phx-click="mark_all_as_read"
-            class="btn btn-sm btn-ghost"
-          >
-            <.icon name="hero-check-circle" class="w-4 h-4 sm:mr-2" />
-            <span class="hidden sm:inline">{gettext("Mark all as read")}</span>
-          </button>
-        <% end %>
-        <button
-          phx-click="dismiss_all"
-          class="btn btn-sm btn-ghost"
-          data-confirm={gettext("Are you sure you want to clear all notifications?")}
-        >
-          <.icon name="hero-trash" class="w-4 h-4 sm:mr-2" />
-          <span class="hidden sm:inline">{gettext("Clear all")}</span>
-        </button>
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+      <div class="card-body gap-4 p-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div class="flex items-center gap-2">
+            <h2 class="font-semibold">Queue Focus</h2>
+            <span class="badge badge-ghost badge-sm">
+              {notification_state_label(@filter)} / {notification_source_label(@source_filter)}
+            </span>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <%= for filter <- [:all, :unread, :unseen] do %>
+              <button
+                phx-click="set_filter"
+                phx-value-type={state_filter_param(filter)}
+                class={state_filter_button_class(@filter, filter)}
+              >
+                {notification_state_label(filter)}
+                <span class="opacity-70">
+                  ({notification_state_count(filter, @notification_stats)})
+                </span>
+              </button>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <%= for source <- ["all", "chat", "email", "requests", "social", "system"] do %>
+            <button
+              phx-click="set_source_filter"
+              phx-value-source={source}
+              class={source_filter_button_class(@source_filter, source)}
+            >
+              {notification_source_label(source)}
+              <span class="opacity-70">
+                ({Map.get(@notification_stats.source_counts || %{}, source, 0)})
+              </span>
+            </button>
+          <% end %>
+        </div>
       </div>
-    <% end %>
-  </div>
-  
-<!-- Filter Tabs -->
-  <div class="tabs tabs-boxed mb-6">
-    <button
-      phx-click="filter"
-      phx-value-type="all"
-      class={["tab", @filter == :all && "tab-active"]}
-    >
-      {gettext("All")}
-    </button>
-    <button
-      phx-click="filter"
-      phx-value-type="unread"
-      class={["tab", @filter == :unread && "tab-active"]}
-    >
-      {gettext("Unread")}
-      <%= if @unread_count > 0 do %>
-        <span class="badge badge-xs badge-primary ml-2">{@unread_count}</span>
-      <% end %>
-    </button>
-  </div>
-  
-<!-- Grouped Notifications List -->
-  <div class="space-y-3" id="notifications-list" phx-hook="NotificationVisibility">
-    <%= if @loading_notifications do %>
-      <!-- Loading skeleton -->
-      <div class="space-y-3">
-        <%= for _i <- 1..4 do %>
-          <div class="card glass-card p-4 animate-pulse">
-            <div class="flex gap-4">
-              <div class="w-10 h-10 bg-base-300 rounded-full"></div>
-              <div class="flex-1 space-y-2">
-                <div class="h-4 bg-base-300 rounded w-3/4"></div>
-                <div class="h-3 bg-base-300 rounded w-1/2"></div>
+    </div>
+
+    <div id="notifications-list" class="space-y-3" phx-hook="NotificationVisibility">
+      <%= if @loading_notifications do %>
+        <div class="space-y-3">
+          <%= for _i <- 1..4 do %>
+            <div class="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm animate-pulse">
+              <div class="flex gap-3">
+                <div class="h-10 w-10 rounded-lg bg-base-300"></div>
+                <div class="flex-1 space-y-2">
+                  <div class="h-4 w-40 rounded bg-base-300"></div>
+                  <div class="h-3 w-72 rounded bg-base-300"></div>
+                  <div class="h-3 w-28 rounded bg-base-300"></div>
+                </div>
               </div>
             </div>
-          </div>
-        <% end %>
-      </div>
-    <% else %>
-      <%= if @grouped_notifications == [] do %>
-        <div class="card glass-card p-8 text-center">
-          <.icon name="hero-bell-slash" class="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p class="text-base-content/70">
-            <%= case @filter do %>
-              <% :unread -> %>
-                {gettext("No unread notifications")}
-              <% _ -> %>
-                {gettext("No notifications yet")}
-            <% end %>
-          </p>
+          <% end %>
         </div>
       <% else %>
-        <%= for {group, index} <- Enum.with_index(@grouped_notifications) do %>
-          <% group_key = "group-#{group.type}-#{index}" %>
-          <% is_expanded = MapSet.member?(@expanded_groups, group_key) %>
+        <%= if Enum.empty?(@filtered_notifications) do %>
+          <div class="rounded-xl border border-dashed border-base-300 bg-base-100 p-8 text-center shadow-sm">
+            <.icon name="hero-bell-slash" class="mx-auto mb-3 h-10 w-10 opacity-50" />
+            <p class="text-sm font-medium">
+              <%= cond do %>
+                <% @filter == :unread and @source_filter == "all" -> %>
+                  No unread notifications.
+                <% @filter == :unseen and @source_filter == "all" -> %>
+                  No unseen notifications.
+                <% @filter == :unread -> %>
+                  No unread {String.downcase(notification_source_label(@source_filter))} notifications.
+                <% @filter == :unseen -> %>
+                  No unseen {String.downcase(notification_source_label(@source_filter))} notifications.
+                <% @source_filter != "all" -> %>
+                  No {String.downcase(notification_source_label(@source_filter))} notifications match this view.
+                <% true -> %>
+                  No notifications yet.
+              <% end %>
+            </p>
+          </div>
+        <% else %>
+          <%= for group <- @filtered_notifications do %>
+            <% is_expanded = MapSet.member?(@expanded_groups, group.group_key) %>
+            <article
+              class={group_card_class(group)}
+              data-notification-ids={Enum.join(group.unread_notification_ids, ",")}
+              data-unread={to_string(group.unread_count > 0)}
+            >
+              <div class="flex items-start gap-3">
+                <div class="mt-0.5 shrink-0">
+                  <%= if group.type == :single && group.notification.actor do %>
+                    <.user_avatar user={group.notification.actor} size="sm" />
+                  <% else %>
+                    <div class="rounded-lg border border-base-300 bg-base-200 p-2">
+                      <.icon name={group.icon_name} class="h-5 w-5 opacity-80" />
+                    </div>
+                  <% end %>
+                </div>
 
-          <%= case group.type do %>
-            <% :chat_group -> %>
-              <!-- Chat Group -->
-              <div class={[
-                "card glass-card border",
-                group.unread_count > 0 && "border-l-4 border-l-primary"
-              ]}>
-                <div class="card-body p-3 sm:p-4">
-                  <div class="flex items-start gap-2 sm:gap-3">
-                    <button
-                      phx-click="toggle_group"
-                      phx-value-group_key={group_key}
-                      class="flex-1 text-left flex items-start gap-2 sm:gap-3 hover:opacity-80 transition-opacity min-w-0"
-                    >
-                      <div class="flex-shrink-0">
-                        <div class="p-2 rounded-full bg-primary/10">
-                          <.icon
-                            name="hero-chat-bubble-left"
-                            class="w-4 h-4 sm:w-5 sm:h-5 text-primary"
-                          />
-                        </div>
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <div class="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
-                          <p class="font-semibold text-sm sm:text-base truncate">
-                            {group.conversation_name}
-                          </p>
-                          <span class="badge badge-xs sm:badge-sm whitespace-nowrap">
-                            {group.count}
-                          </span>
-                          <%= if group.unread_count > 0 do %>
-                            <span class="badge badge-primary badge-xs sm:badge-sm whitespace-nowrap">
-                              {group.unread_count}
-                            </span>
-                          <% end %>
-                        </div>
-                        <p class="text-xs sm:text-sm text-base-content/70 line-clamp-1 sm:line-clamp-2">
-                          {group.latest_notification.body}
-                        </p>
-                        <div class="flex flex-wrap items-center gap-2 mt-1 sm:mt-2">
-                          <span class="text-xs text-base-content/60">
-                            <.local_time
-                              datetime={group.latest_at}
-                              format="relative"
-                              timezone={@timezone}
-                              time_format={@time_format}
-                            />
-                          </span>
-                          <%= if length(group.actors) > 0 do %>
-                            <span class="text-xs text-base-content/60 hidden sm:inline">
-                              from
-                              <%= for {actor, i} <- Enum.with_index(Enum.take(group.actors, 2)) do %>
-                                <%= if i > 0 do %>
-                                  ,
-                                <% end %>@{actor.handle}
-                              <% end %>
-                              <%= if length(group.actors) > 2 do %>
-                                and {length(group.actors) - 2} others
-                              <% end %>
-                            </span>
-                          <% end %>
-                        </div>
-                      </div>
-                      <.icon
-                        name={if is_expanded, do: "hero-chevron-up", else: "hero-chevron-down"}
-                        class="w-4 h-4 sm:w-5 sm:h-5 text-base-content/50 flex-shrink-0"
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class={notification_source_badge_class(group.source)}>
+                      {notification_source_label(group.source)}
+                    </span>
+                    <span class={notification_state_badge_class(group.unread_count)}>
+                      <%= if group.unread_count > 0 do %>
+                        {group.unread_count} unread
+                      <% else %>
+                        read
+                      <% end %>
+                    </span>
+                    <%= if group.priority not in [nil, "normal"] do %>
+                      <span class={notification_priority_badge_class(group.priority)}>
+                        {group.priority}
+                      </span>
+                    <% end %>
+                    <span class="text-xs opacity-60">
+                      <.local_time
+                        datetime={group.latest_notification.inserted_at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
                       />
-                    </button>
+                    </span>
+                  </div>
 
-                    <%= if group.unread_count > 0 do %>
-                      <button
-                        phx-click="mark_group_as_read"
-                        phx-value-group_index={index}
-                        class="btn btn-ghost btn-xs sm:btn-sm flex-shrink-0 min-h-0 h-8"
-                        title={gettext("Mark all as read")}
-                      >
-                        <.icon name="hero-check" class="w-4 h-4" />
-                      </button>
+                  <button
+                    phx-click="view_notification"
+                    phx-value-id={group.latest_notification.id}
+                    phx-value-url={group.destination}
+                    class="mt-2 block text-left text-sm font-semibold hover:underline sm:text-base"
+                  >
+                    {group.title}
+                  </button>
+
+                  <p class="mt-1 text-sm opacity-75">{group.detail}</p>
+
+                  <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-65">
+                    <%= if group.count > 1 do %>
+                      <span>{group.count} items in this group</span>
+                    <% end %>
+                    <%= if group.type == :chat_group and not Enum.empty?(group.actors) do %>
+                      <span>
+                        From
+                        <%= for {actor, index} <- Enum.with_index(Enum.take(group.actors, 3)) do %>
+                          <%= if index > 0 do %>
+                            ,
+                          <% end %>@{actor.handle}
+                        <% end %>
+                        <%= if length(group.actors) > 3 do %>
+                          and {length(group.actors) - 3} more
+                        <% end %>
+                      </span>
+                    <% end %>
+                    <%= if group.type == :email_group && group.sender do %>
+                      <span>Sender @{group.sender.handle}</span>
                     <% end %>
                   </div>
 
-                  <%= if is_expanded do %>
-                    <div class="divider my-2"></div>
-                    <div class="space-y-2 pl-0 sm:pl-11">
+                  <%= if group.type != :single and is_expanded do %>
+                    <div class="mt-4 space-y-2 border-t border-base-300 pt-3">
                       <%= for notif <- group.notifications do %>
-                        <div
-                          class={[
-                            "p-2 sm:p-3 rounded-lg hover:bg-base-200 cursor-pointer active:bg-base-300 transition-colors",
-                            is_nil(notif.read_at) && "bg-base-100"
-                          ]}
+                        <button
                           phx-click="view_notification"
                           phx-value-id={notif.id}
                           phx-value-url={notif.url}
+                          class={[
+                            "flex w-full items-start gap-3 rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/50",
+                            is_nil(notif.read_at) && "bg-base-200/30"
+                          ]}
                         >
-                          <div class="flex items-start gap-2">
-                            <%= if notif.actor do %>
-                              <.user_avatar user={notif.actor} size="xs" class="flex-shrink-0" />
-                            <% end %>
-                            <div class="flex-1 min-w-0">
-                              <p class={[
-                                "text-xs sm:text-sm",
-                                is_nil(notif.read_at) && "font-semibold"
-                              ]}>
-                                {notif.body}
-                              </p>
-                              <span class="text-xs text-base-content/50">
-                                <.local_time
-                                  datetime={notif.inserted_at}
-                                  format="relative"
-                                  timezone={@timezone}
-                                  time_format={@time_format}
-                                />
-                              </span>
+                          <%= if notif.actor do %>
+                            <.user_avatar user={notif.actor} size="xs" class="mt-0.5 shrink-0" />
+                          <% else %>
+                            <div class="mt-0.5 rounded-md border border-base-300 bg-base-200 p-1.5">
+                              <.icon
+                                name={notif.icon || notification_icon(notif.type)}
+                                class="h-4 w-4 opacity-70"
+                              />
+                            </div>
+                          <% end %>
+
+                          <div class="min-w-0 flex-1">
+                            <p class={["text-sm", is_nil(notif.read_at) && "font-medium"]}>
+                              {notif.body || notif.title}
+                            </p>
+                            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs opacity-60">
+                              <%= if notif.actor do %>
+                                <span>@{notif.actor.handle}</span>
+                              <% end %>
+                              <.local_time
+                                datetime={notif.inserted_at}
+                                format="relative"
+                                timezone={@timezone}
+                                time_format={@time_format}
+                              />
                             </div>
                           </div>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% end %>
-                </div>
-              </div>
-            <% :email_group -> %>
-              <!-- Email Group -->
-              <div class={[
-                "card glass-card border",
-                group.unread_count > 0 && "border-l-4 border-l-success"
-              ]}>
-                <div class="card-body p-3 sm:p-4">
-                  <div class="flex items-start gap-2 sm:gap-3">
-                    <button
-                      phx-click="toggle_group"
-                      phx-value-group_key={group_key}
-                      class="flex-1 text-left flex items-start gap-2 sm:gap-3 hover:opacity-80 transition-opacity min-w-0"
-                    >
-                      <div class="flex-shrink-0">
-                        <div class="p-2 rounded-full bg-success/10">
-                          <.icon name="hero-envelope" class="w-4 h-4 sm:w-5 sm:h-5 text-success" />
-                        </div>
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <div class="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
-                          <p class="font-semibold text-sm sm:text-base truncate">
-                            <%= if group.sender do %>
-                              <span class="hidden sm:inline">Emails from </span>@{group.sender.handle}
-                            <% else %>
-                              Email notifications
-                            <% end %>
-                          </p>
-                          <span class="badge badge-xs sm:badge-sm whitespace-nowrap">
-                            {group.count}
-                          </span>
-                          <%= if group.unread_count > 0 do %>
-                            <span class="badge badge-success badge-xs sm:badge-sm whitespace-nowrap">
-                              {group.unread_count}
-                            </span>
-                          <% end %>
-                        </div>
-                        <p class="text-xs sm:text-sm text-base-content/70 line-clamp-1 sm:line-clamp-2">
-                          {group.latest_notification.body}
-                        </p>
-                        <span class="text-xs text-base-content/60 mt-1 inline-block">
-                          <.local_time
-                            datetime={group.latest_at}
-                            format="relative"
-                            timezone={@timezone}
-                            time_format={@time_format}
-                          />
-                        </span>
-                      </div>
-                      <.icon
-                        name={if is_expanded, do: "hero-chevron-up", else: "hero-chevron-down"}
-                        class="w-4 h-4 sm:w-5 sm:h-5 text-base-content/50 flex-shrink-0"
-                      />
-                    </button>
-
-                    <%= if group.unread_count > 0 do %>
-                      <button
-                        phx-click="mark_group_as_read"
-                        phx-value-group_index={index}
-                        class="btn btn-ghost btn-xs sm:btn-sm flex-shrink-0 min-h-0 h-8"
-                        title={gettext("Mark all as read")}
-                      >
-                        <.icon name="hero-check" class="w-4 h-4" />
-                      </button>
-                    <% end %>
-                  </div>
-
-                  <%= if is_expanded do %>
-                    <div class="divider my-2"></div>
-                    <div class="space-y-2 pl-0 sm:pl-11">
-                      <%= for notif <- group.notifications do %>
-                        <div
-                          class={[
-                            "p-2 sm:p-3 rounded-lg hover:bg-base-200 active:bg-base-300 transition-colors cursor-pointer",
-                            is_nil(notif.read_at) && "bg-base-100"
-                          ]}
-                          phx-click="view_notification"
-                          phx-value-id={notif.id}
-                          phx-value-url={notif.url}
-                        >
-                          <p class={[
-                            "text-xs sm:text-sm",
-                            is_nil(notif.read_at) && "font-semibold"
-                          ]}>
-                            {notif.body}
-                          </p>
-                          <span class="text-xs text-base-content/50">
-                            <.local_time
-                              datetime={notif.inserted_at}
-                              format="relative"
-                              timezone={@timezone}
-                              time_format={@time_format}
-                            />
-                          </span>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% end %>
-                </div>
-              </div>
-            <% :single -> %>
-              <!-- Single Notification (not grouped) -->
-              <div
-                class={[
-                  "card glass-card hover:bg-base-200 active:bg-base-300 cursor-pointer transition-colors",
-                  is_nil(group.notification.read_at) && "border-l-4 border-primary"
-                ]}
-                phx-click={if group.notification.url, do: "view_notification", else: nil}
-                phx-value-id={group.notification.id}
-                phx-value-url={group.notification.url}
-              >
-                <div class="card-body p-3 sm:p-4">
-                  <div class="flex items-start gap-2 sm:gap-3">
-                    <div class="flex-shrink-0">
-                      <%= if group.notification.actor do %>
-                        <.user_avatar user={group.notification.actor} size="sm" />
-                      <% else %>
-                        <div class={[
-                          "p-2 rounded-full bg-base-200",
-                          notification_color(group.notification.priority)
-                        ]}>
-                          <.icon
-                            name={
-                              group.notification.icon ||
-                                notification_icon(group.notification.type)
-                            }
-                            class="w-4 h-4 sm:w-5 sm:h-5"
-                          />
-                        </div>
-                      <% end %>
-                    </div>
-
-                    <div class="flex-1 min-w-0">
-                      <p class={[
-                        "font-medium text-sm sm:text-base",
-                        notification_color(group.notification.priority),
-                        is_nil(group.notification.read_at) && "font-semibold"
-                      ]}>
-                        {group.notification.title}
-                      </p>
-                      <%= if group.notification.body do %>
-                        <p class="text-xs sm:text-sm text-base-content/70 mt-1 line-clamp-2 sm:line-clamp-none">
-                          {group.notification.body}
-                        </p>
-                      <% end %>
-                      <span class="text-xs text-base-content/60 mt-1 sm:mt-2 inline-block">
-                        <.local_time
-                          datetime={group.notification.inserted_at}
-                          format="relative"
-                          timezone={@timezone}
-                          time_format={@time_format}
-                        />
-                      </span>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row items-center gap-1 flex-shrink-0">
-                      <%= if is_nil(group.notification.read_at) do %>
-                        <button
-                          phx-click="mark_as_read"
-                          phx-value-id={group.notification.id}
-                          class="btn btn-ghost btn-xs sm:btn-sm min-h-0 h-8"
-                          title={gettext("Mark as read")}
-                        >
-                          <.icon name="hero-check" class="w-4 h-4" />
                         </button>
                       <% end %>
-                      <button
-                        phx-click="dismiss"
-                        phx-value-id={group.notification.id}
-                        class="btn btn-ghost btn-xs sm:btn-sm min-h-0 h-8"
-                        title={gettext("Dismiss")}
-                      >
-                        <.icon name="hero-x-mark" class="w-4 h-4" />
-                      </button>
                     </div>
-                  </div>
+                  <% end %>
+                </div>
+
+                <div class="flex shrink-0 flex-wrap gap-2 self-start">
+                  <button
+                    phx-click="view_notification"
+                    phx-value-id={group.latest_notification.id}
+                    phx-value-url={group.destination}
+                    class="btn btn-ghost btn-xs"
+                  >
+                    Open
+                  </button>
+
+                  <%= if group.unread_count > 0 do %>
+                    <button
+                      phx-click={
+                        if group.type == :single, do: "mark_as_read", else: "mark_group_as_read"
+                      }
+                      phx-value-id={if group.type == :single, do: group.notification.id}
+                      phx-value-group_key={if group.type != :single, do: group.group_key}
+                      class="btn btn-ghost btn-xs"
+                    >
+                      Read
+                    </button>
+                  <% end %>
+
+                  <%= if group.type != :single do %>
+                    <button
+                      phx-click="toggle_group"
+                      phx-value-group_key={group.group_key}
+                      class="btn btn-ghost btn-xs"
+                    >
+                      <%= if is_expanded do %>
+                        Collapse
+                      <% else %>
+                        Expand
+                      <% end %>
+                    </button>
+                  <% end %>
+
+                  <%= if group.type == :single do %>
+                    <button
+                      phx-click="dismiss"
+                      phx-value-id={group.notification.id}
+                      class="btn btn-ghost btn-xs"
+                    >
+                      Clear
+                    </button>
+                  <% end %>
                 </div>
               </div>
+            </article>
           <% end %>
         <% end %>
       <% end %>
-    <% end %>
+    </div>
   </div>
 </div>

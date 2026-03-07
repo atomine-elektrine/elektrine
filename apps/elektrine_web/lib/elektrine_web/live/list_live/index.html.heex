@@ -1,242 +1,413 @@
-<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+<div class="mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
   <.z_nav active_tab="lists" />
 
-  <div class="flex flex-col sm:flex-row gap-4">
-    <!-- Main Content -->
-    <div class="flex-1">
-      <div class="card glass-card shadow-lg">
-        <div class="card-body">
-          <!-- View Mode Tabs -->
-          <div class="tabs tabs-boxed mb-6">
-            <button
-              phx-click="set_view_mode"
-              phx-value-mode="my_lists"
-              class={["tab", if(@view_mode == "my_lists", do: "tab-active", else: "")]}
-            >
-              <.icon name="hero-user" class="w-4 h-4 mr-2" /> My Lists
-            </button>
-            <button
-              phx-click="set_view_mode"
-              phx-value-mode="discover"
-              class={["tab", if(@view_mode == "discover", do: "tab-active", else: "")]}
-            >
-              <.icon name="hero-globe-alt" class="w-4 h-4 mr-2" /> Discover Lists
-            </button>
-          </div>
+  <% my_search_active? = String.trim(@my_lists_query || "") != ""
+  discover_search_active? = String.trim(@discover_query || "") != "" %>
 
-          <%= if @view_mode == "my_lists" do %>
-            <!-- My Lists View -->
-            <div class="flex items-center justify-between mb-6">
-              <h2 class="text-xl font-bold">My Lists</h2>
-              <button
-                phx-click="toggle_create_form"
-                class="btn btn-secondary btn-sm"
-              >
-                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> New List
-              </button>
-            </div>
-            
-<!-- Create List Form -->
-            <%= if @show_create_form do %>
-              <div class="mb-6 p-4 bg-base-50 rounded-lg border border-base-300">
-                <h3 class="font-semibold mb-4">Create New List</h3>
-                <.form for={%{}} phx-submit="create_list" class="space-y-4">
-                  <div>
-                    <label class="label">
-                      <span class="label-text">List Name</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      placeholder="e.g., Tech News, Friends, Mastodon Devs"
-                      class="input input-bordered w-full"
-                      required
-                      maxlength="100"
-                    />
-                  </div>
-
-                  <div>
-                    <label class="label">
-                      <span class="label-text">Description (optional)</span>
-                    </label>
-                    <textarea
-                      name="description"
-                      placeholder="What is this list for?"
-                      class="textarea textarea-bordered w-full"
-                      rows="2"
-                      maxlength="500"
-                    ></textarea>
-                  </div>
-
-                  <div>
-                    <label class="label">
-                      <span class="label-text">Visibility</span>
-                    </label>
-                    <select name="visibility" class="select select-bordered w-full">
-                      <option value="private">Private - Only you can see this list</option>
-                      <option value="public">
-                        Public - Anyone can discover and follow this list
-                      </option>
-                    </select>
-                  </div>
-
-                  <div class="flex gap-2 justify-end">
-                    <button
-                      type="button"
-                      phx-click="toggle_create_form"
-                      class="btn btn-ghost btn-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" class="btn btn-secondary btn-sm">
-                      <.icon name="hero-check" class="w-4 h-4 mr-1" /> Create List
-                    </button>
-                  </div>
-                </.form>
-              </div>
-            <% end %>
-            
-<!-- Lists Grid -->
-            <%= if length(@lists) > 0 do %>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <%= for list <- @lists do %>
-                  <div class="card glass-card">
-                    <div class="card-body p-4">
-                      <div class="flex items-start justify-between gap-2">
-                        <div class="flex-1">
-                          <h3 class="font-semibold text-lg">
-                            <.link href={~p"/lists/#{list.id}"} class="hover:text-primary">
-                              {list.name}
-                            </.link>
-                          </h3>
-                          <%= if list.description && list.description != "" do %>
-                            <p class="text-sm opacity-70 mt-1">{list.description}</p>
-                          <% end %>
-                          <div class="text-xs opacity-60 mt-2">
-                            {length(list.list_members)} members
-                          </div>
-                        </div>
-
-                        <.form
-                          for={%{}}
-                          action="#"
-                          method="delete"
-                          phx-submit="delete_list"
-                          class="inline"
-                        >
-                          <input type="hidden" name="list_id" value={list.id} />
-                          <button
-                            type="submit"
-                            class="btn btn-ghost btn-xs btn-circle"
-                            data-confirm="Delete this list?"
-                          >
-                            <.icon name="hero-trash" class="w-4 h-4 text-error" />
-                          </button>
-                        </.form>
-                      </div>
-
-                      <div class="mt-3">
-                        <.link
-                          href={~p"/lists/#{list.id}"}
-                          class="btn btn-secondary btn-sm w-full"
-                        >
-                          <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> View Timeline
-                        </.link>
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            <% else %>
-              <div class="text-center py-12">
-                <.icon name="hero-rectangle-stack" class="w-16 h-16 mx-auto mb-4 opacity-40" />
-                <h3 class="text-lg font-semibold mb-2">No lists yet</h3>
-                <p class="text-base-content/70 mb-6">
-                  Create lists to curate content from specific users
-                </p>
-                <button phx-click="toggle_create_form" class="btn btn-secondary">
-                  <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Your First List
-                </button>
-              </div>
-            <% end %>
-          <% else %>
-            <!-- Discover Lists View -->
-            <div class="mb-6">
-              <h2 class="text-xl font-bold mb-4">Discover Lists</h2>
-              
-<!-- Search Bar -->
-              <input
-                type="text"
-                placeholder="Search lists by name or description..."
-                class="input input-bordered w-full mb-4"
-                phx-keyup="search_lists"
-                phx-debounce="300"
-                name="query"
-                value={@search_query}
-              />
-            </div>
-            
-<!-- Public Lists Grid -->
-            <%= if length(@public_lists) > 0 do %>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <%= for list <- @public_lists do %>
-                  <div class="card bg-base-50 border border-base-200 hover:border-base-300 transition-colors">
-                    <div class="card-body p-4">
-                      <div class="flex items-start justify-between gap-2">
-                        <div class="flex-1">
-                          <h3 class="font-semibold text-lg">
-                            <.link href={~p"/lists/#{list.id}"} class="hover:text-primary">
-                              {list.name}
-                            </.link>
-                          </h3>
-                          <%= if list.description && list.description != "" do %>
-                            <p class="text-sm opacity-70 mt-1 line-clamp-2">{list.description}</p>
-                          <% end %>
-                          <div class="flex items-center gap-3 mt-2 text-xs opacity-60">
-                            <div class="flex items-center gap-1">
-                              <.icon name="hero-user" class="w-3 h-3" />
-                              <%= if list.user.display_name do %>
-                                {list.user.display_name}
-                              <% else %>
-                                @{list.user.username}
-                              <% end %>
-                            </div>
-                            <div class="flex items-center gap-1">
-                              <.icon name="hero-users" class="w-3 h-3" />
-                              {length(list.list_members)} members
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="mt-3">
-                        <.link
-                          href={~p"/lists/#{list.id}"}
-                          class="btn btn-secondary btn-sm w-full"
-                        >
-                          <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> View Timeline
-                        </.link>
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            <% else %>
-              <div class="text-center py-12">
-                <.icon name="hero-magnifying-glass" class="w-16 h-16 mx-auto mb-4 opacity-40" />
-                <h3 class="text-lg font-semibold mb-2">No lists found</h3>
-                <p class="text-base-content/70">
-                  <%= if @search_query != "" do %>
-                    Try a different search term
+  <div class="flex flex-col gap-4 lg:flex-row lg:gap-6">
+    <div class="flex-1 min-w-0 order-first">
+      <div class="card border border-base-300 bg-base-100 shadow-sm overflow-hidden">
+        <div class="border-b border-base-300 p-4 sm:p-5">
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h1 class="text-xl sm:text-2xl font-bold">Lists</h1>
+                <p class="text-sm opacity-70">
+                  <%= if @view_mode == "my_lists" do %>
+                    {@list_stats.my_lists} lists, {@list_stats.public_lists} public, {@list_stats.total_members} tracked members.
                   <% else %>
-                    No public lists available yet
+                    {length(@filtered_public_lists)} public lists in view.
                   <% end %>
                 </p>
               </div>
+
+              <div class="flex flex-wrap gap-2">
+                <a href="#create-list-panel" class="btn btn-secondary btn-sm lg:hidden">
+                  <.icon name="hero-plus" class="w-4 h-4 mr-2" /> New List
+                </a>
+                <button
+                  phx-click="set_view_mode"
+                  phx-value-mode="my_lists"
+                  class={[
+                    "btn btn-sm",
+                    if(@view_mode == "my_lists", do: "btn-secondary", else: "btn-ghost")
+                  ]}
+                >
+                  <.icon name="hero-user" class="w-4 h-4 mr-2" /> My Lists
+                </button>
+                <button
+                  phx-click="set_view_mode"
+                  phx-value-mode="discover"
+                  class={[
+                    "btn btn-sm",
+                    if(@view_mode == "discover", do: "btn-secondary", else: "btn-ghost")
+                  ]}
+                >
+                  <.icon name="hero-globe-alt" class="w-4 h-4 mr-2" /> Discover
+                </button>
+              </div>
+            </div>
+
+            <%= if @view_mode == "my_lists" do %>
+              <div class="space-y-3">
+                <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_180px]">
+                  <.form
+                    id="my-lists-search-form"
+                    for={%{}}
+                    phx-change="search_my_lists"
+                    phx-submit="search_my_lists"
+                  >
+                    <label class="input input-bordered flex items-center gap-2">
+                      <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
+                      <input
+                        type="text"
+                        name="query"
+                        value={@my_lists_query}
+                        placeholder="Search name, description, or member"
+                        autocomplete="off"
+                        phx-debounce="250"
+                      />
+                    </label>
+                  </.form>
+
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      phx-click="set_my_lists_visibility"
+                      phx-value-visibility="all"
+                      class={[
+                        "btn btn-sm",
+                        if(@my_lists_visibility == "all", do: "btn-secondary", else: "btn-ghost")
+                      ]}
+                    >
+                      All
+                    </button>
+                    <button
+                      phx-click="set_my_lists_visibility"
+                      phx-value-visibility="public"
+                      class={[
+                        "btn btn-sm",
+                        if(@my_lists_visibility == "public",
+                          do: "btn-secondary",
+                          else: "btn-ghost"
+                        )
+                      ]}
+                    >
+                      Public
+                    </button>
+                    <button
+                      phx-click="set_my_lists_visibility"
+                      phx-value-visibility="private"
+                      class={[
+                        "btn btn-sm",
+                        if(@my_lists_visibility == "private",
+                          do: "btn-secondary",
+                          else: "btn-ghost"
+                        )
+                      ]}
+                    >
+                      Private
+                    </button>
+                  </div>
+
+                  <.form for={%{}} phx-change="set_my_lists_sort">
+                    <select name="sort" class="select select-bordered w-full">
+                      <option value="name" selected={@my_lists_sort == "name"}>Name</option>
+                      <option value="fresh" selected={@my_lists_sort == "fresh"}>Newest</option>
+                      <option value="members" selected={@my_lists_sort == "members"}>
+                        Most members
+                      </option>
+                    </select>
+                  </.form>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-2 text-sm opacity-70">
+                  <div>{length(@filtered_lists)} of {@list_stats.my_lists} lists</div>
+                  <%= if my_search_active? do %>
+                    <button phx-click="clear_my_lists_search" class="btn btn-ghost btn-xs">
+                      Clear search
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            <% else %>
+              <div class="space-y-3">
+                <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+                  <.form
+                    id="discover-lists-search-form"
+                    for={%{}}
+                    phx-change="search_lists"
+                    phx-submit="search_lists"
+                  >
+                    <label class="input input-bordered flex items-center gap-2">
+                      <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
+                      <input
+                        type="text"
+                        name="query"
+                        value={@discover_query}
+                        placeholder="Search public lists"
+                        autocomplete="off"
+                        phx-debounce="250"
+                      />
+                    </label>
+                  </.form>
+
+                  <.form for={%{}} phx-change="set_public_lists_sort">
+                    <select name="sort" class="select select-bordered w-full">
+                      <option value="fresh" selected={@discover_sort == "fresh"}>Newest</option>
+                      <option value="members" selected={@discover_sort == "members"}>
+                        Most members
+                      </option>
+                      <option value="name" selected={@discover_sort == "name"}>Name</option>
+                    </select>
+                  </.form>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-2 text-sm opacity-70">
+                  <div>{length(@filtered_public_lists)} results</div>
+                  <%= if discover_search_active? do %>
+                    <button phx-click="clear_discover_search" class="btn btn-ghost btn-xs">
+                      Clear search
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="p-4 sm:p-5">
+          <%= if @view_mode == "my_lists" do %>
+            <%= if @filtered_lists != [] do %>
+              <div class="space-y-3">
+                <%= for list <- @filtered_lists do %>
+                  <div class="rounded-lg border border-base-300 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <.link
+                            href={~p"/lists/#{list.id}"}
+                            class="font-semibold text-base hover:underline"
+                          >
+                            {list.name}
+                          </.link>
+                          <span class="badge badge-outline badge-sm">
+                            {String.capitalize(list.visibility)}
+                          </span>
+                          <span class="badge badge-outline badge-sm">
+                            {length(list.list_members)} members
+                          </span>
+                        </div>
+
+                        <%= if list.description && String.trim(list.description) != "" do %>
+                          <p class="mt-2 text-sm text-base-content/70 line-clamp-2">
+                            {list.description}
+                          </p>
+                        <% end %>
+
+                        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-60">
+                          <span>
+                            Created {Elektrine.Social.time_ago_in_words(list.inserted_at)}
+                          </span>
+                          <span>
+                            <%= if list.visibility == "public" do %>
+                              Visible to everyone
+                            <% else %>
+                              Private to you
+                            <% end %>
+                          </span>
+                        </div>
+                      </div>
+
+                      <.form for={%{}} phx-submit="delete_list" class="inline">
+                        <input type="hidden" name="list_id" value={list.id} />
+                        <button
+                          type="submit"
+                          class="btn btn-ghost btn-sm btn-circle"
+                          data-confirm="Delete this list?"
+                          aria-label={"Delete #{list.name}"}
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4 text-error" />
+                        </button>
+                      </.form>
+                    </div>
+
+                    <div class="mt-4 flex justify-end">
+                      <.link href={~p"/lists/#{list.id}"} class="btn btn-secondary btn-sm">
+                        <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> Open List
+                      </.link>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <.empty_state
+                icon={
+                  if(@list_stats.my_lists == 0,
+                    do: "hero-rectangle-stack",
+                    else: "hero-magnifying-glass"
+                  )
+                }
+                title={
+                  if(@list_stats.my_lists == 0, do: "No lists yet", else: "No matching lists")
+                }
+                description={
+                  if @list_stats.my_lists == 0 do
+                    "Create a list to keep a smaller set of accounts in one place."
+                  else
+                    "Try a different search term or filter."
+                  end
+                }
+              />
+            <% end %>
+          <% else %>
+            <%= if @filtered_public_lists != [] do %>
+              <div class="space-y-3">
+                <%= for list <- @filtered_public_lists do %>
+                  <div class="rounded-lg border border-base-300 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <.link
+                            href={~p"/lists/#{list.id}"}
+                            class="font-semibold text-base hover:underline"
+                          >
+                            {list.name}
+                          </.link>
+                          <span class="badge badge-outline badge-sm">
+                            {length(list.list_members)} members
+                          </span>
+                        </div>
+
+                        <%= if list.description && String.trim(list.description) != "" do %>
+                          <p class="mt-2 text-sm text-base-content/70 line-clamp-2">
+                            {list.description}
+                          </p>
+                        <% end %>
+
+                        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-60">
+                          <span>By {list.user.display_name || "@#{list.user.username}"}</span>
+                          <span>
+                            Updated {Elektrine.Social.time_ago_in_words(
+                              list.updated_at || list.inserted_at
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      <.link href={~p"/lists/#{list.id}"} class="btn btn-secondary btn-sm">
+                        Open
+                      </.link>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <.empty_state
+                icon="hero-magnifying-glass"
+                title="No public lists found"
+                description={
+                  if discover_search_active? do
+                    "Try a broader search term."
+                  else
+                    "Public lists from other users will show up here."
+                  end
+                }
+              />
             <% end %>
           <% end %>
         </div>
       </div>
     </div>
+
+    <aside
+      id="create-list-panel"
+      class="order-last w-full flex-shrink-0 space-y-4 self-start lg:sticky lg:top-36 lg:w-80"
+    >
+      <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body p-4 space-y-4">
+          <div>
+            <h2 class="font-semibold">Create List</h2>
+            <p class="text-sm opacity-70">Make a private or public list.</p>
+          </div>
+
+          <div class="rounded-lg border border-base-300 divide-y divide-base-300">
+            <div class="flex items-center justify-between px-3 py-2 text-sm">
+              <span class="opacity-70">Lists</span>
+              <span class="font-medium">{@list_stats.my_lists}</span>
+            </div>
+            <div class="flex items-center justify-between px-3 py-2 text-sm">
+              <span class="opacity-70">Public</span>
+              <span class="font-medium">{@list_stats.public_lists}</span>
+            </div>
+            <div class="flex items-center justify-between px-3 py-2 text-sm">
+              <span class="opacity-70">Members tracked</span>
+              <span class="font-medium">{@list_stats.total_members}</span>
+            </div>
+          </div>
+
+          <%= if @new_list_name != "" || @new_list_description != "" || @new_list_visibility != "private" do %>
+            <div class="flex justify-end">
+              <button phx-click="reset_new_list_form" class="btn btn-ghost btn-xs">
+                Reset
+              </button>
+            </div>
+          <% end %>
+
+          <.form
+            id="list-create-form"
+            for={%{}}
+            phx-change="update_new_list_form"
+            phx-submit="create_list"
+            class="space-y-4"
+          >
+            <div>
+              <label class="label">
+                <span class="label-text">Name</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={@new_list_name}
+                placeholder="Friends, Release Radar, Ops"
+                class="input input-bordered w-full"
+                maxlength="100"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="label">
+                <span class="label-text">Description</span>
+              </label>
+              <textarea
+                name="description"
+                class="textarea textarea-bordered w-full"
+                rows="3"
+                maxlength="500"
+                placeholder="Optional"
+              >{@new_list_description}</textarea>
+            </div>
+
+            <div>
+              <label class="label">
+                <span class="label-text">Visibility</span>
+              </label>
+              <select name="visibility" class="select select-bordered w-full">
+                <option value="private" selected={@new_list_visibility == "private"}>
+                  Private
+                </option>
+                <option value="public" selected={@new_list_visibility == "public"}>
+                  Public
+                </option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-secondary w-full">
+              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create List
+            </button>
+          </.form>
+        </div>
+      </div>
+    </aside>
   </div>
 </div>

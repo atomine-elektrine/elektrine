@@ -259,6 +259,9 @@ defmodule ElektrineWeb.TimelineLive.Router do
       "create_timeline_reply" ->
         ReplyOperations.handle_event(event_name, params, socket)
 
+      "load_remote_replies" ->
+        ReplyOperations.handle_event(event_name, params, socket)
+
       "update_reply_content" ->
         ReplyOperations.handle_event(event_name, params, socket)
 

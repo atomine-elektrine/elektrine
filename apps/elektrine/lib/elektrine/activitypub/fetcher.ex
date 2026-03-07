@@ -9,6 +9,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
   alias Elektrine.ActivityPub.HTTPSignature
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.HTTP.Backoff
+  alias Elektrine.Security.URLValidator
 
   @doc """
   Fetches an actor document from a remote instance.
@@ -16,12 +17,17 @@ defmodule Elektrine.ActivityPub.Fetcher do
   Also triggers a background fetch of instance metadata (nodeinfo).
   """
   def fetch_actor(uri, opts \\ []) do
-    Logger.info("Fetching actor from: #{uri}")
+    with :ok <- validate_fetch_url(uri, :actor, opts) do
+      Logger.info("Fetching actor from: #{uri}")
 
-    # Trigger nodeinfo fetch for this instance (async, deduplicated)
-    Instances.fetch_metadata_from_url(uri)
+      # Tests may inject a request function and don't need nodeinfo side effects.
+      unless Keyword.has_key?(opts, :request_fun) do
+        # Trigger nodeinfo fetch for this instance (async, deduplicated)
+        Instances.fetch_metadata_from_url(uri)
+      end
 
-    do_signed_fetch(uri, opts)
+      do_signed_fetch(uri, opts)
+    end
   end
 
   @doc """
@@ -36,12 +42,14 @@ defmodule Elektrine.ActivityPub.Fetcher do
   def fetch_object(uri, opts \\ []) do
     skip_cache = Keyword.get(opts, :skip_cache, false)
 
-    if skip_cache do
-      do_signed_fetch(uri, opts)
-    else
-      Elektrine.AppCache.get_object(uri, fn ->
+    with :ok <- validate_fetch_url(uri, :object, opts) do
+      if skip_cache do
         do_signed_fetch(uri, opts)
-      end)
+      else
+        Elektrine.AppCache.get_object(uri, fn ->
+          do_signed_fetch(uri, opts)
+        end)
+      end
     end
   end
 
@@ -49,9 +57,11 @@ defmodule Elektrine.ActivityPub.Fetcher do
   Fetches an object without caching. Use when you need fresh data.
   """
   def fetch_object_uncached(uri, opts \\ []) do
-    # Also invalidate the cache so next regular fetch gets fresh data
-    Elektrine.AppCache.invalidate_object(uri)
-    do_signed_fetch(uri, opts)
+    with :ok <- validate_fetch_url(uri, :object, opts) do
+      # Also invalidate the cache so next regular fetch gets fresh data
+      Elektrine.AppCache.invalidate_object(uri)
+      do_signed_fetch(uri, opts)
+    end
   end
 
   # Performs a signed or unsigned fetch based on configuration
@@ -81,7 +91,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
         base_headers
       end
 
-    case request_with_backoff(uri, headers, recv_timeout: 5_000, timeout: 5_000) do
+    case request_with_backoff(uri, headers, request_opts(opts)) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, data} ->
@@ -156,13 +166,17 @@ defmodule Elektrine.ActivityPub.Fetcher do
   Resolves a WebFinger URI to an ActivityPub actor URI.
   Results are cached since WebFinger data rarely changes.
   """
-  def webfinger_lookup(acct) do
-    Elektrine.AppCache.get_webfinger(acct, fn ->
-      do_webfinger_lookup(acct)
-    end)
+  def webfinger_lookup(acct, opts \\ []) do
+    if Keyword.get(opts, :skip_cache, false) do
+      do_webfinger_lookup(acct, opts)
+    else
+      Elektrine.AppCache.get_webfinger(acct, fn ->
+        do_webfinger_lookup(acct, opts)
+      end)
+    end
   end
 
-  defp do_webfinger_lookup(acct) do
+  defp do_webfinger_lookup(acct, opts) do
     # acct format: user@domain.com
     [_username, domain] = String.split(acct, "@", parts: 2)
 
@@ -173,43 +187,71 @@ defmodule Elektrine.ActivityPub.Fetcher do
       {"user-agent", "Elektrine/1.0"}
     ]
 
-    case request_with_backoff(webfinger_url, headers, recv_timeout: 5_000, timeout: 5_000) do
-      {:ok, %Finch.Response{status: 200, body: body}} ->
-        case Jason.decode(body) do
-          {:ok, %{"links" => links}} ->
-            # Find the self link with type application/activity+json
-            actor_link =
-              Enum.find(links, fn link ->
-                link["rel"] == "self" &&
-                  (link["type"] == "application/activity+json" ||
-                     link["type"] ==
-                       "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")
-              end)
+    with :ok <- validate_fetch_url(webfinger_url, :webfinger, opts) do
+      case request_with_backoff(webfinger_url, headers, request_opts(opts)) do
+        {:ok, %Finch.Response{status: 200, body: body}} ->
+          case Jason.decode(body) do
+            {:ok, %{"links" => links}} ->
+              # Find the self link with type application/activity+json
+              actor_link =
+                Enum.find(links, fn link ->
+                  link["rel"] == "self" &&
+                    (link["type"] == "application/activity+json" ||
+                       link["type"] ==
+                         "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")
+                end)
 
-            case actor_link do
-              %{"href" => href} -> {:ok, href}
-              _ -> {:error, :no_actor_link}
-            end
+              case actor_link do
+                %{"href" => href} -> {:ok, href}
+                _ -> {:error, :no_actor_link}
+              end
 
-          {:error, _} ->
-            {:error, :invalid_json}
-        end
+            {:error, _} ->
+              {:error, :invalid_json}
+          end
 
-      {:ok, %Finch.Response{status: status}} ->
-        Logger.error("WebFinger lookup failed, status: #{status}")
-        {:error, :webfinger_failed}
+        {:ok, %Finch.Response{status: status}} ->
+          Logger.error("WebFinger lookup failed, status: #{status}")
+          {:error, :webfinger_failed}
 
-      {:error, :backoff} ->
-        Logger.error("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
-        {:error, :webfinger_failed}
+        {:error, :backoff} ->
+          Logger.error("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
+          {:error, :webfinger_failed}
 
-      {:error, reason} ->
-        Logger.error("HTTP error during WebFinger: #{inspect(reason)}")
-        {:error, :http_error}
+        {:error, reason} ->
+          Logger.error("HTTP error during WebFinger: #{inspect(reason)}")
+          {:error, :http_error}
+      end
     end
   end
 
+  defp request_opts(opts) do
+    [recv_timeout: 5_000, timeout: 5_000]
+    |> Keyword.merge(Keyword.take(opts, [:request_fun]))
+  end
+
+  defp validate_fetch_url(uri, kind, opts) when is_binary(uri) do
+    if Keyword.get(opts, :validate_url, true) do
+      case URLValidator.validate(uri) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "Blocked unsafe ActivityPub #{kind} URL #{inspect(uri)}: #{inspect(reason)}"
+          )
+
+          {:error, :unsafe_url}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp validate_fetch_url(_uri, _kind, _opts), do: {:error, :unsafe_url}
+
   defp request_with_backoff(url, headers, opts) do
-    Backoff.get(url, headers, opts)
+    request_fun = Keyword.get(opts, :request_fun, &Backoff.get/3)
+    request_fun.(url, headers, Keyword.drop(opts, [:request_fun]))
   end
 end

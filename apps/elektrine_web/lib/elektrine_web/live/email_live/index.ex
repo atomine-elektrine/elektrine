@@ -126,6 +126,7 @@ defmodule ElektrineWeb.EmailLive.Index do
      |> assign(:show_calendar_modal, false)
      |> assign(:editing_event, nil)
      |> assign(:editing_calendar, nil)
+     |> assign(:calendar_composer_kind, "event")
      |> assign(:event_changeset, Event.changeset(%Event{}, %{}))
      |> assign(:calendar_changeset, CalendarSchema.changeset(%CalendarSchema{}, %{}))
      |> assign(:visible_calendars, MapSet.new())}
@@ -159,21 +160,27 @@ defmodule ElektrineWeb.EmailLive.Index do
       |> assign(:page_title, get_page_title(current_tab))
 
     # Load content based on tab with pagination
-    socket = load_tab_content(socket, current_tab, params, page)
+    socket =
+      socket
+      |> load_tab_content(current_tab, params, page)
+      |> maybe_open_calendar_composer(current_tab, params)
 
     # Scroll to top when changing tabs
     {:noreply, push_event(socket, "scroll-to-top", %{})}
   end
 
   @impl true
-  def handle_params(_params, _url, socket) do
+  def handle_params(params, _url, socket) do
     if socket.assigns.live_action == :calendar do
       socket =
         socket
         |> assign(:current_tab, "calendar")
         |> assign(:page_title, get_page_title("calendar"))
 
-      {:noreply, load_tab_content(socket, "calendar", %{}, 1)}
+      {:noreply,
+       socket
+       |> load_tab_content("calendar", %{}, 1)
+       |> maybe_open_calendar_composer("calendar", params)}
     else
       # Default to inbox tab
       socket =
@@ -644,6 +651,14 @@ defmodule ElektrineWeb.EmailLive.Index do
       _ -> "Email"
     end
   end
+
+  defp maybe_open_calendar_composer(socket, "calendar", %{"composer" => composer})
+       when composer in ["event", "task"] do
+    {:noreply, socket} = handle_calendar_event("new_event", %{"template" => composer}, socket)
+    socket
+  end
+
+  defp maybe_open_calendar_composer(socket, _tab, _params), do: socket
 
   # Helper functions for the template
   defp get_tab_icon(tab) do

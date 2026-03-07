@@ -35,8 +35,8 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
 
   defp validate_signature(conn, signature_header) do
     case parse_signature_header(signature_header) do
-      {:ok, %{"keyId" => key_id, "headers" => headers_string, "signature" => signature}} ->
-        verify_with_key(conn, key_id, headers_string, signature)
+      {:ok, %{"keyId" => key_id, "headers" => headers_string, "signature" => signature} = params} ->
+        verify_with_key(conn, key_id, headers_string, signature, params)
 
       {:error, reason} ->
         Logger.debug("Failed to parse signature header: #{inspect(reason)}")
@@ -47,10 +47,10 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     end
   end
 
-  defp verify_with_key(conn, key_id, headers_string, signature) do
+  defp verify_with_key(conn, key_id, headers_string, signature, signature_params) do
     case SigningKey.get_or_fetch_by_key_id(key_id) do
       {:ok, signing_key} ->
-        verify_signature_with_key(conn, signing_key, headers_string, signature)
+        verify_signature_with_key(conn, signing_key, headers_string, signature, signature_params)
 
       {:error, reason} ->
         Logger.debug("Failed to fetch signing key #{key_id}: #{inspect(reason)}")
@@ -61,10 +61,10 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     end
   end
 
-  defp verify_signature_with_key(conn, signing_key, headers_string, signature) do
-    headers_list = String.split(headers_string, " ")
+  defp verify_signature_with_key(conn, signing_key, headers_string, signature, signature_params) do
+    headers_list = String.split(headers_string, " ", trim: true)
 
-    case build_signing_string(conn, headers_list) do
+    case build_signing_string(conn, headers_list, signature_params) do
       {:ok, signing_string} ->
         if SigningKey.verify(signing_key, signing_string, signature) do
           # Load the associated user or remote actor
@@ -78,7 +78,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
           Logger.info("Signature verification failed for key #{signing_key.key_id}")
 
           # Try refreshing the key and verify again
-          retry_with_refreshed_key(conn, signing_key, headers_string, signature)
+          retry_with_refreshed_key(conn, signing_key, headers_string, signature, signature_params)
         end
 
       {:error, :missing_headers, missing} ->
@@ -90,12 +90,12 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     end
   end
 
-  defp retry_with_refreshed_key(conn, signing_key, headers_string, signature) do
+  defp retry_with_refreshed_key(conn, signing_key, headers_string, signature, signature_params) do
     case SigningKey.refresh_by_key_id(signing_key.key_id) do
       {:ok, refreshed_key} ->
-        headers_list = String.split(headers_string, " ")
+        headers_list = String.split(headers_string, " ", trim: true)
 
-        case build_signing_string(conn, headers_list) do
+        case build_signing_string(conn, headers_list, signature_params) do
           {:ok, signing_string} ->
             if SigningKey.verify(refreshed_key, signing_string, signature) do
               actor = load_actor_for_key(refreshed_key)
@@ -145,12 +145,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   defp load_actor_for_key(_), do: nil
 
   defp parse_signature_header(header) do
-    # Parse: keyId="...",algorithm="...",headers="...",signature="..."
-    # Handle both comma-separated and comma+space-separated formats
-    parts =
-      Regex.scan(~r/(\w+)="([^"]*)"/, header)
-      |> Enum.map(fn [_, key, value] -> {key, value} end)
-      |> Enum.into(%{})
+    parts = extract_signature_params(header)
 
     required_keys = ["keyId", "headers", "signature"]
 
@@ -161,10 +156,27 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     end
   end
 
-  defp build_signing_string(conn, headers_list) do
+  defp extract_signature_params(header) do
+    Regex.scan(~r/([A-Za-z][A-Za-z0-9_-]*)=(?:"([^"]*)"|([^,\s]+))/, header)
+    |> Enum.reduce(%{}, fn
+      [_, key, quoted], acc ->
+        Map.put(acc, key, quoted)
+
+      [_, key, quoted, unquoted], acc ->
+        value =
+          case quoted do
+            "" -> String.trim(unquoted)
+            _ -> quoted
+          end
+
+        Map.put(acc, key, value)
+    end)
+  end
+
+  defp build_signing_string(conn, headers_list, signature_params) do
     results =
       Enum.map(headers_list, fn header_name ->
-        case get_header_value(conn, header_name) do
+        case get_header_value(conn, header_name, signature_params) do
           {:ok, value} -> {:ok, "#{header_name}: #{value}"}
           {:error, :missing} -> {:error, header_name}
         end
@@ -188,7 +200,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     end
   end
 
-  defp get_header_value(conn, header_name) do
+  defp get_header_value(conn, header_name, signature_params) do
     case header_name do
       "(request-target)" ->
         method = conn.method |> String.downcase()
@@ -197,12 +209,10 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
         {:ok, "#{method} #{path}#{query}"}
 
       "(created)" ->
-        # Optional timestamp - return empty if not present
-        {:ok, ""}
+        signature_param_value(signature_params, "created")
 
       "(expires)" ->
-        # Optional timestamp - return empty if not present
-        {:ok, ""}
+        signature_param_value(signature_params, "expires")
 
       "host" ->
         # Host header - use conn.host if header not present
@@ -216,6 +226,13 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
           [value | _] -> {:ok, value}
           [] -> {:error, :missing}
         end
+    end
+  end
+
+  defp signature_param_value(signature_params, key) do
+    case Map.get(signature_params, key) do
+      value when is_binary(value) and value != "" -> {:ok, value}
+      _ -> {:error, :missing}
     end
   end
 end

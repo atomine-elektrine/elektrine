@@ -309,8 +309,15 @@ export const TimelineReply = {
 
   beforeUpdate() {
     this.prePatchHadTimelineSkeleton = this.timelineSkeletonVisible()
-    this.prePatchAnchor = this.findVisiblePostAnchor()
-    this.prePatchScrollY = window.scrollY
+    // Capturing anchor geometry on every patch forces layout work.
+    // Only do it when skeleton transitions can change page height significantly.
+    if (this.prePatchHadTimelineSkeleton) {
+      this.prePatchAnchor = this.findVisiblePostAnchor()
+      this.prePatchScrollY = window.scrollY
+    } else {
+      this.prePatchAnchor = null
+      this.prePatchScrollY = null
+    }
   },
 
   updated() {
@@ -342,10 +349,10 @@ export const TimelineReply = {
           const delta = newTop - this.prePatchAnchor.top
           if (delta !== 0) window.scrollBy(0, delta)
         } else if (typeof this.prePatchScrollY === 'number') {
-          window.scrollTo({ top: this.prePatchScrollY, behavior: "instant" })
+          window.scrollTo({ top: this.prePatchScrollY, behavior: "auto" })
         }
       } else if (typeof this.prePatchScrollY === 'number') {
-        window.scrollTo({ top: this.prePatchScrollY, behavior: "instant" })
+        window.scrollTo({ top: this.prePatchScrollY, behavior: "auto" })
       }
     }
 
@@ -356,20 +363,23 @@ export const TimelineReply = {
   },
 
   findVisiblePostAnchor() {
-    const postCards = Array.from(document.querySelectorAll('[data-post-id]'))
+    const postCards = this.el.querySelectorAll('[data-post-id]')
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight
 
-    const anchor = postCards.find((card) => {
+    for (const card of postCards) {
       const rect = card.getBoundingClientRect()
-      return rect.bottom > 0 && rect.top < viewportHeight
-    })
+      if (rect.bottom <= 0 || rect.top >= viewportHeight) continue
 
-    if (!(anchor && anchor.dataset.postId)) return null
+      const postId = card.dataset.postId
+      if (!postId) continue
 
-    return {
-      postId: anchor.dataset.postId,
-      top: anchor.getBoundingClientRect().top
+      return {
+        postId,
+        top: rect.top
+      }
     }
+
+    return null
   },
 
   timelineSkeletonVisible() {

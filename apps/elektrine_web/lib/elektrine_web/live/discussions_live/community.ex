@@ -19,7 +19,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
   """
   use ElektrineWeb, :live_view
 
-  alias Elektrine.{Messaging, Social}
+  alias Elektrine.{Messaging, Profiles, Social}
   alias ElektrineWeb.DiscussionsLive.Operations.SortHelpers
   alias ElektrineWeb.DiscussionsLive.Router
 
@@ -60,6 +60,13 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           {false, false}
         end
 
+      is_remote_following =
+        if user && community.is_federated_mirror && is_integer(community.remote_group_actor_id) do
+          Profiles.following_remote_actor?(user.id, community.remote_group_actor_id)
+        else
+          false
+        end
+
       # Allow everyone to view all communities
       if connected?(socket) do
         # Subscribe to community updates
@@ -95,6 +102,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
         |> assign(:filtered_members, [])
         |> assign(:member_search, "")
         |> assign(:is_member, is_member)
+        |> assign(:is_remote_following, is_remote_following)
         |> assign(:is_moderator, is_moderator)
         |> assign(:flairs, [])
         |> assign(:pinned_posts, [])

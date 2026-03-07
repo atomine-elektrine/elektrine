@@ -3,7 +3,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.AccountsFixtures
+  alias Elektrine.{AccountsFixtures, Friends}
 
   defp log_in_user(conn, user) do
     token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
@@ -20,13 +20,53 @@ defmodule ElektrineWeb.OverviewLiveTest do
   test "invalid filter param falls back to default overview content", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
-    {:ok, _view, html} =
+    {:ok, view, html} =
       conn
       |> log_in_user(user)
       |> live(~p"/overview?filter=not-real")
 
-    assert html =~ "Personalized content based on your interests"
-    refute html =~ "Your recent activity across all platforms"
+    assert html =~ "Attention Queue"
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="set_filter"][phx-value-filter="all"].btn-secondary)
+           )
+
+    assert html =~ "0 posts"
+  end
+
+  test "shell includes a global composer menu", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/overview")
+
+    assert html =~ "Global Composer"
+    assert html =~ "/timeline?composer=note"
+    assert html =~ "/calendar?composer=task"
+  end
+
+  test "attention queue can be filtered to requests", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    requester = AccountsFixtures.user_fixture()
+
+    {:ok, _request} = Friends.send_friend_request(requester.id, viewer.id)
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/overview")
+
+    assert render(view) =~ "Respond to friend requests"
+
+    view
+    |> element(~s(button[phx-click="set_attention_filter"][phx-value-filter="requests"]))
+    |> render_click()
+
+    assert_patch(view, ~p"/overview?filter=all&attention=requests")
+    assert render(view) =~ "Respond to friend requests"
   end
 
   test "invalid like_post id does not crash and shows an error", %{conn: conn} do

@@ -12,13 +12,20 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
 
   defp parse_signature_header(header) do
     parts =
-      header
-      |> String.split(",")
-      |> Enum.map(fn part ->
-        [key, value] = String.split(part, "=", parts: 2)
-        {String.trim(key), String.trim(value, "\"")}
+      Regex.scan(~r/([A-Za-z][A-Za-z0-9_-]*)=(?:"([^"]*)"|([^,\s]+))/, header)
+      |> Enum.reduce(%{}, fn
+        [_, key, quoted], acc ->
+          Map.put(acc, key, quoted)
+
+        [_, key, quoted, unquoted], acc ->
+          value =
+            case quoted do
+              "" -> String.trim(unquoted)
+              _ -> quoted
+            end
+
+          Map.put(acc, key, value)
       end)
-      |> Enum.into(%{})
 
     required_keys = ["keyId", "headers", "signature"]
 
@@ -29,18 +36,24 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
     end
   end
 
-  defp verify_signature(conn, %{
-         "keyId" => key_id,
-         "headers" => headers_string,
-         "signature" => signature
-       }) do
+  defp verify_signature(
+         conn,
+         %{
+           "keyId" => key_id,
+           "headers" => headers_string,
+           "signature" => signature
+         } = params
+       ) do
     actor_uri = extract_actor_uri(key_id)
 
     case Elektrine.ActivityPub.get_or_fetch_actor(actor_uri) do
       {:ok, actor} ->
-        headers_list = String.split(headers_string, " ")
+        headers_list = String.split(headers_string, " ", trim: true)
 
-        case build_signing_string(conn, headers_list) do
+        case build_signing_string(conn, headers_list, %{
+               "created" => Map.get(params, "created"),
+               "expires" => Map.get(params, "expires")
+             }) do
           {:ok, signing_string} ->
             case Base.decode64(signature) do
               {:ok, decoded_signature} ->
@@ -75,10 +88,10 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
     key_id |> String.split("#") |> List.first()
   end
 
-  defp build_signing_string(conn, headers_list) do
+  defp build_signing_string(conn, headers_list, signature_params) do
     results =
       Enum.map(headers_list, fn header_name ->
-        case get_header_value(conn, header_name) do
+        case get_header_value(conn, header_name, signature_params) do
           {:ok, value} -> {:ok, "#{header_name}: #{value}"}
           {:error, :missing} -> {:error, header_name}
         end
@@ -99,7 +112,7 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
     end
   end
 
-  defp get_header_value(conn, header_name) do
+  defp get_header_value(conn, header_name, signature_params) do
     case header_name do
       "(request-target)" ->
         method = conn.method |> String.downcase()
@@ -115,16 +128,23 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
         {:ok, "#{method} #{path}#{query}"}
 
       "(created)" ->
-        {:ok, ""}
+        signature_param_value(signature_params, "created")
 
       "(expires)" ->
-        {:ok, ""}
+        signature_param_value(signature_params, "expires")
 
       _ ->
         case Plug.Conn.get_req_header(conn, header_name) do
           [value | _] -> {:ok, value}
           [] -> {:error, :missing}
         end
+    end
+  end
+
+  defp signature_param_value(signature_params, key) do
+    case Map.get(signature_params, key) do
+      value when is_binary(value) and value != "" -> {:ok, value}
+      _ -> {:error, :missing}
     end
   end
 

@@ -2,7 +2,6 @@
 export const NotificationVisibility = {
   mounted() {
     this.observer = null
-    this.unreadNotifications = new Set()
     this.markedAsRead = new Set()
     this.pendingMarkAsRead = []
 
@@ -19,18 +18,23 @@ export const NotificationVisibility = {
 
     // Create the observer
     this.observer = new IntersectionObserver((entries) => {
-
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           const notificationEl = entry.target
-          const notificationId = notificationEl.dataset.notificationId
           const isUnread = notificationEl.dataset.unread === 'true'
+          const notificationIds = this.notificationIdsForElement(notificationEl)
 
+          if (!isUnread || notificationIds.length === 0) {
+            return
+          }
 
-          // Only mark as read if it's unread and hasn't been marked yet
-          if (isUnread && !this.markedAsRead.has(notificationId)) {
-            this.markedAsRead.add(notificationId)
-            this.pendingMarkAsRead.push(notificationId)
+          const idsToQueue = notificationIds.filter(id => !this.markedAsRead.has(id))
+
+          if (idsToQueue.length > 0) {
+            idsToQueue.forEach(id => {
+              this.markedAsRead.add(id)
+              this.pendingMarkAsRead.push(id)
+            })
 
             // Update the data attribute to prevent re-marking
             notificationEl.dataset.unread = 'false'
@@ -58,14 +62,27 @@ export const NotificationVisibility = {
     this.observeNotifications()
   },
 
+  notificationIdsForElement(notificationEl) {
+    const groupedIds = notificationEl.dataset.notificationIds
+
+    if (groupedIds) {
+      return groupedIds
+        .split(',')
+        .map(id => id.trim())
+        .filter(Boolean)
+    }
+
+    const singleId = notificationEl.dataset.notificationId
+    return singleId ? [singleId] : []
+  },
+
   observeNotifications() {
-    const notifications = this.el.querySelectorAll('[data-notification-id]')
+    const notifications = this.el.querySelectorAll('[data-notification-id], [data-notification-ids]')
 
     notifications.forEach(notification => {
       // Only observe unread notifications
       if (notification.dataset.unread === 'true') {
         this.observer.observe(notification)
-        this.unreadNotifications.add(notification.dataset.notificationId)
       }
     })
   },

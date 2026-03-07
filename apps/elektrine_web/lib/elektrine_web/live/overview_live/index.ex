@@ -8,6 +8,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)
+  @default_attention_filter "all"
+  @allowed_attention_filters ~w(all email chat requests social system)
   @feed_load_timeout_ms 12_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
@@ -42,6 +44,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:user_follows, %{})
        |> assign(:pending_follows, %{})
        |> assign(:filter, @default_filter)
+       |> assign(:attention_filter, @default_attention_filter)
        |> assign(:online_users, [])
        |> assign(:user_statuses, %{})
        |> assign(:platform_stats, default_platform_stats())
@@ -70,14 +73,18 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @impl true
   def handle_params(params, _uri, socket) do
     filter = normalize_filter(params["filter"])
+    attention_filter = normalize_attention_filter(params["attention"])
 
     socket =
       if socket.assigns.data_loaded do
         socket
         |> assign(:filter, filter)
+        |> assign(:attention_filter, attention_filter)
         |> assign(:filtered_all_posts, base_posts_for_filter(filter, socket.assigns))
       else
-        assign(socket, :filter, filter)
+        socket
+        |> assign(:filter, filter)
+        |> assign(:attention_filter, attention_filter)
       end
 
     {:noreply, socket}
@@ -86,7 +93,19 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @impl true
   def handle_event("set_filter", %{"filter" => filter}, socket) do
     filter = normalize_filter(filter)
-    {:noreply, push_patch(socket, to: ~p"/overview?filter=#{filter}")}
+
+    {:noreply,
+     push_patch(
+       socket,
+       to: ~p"/overview?#{[filter: filter, attention: socket.assigns.attention_filter]}"
+     )}
+  end
+
+  def handle_event("set_attention_filter", %{"filter" => filter}, socket) do
+    filter = normalize_attention_filter(filter)
+
+    {:noreply,
+     push_patch(socket, to: ~p"/overview?#{[filter: socket.assigns.filter, attention: filter]}")}
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
@@ -880,6 +899,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
       vpn_config_count: 0,
       tasks: [],
       alerts: [],
+      attention_queue: [],
+      attention_counts: %{"all" => 0},
       quick_actions: quick_actions(),
       recent_activity: []
     }
@@ -896,43 +917,43 @@ defmodule ElektrineWeb.OverviewLive.Index do
         tone: "primary"
       },
       %{
-        id: "inbox",
-        label: "Open Inbox",
-        detail: "Review unread mail",
-        href: ~p"/email?tab=inbox&filter=unread",
-        icon: "hero-envelope",
-        tone: "neutral"
-      },
-      %{
-        id: "chat",
-        label: "Open Chat",
-        detail: "Jump into conversations",
-        href: ~p"/chat",
+        id: "new_message",
+        label: "New Message",
+        detail: "Start a direct message",
+        href: ~p"/chat?#{[composer: "message"]}",
         icon: "hero-chat-bubble-left-right",
         tone: "neutral"
       },
       %{
-        id: "timeline",
-        label: "Post to Timeline",
+        id: "new_post",
+        label: "New Post",
         detail: "Share an update",
-        href: ~p"/timeline",
+        href: ~p"/timeline?#{[composer: "post"]}",
         icon: "hero-rectangle-stack",
+        tone: "neutral"
+      },
+      %{
+        id: "new_task",
+        label: "New Task",
+        detail: "Capture work on the calendar",
+        href: ~p"/calendar?#{[composer: "task"]}",
+        icon: "hero-check-circle",
+        tone: "neutral"
+      },
+      %{
+        id: "new_list",
+        label: "New List",
+        detail: "Save a smaller group",
+        href: "/lists#create-list-panel",
+        icon: "hero-queue-list",
         tone: "neutral"
       },
       %{
         id: "search",
         label: "Global Search",
-        detail: "Find people, posts, and messages",
+        detail: "Jump across the workspace",
         href: ~p"/search",
         icon: "hero-magnifying-glass",
-        tone: "neutral"
-      },
-      %{
-        id: "vpn",
-        label: "VPN",
-        detail: "Manage your WireGuard configs",
-        href: ~p"/vpn",
-        icon: "hero-shield-check",
         tone: "neutral"
       }
     ]
@@ -952,7 +973,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     chat_unread_count = Messaging.get_unread_count(user.id)
     recent_conversations = Messaging.list_conversations(user.id, limit: 3)
     notifications_unread_count = Notifications.get_unread_count(user.id)
-    recent_notifications = Notifications.list_notifications(user.id, limit: 8)
+    recent_notifications = Notifications.list_notifications(user.id, filter: :unread, limit: 8)
     pending_friend_requests = Friends.list_pending_requests(user.id)
     pending_follow_requests = Profiles.get_pending_follow_requests(user.id)
     vpn_configs = VPN.list_user_configs(user.id)
@@ -979,6 +1000,18 @@ defmodule ElektrineWeb.OverviewLive.Index do
         pending_follow_requests_count
       )
 
+    attention_queue =
+      build_attention_queue(
+        inbox_messages,
+        recent_notifications,
+        inbox_unread_count,
+        notifications_unread_count,
+        reply_later_count,
+        chat_unread_count,
+        pending_friend_requests_count,
+        pending_follow_requests_count
+      )
+
     %{
       inbox_messages: inbox_messages,
       inbox_unread_count: inbox_unread_count,
@@ -989,6 +1022,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
       vpn_config_count: vpn_config_count,
       tasks: tasks,
       alerts: alerts,
+      attention_queue: attention_queue,
+      attention_counts: attention_queue_counts(attention_queue),
       quick_actions: quick_actions(),
       recent_activity:
         build_recent_activity(
@@ -1123,6 +1158,285 @@ defmodule ElektrineWeb.OverviewLive.Index do
       end
     ]
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp build_attention_queue(
+         inbox_messages,
+         recent_notifications,
+         inbox_unread_count,
+         notifications_unread_count,
+         reply_later_count,
+         chat_unread_count,
+         pending_friend_requests_count,
+         pending_follow_requests_count
+       ) do
+    unread_email_messages =
+      inbox_messages
+      |> Enum.filter(&(Map.get(&1, :read, false) == false))
+      |> Enum.take(3)
+
+    remaining_unread_count = max(inbox_unread_count - length(unread_email_messages), 0)
+
+    remaining_notification_count =
+      max(notifications_unread_count - min(length(recent_notifications), 4), 0)
+
+    unread_email_items = Enum.map(unread_email_messages, &build_unread_email_attention_item/1)
+
+    request_items =
+      [
+        if pending_friend_requests_count > 0 do
+          %{
+            id: "attention-friend-requests",
+            source: "requests",
+            title: "Respond to friend requests",
+            detail: "#{pending_friend_requests_count} request(s) waiting",
+            href: ~p"/friends?tab=requests",
+            icon: "hero-user-plus",
+            priority: "high",
+            state: "pending",
+            at: nil,
+            actions: [
+              attention_action("Open", ~p"/friends?tab=requests"),
+              attention_action("Follow", ~p"/friends?tab=requests")
+            ]
+          }
+        end,
+        if pending_follow_requests_count > 0 do
+          %{
+            id: "attention-follow-requests",
+            source: "requests",
+            title: "Review fediverse follow approvals",
+            detail: "#{pending_follow_requests_count} approval(s) waiting",
+            href: ~p"/friends?tab=requests",
+            icon: "hero-globe-americas",
+            priority: "high",
+            state: "approval",
+            at: nil,
+            actions: [
+              attention_action("Open", ~p"/friends?tab=requests"),
+              attention_action("Follow", ~p"/friends?tab=requests")
+            ]
+          }
+        end
+      ]
+
+    backlog_items =
+      [
+        if remaining_unread_count > 0 do
+          %{
+            id: "attention-more-email",
+            source: "email",
+            title: "More unread email waiting",
+            detail: "#{remaining_unread_count} more unread message(s)",
+            href: ~p"/email?tab=inbox&filter=unread",
+            icon: "hero-envelope",
+            priority: "high",
+            state: "backlog",
+            at: nil,
+            actions: [
+              attention_action("Open", ~p"/email?tab=inbox&filter=unread"),
+              attention_action("Move", ~p"/email?tab=inbox")
+            ]
+          }
+        end,
+        if reply_later_count > 0 do
+          %{
+            id: "attention-reply-later",
+            source: "email",
+            title: "Handle reply-later reminders",
+            detail: "#{reply_later_count} reminder(s) due",
+            href: ~p"/email?tab=inbox&filter=boomerang",
+            icon: "hero-arrow-uturn-left",
+            priority: "medium",
+            state: "remind",
+            at: nil,
+            actions: [
+              attention_action("Open", ~p"/email?tab=inbox&filter=boomerang"),
+              attention_action("Remind", ~p"/email?tab=inbox&filter=boomerang")
+            ]
+          }
+        end,
+        if chat_unread_count > 0 do
+          %{
+            id: "attention-chat-unread",
+            source: "chat",
+            title: "Catch up on chat",
+            detail: "#{chat_unread_count} unread message(s)",
+            href: ~p"/chat",
+            icon: "hero-chat-bubble-left-right",
+            priority: "medium",
+            state: "unread",
+            at: nil,
+            actions: [attention_action("Open", ~p"/chat")]
+          }
+        end,
+        if remaining_notification_count > 0 do
+          %{
+            id: "attention-more-notifications",
+            source: "social",
+            title: "More notifications are stacked up",
+            detail:
+              "#{remaining_notification_count} unread notification(s) behind the latest items",
+            href: ~p"/notifications",
+            icon: "hero-bell-alert",
+            priority: "medium",
+            state: "backlog",
+            at: nil,
+            actions: [attention_action("Open", ~p"/notifications")]
+          }
+        end
+      ]
+
+    notification_items =
+      recent_notifications
+      |> Enum.take(4)
+      |> Enum.map(&build_notification_attention_item/1)
+
+    (unread_email_items ++ request_items ++ backlog_items ++ notification_items)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.sort_by(fn item ->
+      {attention_priority_rank(item.priority), -sort_datetime(item.at)}
+    end)
+    |> Enum.take(12)
+  end
+
+  defp build_unread_email_attention_item(message) do
+    href = ~p"/email/view/#{message.hash || message.id}"
+
+    %{
+      id: "attention-email-#{message.id}",
+      source: "email",
+      title: inbox_subject(message),
+      detail: "From #{inbox_sender(message.from)}",
+      href: href,
+      icon: "hero-envelope",
+      priority: "high",
+      state: "unread",
+      at: message.inserted_at,
+      actions: [
+        attention_action("Open", href),
+        attention_action("Move", ~p"/email?tab=inbox"),
+        attention_action("Remind", ~p"/email?tab=inbox&filter=boomerang")
+      ]
+    }
+  end
+
+  defp build_notification_attention_item(notification) do
+    source = notification_attention_source(notification)
+    href = normalize_internal_path(notification.url)
+
+    %{
+      id: "attention-notification-#{notification.id}",
+      source: source,
+      title: trim_or(notification.title, "Notification"),
+      detail: notification_activity_detail(notification),
+      href: href,
+      icon: notification_activity_icon(notification),
+      priority: notification_attention_priority(notification),
+      state: "unread",
+      at: notification.inserted_at,
+      actions: attention_actions_for_source(source, href)
+    }
+  end
+
+  defp attention_actions_for_source("email", href) do
+    [
+      attention_action("Open", href),
+      attention_action("Move", ~p"/email?tab=inbox"),
+      attention_action("Remind", ~p"/email?tab=inbox&filter=boomerang")
+    ]
+  end
+
+  defp attention_actions_for_source("requests", href) do
+    [attention_action("Open", href), attention_action("Follow", href)]
+  end
+
+  defp attention_actions_for_source("social", href) do
+    [
+      attention_action("Open", href),
+      attention_action("Save", ~p"/timeline?filter=saved&view=all"),
+      attention_action("Share", ~p"/timeline?#{[composer: "post"]}")
+    ]
+  end
+
+  defp attention_actions_for_source(_source, href) do
+    [attention_action("Open", href)]
+  end
+
+  defp attention_action(label, href), do: %{label: label, href: href}
+
+  defp attention_queue_counts(queue) do
+    base_counts =
+      Enum.reduce(@allowed_attention_filters, %{}, fn filter, acc ->
+        Map.put(acc, filter, 0)
+      end)
+
+    queue
+    |> Enum.reduce(base_counts, fn item, acc ->
+      Map.update(acc, item.source, 1, &(&1 + 1))
+    end)
+    |> Map.put("all", length(queue))
+  end
+
+  defp filtered_attention_queue(queue, "all"), do: queue
+
+  defp filtered_attention_queue(queue, filter) do
+    Enum.filter(queue, &(&1.source == filter))
+  end
+
+  defp normalize_attention_filter(filter) when filter in @allowed_attention_filters, do: filter
+  defp normalize_attention_filter(_filter), do: @default_attention_filter
+
+  defp attention_filter_label("all"), do: "All"
+  defp attention_filter_label("email"), do: "Email"
+  defp attention_filter_label("chat"), do: "Chat"
+  defp attention_filter_label("requests"), do: "Requests"
+  defp attention_filter_label("social"), do: "Social"
+  defp attention_filter_label("system"), do: "System"
+  defp attention_filter_label(filter), do: String.capitalize(filter)
+
+  defp attention_source_badge_class("email"), do: "badge badge-info badge-xs"
+  defp attention_source_badge_class("chat"), do: "badge badge-primary badge-xs"
+  defp attention_source_badge_class("requests"), do: "badge badge-warning badge-xs"
+  defp attention_source_badge_class("social"), do: "badge badge-secondary badge-xs"
+  defp attention_source_badge_class(_source), do: "badge badge-ghost badge-xs"
+
+  defp attention_state_badge_class("unread"), do: "badge badge-primary badge-xs"
+  defp attention_state_badge_class("pending"), do: "badge badge-warning badge-xs"
+  defp attention_state_badge_class("approval"), do: "badge badge-warning badge-xs"
+  defp attention_state_badge_class("backlog"), do: "badge badge-error badge-xs"
+  defp attention_state_badge_class("remind"), do: "badge badge-info badge-xs"
+  defp attention_state_badge_class(_state), do: "badge badge-ghost badge-xs"
+
+  defp attention_action_link_class do
+    "link link-hover text-xs text-base-content/70"
+  end
+
+  defp attention_priority_rank("high"), do: 0
+  defp attention_priority_rank("medium"), do: 1
+  defp attention_priority_rank(_priority), do: 2
+
+  defp notification_attention_source(notification) do
+    case {notification.type, notification.source_type} do
+      {"email_received", _} -> "email"
+      {_, "message"} -> "chat"
+      {_, "post"} -> "social"
+      {_, "discussion"} -> "social"
+      {"follow", _} -> "social"
+      {"mention", _} -> "social"
+      _ -> "system"
+    end
+  end
+
+  defp notification_attention_priority(notification) do
+    case notification.type do
+      "mention" -> "high"
+      "reply" -> "high"
+      "email_received" -> "medium"
+      "new_message" -> "medium"
+      "follow" -> "medium"
+      _ -> "low"
+    end
   end
 
   defp build_recent_activity(
@@ -1355,18 +1669,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp task_priority_badge_class(_priority) do
     "badge badge-ghost badge-xs"
-  end
-
-  defp alert_level_badge_class("high") do
-    "badge badge-error badge-xs"
-  end
-
-  defp alert_level_badge_class("medium") do
-    "badge badge-warning badge-xs"
-  end
-
-  defp alert_level_badge_class(_level) do
-    "badge badge-info badge-xs"
   end
 
   defp filtered_posts(posts, "timeline", _assigns) do

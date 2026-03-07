@@ -6,8 +6,10 @@ defmodule ElektrineWeb.TimelineLive.Operations.TrackingOperations do
   """
 
   import Phoenix.Component
+  import Phoenix.LiveView
 
   alias Elektrine.Social.Recommendations
+  alias ElektrineWeb.TimelineLive.Operations.Helpers
 
   # Records dwell time for a single post view.
   # Called when a post leaves the viewport or on component destruction.
@@ -99,29 +101,47 @@ defmodule ElektrineWeb.TimelineLive.Operations.TrackingOperations do
   def handle_event("not_interested", params, socket) do
     user = socket.assigns[:current_user]
 
-    if user do
-      post_id = params["post_id"]
+    updated_socket =
+      if user do
+        case params["post_id"] do
+          nil ->
+            socket
 
-      if post_id do
-        Recommendations.record_dismissal(user.id, post_id, "not_interested", nil)
+          post_id ->
+            Recommendations.record_dismissal(user.id, post_id, "not_interested", nil)
+
+            socket
+            |> Helpers.remove_post_from_socket(post_id)
+            |> put_flash(:info, "We’ll show less like this.")
+        end
+      else
+        socket
       end
-    end
 
-    {:noreply, socket}
+    {:noreply, updated_socket}
   end
 
   # Hides a post from the user's timeline.
   def handle_event("hide_post", params, socket) do
     user = socket.assigns[:current_user]
 
-    if user do
-      post_id = params["post_id"]
+    updated_socket =
+      if user do
+        case params["post_id"] do
+          nil ->
+            socket
 
-      if post_id do
-        Recommendations.record_dismissal(user.id, post_id, "hidden", nil)
+          post_id ->
+            Recommendations.record_dismissal(user.id, post_id, "hidden", nil)
+
+            socket
+            |> Helpers.remove_post_from_socket(post_id)
+            |> put_flash(:info, "Post hidden from your timeline.")
+        end
+      else
+        socket
       end
-    end
 
-    {:noreply, socket}
+    {:noreply, updated_socket}
   end
 end

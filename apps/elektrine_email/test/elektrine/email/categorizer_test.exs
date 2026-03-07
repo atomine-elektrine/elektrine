@@ -192,6 +192,50 @@ defmodule Elektrine.Email.CategorizerTest do
       assert result["category"] == "feed"
       assert result["is_notification"] == true
     end
+
+    test "stores categorization metadata with reasons and confidence" do
+      message = %{
+        "subject" => "Tech Weekly Newsletter - Issue #42",
+        "from" => "newsletter@techcrunch.com",
+        "to" => "subscriber@email.com",
+        "text_body" => "Highlights this week. View in browser. Unsubscribe.",
+        "html_body" => "",
+        "metadata" => %{
+          "headers" => %{
+            "list-unsubscribe" => "<mailto:unsubscribe@techcrunch.com>"
+          }
+        }
+      }
+
+      result = Categorizer.categorize_message(message)
+      categorization = get_in(result, ["metadata", "categorization"])
+
+      assert is_map(categorization)
+      assert categorization["category"] == "feed"
+      assert categorization["confidence"] > 0
+      assert is_list(categorization["reasons"])
+      assert is_map(categorization["signals"])
+      assert is_boolean(categorization["signals"]["newsletter"]["matched"])
+    end
+
+    test "falls back to inbox for low-confidence ledger/feed decisions" do
+      message = %{
+        "subject" => "Invoice #12345",
+        "from" => "no-reply@alerts.example.com",
+        "to" => "users@list.example.com",
+        "text_body" =>
+          "Limited time offer. Special offer. Click here to buy now. Unsubscribe from this list.",
+        "html_body" => "",
+        "metadata" => %{"headers" => %{}}
+      }
+
+      result = Categorizer.categorize_message(message)
+      categorization = get_in(result, ["metadata", "categorization"])
+
+      assert result["category"] == "inbox"
+      assert categorization["fallback_applied"] == true
+      assert categorization["source"] == "confidence_fallback"
+    end
   end
 
   describe "detect_bulk_email/4" do

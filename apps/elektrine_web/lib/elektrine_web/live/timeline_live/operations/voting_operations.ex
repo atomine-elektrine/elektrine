@@ -290,7 +290,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               {:noreply,
                socket
                |> Phoenix.Component.update(:user_boosts, &Map.put(&1, message_id, false))
-               |> assign(:timeline_posts, updated_posts_with_count)
+               |> assign(:timeline_posts, Helpers.dedupe_posts(updated_posts_with_count))
                |> Helpers.apply_timeline_filter()
                |> put_flash(:info, "Unboosted")}
 
@@ -320,7 +320,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
               updated_posts =
                 if boost_post do
-                  [boost_post | socket.assigns.timeline_posts]
+                  Helpers.dedupe_posts([boost_post | socket.assigns.timeline_posts])
                 else
                   socket.assigns.timeline_posts
                 end
@@ -349,7 +349,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               {:noreply,
                socket
                |> Phoenix.Component.update(:user_boosts, &Map.put(&1, message_id, true))
-               |> assign(:timeline_posts, updated_posts_with_count)
+               |> assign(:timeline_posts, Helpers.dedupe_posts(updated_posts_with_count))
                |> Helpers.apply_timeline_filter()
                |> put_flash(:info, "Boosted!")}
 
@@ -551,7 +551,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
             {:noreply,
              socket
-             |> assign(:timeline_posts, [reloaded | updated_posts])
+             |> assign(:timeline_posts, Helpers.dedupe_posts([reloaded | updated_posts]))
              |> Helpers.apply_timeline_filter()
              |> assign(:show_quote_modal, false)
              |> assign(:quote_target_post, nil)
@@ -598,7 +598,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
               end
             end)
 
-          {:noreply, assign(socket, :timeline_posts, updated_timeline_posts)}
+          {:noreply,
+           assign(socket, :timeline_posts, Helpers.dedupe_posts(updated_timeline_posts))}
 
         {:error, :poll_closed} ->
           {:noreply, put_flash(socket, :error, "This poll has closed")}

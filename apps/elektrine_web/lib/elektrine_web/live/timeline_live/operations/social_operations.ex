@@ -81,6 +81,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
            socket
            |> assign(:user_follows, updated_follows)
            |> assign(:timeline_posts, updated_posts)
+           |> Helpers.apply_timeline_filter()
            |> put_flash(:info, "Unfollowed user.")}
 
         _ ->
@@ -96,6 +97,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
             socket
             |> assign(:user_follows, updated_follows)
             |> assign(:suggested_follows, updated_suggestions)
+            |> Helpers.refresh_posts_for_sender(user_id)
             |> put_flash(:info, "Now following user.")
 
           send(self(), {:load_followed_user_posts, user_id})
@@ -197,6 +199,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
              socket
              |> assign(:user_follows, updated_follows)
              |> assign(:pending_follows, updated_pending)
+             |> Helpers.refresh_posts_for_remote_actor(remote_actor_id)
              |> put_flash(:info, "Unfollowed")}
 
           {:error, reason} ->
@@ -224,6 +227,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
                socket
                |> assign(:user_follows, updated_follows)
                |> assign(:pending_follows, updated_pending)
+               |> Helpers.refresh_posts_for_remote_actor(remote_actor_id)
                |> put_flash(:info, "Following!")}
             end
 
@@ -243,6 +247,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
                socket
                |> assign(:user_follows, updated_follows)
                |> assign(:pending_follows, updated_pending)
+               |> Helpers.refresh_posts_for_remote_actor(remote_actor_id)
                |> put_flash(:info, "Already following this user")}
             end
 
@@ -255,6 +260,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
             {:noreply,
              socket
              |> assign(:pending_follows, reverted_pending)
+             |> Helpers.refresh_posts_for_remote_actor(remote_actor_id)
              |> put_flash(:error, "Failed to follow user")}
         end
       end

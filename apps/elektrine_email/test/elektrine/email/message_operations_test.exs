@@ -6,6 +6,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
 
   alias Elektrine.Email
   alias Elektrine.Email.Cached
+  alias Elektrine.Email.Categorizer
   alias Elektrine.Email.CustomFolders
   alias Elektrine.Email.Labels
   alias Elektrine.Email.Messages
@@ -290,6 +291,38 @@ defmodule Elektrine.Email.MessageOperationsTest do
       {:ok, updated} = Email.move_to_ledger(message)
 
       assert updated.category == "ledger"
+    end
+
+    test "manual category moves are learned for future categorization", %{
+      mailbox: mailbox,
+      user: user
+    } do
+      message =
+        create_test_message(mailbox.id, %{
+          category: nil,
+          from: "Billing Team <billing@learned-payments.example.com>"
+        })
+
+      {:ok, _updated} = Email.move_to_ledger(message)
+
+      match = Email.match_category_preference(user.id, "billing@learned-payments.example.com")
+      assert match.category == "ledger"
+      assert match.source == "learned_sender"
+
+      recategorized =
+        Categorizer.categorize_message(
+          %{
+            "subject" => "Random subject",
+            "from" => "billing@learned-payments.example.com",
+            "to" => mailbox.email,
+            "text_body" => "No obvious receipt markers",
+            "html_body" => "",
+            "metadata" => %{"headers" => %{}}
+          },
+          user_id: user.id
+        )
+
+      assert recategorized["category"] == "ledger"
     end
 
     test "stacks message", %{mailbox: mailbox} do

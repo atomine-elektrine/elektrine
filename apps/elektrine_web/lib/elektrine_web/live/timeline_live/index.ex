@@ -5,6 +5,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
   alias Elektrine.PubSubTopics
   alias Elektrine.RSS
   alias Elektrine.Social
+  alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineWeb.Components.Social.PostUtilities
   import ElektrineWeb.Components.Social.RSSItem
@@ -14,6 +15,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   alias ElektrineWeb.TimelineLive.Operations.PostOperations
+  alias ElektrineWeb.TimelineLive.Operations.Helpers, as: TimelineHelpers
   alias ElektrineWeb.TimelineLive.Router
   @remote_replies_poll_interval_ms 1500
   @remote_replies_poll_max_attempts 6
@@ -45,17 +47,14 @@ defmodule ElektrineWeb.TimelineLive.Index do
       socket
       |> assign(:page_title, "Timeline")
       |> assign(:base_timeline_posts, [])
+      |> assign(:base_timeline_key, nil)
       |> assign(:special_view_cache, %{})
       |> assign(:timeline_posts, [])
       |> assign(:post_replies, %{})
       |> assign(:loading_remote_replies, MapSet.new())
       |> assign(
         :current_filter,
-        if user do
-          "all"
-        else
-          "public"
-        end
+        default_source_filter(user)
       )
       |> assign(:software_filter, "all")
       |> assign(:suggested_follows, [])
@@ -67,6 +66,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:new_post_sensitive, false)
       |> assign(:show_cw_input, false)
       |> assign(:show_post_composer, false)
+      |> assign(:composer_intent, "post")
       |> assign(:loading_more, false)
       |> assign(:no_more_posts, false)
       |> assign(:reply_to_post, nil)
@@ -76,6 +76,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:timeline_filter, "all")
       |> assign(:filter_dropdown_open, false)
       |> assign(:filtered_posts, [])
+      |> assign(:filtered_post_ids, [])
       |> assign(:user_communities, [])
       |> assign(:available_conversations, [])
       |> assign(:user_likes, %{})
@@ -118,6 +119,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:quote_target_post, nil)
       |> assign(:quote_content, "")
       |> assign(:search_query, "")
+      |> assign(:session_context, %{})
       |> assign(:show_mobile_filters, false)
       |> assign(:user_drafts, [])
       |> assign(:show_drafts_panel, false)
@@ -125,6 +127,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:draft_auto_saved, false)
       |> assign(:draft_saving, false)
       |> assign(:loading_timeline, true)
+      |> stream(:timeline_filtered_posts, [], reset: true)
 
     socket =
       if user do
@@ -146,20 +149,31 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    filter =
-      params["filter"] ||
-        if socket.assigns[:current_user] do
-          "all"
-        else
-          "public"
-        end
-
+    filter = normalize_source_filter(params["filter"], socket.assigns[:current_user])
     timeline_view = normalize_timeline_view(params["view"] || socket.assigns.timeline_filter)
+    search_query = normalize_search_query(params["q"] || socket.assigns.search_query)
+    composer_intent = normalize_composer_intent(params["composer"])
+
+    socket =
+      maybe_apply_composer_intent(
+        socket,
+        composer_intent,
+        socket.assigns[:current_user]
+      )
 
     cond do
       socket.assigns.loading_timeline ->
         {:noreply,
-         socket |> assign(:current_filter, filter) |> assign(:timeline_filter, timeline_view)}
+         socket
+         |> assign(:current_filter, filter)
+         |> assign(:timeline_filter, timeline_view)
+         |> assign(:search_query, search_query)}
+
+      search_query != socket.assigns.search_query ->
+        {:noreply,
+         socket
+         |> assign(:search_query, search_query)
+         |> queue_timeline_reload(filter, timeline_view)}
 
       filter != socket.assigns.current_filter ->
         {:noreply, queue_timeline_reload(socket, filter, timeline_view)}
@@ -215,19 +229,30 @@ defmodule ElektrineWeb.TimelineLive.Index do
   defp do_load_data_for_filter(socket, filter) do
     user = socket.assigns[:current_user]
     timeline_view = socket.assigns.timeline_filter
+    search_query = socket.assigns.search_query
+    session_context = socket.assigns[:session_context] || %{}
     filter_changed = filter != socket.assigns.current_filter
     special_view_cache = socket.assigns[:special_view_cache] || %{}
-    cache_key = {filter, timeline_view}
+    cache_key = {filter, timeline_view, search_query}
 
     filter_context_socket =
-      socket |> assign(:current_filter, filter) |> assign(:timeline_filter, timeline_view)
+      socket
+      |> assign(:current_filter, filter)
+      |> assign(:timeline_filter, timeline_view)
+      |> assign(:search_query, search_query)
 
     cached_special_view = Map.get(special_view_cache, cache_key)
 
     posts =
       case cached_special_view do
-        %{posts: cached_posts} -> cached_posts
-        _ -> load_posts_for_filter(filter, user, timeline_view)
+        %{posts: cached_posts} ->
+          cached_posts
+
+        _ ->
+          load_posts_for_filter(filter, user, timeline_view,
+            search_query: search_query,
+            session_context: session_context
+          )
       end
 
     cached_post_replies =
@@ -238,10 +263,24 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     base_timeline_posts =
       cond do
-        !view_requires_data_reload?(timeline_view) -> posts
-        filter_changed -> load_posts_for_filter(filter, user, "all")
-        socket.assigns.base_timeline_posts != [] -> socket.assigns.base_timeline_posts
-        true -> load_posts_for_filter(filter, user, "all")
+        !view_requires_data_reload?(timeline_view) ->
+          posts
+
+        filter_changed ->
+          load_posts_for_filter(filter, user, "all",
+            search_query: search_query,
+            session_context: session_context
+          )
+
+        socket.assigns.base_timeline_key == {filter, search_query} &&
+            socket.assigns.base_timeline_posts != [] ->
+          socket.assigns.base_timeline_posts
+
+        true ->
+          load_posts_for_filter(filter, user, "all",
+            search_query: search_query,
+            session_context: session_context
+          )
       end
 
     special_view_cache =
@@ -251,15 +290,23 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     {rss_items, rss_saves} =
       cond do
-        filter in ["rss", "all", "following"] && user ->
-          items = RSS.get_timeline_items(user.id, limit: 20)
+        filter in ["rss", "explore", "home"] && user ->
+          items =
+            user.id
+            |> RSS.get_timeline_items(limit: 20)
+            |> filter_rss_items_by_query(search_query)
+
           item_ids = Enum.map(items, & &1.id)
           saves = Social.list_user_saved_rss_items(user.id, item_ids)
           saves_map = Enum.into(saves, %{}, fn id -> {id, true} end)
           {items, saves_map}
 
         filter == "saved" && user ->
-          items = Social.get_saved_rss_items(user.id, limit: 20)
+          items =
+            user.id
+            |> Social.get_saved_rss_items(limit: 20)
+            |> filter_rss_items_by_query(search_query)
+
           saves_map = Enum.into(items, %{}, fn item -> {item.id, true} end)
           {items, saves_map}
 
@@ -271,6 +318,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
      socket
      |> assign(:current_filter, filter)
      |> assign(:base_timeline_posts, base_timeline_posts)
+     |> assign(:base_timeline_key, {filter, search_query})
      |> assign(:special_view_cache, special_view_cache)
      |> assign(:timeline_posts, posts)
      |> assign(:queued_posts, queued_posts)
@@ -492,7 +540,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
         {:noreply, socket}
 
       true ->
-        cache_key = {filter, timeline_view}
+        cache_key = {filter, timeline_view, socket.assigns.search_query}
         existing_cache = Map.get(socket.assigns.special_view_cache || %{}, cache_key, %{})
 
         special_view_cache =
@@ -514,7 +562,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
          |> assign(:user_follows, Map.get(hydrated_state, :user_follows, %{}))
          |> assign(:pending_follows, Map.get(hydrated_state, :pending_follows, %{}))
          |> assign(:user_boosts, Map.get(hydrated_state, :user_boosts, %{}))
-         |> assign(:user_saves, Map.get(hydrated_state, :user_saves, %{}))}
+         |> assign(:user_saves, Map.get(hydrated_state, :user_saves, %{}))
+         |> TimelineHelpers.refresh_filtered_posts_stream()}
     end
   end
 
@@ -632,7 +681,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
        socket
        |> assign(:lemmy_counts, merged_lemmy_counts)
        |> assign(:remote_post_data, merged_remote_post_data)
-       |> assign(:post_replies, updated_post_replies)}
+       |> assign(:post_replies, updated_post_replies)
+       |> TimelineHelpers.refresh_filtered_posts(Enum.map(posts, & &1.id))}
     end
   end
 
@@ -724,7 +774,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
     updated_follows = Map.put(socket.assigns.user_follows, {:remote, remote_actor_id}, true)
 
     {:noreply,
-     socket |> assign(:pending_follows, updated_pending) |> assign(:user_follows, updated_follows)}
+     socket
+     |> assign(:pending_follows, updated_pending)
+     |> assign(:user_follows, updated_follows)
+     |> TimelineHelpers.refresh_posts_for_remote_actor(remote_actor_id)}
   end
 
   @impl true
@@ -824,7 +877,15 @@ defmodule ElektrineWeb.TimelineLive.Index do
         updated_socket.assigns.software_filter
       )
 
-    matches_filter = matches_url_filter && matches_timeline_filter && matches_software_filter
+    matches_search_query =
+      TimelineHelpers.filter_posts_by_search_query(
+        [post_with_associations],
+        updated_socket.assigns[:search_query]
+      ) != []
+
+    matches_filter =
+      matches_url_filter && matches_timeline_filter && matches_software_filter &&
+        matches_search_query
 
     updated_socket =
       if already_queued || already_in_timeline || !matches_filter do
@@ -874,7 +935,11 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
       true ->
         loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
-        {:noreply, assign(socket, :loading_remote_replies, loading_set)}
+
+        {:noreply,
+         socket
+         |> assign(:loading_remote_replies, loading_set)
+         |> TimelineHelpers.refresh_filtered_post(post_id)}
     end
   end
 
@@ -889,7 +954,14 @@ defmodule ElektrineWeb.TimelineLive.Index do
     matches_software_filter =
       post_matches_software_filter?(post_with_associations, socket.assigns.software_filter)
 
-    if !matches_url_filter || !matches_timeline_filter || !matches_software_filter do
+    matches_search_query =
+      TimelineHelpers.filter_posts_by_search_query(
+        [post_with_associations],
+        socket.assigns[:search_query]
+      ) != []
+
+    if !matches_url_filter || !matches_timeline_filter || !matches_software_filter ||
+         !matches_search_query do
       {:noreply, socket}
     else
       updated_socket =
@@ -989,7 +1061,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
     {:noreply,
      socket
      |> assign(:post_replies, updated_post_replies)
-     |> assign(:loading_remote_replies, loading_set)}
+     |> assign(:loading_remote_replies, loading_set)
+     |> TimelineHelpers.refresh_filtered_post(post_id)}
   end
 
   @impl true
@@ -1020,7 +1093,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
      socket
      |> assign(:post_replies, updated_post_replies)
      |> assign(:reply_to_post_recent_replies, updated_recent_replies)
-     |> assign(:loading_remote_replies, loading_set)}
+     |> assign(:loading_remote_replies, loading_set)
+     |> TimelineHelpers.refresh_filtered_post(post_id)}
   end
 
   @impl true
@@ -1073,7 +1147,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
         Map.put(current_reactions, message_id, [reaction | post_reactions])
       end
 
-    {:noreply, assign(socket, :post_reactions, updated_reactions)}
+    {:noreply,
+     socket
+     |> assign(:post_reactions, updated_reactions)
+     |> TimelineHelpers.refresh_filtered_post(message_id)}
   end
 
   @impl true
@@ -1088,7 +1165,11 @@ defmodule ElektrineWeb.TimelineLive.Index do
       end)
 
     updated_reactions = Map.put(current_reactions, message_id, updated_post_reactions)
-    {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+    {:noreply,
+     socket
+     |> assign(:post_reactions, updated_reactions)
+     |> TimelineHelpers.refresh_filtered_post(message_id)}
   end
 
   @impl true
@@ -1107,64 +1188,103 @@ defmodule ElektrineWeb.TimelineLive.Index do
     {:noreply, socket}
   end
 
-  defp load_posts_for_filter(filter, user, timeline_view) do
+  defp load_posts_for_filter(filter, user, timeline_view, opts) do
+    search_query = Keyword.get(opts, :search_query, "")
+    session_context = Keyword.get(opts, :session_context, %{})
+
     case timeline_view do
       "communities" ->
         if user do
-          Social.get_public_community_posts(limit: 20, user_id: user.id)
+          Social.get_public_community_posts(
+            limit: 20,
+            user_id: user.id,
+            search_query: search_query
+          )
         else
-          Social.get_public_community_posts(limit: 20)
+          Social.get_public_community_posts(limit: 20, search_query: search_query)
         end
 
       "replies" ->
-        Social.get_federated_replies(limit: 20, user_id: user && user.id)
+        Social.get_federated_replies(
+          limit: 20,
+          user_id: user && user.id,
+          search_query: search_query
+        )
 
       "friends" ->
         if user do
-          Social.get_friends_timeline(user.id, limit: 20)
+          Social.get_friends_timeline(user.id, limit: 20, search_query: search_query)
         else
           []
         end
 
       "my_posts" ->
         if user do
-          Social.get_user_timeline_posts(user.id, limit: 20, viewer_id: user.id)
+          Social.get_user_timeline_posts(user.id,
+            limit: 20,
+            viewer_id: user.id,
+            search_query: search_query
+          )
         else
           []
         end
 
       "trusted" ->
-        Social.get_trusted_timeline(limit: 20, user_id: user && user.id)
+        Social.get_trusted_timeline(
+          limit: 20,
+          user_id: user && user.id,
+          search_query: search_query
+        )
 
       _ ->
         case filter do
-          "all" ->
+          "home" ->
             if user do
-              Social.get_public_timeline(limit: 20, user_id: user.id)
+              Social.get_combined_feed(user.id, limit: 20, search_query: search_query)
             else
-              Social.get_public_timeline(limit: 20)
+              Social.get_public_timeline(limit: 20, search_query: search_query)
             end
 
-          "following" ->
+          "for_you" ->
             if user do
-              Social.get_combined_feed(user.id, limit: 20)
+              recommendation_limit =
+                if search_query == "" do
+                  20
+                else
+                  100
+                end
+
+              user.id
+              |> Recommendations.get_for_you_feed(
+                limit: recommendation_limit,
+                session_context: session_context
+              )
+              |> TimelineHelpers.filter_posts_by_search_query(search_query)
+              |> Enum.take(20)
             else
-              Social.get_public_timeline(limit: 20)
+              Social.get_public_timeline(limit: 20, search_query: search_query)
+            end
+
+          "all" ->
+            if user do
+              Social.get_public_timeline(limit: 20, user_id: user.id, search_query: search_query)
+            else
+              Social.get_public_timeline(limit: 20, search_query: search_query)
             end
 
           "local" ->
             if user do
-              Social.get_local_timeline(limit: 20, user_id: user.id)
+              Social.get_local_timeline(limit: 20, user_id: user.id, search_query: search_query)
             else
-              Social.get_local_timeline(limit: 20)
+              Social.get_local_timeline(limit: 20, search_query: search_query)
             end
 
           "federated" ->
-            Social.get_public_federated_posts(limit: 20)
+            Social.get_public_federated_posts(limit: 20, search_query: search_query)
 
           "saved" ->
             if user do
-              Social.get_saved_posts(user.id, limit: 20)
+              Social.get_saved_posts(user.id, limit: 20, search_query: search_query)
             else
               []
             end
@@ -1174,9 +1294,9 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
           _ ->
             if user do
-              Social.get_public_timeline(limit: 20, user_id: user.id)
+              Social.get_public_timeline(limit: 20, user_id: user.id, search_query: search_query)
             else
-              Social.get_public_timeline(limit: 20)
+              Social.get_public_timeline(limit: 20, search_query: search_query)
             end
         end
     end
@@ -1283,12 +1403,38 @@ defmodule ElektrineWeb.TimelineLive.Index do
       end
 
     filtered_posts = filter_posts_by_software(filtered_posts, socket.assigns.software_filter)
+
+    filtered_posts =
+      TimelineHelpers.filter_posts_by_search_query(filtered_posts, socket.assigns[:search_query])
+
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
-    assign(socket, :filtered_posts, filtered_posts)
+    TimelineHelpers.assign_filtered_posts(socket, filtered_posts)
   end
 
   defp post_matches_url_filter?(post, filter, socket) do
     case filter do
+      "home" ->
+        if socket.assigns[:current_user] do
+          cond do
+            post.sender_id ->
+              Social.following?(socket.assigns.current_user.id, post.sender_id)
+
+            post.remote_actor_id ->
+              Elektrine.Profiles.following_remote_actor?(
+                socket.assigns.current_user.id,
+                post.remote_actor_id
+              )
+
+            true ->
+              false
+          end
+        else
+          false
+        end
+
+      "for_you" ->
+        false
+
       "local" ->
         !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
 
@@ -1313,6 +1459,12 @@ defmodule ElektrineWeb.TimelineLive.Index do
         else
           false
         end
+
+      "saved" ->
+        false
+
+      "rss" ->
+        false
 
       _ ->
         is_nil(Map.get(post, :reply_to_id)) && is_nil(get_in(post.media_metadata, ["inReplyTo"]))
@@ -1389,7 +1541,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
     Enum.filter(socket.assigns.queued_posts || [], fn post ->
       post_matches_url_filter?(post, socket.assigns.current_filter, socket) &&
         post_matches_filter?(post, socket.assigns.timeline_filter, socket) &&
-        post_matches_software_filter?(post, socket.assigns.software_filter)
+        post_matches_software_filter?(post, socket.assigns.software_filter) &&
+        TimelineHelpers.filter_posts_by_search_query([post], socket.assigns[:search_query]) != []
     end)
   end
 
@@ -1460,7 +1613,14 @@ defmodule ElektrineWeb.TimelineLive.Index do
   end
 
   defp maybe_prioritize_non_community_posts(posts, socket) do
-    if socket.assigns.current_filter in ["all", "following", "federated", "public"] &&
+    if socket.assigns.current_filter in [
+         "all",
+         "explore",
+         "following",
+         "home",
+         "federated",
+         "public"
+       ] &&
          socket.assigns.timeline_filter == "all" && socket.assigns.software_filter == "all" do
       {non_community, community} =
         Enum.split_with(posts, fn post -> !PostUtilities.community_post?(post) end)
@@ -1706,6 +1866,70 @@ defmodule ElektrineWeb.TimelineLive.Index do
   defp normalize_timeline_view(_) do
     "all"
   end
+
+  defp normalize_composer_intent(intent) when intent in ["post", "note"], do: intent
+  defp normalize_composer_intent(_intent), do: nil
+
+  defp maybe_apply_composer_intent(socket, nil, _user), do: socket
+
+  defp maybe_apply_composer_intent(socket, intent, user) do
+    socket
+    |> assign(:composer_intent, intent)
+    |> assign(:show_post_composer, true)
+    |> assign(:new_post_visibility, default_post_visibility_for_intent(intent, user))
+  end
+
+  defp default_post_visibility_for_intent("note", _user), do: "private"
+
+  defp default_post_visibility_for_intent(_intent, user) do
+    (user && user.default_post_visibility) || "public"
+  end
+
+  defp default_source_filter(nil), do: "explore"
+  defp default_source_filter(_user), do: "home"
+
+  defp normalize_source_filter(nil, user), do: default_source_filter(user)
+
+  defp normalize_source_filter(filter, _user)
+       when filter in ["home", "for_you", "explore", "local", "federated", "saved", "rss"] do
+    filter
+  end
+
+  defp normalize_source_filter("following", _user), do: "home"
+  defp normalize_source_filter("all", _user), do: "explore"
+  defp normalize_source_filter("public", _user), do: "explore"
+  defp normalize_source_filter(_, user), do: default_source_filter(user)
+
+  defp normalize_search_query(query) when is_binary(query), do: String.trim(query)
+  defp normalize_search_query(_), do: ""
+
+  defp filter_rss_items_by_query(items, query) when is_list(items) do
+    normalized_query = normalize_search_query(query) |> String.downcase()
+
+    if normalized_query == "" do
+      items
+    else
+      Enum.filter(items, fn item ->
+        [
+          Map.get(item, :title),
+          Map.get(item, :content),
+          Map.get(item, :feed_title),
+          Map.get(item, :url)
+        ]
+        |> Enum.any?(fn
+          value when is_binary(value) ->
+            value
+            |> String.downcase()
+            |> String.contains?(normalized_query)
+
+          _ ->
+            false
+        end)
+      end)
+    end
+  end
+
+  defp filter_rss_items_by_query(_, _), do: []
 
   defp extract_actor_uri(%{"attributedTo" => uri}) when is_binary(uri) do
     uri

@@ -9,6 +9,7 @@ defmodule Elektrine.ActivityPub.Publisher do
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.HTTPSignature
+  alias Elektrine.Security.URLValidator
 
   @doc """
   Publishes an activity to remote inboxes.
@@ -97,49 +98,50 @@ defmodule Elektrine.ActivityPub.Publisher do
   Accepts either a User or Actor struct for signing.
   """
   def deliver(activity, entity, inbox_url, opts \\ []) do
-    # Ensure entity has keys before signing
-    {:ok, entity} = Elektrine.ActivityPub.KeyManager.ensure_user_has_keys(entity)
-    body = Jason.encode!(activity)
+    with :ok <- validate_inbox_url(inbox_url),
+         {:ok, entity} <- Elektrine.ActivityPub.KeyManager.ensure_user_has_keys(entity) do
+      body = Jason.encode!(activity)
 
-    # Log the activity being sent for debugging
-    if String.contains?(inbox_url, "relay") do
-      Logger.debug(
-        "Sending activity to relay: #{inspect(activity, pretty: true, limit: :infinity)}"
-      )
-    end
-
-    base_headers = [
-      {"content-type", "application/activity+json"},
-      {"accept", "application/activity+json"},
-      {"user-agent", "Elektrine/1.0"}
-    ]
-
-    # Sign the request - extract key info based on entity type
-    {private_key, key_id} = get_signing_info(entity, opts)
-    signature_headers = HTTPSignature.sign(inbox_url, body, private_key, key_id)
-
-    all_headers = base_headers ++ signature_headers
-
-    # Build and send the request
-    request = Finch.build(:post, inbox_url, all_headers, body)
-
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
-      {:ok, %Finch.Response{status: status}} when status in 200..299 ->
-        Logger.info("Successfully delivered to #{inbox_url}")
-        {:ok, :delivered}
-
-      {:ok, %Finch.Response{status: status, body: error_body}} ->
-        Logger.warning(
-          "Failed to deliver to #{inbox_url}, status: #{status}, body: #{inspect(error_body)}"
+      # Log the activity being sent for debugging
+      if String.contains?(inbox_url, "relay") do
+        Logger.debug(
+          "Sending activity to relay: #{inspect(activity, pretty: true, limit: :infinity)}"
         )
+      end
 
-        Logger.debug("Failed delivery - Activity: #{inspect(activity, limit: :infinity)}")
-        Logger.debug("Failed delivery - Headers: #{inspect(all_headers)}")
-        {:error, "HTTP #{status}"}
+      base_headers = [
+        {"content-type", "application/activity+json"},
+        {"accept", "application/activity+json"},
+        {"user-agent", "Elektrine/1.0"}
+      ]
 
-      {:error, reason} ->
-        Logger.error("HTTP error delivering to #{inbox_url}: #{inspect(reason)}")
-        {:error, inspect(reason)}
+      # Sign the request - extract key info based on entity type
+      {private_key, key_id} = get_signing_info(entity, opts)
+      signature_headers = HTTPSignature.sign(inbox_url, body, private_key, key_id)
+
+      all_headers = base_headers ++ signature_headers
+
+      # Build and send the request
+      request = Finch.build(:post, inbox_url, all_headers, body)
+
+      case Finch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
+        {:ok, %Finch.Response{status: status}} when status in 200..299 ->
+          Logger.info("Successfully delivered to #{inbox_url}")
+          {:ok, :delivered}
+
+        {:ok, %Finch.Response{status: status, body: error_body}} ->
+          Logger.warning(
+            "Failed to deliver to #{inbox_url}, status: #{status}, body: #{inspect(error_body)}"
+          )
+
+          Logger.debug("Failed delivery - Activity: #{inspect(activity, limit: :infinity)}")
+          Logger.debug("Failed delivery - Headers: #{inspect(all_headers)}")
+          {:error, "HTTP #{status}"}
+
+        {:error, reason} ->
+          Logger.error("HTTP error delivering to #{inbox_url}: #{inspect(reason)}")
+          {:error, inspect(reason)}
+      end
     end
   end
 
@@ -163,68 +165,55 @@ defmodule Elektrine.ActivityPub.Publisher do
         |> Map.new(fn actor -> {actor.id, actor} end)
       end
 
-    # Map follows to inbox URLs using the pre-fetched actors
     follows
-    |> Enum.map(fn follow ->
-      case Map.get(actors_map, follow.remote_actor_id) do
-        nil -> nil
-        actor -> actor.inbox_url
-      end
-    end)
-    |> Enum.filter(&(&1 != nil))
+    |> Enum.map(&Map.get(actors_map, &1.remote_actor_id))
+    |> Enum.reject(&is_nil/1)
     |> optimize_inboxes()
   end
 
   # Optimizes inbox delivery by using shared inboxes when possible.
   # When sending to multiple users on the same instance, use their shared inbox.
-  defp optimize_inboxes(inbox_urls) do
-    # Group inboxes by domain
-    grouped =
-      Enum.group_by(inbox_urls, fn url ->
-        %URI{host: host} = URI.parse(url)
-        host
-      end)
+  defp optimize_inboxes(actors) do
+    actors
+    |> Enum.group_by(& &1.domain)
+    |> Enum.flat_map(fn {_domain, domain_actors} ->
+      case shared_inbox_for_group(domain_actors) do
+        {:ok, shared_inbox} ->
+          [shared_inbox]
 
-    # For each domain, check if we should use shared inbox
-    Enum.flat_map(grouped, fn {domain, urls} ->
-      if length(urls) > 1 do
-        # Multiple recipients on same domain - use shared inbox
-        {:ok, shared_inbox} = get_shared_inbox_for_domain(domain, List.first(urls))
-        [shared_inbox]
-      else
-        # Only one recipient on this domain, use individual inbox
-        urls
+        :error ->
+          domain_actors
+          |> Enum.map(& &1.inbox_url)
+          |> Enum.filter(&(is_binary(&1) and &1 != ""))
+          |> Enum.uniq()
       end
     end)
   end
 
-  defp get_shared_inbox_for_domain(domain, _sample_inbox_url) do
-    # Try to extract shared inbox from the actor
-    # Most instances have sharedInbox at https://domain/inbox
-    shared_inbox_url = "https://#{domain}/inbox"
+  defp shared_inbox_for_group(domain_actors) do
+    shared_inboxes =
+      domain_actors
+      |> Enum.map(&shared_inbox_for_actor/1)
 
-    # Verify this is actually a shared inbox by checking if any actor on this domain advertises it
-    actor =
-      Elektrine.ActivityPub.Actor
-      |> where([a], a.domain == ^domain)
-      |> limit(1)
-      |> Elektrine.Repo.one()
+    unique_shared_inboxes = shared_inboxes |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
-    if actor && actor.metadata do
-      # Check if actor's metadata has sharedInbox endpoint
-      shared_inbox = get_in(actor.metadata, ["endpoints", "sharedInbox"])
-
-      if shared_inbox do
-        {:ok, shared_inbox}
-      else
-        # Fallback to standard pattern
-        {:ok, shared_inbox_url}
-      end
+    if length(domain_actors) > 1 and
+         match?([_], unique_shared_inboxes) and
+         Enum.all?(shared_inboxes, &(&1 == hd(unique_shared_inboxes))) do
+      {:ok, hd(unique_shared_inboxes)}
     else
-      # No actor cached yet, use standard pattern
-      {:ok, shared_inbox_url}
+      :error
     end
   end
+
+  defp shared_inbox_for_actor(%ActivityPub.Actor{} = actor) do
+    case get_in(actor.metadata || %{}, ["endpoints", "sharedInbox"]) do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  defp shared_inbox_for_actor(_), do: nil
 
   # Extracts signing key and key_id based on entity type (User or Actor)
   defp get_signing_info(%User{} = user, opts) do
@@ -250,6 +239,22 @@ defmodule Elektrine.ActivityPub.Publisher do
     key_id = "#{actor.uri}#main-key"
     {private_key, key_id}
   end
+
+  defp validate_inbox_url(inbox_url) when is_binary(inbox_url) do
+    case URLValidator.validate(inbox_url) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Blocked unsafe ActivityPub inbox URL #{inspect(inbox_url)}: #{inspect(reason)}"
+        )
+
+        {:error, :unsafe_inbox_url}
+    end
+  end
+
+  defp validate_inbox_url(_), do: {:error, :unsafe_inbox_url}
 
   # Schedule delivery processing
   defp schedule_deliveries do
