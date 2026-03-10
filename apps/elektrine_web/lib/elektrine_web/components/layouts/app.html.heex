@@ -321,6 +321,68 @@
 
             <div class="divider my-1"></div>
 
+            <li class="menu-title">
+              <span class="text-xs opacity-75">{gettext("Your Stuff")}</span>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/notifications"}
+                class="gap-3 hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon
+                  name={
+                    if assigns[:notification_count] && @notification_count > 0,
+                      do: "hero-bell-alert",
+                      else: "hero-bell"
+                  }
+                  class="w-4 h-4"
+                />
+                <span>{gettext("Notifications")}</span>
+                <%= if assigns[:notification_count] && @notification_count > 0 do %>
+                  <span class="ml-auto badge badge-xs badge-error text-white">
+                    {if @notification_count > 99, do: "99+", else: @notification_count}
+                  </span>
+                <% end %>
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/timeline?#{[filter: "saved", view: "all"]}"}
+                class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-bookmark" class="w-4 h-4" /> {gettext("Saved Posts")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/friends"}
+                class="gap-3 hover:bg-success/20 hover:text-success hover:border-l-4 hover:border-success transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-user-group" class="w-4 h-4" /> {gettext("Friends")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/lists"}
+                class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Lists")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/account/profile/edit"}
+                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-pencil-square" class="w-4 h-4" /> {gettext("Edit Profile")}
+              </.link>
+            </li>
+
+            <div class="divider my-1"></div>
+
+            <li class="menu-title">
+              <span class="text-xs opacity-75">{gettext("Apps")}</span>
+            </li>
             <li>
               <.link
                 navigate={~p"/email"}
@@ -334,7 +396,15 @@
                 navigate={~p"/timeline"}
                 class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
               >
-                <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Social")}
+                <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Timeline")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/account/password-manager"}
+                class="gap-3 hover:bg-accent/20 hover:text-accent hover:border-l-4 hover:border-accent transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-key" class="w-4 h-4" /> {gettext("Vault")}
               </.link>
             </li>
             <li>
@@ -362,8 +432,18 @@
             <% end %>
 
             <div class="divider my-1"></div>
-            
-<!-- Account & Support -->
+
+            <li class="menu-title">
+              <span class="text-xs opacity-75">{gettext("Account")}</span>
+            </li>
+            <li>
+              <.link
+                navigate={~p"/account/storage"}
+                class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
+              >
+                <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
+              </.link>
+            </li>
             <li>
               <.link
                 navigate={~p"/account"}
@@ -488,10 +568,18 @@
       <div class="col-span-2 md:col-span-1">
         <h3 class="font-semibold mb-3 text-sm">Email Settings</h3>
         <div class="text-xs opacity-70 space-y-1">
-          <p><span class="font-semibold">IMAP:</span> <span class="font-mono">993</span></p>
-          <p><span class="font-semibold">POP3:</span> <span class="font-mono">995</span></p>
-          <p><span class="font-semibold">SMTP:</span> <span class="font-mono">465</span></p>
-          <p class="pt-1 opacity-70">Server: <span class="font-mono">elektrine.com</span></p>
+          <p>
+            <span class="font-semibold">IMAP:</span>
+            <span class="font-mono">imap.elektrine.com:993</span>
+          </p>
+          <p>
+            <span class="font-semibold">POP3:</span>
+            <span class="font-mono">pop.elektrine.com:995</span>
+          </p>
+          <p>
+            <span class="font-semibold">SMTP:</span>
+            <span class="font-mono">smtp.elektrine.com:465</span>
+          </p>
         </div>
         <p class="text-xs opacity-50 mt-2">SSL/TLS required</p>
       </div>

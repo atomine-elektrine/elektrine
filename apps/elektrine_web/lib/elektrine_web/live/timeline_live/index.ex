@@ -666,7 +666,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       parent = self()
 
       Task.start(fn ->
-        previews = ReplyContextPreviews.fetch_previews(refs)
+        previews = ReplyContextPreviews.fetch_local_previews(refs)
         send(parent, {:reply_context_previews_loaded, previews})
       end)
 

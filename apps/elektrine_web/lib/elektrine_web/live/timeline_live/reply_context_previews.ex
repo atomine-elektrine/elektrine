@@ -5,7 +5,7 @@ defmodule ElektrineWeb.TimelineLive.ReplyContextPreviews do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
 
-  @default_limit 20
+  @default_limit 8
 
   def candidate_refs(posts, limit \\ @default_limit)
 
@@ -31,6 +31,12 @@ defmodule ElektrineWeb.TimelineLive.ReplyContextPreviews do
   end
 
   def fetch_previews(_, _), do: %{}
+
+  def fetch_local_previews(refs) when is_list(refs) do
+    fetch_previews(refs, fn _ref -> {:error, :remote_fetch_disabled} end)
+  end
+
+  def fetch_local_previews(_), do: %{}
 
   def apply_previews(posts, previews_by_ref) when is_list(posts) and is_map(previews_by_ref) do
     Enum.map(posts, &apply_preview(&1, previews_by_ref))
