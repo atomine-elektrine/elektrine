@@ -2,9 +2,11 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
   @moduledoc false
 
   import Ecto.Query, warn: false
+  require Logger
 
   alias Elektrine.Accounts.User
   alias Elektrine.Messaging.ArblargSDK
+
   alias Elektrine.Messaging.{
     ChatMessage,
     CommunityBan,
@@ -16,6 +18,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     FederationStreamPosition,
     Server
   }
+
   alias Elektrine.Repo
 
   def build_server_snapshot(server_id, opts, context)
@@ -74,7 +77,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
       when is_map(payload) and is_binary(remote_domain) and is_map(context) do
     with :ok <- call(context, :validate_snapshot_payload, [payload, remote_domain]) do
       Repo.transaction(fn ->
-        with {:ok, mirror_server} <- call(context, :upsert_mirror_server, [payload["server"], remote_domain]),
+        with {:ok, mirror_server} <-
+               call(context, :upsert_mirror_server, [payload["server"], remote_domain]),
              {:ok, channel_map} <-
                call(context, :upsert_mirror_channels, [mirror_server, payload["channels"] || []]),
              :ok <-
@@ -110,7 +114,9 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
 
   def export_stream_events(stream_id, opts, context)
       when is_binary(stream_id) and is_list(opts) and is_map(context) do
-    after_sequence = call(context, :parse_int, [Keyword.get(opts, :after_sequence, 0), 0]) |> max(0)
+    after_sequence =
+      call(context, :parse_int, [Keyword.get(opts, :after_sequence, 0), 0]) |> max(0)
+
     limit =
       call(context, :parse_int, [
         Keyword.get(opts, :limit, call(context, :stream_replay_limit, [])),
@@ -192,7 +198,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
          {:ok, remote_server_id} <-
            call(context, :infer_remote_server_id_from_federation_id, [server.federation_id]),
          %{} = peer <-
-           call(context, :outgoing_peer, [remote_domain]) || call(context, :incoming_peer, [remote_domain]),
+           call(context, :outgoing_peer, [remote_domain]) ||
+             call(context, :incoming_peer, [remote_domain]),
          {:ok, snapshot_payload} <- fetch_remote_snapshot(peer, remote_server_id, context) do
       import_server_snapshot(snapshot_payload, remote_domain, context)
     else
@@ -231,7 +238,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     end
   end
 
-  def snapshot_governance_entries(governance, context) when is_map(governance) and is_map(context) do
+  def snapshot_governance_entries(governance, context)
+      when is_map(governance) and is_map(context) do
     memberships =
       governance
       |> Map.get("memberships", [])
@@ -266,7 +274,10 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
 
   defp snapshot_stream_positions(%Server{} = server, channels, context) when is_list(channels) do
     stream_ids =
-      [call(context, :server_stream_id, [server.id]) | Enum.map(channels, &call(context, :channel_stream_id, [&1.id]))]
+      [
+        call(context, :server_stream_id, [server.id])
+        | Enum.map(channels, &call(context, :channel_stream_id, [&1.id]))
+      ]
 
     stream_ids
     |> Enum.uniq()
@@ -280,7 +291,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
 
   defp snapshot_stream_positions(_server, _channels, _context), do: []
 
-  defp snapshot_governance_payload(%Server{} = server, channels, context) when is_list(channels) do
+  defp snapshot_governance_payload(%Server{} = server, channels, context)
+       when is_list(channels) do
     channel_ids = Enum.map(channels, & &1.id)
     channel_index = Map.new(channels, &{&1.id, &1})
 
@@ -393,7 +405,11 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     governance
     |> snapshot_governance_entries(context)
     |> Enum.reduce_while(:ok, fn {event_type, payload}, :ok ->
-      case call(context, :validate_snapshot_governance_payload, [event_type, payload, remote_domain]) do
+      case call(context, :validate_snapshot_governance_payload, [
+             event_type,
+             payload,
+             remote_domain
+           ]) do
         :ok ->
           case call(context, :apply_event, [event_type, payload, remote_domain]) do
             :ok -> {:cont, :ok}
@@ -444,7 +460,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
       stream_id =
         call(context, :normalize_optional_string, [position["stream_id"] || position[:stream_id]])
 
-      last_sequence = call(context, :parse_int, [position["last_sequence"] || position[:last_sequence], -1])
+      last_sequence =
+        call(context, :parse_int, [position["last_sequence"] || position[:last_sequence], -1])
 
       cond do
         !is_binary(stream_id) ->

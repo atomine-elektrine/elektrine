@@ -5,8 +5,8 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Developer
   alias Elektrine.Email
-  alias Elektrine.Email.Mailbox
   alias Elektrine.Email.ListTypes
+  alias Elektrine.Email.Mailbox
   alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Unsubscribes

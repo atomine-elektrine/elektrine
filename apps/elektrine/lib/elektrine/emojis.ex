@@ -209,13 +209,15 @@ defmodule Elektrine.Emojis do
   defp extract_image_url(_), do: {:error, :missing_image_url}
 
   defp render_emoji_img_tag(image_url, alt_text, class_name) do
-    with {:ok, safe_url} <- CustomEmoji.validate_image_url(image_url) do
-      escaped_url = escape_html_attribute(safe_url)
-      escaped_alt_text = escape_html_attribute(alt_text)
+    case CustomEmoji.validate_image_url(image_url) do
+      {:ok, safe_url} ->
+        escaped_url = escape_html_attribute(safe_url)
+        escaped_alt_text = escape_html_attribute(alt_text)
 
-      ~s(<img src="#{escaped_url}" alt="#{escaped_alt_text}" title="#{escaped_alt_text}" class="#{class_name}" />)
-    else
-      {:error, _reason} -> nil
+        ~s(<img src="#{escaped_url}" alt="#{escaped_alt_text}" title="#{escaped_alt_text}" class="#{class_name}" />)
+
+      {:error, _reason} ->
+        nil
     end
   end
 

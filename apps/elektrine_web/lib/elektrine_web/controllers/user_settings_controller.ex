@@ -454,23 +454,21 @@ defmodule ElektrineWeb.UserSettingsController do
     verifier = Map.get(params, "private_mailbox_verifier")
     unlock_mode = Map.get(params, "private_mailbox_unlock_mode")
 
-    cond do
-      blank_string?(wrapped_private_key) and blank_string?(verifier) ->
-        {:ok, nil}
-
-      true ->
-        with {:ok, wrapped_private_key_payload} <- decode_json_payload(wrapped_private_key),
-             {:ok, verifier_payload} <- decode_json_payload(verifier),
-             true <- unlock_mode == "account_password" do
-          {:ok,
-           %{
-             wrapped_private_key: wrapped_private_key_payload,
-             verifier: verifier_payload,
-             unlock_mode: unlock_mode
-           }}
-        else
-          _ -> {:error, :invalid_private_mailbox_rewrap}
-        end
+    if blank_string?(wrapped_private_key) and blank_string?(verifier) do
+      {:ok, nil}
+    else
+      with {:ok, wrapped_private_key_payload} <- decode_json_payload(wrapped_private_key),
+           {:ok, verifier_payload} <- decode_json_payload(verifier),
+           true <- unlock_mode == "account_password" do
+        {:ok,
+         %{
+           wrapped_private_key: wrapped_private_key_payload,
+           verifier: verifier_payload,
+           unlock_mode: unlock_mode
+         }}
+      else
+        _ -> {:error, :invalid_private_mailbox_rewrap}
+      end
     end
   end
 
