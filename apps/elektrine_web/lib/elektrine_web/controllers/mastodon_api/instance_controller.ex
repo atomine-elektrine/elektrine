@@ -16,6 +16,7 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.ActivityPub.Instance
   alias Elektrine.Messaging.Message
 
   import Ecto.Query
@@ -184,9 +185,9 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
   end
 
   defp get_known_peers do
-    # Get unique domains from instances table
+    # Get unique domains from tracked ActivityPub instances
     Elektrine.Repo.all(
-      from(i in "instances",
+      from(i in Instance,
         select: i.domain,
         distinct: true
       )

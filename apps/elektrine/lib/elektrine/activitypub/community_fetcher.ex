@@ -78,36 +78,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
       {:ok, posts} ->
         # Store each post if we don't have it
         Enum.each(posts, fn post_object ->
-          post_id = post_object["id"]
-
-          unless post_already_exists?(post_id) do
-            # Community outboxes contain posts authored by member actors, not the Group itself.
-            actor_uri = post_actor_uri(post_object, community_actor.uri)
-
-            # Store using the handler (same as remote user posts)
-            case handler_module().store_remote_post(post_object, actor_uri) do
-              {:ok, %Elektrine.Messaging.Message{} = message} ->
-                # Mark it as from the followed community.
-                # Do not copy raw "audience" values because many posts use Public there.
-                messaging_module().update_message(message, %{
-                  media_metadata:
-                    Map.merge(message.media_metadata || %{}, %{
-                      "community_actor_uri" => community_actor.uri
-                    })
-                })
-
-              {:ok, :unauthorized} ->
-                Logger.warning(
-                  "Skipping unauthorized community post #{inspect(post_id)} from #{community_actor.uri}"
-                )
-
-              {:ok, _status} ->
-                :ok
-
-              {:error, _reason} ->
-                :ok
-            end
-          end
+          process_community_post(post_object, community_actor)
         end)
 
       {:error, reason} ->
@@ -120,6 +91,57 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
   defp post_already_exists?(activitypub_id) do
     messaging_module().get_message_by_activitypub_id(activitypub_id) != nil
   end
+
+  defp process_community_post(post_object, community_actor) do
+    post_id = safe_post_id(post_object)
+
+    unless post_already_exists?(post_id) do
+      actor_uri = post_actor_uri(post_object, community_actor.uri)
+
+      post_object
+      |> handler_module().store_remote_post(actor_uri)
+      |> handle_store_result(post_id, community_actor)
+    end
+  rescue
+    exception ->
+      Logger.error(
+        "Failed to ingest community post #{inspect(safe_post_id(post_object))} from #{community_actor.uri}: #{Exception.message(exception)}"
+      )
+
+      :ok
+  end
+
+  defp handle_store_result(
+         {:ok, %Elektrine.Messaging.Message{} = message},
+         _post_id,
+         community_actor
+       ) do
+    metadata =
+      Map.merge(normalize_message_metadata(message.media_metadata), %{
+        "community_actor_uri" => community_actor.uri
+      })
+
+    case messaging_module().update_message(message, %{media_metadata: metadata}) do
+      {:ok, _message} -> :ok
+      {:error, reason} -> Logger.warning("Failed to tag community post: #{inspect(reason)}")
+      _ -> :ok
+    end
+  end
+
+  defp handle_store_result({:ok, :unauthorized}, post_id, community_actor) do
+    Logger.warning(
+      "Skipping unauthorized community post #{inspect(post_id)} from #{community_actor.uri}"
+    )
+  end
+
+  defp handle_store_result({:ok, _status}, _post_id, _community_actor), do: :ok
+  defp handle_store_result({:error, _reason}, _post_id, _community_actor), do: :ok
+  defp handle_store_result(_unexpected, _post_id, _community_actor), do: :ok
+
+  defp normalize_message_metadata(metadata) when is_map(metadata), do: metadata
+  defp normalize_message_metadata(_metadata), do: %{}
+  defp safe_post_id(%{"id" => post_id}) when is_binary(post_id), do: post_id
+  defp safe_post_id(_post_object), do: nil
 
   defp post_actor_uri(post_object, fallback_uri) when is_map(post_object) do
     post_object["actor"] || post_object["attributedTo"] || fallback_uri

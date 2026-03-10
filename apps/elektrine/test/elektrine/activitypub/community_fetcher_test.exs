@@ -15,7 +15,11 @@ defmodule Elektrine.ActivityPub.CommunityFetcherTest do
   defmodule HandlerStub do
     def store_remote_post(post_object, actor_uri) do
       send(self(), {:store_remote_post, post_object, actor_uri})
-      Process.get(:community_fetcher_store_result, {:ok, :unhandled})
+
+      case Process.get(:community_fetcher_store_fun) do
+        fun when is_function(fun, 2) -> fun.(post_object, actor_uri)
+        _ -> Process.get(:community_fetcher_store_result, {:ok, :unhandled})
+      end
     end
   end
 
@@ -43,6 +47,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcherTest do
 
       Process.delete(:community_fetcher_timeline_result)
       Process.delete(:community_fetcher_store_result)
+      Process.delete(:community_fetcher_store_fun)
       Process.delete(:community_fetcher_existing_message)
     end)
 
@@ -99,5 +104,36 @@ defmodule Elektrine.ActivityPub.CommunityFetcherTest do
 
     assert_received {:store_remote_post, ^post_object, "https://remote.example/users/bob"}
     refute_received {:update_message, _, _}
+  end
+
+  test "continues processing later posts when one post raises during ingestion" do
+    first_post = %{
+      "id" => "https://remote.example/post/3",
+      "attributedTo" => "https://remote.example/users/charlie"
+    }
+
+    second_post = %{
+      "id" => "https://remote.example/post/4",
+      "attributedTo" => "https://remote.example/users/dana"
+    }
+
+    stored_message = %Message{id: 1002, media_metadata: %{}}
+
+    Process.put(:community_fetcher_timeline_result, {:ok, [first_post, second_post]})
+
+    Process.put(:community_fetcher_store_fun, fn post_object, _actor_uri ->
+      if post_object["id"] == first_post["id"] do
+        raise "boom"
+      else
+        {:ok, stored_message}
+      end
+    end)
+
+    assert {:noreply, %{}} = CommunityFetcher.handle_info(:fetch_community_posts, %{})
+
+    assert_received {:store_remote_post, ^first_post, "https://remote.example/users/charlie"}
+    assert_received {:store_remote_post, ^second_post, "https://remote.example/users/dana"}
+    assert_received {:update_message, ^stored_message, attrs}
+    assert attrs.media_metadata["community_actor_uri"] == "https://remote.example/c/test"
   end
 end
