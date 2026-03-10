@@ -154,14 +154,26 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
 
   def render_content_preview(content, instance_domain) when is_binary(content) do
     content
-    |> HtmlSanitizeEx.strip_tags()
-    |> String.slice(0, 200)
+    |> plain_text_preview(200)
     |> HtmlHelpers.escape_html()
     |> HtmlHelpers.convert_emoji_shortcodes()
     |> maybe_render_custom_emojis(instance_domain)
   end
 
   def render_content_preview(_, _instance_domain), do: ""
+
+  @doc """
+  Converts possibly-HTML content into normalized plain text.
+  """
+  @spec plain_text_content(String.t() | nil) :: String.t()
+  def plain_text_content(content), do: HtmlHelpers.plain_text_content(content)
+
+  @doc """
+  Returns a truncated plain-text preview for possibly-HTML content.
+  """
+  @spec plain_text_preview(String.t() | nil, non_neg_integer()) :: String.t()
+  def plain_text_preview(content, max_length \\ 200),
+    do: HtmlHelpers.plain_text_preview(content, max_length)
 
   @doc """
   Extracts the best-guess instance domain for remote/custom emoji rendering.

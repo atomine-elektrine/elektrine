@@ -7,6 +7,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{Messaging, Profiles, Repo, Social}
+  alias ElektrineWeb.Components.Social.PostUtilities
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.LemmyPost
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
@@ -1890,28 +1891,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     "!#{slug}@#{Elektrine.Domains.default_user_handle_domain()}"
   end
 
-  defp community_display_name(%Messaging.Conversation{} = community) do
-    cond do
-      community.is_federated_mirror &&
-        Ecto.assoc_loaded?(community.remote_group_actor) &&
-          community.remote_group_actor ->
-        community.remote_group_actor.display_name ||
-          humanize_community_name(community.remote_group_actor.username)
-
-      true ->
-        community.name
-    end
-  end
-
-  defp community_display_name(%Actor{} = actor) do
-    actor.display_name || humanize_community_name(actor.username)
-  end
-
-  defp community_display_name(%{community: community}), do: community_display_name(community)
-  defp community_display_name(%{remote_actor: actor}), do: community_display_name(actor)
-  defp community_display_name(%{name: name}) when is_binary(name), do: name
-  defp community_display_name(_), do: "Community"
-
   defp community_category_label(%Messaging.Conversation{} = community) do
     community.community_category |> to_string() |> String.replace("_", " ") |> String.capitalize()
   end
@@ -1929,12 +1908,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   defp community_category_label(_), do: "General"
 
   defp community_activity_text(%Messaging.Conversation{} = community) do
-    cond do
-      community.last_message_at ->
-        "Active #{Elektrine.Social.time_ago_in_words(community.last_message_at)}"
-
-      true ->
-        nil
+    if community.last_message_at do
+      "Active #{Elektrine.Social.time_ago_in_words(community.last_message_at)}"
+    else
+      nil
     end
   end
 
@@ -1944,25 +1921,57 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
   defp community_activity_text(_), do: nil
 
-  defp community_creator_label(%Messaging.Conversation{} = community) do
+  defp community_display_name_markup(%Messaging.Conversation{} = community) do
+    if community.is_federated_mirror &&
+         Ecto.assoc_loaded?(community.remote_group_actor) &&
+         community.remote_group_actor do
+      ElektrineWeb.HtmlHelpers.render_actor_display_name(community.remote_group_actor)
+    else
+      escape_markup(community.name)
+    end
+  end
+
+  defp community_display_name_markup(%Actor{} = actor) do
+    display_name = normalize_markup_text(actor.display_name)
+
+    if display_name do
+      ElektrineWeb.HtmlHelpers.render_actor_display_name(actor)
+    else
+      escape_markup(humanize_community_name(actor.username))
+    end
+  end
+
+  defp community_display_name_markup(%{community: community}),
+    do: community_display_name_markup(community)
+
+  defp community_display_name_markup(%{remote_actor: actor}),
+    do: community_display_name_markup(actor)
+
+  defp community_display_name_markup(%{name: name}) when is_binary(name), do: escape_markup(name)
+  defp community_display_name_markup(_), do: escape_markup("Community")
+
+  defp community_creator_markup(%Messaging.Conversation{} = community) do
     cond do
       community.is_federated_mirror &&
         Ecto.assoc_loaded?(community.remote_group_actor) &&
           community.remote_group_actor ->
-        community.remote_group_actor.display_name || community.remote_group_actor.username
+        ElektrineWeb.HtmlHelpers.render_actor_display_name(community.remote_group_actor)
 
       Ecto.assoc_loaded?(community.creator) && community.creator ->
-        community.creator.display_name || community.creator.username
+        escape_markup(community.creator.display_name || community.creator.username)
 
       true ->
         nil
     end
   end
 
-  defp community_creator_label(%Actor{} = actor), do: actor.display_name || actor.username
-  defp community_creator_label(%{community: community}), do: community_creator_label(community)
-  defp community_creator_label(%{remote_actor: actor}), do: community_creator_label(actor)
-  defp community_creator_label(_), do: nil
+  defp community_creator_markup(%Actor{} = actor) do
+    ElektrineWeb.HtmlHelpers.render_actor_display_name(actor)
+  end
+
+  defp community_creator_markup(%{community: community}), do: community_creator_markup(community)
+  defp community_creator_markup(%{remote_actor: actor}), do: community_creator_markup(actor)
+  defp community_creator_markup(_), do: nil
 
   defp humanize_community_name(name) when is_binary(name) do
     name
@@ -2004,21 +2013,37 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end)
   end
 
-  defp discovery_card_meta(%{community: community, tags: tags}) do
+  defp discovery_card_meta_markup(%{community: community, tags: tags}) do
     base_meta = ["#{format_compact_number(community.member_count || 0)} members"]
+    base_meta = Enum.map(base_meta, &escape_markup/1)
 
     base_meta =
       if :popular in tags do
-        base_meta ++ ["#{community.weekly_posts || 0} posts this week"]
+        base_meta ++ [escape_markup("#{community.weekly_posts || 0} posts this week")]
       else
         base_meta
       end
 
-    case community_creator_label(community) do
-      creator when is_binary(creator) -> base_meta ++ ["by #{creator}"]
+    case community_creator_markup(community) do
+      creator when is_binary(creator) -> base_meta ++ [escape_markup("by ") <> creator]
       _ -> base_meta
     end
   end
+
+  defp escape_markup(text) when is_binary(text) do
+    text |> html_escape() |> safe_to_string()
+  end
+
+  defp escape_markup(_), do: ""
+
+  defp normalize_markup_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_markup_text(_), do: nil
 
   defp build_active_thread_cards(trending_threads, recent_threads, federated_threads) do
     [
@@ -2067,25 +2092,25 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp discussion_route(post) do
-    cond do
-      post.conversation && post.conversation.type == "community" ->
+    case local_community_conversation(post) do
+      %{name: community_name} ->
         slug =
           Elektrine.Utils.Slug.discussion_url_slug(
             post.id,
-            String.trim(post.title || "") |> blank_to("discussion")
+            PostUtilities.plain_text_content(post.title) |> blank_to("discussion")
           )
 
-        ~p"/communities/#{post.conversation.name}/post/#{slug}"
+        ~p"/communities/#{community_name}/post/#{slug}"
 
-      true ->
+      _ ->
         "/remote/post/#{post.id}"
     end
   end
 
   defp discussion_community_label(post) do
     cond do
-      post.conversation && post.conversation.type == "community" ->
-        "!#{post.conversation.name}"
+      community = local_community_conversation(post) ->
+        "!#{community.name}"
 
       community_uri = get_in(post.media_metadata || %{}, ["community_actor_uri"]) ->
         extract_remote_community_display(community_uri)
@@ -2100,10 +2125,14 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
   defp discussion_title(post) do
     post.title
-    |> to_string()
-    |> String.trim()
+    |> PostUtilities.plain_text_content()
     |> blank_to("Untitled discussion")
   end
+
+  defp local_community_conversation(%{conversation: %{type: "community"} = conversation}),
+    do: conversation
+
+  defp local_community_conversation(_), do: nil
 
   defp extract_remote_community_display(community_uri) when is_binary(community_uri) do
     uri = URI.parse(community_uri)

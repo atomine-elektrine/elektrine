@@ -46,6 +46,18 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
+  pipeline :matrix_internal_api do
+    plug(ElektrineWeb.Plugs.InternalAPIAuth,
+      env_names: ["MATRIX_INTERNAL_API_KEY", "PHOENIX_API_KEY"]
+    )
+  end
+
+  pipeline :mongooseim_internal_api do
+    plug(ElektrineWeb.Plugs.InternalAPIAuth,
+      env_names: ["MONGOOSEIM_API_KEY", "PHOENIX_API_KEY"]
+    )
+  end
+
   # Browser-based JSON API pipeline
   # Used for AJAX calls from static pages that need session/CSRF but return JSON.
   # Examples: profile follow/unfollow, friend requests, followers/following lists
@@ -190,17 +202,16 @@ defmodule ElektrineWeb.Router do
 
   # Matrix internal auth compatibility endpoint (for Synapse REST auth provider)
   scope "/_matrix-internal/identity/v1", ElektrineWeb do
-    pipe_through([:api, :api_rate_limited])
+    pipe_through([:api, :matrix_internal_api, :api_rate_limited])
 
     post("/check_credentials", MatrixInternalAuthController, :check_credentials)
   end
 
   # MongooseIM internal auth compatibility endpoint
   scope "/_mongooseim/identity/v1", ElektrineWeb do
-    pipe_through([:api, :api_rate_limited])
+    pipe_through([:api, :mongooseim_internal_api, :api_rate_limited])
 
     post("/check_credentials", MongooseIMAuthController, :check_credentials)
-    get("/check_password", MongooseIMAuthController, :check_password)
     post("/check_password", MongooseIMAuthController, :check_password)
     get("/user_exists", MongooseIMAuthController, :user_exists)
     post("/user_exists", MongooseIMAuthController, :user_exists)
@@ -218,8 +229,17 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api, :messaging_federation])
 
     post("/events", MessagingFederationController, :event)
+    post("/events/batch", MessagingFederationController, :event_batch)
+    post("/ephemeral", MessagingFederationController, :ephemeral)
     post("/sync", MessagingFederationController, :sync)
+    get("/streams/events", MessagingFederationController, :stream_events)
     get("/servers/:server_id/snapshot", MessagingFederationController, :snapshot)
+  end
+
+  scope "/federation/messaging", ElektrineWeb do
+    pipe_through([:messaging_federation])
+
+    get("/session", MessagingFederationController, :session_websocket)
   end
 
   # Public messaging federation server directory for cross-instance discovery
@@ -243,8 +263,6 @@ defmodule ElektrineWeb.Router do
 
     get("/arblarg", MessagingFederationController, :well_known)
     get("/arblarg/:version", MessagingFederationController, :well_known_versioned)
-    get("/elektrine", MessagingFederationController, :well_known)
-    get("/elektrine-messaging-federation", MessagingFederationController, :well_known)
   end
 
   # Matrix well-known discovery/delegation endpoints
@@ -1243,6 +1261,9 @@ defmodule ElektrineWeb.Router do
       # Remote post detail
       live("/remote/post/:post_id", RemotePostLive.Show, :show)
 
+      # Subscription pages
+      live("/subscribe/:product", SubscribeLive, :index)
+
       # === Authenticated routes (auth checked in mount via current_user assign) ===
 
       # Account settings
@@ -1282,9 +1303,6 @@ defmodule ElektrineWeb.Router do
 
       # VPN
       live("/vpn", VPNLive.Index, :index)
-
-      # Subscription pages
-      live("/subscribe/:product", SubscribeLive, :index)
 
       # Contacts
       live("/contacts", ContactsLive.Index, :index)

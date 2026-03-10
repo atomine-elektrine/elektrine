@@ -3,7 +3,9 @@ defmodule ElektrineWeb.GalleryLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.{AccountsFixtures, Repo, Social, SocialFixtures}
+  alias Elektrine.{AccountsFixtures, Messaging, Repo, Social, SocialFixtures}
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Messaging.Message
 
   defp log_in_user(conn, user) do
@@ -102,5 +104,153 @@ defmodule ElektrineWeb.GalleryLiveTest do
 
     assert saved_html =~ saved_photo.title
     refute saved_html =~ other_photo.title
+  end
+
+  test "only liked photos render with active heart state", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    creator = AccountsFixtures.user_fixture()
+
+    liked_photo =
+      gallery_post_fixture(creator,
+        title: "Liked in Gallery",
+        content: "This one should render as liked"
+      )
+
+    unliked_photo =
+      gallery_post_fixture(creator,
+        title: "Not Liked in Gallery",
+        content: "This one should stay unliked"
+      )
+
+    {:ok, _like} = Social.like_post(viewer.id, liked_photo.id)
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/gallery")
+
+    html = render_async(view)
+    document = Floki.parse_document!(html)
+
+    liked_button_classes =
+      document
+      |> Floki.find(~s(button[phx-click="like_photo"][phx-value-photo_id="#{liked_photo.id}"]))
+      |> Floki.attribute("class")
+      |> List.first()
+
+    unliked_button_classes =
+      document
+      |> Floki.find(~s(button[phx-click="like_photo"][phx-value-photo_id="#{unliked_photo.id}"]))
+      |> Floki.attribute("class")
+      |> List.first()
+
+    assert liked_button_classes =~ "btn-secondary"
+    refute liked_button_classes =~ "btn-ghost"
+    assert unliked_button_classes =~ "btn-ghost"
+    refute unliked_button_classes =~ "btn-secondary"
+  end
+
+  test "gallery strips malformed html from captions and title fallbacks", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    creator = AccountsFixtures.user_fixture()
+
+    gallery_post_fixture(creator,
+      title: "",
+      content:
+        "<p>We&#39;re live now with No Agenda episode 1849 #@pocketnoagenda <a href=\"https://example.com/live\"",
+      media_urls: ["/uploads/live-test.jpg"]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/gallery")
+
+    html = render_async(view)
+
+    assert html =~ "We&#39;re live now with No Agenda episode 1849"
+    assert html =~ "#@pocketnoagenda"
+    refute html =~ "&lt;p&gt;We&amp;#39;re live now with No Agenda episode 1849 #@pocketnoagenda"
+    refute html =~ "href=&quot;https://example.com/live&quot;"
+  end
+
+  test "remote gallery posts do not render profile URLs as creator names", %{conn: conn} do
+    bad_display_name = "https://elektrine.com/remote/zero@strelizia.net"
+
+    photo =
+      remote_gallery_post_fixture(
+        username: "zero",
+        domain: "strelizia.net",
+        display_name: bad_display_name,
+        title: "Federated Zero"
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/gallery")
+    html = render_async(view)
+
+    assert html =~ photo.title
+    assert html =~ "@zero@strelizia.net"
+    refute html =~ bad_display_name
+  end
+
+  test "remote gallery posts render custom emojis in creator names", %{conn: conn} do
+    photo =
+      remote_gallery_post_fixture(
+        username: "alice",
+        domain: "remote.example",
+        display_name: "Alice :blobcat:",
+        title: "Emoji Gallery"
+      )
+
+    %CustomEmoji{}
+    |> CustomEmoji.changeset(%{
+      shortcode: "blobcat",
+      image_url: "https://remote.example/emoji/blobcat.png",
+      instance_domain: "remote.example",
+      visible_in_picker: false,
+      disabled: false
+    })
+    |> Repo.insert!()
+
+    {:ok, view, _html} = live(conn, ~p"/gallery")
+    html = render_async(view)
+
+    assert html =~ photo.title
+    assert html =~ "Alice"
+    assert html =~ "custom-emoji"
+    assert html =~ "blobcat.png"
+  end
+
+  defp remote_gallery_post_fixture(attrs) do
+    unique = System.unique_integer([:positive])
+    username = attrs[:username] || "remote#{unique}"
+    domain = attrs[:domain] || "remote.example"
+    activitypub_id = attrs[:activitypub_id] || "https://#{domain}/posts/#{unique}"
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://#{domain}/users/#{username}",
+        username: username,
+        domain: domain,
+        display_name: attrs[:display_name],
+        inbox_url: "https://#{domain}/inbox",
+        public_key: "test-public-key-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: attrs[:content] || "Remote gallery caption",
+        title: attrs[:title] || "Remote Gallery #{unique}",
+        visibility: attrs[:visibility] || "public",
+        post_type: "gallery",
+        activitypub_id: activitypub_id,
+        activitypub_url: attrs[:activitypub_url] || activitypub_id,
+        remote_actor_id: remote_actor.id,
+        media_urls: attrs[:media_urls] || ["https://#{domain}/media/#{unique}.jpg"]
+      })
+
+    Repo.preload(message, remote_actor: [])
   end
 end

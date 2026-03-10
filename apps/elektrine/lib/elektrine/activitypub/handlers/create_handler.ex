@@ -9,9 +9,11 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers
+  alias Elektrine.Async
   alias Elektrine.Emojis
   alias Elektrine.Messaging
   alias Elektrine.Social
+  alias Elektrine.Social.Poll
 
   @public_audience_uris MapSet.new([
                           "Public",
@@ -32,17 +34,27 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   @doc """
   Handles an incoming Create activity.
   """
-  def handle(%{"object" => object}, actor_uri, _target_user) when is_map(object) do
-    author_uri = object["attributedTo"] || actor_uri
+  def handle(%{"object" => object} = activity, actor_uri, _target_user) when is_map(object) do
+    activity_id = activity["id"] || object["id"]
 
-    case object["type"] do
-      "Note" -> create_note(object, author_uri)
-      "Page" -> create_note(object, author_uri)
-      "Article" -> create_note(object, author_uri)
-      "Question" -> create_question(object, author_uri)
-      # Akkoma/Pleroma explicitly sends Answer type for poll votes
-      "Answer" -> handle_incoming_poll_vote(object, author_uri)
-      _ -> {:ok, :unhandled}
+    case validate_create_author(object, actor_uri) do
+      :ok ->
+        case object["type"] do
+          "Note" -> create_note(object, actor_uri)
+          "Page" -> create_note(object, actor_uri)
+          "Article" -> create_note(object, actor_uri)
+          "Question" -> create_question(object, actor_uri)
+          # Akkoma/Pleroma explicitly sends Answer type for poll votes
+          "Answer" -> handle_incoming_poll_vote(object, actor_uri, activity_id: activity_id)
+          _ -> {:ok, :unhandled}
+        end
+
+      {:error, :actor_mismatch} ->
+        Logger.warning(
+          "Rejecting Create #{inspect(activity_id)}: object attributedTo does not match verified actor #{actor_uri}"
+        )
+
+        {:ok, :unauthorized}
     end
   end
 
@@ -61,7 +73,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   """
   def create_note(object, actor_uri, opts) when is_list(opts) do
     if poll_vote?(object) do
-      handle_incoming_poll_vote(object, actor_uri)
+      handle_incoming_poll_vote(object, actor_uri, opts)
     else
       create_regular_note(object, actor_uri, opts)
     end
@@ -76,7 +88,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       hashtags = extract_hashtags(object, content)
 
       %URI{host: instance_domain} = URI.parse(actor_uri)
-      Task.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
+      Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
 
       visibility = determine_visibility(object)
 
@@ -113,7 +125,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
             end
 
             if hashtags != [] do
-              Task.start(fn -> link_hashtags_to_message(message.id, hashtags) end)
+              Async.run(fn -> link_hashtags_to_message(message.id, hashtags) end)
             end
 
             reloaded_message =
@@ -155,7 +167,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     has_name && has_reply_to && has_minimal_content
   end
 
-  defp handle_incoming_poll_vote(object, actor_uri) do
+  defp handle_incoming_poll_vote(object, actor_uri, opts) do
     option_name = object["name"]
     in_reply_to = object["inReplyTo"]
 
@@ -172,28 +184,9 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
            poll when not is_nil(poll) <-
              Elektrine.Repo.get_by(Elektrine.Social.Poll, message_id: message.id) do
         poll = Elektrine.Repo.preload(poll, :options)
+        vote_id = Keyword.get(opts, :activity_id) || object["id"]
 
-        matching_option =
-          Enum.find(poll.options, fn opt ->
-            String.downcase(String.trim(opt.option_text)) ==
-              String.downcase(String.trim(option_name))
-          end)
-
-        if matching_option do
-          Elektrine.Repo.update_all(
-            from(o in Elektrine.Social.PollOption, where: o.id == ^matching_option.id),
-            inc: [vote_count: 1]
-          )
-
-          Elektrine.Repo.update_all(
-            from(p in Elektrine.Social.Poll, where: p.id == ^poll.id),
-            inc: [total_votes: 1]
-          )
-
-          {:ok, :poll_vote_recorded}
-        else
-          {:ok, :option_not_found}
-        end
+        record_remote_poll_vote(poll, message, option_name, actor_uri, vote_id)
       else
         nil ->
           {:ok, :not_a_poll}
@@ -210,6 +203,104 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     end
   end
 
+  defp record_remote_poll_vote(poll, message, option_name, actor_uri, vote_id) do
+    option_key =
+      option_name
+      |> to_string()
+      |> String.trim()
+      |> String.downcase()
+
+    dedupe_vote_id =
+      case vote_id do
+        value when is_binary(value) and value != "" ->
+          "poll-vote:#{value}"
+
+        _ ->
+          "poll-vote:#{actor_uri}:#{poll.id}:#{option_key}"
+      end
+
+    case persist_poll_vote_receipt(dedupe_vote_id, poll, message, actor_uri) do
+      {:ok, :already_recorded} ->
+        {:ok, :already_voted}
+
+      {:ok, :recorded} ->
+        Elektrine.Repo.transaction(fn ->
+          locked_poll =
+            from(p in Poll, where: p.id == ^poll.id, lock: "FOR UPDATE")
+            |> Elektrine.Repo.one!()
+            |> Elektrine.Repo.preload(:options)
+
+          if Poll.has_voted?(locked_poll, actor_uri) do
+            :already_voted
+          else
+            matching_option =
+              Enum.find(locked_poll.options, fn opt ->
+                String.downcase(String.trim(opt.option_text)) == option_key
+              end)
+
+            if matching_option do
+              Elektrine.Repo.update_all(
+                from(o in Elektrine.Social.PollOption, where: o.id == ^matching_option.id),
+                inc: [vote_count: 1]
+              )
+
+              Elektrine.Repo.update_all(
+                from(p in Poll, where: p.id == ^locked_poll.id),
+                inc: [total_votes: 1]
+              )
+
+              case Poll.record_voter(locked_poll, actor_uri) do
+                {:ok, _updated_poll} -> :poll_vote_recorded
+                {:error, reason} -> Elektrine.Repo.rollback(reason)
+              end
+            else
+              :option_not_found
+            end
+          end
+        end)
+        |> case do
+          {:ok, result} -> {:ok, result}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp persist_poll_vote_receipt(vote_id, poll, message, actor_uri) do
+    object_id =
+      case message.activitypub_id do
+        value when is_binary(value) and value != "" -> value
+        _ -> Integer.to_string(poll.message_id)
+      end
+
+    case ActivityPub.create_activity(%{
+           activity_id: vote_id,
+           activity_type: "PollVote",
+           actor_uri: actor_uri,
+           object_id: object_id,
+           data: %{
+             "type" => "PollVote",
+             "id" => vote_id,
+             "actor" => actor_uri
+           },
+           local: false,
+           processed: true,
+           internal_message_id: poll.message_id
+         }) do
+      {:ok, _record} ->
+        {:ok, :recorded}
+
+      {:error, %Ecto.Changeset{errors: [activity_id: {"has already been taken", _}]}} ->
+        {:ok, :already_recorded}
+
+      {:error, reason} ->
+        Logger.warning("Failed to persist poll vote receipt: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
   defp create_regular_note(object, actor_uri, opts) do
     object = maybe_enrich_sparse_object(object)
 
@@ -220,7 +311,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       mentioned_local_users = extract_local_mentions(object)
 
       %URI{host: instance_domain} = URI.parse(actor_uri)
-      Task.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
+      Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
 
       reply_to_id = get_reply_to_message_id(object["inReplyTo"])
       quoted_message_id = get_quoted_message_id(object)
@@ -290,7 +381,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
        ) do
     # Link to mirror community if from Group
     if remote_actor.actor_type == "Group" do
-      Task.start(fn ->
+      Async.run(fn ->
         case Messaging.FederatedCommunities.create_or_get_mirror_community(remote_actor) do
           {:ok, _mirror} ->
             Messaging.FederatedCommunities.link_message_to_mirror(message.id, remote_actor.id)
@@ -303,18 +394,18 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
     # Link hashtags
     if hashtags != [] do
-      Task.start(fn -> link_hashtags_to_message(message.id, hashtags) end)
+      Async.run(fn -> link_hashtags_to_message(message.id, hashtags) end)
     end
 
     # Generate link preview
-    Task.start(fn -> generate_link_preview_for_message(message) end)
+    Async.start(fn -> generate_link_preview_for_message(message) end)
 
     # Notify reply and increment parent's reply count
     if reply_to_id do
       # Increment reply count on parent (like Akkoma does)
       Elektrine.ActivityPub.SideEffects.increment_reply_count(reply_to_id)
 
-      Task.start(fn ->
+      Async.run(fn ->
         Elektrine.Notifications.FederationNotifications.notify_remote_reply(
           message.id,
           remote_actor.id
@@ -324,7 +415,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
     # Notify mentions
     if mentioned_local_users != [] do
-      Task.start(fn ->
+      Async.run(fn ->
         notify_mentioned_users(mentioned_local_users, message.id, remote_actor.id)
       end)
     end
@@ -479,6 +570,31 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   end
 
   defp expand_uri_candidates(_), do: []
+
+  defp validate_create_author(object, actor_uri) when is_map(object) do
+    attributed_actor_uris =
+      object["attributedTo"]
+      |> expand_uri_candidates()
+      |> Enum.map(&normalize_uri/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    normalized_actor_uri = normalize_uri(actor_uri)
+
+    cond do
+      is_nil(normalized_actor_uri) ->
+        {:error, :actor_mismatch}
+
+      attributed_actor_uris == [] ->
+        :ok
+
+      normalized_actor_uri in attributed_actor_uris ->
+        :ok
+
+      true ->
+        {:error, :actor_mismatch}
+    end
+  end
 
   defp normalize_uri(value) when is_binary(value) do
     case String.trim(value) do
@@ -881,6 +997,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       message_id: message_id,
       question: strip_html(object["content"] || ""),
       total_votes: voters_count,
+      voters_count: voters_count,
       closes_at: end_time,
       allow_multiple: allow_multiple
     }
@@ -1067,12 +1184,12 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         nil
 
       url when is_binary(url) ->
-        case Messaging.get_message_by_activitypub_id(url) do
+        case Messaging.get_message_by_activitypub_ref(url) do
           nil ->
             nil
 
           message ->
-            Task.start(fn -> Messaging.increment_quote_count(message.id) end)
+            Async.run(fn -> Messaging.increment_quote_count(message.id) end)
             message.id
         end
 
@@ -1217,7 +1334,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
             type: "mention",
             title: "Mentioned in a post",
             body: "#{actor_name} mentioned you in a post",
-            url: "/timeline/post/#{message_id}",
+            url: Elektrine.Notifications.resolve_message_notification_url(message_id, "mention"),
             source_type: "message",
             source_id: message_id,
             priority: "normal"
@@ -1341,7 +1458,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         get_message_by_id(id)
 
       true ->
-        case Messaging.get_message_by_activitypub_id(uri) do
+        case Messaging.get_message_by_activitypub_ref(uri) do
           nil -> {:error, :message_not_found}
           message -> {:ok, message}
         end

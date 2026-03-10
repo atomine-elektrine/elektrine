@@ -412,21 +412,17 @@ defmodule Elektrine.Email.HeaderSanitizer do
   end
 
   defp user_exists?(local_part, domain) do
-    case Elektrine.Accounts.get_user_by_username_or_handle(local_part) do
-      nil ->
-        case Elektrine.Email.Aliases.get_alias_by_email("#{local_part}@#{domain}") do
-          nil -> false
-          _ -> true
-        end
+    email = "#{local_part}@#{domain}"
 
-      _ ->
-        true
+    case Elektrine.Email.get_mailbox_by_email(email) do
+      nil -> not is_nil(Elektrine.Email.Aliases.get_alias_by_email(email))
+      _ -> true
     end
   rescue
     _ -> true
   end
 
   defp local_domains do
-    Elektrine.Domains.supported_email_domains()
+    Elektrine.Domains.receiving_email_domains()
   end
 end

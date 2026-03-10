@@ -25,6 +25,24 @@ defmodule Elektrine.Domains do
   end
 
   @doc """
+  All receiving email domains, including verified user custom domains.
+  """
+  def receiving_email_domains do
+    (supported_email_domains() ++ verified_custom_email_domains())
+    |> normalize_domains()
+    |> ensure_primary_domain()
+  end
+
+  @doc """
+  Email domains available to a specific user for sending and main address variants.
+  """
+  def available_email_domains_for_user(user_or_user_id) do
+    (supported_email_domains() ++ verified_custom_email_domains_for_user(user_or_user_id))
+    |> normalize_domains()
+    |> ensure_primary_domain()
+  end
+
+  @doc """
   Base domains that can host profile subdomains.
   """
   def profile_base_domains do
@@ -68,6 +86,15 @@ defmodule Elektrine.Domains do
   def local_email_domain?(_), do: false
 
   @doc """
+  True if the given domain receives mail locally, including verified custom domains.
+  """
+  def receiving_email_domain?(domain) when is_binary(domain) do
+    String.downcase(domain) in receiving_email_domains()
+  end
+
+  def receiving_email_domain?(_), do: false
+
+  @doc """
   Builds all local email addresses for a username across supported domains.
   """
   def local_addresses_for_username(username) when is_binary(username) do
@@ -82,6 +109,17 @@ defmodule Elektrine.Domains do
   end
 
   def local_addresses_for_username(_), do: []
+
+  @doc """
+  Builds all available main addresses for a user across system and verified custom domains.
+  """
+  def email_addresses_for_user(%{id: user_id, username: username})
+      when is_integer(user_id) and is_binary(username) do
+    available_email_domains_for_user(user_id)
+    |> Enum.map(&"#{String.trim(username)}@#{&1}")
+  end
+
+  def email_addresses_for_user(_), do: []
 
   @doc """
   Builds all local email address variants for a given local email address.
@@ -241,6 +279,30 @@ defmodule Elektrine.Domains do
   end
 
   def main_domain_url_from_host(_, _), do: ""
+
+  defp verified_custom_email_domains do
+    maybe_custom_domains(:verified_domains, [])
+  end
+
+  defp verified_custom_email_domains_for_user(%{id: user_id}),
+    do: verified_custom_email_domains_for_user(user_id)
+
+  defp verified_custom_email_domains_for_user(user_id) when is_integer(user_id) do
+    maybe_custom_domains(:verified_domains_for_user, [user_id])
+  end
+
+  defp verified_custom_email_domains_for_user(_), do: []
+
+  defp maybe_custom_domains(function_name, args) do
+    if Code.ensure_loaded?(Elektrine.Email.CustomDomains) and
+         function_exported?(Elektrine.Email.CustomDomains, function_name, length(args)) do
+      apply(Elektrine.Email.CustomDomains, function_name, args)
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
 
   defp ensure_primary_domain(domains) do
     primary = primary_email_domain()

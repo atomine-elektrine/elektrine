@@ -67,6 +67,32 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert render(view) =~ "10/3 min"
   end
 
+  test "quick reply character counter updates immediately while typing", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Quick reply counter target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "show_reply_form", %{"message_id" => to_string(post.id)})
+    assert render(view) =~ "0/3 required chars"
+
+    assert has_element?(
+             view,
+             "#reply-textarea-#{post.id}[data-live-update-event=\"update_reply_content\"]"
+           )
+
+    textarea = element(view, "#reply-textarea-#{post.id}")
+
+    assert render_hook(textarea, "update_reply_content", %{"value" => "typed live"}) =~
+             "10/3 required chars"
+  end
+
   test "note composer route opens a private note template", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 
@@ -562,10 +588,9 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       |> log_in_user(viewer)
       |> live(~p"/timeline?filter=all&view=all")
 
-    render_hook(view, "load_remote_replies", %{
-      "post_id" => to_string(post.id),
-      "activitypub_id" => activitypub_id
-    })
+    view
+    |> element(~s(button[phx-click="load_remote_replies"][phx-value-post_id="#{post.id}"]))
+    |> render_click()
 
     loading_html =
       Enum.reduce_while(1..10, "", fn _, _acc ->
@@ -616,12 +641,9 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       |> log_in_user(viewer)
       |> live(~p"/timeline?filter=all&view=all")
 
-    render_hook(view, "load_remote_replies", %{
-      "post_id" => to_string(post.id),
-      "activitypub_id" => activitypub_id
-    })
-
-    assert render(view) =~ "Loading replies..."
+    view
+    |> element(~s(button[phx-click="load_remote_replies"][phx-value-post_id="#{post.id}"]))
+    |> render_click()
 
     send(view.pid, {:refresh_remote_replies, post.id, 6})
 

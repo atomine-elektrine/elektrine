@@ -80,18 +80,30 @@ export const SuggestionDropdown = {
  */
 export const TimezoneDetector = {
   mounted() {
-    this.detectAndSave()
+    detectAndSaveTimezone(this.el)
   },
 
   updated() {
-    this.detectAndSave()
-  },
-
-  detectAndSave() {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-    document.cookie = `detected_timezone=${timezone}; path=/; max-age=31536000; SameSite=Lax`
-    this.el.dataset.lastSent = timezone
+    detectAndSaveTimezone(this.el)
   }
+}
+
+export function detectAndSaveTimezone(element = null) {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  document.cookie = `detected_timezone=${timezone}; path=/; max-age=31536000; SameSite=Lax`
+
+  if (element) {
+    element.dataset.lastSent = timezone
+  }
+}
+
+export function initTimezoneDetectors(rootCandidate = document) {
+  const root =
+    rootCandidate && typeof rootCandidate.querySelectorAll === 'function' ? rootCandidate : document
+
+  root.querySelectorAll('[data-timezone-detector]').forEach((element) => {
+    detectAndSaveTimezone(element)
+  })
 }
 
 /**

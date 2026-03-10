@@ -1,48 +1,117 @@
 {
+  "$id": "arblarg://schemas/1.0/presence.update",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/presence.update",
-  "title": "Arblarg presence.update payload",
-  "type": "object",
-  "required": [
-    "server",
-    "presence"
+  "anyOf": [
+    {
+      "required": [
+        "server"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
   ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
     "presence": {
-      "type": "object",
-      "required": [
-        "actor",
-        "status",
-        "updated_at"
-      ],
       "properties": {
+        "activities": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
         "actor": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
           "type": "object"
         },
         "status": {
-          "type": "string",
           "enum": [
             "online",
             "idle",
             "dnd",
             "offline",
             "invisible"
-          ]
+          ],
+          "type": "string"
+        },
+        "ttl_ms": {
+          "maximum": 86400000,
+          "minimum": 100,
+          "type": "integer"
         },
         "updated_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "activities": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "format": "date-time",
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "actor",
+        "status",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "refs": {
+      "properties": {
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "presence"
+  ],
+  "title": "Arblarg presence.update payload",
+  "type": "object"
 }

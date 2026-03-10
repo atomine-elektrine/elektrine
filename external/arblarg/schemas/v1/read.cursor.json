@@ -1,0 +1,105 @@
+{
+  "$id": "arblarg://schemas/1.0/read.cursor",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "required": [
+        "server",
+        "channel"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
+  ],
+  "properties": {
+    "actor": {
+      "properties": {
+        "avatar_url": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "handle": {
+          "minLength": 3,
+          "type": "string"
+        },
+        "id": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "uri": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "username": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "username",
+        "domain",
+        "handle"
+      ],
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "read_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "read_through_message_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "read_through_sequence": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "refs": {
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "channel_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "read_through_message_id",
+    "actor",
+    "read_at"
+  ],
+  "title": "Arblarg read.cursor payload",
+  "type": "object"
+}

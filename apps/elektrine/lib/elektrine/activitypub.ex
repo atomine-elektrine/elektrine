@@ -14,6 +14,7 @@ defmodule Elektrine.ActivityPub do
     Actor,
     Delivery,
     Fetcher,
+    HTTPSignature,
     Instance,
     KeyManager,
     LemmyApi,
@@ -23,7 +24,9 @@ defmodule Elektrine.ActivityPub do
     UserBlock
   }
 
-  alias Elektrine.Messaging.Conversations
+  alias Elektrine.Accounts.User
+  alias Elektrine.Async
+  alias Elektrine.Messaging.{Conversation, Conversations}
   alias Elektrine.Security.URLValidator
 
   @doc """
@@ -64,6 +67,105 @@ defmodule Elektrine.ActivityPub do
     else
       "#{scheme}://#{normalized_domain}:#{port}"
     end
+  end
+
+  @doc """
+  Returns the canonical ActivityPub slug for a local community.
+  """
+  def community_slug(name) when is_binary(name) do
+    name
+    |> String.trim()
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.trim("-")
+  end
+
+  @doc """
+  Returns the local ActivityPub actor URI for a community.
+  """
+  def community_actor_uri(name, base_url \\ instance_url()) when is_binary(name) do
+    "#{String.trim_trailing(base_url, "/")}/c/#{community_slug(name)}"
+  end
+
+  @doc """
+  Returns the inbox URI for a local community actor.
+  """
+  def community_inbox_uri(name, base_url \\ instance_url()) when is_binary(name) do
+    "#{community_actor_uri(name, base_url)}/inbox"
+  end
+
+  @doc """
+  Returns the outbox URI for a local community actor.
+  """
+  def community_outbox_uri(name, base_url \\ instance_url()) when is_binary(name) do
+    "#{community_actor_uri(name, base_url)}/outbox"
+  end
+
+  @doc """
+  Returns the followers collection URI for a local community actor.
+  """
+  def community_followers_uri(name, base_url \\ instance_url()) when is_binary(name) do
+    "#{community_actor_uri(name, base_url)}/followers"
+  end
+
+  @doc """
+  Returns the moderators collection URI for a local community actor.
+  """
+  def community_moderators_uri(name, base_url \\ instance_url()) when is_binary(name) do
+    "#{community_actor_uri(name, base_url)}/moderators"
+  end
+
+  @doc """
+  Returns the ActivityPub object URI for a local community post.
+  """
+  def community_post_uri(name, message_id, base_url \\ instance_url()) when is_binary(name) do
+    "#{community_actor_uri(name, base_url)}/posts/#{message_id}"
+  end
+
+  @doc """
+  Returns the HTML community page URL.
+  """
+  def community_web_url(name, base_url \\ instance_url()) when is_binary(name) do
+    "#{String.trim_trailing(base_url, "/")}/communities/#{encode_path_segment(name)}"
+  end
+
+  @doc """
+  Returns the HTML discussion post URL for a local community post.
+  """
+  def community_post_web_url(name, message_id, base_url \\ instance_url())
+      when is_binary(name) do
+    "#{community_web_url(name, base_url)}/post/#{message_id}"
+  end
+
+  @doc """
+  Resolves a local community from either its stored name or its ActivityPub slug.
+  """
+  def get_community_by_identifier(identifier) when is_binary(identifier) do
+    normalized_identifier =
+      identifier
+      |> String.trim()
+      |> String.downcase()
+
+    slug = community_slug(identifier)
+
+    from(c in Conversation,
+      where: c.type == "community",
+      where:
+        fragment("LOWER(?)", c.name) == ^normalized_identifier or
+          fragment("regexp_replace(lower(?), '[^a-z0-9]+', '-', 'g')", c.name) == ^slug,
+      order_by: [
+        desc: fragment("LOWER(?) = ?", c.name, ^normalized_identifier)
+      ],
+      limit: 1,
+      preload: [:creator]
+    )
+    |> Repo.one()
+  end
+
+  def get_community_by_identifier(_), do: nil
+
+  defp encode_path_segment(segment) when is_binary(segment) do
+    URI.encode(segment, &URI.char_unreserved?/1)
   end
 
   @doc """
@@ -121,6 +223,164 @@ defmodule Elektrine.ActivityPub do
         nil
     end
   end
+
+  @doc """
+  Best-effort resolution of the local user targeted by an incoming activity.
+
+  This is used for shared inbox processing so per-user moderation checks
+  still apply even when the request did not hit `/users/:username/inbox`.
+  """
+  def resolve_target_user(activity) when is_map(activity) do
+    case resolve_target_user_id(activity) do
+      user_id when is_integer(user_id) -> Repo.get(User, user_id)
+      _ -> nil
+    end
+  end
+
+  def resolve_target_user(_), do: nil
+
+  @doc """
+  Best-effort resolution of the local user id targeted by an incoming activity.
+  """
+  def resolve_target_user_id(activity) when is_map(activity) do
+    direct_ref =
+      activity
+      |> candidate_target_refs()
+      |> Enum.find_value(&target_user_id_from_ref/1)
+
+    direct_ref || single_recipient_user_id(activity)
+  end
+
+  def resolve_target_user_id(_), do: nil
+
+  defp candidate_target_refs(activity) when is_map(activity) do
+    []
+    |> add_candidate_ref(Map.get(activity, "object"))
+    |> add_candidate_ref(Map.get(activity, "target"))
+    |> Enum.reverse()
+  end
+
+  defp add_candidate_ref(acc, nil), do: acc
+
+  defp add_candidate_ref(acc, value) when is_binary(value) do
+    [value | acc]
+  end
+
+  defp add_candidate_ref(acc, values) when is_list(values) do
+    Enum.reduce(values, acc, fn value, nested_acc -> add_candidate_ref(nested_acc, value) end)
+  end
+
+  defp add_candidate_ref(acc, %{} = value) do
+    acc
+    |> add_candidate_ref(Map.get(value, "id"))
+    |> add_candidate_ref(Map.get(value, "object"))
+    |> add_candidate_ref(Map.get(value, "target"))
+    |> add_candidate_ref(Map.get(value, "inReplyTo"))
+    |> add_candidate_ref(Map.get(value, "url"))
+    |> add_candidate_ref(Map.get(value, "href"))
+  end
+
+  defp add_candidate_ref(acc, _value), do: acc
+
+  defp single_recipient_user_id(activity) do
+    recipient_ids =
+      activity
+      |> recipient_refs()
+      |> Enum.map(&local_user_id_from_uri/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    case recipient_ids do
+      [user_id] -> user_id
+      _ -> nil
+    end
+  end
+
+  defp recipient_refs(activity) when is_map(activity) do
+    activity_object =
+      case Map.get(activity, "object") do
+        %{} = object -> object
+        _ -> %{}
+      end
+
+    [
+      Map.get(activity, "to"),
+      Map.get(activity, "cc"),
+      Map.get(activity, "audience"),
+      Map.get(activity, "target"),
+      Map.get(activity_object, "to"),
+      Map.get(activity_object, "cc"),
+      Map.get(activity_object, "audience"),
+      mention_hrefs(activity_object)
+    ]
+    |> Enum.flat_map(&recipient_values/1)
+  end
+
+  defp recipient_refs(_), do: []
+
+  defp recipient_values(nil), do: []
+  defp recipient_values(value) when is_binary(value), do: [value]
+
+  defp recipient_values(values) when is_list(values) do
+    Enum.flat_map(values, &recipient_values/1)
+  end
+
+  defp recipient_values(%{} = value) do
+    [Map.get(value, "id"), Map.get(value, "href"), Map.get(value, "url")]
+    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+  end
+
+  defp recipient_values(_), do: []
+
+  defp mention_hrefs(%{"tag" => tags}) when is_list(tags) do
+    tags
+    |> Enum.filter(&(Map.get(&1, "type") == "Mention"))
+    |> Enum.map(&Map.get(&1, "href"))
+    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+  end
+
+  defp mention_hrefs(_), do: []
+
+  defp target_user_id_from_ref(ref) when is_binary(ref) do
+    local_user_id_from_activity(ref) ||
+      local_user_id_from_uri(ref) ||
+      local_user_id_from_message(ref)
+  end
+
+  defp target_user_id_from_ref(_), do: nil
+
+  defp local_user_id_from_activity(activity_id) when is_binary(activity_id) do
+    case get_activity_by_id(activity_id) do
+      %Activity{internal_user_id: user_id} when is_integer(user_id) -> user_id
+      _ -> nil
+    end
+  end
+
+  defp local_user_id_from_activity(_), do: nil
+
+  defp local_user_id_from_uri(uri) when is_binary(uri) do
+    case local_username_from_uri(uri) do
+      {:ok, username} ->
+        case Elektrine.Accounts.get_user_by_username(username) do
+          %User{id: user_id} -> user_id
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp local_user_id_from_uri(_), do: nil
+
+  defp local_user_id_from_message(ref) when is_binary(ref) do
+    case Elektrine.Messaging.get_message_by_activitypub_ref(ref) do
+      %{sender_id: user_id} when is_integer(user_id) -> user_id
+      _ -> nil
+    end
+  end
+
+  defp local_user_id_from_message(_), do: nil
 
   ## Actors
 
@@ -337,7 +597,7 @@ defmodule Elektrine.ActivityPub do
     get_or_create_instance(domain)
 
     # Extract and cache custom emojis from actor profile
-    Task.start(fn ->
+    Async.start(fn ->
       Elektrine.Emojis.process_activitypub_tags(actor_data["tag"], domain)
     end)
 
@@ -748,8 +1008,9 @@ defmodule Elektrine.ActivityPub do
 
   defp create_community_actor(community) do
     base_url = instance_url()
-    community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-    actor_url = "#{base_url}/c/#{community_slug}"
+    community_slug = community_slug(community.name)
+    actor_url = community_actor_uri(community.name, base_url)
+    {public_key, private_key} = HTTPSignature.generate_key_pair()
 
     attrs = %{
       uri: actor_url,
@@ -758,16 +1019,17 @@ defmodule Elektrine.ActivityPub do
       display_name: community.name,
       summary: community.description,
       avatar_url: community.avatar_url,
-      inbox_url: "#{actor_url}/inbox",
-      outbox_url: "#{actor_url}/outbox",
-      followers_url: "#{actor_url}/followers",
-      public_key: nil,
+      inbox_url: community_inbox_uri(community.name, base_url),
+      outbox_url: community_outbox_uri(community.name, base_url),
+      followers_url: community_followers_uri(community.name, base_url),
+      moderators_url: community_moderators_uri(community.name, base_url),
+      public_key: public_key,
       manually_approves_followers: !community.is_public,
       actor_type: "Group",
       community_id: community.id,
       published_at: community.inserted_at,
       last_fetched_at: DateTime.utc_now(),
-      metadata: %{}
+      metadata: %{"private_key" => private_key}
     }
 
     case %Actor{}
@@ -789,7 +1051,7 @@ defmodule Elektrine.ActivityPub do
   Gets a community actor by community name.
   """
   def get_community_actor_by_name(name) do
-    community_slug = String.downcase(name) |> String.replace(~r/[^a-z0-9]+/, "-")
+    community_slug = community_slug(name)
 
     Repo.get_by(Actor,
       username: community_slug,

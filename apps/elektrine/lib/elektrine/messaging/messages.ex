@@ -1391,7 +1391,7 @@ defmodule Elektrine.Messaging.Messages do
       # Check if user wants to be notified about replies
       user = Elektrine.Accounts.get_user!(original_sender_id)
 
-      if Map.get(user, :notify_on_reply, true) do
+      if notification_preference_enabled?(user, :notify_on_reply) do
         Elektrine.Notifications.create_notification(%{
           user_id: original_sender_id,
           actor_id: sender_id,
@@ -1432,7 +1432,7 @@ defmodule Elektrine.Messaging.Messages do
         # Only send DM notifications if user has the preference enabled
         should_notify =
           case conversation.type do
-            "dm" -> Map.get(member, :notify_on_direct_message, true)
+            "dm" -> notification_preference_enabled?(member, :notify_on_direct_message)
             # Group/channel notifications always sent for now
             _ -> true
           end
@@ -1478,6 +1478,10 @@ defmodule Elektrine.Messaging.Messages do
       sender_id,
       message_id
     )
+  end
+
+  defp notification_preference_enabled?(subject, field) when is_atom(field) do
+    Map.get(subject, field) != false
   end
 
   defp notify_mentions_in_chat(content, members_with_preferences, sender, sender_id, message_id) do

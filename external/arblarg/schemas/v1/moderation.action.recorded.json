@@ -1,36 +1,62 @@
 {
+  "$id": "arblarg://schemas/1.0/moderation.action.recorded",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/moderation.action.recorded",
-  "title": "Arblarg moderation.action.recorded payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "action"
-  ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
-    "channel": {
-      "type": "object"
-    },
     "action": {
-      "type": "object",
-      "required": [
-        "id",
-        "kind",
-        "target",
-        "actor",
-        "occurred_at"
-      ],
       "properties": {
+        "actor": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "duration_seconds": {
+          "minimum": 0,
+          "type": "integer"
+        },
         "id": {
-          "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "type": "string"
         },
         "kind": {
-          "type": "string",
           "enum": [
             "timeout",
             "kick",
@@ -38,26 +64,41 @@
             "unban",
             "message_delete",
             "role_update"
-          ]
-        },
-        "target": {
-          "type": "object"
-        },
-        "actor": {
-          "type": "object"
+          ],
+          "type": "string"
         },
         "occurred_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "duration_seconds": {
-          "type": "integer",
-          "minimum": 0
+          "format": "date-time",
+          "type": "string"
         },
         "reason": {
           "type": "string"
+        },
+        "target": {
+          "type": "object"
         }
-      }
+      },
+      "required": [
+        "id",
+        "kind",
+        "target",
+        "actor",
+        "occurred_at"
+      ],
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "server",
+    "channel",
+    "action"
+  ],
+  "title": "Arblarg moderation.action.recorded payload",
+  "type": "object"
 }

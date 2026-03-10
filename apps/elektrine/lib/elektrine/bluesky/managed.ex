@@ -41,7 +41,8 @@ defmodule Elektrine.Bluesky.Managed do
          {:ok, service_url} <- managed_service_url(),
          {:ok, handle_domain} <- managed_domain(),
          {:ok, identifier} <- reconnect_identifier(user, handle_domain),
-         {:ok, session} <- create_session(service_url, identifier, current_password),
+         {:ok, session} <-
+           create_reconnect_session(service_url, identifier, user, current_password),
          {:ok, app_password} <-
            create_app_password(service_url, session.access_jwt, user.username),
          {:ok, updated_user} <-
@@ -348,6 +349,35 @@ defmodule Elektrine.Bluesky.Managed do
 
   defp fallback_handle(handle, _username, _handle_domain) do
     handle
+  end
+
+  defp create_reconnect_session(service_url, identifier, %User{} = user, current_password) do
+    user
+    |> reconnect_password_candidates(current_password)
+    |> do_create_reconnect_session(service_url, identifier)
+  end
+
+  defp reconnect_password_candidates(%User{bluesky_app_password: app_password}, current_password) do
+    [app_password, current_password]
+    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.uniq()
+  end
+
+  defp do_create_reconnect_session([], _service_url, _identifier) do
+    {:error, :missing_app_password}
+  end
+
+  defp do_create_reconnect_session([password | rest], service_url, identifier) do
+    case create_session(service_url, identifier, password) do
+      {:ok, _session} = ok ->
+        ok
+
+      {:error, {:create_session_failed, 401}} when rest != [] ->
+        do_create_reconnect_session(rest, service_url, identifier)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp request_json(method, url, payload, extra_headers) do

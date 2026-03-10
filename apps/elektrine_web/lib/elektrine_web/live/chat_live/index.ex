@@ -286,7 +286,11 @@ defmodule ElektrineWeb.ChatLive.Index do
         {:noreply, notify_error(socket, "Use handle format user@domain")}
 
       {:error, :unknown_peer} ->
-        {:noreply, notify_error(socket, "That domain is not configured as a federation peer")}
+        {:noreply,
+         notify_error(
+           socket,
+           "That domain could not be reached through federation discovery"
+         )}
 
       {:error, :rate_limited} ->
         {:noreply,
@@ -1022,6 +1026,11 @@ defmodule ElektrineWeb.ChatLive.Index do
           self(),
           "conversation:#{conversation.id}",
           {:user_stopped_typing, socket.assigns.current_user.id}
+        )
+
+        Elektrine.Messaging.Federation.publish_typing_stopped(
+          conversation.id,
+          socket.assigns.current_user.id
         )
 
         {:noreply, assign(socket, :typing_timer, nil)}

@@ -379,7 +379,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     end
   end
 
-  defp maybe_encrypt(attrs, _sender_id, false) do
+  defp maybe_encrypt(attrs, sender_id, false) do
     case Map.get(attrs, :content) do
       nil ->
         attrs
@@ -394,7 +394,9 @@ defmodule Elektrine.Messaging.ChatMessage do
       content ->
         attrs
         |> Map.put(:encrypted_content, nil)
-        |> Map.put(:search_index, plain_search_index(content))
+        # Keep plaintext content, but maintain the same blind keyword index as
+        # the legacy message path so chat search semantics stay user-specific.
+        |> Map.put(:search_index, Elektrine.Encryption.index_content(content, sender_id))
     end
   end
 
@@ -416,16 +418,6 @@ defmodule Elektrine.Messaging.ChatMessage do
         |> Map.put(:content, nil)
     end
   end
-
-  defp plain_search_index(content) when is_binary(content) do
-    content
-    |> String.downcase()
-    |> String.split(~r/\s+/, trim: true)
-    |> Enum.filter(&(String.length(&1) >= 2))
-    |> Enum.uniq()
-  end
-
-  defp plain_search_index(_), do: []
 
   defp format_duration(nil), do: "0:00"
 

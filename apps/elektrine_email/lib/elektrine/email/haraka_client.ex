@@ -9,8 +9,18 @@ defmodule Elektrine.Email.HarakaClient do
 
   require Logger
 
-  @default_base_url "https://haraka.elektrine.com"
+  @default_base_url "https://mail.elektrine.com"
   @api_path "/api/v1/send"
+
+  defmodule FinchClient do
+    @moduledoc false
+
+    def request(method, url, headers, body, opts) do
+      method
+      |> Finch.build(url, headers, body)
+      |> Finch.request(Elektrine.Finch, opts)
+    end
+  end
 
   def forward_email(original_email_data, forward_to_email, from_address) do
     # Get original sender info (support both atom and string keys)
@@ -76,18 +86,11 @@ defmodule Elektrine.Email.HarakaClient do
 
       {:ok, {api_key, base_url}} ->
         params_with_origin = add_internal_origin_headers(params)
-
-        headers = [
-          {"Content-Type", "application/json"},
-          {"X-API-Key", api_key},
-          {"User-Agent", "Elektrine-Haraka-Client/1.0"}
-        ]
-
         body = build_api_body(params_with_origin)
+        headers = request_headers(api_key)
+        url = "#{base_url}#{@api_path}"
 
-        request = Finch.build(:post, "#{base_url}#{@api_path}", headers, body)
-
-        case Finch.request(request, Elektrine.Finch, receive_timeout: 60_000) do
+        case http_client().request(:post, url, headers, body, receive_timeout: 60_000) do
           {:ok, %Finch.Response{status: 200, body: response_body}} ->
             case Jason.decode(response_body) do
               {:ok, %{"success" => true, "message_id" => message_id}} ->
@@ -129,17 +132,72 @@ defmodule Elektrine.Email.HarakaClient do
   end
 
   defp get_api_config_for_domain(_from_address) do
-    base_url = System.get_env("HARAKA_BASE_URL") || @default_base_url
+    base_url = configured_base_url()
 
-    case System.get_env("HARAKA_OUTBOUND_API_KEY") || System.get_env("HARAKA_API_KEY") do
+    case configured_api_key() do
       nil ->
-        {:error, "HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is not set"}
+        {:error,
+         "HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is not set"}
 
       "" ->
-        {:error, "HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is empty"}
+        {:error,
+         "HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is empty"}
 
       api_key ->
         {:ok, {api_key, base_url}}
+    end
+  end
+
+  defp request_headers(api_key) do
+    [
+      {"Content-Type", "application/json"},
+      {"X-API-Key", api_key},
+      {"User-Agent", "Elektrine-Haraka-Client/1.0"}
+    ]
+  end
+
+  defp configured_base_url do
+    [System.get_env("HARAKA_BASE_URL"), mailer_config()[:base_url], @default_base_url]
+    |> Enum.find_value(&present_string/1)
+    |> normalize_base_url()
+  end
+
+  defp configured_api_key do
+    [
+      System.get_env("HARAKA_HTTP_API_KEY"),
+      System.get_env("HARAKA_OUTBOUND_API_KEY"),
+      System.get_env("HARAKA_API_KEY"),
+      mailer_config()[:api_key]
+    ]
+    |> Enum.find_value(&present_string/1)
+  end
+
+  defp mailer_config do
+    Application.get_env(:elektrine, Elektrine.Mailer, [])
+  end
+
+  defp http_client do
+    Application.get_env(:elektrine, :email, [])
+    |> Keyword.get(:haraka_http_client, FinchClient)
+  end
+
+  defp present_string(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp present_string(_), do: nil
+
+  defp normalize_base_url(base_url) do
+    base_url
+    |> String.trim_trailing("/")
+    |> case do
+      "https://haraka.elektrine.com" -> @default_base_url
+      normalized -> normalized
     end
   end
 

@@ -4,7 +4,7 @@ defmodule ElektrineWeb.ListLive.Show do
   alias Elektrine.Social
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.User.UsernameEffects
-  import ElektrineWeb.HtmlHelpers, except: [make_links_and_hashtags_clickable: 1]
+  import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @impl true
   def mount(%{"id" => list_id}, _session, socket) do
@@ -654,14 +654,6 @@ defmodule ElektrineWeb.ListLive.Show do
           {:error, _reason} -> :error
         end
     end
-  end
-
-  defp make_links_and_hashtags_clickable(text) when is_binary(text) do
-    text |> make_content_safe_with_links() |> render_custom_emojis() |> preserve_line_breaks()
-  end
-
-  defp make_links_and_hashtags_clickable(_) do
-    ""
   end
 
   defp update_message_count(posts, post_replies, message_id, field, delta) do

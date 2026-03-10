@@ -1,10 +1,14 @@
-defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
+  defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.CreateHandler
   alias Elektrine.Messaging
   alias Elektrine.Repo
+  alias Elektrine.Social
+  alias Elektrine.Social.Poll
+  alias Elektrine.SocialFixtures
 
   describe "create_note/2 community detection" do
     test "stores community_actor_uri from audience field" do
@@ -134,6 +138,68 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
 
       assert get_in(message.media_metadata || %{}, ["community_actor_uri"]) ==
                fallback_community_uri
+    end
+  end
+
+  describe "handle/3 poll vote deduplication" do
+    test "does not double count repeated remote Answer deliveries" do
+      remote_actor = remote_actor_fixture("pollvoter")
+      post = SocialFixtures.post_fixture()
+      poll_post_uri = "#{ActivityPub.instance_url()}/posts/#{post.id}"
+
+      assert {:ok, poll} = Social.create_poll(post.id, "Choose one", ["One", "Two"])
+
+      activity = %{
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "actor" => remote_actor.uri,
+        "object" => %{
+          "id" => "https://remote.example/answers/#{System.unique_integer([:positive])}",
+          "type" => "Answer",
+          "name" => "One",
+          "inReplyTo" => poll_post_uri,
+          "attributedTo" => remote_actor.uri
+        }
+      }
+
+      assert {:ok, :poll_vote_recorded} = CreateHandler.handle(activity, remote_actor.uri, nil)
+
+      reloaded_poll = Repo.get!(Poll, poll.id) |> Repo.preload(:options)
+      selected_option = Enum.find(reloaded_poll.options, &(&1.option_text == "One"))
+
+      assert reloaded_poll.total_votes == 1
+      assert reloaded_poll.voters_count == 1
+      assert selected_option.vote_count == 1
+
+      assert {:ok, :already_voted} = CreateHandler.handle(activity, remote_actor.uri, nil)
+
+      deduped_poll = Repo.get!(Poll, poll.id) |> Repo.preload(:options)
+      deduped_option = Enum.find(deduped_poll.options, &(&1.option_text == "One"))
+
+      assert deduped_poll.total_votes == 1
+      assert deduped_poll.voters_count == 1
+      assert deduped_option.vote_count == 1
+    end
+  end
+
+  describe "handle/3 actor verification" do
+    test "rejects Create when attributedTo does not match the verified actor" do
+      signer = remote_actor_fixture("signer")
+      claimed_author = remote_actor_fixture("claimed")
+
+      object =
+        note_object(claimed_author.uri, %{
+          "id" => "https://remote.example/notes/#{System.unique_integer([:positive])}"
+        })
+
+      activity = %{
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Create",
+        "actor" => signer.uri,
+        "object" => object
+      }
+
+      assert {:ok, :unauthorized} = CreateHandler.handle(activity, signer.uri, nil)
+      assert is_nil(Messaging.get_message_by_activitypub_id(object["id"]))
     end
   end
 

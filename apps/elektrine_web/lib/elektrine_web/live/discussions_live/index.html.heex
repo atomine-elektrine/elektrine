@@ -326,8 +326,8 @@
                                         <.icon name="hero-users" class="w-3.5 h-3.5" />
                                         {format_compact_number(result.member_count || 0)} members
                                       </span>
-                                      <%= if creator = community_creator_label(community) do %>
-                                        <span class="truncate">by {creator}</span>
+                                      <%= if creator = community_creator_markup(community) do %>
+                                        <span class="truncate">by {raw(creator)}</span>
                                       <% end %>
                                     </div>
                                     <%= cond do %>
@@ -386,7 +386,11 @@
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-2 flex-wrap">
                                         <h3 class="font-semibold truncate">
-                                          {actor.display_name || actor.username}
+                                          {raw(
+                                            ElektrineWeb.HtmlHelpers.render_actor_display_name(
+                                              actor
+                                            )
+                                          )}
                                         </h3>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(actor)}
@@ -409,8 +413,8 @@
                                         <.icon name="hero-users" class="w-3.5 h-3.5" />
                                         {format_compact_number(result.member_count || 0)} followers
                                       </span>
-                                      <%= if creator = community_creator_label(actor) do %>
-                                        <span class="truncate">{creator}</span>
+                                      <%= if creator = community_creator_markup(actor) do %>
+                                        <span class="truncate">{raw(creator)}</span>
                                       <% end %>
                                     </div>
                                     <%= cond do %>
@@ -549,7 +553,11 @@
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-2 flex-wrap">
                                         <h3 class="font-semibold truncate">
-                                          {community.display_name || community.username}
+                                          {raw(
+                                            ElektrineWeb.HtmlHelpers.render_actor_display_name(
+                                              community
+                                            )
+                                          )}
                                         </h3>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(community)}
@@ -648,7 +656,7 @@
                                 class="block hover:text-secondary transition-colors"
                               >
                                 <h3 class="text-lg font-semibold leading-snug break-words text-base-content">
-                                  {community_display_name(community)}
+                                  {raw(community_display_name_markup(community))}
                                 </h3>
                                 <p class="mt-1 text-xs text-base-content/50 break-all">
                                   {community_address(community)}
@@ -661,8 +669,8 @@
                               </.link>
 
                               <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-base-content/60">
-                                <%= for item <- discovery_card_meta(card) do %>
-                                  <span>{item}</span>
+                                <%= for item <- discovery_card_meta_markup(card) do %>
+                                  <span>{raw(item)}</span>
                                 <% end %>
                               </div>
 
@@ -725,9 +733,9 @@
                               <h4 class="font-semibold line-clamp-2 text-base">
                                 {discussion_title(post)}
                               </h4>
-                              <%= if String.trim(post.content || "") != "" do %>
+                              <%= if PostUtilities.plain_text_preview(post.content, 140) != "" do %>
                                 <p class="mt-2 text-sm text-base-content/70 line-clamp-2">
-                                  {post.content}
+                                  {PostUtilities.plain_text_preview(post.content, 140)}
                                 </p>
                               <% end %>
                               <div class="mt-4 flex items-center justify-between gap-3 text-xs text-base-content/60">
@@ -749,15 +757,6 @@
                 </div>
               <% "feed" -> %>
                 <div class="space-y-5">
-                  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-                    <h2 class="text-xl font-semibold">Community Feed</h2>
-                    <div class="flex flex-wrap gap-2 text-xs text-base-content/70">
-                      <span class="badge badge-outline">
-                        {length(@filtered_community_posts)} posts
-                      </span>
-                    </div>
-                  </div>
-
                   <div class="flex flex-wrap items-center gap-2 pb-3 border-b border-base-300">
                     <span class="text-xs font-medium opacity-70">Sort:</span>
                     <button
@@ -853,7 +852,8 @@
                   <%= if @current_user do %>
                     <%= if length(@my_community_posts) > 0 do %>
                       <%= for post <- @my_community_posts do %>
-                        <% is_local = post.conversation && post.conversation.type == "community"
+                        <% local_community = local_community_conversation(post)
+                        is_local = not is_nil(local_community)
 
                         remote_community_uri =
                           get_in(post.media_metadata || %{}, ["community_actor_uri"])
@@ -877,10 +877,10 @@
                                 <div class="flex items-center gap-2 mb-1 flex-wrap text-xs text-base-content/60">
                                   <%= if is_local do %>
                                     <.link
-                                      href={~p"/communities/#{post.conversation.name}"}
+                                      href={~p"/communities/#{local_community.name}"}
                                       class="hover:underline"
                                     >
-                                      !{post.conversation.name}
+                                      !{local_community.name}
                                     </.link>
                                   <% else %>
                                     <.link
@@ -902,9 +902,11 @@
                                   </h4>
                                 </.link>
 
-                                <p class="text-sm opacity-70 line-clamp-2 mt-1">
-                                  {post.content}
-                                </p>
+                                <%= if PostUtilities.plain_text_preview(post.content, 140) != "" do %>
+                                  <p class="text-sm opacity-70 line-clamp-2 mt-1">
+                                    {PostUtilities.plain_text_preview(post.content, 140)}
+                                  </p>
+                                <% end %>
 
                                 <div class="flex items-center gap-4 mt-2 text-xs opacity-60">
                                   <%= if post.like_count && post.like_count > 0 do %>

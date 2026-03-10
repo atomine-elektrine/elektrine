@@ -55,6 +55,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
      socket
      |> assign(:page_title, "Email Settings")
      |> assign(:mailbox, mailbox)
+     |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
      |> assign(:unread_count, unread_count)
      |> assign(:storage_info, storage_info)
      |> assign(:active_tab, "aliases")
@@ -122,13 +123,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
         |> assign(:exports, Email.list_exports(user_id))
 
       "aliases" ->
-        mailbox = Email.get_user_mailbox(user_id) || socket.assigns.mailbox
-
-        socket
-        |> assign(:mailbox, mailbox)
-        |> assign(:mailbox_form, to_form(Email.change_mailbox_forwarding(mailbox)))
-        |> assign(:aliases, Aliases.list_aliases(user_id))
-        |> assign(:new_alias, %Alias{})
+        assign_aliases_tab(socket, user_id)
 
       _ ->
         socket
@@ -639,6 +634,114 @@ defmodule ElektrineWeb.EmailLive.Settings do
   end
 
   @impl true
+  def handle_event("create_custom_domain", %{"domain" => domain}, socket) do
+    user = socket.assigns.current_user
+
+    case Email.create_custom_domain(user, %{"domain" => domain}) do
+      {:ok, custom_domain} ->
+        flash_message =
+          if custom_domain.dkim_last_error do
+            "Custom domain added. Publish the DNS records below. DKIM sync to Haraka needs attention: #{custom_domain.dkim_last_error}"
+          else
+            "Custom domain added. Publish the DNS records below, then verify ownership."
+          end
+
+        {:noreply,
+         socket
+         |> put_flash(:info, flash_message)
+         |> assign_aliases_tab(user.id)}
+
+      {:error, changeset} ->
+        error = get_changeset_error(changeset)
+        {:noreply, put_flash(socket, :error, "Failed to add custom domain: #{error}")}
+    end
+  end
+
+  @impl true
+  def handle_event("verify_custom_domain", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_user.id
+
+    case Email.get_custom_domain(String.to_integer(id), user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Custom domain not found")}
+
+      custom_domain ->
+        case Email.verify_custom_domain(custom_domain) do
+          {:ok, %{status: "verified"}} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Custom domain verified")
+             |> assign_aliases_tab(user_id)}
+
+          {:ok, pending_domain} ->
+            error_message =
+              pending_domain.last_error ||
+                "Verification DNS records not found yet. Check DNS and try again."
+
+            {:noreply,
+             socket
+             |> put_flash(:error, error_message)
+             |> assign_aliases_tab(user_id)}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(socket, :error, "Failed to verify custom domain: #{inspect(reason)}")}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("sync_custom_domain_dkim", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_user.id
+
+    case Email.get_custom_domain(String.to_integer(id), user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Custom domain not found")}
+
+      custom_domain ->
+        case Email.sync_custom_domain_dkim(custom_domain) do
+          {:ok, synced_domain} ->
+            flash_type = if synced_domain.dkim_last_error, do: :error, else: :info
+
+            flash_message =
+              if synced_domain.dkim_last_error do
+                "DKIM sync failed: #{synced_domain.dkim_last_error}"
+              else
+                "DKIM synced to Haraka"
+              end
+
+            {:noreply,
+             socket
+             |> put_flash(flash_type, flash_message)
+             |> assign_aliases_tab(user_id)}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("delete_custom_domain", %{"id" => id}, socket) do
+    user_id = socket.assigns.current_user.id
+
+    case Email.get_custom_domain(String.to_integer(id), user_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Custom domain not found")}
+
+      custom_domain ->
+        case Email.delete_custom_domain(custom_domain) do
+          {:ok, _deleted_domain} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Custom domain removed")
+             |> assign_aliases_tab(user_id)}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(socket, :error, "Failed to remove custom domain: #{inspect(reason)}")}
+        end
+    end
+  end
+
+  @impl true
   def handle_event("update_mailbox_forwarding", %{"mailbox" => mailbox_params}, socket) do
     mailbox = socket.assigns.mailbox
 
@@ -735,6 +838,22 @@ defmodule ElektrineWeb.EmailLive.Settings do
     |> Enum.map_join("; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
   end
 
+  defp assign_aliases_tab(socket, user_id) do
+    mailbox = Email.get_user_mailbox(user_id) || socket.assigns.mailbox
+
+    socket
+    |> assign(:mailbox, mailbox)
+    |> assign(:mailbox_addresses, mailbox_addresses(mailbox, socket.assigns.current_user))
+    |> assign(:mailbox_form, to_form(Email.change_mailbox_forwarding(mailbox)))
+    |> assign(:aliases, Aliases.list_aliases(user_id))
+    |> assign(:custom_domains, Email.list_user_custom_domains(user_id))
+    |> assign(
+      :available_email_domains,
+      Elektrine.Domains.available_email_domains_for_user(socket.assigns.current_user)
+    )
+    |> assign(:new_alias, %Alias{})
+  end
+
   defp build_filter_form(filter) do
     rules = get_in(filter.conditions, ["rules"]) || []
 
@@ -812,6 +931,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           current_page="settings"
           unread_count={@unread_count}
           mailbox={@mailbox}
+          mailbox_addresses={@mailbox_addresses}
           storage_info={@storage_info}
           current_user={@current_user}
         />
@@ -1510,6 +1630,167 @@ defmodule ElektrineWeb.EmailLive.Settings do
         Create additional email addresses that deliver to your mailbox or forward elsewhere. You can have up to 15 aliases.
       </p>
 
+      <form
+        phx-submit="create_custom_domain"
+        class="mb-8 overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-sm"
+      >
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Bring Your Own Domain
+          </div>
+          <h3 class="mt-1 text-lg font-semibold tracking-tight">Custom Domains</h3>
+          <p class="mt-1 text-sm text-base-content/60">
+            Route
+            <span class="font-mono text-base-content">{@current_user.username}@your-domain.com</span>
+            into this mailbox.
+          </p>
+        </div>
+
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <label class="label pb-1">
+            <span class="label-text font-medium">Domain</span>
+          </label>
+
+          <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div>
+              <input
+                type="text"
+                name="domain"
+                placeholder="mail.example.com"
+                class="input input-bordered w-full"
+                required
+              />
+            </div>
+
+            <button type="submit" class="btn btn-secondary lg:min-w-36 lg:mt-0">Add Domain</button>
+          </div>
+        </div>
+
+        <%= if Enum.empty?(@custom_domains) do %>
+          <div class="px-5 py-10 sm:px-6">
+            <div class="rounded-2xl border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
+              <div class="text-sm font-medium text-base-content/75">No custom domains added yet</div>
+              <div class="mt-1 text-xs text-base-content/50">
+                Add one above to generate the DNS records and verification target.
+              </div>
+            </div>
+          </div>
+        <% else %>
+          <div class="divide-y divide-base-content/10">
+            <%= for custom_domain <- @custom_domains do %>
+              <div class="px-5 py-5 sm:px-6">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div class="min-w-0 flex-1">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <h4 class="truncate text-base font-semibold tracking-tight">
+                          {custom_domain.domain}
+                        </h4>
+                        <span class={[
+                          "badge badge-sm border-0 font-medium",
+                          custom_domain_status_badge(custom_domain.status)
+                        ]}>
+                          {String.capitalize(custom_domain.status)}
+                        </span>
+                      </div>
+
+                      <div class="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Primary Address
+                      </div>
+                      <div class="mt-1 font-mono text-sm text-base-content/80 break-all">
+                        {@current_user.username}@{custom_domain.domain}
+                      </div>
+
+                      <div class="mt-2 text-xs text-base-content/55">
+                        <%= if custom_domain.status == "verified" do %>
+                          TXT and MX verified.
+                        <% else %>
+                          Waiting for TXT and MX verification.
+                        <% end %>
+                      </div>
+                    </div>
+
+                    <%= if custom_domain.last_error && String.trim(custom_domain.last_error) != "" do %>
+                      <div class="mt-3 rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
+                        {custom_domain.last_error}
+                      </div>
+                    <% end %>
+
+                    <div class="mt-4 overflow-hidden rounded-2xl border border-base-content/10">
+                      <div class="border-b border-base-content/10 bg-base-200/35 px-4 py-3">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                          DNS Records
+                        </div>
+                      </div>
+
+                      <div class="divide-y divide-base-content/10 bg-base-100">
+                        <%= for record <- Email.dns_records_for_custom_domain(custom_domain) do %>
+                          <div class="grid gap-3 px-4 py-3 sm:grid-cols-[88px_minmax(0,0.9fr)_minmax(0,1.4fr)]">
+                            <div class="flex items-start sm:items-center">
+                              <span class="badge badge-outline badge-sm font-medium">
+                                {record.type}
+                              </span>
+                            </div>
+
+                            <div class="min-w-0">
+                              <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                Host
+                              </div>
+                              <div class="mt-1 font-mono text-xs leading-5 text-base-content/80 break-all">
+                                {record.host}
+                              </div>
+                            </div>
+
+                            <div class="min-w-0">
+                              <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                                <span>Value</span>
+                                <%= if record.priority do %>
+                                  <span class="rounded-full bg-base-200 px-2 py-0.5 normal-case tracking-normal text-base-content/65">
+                                    priority {record.priority}
+                                  </span>
+                                <% end %>
+                              </div>
+                              <div class="mt-1 text-xs font-medium text-base-content/55">
+                                {record.label}
+                              </div>
+                              <div class="mt-1 font-mono text-xs leading-5 text-base-content/80 break-all">
+                                {record.value}
+                              </div>
+                            </div>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex w-full flex-col gap-2 xl:w-36 xl:shrink-0 xl:pt-0.5">
+                    <%= if custom_domain.status != "verified" do %>
+                      <button
+                        type="button"
+                        phx-click="verify_custom_domain"
+                        phx-value-id={custom_domain.id}
+                        class="btn btn-secondary btn-sm w-full justify-center"
+                      >
+                        <span>Verify</span>
+                      </button>
+                    <% end %>
+                    <button
+                      type="button"
+                      phx-click="delete_custom_domain"
+                      phx-value-id={custom_domain.id}
+                      class="btn btn-ghost btn-sm w-full justify-center text-error hover:bg-error/10"
+                      data-confirm="Remove this custom domain?"
+                    >
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </form>
+
       <.form
         for={@mailbox_form}
         as={:mailbox}
@@ -1523,7 +1804,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
 
         <div class="flex flex-wrap gap-2">
           <%= if @mailbox.username do %>
-            <%= for domain <- Elektrine.Domains.supported_email_domains() do %>
+            <%= for domain <- @available_email_domains do %>
               <span class="badge badge-outline">{@mailbox.username}@{domain}</span>
             <% end %>
           <% else %>
@@ -1598,7 +1879,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
             <div class="flex items-center gap-2">
               <span class="text-base-content/50 text-lg">@</span>
               <select name="domain" class="select select-bordered text-lg">
-                <%= for domain <- Elektrine.Domains.supported_email_domains() do %>
+                <%= for domain <- @available_email_domains do %>
                   <option value={domain}>{domain}</option>
                 <% end %>
               </select>
@@ -2075,4 +2356,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
   defp status_color("processing"), do: "info"
   defp status_color("failed"), do: "error"
   defp status_color(_), do: "ghost"
+
+  defp custom_domain_status_badge("verified"), do: "badge-success text-success-content"
+  defp custom_domain_status_badge(_), do: "badge-warning text-warning-content"
 end

@@ -7,34 +7,36 @@ defmodule Elektrine.Messaging.ArblargSDK do
   """
 
   @protocol_name "arblarg"
-  @protocol_id "arbp"
+  @protocol_id "arblarg"
   @protocol_version "1.0"
-  @protocol_label "arbp/1.0"
+  @protocol_label "arblarg/1.0"
   @signature_algorithm "ed25519"
   @clock_skew_seconds 300
 
-  @bootstrap_extension_urn "urn:arbp:ext:bootstrap:1"
-  @bootstrap_server_upsert_event_type "urn:arbp:ext:bootstrap:1#server.upsert"
+  @bootstrap_extension_urn "urn:arblarg:ext:bootstrap:1"
+  @bootstrap_server_upsert_event_type "urn:arblarg:ext:bootstrap:1#server.upsert"
 
-  @roles_extension_urn "urn:arbp:ext:roles:1"
-  @roles_role_upsert_event_type "urn:arbp:ext:roles:1#role.upsert"
-  @roles_role_assignment_upsert_event_type "urn:arbp:ext:roles:1#role.assignment.upsert"
+  @roles_extension_urn "urn:arblarg:ext:roles:1"
+  @roles_role_upsert_event_type "urn:arblarg:ext:roles:1#role.upsert"
+  @roles_role_assignment_upsert_event_type "urn:arblarg:ext:roles:1#role.assignment.upsert"
 
-  @permissions_extension_urn "urn:arbp:ext:permissions:1"
-  @permissions_overwrite_upsert_event_type "urn:arbp:ext:permissions:1#overwrite.upsert"
+  @permissions_extension_urn "urn:arblarg:ext:permissions:1"
+  @permissions_overwrite_upsert_event_type "urn:arblarg:ext:permissions:1#overwrite.upsert"
 
-  @threads_extension_urn "urn:arbp:ext:threads:1"
-  @threads_thread_upsert_event_type "urn:arbp:ext:threads:1#thread.upsert"
-  @threads_thread_archive_event_type "urn:arbp:ext:threads:1#thread.archive"
+  @threads_extension_urn "urn:arblarg:ext:threads:1"
+  @threads_thread_upsert_event_type "urn:arblarg:ext:threads:1#thread.upsert"
+  @threads_thread_archive_event_type "urn:arblarg:ext:threads:1#thread.archive"
 
-  @presence_extension_urn "urn:arbp:ext:presence:1"
-  @presence_update_event_type "urn:arbp:ext:presence:1#presence.update"
+  @presence_extension_urn "urn:arblarg:ext:presence:1"
+  @presence_update_event_type "urn:arblarg:ext:presence:1#presence.update"
+  @typing_start_event_type "urn:arblarg:ext:presence:1#typing.start"
+  @typing_stop_event_type "urn:arblarg:ext:presence:1#typing.stop"
 
-  @moderation_extension_urn "urn:arbp:ext:moderation:1"
-  @moderation_action_recorded_event_type "urn:arbp:ext:moderation:1#action.recorded"
+  @moderation_extension_urn "urn:arblarg:ext:moderation:1"
+  @moderation_action_recorded_event_type "urn:arblarg:ext:moderation:1#action.recorded"
 
-  @dm_extension_urn "urn:arbp:ext:dm:1"
-  @dm_message_create_event_type "urn:arbp:ext:dm:1#message.create"
+  @dm_extension_urn "urn:arblarg:ext:dm:1"
+  @dm_message_create_event_type "urn:arblarg:ext:dm:1#message.create"
 
   @core_event_types [
     "message.create",
@@ -42,7 +44,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "message.delete",
     "reaction.add",
     "reaction.remove",
-    "read.receipt"
+    "read.cursor",
+    "membership.upsert",
+    "invite.upsert",
+    "ban.upsert"
   ]
 
   @roles_event_types [
@@ -60,7 +65,9 @@ defmodule Elektrine.Messaging.ArblargSDK do
   ]
 
   @presence_event_types [
-    @presence_update_event_type
+    @presence_update_event_type,
+    @typing_start_event_type,
+    @typing_stop_event_type
   ]
 
   @moderation_event_types [
@@ -87,6 +94,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "thread.upsert" => @threads_thread_upsert_event_type,
     "thread.archive" => @threads_thread_archive_event_type,
     "presence.update" => @presence_update_event_type,
+    "typing.start" => @typing_start_event_type,
+    "typing.stop" => @typing_stop_event_type,
     "moderation.action.recorded" => @moderation_action_recorded_event_type,
     "dm.message.create" => @dm_message_create_event_type
   }
@@ -99,6 +108,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
     @threads_thread_upsert_event_type => "thread.upsert",
     @threads_thread_archive_event_type => "thread.archive",
     @presence_update_event_type => "presence.update",
+    @typing_start_event_type => "typing.start",
+    @typing_stop_event_type => "typing.stop",
     @moderation_action_recorded_event_type => "moderation.action.recorded",
     @dm_message_create_event_type => "dm.message.create"
   }
@@ -112,7 +123,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "message.delete" => "message.delete",
     "reaction.add" => "reaction.add",
     "reaction.remove" => "reaction.remove",
-    "read.receipt" => "read.receipt",
+    "read.cursor" => "read.cursor",
+    "membership.upsert" => "membership.upsert",
+    "invite.upsert" => "invite.upsert",
+    "ban.upsert" => "ban.upsert",
     @roles_role_upsert_event_type => "role.upsert",
     "role.upsert" => "role.upsert",
     @roles_role_assignment_upsert_event_type => "role.assignment.upsert",
@@ -125,6 +139,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "thread.archive" => "thread.archive",
     @presence_update_event_type => "presence.update",
     "presence.update" => "presence.update",
+    @typing_start_event_type => "typing.start",
+    "typing.start" => "typing.start",
+    @typing_stop_event_type => "typing.stop",
+    "typing.stop" => "typing.stop",
     @moderation_action_recorded_event_type => "moderation.action.recorded",
     "moderation.action.recorded" => "moderation.action.recorded",
     @dm_message_create_event_type => "dm.message.create",
@@ -133,12 +151,60 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   @presence_statuses ["online", "idle", "dnd", "offline", "invisible"]
   @moderation_action_kinds ["timeout", "kick", "ban", "unban", "message_delete", "role_update"]
+  @actor_schema %{
+    "type" => "object",
+    "required" => ["uri", "username", "domain", "handle"],
+    "properties" => %{
+      "id" => %{
+        "type" => "string",
+        "minLength" => 1,
+        "format" => "uri",
+        "pattern" => "^https?://"
+      },
+      "uri" => %{
+        "type" => "string",
+        "minLength" => 1,
+        "format" => "uri",
+        "pattern" => "^https?://"
+      },
+      "username" => %{"type" => "string", "minLength" => 1},
+      "display_name" => %{"type" => "string"},
+      "domain" => %{"type" => "string", "minLength" => 1},
+      "handle" => %{"type" => "string", "minLength" => 3},
+      "avatar_url" => %{"type" => "string"},
+      "key_id" => %{"type" => "string"}
+    }
+  }
+  @attachment_schema %{
+    "type" => "object",
+    "required" => ["id", "url", "mime_type", "authorization", "retention"],
+    "properties" => %{
+      "id" => %{"type" => "string", "minLength" => 1},
+      "url" => %{"type" => "string", "minLength" => 1, "format" => "uri"},
+      "mime_type" => %{"type" => "string", "minLength" => 1},
+      "byte_size" => %{"type" => "integer", "minimum" => 0},
+      "sha256" => %{"type" => "string", "minLength" => 8},
+      "authorization" => %{
+        "type" => "string",
+        "enum" => ["public", "signed", "origin-authenticated"]
+      },
+      "retention" => %{
+        "type" => "string",
+        "enum" => ["origin", "rehosted", "expiring"]
+      },
+      "expires_at" => %{"type" => "string", "format" => "date-time"},
+      "alt_text" => %{"type" => "string"},
+      "width" => %{"type" => "integer", "minimum" => 0},
+      "height" => %{"type" => "integer", "minimum" => 0},
+      "duration_ms" => %{"type" => "integer", "minimum" => 0}
+    }
+  }
 
   @schemas %{
     "1.0" => %{
       "envelope" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/envelope",
+        "$id" => "arblarg://schemas/1.0/envelope",
         "title" => "Arblarg Event Envelope",
         "type" => "object",
         "required" => [
@@ -180,7 +246,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "server.upsert" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/server.upsert",
+        "$id" => "arblarg://schemas/1.0/server.upsert",
         "title" => "Arblarg server.upsert payload",
         "type" => "object",
         "required" => ["server", "channels"],
@@ -191,115 +257,315 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "message.create" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/message.create",
+        "$id" => "arblarg://schemas/1.0/message.create",
         "title" => "Arblarg message.create payload",
         "type" => "object",
-        "required" => ["server", "channel", "message"],
+        "required" => ["message"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
           "message" => %{
             "type" => "object",
-            "required" => ["id", "channel_id", "content"],
+            "required" => ["id", "content", "sender"],
             "properties" => %{
               "id" => %{"type" => "string", "minLength" => 1},
-              "channel_id" => %{"type" => "string", "minLength" => 1},
-              "content" => %{"type" => "string"}
+              "content" => %{"type" => "string"},
+              "message_type" => %{"type" => "string"},
+              "attachments" => %{"type" => "array", "items" => @attachment_schema},
+              "created_at" => %{"type" => "string", "format" => "date-time"},
+              "edited_at" => %{"type" => "string", "format" => "date-time"},
+              "sender" => @actor_schema
             }
           }
         }
       },
       "message.update" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/message.update",
+        "$id" => "arblarg://schemas/1.0/message.update",
         "title" => "Arblarg message.update payload",
         "type" => "object",
-        "required" => ["server", "channel", "message"],
+        "required" => ["message"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
           "message" => %{
             "type" => "object",
-            "required" => ["id", "channel_id", "content"],
+            "required" => ["id", "content", "sender"],
             "properties" => %{
               "id" => %{"type" => "string", "minLength" => 1},
-              "channel_id" => %{"type" => "string", "minLength" => 1},
               "content" => %{"type" => "string"},
-              "edited_at" => %{"type" => "string", "format" => "date-time"}
+              "message_type" => %{"type" => "string"},
+              "attachments" => %{"type" => "array", "items" => @attachment_schema},
+              "created_at" => %{"type" => "string", "format" => "date-time"},
+              "edited_at" => %{"type" => "string", "format" => "date-time"},
+              "sender" => @actor_schema
             }
           }
         }
       },
       "message.delete" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/message.delete",
+        "$id" => "arblarg://schemas/1.0/message.delete",
         "title" => "Arblarg message.delete payload",
         "type" => "object",
-        "required" => ["server", "channel", "message_id"],
+        "required" => ["message_id"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
           "message_id" => %{"type" => "string", "minLength" => 1},
           "deleted_at" => %{"type" => "string", "format" => "date-time"}
         }
       },
       "reaction.add" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/reaction.add",
+        "$id" => "arblarg://schemas/1.0/reaction.add",
         "title" => "Arblarg reaction.add payload",
         "type" => "object",
-        "required" => ["server", "channel", "message_id", "reaction"],
+        "required" => ["message_id", "reaction"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
           "message_id" => %{"type" => "string", "minLength" => 1},
           "reaction" => %{
             "type" => "object",
             "required" => ["emoji", "actor"],
             "properties" => %{
               "emoji" => %{"type" => "string", "minLength" => 1},
-              "actor" => %{"type" => "object"}
+              "actor" => @actor_schema
             }
           }
         }
       },
       "reaction.remove" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/reaction.remove",
+        "$id" => "arblarg://schemas/1.0/reaction.remove",
         "title" => "Arblarg reaction.remove payload",
         "type" => "object",
-        "required" => ["server", "channel", "message_id", "reaction"],
+        "required" => ["message_id", "reaction"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
           "message_id" => %{"type" => "string", "minLength" => 1},
           "reaction" => %{
             "type" => "object",
             "required" => ["emoji", "actor"],
             "properties" => %{
               "emoji" => %{"type" => "string", "minLength" => 1},
-              "actor" => %{"type" => "object"}
+              "actor" => @actor_schema
             }
           }
         }
       },
-      "read.receipt" => %{
+      "read.cursor" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/read.receipt",
-        "title" => "Arblarg read.receipt payload",
+        "$id" => "arblarg://schemas/1.0/read.cursor",
+        "title" => "Arblarg read.cursor payload",
         "type" => "object",
-        "required" => ["server", "channel", "message_id", "actor", "read_at"],
+        "required" => ["read_through_message_id", "actor", "read_at"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
-          "message_id" => %{"type" => "string", "minLength" => 1},
-          "actor" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
+          "read_through_message_id" => %{"type" => "string", "minLength" => 1},
+          "read_through_sequence" => %{"type" => "integer", "minimum" => 1},
+          "actor" => @actor_schema,
           "read_at" => %{"type" => "string", "format" => "date-time"}
+        }
+      },
+      "membership.upsert" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/membership.upsert",
+        "title" => "Arblarg membership.upsert payload",
+        "type" => "object",
+        "required" => ["membership"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
+        "properties" => %{
+          "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
+          "membership" => %{
+            "type" => "object",
+            "required" => ["actor", "role", "state", "updated_at"],
+            "properties" => %{
+              "actor" => @actor_schema,
+              "role" => %{
+                "type" => "string",
+                "enum" => ["owner", "admin", "moderator", "member", "readonly"]
+              },
+              "state" => %{
+                "type" => "string",
+                "enum" => ["active", "invited", "left", "banned"]
+              },
+              "joined_at" => %{"type" => "string", "format" => "date-time"},
+              "updated_at" => %{"type" => "string", "format" => "date-time"},
+              "metadata" => %{"type" => "object"}
+            }
+          }
+        }
+      },
+      "invite.upsert" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/invite.upsert",
+        "title" => "Arblarg invite.upsert payload",
+        "type" => "object",
+        "required" => ["invite"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
+        "properties" => %{
+          "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
+          "invite" => %{
+            "type" => "object",
+            "required" => ["actor", "target", "role", "state", "invited_at", "updated_at"],
+            "properties" => %{
+              "actor" => @actor_schema,
+              "target" => @actor_schema,
+              "role" => %{
+                "type" => "string",
+                "enum" => ["owner", "admin", "moderator", "member", "readonly"]
+              },
+              "state" => %{
+                "type" => "string",
+                "enum" => ["pending", "accepted", "declined", "revoked"]
+              },
+              "invited_at" => %{"type" => "string", "format" => "date-time"},
+              "updated_at" => %{"type" => "string", "format" => "date-time"},
+              "metadata" => %{"type" => "object"}
+            }
+          }
+        }
+      },
+      "ban.upsert" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/ban.upsert",
+        "title" => "Arblarg ban.upsert payload",
+        "type" => "object",
+        "required" => ["ban"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
+        "properties" => %{
+          "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
+          "ban" => %{
+            "type" => "object",
+            "required" => ["actor", "target", "state", "banned_at", "updated_at"],
+            "properties" => %{
+              "actor" => @actor_schema,
+              "target" => @actor_schema,
+              "state" => %{"type" => "string", "enum" => ["active", "lifted"]},
+              "reason" => %{"type" => "string"},
+              "banned_at" => %{"type" => "string", "format" => "date-time"},
+              "updated_at" => %{"type" => "string", "format" => "date-time"},
+              "expires_at" => %{"type" => "string", "format" => "date-time"},
+              "metadata" => %{"type" => "object"}
+            }
+          }
         }
       },
       "role.upsert" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/role.upsert",
+        "$id" => "arblarg://schemas/1.0/role.upsert",
         "title" => "Arblarg role.upsert payload",
         "type" => "object",
         "required" => ["server", "channel", "role"],
@@ -323,7 +589,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "role.assignment.upsert" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/role.assignment.upsert",
+        "$id" => "arblarg://schemas/1.0/role.assignment.upsert",
         "title" => "Arblarg role.assignment.upsert payload",
         "type" => "object",
         "required" => ["server", "channel", "assignment"],
@@ -350,7 +616,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "permission.overwrite.upsert" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/permission.overwrite.upsert",
+        "$id" => "arblarg://schemas/1.0/permission.overwrite.upsert",
         "title" => "Arblarg permission.overwrite.upsert payload",
         "type" => "object",
         "required" => ["server", "channel", "overwrite"],
@@ -378,7 +644,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "thread.upsert" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/thread.upsert",
+        "$id" => "arblarg://schemas/1.0/thread.upsert",
         "title" => "Arblarg thread.upsert payload",
         "type" => "object",
         "required" => ["server", "channel", "thread"],
@@ -393,7 +659,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
               "channel_id" => %{"type" => "string", "minLength" => 1},
               "name" => %{"type" => "string", "minLength" => 1},
               "state" => %{"type" => "string", "enum" => ["active", "archived", "locked"]},
-              "owner" => %{"type" => "object"},
+              "owner" => @actor_schema,
               "message_count" => %{"type" => "integer", "minimum" => 0},
               "member_count" => %{"type" => "integer", "minimum" => 0}
             }
@@ -402,7 +668,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "thread.archive" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/thread.archive",
+        "$id" => "arblarg://schemas/1.0/thread.archive",
         "title" => "Arblarg thread.archive payload",
         "type" => "object",
         "required" => ["server", "channel", "thread_id", "archived_at", "actor"],
@@ -412,32 +678,95 @@ defmodule Elektrine.Messaging.ArblargSDK do
           "thread_id" => %{"type" => "string", "minLength" => 1},
           "archived_at" => %{"type" => "string", "format" => "date-time"},
           "reason" => %{"type" => "string"},
-          "actor" => %{"type" => "object"}
+          "actor" => @actor_schema
         }
       },
       "presence.update" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/presence.update",
+        "$id" => "arblarg://schemas/1.0/presence.update",
         "title" => "Arblarg presence.update payload",
         "type" => "object",
-        "required" => ["server", "presence"],
+        "required" => ["presence"],
+        "anyOf" => [
+          %{"required" => ["server"]},
+          %{"required" => ["refs"]}
+        ],
         "properties" => %{
           "server" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
           "presence" => %{
             "type" => "object",
             "required" => ["actor", "status", "updated_at"],
             "properties" => %{
-              "actor" => %{"type" => "object"},
+              "actor" => @actor_schema,
               "status" => %{"type" => "string", "enum" => @presence_statuses},
               "updated_at" => %{"type" => "string", "format" => "date-time"},
-              "activities" => %{"type" => "array", "items" => %{"type" => "object"}}
+              "activities" => %{"type" => "array", "items" => %{"type" => "object"}},
+              "ttl_ms" => %{"type" => "integer", "minimum" => 100, "maximum" => 86_400_000}
             }
           }
         }
       },
+      "typing.start" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/typing.start",
+        "title" => "Arblarg typing.start payload",
+        "type" => "object",
+        "required" => ["actor", "started_at"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
+        "properties" => %{
+          "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
+          "actor" => @actor_schema,
+          "started_at" => %{"type" => "string", "format" => "date-time"},
+          "ttl_ms" => %{"type" => "integer", "minimum" => 100, "maximum" => 10_000}
+        }
+      },
+      "typing.stop" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/typing.stop",
+        "title" => "Arblarg typing.stop payload",
+        "type" => "object",
+        "required" => ["actor", "stopped_at"],
+        "anyOf" => [
+          %{"required" => ["server", "channel"]},
+          %{"required" => ["refs"]}
+        ],
+        "properties" => %{
+          "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
+          "refs" => %{
+            "type" => "object",
+            "required" => ["server_id", "channel_id"],
+            "properties" => %{
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
+            }
+          },
+          "actor" => @actor_schema,
+          "stopped_at" => %{"type" => "string", "format" => "date-time"}
+        }
+      },
       "moderation.action.recorded" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/moderation.action.recorded",
+        "$id" => "arblarg://schemas/1.0/moderation.action.recorded",
         "title" => "Arblarg moderation.action.recorded payload",
         "type" => "object",
         "required" => ["server", "channel", "action"],
@@ -451,7 +780,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
               "id" => %{"type" => "string", "minLength" => 1},
               "kind" => %{"type" => "string", "enum" => @moderation_action_kinds},
               "target" => %{"type" => "object"},
-              "actor" => %{"type" => "object"},
+              "actor" => @actor_schema,
               "occurred_at" => %{"type" => "string", "format" => "date-time"},
               "duration_seconds" => %{"type" => "integer", "minimum" => 0},
               "reason" => %{"type" => "string"}
@@ -461,7 +790,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       },
       "dm.message.create" => %{
         "$schema" => "https://json-schema.org/draft/2020-12/schema",
-        "$id" => "arbp://schemas/1.0/dm.message.create",
+        "$id" => "arblarg://schemas/1.0/dm.message.create",
         "title" => "Arblarg dm.message.create payload",
         "type" => "object",
         "required" => ["dm", "message"],
@@ -471,8 +800,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
             "required" => ["sender", "recipient"],
             "properties" => %{
               "id" => %{"type" => "string", "minLength" => 1},
-              "sender" => %{"type" => "object"},
-              "recipient" => %{"type" => "object"}
+              "sender" => @actor_schema,
+              "recipient" => @actor_schema
             }
           },
           "message" => %{
@@ -483,10 +812,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
               "dm_id" => %{"type" => "string", "minLength" => 1},
               "content" => %{"type" => "string"},
               "message_type" => %{"type" => "string"},
-              "media_urls" => %{"type" => "array"},
-              "media_metadata" => %{"type" => "object"},
+              "attachments" => %{"type" => "array", "items" => @attachment_schema},
               "created_at" => %{"type" => "string", "format" => "date-time"},
-              "sender" => %{"type" => "object"}
+              "edited_at" => %{"type" => "string", "format" => "date-time"},
+              "sender" => @actor_schema
             }
           }
         }
@@ -541,6 +870,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
     |> Map.get(version, %{})
     |> Map.keys()
     |> Enum.sort()
+  end
+
+  def canonical_json_payload(value) do
+    canonical_json(value)
   end
 
   def body_digest(body) when is_binary(body) do
@@ -629,20 +962,14 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
     if is_binary(key_id) and is_binary(value) and algorithm == @signature_algorithm do
       envelope_without_signature = Map.delete(envelope, "signature")
-
-      signing_payloads =
-        [
-          canonical_event_signature_payload(envelope_without_signature),
-          legacy_canonical_event_signature_payload(envelope_without_signature)
-        ]
-        |> Enum.uniq()
-
       verification_materials = key_lookup_fun.(key_id) |> List.wrap()
 
-      Enum.any?(signing_payloads, fn signing_payload ->
-        Enum.any?(verification_materials, fn public_key_material ->
-          verify_payload_signature(signing_payload, public_key_material, value)
-        end)
+      Enum.any?(verification_materials, fn public_key_material ->
+        verify_payload_signature(
+          canonical_event_signature_payload(envelope_without_signature),
+          public_key_material,
+          value
+        )
       end)
     else
       false
@@ -660,11 +987,11 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def canonical_event_payload_for_signing(_), do: ""
 
   def validate_event_envelope(envelope) when is_map(envelope) do
-    protocol_id = envelope["protocol_id"] || legacy_protocol_id(envelope)
-    protocol_name = envelope["protocol"] || legacy_protocol_name(envelope)
-    protocol_version = envelope["protocol_version"] || legacy_protocol_version(envelope)
+    protocol_id = envelope["protocol_id"]
+    protocol_name = envelope["protocol"]
+    protocol_version = envelope["protocol_version"]
     event_type = canonical_event_type(envelope["event_type"])
-    payload = envelope["payload"] || envelope["data"] || %{}
+    payload = envelope["payload"]
     idempotency_key = envelope["idempotency_key"] || envelope["event_id"]
 
     cond do
@@ -701,7 +1028,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(payload) ->
         {:error, :invalid_event_payload}
 
-      Map.has_key?(envelope, "signature") and !valid_signature_map?(envelope["signature"]) ->
+      !valid_signature_map?(envelope["signature"]) ->
         {:error, :invalid_signature}
 
       true ->
@@ -732,8 +1059,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def validate_event_payload("message.delete", payload) do
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
       !non_empty_binary?(payload["message_id"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end
@@ -742,14 +1068,106 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def validate_event_payload("reaction.add", payload), do: validate_reaction_payload(payload)
   def validate_event_payload("reaction.remove", payload), do: validate_reaction_payload(payload)
 
-  def validate_event_payload("read.receipt", payload) do
+  def validate_event_payload("read.cursor", payload) do
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
-      !non_empty_binary?(payload["message_id"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["actor"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
+      !non_empty_binary?(payload["read_through_message_id"]) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       !valid_iso8601?(payload["read_at"]) -> {:error, :invalid_event_payload}
+      true -> :ok
+    end
+  end
+
+  def validate_event_payload("membership.upsert", payload) do
+    membership = if is_map(payload), do: payload["membership"], else: nil
+
+    cond do
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(membership) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(membership["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      membership["role"] not in ["owner", "admin", "moderator", "member", "readonly"] ->
+        {:error, :invalid_event_payload}
+
+      membership["state"] not in ["active", "invited", "left", "banned"] ->
+        {:error, :invalid_event_payload}
+
+      !valid_optional_iso8601?(membership["joined_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(membership["updated_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(membership["metadata"] || %{}) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
+    end
+  end
+
+  def validate_event_payload("invite.upsert", payload) do
+    invite = if is_map(payload), do: payload["invite"], else: nil
+
+    cond do
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(invite) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(invite["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(invite["target"]) ->
+        {:error, :invalid_event_payload}
+
+      invite["role"] not in ["owner", "admin", "moderator", "member", "readonly"] ->
+        {:error, :invalid_event_payload}
+
+      invite["state"] not in ["pending", "accepted", "declined", "revoked"] ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(invite["invited_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(invite["updated_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(invite["metadata"] || %{}) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
+    end
+  end
+
+  def validate_event_payload("ban.upsert", payload) do
+    ban = if is_map(payload), do: payload["ban"], else: nil
+
+    cond do
+      !is_map(payload) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
+      !is_map(ban) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(ban["actor"]) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(ban["target"]) -> {:error, :invalid_event_payload}
+      ban["state"] not in ["active", "lifted"] -> {:error, :invalid_event_payload}
+      !valid_iso8601?(ban["banned_at"]) -> {:error, :invalid_event_payload}
+      !valid_iso8601?(ban["updated_at"]) -> {:error, :invalid_event_payload}
+      !valid_optional_iso8601?(ban["expires_at"]) -> {:error, :invalid_event_payload}
+      !is_map(ban["metadata"] || %{}) -> {:error, :invalid_event_payload}
       true -> :ok
     end
   end
@@ -789,6 +1207,18 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def validate_event_payload("presence.update", payload),
     do: validate_event_payload(@presence_update_event_type, payload)
+
+  def validate_event_payload(@typing_start_event_type, payload),
+    do: validate_typing_payload(payload, :start)
+
+  def validate_event_payload("typing.start", payload),
+    do: validate_event_payload(@typing_start_event_type, payload)
+
+  def validate_event_payload(@typing_stop_event_type, payload),
+    do: validate_typing_payload(payload, :stop)
+
+  def validate_event_payload("typing.stop", payload),
+    do: validate_event_payload(@typing_stop_event_type, payload)
 
   def validate_event_payload(@moderation_action_recorded_event_type, payload),
     do: validate_moderation_action_recorded_payload(payload)
@@ -915,12 +1345,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
       !is_map(message) -> {:error, :invalid_event_payload}
       !non_empty_binary?(message["id"]) -> {:error, :invalid_event_payload}
-      !non_empty_binary?(message["channel_id"]) -> {:error, :invalid_event_payload}
       !is_binary(message["content"] || "") -> {:error, :invalid_event_payload}
+      !valid_attachment_list?(message["attachments"]) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(message["sender"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end
   end
@@ -930,12 +1360,11 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
       !non_empty_binary?(payload["message_id"]) -> {:error, :invalid_event_payload}
       !is_map(reaction) -> {:error, :invalid_event_payload}
       !non_empty_binary?(reaction["emoji"]) -> {:error, :invalid_event_payload}
-      !is_map(reaction["actor"]) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(reaction["actor"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end
   end
@@ -994,7 +1423,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(payload) ->
         {:error, :invalid_event_payload}
 
-      !is_map(payload["server"]) ->
+      !valid_server_context?(payload, payload["refs"] || %{}) ->
         {:error, :invalid_event_payload}
 
       !is_map(payload["channel"]) ->
@@ -1015,13 +1444,38 @@ defmodule Elektrine.Messaging.ArblargSDK do
       thread["state"] not in ["active", "archived", "locked"] ->
         {:error, :invalid_event_payload}
 
-      !is_map(thread["owner"]) ->
+      !valid_actor_payload?(thread["owner"]) ->
         {:error, :invalid_event_payload}
 
       !valid_non_negative_integer_or_nil?(thread["message_count"]) ->
         {:error, :invalid_event_payload}
 
       !valid_non_negative_integer_or_nil?(thread["member_count"]) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_typing_payload(payload, mode) do
+    timestamp_field = if mode == :start, do: "started_at", else: "stopped_at"
+    ttl_ms = if is_map(payload), do: payload["ttl_ms"], else: nil
+
+    cond do
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(payload["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(payload[timestamp_field]) ->
+        {:error, :invalid_event_payload}
+
+      !is_nil(ttl_ms) and (!is_integer(ttl_ms) or ttl_ms < 100 or ttl_ms > 10_000) ->
         {:error, :invalid_event_payload}
 
       true ->
@@ -1036,7 +1490,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
       !non_empty_binary?(payload["thread_id"]) -> {:error, :invalid_event_payload}
       !valid_iso8601?(payload["archived_at"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["actor"]) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end
   end
@@ -1044,18 +1498,19 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp validate_presence_update_payload(payload) do
     presence = if is_map(payload), do: payload["presence"], else: nil
     activities = if is_map(presence), do: presence["activities"], else: nil
+    ttl_ms = if is_map(presence), do: presence["ttl_ms"], else: nil
 
     cond do
       !is_map(payload) ->
         {:error, :invalid_event_payload}
 
-      !is_map(payload["server"]) ->
+      !valid_server_context?(payload, payload["refs"] || %{}) ->
         {:error, :invalid_event_payload}
 
       !is_map(presence) ->
         {:error, :invalid_event_payload}
 
-      !is_map(presence["actor"]) ->
+      !valid_actor_payload?(presence["actor"]) ->
         {:error, :invalid_event_payload}
 
       presence["status"] not in @presence_statuses ->
@@ -1065,6 +1520,9 @@ defmodule Elektrine.Messaging.ArblargSDK do
         {:error, :invalid_event_payload}
 
       !is_nil(activities) and (!is_list(activities) or Enum.any?(activities, &(not is_map(&1)))) ->
+        {:error, :invalid_event_payload}
+
+      !is_nil(ttl_ms) and (!is_integer(ttl_ms) or ttl_ms < 100 or ttl_ms > 86_400_000) ->
         {:error, :invalid_event_payload}
 
       true ->
@@ -1097,7 +1555,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(action["target"]) ->
         {:error, :invalid_event_payload}
 
-      !is_map(action["actor"]) ->
+      !valid_actor_payload?(action["actor"]) ->
         {:error, :invalid_event_payload}
 
       !valid_iso8601?(action["occurred_at"]) ->
@@ -1125,10 +1583,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(message) ->
         {:error, :invalid_event_payload}
 
-      !is_map(dm["sender"]) ->
+      !valid_actor_payload?(dm["sender"]) ->
         {:error, :invalid_event_payload}
 
-      !is_map(dm["recipient"]) ->
+      !valid_actor_payload?(dm["recipient"]) ->
         {:error, :invalid_event_payload}
 
       !non_empty_binary?(message["id"]) ->
@@ -1140,12 +1598,33 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_binary(message["content"] || "") ->
         {:error, :invalid_event_payload}
 
-      !is_map(message["sender"]) ->
+      !valid_attachment_list?(message["attachments"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(message["sender"]) ->
         {:error, :invalid_event_payload}
 
       true ->
         :ok
     end
+  end
+
+  defp valid_channel_event_context?(payload) when is_map(payload) do
+    refs = payload["refs"] || %{}
+
+    valid_server_context?(payload, refs) and valid_channel_context?(payload, refs)
+  end
+
+  defp valid_channel_event_context?(_), do: false
+
+  defp valid_server_context?(payload, refs) do
+    is_map(payload["server"]) or
+      non_empty_binary?(refs["server_id"])
+  end
+
+  defp valid_channel_context?(payload, refs) do
+    is_map(payload["channel"]) or
+      non_empty_binary?(refs["channel_id"])
   end
 
   defp valid_target?(target, allowed_types) when is_map(target) and is_list(allowed_types) do
@@ -1160,26 +1639,101 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   defp valid_string_list?(_values), do: false
 
+  defp valid_attachment_list?(nil), do: true
+
+  defp valid_attachment_list?(attachments) when is_list(attachments) do
+    Enum.all?(attachments, &valid_attachment?/1)
+  end
+
+  defp valid_attachment_list?(_attachments), do: false
+
+  defp valid_attachment?(attachment) when is_map(attachment) do
+    authorization = attachment["authorization"]
+    retention = attachment["retention"]
+
+    non_empty_binary?(attachment["id"]) and
+      non_empty_binary?(attachment["url"]) and
+      non_empty_binary?(attachment["mime_type"]) and
+      authorization in ["public", "signed", "origin-authenticated"] and
+      retention in ["origin", "rehosted", "expiring"] and
+      valid_non_negative_integer_or_nil?(attachment["byte_size"]) and
+      valid_non_negative_integer_or_nil?(attachment["width"]) and
+      valid_non_negative_integer_or_nil?(attachment["height"]) and
+      valid_non_negative_integer_or_nil?(attachment["duration_ms"]) and
+      valid_optional_iso8601?(attachment["expires_at"])
+  end
+
+  defp valid_attachment?(_attachment), do: false
+
   defp valid_non_negative_integer_or_nil?(nil), do: true
   defp valid_non_negative_integer_or_nil?(value) when is_integer(value) and value >= 0, do: true
   defp valid_non_negative_integer_or_nil?(_), do: false
 
-  defp legacy_protocol_version(envelope) do
-    case envelope["version"] do
-      1 -> @protocol_version
-      "1" -> @protocol_version
-      _ -> nil
+  defp valid_optional_iso8601?(nil), do: true
+  defp valid_optional_iso8601?(value), do: valid_iso8601?(value)
+
+  defp valid_actor_payload?(actor) when is_map(actor) do
+    uri = normalize_actor_identity_field(actor, "uri")
+    id = normalize_actor_identity_field(actor, "id")
+    username = normalize_actor_identity_field(actor, "username")
+    domain = normalize_actor_identity_field(actor, "domain")
+    handle = normalize_actor_identity_field(actor, "handle")
+
+    canonical_handle =
+      if is_binary(username) and is_binary(domain),
+        do: "#{String.downcase(username)}@#{String.downcase(domain)}"
+
+    cond do
+      !valid_absolute_http_uri?(uri) ->
+        false
+
+      !is_binary(username) ->
+        false
+
+      !is_binary(domain) ->
+        false
+
+      !is_binary(handle) ->
+        false
+
+      is_binary(id) and !valid_absolute_http_uri?(id) ->
+        false
+
+      String.downcase(handle) != canonical_handle ->
+        false
+
+      true ->
+        true
     end
   end
 
-  defp legacy_protocol_id(_envelope), do: @protocol_id
+  defp valid_actor_payload?(_actor), do: false
 
-  defp legacy_protocol_name(envelope) do
-    case envelope["protocol"] do
-      value when is_binary(value) -> value
-      _ -> @protocol_name
+  defp normalize_actor_identity_field(actor, key) when is_map(actor) do
+    case Map.get(actor, key) do
+      value when is_binary(value) ->
+        case String.trim(value) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
     end
   end
+
+  defp valid_absolute_http_uri?(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_absolute_http_uri?(_value), do: false
 
   defp valid_signature_map?(signature) when is_map(signature) do
     signature["algorithm"] == @signature_algorithm and non_empty_binary?(signature["key_id"]) and
@@ -1218,17 +1772,13 @@ defmodule Elektrine.Messaging.ArblargSDK do
     canonical_event_signature_payload(envelope, @protocol_id)
   end
 
-  defp legacy_canonical_event_signature_payload(envelope) when is_map(envelope) do
-    canonical_event_signature_payload(envelope, @protocol_name)
-  end
-
   defp canonical_event_signature_payload(envelope, protocol_identifier) when is_map(envelope) do
-    payload = envelope["payload"] || envelope["data"] || %{}
+    payload = envelope["payload"] || %{}
     idempotency_key = envelope["idempotency_key"] || envelope["event_id"]
 
     [
       protocol_identifier,
-      to_string(envelope["protocol_version"] || legacy_protocol_version(envelope) || ""),
+      to_string(envelope["protocol_version"] || ""),
       to_string(envelope["event_type"] || ""),
       to_string(envelope["event_id"] || ""),
       to_string(envelope["origin_domain"] || ""),

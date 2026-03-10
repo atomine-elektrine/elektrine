@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.LayoutsTest do
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest
+
   alias ElektrineWeb.Layouts
 
   describe "build_page_title/1" do
@@ -27,5 +29,16 @@ defmodule ElektrineWeb.LayoutsTest do
 
       assert Layouts.build_page_title(%{conn: conn}) == "VPN Dashboard"
     end
+  end
+
+  test "root layout uses a dead-page timezone detector" do
+    html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Test"
+      )
+
+    assert html =~ "data-timezone-detector"
+    refute html =~ ~s(phx-hook="TimezoneDetector")
   end
 end

@@ -104,7 +104,7 @@
                           <% end %>
                           <div class="flex-1 min-w-0">
                             <div class="text-sm font-medium truncate">
-                              {result.actor.display_name || result.actor.username}
+                              {raw(render_actor_display_name(result.actor))}
                             </div>
                             <div class="text-xs opacity-70">
                               @{result.actor.username}@{result.actor.domain}
@@ -211,7 +211,7 @@
                 <% end %>
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-medium truncate">
-                    {member.remote_actor.display_name || member.remote_actor.username}
+                    {raw(render_actor_display_name(member.remote_actor))}
                   </div>
                   <div class="text-xs opacity-70">
                     @{member.remote_actor.username}@{member.remote_actor.domain}
@@ -353,7 +353,7 @@
                               class="font-medium hover:underline block"
                               phx-click="stop_propagation"
                             >
-                              {post.remote_actor.display_name || post.remote_actor.username}
+                              {raw(render_actor_display_name(post.remote_actor))}
                             </.link>
                             <div class="text-sm opacity-70">
                               @{post.remote_actor.username}@{post.remote_actor.domain} · {Elektrine.Social.time_ago_in_words(
@@ -381,13 +381,14 @@
                         }
                         data-id={post.id}
                       >
-                        <%= if post.title do %>
+                        <% post_title = plain_text_content(post.title) %>
+                        <%= if post_title != "" do %>
                           <h3 class="font-semibold text-lg mb-2 break-words leading-tight">
-                            {post.title}
+                            {post_title}
                           </h3>
                         <% end %>
                         <div class="break-words">
-                          {raw(make_links_and_hashtags_clickable(String.trim(post.content)))}
+                          {raw(render_post_content(post))}
                         </div>
                       </div>
                       
@@ -494,9 +495,7 @@
                               </div>
 
                               <div class="text-sm break-words mb-2">
-                                {raw(
-                                  make_links_and_hashtags_clickable(String.trim(reply.content))
-                                )}
+                                {raw(render_post_content(reply))}
                               </div>
                               
 <!-- Reply Actions -->

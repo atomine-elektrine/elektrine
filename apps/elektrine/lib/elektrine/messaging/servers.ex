@@ -1,6 +1,6 @@
 defmodule Elektrine.Messaging.Servers do
   @moduledoc """
-  Context for Discord-style servers and server-scoped channels.
+  Context for community servers and server-scoped channels.
   """
 
   import Ecto.Query, warn: false
@@ -217,7 +217,7 @@ defmodule Elektrine.Messaging.Servers do
       |> Map.new()
       |> Map.put(:creator_id, creator_id)
       |> Map.put(:server_id, server_id)
-      # Discord-style default: server channels are visible to all server members unless marked private.
+      # Community-server default: channels are visible to all members unless marked private.
       |> Map.put_new(:is_public, true)
       |> Map.put_new(:name, "general")
       |> Map.put_new(:description, "Default server channel")

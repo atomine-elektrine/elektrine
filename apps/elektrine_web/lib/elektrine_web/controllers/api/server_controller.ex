@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.API.ServerController do
   @moduledoc """
-  API controller for Discord-like servers and server channels.
+  API controller for community servers and server channels.
   """
   use ElektrineWeb, :controller
 

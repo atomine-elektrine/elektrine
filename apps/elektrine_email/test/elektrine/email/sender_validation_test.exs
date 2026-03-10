@@ -184,4 +184,57 @@ defmodule Elektrine.Email.SenderValidationTest do
       end
     end
   end
+
+  describe "encryption policy" do
+    setup do
+      {:ok, user} =
+        Accounts.create_user(%{
+          username: "encryptpolicy#{System.unique_integer([:positive])}",
+          password: "SenderTest123!",
+          password_confirmation: "SenderTest123!"
+        })
+
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      %{user: user, mailbox: mailbox}
+    end
+
+    test "required encryption blocks sends when a recipient key is missing", %{
+      user: user,
+      mailbox: mailbox
+    } do
+      email_params = %{
+        from: mailbox.email,
+        to: "missingkey#{System.unique_integer([:positive])}@elektrine.com",
+        subject: "Protected",
+        text_body: "This should require encryption",
+        encryption_mode: "require"
+      }
+
+      assert {:error, {:missing_pgp_keys, [missing]}} = Sender.send_email(user.id, email_params)
+      assert String.contains?(missing, "@elektrine.com")
+    end
+
+    test "required encryption rejects attachments until full attachment encryption exists", %{
+      user: user,
+      mailbox: mailbox
+    } do
+      email_params = %{
+        from: mailbox.email,
+        to: "recipient#{System.unique_integer([:positive])}@elektrine.com",
+        subject: "Protected with attachment",
+        text_body: "Body",
+        encryption_mode: "require",
+        attachments: %{
+          "0" => %{
+            "filename" => "report.txt",
+            "content_type" => "text/plain",
+            "data" => Base.encode64("hello"),
+            "size" => 5
+          }
+        }
+      }
+
+      assert {:error, :pgp_attachments_unsupported} = Sender.send_email(user.id, email_params)
+    end
+  end
 end

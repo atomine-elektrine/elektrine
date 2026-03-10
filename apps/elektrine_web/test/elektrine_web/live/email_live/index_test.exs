@@ -4,6 +4,8 @@ defmodule ElektrineWeb.EmailLive.IndexTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Email
+  alias Elektrine.Repo
   alias ElektrineWeb.EmailLive.Index
 
   defp log_in_user(conn, user) do
@@ -42,5 +44,29 @@ defmodule ElektrineWeb.EmailLive.IndexTest do
 
     assert html =~ "New Task"
     assert html =~ "Add task title"
+  end
+
+  test "sidebar includes verified custom-domain mailbox addresses", %{conn: conn} do
+    unique_id = System.unique_integer([:positive])
+    user = AccountsFixtures.user_fixture(%{username: "sidebar#{unique_id}"})
+    verified_domain = "mail#{unique_id}.sidebar.test"
+    pending_domain = "pending#{unique_id}.sidebar.test"
+
+    {:ok, custom_domain} = Email.create_custom_domain(user, %{"domain" => verified_domain})
+
+    custom_domain
+    |> Ecto.Changeset.change(%{status: "verified"})
+    |> Repo.update!()
+
+    assert {:ok, _pending_domain} =
+             Email.create_custom_domain(user, %{"domain" => pending_domain})
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email")
+
+    assert html =~ "#{user.username}@#{verified_domain}"
+    refute html =~ "#{user.username}@#{pending_domain}"
   end
 end

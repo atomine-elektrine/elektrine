@@ -576,10 +576,7 @@
                     reply_content = Map.get(reply, :content) || ""
 
                     reply_preview =
-                      reply_content
-                      |> HtmlSanitizeEx.strip_tags()
-                      |> String.replace(~r/\s+/, " ")
-                      |> String.trim()
+                      plain_text_content(reply_content)
 
                     reply_preview =
                       if String.length(reply_preview) > 150 do
@@ -816,8 +813,11 @@
                       <.placeholder_avatar size="xs" />
                     <% end %>
                     <span class="font-medium text-sm">
-                      {@quote_target_post.remote_actor.display_name ||
-                        @quote_target_post.remote_actor.username}
+                      {raw(
+                        ElektrineWeb.HtmlHelpers.render_actor_display_name(
+                          @quote_target_post.remote_actor
+                        )
+                      )}
                     </span>
                     <span class="text-xs opacity-60">
                       @{@quote_target_post.remote_actor.username}@{@quote_target_post.remote_actor.domain}
@@ -826,7 +826,7 @@
                 <% end %>
               </div>
               <div class="text-sm line-clamp-4 opacity-80">
-                {@quote_target_post.content}
+                {plain_text_preview(@quote_target_post.content, 200)}
               </div>
               <%= if @quote_target_post.media_urls && length(@quote_target_post.media_urls) > 0 do %>
                 <div class="mt-2 flex gap-1">

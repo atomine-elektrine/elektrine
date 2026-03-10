@@ -6,6 +6,8 @@ defmodule ElektrineWeb.EmailLive.Compose do
   alias Elektrine.Constants
   alias Elektrine.Email
   alias Elektrine.Email.AttachmentStorage
+  alias Elektrine.Email.MailboxEncryption
+  alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Sender
   require Logger
@@ -58,52 +60,57 @@ defmodule ElektrineWeb.EmailLive.Compose do
     recent_recipients = Elektrine.Email.Contacts.get_recent_recipients(user.id)
     templates = Email.list_templates(user.id)
 
-    {:ok,
-     socket
-     |> assign(:page_title, page_title)
-     |> assign(:templates, templates)
-     |> assign(:mailbox, mailbox)
-     |> assign(:from_address, from_address)
-     |> assign(:available_from_addresses, available_from_addresses)
-     |> assign(:unread_count, unread_count)
-     |> assign(:storage_info, storage_info)
-     |> assign(:mode, Map.get(params, "mode", "compose"))
-     |> assign(:original_message_id, Map.get(params, "message_id"))
-     |> assign(:original_message, original_message)
-     |> assign(:rate_limit_status, rate_limit_status)
-     |> assign(:return_to, return_to)
-     |> assign(:return_filter, return_filter)
-     |> assign(:to_tags, to_tags)
-     |> assign(:cc_tags, cc_tags)
-     |> assign(:bcc_tags, bcc_tags)
-     |> assign(:to_input, "")
-     |> assign(:cc_input, "")
-     |> assign(:bcc_input, "")
-     |> assign(:to_input_error, false)
-     |> assign(:cc_input_error, false)
-     |> assign(:bcc_input_error, false)
-     |> assign(:show_cc_bcc, !Enum.empty?(cc_tags) || !Enum.empty?(bcc_tags))
-     |> assign(:form, to_form(form_data))
-     |> assign(:attachments_uploaded_count, 0)
-     |> assign(:attachments_uploaded_bytes, 0)
-     |> assign(:recent_recipients, recent_recipients)
-     |> assign(:showing_to_suggestions, false)
-     |> assign(:showing_cc_suggestions, false)
-     |> assign(:showing_bcc_suggestions, false)
-     |> assign(:to_suggestions, [])
-     |> assign(:cc_suggestions, [])
-     |> assign(:bcc_suggestions, [])
-     |> assign(:body_char_count, String.length(form_data["body"] || ""))
-     |> assign(:body_word_count, count_words(form_data["body"] || ""))
-     |> assign(:draft_id, form_data["draft_id"])
-     |> assign(:draft_status, nil)
-     |> assign(:sending, false)
-     |> allow_upload(:attachments,
-       accept: ~w(.jpg .jpeg .png .gif .pdf .doc .docx .xls .xlsx .txt),
-       max_entries: 5,
-       max_file_size: email_attachment_limit,
-       auto_upload: true
-     )}
+    socket =
+      socket
+      |> assign(:page_title, page_title)
+      |> assign(:templates, templates)
+      |> assign(:mailbox, mailbox)
+      |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
+      |> assign(:from_address, from_address)
+      |> assign(:available_from_addresses, available_from_addresses)
+      |> assign(:unread_count, unread_count)
+      |> assign(:storage_info, storage_info)
+      |> assign(:mode, Map.get(params, "mode", "compose"))
+      |> assign(:original_message_id, Map.get(params, "message_id"))
+      |> assign(:original_message, original_message)
+      |> assign(:rate_limit_status, rate_limit_status)
+      |> assign(:return_to, return_to)
+      |> assign(:return_filter, return_filter)
+      |> assign(:to_tags, to_tags)
+      |> assign(:cc_tags, cc_tags)
+      |> assign(:bcc_tags, bcc_tags)
+      |> assign(:to_input, "")
+      |> assign(:cc_input, "")
+      |> assign(:bcc_input, "")
+      |> assign(:to_input_error, false)
+      |> assign(:cc_input_error, false)
+      |> assign(:bcc_input_error, false)
+      |> assign(:show_cc_bcc, !Enum.empty?(cc_tags) || !Enum.empty?(bcc_tags))
+      |> assign(:form, to_form(form_data))
+      |> assign(:attachments_uploaded_count, 0)
+      |> assign(:attachments_uploaded_bytes, 0)
+      |> assign(:recent_recipients, recent_recipients)
+      |> assign(:showing_to_suggestions, false)
+      |> assign(:showing_cc_suggestions, false)
+      |> assign(:showing_bcc_suggestions, false)
+      |> assign(:to_suggestions, [])
+      |> assign(:cc_suggestions, [])
+      |> assign(:bcc_suggestions, [])
+      |> assign(:body_char_count, String.length(form_data["body"] || ""))
+      |> assign(:body_word_count, count_words(form_data["body"] || ""))
+      |> assign(:encryption_mode, form_data["encryption_mode"] || "auto")
+      |> assign(:draft_id, form_data["draft_id"])
+      |> assign(:draft_status, nil)
+      |> assign(:sending, false)
+      |> allow_upload(:attachments,
+        accept: ~w(.jpg .jpeg .png .gif .pdf .doc .docx .xls .xlsx .txt),
+        max_entries: 5,
+        max_file_size: email_attachment_limit,
+        auto_upload: true
+      )
+      |> assign_encryption_state(form_data["encryption_mode"] || "auto")
+
+    {:ok, socket}
   end
 
   @impl true
@@ -145,6 +152,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
         |> assign(:cc_input_error, false)
         |> assign(:bcc_input_error, false)
         |> assign(:show_cc_bcc, !Enum.empty?(cc_tags) || !Enum.empty?(bcc_tags))
+        |> assign_encryption_state(form_data["encryption_mode"] || "auto")
       else
         socket
       end
@@ -176,8 +184,19 @@ defmodule ElektrineWeb.EmailLive.Compose do
      socket
      |> assign(
        :form,
-       to_form(%{"to" => "", "cc" => "", "bcc" => "", "subject" => "", "body" => ""})
+       to_form(%{
+         "to" => "",
+         "cc" => "",
+         "bcc" => "",
+         "subject" => "",
+         "body" => "",
+         "encryption_mode" => "auto"
+       })
      )
+     |> assign(:to_tags, [])
+     |> assign(:cc_tags, [])
+     |> assign(:bcc_tags, [])
+     |> assign_encryption_state("auto")
      |> notify_info("Form cleared")}
   end
 
@@ -224,7 +243,10 @@ defmodule ElektrineWeb.EmailLive.Compose do
     word_count = count_words(body)
 
     {:noreply,
-     socket |> assign(:form, to_form(email_params)) |> assign(:body_word_count, word_count)}
+     socket
+     |> assign(:form, to_form(email_params))
+     |> assign(:body_word_count, word_count)
+     |> assign_encryption_state(email_params["encryption_mode"])}
   end
 
   @impl true
@@ -240,7 +262,10 @@ defmodule ElektrineWeb.EmailLive.Compose do
     word_count = count_words(body)
 
     socket =
-      socket |> assign(:form, to_form(email_params)) |> assign(:body_word_count, word_count)
+      socket
+      |> assign(:form, to_form(email_params))
+      |> assign(:body_word_count, word_count)
+      |> assign_encryption_state(email_params["encryption_mode"])
 
     has_content =
       String.trim(email_params["subject"] || "") != "" ||
@@ -276,7 +301,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
         _ -> socket
       end
 
-    {:noreply, socket}
+    {:noreply, assign_encryption_state(socket)}
   end
 
   @impl true
@@ -352,7 +377,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
         end
       end
 
-    {:noreply, socket}
+    {:noreply, assign_encryption_state(socket)}
   end
 
   @impl true
@@ -399,7 +424,8 @@ defmodule ElektrineWeb.EmailLive.Compose do
          |> assign(input_key, "")
          |> assign(error_key, false)
          |> assign(suggestions_key, [])
-         |> assign(showing_key, false)}
+         |> assign(showing_key, false)
+         |> assign_encryption_state()}
       else
         {:noreply, socket}
       end
@@ -432,7 +458,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
     if should_process do
       {:noreply, add_tag_from_input(socket, field)}
     else
-      {:noreply, socket}
+      {:noreply, assign_encryption_state(socket)}
     end
   end
 
@@ -470,7 +496,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
           socket
       end
 
-    {:noreply, socket}
+    {:noreply, assign_encryption_state(socket)}
   end
 
   @impl true
@@ -576,7 +602,8 @@ defmodule ElektrineWeb.EmailLive.Compose do
       bcc: Enum.join(socket.assigns.bcc_tags, ", "),
       subject: email_params["subject"],
       text_body: text_body,
-      html_body: html_body
+      html_body: html_body,
+      encryption_mode: email_params["encryption_mode"] || socket.assigns.encryption_mode
     }
 
     temp_message_id = "temp_#{System.system_time(:millisecond)}"
@@ -656,11 +683,14 @@ defmodule ElektrineWeb.EmailLive.Compose do
         {[], []}
       end
 
+    private_forward_attachments = parse_private_forward_attachments(email_params)
+
     {all_db_attachments, all_email_attachments} =
       if mode == "forward" && original_message && original_message.attachments do
         forwarded_with_data =
           original_message.attachments
           |> Map.values()
+          |> Enum.reject(&MailboxEncryption.attachment_encrypted?/1)
           |> Enum.map(fn att ->
             att_with_data =
               if att["storage_type"] == "s3" do
@@ -679,10 +709,20 @@ defmodule ElektrineWeb.EmailLive.Compose do
             {att, att_with_data}
           end)
 
-        {fwd_db, fwd_email} = Enum.unzip(forwarded_with_data)
-        {db_attachments ++ fwd_db, email_attachments ++ fwd_email}
+        {fwd_db, fwd_email} =
+          if forwarded_with_data == [] do
+            {[], []}
+          else
+            Enum.unzip(forwarded_with_data)
+          end
+
+        {
+          db_attachments ++ fwd_db ++ private_forward_attachments,
+          email_attachments ++ fwd_email ++ private_forward_attachments
+        }
       else
-        {db_attachments, email_attachments}
+        {db_attachments ++ private_forward_attachments,
+         email_attachments ++ private_forward_attachments}
       end
 
     email_attrs =
@@ -777,6 +817,29 @@ defmodule ElektrineWeb.EmailLive.Compose do
          )
          |> assign(:form, to_form(email_params))}
 
+      {:error, {:missing_pgp_keys, missing_recipients}} ->
+        {:noreply,
+         socket
+         |> assign(:sending, false)
+         |> notify_error(missing_pgp_keys_message(missing_recipients))
+         |> assign(:form, to_form(email_params))}
+
+      {:error, :pgp_attachments_unsupported} ->
+        {:noreply,
+         socket
+         |> assign(:sending, false)
+         |> notify_error(
+           "Required encryption is only available for message-body-only email right now. Remove attachments or switch to Encrypt when possible."
+         )
+         |> assign(:form, to_form(email_params))}
+
+      {:error, :gpg_unavailable} ->
+        {:noreply,
+         socket
+         |> assign(:sending, false)
+         |> notify_error("OpenPGP delivery is not available on this server right now.")
+         |> assign(:form, to_form(email_params))}
+
       {:error, reason} ->
         {:noreply,
          socket
@@ -827,19 +890,20 @@ defmodule ElektrineWeb.EmailLive.Compose do
 
       cond do
         email == "" ->
-          socket |> assign(error_key, false)
+          socket |> assign(error_key, false) |> assign_encryption_state()
 
         valid_email?(email) && email not in current_tags ->
           socket
           |> assign(tags_key, current_tags ++ [email])
           |> assign(input_key, "")
           |> assign(error_key, false)
+          |> assign_encryption_state()
 
         valid_email?(email) ->
-          socket |> assign(input_key, "") |> assign(error_key, false)
+          socket |> assign(input_key, "") |> assign(error_key, false) |> assign_encryption_state()
 
         true ->
-          socket |> assign(input_key, "") |> assign(error_key, false)
+          socket |> assign(input_key, "") |> assign(error_key, false) |> assign_encryption_state()
       end
     else
       socket
@@ -937,7 +1001,8 @@ defmodule ElektrineWeb.EmailLive.Compose do
           "cc" => Map.get(params, "cc", ""),
           "bcc" => Map.get(params, "bcc", ""),
           "subject" => Map.get(params, "subject", ""),
-          "body" => Map.get(params, "body", "")
+          "body" => Map.get(params, "body", ""),
+          "encryption_mode" => Map.get(params, "encryption_mode", "auto")
         }
     end
   end
@@ -953,7 +1018,16 @@ defmodule ElektrineWeb.EmailLive.Compose do
     case Email.get_draft(draft_id_int, mailbox.id) do
       nil ->
         Logger.warning("Draft not found: #{draft_id}")
-        %{"to" => "", "cc" => "", "bcc" => "", "subject" => "", "body" => "", "draft_id" => nil}
+
+        %{
+          "to" => "",
+          "cc" => "",
+          "bcc" => "",
+          "subject" => "",
+          "body" => "",
+          "encryption_mode" => "auto",
+          "draft_id" => nil
+        }
 
       draft ->
         %{
@@ -962,6 +1036,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
           "bcc" => draft.bcc || "",
           "subject" => draft.subject || "",
           "body" => draft.text_body || "",
+          "encryption_mode" => "auto",
           "draft_id" => draft.id
         }
     end
@@ -1040,47 +1115,54 @@ defmodule ElektrineWeb.EmailLive.Compose do
   end
 
   defp format_quoted_reply(message) do
-    date_str = format_date_for_quote(message.inserted_at)
+    if Map.get(message, :client_encrypted_payload) do
+      "\n\n[Encrypted mailbox content is not available for quoted replies in compose yet.]\n"
+    else
+      date_str = format_date_for_quote(message.inserted_at)
 
-    sender_text =
-      if message.status == "sent" do
-        "you"
-      else
-        message.from
-      end
+      sender_text =
+        if message.status == "sent" do
+          "you"
+        else
+          message.from
+        end
 
-    text_body = message.text_body || strip_html_tags(message.html_body || "")
-    "
+      text_body = message.text_body || strip_html_tags(message.html_body || "")
+      "
 
 On #{date_str}, #{sender_text} wrote:
 #{quote_message_body(text_body)}
 "
+    end
   end
 
   defp format_forwarded_message(message) do
-    date_str = format_date_for_quote(message.inserted_at)
-    text_body = message.text_body || strip_html_tags(message.html_body || "")
+    if Map.get(message, :client_encrypted_payload) do
+      "\n\n---------- Forwarded message ----------\n#{message.from}\n[Encrypted mailbox content is not available for forwarding in compose yet.]\n"
+    else
+      date_str = format_date_for_quote(message.inserted_at)
+      text_body = message.text_body || strip_html_tags(message.html_body || "")
 
-    attachment_info =
-      if message.attachments && is_map(message.attachments) && map_size(message.attachments) > 0 do
-        attachment_list =
-          message.attachments
-          |> Enum.map(fn {_key, attachment} ->
-            filename = Map.get(attachment, "filename", "unknown")
-            size = Map.get(attachment, "size", "unknown")
-            "- #{filename} (#{size} bytes)"
-          end)
-          |> Enum.map_join("\n", & &1)
+      attachment_info =
+        if message.attachments && is_map(message.attachments) && map_size(message.attachments) > 0 do
+          attachment_list =
+            message.attachments
+            |> Enum.map(fn {_key, attachment} ->
+              filename = Map.get(attachment, "filename", "unknown")
+              size = Map.get(attachment, "size", "unknown")
+              "- #{filename} (#{size} bytes)"
+            end)
+            |> Enum.map_join("\n", & &1)
 
-        "
+          "
 Attachments:
 #{attachment_list}
 "
-      else
-        ""
-      end
+        else
+          ""
+        end
 
-    "
+      "
 
 ---------- Forwarded message ----------
 From: #{message.from}
@@ -1090,7 +1172,43 @@ Subject: #{message.subject}#{attachment_info}
 
 #{text_body}
 "
+    end
   end
+
+  defp parse_private_forward_attachments(email_params) when is_map(email_params) do
+    case Map.get(email_params, "private_forward_attachments") do
+      raw when is_binary(raw) and raw != "" ->
+        case Jason.decode(raw) do
+          {:ok, attachments} when is_list(attachments) ->
+            attachments
+            |> Enum.filter(&valid_private_forward_attachment?/1)
+            |> Enum.map(fn attachment ->
+              %{
+                "filename" => attachment["filename"],
+                "content_type" => attachment["content_type"] || "application/octet-stream",
+                "size" => attachment["size"] || 0,
+                "encoding" => attachment["encoding"] || "base64",
+                "data" => attachment["data"]
+              }
+            end)
+
+          _ ->
+            []
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp parse_private_forward_attachments(_email_params), do: []
+
+  defp valid_private_forward_attachment?(attachment) when is_map(attachment) do
+    is_binary(attachment["filename"]) and attachment["filename"] != "" and
+      is_binary(attachment["data"]) and attachment["data"] != ""
+  end
+
+  defp valid_private_forward_attachment?(_attachment), do: false
 
   defp quote_message_body(body) do
     body |> String.split("\n") |> Enum.map_join("\n", &"> #{&1}")
@@ -1291,20 +1409,8 @@ Subject: #{message.subject}#{attachment_info}
 
   defp normalize_message_id_header(value), do: to_string(value) |> normalize_message_id_header()
 
-  defp get_available_from_addresses(mailbox, user) do
-    base_email = mailbox.email
-
-    base_addresses =
-      case base_email do
-        nil ->
-          []
-
-        email when is_binary(email) ->
-          case Elektrine.Domains.local_address_variants(email) do
-            [] -> [email]
-            variants -> variants
-          end
-      end
+  defp get_available_from_addresses(_mailbox, user) do
+    base_addresses = Elektrine.Domains.email_addresses_for_user(user)
 
     user_aliases =
       Email.list_aliases(user.id) |> Enum.filter(& &1.enabled) |> Enum.map(& &1.alias_email)
@@ -1318,7 +1424,7 @@ Subject: #{message.subject}#{attachment_info}
     preferred_domain =
       Map.get(user, :preferred_email_domain, Elektrine.Domains.default_user_handle_domain())
 
-    mailbox_address_for_domain(mailbox.email, preferred_domain) || mailbox.email
+    mailbox_address_for_domain(user, mailbox.email, preferred_domain) || mailbox.email
   end
 
   defp determine_from_address(original_message, mailbox) do
@@ -1329,22 +1435,22 @@ Subject: #{message.subject}#{attachment_info}
     matching_alias =
       Enum.find(user_aliases, fn alias_record -> alias_record.alias_email == recipient_email end)
 
-    cond do
-      matching_alias != nil ->
-        matching_alias.alias_email
+    if matching_alias != nil do
+      matching_alias.alias_email
+    else
+      case extract_domain(recipient_email) do
+        domain when is_binary(domain) ->
+          user = Elektrine.Repo.get(Elektrine.Accounts.User, mailbox.user_id)
 
-      true ->
-        case extract_domain(recipient_email) do
-          domain when is_binary(domain) ->
-            if domain in Elektrine.Domains.supported_email_domains() do
-              mailbox_address_for_domain(mailbox.email, domain) || mailbox.email
-            else
-              mailbox.email
-            end
-
-          _ ->
+          if domain in Elektrine.Domains.available_email_domains_for_user(user) do
+            mailbox_address_for_domain(user, mailbox.email, domain) || mailbox.email
+          else
             mailbox.email
-        end
+          end
+
+        _ ->
+          mailbox.email
+      end
     end
   end
 
@@ -1372,15 +1478,17 @@ Subject: #{message.subject}#{attachment_info}
 
   defp extract_domain(_), do: nil
 
-  defp mailbox_address_for_domain(base_email, domain)
-       when is_binary(base_email) and is_binary(domain) do
+  defp mailbox_address_for_domain(user, _base_email, domain)
+       when is_binary(domain) and not is_nil(user) do
     downcased_domain = String.downcase(domain)
 
-    Elektrine.Domains.local_address_variants(base_email)
-    |> Enum.find(fn address -> String.ends_with?(address, "@#{downcased_domain}") end)
+    Elektrine.Domains.email_addresses_for_user(user)
+    |> Enum.find(fn address ->
+      String.ends_with?(String.downcase(address), "@#{downcased_domain}")
+    end)
   end
 
-  defp mailbox_address_for_domain(_, _), do: nil
+  defp mailbox_address_for_domain(_, _, _), do: nil
 
   defp get_return_url(assigns) do
     return_to = assigns[:return_to] || "inbox"
@@ -1528,6 +1636,43 @@ Subject: #{message.subject}#{attachment_info}
 
   defp parse_email_tags(_) do
     []
+  end
+
+  defp assign_encryption_state(socket, mode_override \\ nil) do
+    mode = mode_override || socket.assigns[:encryption_mode] || "auto"
+
+    recipients =
+      (socket.assigns.to_tags || []) ++
+        (socket.assigns.cc_tags || []) ++ (socket.assigns.bcc_tags || [])
+
+    status =
+      recipients
+      |> PGP.recipient_encryption_status(socket.assigns.current_user.id, fetch_remote: false)
+      |> Map.put(:server_ready?, PGP.gpg_available?())
+
+    socket
+    |> assign(:encryption_mode, mode)
+    |> assign(:encryption_status, status)
+  end
+
+  defp missing_pgp_keys_message([]) do
+    "Encryption is required, but no recipient public keys are available."
+  end
+
+  defp missing_pgp_keys_message(missing_recipients) do
+    displayed =
+      missing_recipients
+      |> Enum.take(3)
+      |> Enum.join(", ")
+
+    suffix =
+      if length(missing_recipients) > 3 do
+        ", and #{length(missing_recipients) - 3} more"
+      else
+        ""
+      end
+
+    "Encryption is required, but no public key was found for #{displayed}#{suffix}."
   end
 
   defp valid_email?(email) when is_binary(email) do

@@ -285,7 +285,12 @@ defmodule Elektrine.ActivityPub.MRF.SimplePolicy do
 
   defp ensure_cache_table_exists do
     if :ets.whereis(@cache_table) == :undefined do
-      :ets.new(@cache_table, [:named_table, :public, :set, {:read_concurrency, true}])
+      try do
+        :ets.new(@cache_table, [:named_table, :public, :set, {:read_concurrency, true}])
+      rescue
+        ArgumentError ->
+          @cache_table
+      end
     end
   end
 

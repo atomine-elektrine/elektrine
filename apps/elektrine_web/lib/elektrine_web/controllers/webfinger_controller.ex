@@ -129,7 +129,7 @@ defmodule ElektrineWeb.WebFingerController do
   end
 
   defp handle_community_lookup(conn, community_name, requested_domain) do
-    case Elektrine.Messaging.get_conversation_by_name(community_name) do
+    case ActivityPub.get_community_by_identifier(community_name) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -174,11 +174,11 @@ defmodule ElektrineWeb.WebFingerController do
 
   defp render_community_webfinger(conn, community, requested_domain) do
     base_url = webfinger_base_url(requested_domain)
-    community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-    actor_url = "#{base_url}/c/#{community_slug}"
-    web_url = "#{base_url}/communities/#{community.name}"
+    community_slug = ActivityPub.community_slug(community.name)
+    actor_url = ActivityPub.community_actor_uri(community.name, base_url)
+    web_url = ActivityPub.community_web_url(community.name, base_url)
     subject_domain = requested_domain || ActivityPub.instance_domain()
-    subject = "acct:!#{community.name}@#{subject_domain}"
+    canonical_subject = "acct:!#{community_slug}@#{subject_domain}"
 
     links = [
       %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: web_url},
@@ -193,9 +193,9 @@ defmodule ElektrineWeb.WebFingerController do
     aliases = [actor_url, web_url]
 
     if wants_xml?(conn) do
-      render_xrd(conn, subject, aliases, links)
+      render_xrd(conn, canonical_subject, aliases, links)
     else
-      render_jrd(conn, subject, aliases, links)
+      render_jrd(conn, canonical_subject, aliases, links)
     end
   end
 

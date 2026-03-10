@@ -100,6 +100,8 @@ defmodule Elektrine.ActivityPub.Handler do
   to fetch actors and objects from remote servers.
   """
   def process_activity_async(activity, actor_uri, target_user) do
+    target_user = target_user || ActivityPub.resolve_target_user(activity)
+
     # Check if user has blocked this actor
     if target_user && ActivityPub.user_blocked?(target_user.id, actor_uri) do
       {:ok, :blocked}

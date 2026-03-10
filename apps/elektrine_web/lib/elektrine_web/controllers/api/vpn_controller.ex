@@ -33,7 +33,9 @@ defmodule ElektrineWeb.API.VPNController do
             location: server.location,
             country_code: server.country_code,
             public_ip: server.public_ip,
+            endpoint_host: endpoint_host(server),
             endpoint_port: server.endpoint_port,
+            client_mtu: server.client_mtu,
             status: server.status,
             current_users: server.current_users,
             max_users: server.max_users,
@@ -202,7 +204,9 @@ defmodule ElektrineWeb.API.VPNController do
         location: config.vpn_server.location,
         country_code: config.vpn_server.country_code,
         public_ip: config.vpn_server.public_ip,
-        endpoint_port: config.vpn_server.endpoint_port
+        endpoint_host: endpoint_host(config.vpn_server),
+        endpoint_port: config.vpn_server.endpoint_port,
+        client_mtu: config.vpn_server.client_mtu
       },
       allocated_ip: config.allocated_ip,
       status: config.status,
@@ -216,5 +220,21 @@ defmodule ElektrineWeb.API.VPNController do
       inserted_at: config.inserted_at,
       updated_at: config.updated_at
     }
+  end
+
+  defp endpoint_host(server) do
+    case Map.get(server, :endpoint_host) do
+      value when is_binary(value) ->
+        trimmed = String.trim(value)
+
+        if trimmed == "" do
+          server.public_ip
+        else
+          trimmed
+        end
+
+      _ ->
+        server.public_ip
+    end
   end
 end

@@ -46,6 +46,7 @@ defmodule Elektrine.MixProject do
       Elektrine.Email.Alias,
       Elektrine.Email.AttachmentStorage,
       Elektrine.Email.Cached,
+      Elektrine.Email.CustomDomains,
       Elektrine.Email.HarakaClient,
       Elektrine.Email.Mailbox,
       Elektrine.Email.MailboxAdapter,

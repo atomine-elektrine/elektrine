@@ -1,0 +1,26 @@
+{
+  "calls": 5000,
+  "applied": 5000,
+  "gaps": 0,
+  "failures": 0,
+  "event_type": "message.create",
+  "failure_reasons": {},
+  "applied_per_s": 348.13,
+  "calls_per_s": 348.13,
+  "duration_s": 14.362,
+  "gap_rate_pct": 0.0,
+  "generated_at": "2026-03-08T04:08:21Z",
+  "origin_domain": "load.remote",
+  "p50_ms": 2.407,
+  "p95_ms": 4.468,
+  "p99_ms": 6.627,
+  "requested_events": 5000,
+  "wire_sizes": {
+    "single_json_bytes": 2125,
+    "single_cbor_bytes": 1919,
+    "batch_json_bytes_per_event": 2134.91,
+    "batch_cbor_bytes_per_event": 1927.06,
+    "batch_cbor_bytes": 61666,
+    "batch_json_bytes": 68317
+  }
+}

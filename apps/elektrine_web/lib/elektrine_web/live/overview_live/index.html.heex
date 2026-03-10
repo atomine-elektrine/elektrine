@@ -223,7 +223,11 @@
                 <% end %>
               </div>
             <% else %>
-              <div class="space-y-2">
+              <div
+                data-role="recent-activity-list"
+                class="space-y-2 max-h-[24rem] overflow-y-auto pr-1 sm:max-h-[28rem] xl:max-h-[calc(100vh-18rem)]"
+                style="scrollbar-gutter: stable"
+              >
                 <%= if Enum.empty?(@dashboard.recent_activity) do %>
                   <div class="rounded-lg border border-dashed border-base-300 p-4 text-sm opacity-70">
                     No recent activity.

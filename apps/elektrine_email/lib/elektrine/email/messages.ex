@@ -6,7 +6,7 @@ defmodule Elektrine.Email.Messages do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Email.{CacheHooks, Mailbox, Message}
+  alias Elektrine.Email.{CacheHooks, Mailbox, MailboxEncryption, Message}
   alias Elektrine.Repo
 
   # Private helper to decrypt email messages
@@ -358,74 +358,67 @@ defmodule Elektrine.Email.Messages do
           |> maybe_build_thread_references(mailbox_id)
           |> maybe_assign_thread(mailbox_id)
 
-        # Encrypt email content before storing
-        encrypted_attrs =
-          if mailbox_user_id do
-            Message.encrypt_content(threaded_attrs, mailbox_user_id)
-          else
-            threaded_attrs
-          end
+        with {:ok, stored_attrs} <-
+               prepare_storage_attrs(threaded_attrs, mailbox, mailbox_user_id),
+             {:ok, message} <-
+               %Message{}
+               |> Message.changeset(stored_attrs)
+               |> Repo.insert() do
+          if mailbox_id do
+            # Broadcast to any LiveViews monitoring this mailbox
+            Phoenix.PubSub.broadcast!(
+              Elektrine.PubSub,
+              "mailbox:#{mailbox_id}",
+              {:new_email, message}
+            )
 
-        result =
-          %Message{}
-          |> Message.changeset(encrypted_attrs)
-          |> Repo.insert()
-
-        case result do
-          {:ok, message} ->
-            if mailbox_id do
-              # Broadcast to any LiveViews monitoring this mailbox
+            # Also broadcast to user topic for notifications
+            if mailbox_user_id do
               Phoenix.PubSub.broadcast!(
                 Elektrine.PubSub,
-                "mailbox:#{mailbox_id}",
+                "user:#{mailbox_user_id}",
                 {:new_email, message}
               )
 
-              # Also broadcast to user topic for notifications
-              if mailbox_user_id do
-                Phoenix.PubSub.broadcast!(
-                  Elektrine.PubSub,
-                  "user:#{mailbox_user_id}",
-                  {:new_email, message}
-                )
+              # Only create notification for received emails (not sent emails)
+              if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" do
+                # Create notification for new email if user has enabled it
+                user = Elektrine.Accounts.get_user!(mailbox_user_id)
 
-                # Only create notification for received emails (not sent emails)
-                if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" do
-                  # Create notification for new email if user has enabled it
-                  user = Elektrine.Accounts.get_user!(mailbox_user_id)
+                if Map.get(user, :notify_on_email_received, true) do
+                  from_email = threaded_attrs[:from] || threaded_attrs["from"] || "Unknown sender"
 
-                  if Map.get(user, :notify_on_email_received, true) do
-                    from_email =
-                      threaded_attrs[:from] || threaded_attrs["from"] || "Unknown sender"
+                  subject =
+                    notification_subject(mailbox, threaded_attrs) || "(Encrypted message)"
 
-                    subject =
-                      threaded_attrs[:subject] || threaded_attrs["subject"] || "(No subject)"
-
-                    Elektrine.Notifications.create_notification(%{
-                      user_id: mailbox_user_id,
-                      type: "email_received",
-                      title: "Email from #{from_email}",
-                      body: subject,
-                      url: "/email/view/#{message.id}",
-                      source_type: "email",
-                      source_id: message.id,
-                      priority: "normal"
-                    })
-                  end
+                  Elektrine.Notifications.create_notification(%{
+                    user_id: mailbox_user_id,
+                    type: "email_received",
+                    title: "Email from #{from_email}",
+                    body: subject,
+                    url: "/email/view/#{message.id}",
+                    source_type: "email",
+                    source_id: message.id,
+                    priority: "normal"
+                  })
                 end
               end
             end
+          end
 
-            # Decrypt message before returning
-            decrypted_message =
-              if mailbox_user_id do
-                Message.decrypt_content(message, mailbox_user_id)
-              else
-                message
-              end
+          # Decrypt message before returning
+          decrypted_message =
+            if mailbox_user_id do
+              Message.decrypt_content(message, mailbox_user_id)
+            else
+              message
+            end
 
-            # Return the result with cache invalidation
-            CacheHooks.with_cache_invalidation({:ok, decrypted_message})
+          # Return the result with cache invalidation
+          CacheHooks.with_cache_invalidation({:ok, decrypted_message})
+        else
+          {:error, reason} ->
+            {:error, reason}
 
           error ->
             error
@@ -487,7 +480,24 @@ defmodule Elektrine.Email.Messages do
 
         draft ->
           if draft.status == "draft" do
-            update_message(draft, attrs)
+            mailbox = Elektrine.Email.Mailboxes.get_mailbox(draft.mailbox_id)
+
+            mailbox_user_id =
+              case mailbox do
+                %Mailbox{user_id: user_id} when is_integer(user_id) -> user_id
+                _ -> nil
+              end
+
+            case prepare_storage_attrs(attrs, mailbox, mailbox_user_id) do
+              {:ok, stored_attrs} ->
+                draft
+                |> Message.changeset(stored_attrs)
+                |> Repo.update()
+                |> CacheHooks.with_cache_invalidation()
+
+              {:error, reason} ->
+                {:error, reason}
+            end
           else
             {:error, :not_a_draft}
           end
@@ -514,6 +524,33 @@ defmodule Elektrine.Email.Messages do
     case get_draft(draft_id, mailbox_id) do
       nil -> {:error, :not_found}
       draft -> Repo.delete(draft)
+    end
+  end
+
+  defp prepare_storage_attrs(attrs, %Mailbox{} = mailbox, mailbox_user_id) do
+    cond do
+      MailboxEncryption.enabled?(mailbox) ->
+        MailboxEncryption.encrypt_message(attrs, mailbox)
+
+      mailbox_user_id ->
+        {:ok, Message.encrypt_content(attrs, mailbox_user_id)}
+
+      true ->
+        {:ok, attrs}
+    end
+  end
+
+  defp prepare_storage_attrs(attrs, _mailbox, mailbox_user_id) when is_integer(mailbox_user_id) do
+    {:ok, Message.encrypt_content(attrs, mailbox_user_id)}
+  end
+
+  defp prepare_storage_attrs(attrs, _mailbox, _mailbox_user_id), do: {:ok, attrs}
+
+  defp notification_subject(%Mailbox{} = mailbox, attrs) do
+    if MailboxEncryption.enabled?(mailbox) do
+      MailboxEncryption.placeholder_subject()
+    else
+      get_attr(attrs, :subject)
     end
   end
 

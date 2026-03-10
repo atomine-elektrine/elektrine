@@ -150,6 +150,24 @@ defmodule Elektrine.ActivityPub.RelayTest do
       assert {:error, :subscription_not_found} =
                Relay.handle_accept("https://example.com/activities/nonexistent")
     end
+
+    test "rejects accept when actor does not match relay subscription" do
+      follow_id = "https://example.com/activities/#{Ecto.UUID.generate()}"
+
+      {:ok, _sub} =
+        %RelaySubscription{}
+        |> RelaySubscription.changeset(%{
+          relay_uri: "https://relay.test.com/actor",
+          relay_inbox: "https://relay.test.com/inbox",
+          follow_activity_id: follow_id,
+          status: "pending",
+          accepted: false
+        })
+        |> Repo.insert()
+
+      assert {:error, :subscription_not_found} =
+               Relay.handle_accept(follow_id, "https://other-relay.test/actor")
+    end
   end
 
   describe "handle_reject/1" do
@@ -170,6 +188,24 @@ defmodule Elektrine.ActivityPub.RelayTest do
       assert {:ok, updated} = Relay.handle_reject(follow_id)
       assert updated.status == "rejected"
       assert updated.accepted == false
+    end
+
+    test "rejects reject when actor does not match relay subscription" do
+      follow_id = "https://example.com/activities/#{Ecto.UUID.generate()}"
+
+      {:ok, _sub} =
+        %RelaySubscription{}
+        |> RelaySubscription.changeset(%{
+          relay_uri: "https://relay.test.com/actor",
+          relay_inbox: "https://relay.test.com/inbox",
+          follow_activity_id: follow_id,
+          status: "pending",
+          accepted: false
+        })
+        |> Repo.insert()
+
+      assert {:error, :subscription_not_found} =
+               Relay.handle_reject(follow_id, "https://other-relay.test/actor")
     end
   end
 

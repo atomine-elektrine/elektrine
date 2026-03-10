@@ -1,0 +1,178 @@
+{
+  "$id": "arblarg://schemas/1.0/invite.upsert",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "required": [
+        "server",
+        "channel"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
+  ],
+  "properties": {
+    "channel": {
+      "type": "object"
+    },
+    "invite": {
+      "properties": {
+        "actor": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "invited_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "role": {
+          "enum": [
+            "owner",
+            "admin",
+            "moderator",
+            "member",
+            "readonly"
+          ],
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "accepted",
+            "declined",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        "target": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor",
+        "target",
+        "role",
+        "state",
+        "invited_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "refs": {
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "channel_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "invite"
+  ],
+  "title": "Arblarg invite.upsert payload",
+  "type": "object"
+}

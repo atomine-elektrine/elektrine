@@ -9,7 +9,29 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
   alias Elektrine.Auth.RateLimiter, as: AuthRateLimiter
   alias Elektrine.Repo
 
+  setup %{conn: conn} do
+    previous_api_key = System.get_env("PHOENIX_API_KEY")
+    api_key = "test-mongooseim-internal-api-key"
+
+    System.put_env("PHOENIX_API_KEY", api_key)
+
+    on_exit(fn ->
+      if is_nil(previous_api_key) do
+        System.delete_env("PHOENIX_API_KEY")
+      else
+        System.put_env("PHOENIX_API_KEY", previous_api_key)
+      end
+    end)
+
+    {:ok, conn: authorize(conn, api_key), api_key: api_key}
+  end
+
   describe "POST /_mongooseim/identity/v1/check_credentials" do
+    test "requires the internal API key" do
+      conn = post(build_conn(), "/_mongooseim/identity/v1/check_credentials", %{})
+      assert conn.status == 401
+    end
+
     test "returns true for valid username/password credentials", %{conn: conn} do
       user = user_fixture()
 
@@ -178,7 +200,7 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
       assert status.locked == true
     end
 
-    test "applies API rate limiting to mongooseim auth endpoint" do
+    test "applies API rate limiting to mongooseim auth endpoint", %{api_key: api_key} do
       ip_tuple = {203, 0, 113, 88}
       limiter_key = "ip:203.0.113.88"
 
@@ -191,6 +213,7 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
       Enum.each(1..60, fn _ ->
         request_conn =
           build_conn()
+          |> authorize(api_key)
           |> Map.put(:remote_ip, ip_tuple)
           |> post("/_mongooseim/identity/v1/check_credentials", %{})
 
@@ -199,6 +222,7 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
 
       limited_conn =
         build_conn()
+        |> authorize(api_key)
         |> Map.put(:remote_ip, ip_tuple)
         |> post("/_mongooseim/identity/v1/check_credentials", %{})
 
@@ -207,7 +231,20 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
   end
 
   describe "MongooseIM native HTTP auth method aliases" do
-    test "GET /check_password returns true for valid credentials", %{conn: conn} do
+    test "POST /check_password returns true for valid credentials", %{conn: conn} do
+      user = user_fixture()
+
+      conn =
+        post(conn, "/_mongooseim/identity/v1/check_password", %{
+          "user" => user.username,
+          "server" => ActivityPub.instance_domain(),
+          "pass" => valid_user_password()
+        })
+
+      assert response(conn, 200) == "true"
+    end
+
+    test "GET /check_password is not exposed", %{conn: conn} do
       user = user_fixture()
 
       conn =
@@ -217,7 +254,7 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
           "pass" => valid_user_password()
         })
 
-      assert response(conn, 200) == "true"
+      assert conn.status == 404
     end
 
     test "GET /user_exists returns true for existing user", %{conn: conn} do
@@ -241,5 +278,9 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
 
       assert response(conn, 200) == "false"
     end
+  end
+
+  defp authorize(conn, api_key) do
+    put_req_header(conn, "x-api-key", api_key)
   end
 end

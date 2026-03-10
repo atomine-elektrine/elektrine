@@ -18,39 +18,82 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
   def apply_runtime_policies(_), do: []
 
   def list_peer_controls(configured_peers) when is_list(configured_peers) do
+    list_peer_controls(configured_peers, [])
+  end
+
+  def list_peer_controls(configured_peers, discovered_controls)
+      when is_list(configured_peers) and is_list(discovered_controls) do
     configured_by_domain = Map.new(configured_peers, &{String.downcase(&1.domain), &1})
+    discovered_by_domain = Map.new(discovered_controls, &{String.downcase(&1.domain), &1})
     policy_overrides = runtime_policy_overrides()
     users_by_id = users_by_id_for_policies(policy_overrides)
 
     configured_by_domain
     |> Map.keys()
+    |> Enum.concat(Map.keys(discovered_by_domain))
     |> Enum.concat(Map.keys(policy_overrides))
     |> Enum.uniq()
     |> Enum.sort()
     |> Enum.map(fn domain ->
       configured_peer = Map.get(configured_by_domain, domain)
+      discovered_peer = Map.get(discovered_by_domain, domain)
       policy = Map.get(policy_overrides, domain)
       effective_peer = apply_runtime_policy(configured_peer, policy)
 
       %{
         domain: domain,
         configured: not is_nil(configured_peer),
-        base_url: if(is_map(configured_peer), do: configured_peer.base_url, else: nil),
-        blocked: if(is_map(policy), do: policy.blocked == true, else: false),
-        reason: if(is_map(policy), do: policy.reason, else: nil),
+        discovered: discovered_peer_value(discovered_peer, :discovered, false),
+        base_url:
+          if(is_map(configured_peer),
+            do: configured_peer.base_url,
+            else: discovered_peer_value(discovered_peer, :base_url)
+          ),
+        discovery_url: discovered_peer_value(discovered_peer, :discovery_url),
+        blocked:
+          if(is_map(policy),
+            do: policy.blocked == true,
+            else: discovered_peer_value(discovered_peer, :blocked, false)
+          ),
+        reason:
+          if(is_map(policy),
+            do: policy.reason,
+            else: discovered_peer_value(discovered_peer, :reason)
+          ),
         allow_incoming_override: if(is_map(policy), do: policy.allow_incoming, else: nil),
         allow_outgoing_override: if(is_map(policy), do: policy.allow_outgoing, else: nil),
         effective_allow_incoming:
-          if(is_map(effective_peer), do: effective_peer.allow_incoming == true, else: false),
+          effective_allow(
+            configured_peer,
+            effective_peer,
+            discovered_peer,
+            :effective_allow_incoming
+          ),
         effective_allow_outgoing:
-          if(is_map(effective_peer), do: effective_peer.allow_outgoing == true, else: false),
-        updated_at: if(is_map(policy), do: policy.updated_at, else: nil),
-        updated_by: if(is_map(policy), do: Map.get(users_by_id, policy.updated_by_id), else: nil)
+          effective_allow(
+            configured_peer,
+            effective_peer,
+            discovered_peer,
+            :effective_allow_outgoing
+          ),
+        updated_at:
+          if(is_map(policy),
+            do: policy.updated_at,
+            else: discovered_peer_value(discovered_peer, :updated_at)
+          ),
+        updated_by: if(is_map(policy), do: Map.get(users_by_id, policy.updated_by_id), else: nil),
+        trust_state: discovered_peer_value(discovered_peer, :trust_state),
+        protocol_version: discovered_peer_value(discovered_peer, :protocol_version),
+        features: discovered_peer_value(discovered_peer, :features, %{}),
+        last_discovered_at: discovered_peer_value(discovered_peer, :last_discovered_at),
+        last_key_change_at: discovered_peer_value(discovered_peer, :last_key_change_at),
+        requires_operator_action:
+          discovered_peer_value(discovered_peer, :requires_operator_action, false)
       }
     end)
   end
 
-  def list_peer_controls(_), do: []
+  def list_peer_controls(_, _), do: []
 
   def upsert_peer_policy(domain, attrs, updated_by_id \\ nil) when is_map(attrs) do
     with {:ok, normalized_domain} <- normalize_peer_domain(domain) do
@@ -151,6 +194,26 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
   end
 
   defp apply_runtime_policy(peer, _policy), do: peer
+
+  defp effective_allow(configured_peer, effective_peer, _discovered_peer, field)
+       when is_map(configured_peer) and is_map(effective_peer) do
+    Map.get(effective_peer, configured_allow_field(field)) == true
+  end
+
+  defp effective_allow(_configured_peer, _effective_peer, discovered_peer, field) do
+    discovered_peer_value(discovered_peer, field, false) == true
+  end
+
+  defp configured_allow_field(:effective_allow_incoming), do: :allow_incoming
+  defp configured_allow_field(:effective_allow_outgoing), do: :allow_outgoing
+
+  defp discovered_peer_value(peer, key, default \\ nil)
+
+  defp discovered_peer_value(peer, key, default) when is_map(peer) and is_atom(key) do
+    Map.get(peer, key, Map.get(peer, Atom.to_string(key), default))
+  end
+
+  defp discovered_peer_value(_peer, _key, default), do: default
 
   defp normalize_peer_policy_attrs(attrs) when is_map(attrs) do
     %{

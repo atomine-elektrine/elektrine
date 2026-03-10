@@ -10,6 +10,7 @@
     <div class="order-2 lg:order-1">
       <.sidebar
         mailbox={@mailbox}
+        mailbox_addresses={@mailbox_addresses}
         storage_info={@storage_info}
         unread_count={@unread_count}
         current_page={@return_to || "inbox"}
@@ -20,8 +21,86 @@
 <!-- Main content -->
     <div class="order-1 lg:order-2 flex-1 min-w-0 overflow-visible">
       <div id="show-email-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
-        <div class="card-body p-3 sm:p-6">
+        <div
+          id="private-mailbox-show-content"
+          class="card-body p-3 sm:p-6"
+          phx-hook="PrivateMailboxMessages"
+          data-private-mailbox-id={@mailbox.id}
+        >
           <!-- Header -->
+          <%= if @mailbox.private_storage_wrapped_private_key do %>
+            <div
+              id="private-mailbox-unlock-show"
+              class="rounded-2xl border border-info/30 bg-info/10 p-4 mb-4"
+              phx-hook="MailboxPrivateStorage"
+              data-private-mailbox-configured="true"
+              data-private-mailbox-enabled={to_string(@mailbox.private_storage_enabled)}
+              data-private-mailbox-id={@mailbox.id}
+              data-private-mailbox-unlock-mode={
+                Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox)
+              }
+              data-private-mailbox-wrapped-key={
+                Jason.encode!(@mailbox.private_storage_wrapped_private_key)
+              }
+              data-private-mailbox-verifier={Jason.encode!(@mailbox.private_storage_verifier)}
+            >
+              <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2 font-semibold">
+                    <.icon name="hero-shield-check" class="w-5 h-5" />
+                    <span>{gettext("Private Mailbox")}</span>
+                  </div>
+                  <p class="text-sm text-base-content/70" data-private-mailbox-locked-content>
+                    {gettext(
+                      "Unlock this mailbox in the current tab to read protected messages and download protected attachments."
+                    )}
+                  </p>
+                  <p class="text-xs text-base-content/60" data-private-mailbox-status>
+                    {gettext("Mailbox locked.")}
+                  </p>
+                </div>
+
+                <div
+                  class="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  data-private-mailbox-locked-content
+                >
+                  <input
+                    type="password"
+                    class="input input-bordered input-sm w-full sm:w-64"
+                    placeholder={
+                      if Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox) ==
+                           "account_password",
+                         do: gettext("Account password"),
+                         else: gettext("Mailbox passphrase")
+                    }
+                    data-private-mailbox-passphrase
+                  />
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      data-private-mailbox-unlock
+                    >
+                      {gettext("Unlock")}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  class="hidden flex items-center justify-between gap-3"
+                  data-private-mailbox-unlocked-content
+                >
+                  <span class="text-sm text-base-content/80" data-private-mailbox-status>
+                    {gettext("Mailbox unlocked in this tab.")}
+                  </span>
+                  <button type="button" class="btn btn-ghost btn-sm" data-private-mailbox-lock>
+                    {gettext("Lock")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
           <div class="mb-4 sm:mb-6 rounded-2xl border border-base-300/60 bg-base-100/60 p-4 sm:p-5">
             <div class="flex items-start gap-3 sm:gap-4">
               <div class="p-2.5 sm:p-3 bg-secondary/10 rounded-xl flex-shrink-0">
@@ -29,10 +108,23 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div class="min-w-0">
+                  <div
+                    class="min-w-0"
+                    data-private-message={to_string(private_message?(@message))}
+                    data-private-message-payload={
+                      if private_message?(@message),
+                        do: Jason.encode!(@message.client_encrypted_payload),
+                        else: ""
+                    }
+                  >
                     <h2 class="text-xl sm:text-2xl lg:text-3xl font-bold break-words mb-2">
                       <%= if @message.subject && String.trim(@message.subject) != "" do %>
-                        {decode_subject(@message.subject)}
+                        <span
+                          data-private-subject
+                          data-private-subject-placeholder={decode_subject(@message.subject)}
+                        >
+                          {decode_subject(@message.subject)}
+                        </span>
                       <% else %>
                         <span class="text-base-content/50 italic">{gettext("(No Subject)")}</span>
                       <% end %>
@@ -217,29 +309,50 @@
 
                   <%= if is_current do %>
                     <div class={row_classes}>
-                      <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
-                        <p class="text-xs text-base-content/60">
-                          {format_email_display(thread_message.from)}
+                      <div
+                        data-private-message={to_string(private_message?(thread_message))}
+                        data-private-message-payload={
+                          if private_message?(thread_message),
+                            do: Jason.encode!(thread_message.client_encrypted_payload),
+                            else: ""
+                        }
+                      >
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
+                          <p class="text-xs text-base-content/60">
+                            {format_email_display(thread_message.from)}
+                          </p>
+                          <.local_time
+                            datetime={thread_message.inserted_at}
+                            format="datetime"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        </div>
+                        <p class="text-sm font-medium">
+                          <%= if thread_message.subject && String.trim(thread_message.subject) != "" do %>
+                            <span
+                              data-private-subject
+                              data-private-subject-placeholder={
+                                decode_subject(thread_message.subject)
+                              }
+                            >
+                              {decode_subject(thread_message.subject)}
+                            </span>
+                          <% else %>
+                            <span class="text-base-content/50 italic">
+                              {gettext("(No Subject)")}
+                            </span>
+                          <% end %>
                         </p>
-                        <.local_time
-                          datetime={thread_message.inserted_at}
-                          format="datetime"
-                          timezone={@timezone}
-                          time_format={@time_format}
-                        />
-                      </div>
-                      <p class="text-sm font-medium">
-                        <%= if thread_message.subject && String.trim(thread_message.subject) != "" do %>
-                          {decode_subject(thread_message.subject)}
-                        <% else %>
-                          <span class="text-base-content/50 italic">
-                            {gettext("(No Subject)")}
+                        <p class="text-xs text-base-content/70 mt-1">
+                          <span
+                            data-private-preview
+                            data-private-preview-placeholder={thread_preview(thread_message)}
+                          >
+                            {thread_preview(thread_message)}
                           </span>
-                        <% end %>
-                      </p>
-                      <p class="text-xs text-base-content/70 mt-1">
-                        {thread_preview(thread_message)}
-                      </p>
+                        </p>
+                      </div>
                     </div>
                   <% else %>
                     <.link
@@ -247,6 +360,12 @@
                         ~p"/email/view/#{thread_identifier}?return_to=#{@return_to}&filter=#{@return_filter}"
                       }
                       class={row_classes}
+                      data-private-message={to_string(private_message?(thread_message))}
+                      data-private-message-payload={
+                        if private_message?(thread_message),
+                          do: Jason.encode!(thread_message.client_encrypted_payload),
+                          else: ""
+                      }
                     >
                       <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
                         <p class="text-xs text-base-content/60">
@@ -261,7 +380,14 @@
                       </div>
                       <p class="text-sm font-medium">
                         <%= if thread_message.subject && String.trim(thread_message.subject) != "" do %>
-                          {decode_subject(thread_message.subject)}
+                          <span
+                            data-private-subject
+                            data-private-subject-placeholder={
+                              decode_subject(thread_message.subject)
+                            }
+                          >
+                            {decode_subject(thread_message.subject)}
+                          </span>
                         <% else %>
                           <span class="text-base-content/50 italic">
                             {gettext("(No Subject)")}
@@ -269,7 +395,12 @@
                         <% end %>
                       </p>
                       <p class="text-xs text-base-content/70 mt-1">
-                        {thread_preview(thread_message)}
+                        <span
+                          data-private-preview
+                          data-private-preview-placeholder={thread_preview(thread_message)}
+                        >
+                          {thread_preview(thread_message)}
+                        </span>
                       </p>
                     </.link>
                   <% end %>
@@ -340,23 +471,64 @@
                         />
                       </div>
                       <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium truncate">{attachment["filename"]}</p>
-                        <p class="text-xs text-base-content/60">
-                          {format_file_size(attachment["size"] || 0)} • {attachment[
-                            "content_type"
-                          ]}
-                        </p>
-                        <a
-                          href={
-                            ~p"/email/message/#{@message.id}/attachment/#{attachment_id}/download"
+                        <div
+                          data-private-attachment={to_string(private_attachment?(attachment))}
+                          data-private-attachment-payload={
+                            if private_attachment?(attachment),
+                              do: Jason.encode!(attachment["private_encrypted_payload"]),
+                              else: ""
                           }
-                          download={attachment["filename"]}
-                          class="text-xs text-secondary hover:text-secondary-focus mt-1 inline-flex items-center font-medium"
                         >
-                          <.icon name="hero-arrow-down-tray" class="h-3 w-3 mr-1" /> {gettext(
-                            "Download"
-                          )}
-                        </a>
+                          <p
+                            class="text-sm font-medium truncate"
+                            data-private-attachment-filename
+                            data-private-attachment-filename-placeholder={attachment["filename"]}
+                          >
+                            {attachment["filename"]}
+                          </p>
+                          <p
+                            class="text-xs text-base-content/60"
+                            data-private-attachment-meta
+                            data-private-attachment-meta-placeholder={
+                              "#{format_file_size(attachment["size"] || 0)} • #{attachment["content_type"]}"
+                            }
+                          >
+                            {format_file_size(attachment["size"] || 0)} • {attachment[
+                              "content_type"
+                            ]}
+                          </p>
+
+                          <%= if private_attachment?(attachment) do %>
+                            <button
+                              type="button"
+                              class="text-xs text-secondary hover:text-secondary-focus mt-1 inline-flex items-center font-medium"
+                              data-private-attachment-download
+                              data-private-attachment-download-filename={attachment["filename"]}
+                            >
+                              <.icon name="hero-arrow-down-tray" class="h-3 w-3 mr-1" />
+                              <span
+                                data-private-attachment-download-label
+                                data-private-attachment-download-label-placeholder={
+                                  gettext("Unlock to download")
+                                }
+                              >
+                                {gettext("Unlock to download")}
+                              </span>
+                            </button>
+                          <% else %>
+                            <a
+                              href={
+                                ~p"/email/message/#{@message.id}/attachment/#{attachment_id}/download"
+                              }
+                              download={attachment["filename"]}
+                              class="text-xs text-secondary hover:text-secondary-focus mt-1 inline-flex items-center font-medium"
+                            >
+                              <.icon name="hero-arrow-down-tray" class="h-3 w-3 mr-1" /> {gettext(
+                                "Download"
+                              )}
+                            </a>
+                          <% end %>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -366,18 +538,50 @@
           <% end %>
           
 <!-- Message content -->
-          <div class="bg-white rounded-2xl p-0 border border-base-300 overflow-hidden shadow-sm">
-            <iframe
-              id={"email-iframe-#{@message.id}"}
-              phx-hook="EmailIframeResize"
-              src={~p"/email/#{@message.id}/iframe_content"}
-              class="email-content-iframe w-full border-0 bg-white"
-              style="height: clamp(420px, 70vh, 680px);"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
-              title="Email content"
+          <%= if private_message?(@message) do %>
+            <div
+              class="bg-white rounded-2xl border border-base-300 overflow-hidden shadow-sm"
+              data-private-message="true"
+              data-private-message-mode="full"
+              data-private-message-payload={Jason.encode!(@message.client_encrypted_payload)}
             >
-            </iframe>
-          </div>
+              <div class="p-5 text-sm text-base-content/60">
+                <div class="font-semibold text-base-content mb-2">
+                  {gettext("Protected mailbox content")}
+                </div>
+                <div class="hidden" data-private-html-body-container>
+                  <iframe
+                    class="w-full border-0 bg-white rounded-xl"
+                    style="height: clamp(420px, 70vh, 680px);"
+                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    title={gettext("Protected email content")}
+                    data-private-html-body-iframe
+                  >
+                  </iframe>
+                </div>
+                <pre
+                  class="whitespace-pre-wrap break-words font-mono text-sm leading-6"
+                  data-private-body
+                  data-private-body-placeholder={
+                    gettext("Unlock your mailbox in this tab to read this message.")
+                  }
+                >{gettext("Unlock your mailbox in this tab to read this message.")}</pre>
+              </div>
+            </div>
+          <% else %>
+            <div class="bg-white rounded-2xl p-0 border border-base-300 overflow-hidden shadow-sm">
+              <iframe
+                id={"email-iframe-#{@message.id}"}
+                phx-hook="EmailIframeResize"
+                src={~p"/email/#{@message.id}/iframe_content"}
+                class="email-content-iframe w-full border-0 bg-white"
+                style="height: clamp(420px, 70vh, 680px);"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                title="Email content"
+              >
+              </iframe>
+            </div>
+          <% end %>
           
 <!-- Footer actions -->
           <div class="pt-4 sm:pt-6 border-t border-base-300 mt-4 sm:mt-6">

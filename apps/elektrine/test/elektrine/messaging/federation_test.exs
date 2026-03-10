@@ -6,15 +6,18 @@ defmodule Elektrine.Messaging.FederationTest do
   alias Elektrine.Messaging
 
   alias Elektrine.Messaging.{
+    ArblargSDK,
     ChatMessage,
     ChatMessageReaction,
     Conversation,
     ConversationMember,
     Federation,
+    FederationDiscoveredPeer,
     FederationExtensionEvent,
+    FederationMembershipState,
     FederationOutboxEvent,
     FederationPresenceState,
-    FederationReadReceipt,
+    FederationReadCursor,
     Server
   }
 
@@ -43,45 +46,129 @@ defmodule Elektrine.Messaging.FederationTest do
       assert Enum.any?(payload["channels"], &(&1["name"] == "ops"))
       assert Enum.any?(payload["messages"], &(&1["content"] == "hello federation"))
     end
+
+    test "includes invite governance projections in snapshot payloads" do
+      owner = AccountsFixtures.user_fixture()
+      invitee = AccountsFixtures.user_fixture()
+      {:ok, server} = Messaging.create_server(owner.id, %{name: "governance-space"})
+
+      {:ok, ops_channel} =
+        Messaging.create_server_channel(server.id, owner.id, %{
+          name: "ops",
+          description: "operations"
+        })
+
+      assert :ok =
+               Federation.publish_invite_state(
+                 ops_channel.id,
+                 invitee.id,
+                 owner.id,
+                 "pending",
+                 "member",
+                 %{"source" => "snapshot-test"}
+               )
+
+      assert {:ok, payload} =
+               Federation.build_server_snapshot(server.id, messages_per_channel: 10)
+
+      invites = get_in(payload, ["governance", "invites"]) || []
+
+      assert Enum.any?(invites, fn invite_payload ->
+               get_in(invite_payload, ["invite", "target", "handle"]) ==
+                 "#{invitee.username}@#{Federation.local_domain()}" and
+                 get_in(invite_payload, ["invite", "state"]) == "pending"
+             end)
+    end
   end
 
   describe "import_server_snapshot/2" do
-    test "imports mirror server, channels, and deduplicates messages by federated_source" do
-      payload = %{
-        "version" => 1,
-        "origin_domain" => "remote.example",
-        "server" => %{
-          "id" => "https://remote.example/federation/messaging/servers/42",
-          "name" => "remote-hub",
-          "description" => "Remote server",
-          "is_public" => true,
-          "member_count" => 12
-        },
-        "channels" => [
-          %{
-            "id" => "https://remote.example/federation/messaging/channels/100",
-            "name" => "general",
-            "description" => "General remote chat",
-            "topic" => "hello",
-            "position" => 0
-          }
-        ],
-        "messages" => [
-          %{
-            "id" => "https://remote.example/federation/messaging/messages/5000",
-            "channel_id" => "https://remote.example/federation/messaging/channels/100",
-            "content" => "remote hello",
-            "message_type" => "text",
-            "media_urls" => [],
-            "media_metadata" => %{},
-            "sender" => %{
-              "handle" => "alice@remote.example",
-              "username" => "alice",
-              "domain" => "remote.example"
+    setup do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [
+            %{
+              domain: "remote.example",
+              base_url: "https://remote.example",
+              shared_secret: "remote-example-secret",
+              active_outbound_key_id: "k1",
+              keys: [
+                %{id: "k1", secret: "remote-example-secret", active_outbound: true}
+              ],
+              allow_incoming: true,
+              allow_outgoing: false
+            },
+            %{
+              domain: "remote-a.example",
+              base_url: "https://remote-a.example",
+              shared_secret: "remote-a-secret",
+              active_outbound_key_id: "k1",
+              keys: [
+                %{id: "k1", secret: "remote-a-secret", active_outbound: true}
+              ],
+              allow_incoming: true,
+              allow_outgoing: false
+            },
+            %{
+              domain: "remote-b.example",
+              base_url: "https://remote-b.example",
+              shared_secret: "remote-b-secret",
+              active_outbound_key_id: "k1",
+              keys: [
+                %{id: "k1", secret: "remote-b-secret", active_outbound: true}
+              ],
+              allow_incoming: true,
+              allow_outgoing: false
             }
-          }
-        ]
-      }
+          ]
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      :ok
+    end
+
+    test "imports mirror server, channels, and deduplicates messages by federated_source" do
+      payload =
+        %{
+          "version" => 1,
+          "origin_domain" => "remote.example",
+          "server" => %{
+            "id" => "https://remote.example/federation/messaging/servers/42",
+            "name" => "remote-hub",
+            "description" => "Remote server",
+            "is_public" => true,
+            "member_count" => 12
+          },
+          "channels" => [
+            %{
+              "id" => "https://remote.example/federation/messaging/channels/100",
+              "name" => "general",
+              "description" => "General remote chat",
+              "topic" => "hello",
+              "position" => 0
+            }
+          ],
+          "messages" => [
+            %{
+              "id" => "https://remote.example/federation/messaging/messages/5000",
+              "channel_id" => "https://remote.example/federation/messaging/channels/100",
+              "content" => "remote hello",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "sender" => canonical_actor("alice", "remote.example")
+            }
+          ]
+        }
+        |> sign_snapshot("k1", "remote-example-secret")
 
       assert {:ok, mirror_server} = Federation.import_server_snapshot(payload, "remote.example")
       assert mirror_server.is_federated_mirror == true
@@ -127,32 +214,81 @@ defmodule Elektrine.Messaging.FederationTest do
       assert stored_server.origin_domain == "remote.example"
     end
 
-    test "rejects conflicting server ownership for identical federation id" do
-      base_payload = %{
-        "version" => 1,
-        "server" => %{
-          "id" => "https://shared.example/federation/messaging/servers/42",
-          "name" => "shared",
-          "description" => "Shared server",
-          "is_public" => true,
-          "member_count" => 12
-        },
-        "channels" => [],
-        "messages" => []
-      }
+    test "rejects conflicting server ownership for an already-mirrored federation id" do
+      payload =
+        %{
+          "version" => 1,
+          "origin_domain" => "remote-a.example",
+          "server" => %{
+            "id" => "https://remote-a.example/federation/messaging/servers/42",
+            "name" => "remote-a",
+            "description" => "Remote A server",
+            "is_public" => true,
+            "member_count" => 12
+          },
+          "channels" => [],
+          "messages" => []
+        }
+        |> sign_snapshot("k1", "remote-a-secret")
 
-      payload_one = Map.put(base_payload, "origin_domain", "remote-a.example")
-      payload_two = Map.put(base_payload, "origin_domain", "remote-b.example")
-
-      assert {:ok, _mirror_server} =
-               Federation.import_server_snapshot(payload_one, "remote-a.example")
+      {:ok, _existing_server} =
+        %Server{}
+        |> Server.changeset(%{
+          name: "conflicting-mirror",
+          federation_id: "https://remote-a.example/federation/messaging/servers/42",
+          origin_domain: "different-origin.example",
+          is_federated_mirror: true
+        })
+        |> Repo.insert()
 
       assert {:error, :federation_origin_conflict} =
-               Federation.import_server_snapshot(payload_two, "remote-b.example")
+               Federation.import_server_snapshot(payload, "remote-a.example")
     end
   end
 
   describe "signatures and ordered events" do
+    setup do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [
+            %{
+              domain: "remote.example",
+              base_url: "https://remote.example",
+              shared_secret: "test-shared-secret",
+              active_outbound_key_id: "k1",
+              keys: [
+                %{id: "k1", secret: "test-shared-secret", active_outbound: true}
+              ],
+              allow_incoming: true,
+              allow_outgoing: false
+            },
+            %{
+              domain: "remote-b.example",
+              base_url: "https://remote-b.example",
+              shared_secret: "test-shared-secret-b",
+              active_outbound_key_id: "k1",
+              keys: [
+                %{id: "k1", secret: "test-shared-secret-b", active_outbound: true}
+              ],
+              allow_incoming: true,
+              allow_outgoing: false
+            }
+          ]
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      :ok
+    end
+
     test "verifies peer signatures by key id" do
       peer = %{
         keys: [
@@ -283,66 +419,142 @@ defmodule Elektrine.Messaging.FederationTest do
       server_id = "https://remote.example/federation/messaging/servers/501"
       stream_id = "server:#{server_id}"
 
-      event1 = %{
-        "version" => 1,
-        "event_id" => "evt-a-#{Ecto.UUID.generate()}",
-        "event_type" => "server.upsert",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 1,
-        "data" => %{
-          "server" => %{
-            "id" => server_id,
-            "name" => "remote-seq-1",
-            "description" => "first",
-            "is_public" => true,
-            "member_count" => 1
-          },
-          "channels" => []
-        }
-      }
+      event1 =
+        signed_event(
+          "server.upsert",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{
+              "id" => server_id,
+              "name" => "remote-seq-1",
+              "description" => "first",
+              "is_public" => true,
+              "member_count" => 1
+            },
+            "channels" => []
+          }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(event1, remote_domain)
       assert {:ok, :duplicate} = Federation.receive_event(event1, remote_domain)
 
       stale_event =
-        event1
-        |> Map.put("event_id", "evt-stale-#{Ecto.UUID.generate()}")
-        |> Map.put("sequence", 1)
+        signed_event(
+          "server.upsert",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{
+              "id" => server_id,
+              "name" => "remote-seq-1",
+              "description" => "first",
+              "is_public" => true,
+              "member_count" => 1
+            },
+            "channels" => []
+          }
+        )
 
       assert {:ok, :stale} = Federation.receive_event(stale_event, remote_domain)
 
       gap_event =
-        event1
-        |> Map.put("event_id", "evt-gap-#{Ecto.UUID.generate()}")
-        |> Map.put("sequence", 3)
+        signed_event(
+          "server.upsert",
+          remote_domain,
+          stream_id,
+          3,
+          %{
+            "server" => %{
+              "id" => server_id,
+              "name" => "remote-seq-3",
+              "description" => "third",
+              "is_public" => true,
+              "member_count" => 3
+            },
+            "channels" => []
+          }
+        )
 
       assert {:error, :sequence_gap} = Federation.receive_event(gap_event, remote_domain)
 
-      event2 = %{
-        "version" => 1,
-        "event_id" => "evt-b-#{Ecto.UUID.generate()}",
-        "event_type" => "server.upsert",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 2,
-        "data" => %{
-          "server" => %{
-            "id" => server_id,
-            "name" => "remote-seq-2",
-            "description" => "second",
-            "is_public" => true,
-            "member_count" => 2
-          },
-          "channels" => []
-        }
-      }
+      event2 =
+        signed_event(
+          "server.upsert",
+          remote_domain,
+          stream_id,
+          2,
+          %{
+            "server" => %{
+              "id" => server_id,
+              "name" => "remote-seq-2",
+              "description" => "second",
+              "is_public" => true,
+              "member_count" => 2
+            },
+            "channels" => []
+          }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(event2, remote_domain)
 
       mirror_server = Repo.get_by(Server, federation_id: server_id)
       assert mirror_server.name == "remote-seq-2"
       assert mirror_server.member_count == 2
+    end
+
+    test "treats matching event ids from different origins as distinct events" do
+      shared_event_id = "evt-cross-origin-shared"
+
+      event_a =
+        signed_event(
+          "server.upsert",
+          "remote.example",
+          "server:https://remote.example/federation/messaging/servers/901",
+          1,
+          %{
+            "server" => %{
+              "id" => "https://remote.example/federation/messaging/servers/901",
+              "name" => "remote-a",
+              "description" => "first origin",
+              "is_public" => true,
+              "member_count" => 1
+            },
+            "channels" => []
+          },
+          event_id: shared_event_id
+        )
+
+      event_b =
+        signed_event(
+          "server.upsert",
+          "remote-b.example",
+          "server:https://remote-b.example/federation/messaging/servers/902",
+          1,
+          %{
+            "server" => %{
+              "id" => "https://remote-b.example/federation/messaging/servers/902",
+              "name" => "remote-b",
+              "description" => "second origin",
+              "is_public" => true,
+              "member_count" => 2
+            },
+            "channels" => []
+          },
+          event_id: shared_event_id,
+          secret: "test-shared-secret-b"
+        )
+
+      assert {:ok, :applied} = Federation.receive_event(event_a, "remote.example")
+      assert {:ok, :applied} = Federation.receive_event(event_b, "remote-b.example")
+
+      assert 2 =
+               Repo.aggregate(
+                 from(e in FederationEvent, where: e.event_id == ^shared_event_id),
+                 :count
+               )
     end
 
     test "applies message update and delete events" do
@@ -352,52 +564,50 @@ defmodule Elektrine.Messaging.FederationTest do
       message_id = "https://remote.example/federation/messaging/messages/702"
       stream_id = "channel:#{channel_id}"
 
-      create_event = %{
-        "version" => 1,
-        "event_id" => "evt-create-#{Ecto.UUID.generate()}",
-        "event_type" => "message.create",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 1,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message" => %{
-            "id" => message_id,
-            "channel_id" => channel_id,
-            "content" => "first",
-            "message_type" => "text",
-            "media_urls" => [],
-            "media_metadata" => %{},
-            "sender" => %{"username" => "alice", "domain" => remote_domain}
+      create_event =
+        signed_event(
+          "message.create",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message" => %{
+              "id" => message_id,
+              "channel_id" => channel_id,
+              "content" => "first",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "sender" => canonical_actor("alice", remote_domain)
+            }
           }
-        }
-      }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(create_event, remote_domain)
 
-      update_event = %{
-        "version" => 1,
-        "event_id" => "evt-update-#{Ecto.UUID.generate()}",
-        "event_type" => "message.update",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 2,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message" => %{
-            "id" => message_id,
-            "channel_id" => channel_id,
-            "content" => "updated",
-            "message_type" => "text",
-            "media_urls" => [],
-            "media_metadata" => %{},
-            "edited_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-            "sender" => %{"username" => "alice", "domain" => remote_domain}
+      update_event =
+        signed_event(
+          "message.update",
+          remote_domain,
+          stream_id,
+          2,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message" => %{
+              "id" => message_id,
+              "channel_id" => channel_id,
+              "content" => "updated",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "edited_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "sender" => canonical_actor("alice", remote_domain)
+            }
           }
-        }
-      }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(update_event, remote_domain)
 
@@ -409,20 +619,19 @@ defmodule Elektrine.Messaging.FederationTest do
       assert mirror_message.content == "updated"
       assert not is_nil(mirror_message.edited_at)
 
-      delete_event = %{
-        "version" => 1,
-        "event_id" => "evt-delete-#{Ecto.UUID.generate()}",
-        "event_type" => "message.delete",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 3,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message_id" => message_id,
-          "deleted_at" => DateTime.utc_now() |> DateTime.to_iso8601()
-        }
-      }
+      delete_event =
+        signed_event(
+          "message.delete",
+          remote_domain,
+          stream_id,
+          3,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message_id" => message_id,
+            "deleted_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(delete_event, remote_domain)
 
@@ -449,47 +658,45 @@ defmodule Elektrine.Messaging.FederationTest do
         })
         |> Repo.insert()
 
-      create_event = %{
-        "version" => 1,
-        "event_id" => "evt-create-rx-#{Ecto.UUID.generate()}",
-        "event_type" => "message.create",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 1,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message" => %{
-            "id" => message_id,
-            "channel_id" => channel_id,
-            "content" => "reaction target",
-            "message_type" => "text",
-            "media_urls" => [],
-            "media_metadata" => %{},
-            "sender" => %{"username" => "bob", "domain" => remote_domain}
+      create_event =
+        signed_event(
+          "message.create",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message" => %{
+              "id" => message_id,
+              "channel_id" => channel_id,
+              "content" => "reaction target",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "sender" => canonical_actor("bob", remote_domain)
+            }
           }
-        }
-      }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(create_event, remote_domain)
 
-      reaction_add_event = %{
-        "version" => 1,
-        "event_id" => "evt-radd-#{Ecto.UUID.generate()}",
-        "event_type" => "reaction.add",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 2,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message_id" => message_id,
-          "reaction" => %{
-            "emoji" => "👍",
-            "actor" => %{"uri" => actor_uri}
+      reaction_add_event =
+        signed_event(
+          "reaction.add",
+          remote_domain,
+          stream_id,
+          2,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message_id" => message_id,
+            "reaction" => %{
+              "emoji" => "👍",
+              "actor" => canonical_actor("alice", remote_domain, uri: actor_uri)
+            }
           }
-        }
-      }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(reaction_add_event, remote_domain)
 
@@ -504,23 +711,22 @@ defmodule Elektrine.Messaging.FederationTest do
                  emoji: "👍"
                )
 
-      reaction_remove_event = %{
-        "version" => 1,
-        "event_id" => "evt-rdel-#{Ecto.UUID.generate()}",
-        "event_type" => "reaction.remove",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 3,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message_id" => message_id,
-          "reaction" => %{
-            "emoji" => "👍",
-            "actor" => %{"uri" => actor_uri}
+      reaction_remove_event =
+        signed_event(
+          "reaction.remove",
+          remote_domain,
+          stream_id,
+          3,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message_id" => message_id,
+            "reaction" => %{
+              "emoji" => "👍",
+              "actor" => canonical_actor("alice", remote_domain, uri: actor_uri)
+            }
           }
-        }
-      }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(reaction_remove_event, remote_domain)
 
@@ -531,7 +737,83 @@ defmodule Elektrine.Messaging.FederationTest do
                )
     end
 
-    test "accepts read receipt events for mirrored messages" do
+    test "rejects remote actor payloads that try to reuse a handle with a new uri" do
+      remote_domain = "remote.example"
+      server_id = "https://remote.example/federation/messaging/servers/810"
+      channel_id = "https://remote.example/federation/messaging/channels/811"
+      message_id = "https://remote.example/federation/messaging/messages/812"
+      stream_id = "channel:#{channel_id}"
+      existing_uri = "https://remote.example/users/alice"
+      conflicting_uri = "https://remote.example/actors/alice-renamed"
+
+      {:ok, existing_actor} =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: existing_uri,
+          username: "alice",
+          domain: remote_domain,
+          inbox_url: "https://remote.example/users/alice/inbox",
+          public_key: "test-public-key"
+        })
+        |> Repo.insert()
+
+      create_event =
+        signed_event(
+          "message.create",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message" => %{
+              "id" => message_id,
+              "channel_id" => channel_id,
+              "content" => "identity conflict",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "sender" => canonical_actor("bob", remote_domain)
+            }
+          }
+        )
+
+      assert {:ok, :applied} = Federation.receive_event(create_event, remote_domain)
+
+      conflict_event =
+        signed_event(
+          "reaction.add",
+          remote_domain,
+          stream_id,
+          2,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message_id" => message_id,
+            "reaction" => %{
+              "emoji" => "🔥",
+              "actor" => canonical_actor("alice", remote_domain, uri: conflicting_uri)
+            }
+          }
+        )
+
+      assert {:error, :invalid_event_payload} =
+               Federation.receive_event(conflict_event, remote_domain)
+
+      assert Repo.get!(Actor, existing_actor.id).uri == existing_uri
+
+      actor_count =
+        from(a in Actor,
+          where: a.username == "alice" and a.domain == ^remote_domain,
+          select: count()
+        )
+        |> Repo.one()
+
+      assert actor_count == 1
+      refute Repo.get_by(Actor, uri: conflicting_uri)
+    end
+
+    test "accepts read cursor events for mirrored messages" do
       remote_domain = "remote.example"
       server_id = "https://remote.example/federation/messaging/servers/900"
       channel_id = "https://remote.example/federation/messaging/channels/901"
@@ -550,56 +832,54 @@ defmodule Elektrine.Messaging.FederationTest do
         })
         |> Repo.insert()
 
-      create_event = %{
-        "version" => 1,
-        "event_id" => "evt-create-read-#{Ecto.UUID.generate()}",
-        "event_type" => "message.create",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 1,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message" => %{
-            "id" => message_id,
-            "channel_id" => channel_id,
-            "content" => "read target",
-            "message_type" => "text",
-            "media_urls" => [],
-            "media_metadata" => %{},
-            "sender" => %{"username" => "bob", "domain" => remote_domain}
+      create_event =
+        signed_event(
+          "message.create",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "message" => %{
+              "id" => message_id,
+              "channel_id" => channel_id,
+              "content" => "read target",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "sender" => canonical_actor("bob", remote_domain)
+            }
           }
-        }
-      }
+        )
 
       assert {:ok, :applied} = Federation.receive_event(create_event, remote_domain)
 
-      read_receipt_event = %{
-        "version" => 1,
-        "event_id" => "evt-read-#{Ecto.UUID.generate()}",
-        "event_type" => "read.receipt",
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 2,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "message_id" => message_id,
-          "actor" => %{"uri" => actor_uri},
-          "read_at" => DateTime.utc_now() |> DateTime.to_iso8601()
-        }
-      }
+      read_cursor_event =
+        signed_event(
+          "read.cursor",
+          remote_domain,
+          stream_id,
+          2,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "read_through_message_id" => message_id,
+            "actor" => canonical_actor("reader", remote_domain, uri: actor_uri),
+            "read_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+          }
+        )
 
-      assert {:ok, :applied} = Federation.receive_event(read_receipt_event, remote_domain)
+      assert {:ok, :applied} = Federation.receive_event(read_cursor_event, remote_domain)
 
       mirror_channel = Repo.get_by(Conversation, type: "channel", federated_source: channel_id)
 
       mirror_message =
         Repo.get_by(ChatMessage, conversation_id: mirror_channel.id, federated_source: message_id)
 
-      assert %FederationReadReceipt{} =
-               Repo.get_by(FederationReadReceipt,
-                 chat_message_id: mirror_message.id,
+      assert %FederationReadCursor{} =
+               Repo.get_by(FederationReadCursor,
+                 conversation_id: mirror_channel.id,
                  remote_actor_id: actor.id
                )
 
@@ -609,6 +889,83 @@ defmodule Elektrine.Messaging.FederationTest do
       assert Enum.any?(readers, fn reader ->
                reader.remote_actor_id == actor.id
              end)
+    end
+
+    test "applies invite and ban governance events into membership state projections" do
+      remote_domain = "remote.example"
+      server_id = "https://remote.example/federation/messaging/servers/910"
+      channel_id = "https://remote.example/federation/messaging/channels/911"
+      stream_id = "channel:#{channel_id}"
+
+      invite_event =
+        signed_event(
+          "invite.upsert",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "invite" => %{
+              "actor" => canonical_actor("mod", remote_domain),
+              "target" => canonical_actor("alice", remote_domain),
+              "role" => "member",
+              "state" => "pending",
+              "invited_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "metadata" => %{"source" => "test"}
+            }
+          }
+        )
+
+      assert {:ok, :applied} = Federation.receive_event(invite_event, remote_domain)
+
+      mirror_channel = Repo.get_by(Conversation, type: "channel", federated_source: channel_id)
+      target_actor = Repo.get_by(Actor, username: "alice", domain: remote_domain)
+
+      assert %FederationMembershipState{} =
+               membership_state =
+               Repo.get_by(FederationMembershipState,
+                 conversation_id: mirror_channel.id,
+                 remote_actor_id: target_actor.id
+               )
+
+      assert membership_state.state == "invited"
+      assert get_in(membership_state.metadata, ["governance_event"]) == "invite.upsert"
+
+      ban_event =
+        signed_event(
+          "ban.upsert",
+          remote_domain,
+          stream_id,
+          2,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "ban" => %{
+              "actor" => canonical_actor("mod", remote_domain),
+              "target" => canonical_actor("alice", remote_domain),
+              "state" => "active",
+              "reason" => "spam",
+              "banned_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "metadata" => %{"source" => "test"}
+            }
+          }
+        )
+
+      assert {:ok, :applied} = Federation.receive_event(ban_event, remote_domain)
+
+      assert %FederationMembershipState{} =
+               membership_state =
+               Repo.get_by(FederationMembershipState,
+                 conversation_id: mirror_channel.id,
+                 remote_actor_id: target_actor.id
+               )
+
+      assert membership_state.state == "banned"
+      assert get_in(membership_state.metadata, ["ban_state"]) == "active"
+      assert get_in(membership_state.metadata, ["reason"]) == "spam"
     end
 
     test "applies extension events and surfaces projections for chat UI" do
@@ -636,145 +993,137 @@ defmodule Elektrine.Messaging.FederationTest do
       moderation_event_type =
         Elektrine.Messaging.ArblargSDK.canonical_event_type("moderation.action.recorded")
 
-      role_upsert_event = %{
-        "version" => 1,
-        "event_id" => "evt-role-upsert-#{Ecto.UUID.generate()}",
-        "event_type" => "role.upsert",
-        "origin_domain" => remote_domain,
-        "stream_id" => channel_stream,
-        "sequence" => 1,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "role" => %{
-            "id" => "role-ops",
-            "name" => "Ops",
-            "position" => 1,
-            "permissions" => ["manage_channels", "manage_messages"]
+      role_upsert_event =
+        signed_event(
+          "role.upsert",
+          remote_domain,
+          channel_stream,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "role" => %{
+              "id" => "role-ops",
+              "name" => "Ops",
+              "position" => 1,
+              "permissions" => ["manage_channels", "manage_messages"]
+            }
           }
-        }
-      }
+        )
 
-      role_assignment_event = %{
-        "version" => 1,
-        "event_id" => "evt-role-assignment-#{Ecto.UUID.generate()}",
-        "event_type" => "role.assignment.upsert",
-        "origin_domain" => remote_domain,
-        "stream_id" => channel_stream,
-        "sequence" => 2,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "assignment" => %{
-            "role_id" => "role-ops",
-            "target" => %{"type" => "member", "id" => "member-42"},
-            "state" => "assigned"
+      role_assignment_event =
+        signed_event(
+          "role.assignment.upsert",
+          remote_domain,
+          channel_stream,
+          2,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "assignment" => %{
+              "role_id" => "role-ops",
+              "target" => %{"type" => "member", "id" => "member-42"},
+              "state" => "assigned"
+            }
           }
-        }
-      }
+        )
 
-      permission_overwrite_event = %{
-        "version" => 1,
-        "event_id" => "evt-perm-overwrite-#{Ecto.UUID.generate()}",
-        "event_type" => "permission.overwrite.upsert",
-        "origin_domain" => remote_domain,
-        "stream_id" => channel_stream,
-        "sequence" => 3,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "overwrite" => %{
-            "id" => "overwrite-1",
-            "target" => %{"type" => "role", "id" => "role-ops"},
-            "allow" => ["send_messages"],
-            "deny" => ["attach_files"]
+      permission_overwrite_event =
+        signed_event(
+          "permission.overwrite.upsert",
+          remote_domain,
+          channel_stream,
+          3,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "overwrite" => %{
+              "id" => "overwrite-1",
+              "target" => %{"type" => "role", "id" => "role-ops"},
+              "allow" => ["send_messages"],
+              "deny" => ["attach_files"]
+            }
           }
-        }
-      }
+        )
 
-      thread_upsert_event = %{
-        "version" => 1,
-        "event_id" => "evt-thread-upsert-#{Ecto.UUID.generate()}",
-        "event_type" => "thread.upsert",
-        "origin_domain" => remote_domain,
-        "stream_id" => channel_stream,
-        "sequence" => 4,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "thread" => %{
-            "id" => "thread-9000",
-            "channel_id" => channel_id,
-            "name" => "Incident 9000",
-            "state" => "active",
-            "owner" => %{"id" => "owner-1", "type" => "member"},
-            "message_count" => 12,
-            "member_count" => 4
+      thread_upsert_event =
+        signed_event(
+          "thread.upsert",
+          remote_domain,
+          channel_stream,
+          4,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "thread" => %{
+              "id" => "thread-9000",
+              "channel_id" => channel_id,
+              "name" => "Incident 9000",
+              "state" => "active",
+              "owner" => canonical_actor("modbot", remote_domain, uri: actor_uri),
+              "message_count" => 12,
+              "member_count" => 4
+            }
           }
-        }
-      }
+        )
 
-      thread_archive_event = %{
-        "version" => 1,
-        "event_id" => "evt-thread-archive-#{Ecto.UUID.generate()}",
-        "event_type" => "thread.archive",
-        "origin_domain" => remote_domain,
-        "stream_id" => channel_stream,
-        "sequence" => 5,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "thread_id" => "thread-9000",
-          "archived_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-          "actor" => %{"uri" => actor_uri},
-          "reason" => "resolved"
-        }
-      }
-
-      moderation_action_event = %{
-        "version" => 1,
-        "event_id" => "evt-moderation-#{Ecto.UUID.generate()}",
-        "event_type" => "moderation.action.recorded",
-        "origin_domain" => remote_domain,
-        "stream_id" => channel_stream,
-        "sequence" => 6,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
-          "action" => %{
-            "id" => "mod-action-1",
-            "kind" => "timeout",
-            "target" => %{"type" => "member", "id" => "member-42"},
-            "actor" => %{"uri" => actor_uri},
-            "occurred_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-            "duration_seconds" => 600,
-            "reason" => "spam"
+      thread_archive_event =
+        signed_event(
+          "thread.archive",
+          remote_domain,
+          channel_stream,
+          5,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "thread_id" => "thread-9000",
+            "archived_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "actor" => canonical_actor("modbot", remote_domain, uri: actor_uri),
+            "reason" => "resolved"
           }
-        }
-      }
+        )
 
-      presence_update_event = %{
-        "version" => 1,
-        "event_id" => "evt-presence-#{Ecto.UUID.generate()}",
-        "event_type" => "presence.update",
-        "origin_domain" => remote_domain,
-        "stream_id" => server_stream,
-        "sequence" => 1,
-        "data" => %{
-          "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
-          "presence" => %{
-            "actor" => %{
-              "uri" => actor_uri,
-              "username" => "modbot",
-              "domain" => remote_domain,
-              "display_name" => "Mod Bot"
-            },
-            "status" => "online",
-            "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-            "activities" => [%{"name" => "Moderating"}]
+      moderation_action_event =
+        signed_event(
+          "moderation.action.recorded",
+          remote_domain,
+          channel_stream,
+          6,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "action" => %{
+              "id" => "mod-action-1",
+              "kind" => "timeout",
+              "target" => %{"type" => "member", "id" => "member-42"},
+              "actor" => canonical_actor("modbot", remote_domain, uri: actor_uri),
+              "occurred_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "duration_seconds" => 600,
+              "reason" => "spam"
+            }
           }
-        }
-      }
+        )
+
+      presence_update_event =
+        signed_event(
+          "presence.update",
+          remote_domain,
+          server_stream,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "presence" => %{
+              "actor" =>
+                canonical_actor("modbot", remote_domain,
+                  uri: actor_uri,
+                  display_name: "Mod Bot"
+                ),
+              "status" => "online",
+              "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "activities" => [%{"name" => "Moderating"}]
+            }
+          }
+        )
 
       Phoenix.PubSub.subscribe(Elektrine.PubSub, PubSubTopics.users_presence())
 
@@ -845,7 +1194,7 @@ defmodule Elektrine.Messaging.FederationTest do
           where:
             m.conversation_id == ^mirror_channel.id and
               m.message_type == "system" and
-              like(m.federated_source, "arbp:ext:%")
+              like(m.federated_source, "arblarg:ext:%")
         )
         |> Repo.all()
 
@@ -865,7 +1214,7 @@ defmodule Elektrine.Messaging.FederationTest do
     end
   end
 
-  describe "cross-instance DMs (ARBP)" do
+  describe "cross-instance DMs (Arblarg)" do
     setup do
       previous = Application.get_env(:elektrine, :messaging_federation, [])
 
@@ -928,51 +1277,48 @@ defmodule Elektrine.Messaging.FederationTest do
       message_federation_id =
         "https://remote.example/federation/messaging/messages/#{Ecto.UUID.generate()}"
 
-      event = %{
-        "version" => 1,
-        "event_id" => "evt-dm-#{Ecto.UUID.generate()}",
-        "event_type" => Elektrine.Messaging.ArblargSDK.dm_message_create_event_type(),
-        "origin_domain" => remote_domain,
-        "stream_id" => stream_id,
-        "sequence" => 1,
-        "data" => %{
-          "dm" => %{
-            "id" => "https://remote.example/federation/messaging/dms/alice-#{recipient.id}",
-            "sender" => %{
-              "username" => "alice",
-              "display_name" => "Alice Remote",
-              "domain" => remote_domain,
-              "handle" => "alice@remote.example"
+      event =
+        signed_event(
+          Elektrine.Messaging.ArblargSDK.dm_message_create_event_type(),
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "dm" => %{
+              "id" => "https://remote.example/federation/messaging/dms/alice-#{recipient.id}",
+              "sender" =>
+                canonical_actor("alice", remote_domain,
+                  display_name: "Alice Remote",
+                  uri: "https://remote.example/users/alice"
+                ),
+              "recipient" =>
+                canonical_actor(recipient.username, local_domain,
+                  uri: "https://#{local_domain}/users/#{recipient.username}"
+                )
             },
-            "recipient" => %{
-              "username" => recipient.username,
-              "domain" => local_domain,
-              "handle" => "#{recipient.username}@#{local_domain}"
+            "message" => %{
+              "id" => message_federation_id,
+              "dm_id" => "https://remote.example/federation/messaging/dms/alice-#{recipient.id}",
+              "content" => "hi from remote",
+              "message_type" => "text",
+              "media_urls" => [],
+              "media_metadata" => %{},
+              "sender" =>
+                canonical_actor("alice", remote_domain,
+                  display_name: "Alice Remote",
+                  uri: "https://remote.example/users/alice"
+                )
             }
           },
-          "message" => %{
-            "id" => message_federation_id,
-            "dm_id" => "https://remote.example/federation/messaging/dms/alice-#{recipient.id}",
-            "content" => "hi from remote",
-            "message_type" => "text",
-            "media_urls" => [],
-            "media_metadata" => %{},
-            "sender" => %{
-              "username" => "alice",
-              "display_name" => "Alice Remote",
-              "domain" => remote_domain,
-              "handle" => "alice@remote.example"
-            }
-          }
-        }
-      }
+          secret: "dm-secret"
+        )
 
       assert {:ok, :applied} = Federation.receive_event(event, remote_domain)
 
       assert remote_dm_conversation =
                Repo.get_by(Conversation,
                  type: "dm",
-                 federated_source: "arbp:dm:alice@remote.example"
+                 federated_source: "arblarg:dm:alice@remote.example"
                )
 
       assert Repo.get_by(ConversationMember,
@@ -1062,6 +1408,304 @@ defmodule Elektrine.Messaging.FederationTest do
     end
   end
 
+  describe "dynamic peer discovery" do
+    test "discovers and caches unknown peers from discovery metadata" do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          dns_identity_fetcher: fn
+            "_arblarg.open.example", "open.example" ->
+              [
+                authenticated_dns_identity_proof(
+                  dynamic_discovery_document("open.example", "open-example-secret")
+                )
+              ]
+
+            _name, _domain ->
+              []
+          end,
+          discovery_fetcher: fn
+            "open.example", _urls ->
+              {:ok, dynamic_discovery_document("open.example", "open-example-secret")}
+
+            _domain, _urls ->
+              {:error, :not_found}
+          end
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      assert {:ok, peer} = Federation.discover_peer("open.example")
+      assert peer.domain == "open.example"
+      assert peer.allow_incoming == true
+      assert peer.allow_outgoing == true
+
+      assert %FederationDiscoveredPeer{} =
+               Repo.get_by(FederationDiscoveredPeer, domain: "open.example")
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          discovery_fetcher: fn _domain, _urls -> {:error, :should_not_refetch} end
+        )
+      )
+
+      assert %{} = Federation.outgoing_peer("open.example")
+      assert %{} = Federation.incoming_peer("open.example")
+    end
+
+    test "rejects discovery documents without a claimed domain" do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      discovery_document =
+        dynamic_discovery_document("open.example", "open-example-secret", claimed_domain: nil)
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          dns_identity_fetcher: fn
+            "_arblarg.open.example", "open.example" ->
+              [authenticated_dns_identity_proof(discovery_document)]
+
+            _name, _domain ->
+              []
+          end,
+          discovery_fetcher: fn
+            "open.example", _urls ->
+              {:ok, discovery_document}
+
+            _domain, _urls ->
+              {:error, :not_found}
+          end
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      assert {:error, :invalid_discovery_domain} = Federation.discover_peer("open.example")
+    end
+
+    test "rejects discovery documents with unsupported default protocol versions" do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      discovery_document =
+        dynamic_discovery_document("open.example", "open-example-secret",
+          default_protocol_version: "9.9"
+        )
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          dns_identity_fetcher: fn
+            "_arblarg.open.example", "open.example" ->
+              [authenticated_dns_identity_proof(discovery_document)]
+
+            _name, _domain ->
+              []
+          end,
+          discovery_fetcher: fn
+            "open.example", _urls ->
+              {:ok, discovery_document}
+
+            _domain, _urls ->
+              {:error, :not_found}
+          end
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      assert {:error, :unsupported_version} = Federation.discover_peer("open.example")
+    end
+
+    test "rejects plaintext websocket session endpoints in normal operation" do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      discovery_document =
+        dynamic_discovery_document("open.example", "open-example-secret",
+          session_websocket: "ws://open.example/federation/messaging/session"
+        )
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          dns_identity_fetcher: fn
+            "_arblarg.open.example", "open.example" ->
+              [authenticated_dns_identity_proof(discovery_document)]
+
+            _name, _domain ->
+              []
+          end,
+          discovery_fetcher: fn
+            "open.example", _urls ->
+              {:ok, discovery_document}
+
+            _domain, _urls ->
+              {:error, :not_found}
+          end
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      assert {:error, :invalid_discovery_endpoints} = Federation.discover_peer("open.example")
+    end
+
+    test "peer controls surface discovered peer metadata" do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          dns_identity_fetcher: fn
+            "_arblarg.open.example", "open.example" ->
+              [
+                authenticated_dns_identity_proof(
+                  dynamic_discovery_document("open.example", "open-example-secret")
+                )
+              ]
+
+            _name, _domain ->
+              []
+          end,
+          discovery_fetcher: fn
+            "open.example", _urls ->
+              {:ok, dynamic_discovery_document("open.example", "open-example-secret")}
+
+            _domain, _urls ->
+              {:error, :not_found}
+          end
+        )
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      assert {:ok, _peer} = Federation.discover_peer("open.example")
+
+      assert control =
+               Enum.find(Federation.list_peer_controls(), fn control ->
+                 control.domain == "open.example"
+               end)
+
+      assert control.discovered == true
+      assert control.configured == false
+      assert control.trust_state == "trusted"
+      assert control.protocol_version == "1.0"
+      assert control.effective_allow_incoming == true
+      assert control.effective_allow_outgoing == true
+      assert is_map(control.features)
+      assert control.last_discovered_at
+    end
+
+    test "replaced discovery identities are quarantined until operator override" do
+      previous = Application.get_env(:elektrine, :messaging_federation, [])
+
+      discovery_versions = :ets.new(:arblarg_discovery_versions, [:set, :public])
+      :ets.insert(discovery_versions, {:secret, "first-secret"})
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        Keyword.merge(previous,
+          enabled: true,
+          peers: [],
+          dns_identity_fetcher: fn
+            "_arblarg.swap.example", "swap.example" ->
+              [{:secret, secret}] = :ets.lookup(discovery_versions, :secret)
+
+              [
+                authenticated_dns_identity_proof(
+                  dynamic_discovery_document("swap.example", secret)
+                )
+              ]
+
+            _name, _domain ->
+              []
+          end,
+          discovery_fetcher: fn
+            "swap.example", _urls ->
+              [{:secret, secret}] = :ets.lookup(discovery_versions, :secret)
+              {:ok, dynamic_discovery_document("swap.example", secret)}
+
+            _domain, _urls ->
+              {:error, :not_found}
+          end
+        )
+      )
+
+      on_exit(fn ->
+        if :ets.info(discovery_versions) != :undefined do
+          :ets.delete(discovery_versions)
+        end
+
+        Application.put_env(:elektrine, :messaging_federation, previous)
+      end)
+
+      assert {:ok, peer} = Federation.discover_peer("swap.example")
+      assert peer.trust_state == "trusted"
+      assert %{} = Federation.outgoing_peer("swap.example")
+
+      :ets.insert(discovery_versions, {:secret, "second-secret"})
+
+      assert {:ok, peer} = Federation.refresh_peer_discovery("swap.example")
+      assert peer.trust_state == "replaced"
+      assert peer.allow_incoming == false
+      assert peer.allow_outgoing == false
+      assert is_nil(Federation.incoming_peer("swap.example"))
+      assert is_nil(Federation.outgoing_peer("swap.example"))
+
+      assert control =
+               Enum.find(Federation.list_peer_controls(), fn control ->
+                 control.domain == "swap.example"
+               end)
+
+      assert control.requires_operator_action == true
+      assert control.blocked == true
+      assert control.trust_state == "replaced"
+
+      assert {:ok, _policy} =
+               Federation.upsert_peer_policy("swap.example", %{
+                 blocked: false,
+                 allow_incoming: true,
+                 allow_outgoing: true
+               })
+
+      assert %{} = Federation.incoming_peer("swap.example")
+      assert %{} = Federation.outgoing_peer("swap.example")
+    end
+  end
+
   describe "relay transport metadata" do
     test "includes relay metadata in discovery document" do
       previous = Application.get_env(:elektrine, :messaging_federation)
@@ -1134,4 +1778,159 @@ defmodule Elektrine.Messaging.FederationTest do
                "https://relay.example.net/fwd/snapshots/{server_id}"
     end
   end
+
+  defp dynamic_discovery_document(domain, secret, opts \\ []) do
+    {public_key, _private_key} = ArblargSDK.derive_keypair_from_secret(secret)
+    base_url = "https://#{domain}"
+    claimed_domain = Keyword.get(opts, :claimed_domain, domain)
+
+    default_protocol_version =
+      Keyword.get(opts, :default_protocol_version, ArblargSDK.protocol_version())
+
+    session_websocket =
+      Keyword.get(opts, :session_websocket, "wss://#{domain}/federation/messaging/session")
+
+    unsigned =
+      %{
+        "protocol" => ArblargSDK.protocol_name(),
+        "protocol_id" => ArblargSDK.protocol_id(),
+        "protocol_labels" => [ArblargSDK.protocol_label()],
+        "default_protocol_label" => ArblargSDK.protocol_label(),
+        "default_protocol_version" => default_protocol_version,
+        "version" => 1,
+        "identity" => %{
+          "algorithm" => "ed25519",
+          "current_key_id" => "k1",
+          "keys" => [
+            %{
+              "id" => "k1",
+              "algorithm" => "ed25519",
+              "public_key" => Base.url_encode64(public_key, padding: false)
+            }
+          ]
+        },
+        "endpoints" => %{
+          "well_known" => "#{base_url}/.well-known/arblarg",
+          "events" => "#{base_url}/federation/messaging/events",
+          "events_batch" => "#{base_url}/federation/messaging/events/batch",
+          "ephemeral" => "#{base_url}/federation/messaging/ephemeral",
+          "sync" => "#{base_url}/federation/messaging/sync",
+          "stream_events" => "#{base_url}/federation/messaging/streams/events",
+          "session_websocket" => session_websocket,
+          "snapshot_template" => "#{base_url}/federation/messaging/servers/{server_id}/snapshot",
+          "public_servers" => "#{base_url}/federation/messaging/servers/public",
+          "profiles" => "#{base_url}/federation/messaging/arblarg/profiles",
+          "schema_template" => "#{base_url}/federation/messaging/arblarg/{version}/schemas/{name}"
+        }
+      }
+      |> maybe_put_field("domain", claimed_domain)
+
+    Map.put(unsigned, "signature", %{
+      "algorithm" => "ed25519",
+      "key_id" => "k1",
+      "value" =>
+        unsigned
+        |> ArblargSDK.canonical_json_payload()
+        |> ArblargSDK.sign_payload(secret)
+    })
+  end
+
+  defp maybe_put_field(map, _key, nil), do: map
+
+  defp maybe_put_field(map, key, value) when is_map(map) and is_binary(key) do
+    Map.put(map, key, value)
+  end
+
+  defp discovery_fingerprint(%{
+         "identity" => %{"current_key_id" => current_key_id, "keys" => keys}
+       })
+       when is_list(keys) do
+    normalized =
+      keys
+      |> Enum.map(fn key ->
+        %{
+          "id" => key["id"],
+          "public_key" => key["public_key"]
+        }
+      end)
+      |> Enum.sort_by(&{&1["id"] || "", &1["public_key"] || ""})
+
+    :crypto.hash(
+      :sha256,
+      Jason.encode!(%{"current_key_id" => current_key_id, "keys" => normalized})
+    )
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp authenticated_dns_identity_proof(discovery_document) do
+    %{
+      text: "fingerprint=#{discovery_fingerprint(discovery_document)}",
+      authenticated: true
+    }
+  end
+
+  defp signed_event(event_type, remote_domain, stream_id, sequence, payload, opts \\ []) do
+    key_id = Keyword.get(opts, :key_id, "k1")
+    secret = Keyword.get(opts, :secret, "test-shared-secret")
+
+    unsigned = %{
+      "protocol" => ArblargSDK.protocol_name(),
+      "protocol_id" => ArblargSDK.protocol_id(),
+      "protocol_label" => ArblargSDK.protocol_label(),
+      "protocol_version" => ArblargSDK.protocol_version(),
+      "event_id" => Keyword.get(opts, :event_id, "evt-#{Ecto.UUID.generate()}"),
+      "event_type" => event_type,
+      "origin_domain" => remote_domain,
+      "stream_id" => stream_id,
+      "sequence" => sequence,
+      "sent_at" => Keyword.get(opts, :sent_at, DateTime.utc_now() |> DateTime.to_iso8601()),
+      "idempotency_key" => Keyword.get(opts, :idempotency_key, "idem-#{Ecto.UUID.generate()}"),
+      "payload" => payload
+    }
+
+    ArblargSDK.sign_event_envelope(unsigned, key_id, secret)
+  end
+
+  defp canonical_actor(username, domain, opts \\ []) do
+    uri =
+      Keyword.get(opts, :uri) ||
+        "https://#{domain}/users/#{username}"
+
+    {public_key, _private_key} = ArblargSDK.derive_keypair_from_secret("actor:#{uri}")
+
+    %{
+      "id" => uri,
+      "uri" => uri,
+      "username" => username,
+      "display_name" => Keyword.get(opts, :display_name, username),
+      "domain" => domain,
+      "handle" => "#{username}@#{domain}",
+      "key_id" => "#{uri}#arblarg-key",
+      "public_key" => Base.url_encode64(public_key, padding: false)
+    }
+  end
+
+  defp sign_snapshot(payload, key_id, secret)
+       when is_map(payload) and is_binary(key_id) and is_binary(secret) do
+    payload =
+      payload
+      |> Map.put_new("governance", %{"memberships" => [], "invites" => [], "bans" => []})
+      |> Map.put_new("stream_positions", default_snapshot_stream_positions(payload))
+
+    Map.put(payload, "signature", %{
+      "algorithm" => "ed25519",
+      "key_id" => key_id,
+      "value" =>
+        payload
+        |> ArblargSDK.canonical_json_payload()
+        |> ArblargSDK.sign_payload(secret)
+    })
+  end
+
+  defp default_snapshot_stream_positions(%{"server" => %{"id" => server_id}})
+       when is_binary(server_id) do
+    [%{"stream_id" => "server:#{server_id}", "last_sequence" => 0}]
+  end
+
+  defp default_snapshot_stream_positions(_payload), do: []
 end

@@ -1,5 +1,5 @@
 <!-- Presence hooks for auto-away and device detection -->
-<%= if @current_user do %>
+<%= if @current_user && Map.has_key?(assigns, :socket) do %>
   <div id="activity-tracker" phx-hook="ActivityTracker" class="hidden"></div>
   <div id="device-detector" phx-hook="DeviceDetector" class="hidden"></div>
 <% end %>

@@ -213,8 +213,7 @@ defmodule ElektrineWeb.ListLive.Index do
     normalized_query = String.downcase(String.trim(query || ""))
 
     lists
-    |> Enum.filter(&visibility_matches?(&1, visibility))
-    |> Enum.filter(&query_matches?(&1, normalized_query))
+    |> Enum.filter(&(visibility_matches?(&1, visibility) and query_matches?(&1, normalized_query)))
   end
 
   defp visibility_matches?(_list, "all"), do: true

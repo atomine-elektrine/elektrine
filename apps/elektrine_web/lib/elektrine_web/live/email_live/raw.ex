@@ -45,6 +45,7 @@ defmodule ElektrineWeb.EmailLive.Raw do
           {:ok,
            socket
            |> assign(:mailbox, mailbox)
+           |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
            |> assign(:unread_count, unread_count)
            |> assign(:storage_info, storage_info)
            |> push_navigate(to: ~p"/email/#{verified_message.hash}/raw")}
@@ -53,6 +54,7 @@ defmodule ElektrineWeb.EmailLive.Raw do
            socket
            |> assign(:page_title, "Raw Email - #{verified_message.subject}")
            |> assign(:mailbox, mailbox)
+           |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
            |> assign(:message, verified_message)
            |> assign(:unread_count, unread_count)
            |> assign(:storage_info, storage_info)}
@@ -62,6 +64,7 @@ defmodule ElektrineWeb.EmailLive.Raw do
         {:ok,
          socket
          |> assign(:mailbox, mailbox)
+         |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
          |> assign(:unread_count, unread_count)
          |> assign(:storage_info, storage_info)
          |> notify_error("Message not found")

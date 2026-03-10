@@ -207,7 +207,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
               # Recursively fetch nested replies if they exist
               if object["replies"] do
-                Task.start(fn ->
+                Elektrine.Async.start(fn ->
                   fetch_and_store_replies(object, max_replies: 10, max_depth: 2)
                 end)
               end

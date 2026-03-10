@@ -84,8 +84,9 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
         </div>
         
     <!-- Original Post Title (if exists) -->
-        <%= if @shared_message.title do %>
-          <h4 class="font-semibold text-base mb-2 post-content">{@shared_message.title}</h4>
+        <% embedded_title = plain_text_content(@shared_message.title) %>
+        <%= if embedded_title != "" do %>
+          <h4 class="font-semibold text-base mb-2 post-content">{embedded_title}</h4>
         <% end %>
         
     <!-- Content Warning Indicator for embedded posts -->
@@ -100,7 +101,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
         <% else %>
           <!-- Original Post Content -->
           <div class="text-sm opacity-90 break-words line-clamp-4 post-content">
-            {raw(preserve_line_breaks(make_content_safe_with_links(@shared_message.content)))}
+            {raw(render_post_content(@shared_message))}
           </div>
         <% end %>
         

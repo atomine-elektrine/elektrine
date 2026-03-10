@@ -6,6 +6,7 @@ defmodule Elektrine.Notifications do
   require Logger
 
   import Ecto.Query, warn: false
+  alias Elektrine.Messaging.Message
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
 
@@ -237,8 +238,34 @@ defmodule Elektrine.Notifications do
         _ -> query
       end
 
-    Repo.all(query)
+    query
+    |> Repo.all()
+    |> resolve_legacy_message_notification_urls()
   end
+
+  @doc """
+  Resolves the canonical navigation URL for a message-backed notification.
+  """
+  def resolve_message_notification_url(message_id, notification_type \\ nil)
+
+  def resolve_message_notification_url(message_id, notification_type)
+      when is_integer(message_id) do
+    {messages_by_id, parents_by_id} = load_messages_with_parents([message_id])
+
+    case Map.get(messages_by_id, message_id) do
+      %Message{} = message ->
+        build_message_notification_url(
+          message,
+          Map.get(parents_by_id, message.reply_to_id),
+          notification_type
+        )
+
+      nil ->
+        nil
+    end
+  end
+
+  def resolve_message_notification_url(_, _), do: nil
 
   @doc """
   Gets unread notification count for a user.
@@ -507,7 +534,7 @@ defmodule Elektrine.Notifications do
     # Check if user wants to be notified about direct messages
     user = Elektrine.Accounts.get_user!(recipient_id)
 
-    if Map.get(user, :notify_on_direct_message, true) do
+    if notification_preference_enabled?(user, :notify_on_direct_message) do
       create_notification(%{
         type: "new_message",
         title: "New message from @#{sender.handle || sender.username}",
@@ -528,7 +555,7 @@ defmodule Elektrine.Notifications do
     # Check if user wants to be notified about mentions
     user = Elektrine.Accounts.get_user!(mentioned_user_id)
 
-    if Map.get(user, :notify_on_mention, true) do
+    if notification_preference_enabled?(user, :notify_on_mention) do
       create_notification(%{
         type: "mention",
         title: "@#{actor.handle || actor.username} mentioned you",
@@ -550,7 +577,7 @@ defmodule Elektrine.Notifications do
     # Check if user wants to be notified about new followers
     user = Elektrine.Accounts.get_user!(followed_user_id)
 
-    if Map.get(user, :notify_on_new_follower, true) do
+    if notification_preference_enabled?(user, :notify_on_new_follower) do
       create_notification(%{
         type: "follow",
         title: "@#{follower.handle || follower.username} started following you",
@@ -626,6 +653,124 @@ defmodule Elektrine.Notifications do
   defp build_content_url("post", post_id), do: "/timeline/post/#{post_id}"
   defp build_content_url("discussion", discussion_id), do: "/discussions/post/#{discussion_id}"
   defp build_content_url(_, _), do: "/"
+
+  defp resolve_legacy_message_notification_urls(notifications) when is_list(notifications) do
+    source_ids =
+      notifications
+      |> Enum.filter(&legacy_message_notification_url?/1)
+      |> Enum.map(& &1.source_id)
+      |> Enum.uniq()
+
+    if source_ids == [] do
+      notifications
+    else
+      {messages_by_id, parents_by_id} = load_messages_with_parents(source_ids)
+
+      Enum.map(notifications, fn notification ->
+        if legacy_message_notification_url?(notification) do
+          case Map.get(messages_by_id, notification.source_id) do
+            %Message{} = message ->
+              resolved_url =
+                build_message_notification_url(
+                  message,
+                  Map.get(parents_by_id, message.reply_to_id),
+                  notification.type
+                )
+
+              if is_binary(resolved_url) and resolved_url != "" do
+                %{notification | url: resolved_url}
+              else
+                notification
+              end
+
+            nil ->
+              notification
+          end
+        else
+          notification
+        end
+      end)
+    end
+  end
+
+  defp legacy_message_notification_url?(%Notification{
+         source_type: "message",
+         source_id: source_id,
+         url: url
+       })
+       when is_integer(source_id) do
+    is_nil(url) or url == "" or String.starts_with?(url, "/timeline/post/")
+  end
+
+  defp legacy_message_notification_url?(_), do: false
+
+  defp load_messages_with_parents(message_ids) when is_list(message_ids) do
+    messages =
+      from(m in Message, where: m.id in ^message_ids, preload: [:conversation])
+      |> Repo.all()
+
+    parent_ids =
+      messages
+      |> Enum.map(& &1.reply_to_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    parents =
+      if parent_ids == [] do
+        []
+      else
+        from(m in Message, where: m.id in ^parent_ids, preload: [:conversation])
+        |> Repo.all()
+      end
+
+    {Map.new(messages, &{&1.id, &1}), Map.new(parents, &{&1.id, &1})}
+  end
+
+  defp build_message_notification_url(
+         %Message{} = message,
+         %Message{} = parent,
+         notification_type
+       )
+       when notification_type in ["reply", "mention", "comment", "discussion_reply"] do
+    build_message_path(parent) <> threaded_message_anchor(parent, message)
+  end
+
+  defp build_message_notification_url(%Message{} = message, _parent, _notification_type) do
+    build_message_path(message)
+  end
+
+  defp build_message_path(%Message{
+         id: id,
+         conversation: %{type: type} = conversation
+       })
+       when type in ["dm", "group", "channel"] do
+    conversation_ref = conversation.hash || conversation.id
+    "/chat/#{conversation_ref}#message-#{id}"
+  end
+
+  defp build_message_path(%Message{
+         id: id,
+         conversation: %{type: "community", name: name}
+       })
+       when is_binary(name) and name != "" do
+    "/discussions/#{name}/post/#{id}"
+  end
+
+  defp build_message_path(%Message{federated: true, activitypub_id: activitypub_id})
+       when is_binary(activitypub_id) and activitypub_id != "" do
+    "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+  end
+
+  defp build_message_path(%Message{id: id}), do: "/remote/post/#{id}"
+
+  defp threaded_message_anchor(%Message{conversation: %{type: "community"}}, %Message{id: id}),
+    do: "#reply-#{id}"
+
+  defp threaded_message_anchor(_parent, %Message{id: id}), do: "#message-#{id}"
+
+  defp notification_preference_enabled?(subject, field) when is_atom(field) do
+    Map.get(subject, field) != false
+  end
 
   defp maybe_emit_developer_webhook(%Notification{} = notif, unread_count) do
     case notification_webhook_event(notif.type) do

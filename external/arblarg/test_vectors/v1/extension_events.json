@@ -1,10 +1,10 @@
 {
-  "name": "arbp-v1-extension-event-vectors",
+  "name": "arblarg-v1-extension-event-vectors",
   "cases": [
     {
       "id": "role_upsert",
       "event_type_alias": "role.upsert",
-      "expected_event_type": "urn:arbp:ext:roles:1#role.upsert",
+      "expected_event_type": "urn:arblarg:ext:roles:1#role.upsert",
       "expected_schema": "role.upsert",
       "payload": {
         "server": {
@@ -43,7 +43,7 @@
     {
       "id": "role_assignment_upsert",
       "event_type_alias": "role.assignment.upsert",
-      "expected_event_type": "urn:arbp:ext:roles:1#role.assignment.upsert",
+      "expected_event_type": "urn:arblarg:ext:roles:1#role.assignment.upsert",
       "expected_schema": "role.assignment.upsert",
       "payload": {
         "server": {
@@ -82,7 +82,7 @@
     {
       "id": "permission_overwrite_upsert",
       "event_type_alias": "permission.overwrite.upsert",
-      "expected_event_type": "urn:arbp:ext:permissions:1#overwrite.upsert",
+      "expected_event_type": "urn:arblarg:ext:permissions:1#overwrite.upsert",
       "expected_schema": "permission.overwrite.upsert",
       "payload": {
         "server": {
@@ -128,7 +128,7 @@
     {
       "id": "thread_upsert",
       "event_type_alias": "thread.upsert",
-      "expected_event_type": "urn:arbp:ext:threads:1#thread.upsert",
+      "expected_event_type": "urn:arblarg:ext:threads:1#thread.upsert",
       "expected_schema": "thread.upsert",
       "payload": {
         "server": {
@@ -143,7 +143,12 @@
           "name": "Roadmap",
           "state": "active",
           "owner": {
-            "uri": "https://example.net/users/alice"
+            "id": "https://example.net/users/alice",
+            "uri": "https://example.net/users/alice",
+            "username": "alice",
+            "display_name": "alice",
+            "domain": "example.net",
+            "handle": "alice@example.net"
           },
           "message_count": 2,
           "member_count": 1
@@ -162,7 +167,12 @@
           "name": "Roadmap",
           "state": "unknown",
           "owner": {
-            "uri": "https://example.net/users/alice"
+            "id": "https://example.net/users/alice",
+            "uri": "https://example.net/users/alice",
+            "username": "alice",
+            "display_name": "alice",
+            "domain": "example.net",
+            "handle": "alice@example.net"
           }
         }
       },
@@ -171,7 +181,7 @@
     {
       "id": "thread_archive",
       "event_type_alias": "thread.archive",
-      "expected_event_type": "urn:arbp:ext:threads:1#thread.archive",
+      "expected_event_type": "urn:arblarg:ext:threads:1#thread.archive",
       "expected_schema": "thread.archive",
       "payload": {
         "server": {
@@ -183,7 +193,12 @@
         "thread_id": "thread-1",
         "archived_at": "2026-02-22T12:34:56Z",
         "actor": {
-          "uri": "https://example.net/users/alice"
+          "id": "https://example.net/users/alice",
+          "uri": "https://example.net/users/alice",
+          "username": "alice",
+          "display_name": "alice",
+          "domain": "example.net",
+          "handle": "alice@example.net"
         }
       },
       "invalid_payload": {
@@ -196,7 +211,12 @@
         "thread_id": "thread-1",
         "archived_at": "not-a-date",
         "actor": {
-          "uri": "https://example.net/users/alice"
+          "id": "https://example.net/users/alice",
+          "uri": "https://example.net/users/alice",
+          "username": "alice",
+          "display_name": "alice",
+          "domain": "example.net",
+          "handle": "alice@example.net"
         }
       },
       "expected_invalid_error": "invalid_event_payload"
@@ -204,7 +224,7 @@
     {
       "id": "presence_update",
       "event_type_alias": "presence.update",
-      "expected_event_type": "urn:arbp:ext:presence:1#presence.update",
+      "expected_event_type": "urn:arblarg:ext:presence:1#presence.update",
       "expected_schema": "presence.update",
       "payload": {
         "server": {
@@ -212,7 +232,12 @@
         },
         "presence": {
           "actor": {
-            "uri": "https://example.net/users/alice"
+            "id": "https://example.net/users/alice",
+            "uri": "https://example.net/users/alice",
+            "username": "alice",
+            "display_name": "alice",
+            "domain": "example.net",
+            "handle": "alice@example.net"
           },
           "status": "online",
           "updated_at": "2026-02-22T12:34:56Z"
@@ -224,7 +249,12 @@
         },
         "presence": {
           "actor": {
-            "uri": "https://example.net/users/alice"
+            "id": "https://example.net/users/alice",
+            "uri": "https://example.net/users/alice",
+            "username": "alice",
+            "display_name": "alice",
+            "domain": "example.net",
+            "handle": "alice@example.net"
           },
           "status": "busy",
           "updated_at": "2026-02-22T12:34:56Z"
@@ -235,7 +265,7 @@
     {
       "id": "moderation_action_recorded",
       "event_type_alias": "moderation.action.recorded",
-      "expected_event_type": "urn:arbp:ext:moderation:1#action.recorded",
+      "expected_event_type": "urn:arblarg:ext:moderation:1#action.recorded",
       "expected_schema": "moderation.action.recorded",
       "payload": {
         "server": {
@@ -251,7 +281,12 @@
             "uri": "https://example.net/users/bob"
           },
           "actor": {
-            "uri": "https://example.net/users/alice"
+            "id": "https://example.net/users/alice",
+            "uri": "https://example.net/users/alice",
+            "username": "alice",
+            "display_name": "alice",
+            "domain": "example.net",
+            "handle": "alice@example.net"
           },
           "occurred_at": "2026-02-22T12:34:56Z",
           "duration_seconds": 300,
@@ -272,7 +307,12 @@
             "uri": "https://example.net/users/bob"
           },
           "actor": {
-            "uri": "https://example.net/users/alice"
+            "id": "https://example.net/users/alice",
+            "uri": "https://example.net/users/alice",
+            "username": "alice",
+            "display_name": "alice",
+            "domain": "example.net",
+            "handle": "alice@example.net"
           },
           "occurred_at": "2026-02-22T12:34:56Z"
         }

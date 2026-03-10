@@ -11,6 +11,9 @@ import topbar from "../vendor/topbar"
 
 // Import hooks
 import { Hooks } from "./hooks"
+import { initTimezoneDetectors } from "./hooks/form_hooks"
+import { initBackupCodesPrinters } from "./hooks/ui_hooks"
+import { initPrivateMailboxAuthForms } from "./hooks/mailbox_private_storage_hooks"
 
 // Import utilities
 import {
@@ -87,6 +90,9 @@ window.addEventListener("phx:page-loading-stop", () => {
   checkBlinkenlights()
   initProfileStatic()
   initAutoDismissFlashes()
+  initTimezoneDetectors()
+  initBackupCodesPrinters()
+  initPrivateMailboxAuthForms()
   syncCursorGlowForRoute()
   initAdminSecurity()
 })
@@ -203,6 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigationHandlers()
   initClipboardHandlers()
   initAutoDismissFlashes()
+  initTimezoneDetectors()
+  initBackupCodesPrinters()
+  initPrivateMailboxAuthForms()
   syncCursorGlowForRoute()
 
   // Initialize UI modules

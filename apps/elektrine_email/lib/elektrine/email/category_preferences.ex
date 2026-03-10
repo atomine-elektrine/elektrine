@@ -17,37 +17,35 @@ defmodule Elektrine.Email.CategoryPreferences do
     sender_email = extract_email(from_email)
     sender_domain = extract_domain(sender_email)
 
-    cond do
-      sender_email == "" ->
-        nil
+    if sender_email == "" do
+      nil
+    else
+      case get_sender_preference(user_id, sender_email) do
+        %CategoryPreference{} = preference ->
+          %{
+            category: preference.category,
+            confidence: normalize_confidence(preference.confidence, 0.8),
+            source: "learned_sender",
+            reasons: ["learned sender preference for #{sender_email}"],
+            learned_count: preference.learned_count
+          }
 
-      true ->
-        case get_sender_preference(user_id, sender_email) do
-          %CategoryPreference{} = preference ->
-            %{
-              category: preference.category,
-              confidence: normalize_confidence(preference.confidence, 0.8),
-              source: "learned_sender",
-              reasons: ["learned sender preference for #{sender_email}"],
-              learned_count: preference.learned_count
-            }
+        nil ->
+          case get_domain_preference(user_id, sender_domain) do
+            %CategoryPreference{learned_count: learned_count} = preference
+            when learned_count >= @domain_learning_threshold ->
+              %{
+                category: preference.category,
+                confidence: normalize_confidence(preference.confidence, 0.7),
+                source: "learned_domain",
+                reasons: ["learned domain preference for #{sender_domain}"],
+                learned_count: learned_count
+              }
 
-          nil ->
-            case get_domain_preference(user_id, sender_domain) do
-              %CategoryPreference{learned_count: learned_count} = preference
-              when learned_count >= @domain_learning_threshold ->
-                %{
-                  category: preference.category,
-                  confidence: normalize_confidence(preference.confidence, 0.7),
-                  source: "learned_domain",
-                  reasons: ["learned domain preference for #{sender_domain}"],
-                  learned_count: learned_count
-                }
-
-              _ ->
-                nil
-            end
-        end
+            _ ->
+              nil
+          end
+      end
     end
   end
 

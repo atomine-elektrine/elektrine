@@ -8,11 +8,13 @@ defmodule ElektrineWeb.MobileChannel do
 
   alias Elektrine.{Accounts, Email, Notifications, Profiles, Social, VPN}
   alias Elektrine.Messaging, as: Messaging
+  alias Elektrine.Messaging.Federation
   alias Elektrine.PubSubTopics
 
   @impl true
   def join("mobile:user", _params, socket) do
     user_id = socket.assigns.user_id
+    user = Accounts.get_user!(user_id)
 
     # Subscribe to user-specific topics
     PubSubTopics.subscribe("user:#{user_id}")
@@ -42,8 +44,11 @@ defmodule ElektrineWeb.MobileChannel do
       ElektrineWeb.Presence.track(self(), "mobile:users", to_string(user_id), %{
         user_id: user_id,
         online_at: System.system_time(:second),
-        platform: "mobile"
+        platform: "mobile",
+        status: user.status || "online"
       })
+
+    Federation.publish_user_presence_update(user_id, user.status || "online", [])
 
     send(self(), :after_join)
     {:ok, assign(socket, :joined_conversations, MapSet.new(Enum.map(conversations, & &1.id)))}
@@ -51,6 +56,12 @@ defmodule ElektrineWeb.MobileChannel do
 
   def join("mobile:" <> _other, _params, _socket) do
     {:error, %{reason: "invalid_topic"}}
+  end
+
+  @impl true
+  def terminate(_reason, socket) do
+    Federation.publish_user_presence_update(socket.assigns.user_id, "offline", [])
+    :ok
   end
 
   @impl true
@@ -697,6 +708,8 @@ defmodule ElektrineWeb.MobileChannel do
       {:user_typing, conv_id, user_id, user.username}
     )
 
+    Elektrine.Messaging.Federation.publish_typing_started(conv_id, user_id)
+
     {:noreply, socket}
   end
 
@@ -706,6 +719,7 @@ defmodule ElektrineWeb.MobileChannel do
 
     topic = PubSubTopics.conversation(conv_id)
     Phoenix.PubSub.broadcast(Elektrine.PubSub, topic, {:user_stopped_typing, conv_id, user_id})
+    Elektrine.Messaging.Federation.publish_typing_stopped(conv_id, user_id)
 
     {:noreply, socket}
   end

@@ -3,6 +3,7 @@ defmodule Elektrine.Email.Receiver do
   alias Elektrine.Email
   alias Elektrine.Email.ForwardedMessage
   alias Elektrine.Email.Mailbox
+  alias Elektrine.Email.MailboxEncryption
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
   require Logger
@@ -510,7 +511,15 @@ defmodule Elektrine.Email.Receiver do
     mailbox_user_id = mailbox.user_id
 
     sender_email = sanitize_address_header(params["from"] || params["mail_from"])
-    attachments_metadata = prepare_attachments_metadata(params["attachments"])
+    private_storage? = MailboxEncryption.enabled?(mailbox)
+
+    attachments_for_storage =
+      if private_storage? do
+        prepare_private_attachments(params["attachments"])
+      else
+        prepare_attachments_metadata(params["attachments"])
+      end
+
     in_reply_to = extract_thread_header(params, ["in_reply_to", "in-reply-to"])
     references = extract_thread_header(params, ["references"])
 
@@ -530,8 +539,8 @@ defmodule Elektrine.Email.Receiver do
       "archived" => false,
       "mailbox_id" => mailbox_id,
       "metadata" => extract_metadata(params),
-      "attachments" => attachments_metadata,
-      "has_attachments" => map_size(attachments_metadata) > 0,
+      "attachments" => attachments_for_storage,
+      "has_attachments" => map_size(attachments_for_storage) > 0,
       "in_reply_to" => in_reply_to,
       "references" => references
     }
@@ -560,7 +569,7 @@ defmodule Elektrine.Email.Receiver do
 
     case Email.create_message(message_attrs) do
       {:ok, message} ->
-        if params["attachments"] && params["attachments"] != [] do
+        if (not private_storage? and params["attachments"]) && params["attachments"] != [] do
           Elektrine.Async.run(fn ->
             Elektrine.Jobs.AttachmentUploader.upload_message_attachments(message.id)
           end)
@@ -607,6 +616,61 @@ defmodule Elektrine.Email.Receiver do
   end
 
   defp prepare_attachments_metadata(_) do
+    %{}
+  end
+
+  defp prepare_private_attachments(nil) do
+    %{}
+  end
+
+  defp prepare_private_attachments([]) do
+    %{}
+  end
+
+  defp prepare_private_attachments(attachments) when is_list(attachments) do
+    attachments
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {attachment, index}, acc ->
+      attachment_id = "attachment_#{index}"
+      raw_filename = attachment["name"] || attachment["filename"] || "attachment_#{index}"
+      decoded_filename = decode_attachment_filename(raw_filename)
+
+      content =
+        case attachment["data"] || attachment["content"] do
+          nil ->
+            nil
+
+          data when is_binary(data) ->
+            if attachment["encoding"] == "base64" do
+              data
+            else
+              Base.encode64(data)
+            end
+
+          other ->
+            other
+        end
+
+      attachment_payload =
+        %{
+          "filename" => decoded_filename,
+          "content_type" =>
+            attachment["content_type"] || attachment["mime_type"] || "application/octet-stream",
+          "size" =>
+            attachment["size"] || (attachment["data"] && byte_size(attachment["data"])) || 0,
+          "content_id" => attachment["content_id"],
+          "disposition" => attachment["disposition"] || "attachment",
+          "data" => content,
+          "encoding" => if(is_binary(content), do: "base64", else: nil)
+        }
+        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        |> Enum.into(%{})
+
+      Map.put(acc, attachment_id, attachment_payload)
+    end)
+  end
+
+  defp prepare_private_attachments(_) do
     %{}
   end
 

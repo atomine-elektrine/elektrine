@@ -145,9 +145,9 @@ defmodule Elektrine.ActivityPub.Handlers.FlagHandler do
           id_str = local_path |> String.split("/statuses/") |> List.last()
           get_message_by_id_string(id_str)
 
-        # Check by activitypub_id
+        # Check by canonical ID or URL variant.
         true ->
-          case Elektrine.Messaging.get_message_by_activitypub_id(uri) do
+          case Elektrine.Messaging.get_message_by_activitypub_ref(uri) do
             nil -> []
             msg -> [msg]
           end

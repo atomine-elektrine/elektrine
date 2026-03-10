@@ -51,7 +51,6 @@ ENV MIX_ENV="prod"
 COPY mix.exs mix.lock ./
 COPY apps/elektrine/mix.exs apps/elektrine/mix.exs
 COPY apps/elektrine_chat/mix.exs apps/elektrine_chat/mix.exs
-COPY apps/elektrine_chat_web/mix.exs apps/elektrine_chat_web/mix.exs
 COPY apps/elektrine_web/mix.exs apps/elektrine_web/mix.exs
 COPY apps/elektrine_email/mix.exs apps/elektrine_email/mix.exs
 COPY apps/elektrine_social/mix.exs apps/elektrine_social/mix.exs
@@ -117,7 +116,7 @@ SHELL ["/bin/bash", "-c"]
 
 RUN for i in 1 2 3 4 5; do \
       apt-get update -y && \
-      apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libvips42 tor tini && \
+      apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libvips42 tor tini gnupg && \
       apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
       echo "Retry $i failed, waiting..." && sleep 5; \
     done

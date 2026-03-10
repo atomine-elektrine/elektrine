@@ -62,15 +62,88 @@
 
             <div class="form-control">
               <label class="label">
+                <span class="label-text">Endpoint Host</span>
+                <span class="label-text-alt">Optional DNS name for clients</span>
+              </label>
+              <input
+                type="text"
+                name="server[endpoint_host]"
+                value={Phoenix.HTML.Form.input_value(f, :endpoint_host)}
+                placeholder="vpn.example.com"
+                class="input input-bordered font-medium"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  Leave blank to use the public IP in generated configs
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
                 <span class="label-text">Port</span>
               </label>
               <input
                 type="number"
                 name="server[endpoint_port]"
                 value={Phoenix.HTML.Form.input_value(f, :endpoint_port)}
-                placeholder="51820"
+                placeholder="443"
                 class="input input-bordered"
                 required
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  UDP 443 is a safer default on restrictive networks
+                </span>
+              </label>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Internal IP Range</span>
+              </label>
+              <input
+                type="text"
+                name="server[internal_ip_range]"
+                value={Phoenix.HTML.Form.input_value(f, :internal_ip_range)}
+                placeholder="10.8.0.0/24"
+                class="input input-bordered font-medium"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Client MTU</span>
+              </label>
+              <input
+                type="number"
+                name="server[client_mtu]"
+                value={Phoenix.HTML.Form.input_value(f, :client_mtu)}
+                placeholder="1280"
+                class="input input-bordered font-medium"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  1280 helps mobile and censored networks avoid PMTU issues
+                </span>
+              </label>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">DNS Servers</span>
+              </label>
+              <input
+                type="text"
+                name="server[dns_servers]"
+                value={Phoenix.HTML.Form.input_value(f, :dns_servers)}
+                placeholder="1.1.1.1, 1.0.0.1"
+                class="input input-bordered font-medium"
               />
             </div>
           </div>
@@ -93,20 +166,6 @@
                 Run: docker-compose logs vpn | grep "PUBLIC KEY"
               </span>
             </label>
-          </div>
-
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">Internal IP Range</span>
-            </label>
-            <input
-              type="text"
-              name="server[internal_ip_range]"
-              value={Phoenix.HTML.Form.input_value(f, :internal_ip_range)}
-              placeholder="10.8.0.0/24"
-              class="input input-bordered font-medium"
-              required
-            />
           </div>
           
 <!-- Capacity & Status -->

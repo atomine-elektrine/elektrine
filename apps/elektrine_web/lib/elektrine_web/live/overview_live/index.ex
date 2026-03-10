@@ -1594,7 +1594,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp social_post_title(post) do
-    trim_or(post.title || post.content, "New social post") |> truncate_text(72)
+    post
+    |> then(fn post ->
+      ElektrineWeb.HtmlHelpers.plain_text_content(post.title || post.content)
+    end)
+    |> trim_or("New social post")
+    |> truncate_text(72)
   end
 
   defp notification_activity_app(notification) do

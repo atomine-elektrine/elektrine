@@ -56,8 +56,8 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.UiOperations do
         "sender_id" => post.sender_id,
         "community_id" => socket.assigns.community.id,
         "community_name" => socket.assigns.community.name,
-        "content_preview" => String.slice(post.content || "", 0, 100),
-        "title" => post.title,
+        "content_preview" => ElektrineWeb.HtmlHelpers.plain_text_preview(post.content, 100),
+        "title" => ElektrineWeb.HtmlHelpers.plain_text_content(post.title),
         "source" => "discussions"
       }
 

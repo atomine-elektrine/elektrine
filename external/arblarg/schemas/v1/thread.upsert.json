@@ -1,22 +1,88 @@
 {
+  "$id": "arblarg://schemas/1.0/thread.upsert",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/thread.upsert",
-  "title": "Arblarg thread.upsert payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "thread"
-  ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
     "channel": {
       "type": "object"
     },
+    "server": {
+      "type": "object"
+    },
     "thread": {
-      "type": "object",
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "member_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "owner": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "state": {
+          "enum": [
+            "active",
+            "archived",
+            "locked"
+          ],
+          "type": "string"
+        }
+      },
       "required": [
         "id",
         "channel_id",
@@ -24,39 +90,14 @@
         "state",
         "owner"
       ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "channel_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "active",
-            "archived",
-            "locked"
-          ]
-        },
-        "owner": {
-          "type": "object"
-        },
-        "message_count": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "member_count": {
-          "type": "integer",
-          "minimum": 0
-        }
-      }
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "server",
+    "channel",
+    "thread"
+  ],
+  "title": "Arblarg thread.upsert payload",
+  "type": "object"
 }

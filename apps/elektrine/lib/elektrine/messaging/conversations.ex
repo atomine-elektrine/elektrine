@@ -16,7 +16,7 @@ defmodule Elektrine.Messaging.Conversations do
   }
 
   alias Elektrine.Accounts.User
-  @remote_dm_source_prefix "arbp:dm:"
+  @remote_dm_source_prefix "arblarg:dm:"
   @doc "Returns the list of conversations for a user.\n"
   def list_conversations(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
@@ -112,25 +112,7 @@ defmodule Elektrine.Messaging.Conversations do
         join: cm in ConversationMember,
         on: c.id == cm.conversation_id and cm.user_id == ^user_id,
         where: c.id == ^id and is_nil(cm.left_at),
-        preload: [
-          creator: [],
-          members: [user: [:profile]],
-          messages:
-            ^from(m in Message,
-              left_join: h in UserHiddenMessage,
-              on: h.message_id == m.id and h.user_id == ^user_id,
-              where: is_nil(m.deleted_at) and is_nil(h.id),
-              order_by: [desc: m.inserted_at],
-              limit: 50,
-              preload: [
-                sender: [:profile],
-                reply_to: [sender: [:profile]],
-                reactions: [user: []],
-                link_preview: [],
-                shared_message: [sender: [:profile], conversation: []]
-              ]
-            )
-        ]
+        preload: [creator: [], members: [user: [:profile]]]
       )
 
     case Repo.one(query) do
@@ -138,9 +120,8 @@ defmodule Elektrine.Messaging.Conversations do
         {:error, :not_found}
 
       conversation ->
-        decrypted_messages = Message.decrypt_messages(conversation.messages)
-        conversation = %{conversation | messages: decrypted_messages}
-        {:ok, conversation}
+        {:ok,
+         %{conversation | messages: load_recent_conversation_messages(conversation, user_id)}}
     end
   end
 
@@ -185,6 +166,39 @@ defmodule Elektrine.Messaging.Conversations do
       nil -> {:error, :not_found}
       conversation -> {:ok, %{conversation | messages: []}}
     end
+  end
+
+  defp load_recent_conversation_messages(%Conversation{type: type, id: conversation_id}, user_id)
+       when type in ["dm", "group", "channel"] do
+    from(m in ChatMessage,
+      left_join: h in ChatUserHiddenMessage,
+      on: h.chat_message_id == m.id and h.user_id == ^user_id,
+      where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
+      order_by: [desc: m.inserted_at],
+      limit: 50,
+      preload: [:sender, reply_to: [:sender], reactions: [:user, :remote_actor]]
+    )
+    |> Repo.all()
+    |> ChatMessage.decrypt_messages()
+  end
+
+  defp load_recent_conversation_messages(%Conversation{id: conversation_id}, user_id) do
+    from(m in Message,
+      left_join: h in UserHiddenMessage,
+      on: h.message_id == m.id and h.user_id == ^user_id,
+      where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
+      order_by: [desc: m.inserted_at],
+      limit: 50,
+      preload: [
+        sender: [:profile],
+        reply_to: [sender: [:profile]],
+        reactions: [user: []],
+        link_preview: [],
+        shared_message: [sender: [:profile], conversation: []]
+      ]
+    )
+    |> Repo.all()
+    |> Message.decrypt_messages()
   end
 
   @doc "Gets a conversation by its name (case-insensitive, for communities).\n"
@@ -269,7 +283,7 @@ defmodule Elektrine.Messaging.Conversations do
     end
   end
 
-  @doc "Creates or gets a cross-instance DM conversation for a remote ARBP handle.\n"
+  @doc "Creates or gets a cross-instance DM conversation for a remote Arblarg handle.\n"
   def create_remote_dm_conversation(local_user_id, remote_handle, attrs \\ %{}) do
     with :ok <- ensure_dm_creation_allowed(local_user_id),
          {:ok, recipient} <- normalize_remote_dm_handle(remote_handle),
@@ -527,15 +541,18 @@ defmodule Elektrine.Messaging.Conversations do
       ) do
     if added_by_user_id do
       case Elektrine.Privacy.can_add_to_group?(added_by_user_id, user_id) do
-        {:error, reason} -> {:error, reason}
-        {:ok, :allowed} -> do_add_member_to_conversation(conversation_id, user_id, role)
+        {:error, reason} ->
+          {:error, reason}
+
+        {:ok, :allowed} ->
+          do_add_member_to_conversation(conversation_id, user_id, role, added_by_user_id)
       end
     else
-      do_add_member_to_conversation(conversation_id, user_id, role)
+      do_add_member_to_conversation(conversation_id, user_id, role, nil)
     end
   end
 
-  defp do_add_member_to_conversation(conversation_id, user_id, role) do
+  defp do_add_member_to_conversation(conversation_id, user_id, role, added_by_user_id) do
     existing_member =
       Repo.get_by(ConversationMember, conversation_id: conversation_id, user_id: user_id)
 
@@ -546,6 +563,8 @@ defmodule Elektrine.Messaging.Conversations do
         |> case do
           {:ok, member} ->
             update_member_count(conversation_id)
+            maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
+            _ = Federation.publish_membership_state(conversation_id, user_id, "active", role)
 
             Phoenix.PubSub.broadcast(
               Elektrine.PubSub,
@@ -576,6 +595,8 @@ defmodule Elektrine.Messaging.Conversations do
         |> case do
           {:ok, updated_member} ->
             update_member_count(conversation_id)
+            maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
+            _ = Federation.publish_membership_state(conversation_id, user_id, "active", role)
 
             Phoenix.PubSub.broadcast(
               Elektrine.PubSub,
@@ -616,6 +637,14 @@ defmodule Elektrine.Messaging.Conversations do
         |> case do
           {:ok, updated_member} ->
             update_member_count(conversation_id)
+
+            _ =
+              Federation.publish_membership_state(
+                conversation_id,
+                user_id,
+                membership_state_for_departure(updated_member),
+                updated_member.role || "member"
+              )
 
             Phoenix.PubSub.broadcast(
               Elektrine.PubSub,
@@ -674,8 +703,21 @@ defmodule Elektrine.Messaging.Conversations do
         |> Repo.one()
 
       case member do
-        nil -> {:error, :not_found}
-        member -> member |> ConversationMember.changeset(%{role: "admin"}) |> Repo.update()
+        nil ->
+          {:error, :not_found}
+
+        member ->
+          member
+          |> ConversationMember.changeset(%{role: "admin"})
+          |> Repo.update()
+          |> case do
+            {:ok, updated_member} ->
+              _ = Federation.publish_membership_state(conversation_id, user_id, "active", "admin")
+              {:ok, updated_member}
+
+            error ->
+              error
+          end
       end
     else
       false -> {:error, :unauthorized}
@@ -697,8 +739,23 @@ defmodule Elektrine.Messaging.Conversations do
         |> Repo.one()
 
       case member do
-        nil -> {:error, :not_found}
-        member -> member |> ConversationMember.changeset(%{role: "member"}) |> Repo.update()
+        nil ->
+          {:error, :not_found}
+
+        member ->
+          member
+          |> ConversationMember.changeset(%{role: "member"})
+          |> Repo.update()
+          |> case do
+            {:ok, updated_member} ->
+              _ =
+                Federation.publish_membership_state(conversation_id, user_id, "active", "member")
+
+              {:ok, updated_member}
+
+            error ->
+              error
+          end
       end
     else
       true -> {:error, :cannot_demote_creator}
@@ -710,8 +767,21 @@ defmodule Elektrine.Messaging.Conversations do
   @doc "Updates a member's role in a conversation.\n"
   def update_member_role(conversation_id, user_id, new_role) do
     case get_conversation_member(conversation_id, user_id) do
-      nil -> {:error, :member_not_found}
-      member -> member |> ConversationMember.changeset(%{role: new_role}) |> Repo.update()
+      nil ->
+        {:error, :member_not_found}
+
+      member ->
+        member
+        |> ConversationMember.changeset(%{role: new_role})
+        |> Repo.update()
+        |> case do
+          {:ok, updated_member} ->
+            _ = Federation.publish_membership_state(conversation_id, user_id, "active", new_role)
+            {:ok, updated_member}
+
+          error ->
+            error
+        end
     end
   end
 
@@ -859,6 +929,7 @@ defmodule Elektrine.Messaging.Conversations do
             case result do
               {:ok, _} ->
                 update_member_count(conversation_id)
+                _ = Federation.publish_membership_state(conversation_id, user_id, "left")
                 result
 
               error ->
@@ -871,6 +942,7 @@ defmodule Elektrine.Messaging.Conversations do
           case result do
             {:ok, _} ->
               update_member_count(conversation_id)
+              _ = Federation.publish_membership_state(conversation_id, user_id, "left")
               result
 
             error ->
@@ -884,6 +956,31 @@ defmodule Elektrine.Messaging.Conversations do
   def community_owner?(conversation_id, user_id) do
     conversation = Repo.get(Conversation, conversation_id)
     conversation && conversation.creator_id == user_id
+  end
+
+  defp membership_state_for_departure(%ConversationMember{role: role})
+       when role in ["owner", "admin"] do
+    "left"
+  end
+
+  defp membership_state_for_departure(_member), do: "left"
+
+  defp maybe_publish_invite_acceptance(_conversation_id, _user_id, nil, _role), do: :ok
+
+  defp maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
+       when is_integer(conversation_id) and is_integer(user_id) and is_integer(added_by_user_id) do
+    if user_id != added_by_user_id do
+      Federation.publish_invite_state(
+        conversation_id,
+        user_id,
+        added_by_user_id,
+        "accepted",
+        role,
+        %{"source" => "local_member_add"}
+      )
+    else
+      :ok
+    end
   end
 
   @doc "Checks if a user has any community memberships.\nFast check for loading skeleton optimization.\n"

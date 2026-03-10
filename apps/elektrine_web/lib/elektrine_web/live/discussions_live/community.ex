@@ -1518,7 +1518,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
   defp display_discussion_title(post) do
     case Map.get(post, :title) do
       title when is_binary(title) ->
-        title = String.trim(title)
+        title = plain_text_content(title)
         if title == "", do: "Untitled discussion", else: title
 
       _ ->

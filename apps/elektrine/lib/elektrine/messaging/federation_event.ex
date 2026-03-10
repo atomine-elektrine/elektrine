@@ -4,15 +4,15 @@ defmodule Elektrine.Messaging.FederationEvent do
   import Ecto.Changeset
 
   schema "messaging_federation_events" do
-    field :protocol_version, :string
-    field :event_id, :string
-    field :idempotency_key, :string
-    field :origin_domain, :string
-    field :event_type, :string
-    field :stream_id, :string
-    field :sequence, :integer
-    field :payload, :map
-    field :received_at, :utc_datetime
+    field(:protocol_version, :string)
+    field(:event_id, :string)
+    field(:idempotency_key, :string)
+    field(:origin_domain, :string)
+    field(:event_type, :string)
+    field(:stream_id, :string)
+    field(:sequence, :integer)
+    field(:payload, :map)
+    field(:received_at, :utc_datetime)
 
     timestamps(updated_at: false)
   end
@@ -43,7 +43,9 @@ defmodule Elektrine.Messaging.FederationEvent do
       :received_at
     ])
     |> validate_number(:sequence, greater_than: 0)
-    |> unique_constraint(:event_id)
+    |> unique_constraint(:event_id,
+      name: :messaging_federation_events_origin_event_id_unique
+    )
     |> unique_constraint(:idempotency_key,
       name: :messaging_federation_events_origin_idempotency_unique
     )

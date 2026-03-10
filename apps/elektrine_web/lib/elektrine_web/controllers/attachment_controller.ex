@@ -49,22 +49,31 @@ defmodule ElektrineWeb.AttachmentController do
                     |> json(%{error: "Attachment not found"})
 
                   attachment ->
-                    # Check if we should redirect to presigned URL or serve directly
-                    if use_presigned_url?(attachment) do
-                      # Generate presigned URL for direct download from S3/R2
-                      case AttachmentStorage.generate_presigned_url(attachment) do
-                        {:ok, url} ->
-                          conn
-                          |> put_status(:found)
-                          |> redirect(external: url)
+                    cond do
+                      private_attachment?(attachment) ->
+                        conn
+                        |> put_status(:forbidden)
+                        |> json(%{
+                          error:
+                            "This attachment is protected by mailbox encryption and must be downloaded from the unlocked webmail view."
+                        })
 
-                        {:error, _reason} ->
-                          # Fallback to direct download
-                          serve_attachment_directly(conn, attachment)
-                      end
-                    else
-                      # Serve attachment directly (for legacy or small files)
-                      serve_attachment_directly(conn, attachment)
+                      use_presigned_url?(attachment) ->
+                        # Generate presigned URL for direct download from S3/R2
+                        case AttachmentStorage.generate_presigned_url(attachment) do
+                          {:ok, url} ->
+                            conn
+                            |> put_status(:found)
+                            |> redirect(external: url)
+
+                          {:error, _reason} ->
+                            # Fallback to direct download
+                            serve_attachment_directly(conn, attachment)
+                        end
+
+                      true ->
+                        # Serve attachment directly (for legacy or small files)
+                        serve_attachment_directly(conn, attachment)
                     end
                 end
 
@@ -109,6 +118,11 @@ defmodule ElektrineWeb.AttachmentController do
   # Check if we should use presigned URL (for S3/R2 stored attachments)
   defp use_presigned_url?(attachment) do
     Map.get(attachment, "storage_type") == "s3"
+  end
+
+  defp private_attachment?(attachment) do
+    is_map(Map.get(attachment, "private_encrypted_payload")) or
+      is_map(Map.get(attachment, :private_encrypted_payload))
   end
 
   # Serve attachment directly (for legacy or when presigned URL fails)

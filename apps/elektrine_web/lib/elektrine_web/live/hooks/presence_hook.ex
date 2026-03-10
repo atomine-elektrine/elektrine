@@ -10,6 +10,7 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
   """
   import Phoenix.LiveView
   import Phoenix.Component
+  alias Elektrine.Messaging.Federation
   alias Elektrine.PubSubTopics
 
   # Auto-away timeout in milliseconds (5 minutes) - must match JS
@@ -76,6 +77,8 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
               last_activity_at: System.system_time(:second)
             }
           )
+
+          Federation.publish_user_presence_update(user.id, tracked_status, [])
 
           # Start auto-away timer
           auto_away_ref = Process.send_after(self(), :check_auto_away, @auto_away_timeout_ms)
@@ -288,6 +291,8 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
           Map.merge(meta, %{status: new_status, auto_away: false})
         end
       )
+
+      Federation.publish_user_presence_update(user.id, new_status, [])
     end
 
     # Update local assigns
@@ -479,6 +484,8 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
         end
       )
 
+      Federation.publish_user_presence_update(user.id, "idle", [])
+
       # Update user_statuses
       user_statuses =
         Map.update(
@@ -513,6 +520,8 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
           })
         end
       )
+
+      Federation.publish_user_presence_update(user.id, "online", [])
 
       # Update user_statuses
       user_statuses =

@@ -30,7 +30,11 @@ defmodule ElektrineWeb.ChatLive.Operations.DirectMessageOperations do
         {:noreply, notify_error(socket, "Use handle format user@domain")}
 
       {:error, :unknown_peer} ->
-        {:noreply, notify_error(socket, "That domain is not configured as a federation peer")}
+        {:noreply,
+         notify_error(
+           socket,
+           "That domain could not be reached through federation discovery"
+         )}
 
       {:error, :rate_limited} ->
         {:noreply, notify_error(socket, "You are creating chats too quickly")}

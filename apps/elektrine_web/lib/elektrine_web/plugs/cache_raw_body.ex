@@ -12,12 +12,13 @@ defmodule ElektrineWeb.Plugs.CacheRawBody do
   @impl true
   def init(opts) do
     paths = Keyword.get(opts, :paths, [])
-    %{paths: paths}
+    suffixes = Keyword.get(opts, :suffixes, [])
+    %{paths: paths, suffixes: suffixes}
   end
 
   @impl true
-  def call(%Plug.Conn{request_path: request_path} = conn, %{paths: paths}) do
-    if request_path in paths do
+  def call(%Plug.Conn{request_path: request_path} = conn, %{paths: paths, suffixes: suffixes}) do
+    if request_path in paths or Enum.any?(suffixes, &String.ends_with?(request_path, &1)) do
       Plug.Conn.put_private(conn, :cache_raw_body, true)
     else
       conn

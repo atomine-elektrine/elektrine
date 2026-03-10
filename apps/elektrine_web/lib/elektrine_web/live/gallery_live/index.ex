@@ -2,7 +2,9 @@ defmodule ElektrineWeb.GalleryLive.Index do
   use ElektrineWeb, :live_view
   alias Elektrine.{Messaging, Social}
   alias Elektrine.PubSubTopics
+  import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   import ElektrineWeb.Live.NotificationHelpers
   @impl true
@@ -1060,7 +1062,12 @@ defmodule ElektrineWeb.GalleryLive.Index do
   end
 
   defp get_user_likes_set(user_id, posts) do
-    get_user_likes(user_id, posts) |> Map.keys() |> MapSet.new()
+    user_id
+    |> get_user_likes(posts)
+    |> Enum.reduce(MapSet.new(), fn
+      {message_id, true}, liked_ids -> MapSet.put(liked_ids, message_id)
+      {_message_id, false}, liked_ids -> liked_ids
+    end)
   end
 
   defp get_user_gallery_stats(user_id) do
@@ -1233,8 +1240,8 @@ defmodule ElektrineWeb.GalleryLive.Index do
     Enum.filter(posts, fn post ->
       searchable_terms =
         [
-          post.title,
-          post.content,
+          gallery_plain_text(post.title),
+          gallery_plain_text(post.content),
           post.category,
           gallery_creator_name(post),
           gallery_creator_handle(post),
@@ -1364,7 +1371,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
         post.sender.display_name || post.sender.username
 
       post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
-        post.remote_actor.display_name || post.remote_actor.username
+        gallery_remote_actor_name(post.remote_actor)
 
       true ->
         nil
@@ -1384,6 +1391,13 @@ defmodule ElektrineWeb.GalleryLive.Index do
     end
   end
 
+  defp gallery_creator_name_markup(post) do
+    render_display_name_with_emojis(
+      gallery_creator_name(post) || "Unknown creator",
+      gallery_creator_domain(post)
+    )
+  end
+
   defp gallery_source_label(post) do
     cond do
       post.federated && post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
@@ -1397,20 +1411,95 @@ defmodule ElektrineWeb.GalleryLive.Index do
     end
   end
 
+  defp gallery_remote_actor_name(remote_actor) do
+    display_name = normalize_gallery_text(remote_actor.display_name)
+    username = normalize_gallery_text(remote_actor.username)
+
+    cond do
+      display_name && !url_like_gallery_name?(display_name) ->
+        display_name
+
+      username ->
+        username
+
+      true ->
+        display_name
+    end
+  end
+
+  defp normalize_gallery_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_gallery_text(_), do: nil
+
+  defp gallery_creator_domain(post) do
+    if post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) do
+      post.remote_actor.domain
+    else
+      nil
+    end
+  end
+
+  defp url_like_gallery_name?(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case URI.parse(trimmed) do
+      %URI{scheme: scheme, host: host}
+      when is_binary(scheme) and scheme != "" and is_binary(host) and host != "" ->
+        true
+
+      %URI{path: path} when is_binary(path) ->
+        String.starts_with?(path, "/remote/")
+
+      _ ->
+        false
+    end
+  end
+
+  defp url_like_gallery_name?(_), do: false
+
   defp gallery_display_title(post) do
-    title = String.trim(post.title || "")
+    title = gallery_plain_text(post.title)
+    content = gallery_plain_text(post.content)
 
     cond do
       title != "" ->
         title
 
-      String.trim(post.content || "") != "" ->
-        post.content |> String.trim() |> String.slice(0, 70)
+      content != "" ->
+        String.slice(content, 0, 70)
 
       true ->
         "#{String.capitalize(post.category || "gallery")} post"
     end
   end
+
+  defp gallery_content_preview(post) do
+    post.content
+    |> gallery_plain_text()
+    |> String.slice(0, 140)
+  end
+
+  defp gallery_plain_text(nil), do: ""
+  defp gallery_plain_text(""), do: ""
+
+  defp gallery_plain_text(text) when is_binary(text) do
+    text
+    |> String.replace(~r/<br\s*\/?>/i, " ")
+    |> String.replace(~r/<\/p>/i, " ")
+    |> String.replace(~r/<p[^>]*>/i, " ")
+    |> String.replace(~r/<[^>]*>/, " ")
+    |> String.replace(~r/<\/?[A-Za-z][^>]*\z/, " ")
+    |> HtmlEntities.decode()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+  end
+
+  defp gallery_plain_text(_), do: ""
 
   defp gallery_primary_image(post) do
     post.media_urls

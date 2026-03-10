@@ -185,6 +185,48 @@ defmodule Elektrine.BlueskyInboundTest do
     assert Repo.aggregate(from(e in InboundEvent, where: e.user_id == ^user.id), :count) == 1
   end
 
+  test "sync_user advances the notification cursor even when feed sync fails" do
+    user = bluesky_user_fixture()
+    local_post = mirrored_post_fixture(user, "at://did:plc:local/app.bsky.feed.post/feed-fail")
+
+    MockHTTPClient.put_responses([
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"accessJwt" => "jwt_token", "did" => "did:plc:local"})
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "cursor" => "cursor-feed-fail",
+             "notifications" => [
+               %{
+                 "reason" => "reply",
+                 "reasonSubject" => local_post.bluesky_uri,
+                 "uri" => "at://did:plc:remote/app.bsky.feed.post/reply-feed-fail",
+                 "cid" => "cid-feed-fail",
+                 "author" => %{
+                   "did" => "did:plc:remote",
+                   "handle" => "remote-user.bsky.social"
+                 },
+                 "record" => %{"text" => "still notify"}
+               }
+             ]
+           })
+       }},
+      {:ok, %Finch.Response{status: 503, body: Jason.encode!(%{"error" => "ServiceUnavailable"})}}
+    ])
+
+    assert {:ok, %{processed_events: 1, created_notifications: 1, synced_feed_posts: 0}} =
+             Inbound.sync_user(user)
+
+    refreshed_user = Repo.get!(User, user.id)
+    assert refreshed_user.bluesky_inbound_cursor == "cursor-feed-fail"
+    assert refreshed_user.bluesky_inbound_last_polled_at != nil
+  end
+
   test "sync_user stores inbound feed post snapshots" do
     user = bluesky_user_fixture()
 

@@ -112,7 +112,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
                   >
                     {raw(
                       render_display_name_with_emojis(
-                        @post.remote_actor.display_name || @post.remote_actor.username,
+                        remote_actor_name(@post.remote_actor),
                         @post.remote_actor.domain
                       )
                     )}
@@ -304,4 +304,47 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
   defp audio_url?(url) when is_binary(url) do
     String.match?(url, ~r/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)
   end
+
+  defp remote_actor_name(remote_actor) do
+    display_name = normalize_display_text(remote_actor.display_name)
+    username = normalize_display_text(remote_actor.username)
+
+    cond do
+      display_name && !url_like_display_name?(display_name) ->
+        display_name
+
+      username ->
+        username
+
+      true ->
+        display_name
+    end
+  end
+
+  defp normalize_display_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_display_text(_), do: nil
+
+  defp url_like_display_name?(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case URI.parse(trimmed) do
+      %URI{scheme: scheme, host: host}
+      when is_binary(scheme) and scheme != "" and is_binary(host) and host != "" ->
+        true
+
+      %URI{path: path} when is_binary(path) ->
+        String.starts_with?(path, "/remote/")
+
+      _ ->
+        false
+    end
+  end
+
+  defp url_like_display_name?(_), do: false
 end

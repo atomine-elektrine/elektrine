@@ -11,8 +11,10 @@ defmodule Elektrine.VPN.Server do
     field :country_code, :string
     field :city, :string
     field :public_ip, :string
+    field :endpoint_host, :string
     field :public_key, :string
-    field :endpoint_port, :integer, default: 51_820
+    field :endpoint_port, :integer, default: 443
+    field :client_mtu, :integer, default: 1280
     field :internal_ip_range, :string
     field :dns_servers, :string, default: "1.1.1.1, 1.0.0.1"
     field :status, :string, default: "active"
@@ -37,8 +39,10 @@ defmodule Elektrine.VPN.Server do
       :country_code,
       :city,
       :public_ip,
+      :endpoint_host,
       :public_key,
       :endpoint_port,
+      :client_mtu,
       :internal_ip_range,
       :dns_servers,
       :status,
@@ -52,6 +56,7 @@ defmodule Elektrine.VPN.Server do
     |> validate_required([:name, :location, :public_ip, :public_key, :internal_ip_range])
     |> validate_inclusion(:status, ["active", "maintenance", "offline"])
     |> validate_number(:endpoint_port, greater_than: 0, less_than: 65_536)
+    |> validate_number(:client_mtu, greater_than_or_equal_to: 576, less_than_or_equal_to: 1500)
     |> validate_number(:max_users, greater_than: 0)
     |> validate_number(:current_users, greater_than_or_equal_to: 0)
     |> validate_number(:minimum_trust_level,

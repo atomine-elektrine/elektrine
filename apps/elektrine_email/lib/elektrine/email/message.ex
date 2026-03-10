@@ -6,6 +6,8 @@ defmodule Elektrine.Email.Message do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.Email.MailboxEncryption
+
   schema "email_messages" do
     field :message_id, :string
     field :from, :string
@@ -17,6 +19,7 @@ defmodule Elektrine.Email.Message do
     field :html_body, :string
     field :encrypted_text_body, :map
     field :encrypted_html_body, :map
+    field :client_encrypted_payload, :map
     field :search_index, {:array, :string}, default: []
     # received, sent, draft
     field :status, :string, default: "received"
@@ -82,6 +85,7 @@ defmodule Elektrine.Email.Message do
       :html_body,
       :encrypted_text_body,
       :encrypted_html_body,
+      :client_encrypted_payload,
       :search_index,
       :status,
       :read,
@@ -128,6 +132,7 @@ defmodule Elektrine.Email.Message do
     |> validate_length(:stack_reason, max: 255)
     |> set_has_attachments()
     |> generate_hash_if_needed()
+    |> validate_client_encrypted_payload()
     |> unique_constraint([:message_id, :mailbox_id])
 
     # No foreign key constraint anymore - we manually handle the association
@@ -390,6 +395,14 @@ defmodule Elektrine.Email.Message do
   end
 
   @doc """
+  Returns true when the message body is protected by browser-unlocked mailbox encryption.
+  """
+  def private_encrypted?(%__MODULE__{client_encrypted_payload: payload}) when is_map(payload),
+    do: true
+
+  def private_encrypted?(_message), do: false
+
+  @doc """
   Decrypts a list of email messages.
   """
   def decrypt_messages(messages, user_id) when is_list(messages) and is_integer(user_id) do
@@ -478,6 +491,23 @@ defmodule Elektrine.Email.Message do
         else
           add_error(changeset, field, "must be in the future")
         end
+    end
+  end
+
+  defp validate_client_encrypted_payload(changeset) do
+    case get_field(changeset, :client_encrypted_payload) do
+      nil ->
+        changeset
+
+      payload when is_map(payload) ->
+        if MailboxEncryption.valid_payload?(payload) do
+          changeset
+        else
+          add_error(changeset, :client_encrypted_payload, "must be a valid encrypted payload")
+        end
+
+      _ ->
+        add_error(changeset, :client_encrypted_payload, "must be a valid encrypted payload")
     end
   end
 

@@ -3,13 +3,13 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
   Authenticates incoming messaging federation requests from trusted peers.
 
   Required headers:
-  - x-elektrine-federation-domain
-  - x-elektrine-federation-key-id
-  - x-elektrine-federation-timestamp
-  - x-elektrine-federation-content-digest
+  - x-arblarg-domain
+  - x-arblarg-key-id
+  - x-arblarg-timestamp
+  - x-arblarg-content-digest
   - x-arblarg-request-id
   - x-arblarg-signature-algorithm (must be ed25519)
-  - x-elektrine-federation-signature
+  - x-arblarg-signature
   """
 
   import Plug.Conn
@@ -32,14 +32,14 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
   end
 
   defp authenticate(conn) do
-    domain = get_req_header(conn, "x-elektrine-federation-domain") |> List.first()
-    key_id = get_req_header(conn, "x-elektrine-federation-key-id") |> List.first()
-    timestamp = get_req_header(conn, "x-elektrine-federation-timestamp") |> List.first()
-    content_digest = get_req_header(conn, "x-elektrine-federation-content-digest") |> List.first()
+    domain = get_req_header(conn, "x-arblarg-domain") |> List.first()
+    key_id = get_req_header(conn, "x-arblarg-key-id") |> List.first()
+    timestamp = get_req_header(conn, "x-arblarg-timestamp") |> List.first()
+    content_digest = get_req_header(conn, "x-arblarg-content-digest") |> List.first()
     request_id = get_req_header(conn, "x-arblarg-request-id") |> List.first()
     signature_algorithm = get_req_header(conn, "x-arblarg-signature-algorithm") |> List.first()
-    signature = get_req_header(conn, "x-elektrine-federation-signature") |> List.first()
-    raw_body = conn.assigns[:raw_body] || ""
+    signature = get_req_header(conn, "x-arblarg-signature") |> List.first()
+    {conn, raw_body} = ensure_raw_body(conn)
     computed_digest = Federation.body_digest(raw_body)
     peer = if is_binary(domain), do: Federation.incoming_peer(domain), else: nil
 
@@ -114,6 +114,19 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
         |> assign(:federation_peer_key_id, key_id)
         |> assign(:federation_request_id, request_id)
         |> assign(:federation_content_digest, content_digest)
+    end
+  end
+
+  defp ensure_raw_body(conn) do
+    case conn.assigns[:raw_body] do
+      body when is_binary(body) ->
+        {conn, body}
+
+      _ ->
+        case ElektrineWeb.Plugs.CacheRawBody.read_body(conn, []) do
+          {:ok, body, updated_conn} when is_binary(body) -> {updated_conn, body}
+          _ -> {conn, ""}
+        end
     end
   end
 

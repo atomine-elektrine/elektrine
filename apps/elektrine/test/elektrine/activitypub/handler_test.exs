@@ -1,6 +1,8 @@
 defmodule Elektrine.ActivityPub.HandlerTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Handler
   alias Elektrine.ActivityPub.Instance
   alias Elektrine.Repo
@@ -24,6 +26,21 @@ defmodule Elektrine.ActivityPub.HandlerTest do
                  "https://blocked-async.example.com/users/test",
                  nil
                )
+    end
+
+    test "resolves shared inbox follow targets before applying per-user blocks" do
+      user = AccountsFixtures.user_fixture(%{username: "sharedinboxblocked"})
+      actor_uri = "https://remote.example/users/blocked"
+
+      assert {:ok, _block} = ActivityPub.block_for_user(user.id, actor_uri)
+
+      activity = %{
+        "type" => "Follow",
+        "actor" => actor_uri,
+        "object" => "#{ActivityPub.instance_url()}/users/#{user.username}"
+      }
+
+      assert {:ok, :blocked} = Handler.process_activity_async(activity, actor_uri, nil)
     end
   end
 

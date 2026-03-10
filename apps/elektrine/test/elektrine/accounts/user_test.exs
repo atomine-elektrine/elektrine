@@ -43,6 +43,20 @@ defmodule Elektrine.Accounts.UserTest do
     end
   end
 
+  describe "preferred email domain defaults" do
+    test "registration changeset assigns the runtime default preferred email domain" do
+      changeset =
+        User.registration_changeset(%User{}, %{
+          username: "runtimepref",
+          password: "testpassword123",
+          password_confirmation: "testpassword123"
+        })
+
+      assert get_change(changeset, :preferred_email_domain) ==
+               Elektrine.Domains.default_user_handle_domain()
+    end
+  end
+
   describe "privacy setting fields" do
     test "default privacy settings" do
       user = %User{}

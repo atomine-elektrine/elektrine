@@ -272,22 +272,7 @@ defmodule ElektrineWeb.ActivityPubController do
     cond do
       # Signature was validated by HTTPSignaturePlug
       conn.assigns[:valid_signature] == true ->
-        # Verify the signature actor matches the activity actor
-        case conn.assigns[:signature_actor] do
-          %{uri: sig_actor_uri} when sig_actor_uri == actor_uri ->
-            :ok
-
-          %Elektrine.Accounts.User{} = user ->
-            # Local user signature - verify actor matches
-            case ActivityPub.local_username_from_uri(actor_uri) do
-              {:ok, username} when username == user.username -> :ok
-              _ -> {:error, "signature actor mismatch"}
-            end
-
-          _ ->
-            # Signature valid but actor lookup may have failed - use lightweight check
-            validate_signature_header(conn, actor_uri)
-        end
+        validate_verified_signature_actor(conn, actor_uri)
 
       # Signature validation failed - check if it's a Delete we should accept anyway
       conn.assigns[:valid_signature] == false ->
@@ -297,46 +282,39 @@ defmodule ElektrineWeb.ActivityPubController do
           {:error, conn.assigns[:signature_error] || :invalid_signature}
         end
 
-      # No signature validation done yet (plug may not have run) - use lightweight check
+      # Inbox routes must pass through HTTPSignaturePlug before controller dispatch.
       true ->
-        validate_signature_header(conn, actor_uri)
+        {:error, "signature not validated"}
     end
   end
 
-  # Lightweight signature validation - checks signature header exists and keyId matches actor
-  # This prevents unsigned requests from being enqueued while avoiding expensive crypto verification
-  defp validate_signature_header(conn, actor_uri) do
-    case get_req_header(conn, "signature") do
-      [signature] when is_binary(signature) and byte_size(signature) > 0 ->
-        # Parse signature header to extract keyId
-        case parse_signature_key_id(signature) do
-          {:ok, key_id} ->
-            # Verify keyId belongs to the claimed actor
-            # keyId is typically "https://domain/users/name#main-key" or "https://domain/users/name/publickey"
-            actor_host = URI.parse(actor_uri).host
-            key_host = URI.parse(key_id).host
+  defp validate_verified_signature_actor(conn, actor_uri) do
+    case conn.assigns[:signature_actor] do
+      %{uri: sig_actor_uri} ->
+        if comparable_uri(sig_actor_uri) == comparable_uri(actor_uri) do
+          :ok
+        else
+          {:error, "signature actor mismatch"}
+        end
 
-            if actor_host == key_host do
-              :ok
-            else
-              {:error, "keyId host mismatch"}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
+      %Elektrine.Accounts.User{} = user ->
+        case ActivityPub.local_username_from_uri(actor_uri) do
+          {:ok, username} when username == user.username -> :ok
+          _ -> {:error, "signature actor mismatch"}
         end
 
       _ ->
-        {:error, "missing signature header"}
-    end
-  end
+        case conn.assigns[:signing_key] do
+          %Elektrine.ActivityPub.SigningKey{key_id: key_id} ->
+            if comparable_uri(signing_key_actor_uri(key_id)) == comparable_uri(actor_uri) do
+              :ok
+            else
+              {:error, "signature actor mismatch"}
+            end
 
-  # Parse keyId from signature header
-  defp parse_signature_key_id(signature) do
-    # Signature format: keyId="...",algorithm="...",headers="...",signature="..."
-    case Regex.run(~r/keyId="([^"]+)"/, signature) do
-      [_, key_id] -> {:ok, key_id}
-      _ -> {:error, "invalid signature format"}
+          _ ->
+            {:error, "signature actor unavailable"}
+        end
     end
   end
 
@@ -344,6 +322,48 @@ defmodule ElektrineWeb.ActivityPubController do
   defp format_error(reason) when is_binary(reason), do: reason
   defp format_error(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp format_error(reason), do: inspect(reason)
+
+  defp signing_key_actor_uri(key_id) when is_binary(key_id) do
+    key_id
+    |> String.split("#", parts: 2)
+    |> List.first()
+  end
+
+  defp signing_key_actor_uri(_), do: nil
+
+  defp comparable_uri(uri) when is_binary(uri) do
+    uri
+    |> String.trim()
+    |> case do
+      "" ->
+        nil
+
+      trimmed ->
+        case URI.parse(trimmed) do
+          %URI{scheme: scheme, host: host} = parsed
+          when is_binary(scheme) and is_binary(host) and host != "" ->
+            normalized_path =
+              parsed.path
+              |> Kernel.||("/")
+              |> case do
+                "/" -> "/"
+                path -> String.trim_trailing(path, "/")
+              end
+
+            parsed
+            |> Map.put(:scheme, String.downcase(scheme))
+            |> Map.put(:host, String.downcase(host))
+            |> Map.put(:path, normalized_path)
+            |> Map.put(:fragment, nil)
+            |> URI.to_string()
+
+          _ ->
+            trimmed
+        end
+    end
+  end
+
+  defp comparable_uri(_), do: nil
 
   defp get_client_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)
@@ -722,7 +742,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
     if is_activitypub_request do
       # Return ActivityPub JSON
-      case Elektrine.Messaging.get_conversation_by_name(community_name) do
+      case ActivityPub.get_community_by_identifier(community_name) do
         nil ->
           conn
           |> put_status(:not_found)
@@ -756,7 +776,7 @@ defmodule ElektrineWeb.ActivityPubController do
   Handles incoming activities to a community inbox.
   """
   def community_inbox(conn, %{"name" => community_name} = params) do
-    case Elektrine.Messaging.get_conversation_by_name(community_name) do
+    case fetch_community_by_identifier(community_name) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -764,6 +784,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
       community ->
         if community.type == "community" do
+          {:ok, _community_actor} = ActivityPub.get_or_create_community_actor(community.id)
           activity = Map.drop(params, ["name"])
           actor_uri = activity["actor"]
 
@@ -778,13 +799,20 @@ defmodule ElektrineWeb.ActivityPubController do
                 _result =
                   case activity["type"] do
                     "Follow" ->
-                      handle_community_follow(activity, community, actor_uri)
+                      Elektrine.ActivityPub.Handlers.FollowHandler.handle(
+                        activity,
+                        actor_uri,
+                        nil
+                      )
 
                     "Undo" ->
                       # Handle Undo Follow (unsubscribe from community)
                       case activity["object"] do
-                        %{"type" => "Follow"} ->
-                          handle_community_unfollow(activity, community, actor_uri)
+                        %{"type" => "Follow"} = follow_object ->
+                          Elektrine.ActivityPub.Handlers.FollowHandler.handle_undo(
+                            follow_object,
+                            actor_uri
+                          )
 
                         _ ->
                           {:ok, :ignored}
@@ -825,151 +853,83 @@ defmodule ElektrineWeb.ActivityPubController do
     end
   end
 
-  # Handle Follow activity for a community
-  defp handle_community_follow(activity, community, actor_uri) do
-    require Logger
-
-    # Get or fetch the remote actor
-    case ActivityPub.get_or_fetch_actor(actor_uri) do
-      {:ok, remote_actor} ->
-        # Create community actor if it doesn't exist
-        {:ok, community_actor} = ActivityPub.get_or_create_community_actor(community.id)
-
-        # For public communities, auto-accept
-        if community.is_public do
-          # Send Accept activity
-          base_url = ActivityPub.instance_url()
-          community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-
-          accept_activity = %{
-            "@context" => "https://www.w3.org/ns/activitystreams",
-            "id" => "#{base_url}/c/#{community_slug}/activities/#{Ecto.UUID.generate()}",
-            "type" => "Accept",
-            "actor" => community_actor.uri,
-            "object" => activity
-          }
-
-          # Send Accept to remote actor's inbox
-          # Type system expects User struct, but this is a community actor
-          Task.start(fn ->
-            ActivityPub.Publisher.publish(accept_activity, nil, [remote_actor.inbox_url])
-          end)
-
-          Logger.info("Community #{community.name} accepted follow from #{actor_uri}")
-          {:ok, :accepted}
-        else
-          Logger.info(
-            "Community #{community.name} received follow request from #{actor_uri} (manual approval required)"
-          )
-
-          # Pending follow requests are not persisted yet.
-          {:ok, :pending}
-        end
-
-      {:error, reason} ->
-        Logger.error("Failed to fetch actor #{actor_uri}: #{inspect(reason)}")
-        {:error, :actor_fetch_failed}
-    end
-  end
-
-  # Handle Undo Follow (unsubscribe) for a community
-  defp handle_community_unfollow(_activity, community, actor_uri) do
-    require Logger
-    Logger.info("Community #{community.name} received unfollow from #{actor_uri}")
-    # Follower membership is not tracked yet for community actors.
-    {:ok, :unfollowed}
-  end
-
   @doc """
   Returns the outbox collection for a community (public posts).
   """
   def community_outbox(conn, %{"name" => community_name} = params) do
     conn = put_resp_header(conn, "content-type", "application/activity+json; charset=utf-8")
 
-    case Elektrine.Messaging.get_conversation_by_name(community_name) do
-      nil ->
+    case fetch_public_community(community_name) do
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Community not found"})
 
-      community ->
-        if community.type == "community" && community.is_public do
-          # Build community actor URL
-          base_url = ActivityPub.instance_url()
-          community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-          outbox_url = "#{base_url}/c/#{community_slug}/outbox"
+      {:ok, community} ->
+        base_url = ActivityPub.instance_url()
+        outbox_url = ActivityPub.community_outbox_uri(community.name, base_url)
 
-          case params["page"] do
-            nil ->
-              # Return collection metadata
-              post_count = Elektrine.Social.count_discussion_posts(community.id)
+        case params["page"] do
+          nil ->
+            post_count = Elektrine.Social.count_discussion_posts(community.id)
 
-              collection = %{
-                "@context" => "https://www.w3.org/ns/activitystreams",
-                "id" => outbox_url,
-                "type" => "OrderedCollection",
-                "totalItems" => post_count,
-                "first" => "#{outbox_url}?page=1"
-              }
+            collection = %{
+              "@context" => "https://www.w3.org/ns/activitystreams",
+              "id" => outbox_url,
+              "type" => "OrderedCollection",
+              "totalItems" => post_count,
+              "first" => "#{outbox_url}?page=1"
+            }
 
-              conn
-              |> put_resp_content_type("application/activity+json")
-              |> json(collection)
+            conn
+            |> put_resp_content_type("application/activity+json")
+            |> json(collection)
 
-            page ->
-              # Return paginated posts
-              page_num = String.to_integer(page)
-              limit = 20
-              offset = (page_num - 1) * limit
+          page ->
+            page_num = String.to_integer(page)
+            limit = 20
+            offset = (page_num - 1) * limit
 
-              posts =
-                Elektrine.Social.get_discussion_posts(community.id,
-                  limit: limit,
-                  offset: offset,
-                  sort_by: "recent"
-                )
+            posts =
+              Elektrine.Social.get_discussion_posts(community.id,
+                limit: limit,
+                offset: offset,
+                sort_by: "recent"
+              )
 
-              # Build Create activities for each post
-              items =
-                Enum.map(posts, fn post ->
-                  # Build Note object
-                  note = build_community_note(post, community)
+            items =
+              Enum.map(posts, fn post ->
+                note = Builder.build_community_note(post, community)
 
-                  # Wrap in Create activity
-                  %{
-                    "id" => "#{note["id"]}/activity",
-                    "type" => "Create",
-                    "actor" => "#{base_url}/c/#{community_slug}",
-                    "published" => format_datetime(post.inserted_at),
-                    "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-                    "cc" => ["#{base_url}/c/#{community_slug}/followers"],
-                    "object" => note
-                  }
-                end)
+                %{
+                  "id" => "#{note["id"]}/activity",
+                  "type" => "Create",
+                  "actor" => ActivityPub.community_actor_uri(community.name, base_url),
+                  "published" => Builder.format_datetime(post.inserted_at),
+                  "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+                  "cc" => [ActivityPub.community_followers_uri(community.name, base_url)],
+                  "object" => note
+                }
+              end)
 
-              collection_page = %{
-                "@context" => "https://www.w3.org/ns/activitystreams",
-                "id" => "#{outbox_url}?page=#{page}",
-                "type" => "OrderedCollectionPage",
-                "partOf" => outbox_url,
-                "orderedItems" => items
-              }
+            collection_page = %{
+              "@context" => "https://www.w3.org/ns/activitystreams",
+              "id" => "#{outbox_url}?page=#{page}",
+              "type" => "OrderedCollectionPage",
+              "partOf" => outbox_url,
+              "orderedItems" => items
+            }
 
-              collection_page =
-                if length(posts) == limit do
-                  Map.put(collection_page, "next", "#{outbox_url}?page=#{page_num + 1}")
-                else
-                  collection_page
-                end
+            collection_page =
+              if length(posts) == limit do
+                Map.put(collection_page, "next", "#{outbox_url}?page=#{page_num + 1}")
+              else
+                collection_page
+              end
 
-              conn
-              |> put_resp_content_type("application/activity+json")
-              |> json(collection_page)
-          end
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: "Community not found"})
+            conn
+            |> put_resp_content_type("application/activity+json")
+            |> json(collection_page)
         end
     end
   end
@@ -980,44 +940,35 @@ defmodule ElektrineWeb.ActivityPubController do
   def community_followers(conn, %{"name" => community_name}) do
     conn = put_resp_header(conn, "content-type", "application/activity+json; charset=utf-8")
 
-    case Elektrine.Messaging.get_conversation_by_name(community_name) do
-      nil ->
+    case fetch_public_community(community_name) do
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Community not found"})
 
-      community ->
-        if community.type == "community" && community.is_public do
-          base_url = ActivityPub.instance_url()
-          community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-          followers_url = "#{base_url}/c/#{community_slug}/followers"
+      {:ok, community} ->
+        base_url = ActivityPub.instance_url()
+        followers_url = ActivityPub.community_followers_uri(community.name, base_url)
 
-          # Get the community actor to count remote followers
-          follower_count =
-            case ActivityPub.get_community_actor_by_name(community.name) do
-              nil -> 0
-              actor -> ActivityPub.get_group_follower_count(actor.id)
-            end
+        follower_count =
+          case ActivityPub.get_community_actor_by_name(community.name) do
+            nil -> 0
+            actor -> ActivityPub.get_group_follower_count(actor.id)
+          end
 
-          # Total includes both local members and remote followers
-          total_count = (community.member_count || 0) + follower_count
+        total_count = (community.member_count || 0) + follower_count
 
-          collection = %{
-            "@context" => "https://www.w3.org/ns/activitystreams",
-            "id" => followers_url,
-            "type" => "OrderedCollection",
-            "totalItems" => total_count,
-            "first" => "#{followers_url}?page=1"
-          }
+        collection = %{
+          "@context" => "https://www.w3.org/ns/activitystreams",
+          "id" => followers_url,
+          "type" => "OrderedCollection",
+          "totalItems" => total_count,
+          "first" => "#{followers_url}?page=1"
+        }
 
-          conn
-          |> put_resp_content_type("application/activity+json")
-          |> json(collection)
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: "Community not found"})
-        end
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> json(collection)
     end
   end
 
@@ -1027,45 +978,37 @@ defmodule ElektrineWeb.ActivityPubController do
   def community_moderators(conn, %{"name" => community_name}) do
     conn = put_resp_header(conn, "content-type", "application/activity+json; charset=utf-8")
 
-    case Elektrine.Messaging.get_conversation_by_name(community_name) do
-      nil ->
+    case fetch_public_community(community_name) do
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Community not found"})
 
-      community ->
-        if community.type == "community" && community.is_public do
-          base_url = ActivityPub.instance_url()
-          community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-          moderators_url = "#{base_url}/c/#{community_slug}/moderators"
+      {:ok, community} ->
+        base_url = ActivityPub.instance_url()
+        moderators_url = ActivityPub.community_moderators_uri(community.name, base_url)
 
-          # Get community moderators/admins
-          moderator_uris =
-            Elektrine.Messaging.get_community_moderators(community.id)
-            |> Enum.map(fn member ->
-              case member.user do
-                nil -> nil
-                user -> "#{base_url}/users/#{user.username}"
-              end
-            end)
-            |> Enum.filter(& &1)
+        moderator_uris =
+          Elektrine.Messaging.get_community_moderators(community.id)
+          |> Enum.map(fn member ->
+            case member.user do
+              nil -> nil
+              user -> "#{base_url}/users/#{user.username}"
+            end
+          end)
+          |> Enum.filter(& &1)
 
-          collection = %{
-            "@context" => "https://www.w3.org/ns/activitystreams",
-            "id" => moderators_url,
-            "type" => "OrderedCollection",
-            "totalItems" => length(moderator_uris),
-            "orderedItems" => moderator_uris
-          }
+        collection = %{
+          "@context" => "https://www.w3.org/ns/activitystreams",
+          "id" => moderators_url,
+          "type" => "OrderedCollection",
+          "totalItems" => length(moderator_uris),
+          "orderedItems" => moderator_uris
+        }
 
-          conn
-          |> put_resp_content_type("application/activity+json")
-          |> json(collection)
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: "Community not found"})
-        end
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> json(collection)
     end
   end
 
@@ -1079,7 +1022,7 @@ defmodule ElektrineWeb.ActivityPubController do
          {:ok, post} <- fetch_public_community_post(community.id, message_id) do
       conn
       |> put_resp_content_type("application/activity+json")
-      |> json(build_community_note(post, community))
+      |> json(Builder.build_community_note(post, community))
     else
       {:error, :not_found} ->
         conn
@@ -1096,18 +1039,17 @@ defmodule ElektrineWeb.ActivityPubController do
 
     with {:ok, community} <- fetch_public_community(community_name),
          {:ok, post} <- fetch_public_community_post(community.id, message_id) do
-      note = build_community_note(post, community)
+      note = Builder.build_community_note(post, community)
       base_url = ActivityPub.instance_url()
-      community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
 
       create_activity = %{
         "@context" => "https://www.w3.org/ns/activitystreams",
         "id" => "#{note["id"]}/activity",
         "type" => "Create",
-        "actor" => "#{base_url}/c/#{community_slug}",
-        "published" => format_datetime(post.inserted_at),
+        "actor" => ActivityPub.community_actor_uri(community.name, base_url),
+        "published" => Builder.format_datetime(post.inserted_at),
         "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-        "cc" => ["#{base_url}/c/#{community_slug}/followers"],
+        "cc" => [ActivityPub.community_followers_uri(community.name, base_url)],
         "object" => note
       }
 
@@ -1123,9 +1065,8 @@ defmodule ElektrineWeb.ActivityPubController do
   end
 
   defp fetch_public_community(community_name) do
-    case Elektrine.Messaging.get_conversation_by_name(community_name) do
-      community
-      when not is_nil(community) and community.type == "community" and community.is_public ->
+    case fetch_community_by_identifier(community_name) do
+      community when not is_nil(community) and community.is_public ->
         {:ok, community}
 
       _ ->
@@ -1144,68 +1085,10 @@ defmodule ElektrineWeb.ActivityPubController do
     end
   end
 
-  # Helper to build a Page object for a community post
-  defp build_community_note(post, community) do
-    base_url = ActivityPub.instance_url()
-    community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-    post_id = "#{base_url}/c/#{community_slug}/posts/#{post.id}"
-    community_actor_url = "#{base_url}/c/#{community_slug}"
-
-    # Get post author
-    author =
-      if post.sender do
-        "#{base_url}/users/#{post.sender.username}"
-      else
-        community_actor_url
-      end
-
-    # Page objects for top-level posts, Note for comments/replies
-    object_type = if post.reply_to_id, do: "Note", else: "Page"
-
-    base_object = %{
-      "id" => post_id,
-      "type" => object_type,
-      "attributedTo" => author,
-      "content" => post.content || "",
-      "mediaType" => "text/html",
-      "published" => format_datetime(post.inserted_at),
-      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => [community_actor_url],
-      "audience" => community_actor_url,
-      "url" => "#{base_url}/communities/#{community.name}/post/#{post.id}",
-      "inReplyTo" => nil,
-      "sensitive" => post.sensitive || false,
-      "context" => "#{base_url}/c/#{community_slug}",
-      "commentsEnabled" => !post.locked_at,
-      "stickied" => post.is_pinned || false,
-      # Could be true for moderator posts
-      "distinguished" => false
-    }
-
-    # Add optional fields
-    base_object =
-      if post.edited_at,
-        do: Map.put(base_object, "updated", format_datetime(post.edited_at)),
-        else: base_object
-
-    base_object =
-      if object_type == "Page" && post.title,
-        do: Map.put(base_object, "name", post.title),
-        else: base_object
-
-    base_object =
-      if post.content_warning && post.content_warning != "",
-        do: Map.put(base_object, "summary", post.content_warning),
-        else: base_object
-
-    base_object
-  end
-
-  # Helper to format datetime
-  defp format_datetime(nil), do: nil
-  defp format_datetime(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-
-  defp format_datetime(%NaiveDateTime{} = ndt) do
-    ndt |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+  defp fetch_community_by_identifier(identifier) do
+    case ActivityPub.get_community_by_identifier(identifier) do
+      %{type: "community"} = community -> community
+      _ -> nil
+    end
   end
 end

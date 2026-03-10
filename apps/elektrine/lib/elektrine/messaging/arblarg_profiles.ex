@@ -2,30 +2,30 @@ defmodule Elektrine.Messaging.ArblargProfiles do
   @moduledoc """
   Arblarg profile and extension registry metadata.
 
-  This module codifies interoperability discipline for ARBP:
+  This module codifies interoperability discipline for Arblarg:
   - one mandatory core profile
-  - optional Discord-style extension profile
+  - optional community extension profile
   - strict extension registry with namespaces and fallback rules
   - conformance-claim gating
   """
 
   alias Elektrine.Messaging.ArblargSDK
 
-  @core_profile_id "arbp-core/1.0"
-  @core_profile_description "Mandatory ARBP core interoperability profile"
-  @discord_profile_id "arbp-discord/1.0"
+  @core_profile_id "arblarg-core/1.0"
+  @core_profile_description "Mandatory Arblarg core interoperability profile"
+  @community_profile_id "arblarg-community/1.0"
 
-  @discord_profile_description "Optional Discord-style profile requiring roles, permissions, threads, presence, and moderation extensions"
+  @community_profile_description "Optional community profile requiring roles, permissions, threads, presence, and moderation extensions"
 
   @conformance_suite_version "2026.02"
   @extension_conformance_suite_version "2026.02-ext"
   @conformance_test_command "mix test apps/elektrine_web/test/elektrine_web/controllers/arblarg_conformance_test.exs"
 
-  @discord_conformance_test_command "mix test apps/elektrine/test/elektrine/messaging/arblarg_extension_conformance_test.exs"
+  @community_conformance_test_command "mix test apps/elektrine/test/elektrine/messaging/arblarg_extension_conformance_test.exs"
 
   @extension_definitions [
     %{
-      urn: "urn:arbp:ext:bootstrap:1",
+      urn: "urn:arblarg:ext:bootstrap:1",
       version: 1,
       stability: "stable",
       required: false,
@@ -37,67 +37,67 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       profile_requirement: nil
     },
     %{
-      urn: "urn:arbp:ext:roles:1",
+      urn: "urn:arblarg:ext:roles:1",
       version: 1,
       stability: "experimental",
       required: false,
       events: ArblargSDK.roles_event_types(),
       fallback: "ignore_event",
-      gate: "required_for_arbp_discord_1_0",
+      gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_ROLES_PASSED",
-      test_command: @discord_conformance_test_command,
-      profile_requirement: @discord_profile_id
+      test_command: @community_conformance_test_command,
+      profile_requirement: @community_profile_id
     },
     %{
-      urn: "urn:arbp:ext:permissions:1",
+      urn: "urn:arblarg:ext:permissions:1",
       version: 1,
       stability: "experimental",
       required: false,
       events: ArblargSDK.permissions_event_types(),
       fallback: "ignore_event",
-      gate: "required_for_arbp_discord_1_0",
+      gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_PERMISSIONS_PASSED",
-      test_command: @discord_conformance_test_command,
-      profile_requirement: @discord_profile_id
+      test_command: @community_conformance_test_command,
+      profile_requirement: @community_profile_id
     },
     %{
-      urn: "urn:arbp:ext:threads:1",
+      urn: "urn:arblarg:ext:threads:1",
       version: 1,
       stability: "experimental",
       required: false,
       events: ArblargSDK.threads_event_types(),
       fallback: "ignore_event",
-      gate: "required_for_arbp_discord_1_0",
+      gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_THREADS_PASSED",
-      test_command: @discord_conformance_test_command,
-      profile_requirement: @discord_profile_id
+      test_command: @community_conformance_test_command,
+      profile_requirement: @community_profile_id
     },
     %{
-      urn: "urn:arbp:ext:presence:1",
+      urn: "urn:arblarg:ext:presence:1",
       version: 1,
       stability: "experimental",
       required: false,
       events: ArblargSDK.presence_event_types(),
       fallback: "ignore_event",
-      gate: "required_for_arbp_discord_1_0",
+      gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_PRESENCE_PASSED",
-      test_command: @discord_conformance_test_command,
-      profile_requirement: @discord_profile_id
+      test_command: @community_conformance_test_command,
+      profile_requirement: @community_profile_id
     },
     %{
-      urn: "urn:arbp:ext:moderation:1",
+      urn: "urn:arblarg:ext:moderation:1",
       version: 1,
       stability: "experimental",
       required: false,
       events: ArblargSDK.moderation_event_types(),
       fallback: "ignore_event",
-      gate: "required_for_arbp_discord_1_0",
+      gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_MODERATION_PASSED",
-      test_command: @discord_conformance_test_command,
-      profile_requirement: @discord_profile_id
+      test_command: @community_conformance_test_command,
+      profile_requirement: @community_profile_id
     },
     %{
-      urn: "urn:arbp:ext:dm:1",
+      urn: "urn:arblarg:ext:dm:1",
       version: 1,
       stability: "experimental",
       required: false,
@@ -109,7 +109,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       profile_requirement: nil
     },
     %{
-      urn: "urn:arbp:ext:voice:1",
+      urn: "urn:arblarg:ext:voice:1",
       version: 1,
       stability: "reserved",
       required: false,
@@ -122,19 +122,19 @@ defmodule Elektrine.Messaging.ArblargProfiles do
     }
   ]
 
-  @discord_required_extensions @extension_definitions
-                               |> Enum.filter(&(&1.profile_requirement == @discord_profile_id))
-                               |> Enum.map(& &1.urn)
+  @community_required_extensions @extension_definitions
+                                 |> Enum.filter(&(&1.profile_requirement == @community_profile_id))
+                                 |> Enum.map(& &1.urn)
 
   def core_profile_id, do: @core_profile_id
   def core_profile_description, do: @core_profile_description
-  def discord_profile_id, do: @discord_profile_id
-  def discord_profile_description, do: @discord_profile_description
+  def community_profile_id, do: @community_profile_id
+  def community_profile_description, do: @community_profile_description
   def conformance_suite_version, do: @conformance_suite_version
   def extension_conformance_suite_version, do: @extension_conformance_suite_version
   def conformance_test_command, do: @conformance_test_command
-  def discord_conformance_test_command, do: @discord_conformance_test_command
-  def discord_required_extensions, do: @discord_required_extensions
+  def community_conformance_test_command, do: @community_conformance_test_command
+  def community_required_extensions, do: @community_required_extensions
 
   def core_event_types, do: ArblargSDK.core_event_types()
 
@@ -149,7 +149,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
   end
 
   def profile_badges(opts \\ []) do
-    [core_profile_badge(opts), discord_profile_badge(opts)]
+    [core_profile_badge(opts), community_profile_badge(opts)]
   end
 
   def passing_profile_claims(opts \\ []) do
@@ -180,7 +180,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       not is_nil(extension_status) ->
         truthy?(extension_status)
 
-      urn == "urn:arbp:ext:bootstrap:1" ->
+      urn == "urn:arblarg:ext:bootstrap:1" ->
         conformance_core_passed?(opts)
 
       true ->
@@ -193,12 +193,12 @@ defmodule Elektrine.Messaging.ArblargProfiles do
 
   def extension_conformance_passed?(_urn, _opts), do: false
 
-  def discord_profile_passed?(opts \\ []) do
-    if Keyword.has_key?(opts, :discord_passed?) do
-      Keyword.get(opts, :discord_passed?) == true
+  def community_profile_passed?(opts \\ []) do
+    if Keyword.has_key?(opts, :community_passed?) do
+      Keyword.get(opts, :community_passed?) == true
     else
       conformance_core_passed?(opts) and
-        Enum.all?(@discord_required_extensions, &extension_conformance_passed?(&1, opts))
+        Enum.all?(@community_required_extensions, &extension_conformance_passed?(&1, opts))
     end
   end
 
@@ -222,20 +222,20 @@ defmodule Elektrine.Messaging.ArblargProfiles do
     }
   end
 
-  defp discord_profile_badge(opts) do
-    status = if discord_profile_passed?(opts), do: "passing", else: "unverified"
+  defp community_profile_badge(opts) do
+    status = if community_profile_passed?(opts), do: "passing", else: "unverified"
 
     %{
-      "id" => @discord_profile_id,
-      "description" => @discord_profile_description,
+      "id" => @community_profile_id,
+      "description" => @community_profile_description,
       "required" => false,
       "status" => status,
       "suite_version" => @extension_conformance_suite_version,
-      "conformance_test_command" => @discord_conformance_test_command,
-      "required_extensions" => @discord_required_extensions,
+      "conformance_test_command" => @community_conformance_test_command,
+      "required_extensions" => @community_required_extensions,
       "required_events" =>
         @extension_definitions
-        |> Enum.filter(&(&1.profile_requirement == @discord_profile_id))
+        |> Enum.filter(&(&1.profile_requirement == @community_profile_id))
         |> Enum.flat_map(& &1.events)
         |> Enum.uniq(),
       "required_security" => %{
@@ -262,7 +262,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       "conformance" => %{
         "status" => status,
         "suite_version" =>
-          if(definition.urn == "urn:arbp:ext:bootstrap:1",
+          if(definition.urn == "urn:arblarg:ext:bootstrap:1",
             do: @conformance_suite_version,
             else: @extension_conformance_suite_version
           ),

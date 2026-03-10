@@ -84,12 +84,13 @@ defmodule Elektrine.Email.Alias do
 
   defp validate_alias_domain(changeset) do
     alias_email = get_field(changeset, :alias_email)
+    user_id = get_field(changeset, :user_id)
 
     if alias_email do
       # Extract domain from email
       case String.split(alias_email, "@") do
         [_local, domain] ->
-          allowed_domains = Elektrine.Domains.supported_email_domains()
+          allowed_domains = Elektrine.Domains.available_email_domains_for_user(user_id)
 
           if String.downcase(domain) in allowed_domains do
             changeset
@@ -114,14 +115,7 @@ defmodule Elektrine.Email.Alias do
     alias_email = get_field(changeset, :alias_email)
 
     if alias_email do
-      # Check if this email is already used as a mailbox (case-insensitive)
-      query =
-        from(m in Elektrine.Email.Mailbox,
-          where: fragment("lower(?)", m.email) == ^String.downcase(alias_email),
-          limit: 1
-        )
-
-      case Elektrine.Repo.one(query) do
+      case Elektrine.Email.Mailboxes.get_mailbox_by_email(alias_email) do
         nil ->
           # Also check if this email would conflict with existing usernames
           validate_alias_not_username(changeset, alias_email)

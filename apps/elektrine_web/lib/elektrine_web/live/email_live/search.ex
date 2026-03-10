@@ -26,6 +26,7 @@ defmodule ElektrineWeb.EmailLive.Search do
       socket
       |> assign(:current_user, current_user)
       |> assign(:mailbox, mailbox)
+      |> assign(:mailbox_addresses, mailbox_addresses(mailbox, current_user))
       |> assign(:page_title, "Search")
       |> assign(:search_query, "")
       |> assign(:search_results, nil)

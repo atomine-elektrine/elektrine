@@ -14,6 +14,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
 
   require Logger
 
+  alias Elektrine.Async
   alias Elektrine.Notifications.FederationNotifications
 
   @doc """
@@ -51,7 +52,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Triggers side effects for a Like activity.
   """
   def handle_like(message_id, remote_actor_id) do
-    Task.start(fn ->
+    Async.run(fn ->
       FederationNotifications.notify_remote_like(message_id, remote_actor_id)
     end)
 
@@ -62,7 +63,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Triggers side effects for an EmojiReact activity.
   """
   def handle_emoji_react(message_id, remote_actor_id, emoji) do
-    Task.start(fn ->
+    Async.run(fn ->
       FederationNotifications.notify_remote_reaction(message_id, remote_actor_id, emoji)
     end)
 
@@ -73,7 +74,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Triggers side effects for an Announce (boost) activity.
   """
   def handle_announce(message_id, remote_actor_id) do
-    Task.start(fn ->
+    Async.run(fn ->
       FederationNotifications.notify_remote_announce(message_id, remote_actor_id)
     end)
 
@@ -84,7 +85,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Triggers side effects for a Follow activity.
   """
   def handle_follow(followed_user_id, remote_actor_id) do
-    Task.start(fn ->
+    Async.run(fn ->
       FederationNotifications.notify_remote_follow(followed_user_id, remote_actor_id)
     end)
 
@@ -95,7 +96,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Triggers side effects for a Follow Accept activity.
   """
   def handle_follow_accepted(user_id, followed_actor_uri) do
-    Task.start(fn ->
+    Async.run(fn ->
       FederationNotifications.notify_follow_accepted(user_id, followed_actor_uri)
     end)
 
@@ -106,7 +107,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Triggers side effects for a reply to a local post.
   """
   def handle_reply(message_id, remote_actor_id) do
-    Task.start(fn ->
+    Async.run(fn ->
       FederationNotifications.notify_remote_reply(message_id, remote_actor_id)
     end)
 
@@ -131,6 +132,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
       type: "mention",
       title: "Mentioned in a post",
       body: "#{actor_name} mentioned you in a post",
+      url: Elektrine.Notifications.resolve_message_notification_url(message_id, "mention"),
       source_type: "message",
       source_id: message_id,
       priority: "normal"

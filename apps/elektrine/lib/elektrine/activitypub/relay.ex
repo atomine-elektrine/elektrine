@@ -22,6 +22,7 @@ defmodule Elektrine.ActivityPub.Relay do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Fetcher, HTTPSignature, Publisher, RelaySubscription}
+  alias Elektrine.Async
   alias Elektrine.Repo
 
   import Ecto.Query
@@ -222,24 +223,26 @@ defmodule Elektrine.ActivityPub.Relay do
   - Exact follow_activity_id match
   - Match by relay_uri when relay sends Accept with actor URI as object
   """
-  def handle_accept(follow_activity_id) do
+  def handle_accept(follow_activity_id), do: handle_accept(follow_activity_id, nil)
+
+  def handle_accept(follow_activity_id, actor_uri) do
     Logger.debug("Relay: Looking for subscription with follow_activity_id: #{follow_activity_id}")
 
-    # First try exact match on follow_activity_id
-    case Repo.get_by(RelaySubscription, follow_activity_id: follow_activity_id) do
+    case get_subscription_by_follow_reference(follow_activity_id) do
       nil ->
-        # Try matching by relay_uri (some relays send Accept with actor URI as object)
-        case Repo.get_by(RelaySubscription, relay_uri: follow_activity_id) do
-          nil ->
-            Logger.debug("Relay: No subscription found for #{follow_activity_id}")
-            {:error, :subscription_not_found}
-
-          subscription ->
-            activate_subscription(subscription)
-        end
+        Logger.debug("Relay: No subscription found for #{follow_activity_id}")
+        {:error, :subscription_not_found}
 
       subscription ->
-        activate_subscription(subscription)
+        if relay_actor_matches?(subscription, actor_uri) do
+          activate_subscription(subscription)
+        else
+          Logger.warning(
+            "Relay: Rejecting Accept for #{follow_activity_id}, actor #{actor_uri} does not match relay #{subscription.relay_uri}"
+          )
+
+          {:error, :subscription_not_found}
+        end
     end
   end
 
@@ -341,23 +344,54 @@ defmodule Elektrine.ActivityPub.Relay do
   @doc """
   Handles a Reject activity for a relay follow.
   """
-  def handle_reject(follow_activity_id) do
-    case Repo.get_by(RelaySubscription, follow_activity_id: follow_activity_id) do
+  def handle_reject(follow_activity_id), do: handle_reject(follow_activity_id, nil)
+
+  def handle_reject(follow_activity_id, actor_uri) do
+    case get_subscription_by_follow_reference(follow_activity_id) do
       nil ->
         {:error, :subscription_not_found}
 
       subscription ->
-        case subscription
-             |> RelaySubscription.changeset(%{status: "rejected", accepted: false})
-             |> Repo.update() do
-          {:ok, updated_subscription} ->
-            Logger.info("Relay: Subscription to #{subscription.relay_uri} rejected")
-            {:ok, updated_subscription}
+        if relay_actor_matches?(subscription, actor_uri) do
+          case subscription
+               |> RelaySubscription.changeset(%{status: "rejected", accepted: false})
+               |> Repo.update() do
+            {:ok, updated_subscription} ->
+              Logger.info("Relay: Subscription to #{subscription.relay_uri} rejected")
+              {:ok, updated_subscription}
 
-          {:error, changeset} ->
-            {:error, changeset}
+            {:error, changeset} ->
+              {:error, changeset}
+          end
+        else
+          Logger.warning(
+            "Relay: Rejecting Reject for #{follow_activity_id}, actor #{actor_uri} does not match relay #{subscription.relay_uri}"
+          )
+
+          {:error, :subscription_not_found}
         end
     end
+  end
+
+  defp get_subscription_by_follow_reference(follow_activity_id) do
+    Repo.get_by(RelaySubscription, follow_activity_id: follow_activity_id) ||
+      Repo.get_by(RelaySubscription, relay_uri: follow_activity_id)
+  end
+
+  defp relay_actor_matches?(_subscription, nil), do: true
+
+  defp relay_actor_matches?(subscription, actor_uri) do
+    normalize_relay_uri(subscription.relay_uri) == normalize_relay_uri(actor_uri)
+  end
+
+  defp normalize_relay_uri(uri) when is_binary(uri) do
+    uri
+    |> String.trim()
+    |> String.split("#", parts: 2)
+    |> hd()
+    |> String.split("?", parts: 2)
+    |> hd()
+    |> String.trim_trailing("/")
   end
 
   @doc """
@@ -370,7 +404,7 @@ defmodule Elektrine.ActivityPub.Relay do
       relays = list_active_subscriptions()
 
       if relays != [] do
-        Task.start(fn ->
+        Async.start(fn ->
           Enum.each(relays, fn subscription ->
             publish_to_relay(activity, subscription)
           end)

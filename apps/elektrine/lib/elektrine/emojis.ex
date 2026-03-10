@@ -133,7 +133,13 @@ defmodule Elektrine.Emojis do
     else
       # Fetch all matching emojis from database
       emojis = fetch_emojis_by_shortcodes(matches, instance_domain)
-      emoji_map = Map.new(emojis, fn emoji -> {emoji.shortcode, emoji} end)
+
+      emoji_map =
+        emojis
+        |> Enum.filter(fn emoji ->
+          match?({:ok, _safe_url}, CustomEmoji.validate_image_url(emoji.image_url))
+        end)
+        |> Map.new(fn emoji -> {emoji.shortcode, emoji} end)
 
       # Replace shortcodes with img tags
       processed_text =
@@ -143,7 +149,8 @@ defmodule Elektrine.Emojis do
               full_match
 
             emoji ->
-              ~s(<img src="#{emoji.image_url}" alt=":#{shortcode}:" title=":#{shortcode}:" class="custom-emoji" />)
+              render_emoji_img_tag(emoji.image_url, ":#{shortcode}:", "custom-emoji") ||
+                full_match
           end
         end)
 
@@ -168,7 +175,8 @@ defmodule Elektrine.Emojis do
           shortcode
 
         emoji ->
-          ~s(<img src="#{emoji.image_url}" alt="#{shortcode}" title="#{shortcode}" class="custom-emoji inline-emoji" />)
+          render_emoji_img_tag(emoji.image_url, shortcode, "custom-emoji inline-emoji") ||
+            shortcode
       end
     else
       # Regular Unicode emoji
@@ -195,10 +203,27 @@ defmodule Elektrine.Emojis do
   defp extract_shortcode(_), do: {:error, :invalid_shortcode}
 
   defp extract_image_url(%{"icon" => %{"url" => url}}) when is_binary(url) do
-    {:ok, url}
+    {:ok, CustomEmoji.normalize_image_url(url)}
   end
 
   defp extract_image_url(_), do: {:error, :missing_image_url}
+
+  defp render_emoji_img_tag(image_url, alt_text, class_name) do
+    with {:ok, safe_url} <- CustomEmoji.validate_image_url(image_url) do
+      escaped_url = escape_html_attribute(safe_url)
+      escaped_alt_text = escape_html_attribute(alt_text)
+
+      ~s(<img src="#{escaped_url}" alt="#{escaped_alt_text}" title="#{escaped_alt_text}" class="#{class_name}" />)
+    else
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp escape_html_attribute(value) when is_binary(value) do
+    value
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
 
   defp fetch_emojis_by_shortcodes(shortcodes, instance_domain) do
     query =

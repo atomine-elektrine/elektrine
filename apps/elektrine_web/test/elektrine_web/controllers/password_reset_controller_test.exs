@@ -2,6 +2,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
   alias Elektrine.Repo
   import Ecto.Changeset
   import Elektrine.DataCase, only: [errors_on: 1]
@@ -38,10 +39,12 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       assert redirected_to(conn) == ~p"/login"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "password reset instructions"
 
-      # Verify reset token was created
+      token = extract_password_reset_token()
       updated_user = Accounts.get_user!(user.id)
       assert updated_user.password_reset_token
+      assert String.length(updated_user.password_reset_token) == 64
       assert updated_user.password_reset_token_expires_at
+      refute updated_user.password_reset_token == token
     end
 
     test "initiates password reset for valid recovery email", %{conn: conn, user: user} do
@@ -91,11 +94,8 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       _user = set_recovery_email_verified(user, "recovery@example.com")
       {:ok, _result} = Accounts.initiate_password_reset(user.username)
 
-      # Get the token from the updated user
-      updated_user = Accounts.get_user!(user.id)
-      token = updated_user.password_reset_token
-
       # Valid token should return user
+      token = extract_password_reset_token()
       assert {:ok, _user} = Accounts.validate_password_reset_token(token)
     end
 
@@ -105,17 +105,19 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
 
     test "rejects expired token", %{user: user} do
       # Create an expired token
-      expired_time = DateTime.add(DateTime.utc_now(), -2, :hour)
+      expired_time = DateTime.utc_now() |> DateTime.add(-2, :hour) |> DateTime.truncate(:second)
+      raw_token = "expired_token_123"
 
-      {:ok, _user} =
-        Accounts.update_user(user, %{
-          password_reset_token: "expired_token_123",
-          password_reset_token_expires_at: expired_time,
-          recovery_email: "recovery@example.com"
-        })
+      user
+      |> change(%{
+        password_reset_token: User.hash_sensitive_token(raw_token),
+        password_reset_token_expires_at: expired_time,
+        recovery_email: "recovery@example.com"
+      })
+      |> Repo.update!()
 
       assert {:error, :invalid_token} =
-               Accounts.validate_password_reset_token("expired_token_123")
+               Accounts.validate_password_reset_token(raw_token)
     end
   end
 
@@ -125,11 +127,8 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       _user = set_recovery_email_verified(user, "recovery@example.com")
       {:ok, _result} = Accounts.initiate_password_reset(user.username)
 
-      # Get the token from the updated user
-      updated_user = Accounts.get_user!(user.id)
-      token = updated_user.password_reset_token
-
       new_password = "new_valid_password123"
+      token = extract_password_reset_token()
 
       # Reset password
       assert {:ok, _user} =
@@ -153,11 +152,9 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       _user = set_recovery_email_verified(user, "recovery@example.com")
       {:ok, _result} = Accounts.initiate_password_reset(user.username)
 
-      # Get the token from the updated user
-      updated_user = Accounts.get_user!(user.id)
-      token = updated_user.password_reset_token
-
       # Try to reset with mismatched passwords
+      token = extract_password_reset_token()
+
       assert {:error, changeset} =
                Accounts.reset_password_with_token(token, %{
                  password: "password123",
@@ -172,11 +169,9 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       _user = set_recovery_email_verified(user, "recovery@example.com")
       {:ok, _result} = Accounts.initiate_password_reset(user.username)
 
-      # Get the token from the updated user
-      updated_user = Accounts.get_user!(user.id)
-      token = updated_user.password_reset_token
-
       # Try to reset with weak password
+      token = extract_password_reset_token()
+
       assert {:error, changeset} =
                Accounts.reset_password_with_token(token, %{
                  password: "weak",
@@ -199,11 +194,8 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       _user = set_recovery_email_verified(user, "recovery@example.com")
       {:ok, _result} = Accounts.initiate_password_reset(user.username)
 
-      # Get the token from the updated user
-      updated_user = Accounts.get_user!(user.id)
-      token = updated_user.password_reset_token
-
       new_password = "new_valid_password123"
+      token = extract_password_reset_token()
 
       # First reset should work
       assert {:ok, _user} =
@@ -219,5 +211,12 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
                  password_confirmation: "another_password123"
                })
     end
+  end
+
+  defp extract_password_reset_token do
+    assert_received {:email, email}
+
+    [_, token] = Regex.run(~r{/password/reset/([A-Za-z0-9_-]+)}, email.text_body)
+    token
   end
 end

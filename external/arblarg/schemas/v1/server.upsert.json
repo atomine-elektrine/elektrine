@@ -1,18 +1,18 @@
 {
+  "$id": "arblarg://schemas/1.0/server.upsert",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/server.upsert",
-  "title": "Arblarg server.upsert payload",
-  "type": "object",
+  "properties": {
+    "channels": {
+      "type": "array"
+    },
+    "server": {
+      "type": "object"
+    }
+  },
   "required": [
     "server",
     "channels"
   ],
-  "properties": {
-    "server": {
-      "type": "object"
-    },
-    "channels": {
-      "type": "array"
-    }
-  }
+  "title": "Arblarg server.upsert payload",
+  "type": "object"
 }

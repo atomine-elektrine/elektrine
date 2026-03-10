@@ -171,14 +171,15 @@ defmodule Elektrine.Email.Sender do
                {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
                {:ok, resolved_params} <- resolve_recipient_aliases(formatted_params),
                :ok <- validate_external_recipient_domains(resolved_params),
-               # Try PGP encryption if recipient has a public key
-               pgp_params <- maybe_pgp_encrypt(resolved_params, user_id),
+               {:ok, pgp_params} <- maybe_pgp_encrypt(resolved_params, user_id),
                {:ok, swoosh_response} <- send_via_swoosh(pgp_params) do
+            stored_params = merge_pgp_message_body(formatted_params, pgp_params)
+
             # Always store sent message regardless of source (webmail or SMTP)
             # Mobile clients and many email clients don't append to Sent via IMAP
             case store_sent_message_external(
                    mailbox.id,
-                   formatted_params,
+                   stored_params,
                    swoosh_response,
                    db_attachments
                  ) do
@@ -190,7 +191,7 @@ defmodule Elektrine.Email.Sender do
             end
 
             # Also deliver to any internal CC/BCC recipients
-            deliver_to_internal_cc_bcc_recipients(mailbox.id, formatted_params, db_attachments)
+            deliver_to_internal_cc_bcc_recipients(mailbox.id, stored_params, db_attachments)
 
             # Record successful send for rate limiting
             RateLimiter.record_send(user_id)
@@ -738,7 +739,7 @@ defmodule Elektrine.Email.Sender do
 
   # Check if email is internal (between our domains)
   defp is_internal_email?(to_emails) when is_list(to_emails) do
-    our_domains = Elektrine.Domains.supported_email_domains()
+    our_domains = Elektrine.Domains.receiving_email_domains()
 
     Enum.all?(to_emails, fn email ->
       case String.split(String.trim(email), "@") do
@@ -858,7 +859,7 @@ defmodule Elektrine.Email.Sender do
     bcc_emails = parse_email_list(params[:bcc] || "")
 
     # Only validate external recipients (not our domains)
-    our_domains = Elektrine.Domains.supported_email_domains()
+    our_domains = Elektrine.Domains.receiving_email_domains()
 
     external_recipients =
       (to_emails ++ cc_emails ++ bcc_emails)
@@ -906,7 +907,8 @@ defmodule Elektrine.Email.Sender do
          {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
          {:ok, _ownership} <- validate_from_address_ownership(params[:from], user_id),
          {:ok, formatted_params} <- format_from_header(params_with_db_attachments, user, mailbox),
-         {:ok, message} <- deliver_internal_email(mailbox.id, formatted_params) do
+         {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
+         {:ok, message} <- deliver_internal_email(mailbox.id, pgp_params) do
       # Record successful send for rate limiting
       RateLimiter.record_send(user_id)
       {:ok, message}
@@ -1051,10 +1053,14 @@ defmodule Elektrine.Email.Sender do
       status: "sent",
       # Sent messages should not have a category
       category: nil,
-      metadata: %{
-        internal_delivery: true,
-        sent_at: DateTime.utc_now() |> DateTime.to_iso8601()
-      }
+      metadata:
+        enrich_metadata_for_pgp(
+          %{
+            internal_delivery: true,
+            sent_at: DateTime.utc_now() |> DateTime.to_iso8601()
+          },
+          email_params
+        )
     }
 
     case Email.create_message(message_attrs) do
@@ -1100,11 +1106,15 @@ defmodule Elektrine.Email.Sender do
       status: "sent",
       # Sent messages should not have a category
       category: nil,
-      metadata: %{
-        external_delivery: true,
-        sent_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-        original_message_id: swoosh_response.message_id
-      }
+      metadata:
+        enrich_metadata_for_pgp(
+          %{
+            external_delivery: true,
+            sent_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+            original_message_id: swoosh_response.message_id
+          },
+          email_params
+        )
     }
 
     case Email.create_message(message_attrs) do
@@ -1188,11 +1198,15 @@ defmodule Elektrine.Email.Sender do
           attachments: attachments_to_store,
           mailbox_id: recipient_mailbox.id,
           status: "received",
-          metadata: %{
-            internal_delivery: true,
-            recipient_type: recipient_type,
-            received_at: DateTime.utc_now() |> DateTime.to_iso8601()
-          }
+          metadata:
+            enrich_metadata_for_pgp(
+              %{
+                internal_delivery: true,
+                recipient_type: recipient_type,
+                received_at: DateTime.utc_now() |> DateTime.to_iso8601()
+              },
+              email_params
+            )
         }
 
         case Email.create_message(received_attrs) do
@@ -1314,29 +1328,12 @@ defmodule Elektrine.Email.Sender do
     end
   end
 
-  # Check if two email addresses belong to the same user across domains
-  defp same_user_cross_domain?(email1, email2) do
-    case {parse_email_parts(email1), parse_email_parts(email2)} do
-      {{username1, domain1}, {username2, domain2}} ->
-        # Same username and both are our domains
-        supported_domains = Elektrine.Domains.supported_email_domains()
-
-        String.downcase(username1) == String.downcase(username2) &&
-          domain1 in supported_domains &&
-          domain2 in supported_domains
-
-      _ ->
-        false
-    end
+  # Check if the address belongs to the same user through any owned mailbox variant.
+  defp same_user_cross_domain?(email_address, %Mailbox{user_id: user_id}) do
+    match?({:ok, _ownership}, Email.verify_email_ownership(email_address, user_id))
   end
 
-  # Parse email into username and domain
-  defp parse_email_parts(email) do
-    case String.split(String.trim(String.downcase(email)), "@") do
-      [username, domain] -> {username, domain}
-      _ -> nil
-    end
-  end
+  defp same_user_cross_domain?(_, _), do: false
 
   # Helper to deliver to a single CC or BCC recipient
   defp deliver_to_cc_or_bcc_recipient(
@@ -1351,7 +1348,7 @@ defmodule Elektrine.Email.Sender do
     is_internal = is_internal_email?([recipient_email])
 
     is_sender =
-      sender_mailbox && same_user_cross_domain?(recipient_email, sender_mailbox.email)
+      sender_mailbox && same_user_cross_domain?(recipient_email, sender_mailbox)
 
     is_alias = sender_mailbox && user_alias?(recipient_email, sender_mailbox.user_id)
 
@@ -1424,11 +1421,15 @@ defmodule Elektrine.Email.Sender do
             attachments: attachments_to_store,
             mailbox_id: recipient_mailbox.id,
             status: "received",
-            metadata: %{
-              internal_delivery: true,
-              recipient_type: recipient_type,
-              received_at: DateTime.utc_now() |> DateTime.to_iso8601()
-            }
+            metadata:
+              enrich_metadata_for_pgp(
+                %{
+                  internal_delivery: true,
+                  recipient_type: recipient_type,
+                  received_at: DateTime.utc_now() |> DateTime.to_iso8601()
+                },
+                email_params
+              )
           }
 
           case Email.create_message(received_attrs) do
@@ -1524,12 +1525,16 @@ defmodule Elektrine.Email.Sender do
       mailbox_id: sender_mailbox_id,
       status: "received",
       category: "inbox",
-      metadata: %{
-        internal_delivery: true,
-        self_email: true,
-        sent_and_received: true,
-        delivered_at: DateTime.utc_now() |> DateTime.to_iso8601()
-      }
+      metadata:
+        enrich_metadata_for_pgp(
+          %{
+            internal_delivery: true,
+            self_email: true,
+            sent_and_received: true,
+            delivered_at: DateTime.utc_now() |> DateTime.to_iso8601()
+          },
+          email_params
+        )
     }
 
     case Email.create_message(message_attrs) do
@@ -1600,34 +1605,44 @@ defmodule Elektrine.Email.Sender do
   end
 
   # PGP Encryption Support
-  # Attempts to encrypt the email if the primary recipient has a PGP public key
+  # Applies the requested encryption policy across all recipients.
   defp maybe_pgp_encrypt(params, user_id) do
-    # Only encrypt if not already encrypted and we have a body to encrypt
-    if params[:pgp_encrypted] do
-      params
-    else
-      # Get primary recipient (first TO address)
-      to_emails = parse_email_list(params[:to] || "")
+    mode = encryption_mode(params)
+    recipients = extract_all_recipients(params)
 
-      case to_emails do
-        [primary_recipient | _rest] ->
-          # Check if this recipient has a PGP key
-          case PGP.lookup_recipient_key(primary_recipient, user_id) do
-            {:ok, public_key} ->
-              encrypt_email_body(params, public_key, primary_recipient)
+    cond do
+      params[:pgp_encrypted] ->
+        {:ok, params}
 
-            {:error, _} ->
-              # No key available, send unencrypted
-              params
-          end
+      mode == :off ->
+        {:ok, params}
 
-        [] ->
-          params
-      end
+      recipients == [] ->
+        {:ok, params}
+
+      mode == :require and attachments_present?(params) ->
+        {:error, :pgp_attachments_unsupported}
+
+      true ->
+        %{available: available, missing: missing} = PGP.lookup_recipient_keys(recipients, user_id)
+
+        cond do
+          missing != [] and mode == :require ->
+            {:error, {:missing_pgp_keys, missing}}
+
+          missing != [] ->
+            {:ok, params}
+
+          map_size(available) == 0 ->
+            {:ok, params}
+
+          true ->
+            encrypt_email_body(params, Map.values(available), recipients, mode)
+        end
     end
   end
 
-  defp encrypt_email_body(params, public_key, recipient_email) do
+  defp encrypt_email_body(params, public_keys, recipients, mode) do
     # Get the body to encrypt (prefer text, create text from html if needed)
     text_body = params[:text_body]
     html_body = params[:html_body]
@@ -1650,22 +1665,61 @@ defmodule Elektrine.Email.Sender do
       end
 
     if body_to_encrypt do
-      case PGP.encrypt(body_to_encrypt, public_key) do
+      case PGP.encrypt(body_to_encrypt, public_keys) do
         {:ok, encrypted} ->
           # Replace body with encrypted content
-          params
-          |> Map.put(:text_body, encrypted)
-          # Remove HTML body - PGP is text-only
-          |> Map.put(:html_body, nil)
-          |> Map.put(:pgp_encrypted, true)
+          {:ok,
+           params
+           |> Map.put(:text_body, encrypted)
+           # Remove HTML body - PGP is text-only
+           |> Map.put(:html_body, nil)
+           |> Map.put(:pgp_encrypted, true)}
 
         {:error, reason} ->
-          Logger.warning("PGP: Failed to encrypt email to #{recipient_email}: #{inspect(reason)}")
-          # Send unencrypted if encryption fails
-          params
+          Logger.warning(
+            "PGP: Failed to encrypt email for #{Enum.join(recipients, ", ")}: #{inspect(reason)}"
+          )
+
+          if mode == :require do
+            {:error, reason}
+          else
+            {:ok, params}
+          end
       end
     else
-      params
+      {:ok, params}
+    end
+  end
+
+  defp merge_pgp_message_body(original_params, pgp_params) do
+    original_params
+    |> Map.put(:text_body, pgp_params[:text_body])
+    |> Map.put(:html_body, pgp_params[:html_body])
+    |> maybe_put_pgp_flag(pgp_params[:pgp_encrypted])
+  end
+
+  defp maybe_put_pgp_flag(params, true), do: Map.put(params, :pgp_encrypted, true)
+  defp maybe_put_pgp_flag(params, _value), do: Map.delete(params, :pgp_encrypted)
+
+  defp encryption_mode(params) do
+    case params[:encryption_mode] || params["encryption_mode"] do
+      value when value in [:off, "off", "standard"] -> :off
+      value when value in [:require, "require", "required"] -> :require
+      _ -> :auto
+    end
+  end
+
+  defp attachments_present?(params) do
+    attachments = params[:attachments] || params["attachments"] || params[:db_attachments]
+
+    is_map(attachments) and map_size(attachments) > 0
+  end
+
+  defp enrich_metadata_for_pgp(metadata, email_params) do
+    if email_params[:pgp_encrypted] do
+      Map.put(metadata, :pgp_encrypted, true)
+    else
+      metadata
     end
   end
 

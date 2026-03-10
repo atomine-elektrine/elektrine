@@ -82,7 +82,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
     case authenticate(conn) do
       :ok ->
         domains =
-          Elektrine.Domains.supported_email_domains()
+          Elektrine.Domains.receiving_email_domains()
 
         conn |> put_status(:ok) |> json(%{domains: domains})
 
@@ -788,7 +788,15 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp authenticate(conn) do
-    webhook_api_key = System.get_env("HARAKA_INBOUND_API_KEY") || System.get_env("HARAKA_API_KEY")
+    webhook_api_key =
+      ["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY"]
+      |> Enum.find_value(fn env_name ->
+        case System.get_env(env_name) do
+          nil -> nil
+          "" -> nil
+          value -> value
+        end
+      end)
 
     if is_nil(webhook_api_key) || webhook_api_key == "" do
       Logger.error("SECURITY: Webhook authentication configuration error")
@@ -1450,7 +1458,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp supported_domains do
-    Elektrine.Domains.supported_email_domains()
+    Elektrine.Domains.receiving_email_domains()
   end
 
   defp get_bounce_status(reason) do

@@ -81,6 +81,7 @@ defmodule ElektrineWeb.EmailLive.Index do
      socket
      |> assign(:page_title, "Email")
      |> assign(:mailbox, mailbox)
+     |> assign(:mailbox_addresses, mailbox_addresses(mailbox, user))
      |> assign(:loading_sidebar, true)
      |> assign(:storage_info, cached_storage)
      |> assign(:unread_count, fresh_counts.inbox)
