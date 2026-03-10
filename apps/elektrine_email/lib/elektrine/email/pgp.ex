@@ -223,8 +223,7 @@ defmodule Elektrine.Email.PGP do
       email when is_binary(email) -> String.downcase(String.trim(email))
       _ -> nil
     end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(&(&1 == ""))
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
     |> Enum.uniq()
   end
 
@@ -261,26 +260,27 @@ defmodule Elektrine.Email.PGP do
   end
 
   defp fetch_wkd_key(url) do
-    with :ok <- URLValidator.validate(url) do
-      headers = [
-        {"Accept", "application/octet-stream"},
-        {"User-Agent", "Elektrine-WKD-Client/1.0"}
-      ]
+    case URLValidator.validate(url) do
+      :ok ->
+        headers = [
+          {"Accept", "application/octet-stream"},
+          {"User-Agent", "Elektrine-WKD-Client/1.0"}
+        ]
 
-      request = Finch.build(:get, url, headers)
+        request = Finch.build(:get, url, headers)
 
-      case Finch.request(request, Elektrine.Finch, receive_timeout: @wkd_timeout) do
-        {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) > 0 ->
-          armored = armor_public_key(body)
-          {:ok, armored}
+        case Finch.request(request, Elektrine.Finch, receive_timeout: @wkd_timeout) do
+          {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) > 0 ->
+            armored = armor_public_key(body)
+            {:ok, armored}
 
-        {:ok, %Finch.Response{status: status}} ->
-          {:error, {:http_error, status}}
+          {:ok, %Finch.Response{status: status}} ->
+            {:error, {:http_error, status}}
 
-        {:error, reason} ->
-          {:error, reason}
-      end
-    else
+          {:error, reason} ->
+            {:error, reason}
+        end
+
       {:error, reason} ->
         Logger.warning("WKD: blocked unsafe lookup to #{url}: #{inspect(reason)}")
         {:error, {:unsafe_url, reason}}

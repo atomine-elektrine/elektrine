@@ -16,7 +16,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   @max_discovery_body_bytes 262_144
 
-  def discover_peer(domain, opts, context) when is_binary(domain) and is_list(opts) and is_map(context) do
+  def discover_peer(domain, opts, context)
+      when is_binary(domain) and is_list(opts) and is_map(context) do
     force? = Keyword.get(opts, :force, false)
 
     case normalize_peer_domain(domain) do
@@ -216,7 +217,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp fetch_and_cache_peer(_domain, _context), do: {:error, :invalid_domain}
 
-  defp fetch_remote_discovery_document(domain, context) when is_binary(domain) and is_map(context) do
+  defp fetch_remote_discovery_document(domain, context)
+       when is_binary(domain) and is_map(context) do
     urls = discovery_candidate_urls(domain, context)
 
     case call(context, :federation_config, []) |> Keyword.get(:discovery_fetcher) do
@@ -321,19 +323,37 @@ defmodule Elektrine.Messaging.Federation.Discovery do
          :ok <- verify_discovery_document_signature(payload, identity),
          identity_fingerprint when is_binary(identity_fingerprint) <-
            discovery_identity_fingerprint(identity),
-         :ok <- verify_discovery_bootstrap_trust(claimed_domain, identity, identity_fingerprint, context),
+         :ok <-
+           verify_discovery_bootstrap_trust(
+             claimed_domain,
+             identity,
+             identity_fingerprint,
+             context
+           ),
          raw_endpoints when is_map(raw_endpoints) <- discovery_field(payload, "endpoints"),
          {:ok, endpoints} <-
            normalize_discovery_endpoints(raw_endpoints, claimed_domain, validate_urls?, context),
          true <- map_size(endpoints) > 0 or {:error, :invalid_discovery_endpoints},
          base_url when is_binary(base_url) <-
-           extract_discovery_base_url(endpoints, discovery_url, claimed_domain, validate_urls?, context) do
+           extract_discovery_base_url(
+             endpoints,
+             discovery_url,
+             claimed_domain,
+             validate_urls?,
+             context
+           ) do
       {:ok,
        %{
          domain: claimed_domain,
          base_url: base_url,
          discovery_url:
-           normalize_discovery_url(discovery_url, validate_urls?, claimed_domain, ["http", "https"], context) ||
+           normalize_discovery_url(
+             discovery_url,
+             validate_urls?,
+             claimed_domain,
+             ["http", "https"],
+             context
+           ) ||
              discovery_url,
          protocol: ArblargSDK.protocol_name(),
          protocol_id: protocol_id || ArblargSDK.protocol_id(),
@@ -445,7 +465,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     current_key_id = normalize_optional_string(discovery_field(identity, "current_key_id"))
 
     current_key_id =
-      if is_binary(current_key_id) and Enum.any?(keys, &(discovery_field(&1, "id") == current_key_id)) do
+      if is_binary(current_key_id) and
+           Enum.any?(keys, &(discovery_field(&1, "id") == current_key_id)) do
         current_key_id
       else
         keys |> List.first() |> then(&discovery_field(&1, "id"))
@@ -490,13 +511,15 @@ defmodule Elektrine.Messaging.Federation.Discovery do
        when is_map(endpoints) and is_binary(claimed_domain) and is_map(context) do
     [
       {"well_known", discovery_field(endpoints, "well_known"), ["http", "https"]},
-      {"well_known_versioned", discovery_field(endpoints, "well_known_versioned"), ["http", "https"]},
+      {"well_known_versioned", discovery_field(endpoints, "well_known_versioned"),
+       ["http", "https"]},
       {"events", discovery_field(endpoints, "events"), ["http", "https"]},
       {"events_batch", discovery_field(endpoints, "events_batch"), ["http", "https"]},
       {"ephemeral", discovery_field(endpoints, "ephemeral"), ["http", "https"]},
       {"sync", discovery_field(endpoints, "sync"), ["http", "https"]},
       {"stream_events", discovery_field(endpoints, "stream_events"), ["http", "https"]},
-      {"session_websocket", discovery_field(endpoints, "session_websocket"), session_websocket_schemes(context)},
+      {"session_websocket", discovery_field(endpoints, "session_websocket"),
+       session_websocket_schemes(context)},
       {"public_servers", discovery_field(endpoints, "public_servers"), ["http", "https"]},
       {"snapshot_template", discovery_field(endpoints, "snapshot_template"), ["http", "https"]},
       {"profiles", discovery_field(endpoints, "profiles"), ["http", "https"]},
@@ -663,7 +686,9 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
       nil ->
         current_record = get_discovered_peer_record(domain)
-        current_fingerprint = current_record && normalize_optional_string(current_record.identity_fingerprint)
+
+        current_fingerprint =
+          current_record && normalize_optional_string(current_record.identity_fingerprint)
 
         cond do
           is_binary(current_fingerprint) and current_fingerprint == identity_fingerprint ->
@@ -754,7 +779,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp dns_identity_proof_present?(_domain, _context), do: false
 
-  defp discovery_dns_identity_proofs(domain, context) when is_binary(domain) and is_map(context) do
+  defp discovery_dns_identity_proofs(domain, context)
+       when is_binary(domain) and is_map(context) do
     case call(context, :federation_config, []) |> Keyword.get(:dns_identity_fetcher) do
       fun when is_function(fun, 2) ->
         ["_arblarg.#{domain}", "_arblarg-bootstrap.#{domain}"]
@@ -849,7 +875,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
   defp dns_identity_record_matches?(_proof, _identity_fingerprint, _public_keys, _tls_binding),
     do: false
 
-  defp discovery_tls_identity_binding(domain, context) when is_binary(domain) and is_map(context) do
+  defp discovery_tls_identity_binding(domain, context)
+       when is_binary(domain) and is_map(context) do
     case call(context, :federation_config, []) |> Keyword.get(:tls_identity_fetcher) do
       fun when is_function(fun, 2) ->
         normalize_tls_identity_binding(fun.(domain, %{scheme: "https", port: 443}))
@@ -928,14 +955,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp lookup_dns_txt_records(_name), do: []
 
-  defp normalize_discovery_url(
-         value,
-         validate_urls?,
-         claimed_domain,
-         allowed_schemes \\ ["http", "https"],
-         context
-       )
-
   defp normalize_discovery_url(value, false, claimed_domain, allowed_schemes, _context) do
     case normalize_optional_string(value) do
       nil ->
@@ -986,7 +1005,9 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     with :ok <- URLValidator.validate(url),
          %URI{scheme: scheme, host: host} <- URI.parse(url),
          true <- is_binary(host) and host != "",
-         true <- scheme == "https" or (call(context, :allow_insecure_transport?, []) and scheme == "http") do
+         true <-
+           scheme == "https" or
+             (call(context, :allow_insecure_transport?, []) and scheme == "http") do
       :ok
     else
       false -> {:error, :invalid_discovery_url}
@@ -1008,9 +1029,12 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp host_belongs_to_domain?(_host, _remote_domain), do: false
 
-  defp maybe_validate_httpish_discovery_url(url, scheme, context) when scheme in ["http", "https"] do
+  defp maybe_validate_httpish_discovery_url(url, scheme, context)
+       when scheme in ["http", "https"] do
     with :ok <- URLValidator.validate(url),
-         true <- scheme == "https" or (call(context, :allow_insecure_transport?, []) and scheme == "http") do
+         true <-
+           scheme == "https" or
+             (call(context, :allow_insecure_transport?, []) and scheme == "http") do
       :ok
     else
       false -> {:error, :invalid_discovery_url}
@@ -1021,10 +1045,18 @@ defmodule Elektrine.Messaging.Federation.Discovery do
   defp maybe_validate_httpish_discovery_url(_url, "wss", _context), do: :ok
 
   defp maybe_validate_httpish_discovery_url(_url, "ws", context) do
-    if call(context, :allow_insecure_transport?, []), do: :ok, else: {:error, :invalid_discovery_url}
+    if call(context, :allow_insecure_transport?, []),
+      do: :ok,
+      else: {:error, :invalid_discovery_url}
   end
 
-  defp extract_discovery_base_url(endpoints, discovery_url, claimed_domain, validate_urls?, context)
+  defp extract_discovery_base_url(
+         endpoints,
+         discovery_url,
+         claimed_domain,
+         validate_urls?,
+         context
+       )
        when is_map(endpoints) and is_binary(discovery_url) and is_binary(claimed_domain) and
               is_map(context) do
     [
@@ -1034,14 +1066,32 @@ defmodule Elektrine.Messaging.Federation.Discovery do
       Map.get(endpoints, "stream_events"),
       Map.get(endpoints, "public_servers"),
       Map.get(endpoints, "well_known"),
-      normalize_discovery_url(discovery_url, validate_urls?, claimed_domain, ["http", "https"], context)
+      normalize_discovery_url(
+        discovery_url,
+        validate_urls?,
+        claimed_domain,
+        ["http", "https"],
+        context
+      )
     ]
     |> Enum.find_value(&base_url_from_remote_url/1)
   end
 
-  defp extract_discovery_base_url(_endpoints, discovery_url, claimed_domain, validate_urls?, context) do
+  defp extract_discovery_base_url(
+         _endpoints,
+         discovery_url,
+         claimed_domain,
+         validate_urls?,
+         context
+       ) do
     base_url_from_remote_url(
-      normalize_discovery_url(discovery_url, validate_urls?, claimed_domain, ["http", "https"], context)
+      normalize_discovery_url(
+        discovery_url,
+        validate_urls?,
+        claimed_domain,
+        ["http", "https"],
+        context
+      )
     )
   end
 
@@ -1099,7 +1149,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     now = attrs.last_discovered_at || DateTime.utc_now() |> DateTime.truncate(:second)
 
     cond do
-      is_nil(current_fingerprint) or is_nil(new_fingerprint) or current_fingerprint == new_fingerprint ->
+      is_nil(current_fingerprint) or is_nil(new_fingerprint) or
+          current_fingerprint == new_fingerprint ->
         attrs
         |> Map.put(:trust_state, record.trust_state || attrs.trust_state || "trusted")
         |> Map.put(:previous_identity_fingerprint, record.previous_identity_fingerprint)
@@ -1143,7 +1194,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp discovery_identity_overlaps?(_left, _right), do: false
 
-  defp build_discovered_peer(%FederationDiscoveredPeer{} = record, context) when is_map(context) do
+  defp build_discovered_peer(%FederationDiscoveredPeer{} = record, context)
+       when is_map(context) do
     {allow_incoming, allow_outgoing} = discovered_peer_permissions(record.trust_state)
 
     peer_attrs = %{
@@ -1205,14 +1257,21 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp apply_runtime_policy_to_peer(_peer), do: nil
 
-  defp discovered_peer_stale?(%FederationDiscoveredPeer{last_discovered_at: %DateTime{} = discovered_at}, context)
+  defp discovered_peer_stale?(
+         %FederationDiscoveredPeer{last_discovered_at: %DateTime{} = discovered_at},
+         context
+       )
        when is_map(context) do
-    DateTime.diff(DateTime.utc_now(), discovered_at, :second) > call(context, :discovery_ttl_seconds, [])
+    DateTime.diff(DateTime.utc_now(), discovered_at, :second) >
+      call(context, :discovery_ttl_seconds, [])
   end
 
   defp discovered_peer_stale?(_record, _context), do: true
 
-  defp discovered_peer_within_grace?(%FederationDiscoveredPeer{last_discovered_at: %DateTime{} = discovered_at}, context)
+  defp discovered_peer_within_grace?(
+         %FederationDiscoveredPeer{last_discovered_at: %DateTime{} = discovered_at},
+         context
+       )
        when is_map(context) do
     DateTime.diff(DateTime.utc_now(), discovered_at, :second) <=
       call(context, :discovery_stale_grace_seconds, [])

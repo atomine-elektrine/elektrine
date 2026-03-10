@@ -8,8 +8,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   alias Elektrine.Social.Drafts
   alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
-  alias ElektrineWeb.TimelineLive.ReplyContextPreviews
   alias ElektrineWeb.TimelineLive.Operations.Helpers
+  alias ElektrineWeb.TimelineLive.ReplyContextPreviews
 
   def handle_event("toggle_post_composer", _params, socket) do
     show_post_composer = !socket.assigns.show_post_composer

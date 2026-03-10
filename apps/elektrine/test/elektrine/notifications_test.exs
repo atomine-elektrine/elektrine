@@ -2,11 +2,11 @@ defmodule Elektrine.NotificationsTest do
   use Elektrine.DataCase, async: true
 
   import Ecto.Query
-  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.{Accounts, Messaging, Notifications, Repo}
   alias Elektrine.Accounts.User
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging.Message
   alias Elektrine.Notifications.FederationNotifications
-  alias Elektrine.{Accounts, Messaging, Notifications, Repo}
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
