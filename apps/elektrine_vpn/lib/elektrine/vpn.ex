@@ -66,7 +66,8 @@ defmodule Elektrine.VPN do
       |> Map.put_new(:max_users, 1000)
       |> Map.put_new(:current_users, 0)
       |> Map.put_new(:minimum_trust_level, 0)
-      |> Map.put_new(:endpoint_port, 51_820)
+      |> Map.put_new(:endpoint_port, 443)
+      |> Map.put_new(:client_mtu, 1280)
       |> Map.put_new(:dns_servers, "1.1.1.1, 1.0.0.1")
       |> Map.put_new(:internal_ip_range, "10.8.0.0/24")
 
@@ -250,16 +251,19 @@ defmodule Elektrine.VPN do
 
     # Decrypt private key
     private_key = decrypt_private_key(config.private_key)
+    endpoint_host = server_endpoint_host(server)
+    mtu_line = config_mtu_line(server)
 
     """
     [Interface]
     PrivateKey = #{private_key}
     Address = #{config.allocated_ip}
     DNS = #{server.dns_servers}
+    #{mtu_line}
 
     [Peer]
     PublicKey = #{server.public_key}
-    Endpoint = #{server.public_ip}:#{server.endpoint_port}
+    Endpoint = #{endpoint_host}:#{server.endpoint_port}
     AllowedIPs = #{config.allowed_ips}
     PersistentKeepalive = #{config.persistent_keepalive}
     """
@@ -354,6 +358,28 @@ defmodule Elektrine.VPN do
   end
 
   defp decrypt_private_key(nil), do: nil
+
+  defp server_endpoint_host(%Server{endpoint_host: endpoint_host, public_ip: public_ip}) do
+    case normalize_optional_string(endpoint_host) do
+      nil -> public_ip
+      value -> value
+    end
+  end
+
+  defp config_mtu_line(%Server{client_mtu: nil}), do: ""
+  defp config_mtu_line(%Server{client_mtu: client_mtu}), do: "MTU = #{client_mtu}"
+
+  defp normalize_optional_string(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    if trimmed == "" do
+      nil
+    else
+      trimmed
+    end
+  end
+
+  defp normalize_optional_string(_), do: nil
 
   defp broadcast_vpn_event(user_id, event) when is_integer(user_id) and user_id > 0 do
     Phoenix.PubSub.broadcast(Elektrine.PubSub, PubSubTopics.user_vpn(user_id), event)

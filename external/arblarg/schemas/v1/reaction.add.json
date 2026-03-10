@@ -1,40 +1,109 @@
 {
+  "$id": "arblarg://schemas/1.0/reaction.add",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/reaction.add",
-  "title": "Arblarg reaction.add payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "message_id",
-    "reaction"
+  "anyOf": [
+    {
+      "required": [
+        "server",
+        "channel"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
   ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
     "channel": {
       "type": "object"
     },
     "message_id": {
-      "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "type": "string"
     },
     "reaction": {
-      "type": "object",
+      "properties": {
+        "actor": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "emoji": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
       "required": [
         "emoji",
         "actor"
       ],
+      "type": "object"
+    },
+    "refs": {
       "properties": {
-        "emoji": {
-          "type": "string",
-          "minLength": 1
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
         },
-        "actor": {
-          "type": "object"
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "server_id",
+        "channel_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "message_id",
+    "reaction"
+  ],
+  "title": "Arblarg reaction.add payload",
+  "type": "object"
 }

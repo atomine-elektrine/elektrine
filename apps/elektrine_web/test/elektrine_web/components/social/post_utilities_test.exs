@@ -76,6 +76,25 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     assert preview == "Hello 😊 world"
   end
 
+  test "plain_text_content/1 strips malformed html fragments and decodes entities" do
+    content =
+      "<p>We&#39;re live now with No Agenda episode 1849 #@pocketnoagenda <a href=\"https://example.com/live\""
+
+    assert PostUtilities.plain_text_content(content) ==
+             "We're live now with No Agenda episode 1849 #@pocketnoagenda"
+  end
+
+  test "render_content_preview/2 does not leak escaped raw html from malformed content" do
+    content =
+      "<p>We&#39;re live now with No Agenda episode 1849 #@pocketnoagenda <a href=\"https://example.com/live\""
+
+    preview = PostUtilities.render_content_preview(content, nil)
+
+    assert preview =~ "We&#39;re live now with No Agenda episode 1849"
+    refute preview =~ "&lt;p&gt;"
+    refute preview =~ "href="
+  end
+
   test "get_instance_domain/1 prefers remote actor domain" do
     post = %{remote_actor: %{domain: "lemmy.world"}}
 

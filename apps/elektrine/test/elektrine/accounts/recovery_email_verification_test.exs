@@ -3,6 +3,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.RecoveryEmailVerification
+  alias Elektrine.Accounts.User
   alias Elektrine.Repo
 
   describe "send_verification_email/1" do
@@ -56,6 +57,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       # Should send verification email (because user is restricted)
       assert {:ok, updated_user} = RecoveryEmailVerification.send_verification_email(user.id)
       assert updated_user.recovery_email_verification_token != nil
+      assert String.length(updated_user.recovery_email_verification_token) == 64
+      refute updated_user.recovery_email_verification_token == extract_verification_token()
     end
 
     test "sends verification email and generates token", %{user: user} do
@@ -70,7 +73,9 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
 
       assert {:ok, updated_user} = RecoveryEmailVerification.send_verification_email(user.id)
       assert updated_user.recovery_email_verification_token != nil
+      assert String.length(updated_user.recovery_email_verification_token) == 64
       assert updated_user.recovery_email_verification_sent_at != nil
+      refute updated_user.recovery_email_verification_token == extract_verification_token()
     end
   end
 
@@ -108,7 +113,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       |> Ecto.Changeset.change(%{
         email_sending_restricted: true,
         recovery_email: "recovery@example.com",
-        recovery_email_verification_token: "expired_token_123",
+        recovery_email_verification_token: User.hash_sensitive_token("expired_token_123"),
         recovery_email_verification_sent_at: expired_time
       })
       |> Repo.update!()
@@ -130,7 +135,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
         email_restricted_at: now,
         recovery_email: "recovery@example.com",
         recovery_email_verified: false,
-        recovery_email_verification_token: token,
+        recovery_email_verification_token: User.hash_sensitive_token(token),
         recovery_email_verification_sent_at: now
       })
       |> Repo.update!()
@@ -158,7 +163,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       |> Ecto.Changeset.change(%{
         email_sending_restricted: true,
         recovery_email: "recovery@example.com",
-        recovery_email_verification_token: token,
+        recovery_email_verification_token: User.hash_sensitive_token(token),
         recovery_email_verification_sent_at: valid_time
       })
       |> Repo.update!()
@@ -252,5 +257,12 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       assert updated_user.recovery_email == "new@example.com"
       assert updated_user.recovery_email_verified == false
     end
+  end
+
+  defp extract_verification_token do
+    assert_received {:email, email}
+
+    [_, token] = Regex.run(~r{/verify-recovery-email\?token=([A-Za-z0-9_-]+)}, email.text_body)
+    token
   end
 end

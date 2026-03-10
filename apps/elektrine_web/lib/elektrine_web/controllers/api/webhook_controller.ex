@@ -110,42 +110,43 @@ defmodule ElektrineWeb.API.WebhookController do
   def test(conn, %{"id" => id}) do
     user = conn.assigns.current_user
 
-    with {:ok, webhook_id} <- parse_id(id) do
-      case Developer.test_webhook(user.id, webhook_id) do
-        {:ok, status} ->
-          Response.ok(conn, %{message: "Webhook test delivered", status: status})
+    case parse_id(id) do
+      {:ok, webhook_id} ->
+        case Developer.test_webhook(user.id, webhook_id) do
+          {:ok, status} ->
+            Response.ok(conn, %{message: "Webhook test delivered", status: status})
 
-        {:error, :not_found} ->
-          Response.error(conn, :not_found, "not_found", "Webhook not found")
+          {:error, :not_found} ->
+            Response.error(conn, :not_found, "not_found", "Webhook not found")
 
-        {:error, {:http_error, status}} ->
-          Response.error(
-            conn,
-            :unprocessable_entity,
-            "http_error",
-            "Webhook endpoint returned HTTP #{status}",
-            %{status: status}
-          )
+          {:error, {:http_error, status}} ->
+            Response.error(
+              conn,
+              :unprocessable_entity,
+              "http_error",
+              "Webhook endpoint returned HTTP #{status}",
+              %{status: status}
+            )
 
-        {:error, {:request_failed, reason}} ->
-          Response.error(
-            conn,
-            :unprocessable_entity,
-            "request_failed",
-            "Webhook delivery request failed",
-            inspect(reason)
-          )
+          {:error, {:request_failed, reason}} ->
+            Response.error(
+              conn,
+              :unprocessable_entity,
+              "request_failed",
+              "Webhook delivery request failed",
+              inspect(reason)
+            )
 
-        {:error, {:unsafe_url, reason}} ->
-          Response.error(
-            conn,
-            :unprocessable_entity,
-            "unsafe_url",
-            "Unsafe webhook URL",
-            inspect(reason)
-          )
-      end
-    else
+          {:error, {:unsafe_url, reason}} ->
+            Response.error(
+              conn,
+              :unprocessable_entity,
+              "unsafe_url",
+              "Unsafe webhook URL",
+              inspect(reason)
+            )
+        end
+
       :error ->
         Response.error(conn, :bad_request, "invalid_id", "Invalid webhook id")
     end

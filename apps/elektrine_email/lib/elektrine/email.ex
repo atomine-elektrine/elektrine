@@ -36,6 +36,7 @@ defmodule Elektrine.Email do
   defdelegate list_all_mailboxes(), to: Elektrine.Email.Mailboxes
   defdelegate update_mailbox(mailbox, attrs), to: Elektrine.Email.Mailboxes
   defdelegate update_mailbox_email(mailbox, new_email), to: Elektrine.Email.Mailboxes
+  defdelegate update_mailbox_private_storage(mailbox, attrs), to: Elektrine.Email.Mailboxes
 
   defdelegate transition_mailbox_for_username_change(user, old_mailbox, new_email),
     to: Elektrine.Email.Mailboxes
@@ -217,6 +218,17 @@ defmodule Elektrine.Email do
   defdelegate change_alias(alias, attrs \\ %{}), to: Elektrine.Email.Aliases
   defdelegate resolve_alias(email), to: Elektrine.Email.Aliases
 
+  # Delegate custom domain functions
+  defdelegate list_user_custom_domains(user_id), to: Elektrine.Email.CustomDomains
+  defdelegate get_custom_domain(id, user_id), to: Elektrine.Email.CustomDomains
+  defdelegate create_custom_domain(user_or_id, attrs), to: Elektrine.Email.CustomDomains
+  defdelegate verify_custom_domain(custom_domain), to: Elektrine.Email.CustomDomains
+  defdelegate sync_custom_domain_dkim(custom_domain), to: Elektrine.Email.CustomDomains
+  defdelegate delete_custom_domain(custom_domain), to: Elektrine.Email.CustomDomains
+  defdelegate dns_records_for_custom_domain(custom_domain), to: Elektrine.Email.CustomDomains
+  defdelegate verification_host(custom_domain), to: Elektrine.Email.CustomDomains
+  defdelegate verification_value(custom_domain), to: Elektrine.Email.CustomDomains
+
   @doc """
   Verifies that a user owns or has access to a specific email address.
   This prevents unauthorized email access by validating ownership.
@@ -267,15 +279,14 @@ defmodule Elektrine.Email do
   defp check_cross_domain_ownership(email_address, user_id) do
     case String.split(email_address, "@") do
       [username, domain] ->
-        supported_domains =
-          Elektrine.Domains.supported_email_domains()
+        available_domains = Elektrine.Domains.available_email_domains_for_user(user_id)
 
-        if domain in supported_domains do
+        if String.downcase(domain) in available_domains do
           # Check if user's username matches the local part
           user = Elektrine.Accounts.get_user!(user_id)
 
           if String.downcase(user.username) == String.downcase(username) do
-            {:ok, :cross_domain_match}
+            {:ok, :domain_variant}
           else
             # Not the user's main email - this is fine, they might have aliases
             {:error, :not_main_email}

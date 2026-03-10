@@ -2,7 +2,7 @@ defmodule Elektrine.MessagingEncryptionTest do
   use Elektrine.DataCase
 
   alias Elektrine.{Accounts, Messaging, Repo}
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Messaging.{ChatMessage, Message}
 
   setup do
     # Create test users
@@ -41,7 +41,7 @@ defmodule Elektrine.MessagingEncryptionTest do
         )
 
       # Reload from database to check stored values
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
 
       # Chat content should be plaintext
       assert db_message.encrypted_content == nil
@@ -79,7 +79,7 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
 
       # Search index should contain hashes for keywords
       assert db_message.search_index != []
@@ -104,7 +104,7 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
 
       # Caption should be plaintext
       assert db_message.encrypted_content == nil
@@ -183,7 +183,7 @@ defmodule Elektrine.MessagingEncryptionTest do
       {:ok, updated_message} = Messaging.edit_message(message.id, user1.id, new_content)
 
       # Should remain plaintext in database
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
       assert db_message.encrypted_content == nil
       assert db_message.content == new_content
 
@@ -255,7 +255,7 @@ defmodule Elektrine.MessagingEncryptionTest do
 
       assert message.content == content
 
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
       assert db_message.encrypted_content == nil
       assert db_message.content == content
     end
@@ -274,7 +274,7 @@ defmodule Elektrine.MessagingEncryptionTest do
         )
 
       # Content should be plaintext and searchable by hashtags
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
       assert db_message.encrypted_content == nil
       assert db_message.content == content
 

@@ -1,40 +1,190 @@
 {
+  "$id": "arblarg://schemas/1.0/message.create",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/message.create",
-  "title": "Arblarg message.create payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "message"
+  "anyOf": [
+    {
+      "required": [
+        "server",
+        "channel"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
   ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
     "channel": {
       "type": "object"
     },
     "message": {
-      "type": "object",
-      "required": [
-        "id",
-        "channel_id",
-        "content"
-      ],
       "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "channel_id": {
-          "type": "string",
-          "minLength": 1
+        "attachments": {
+          "items": {
+            "properties": {
+              "alt_text": {
+                "type": "string"
+              },
+              "authorization": {
+                "enum": [
+                  "public",
+                  "signed",
+                  "origin-authenticated"
+                ],
+                "type": "string"
+              },
+              "byte_size": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "duration_ms": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "expires_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "height": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "mime_type": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "retention": {
+                "enum": [
+                  "origin",
+                  "rehosted",
+                  "expiring"
+                ],
+                "type": "string"
+              },
+              "sha256": {
+                "minLength": 8,
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "minLength": 1,
+                "type": "string"
+              },
+              "width": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "url",
+              "mime_type",
+              "authorization",
+              "retention"
+            ],
+            "type": "object"
+          },
+          "type": "array"
         },
         "content": {
           "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "edited_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "message_type": {
+          "type": "string"
+        },
+        "sender": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
         }
-      }
+      },
+      "required": [
+        "id",
+        "content",
+        "sender"
+      ],
+      "type": "object"
+    },
+    "refs": {
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "channel_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "Arblarg message.create payload",
+  "type": "object"
 }

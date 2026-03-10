@@ -40,6 +40,19 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageInfoOperationsTest do
     assert hd(readers).username == "@new"
   end
 
+  test "handle_chat_remote_read_cursor/2 updates all visible messages up to the cursor" do
+    socket = socket_fixture(%{message: %{read_status: %{2 => [%{remote_actor_id: 44}]}}})
+
+    cursor = %{read_through_message_id: 2, remote_actor_id: 44, username: "@reader"}
+
+    assert {:noreply, updated_socket} =
+             MessageInfoOperations.handle_chat_remote_read_cursor(socket, cursor)
+
+    assert length(updated_socket.assigns.message.read_status[1]) == 1
+    assert length(updated_socket.assigns.message.read_status[2]) == 1
+    assert hd(updated_socket.assigns.message.read_status[2]).username == "@reader"
+  end
+
   test "handle_federation_presence_update/2 updates only active server entries" do
     socket = socket_fixture(%{active_server_id: 55, federation_presence: %{}})
 

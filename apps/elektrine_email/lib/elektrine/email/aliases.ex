@@ -46,7 +46,7 @@ defmodule Elektrine.Email.Aliases do
           [username_part, domain] ->
             domain = String.downcase(domain)
 
-            if Elektrine.Domains.local_email_domain?(domain) do
+            if Elektrine.Domains.receiving_email_domain?(domain) do
               # Extract base username (before +)
               base_username = username_part |> String.split("+") |> List.first()
               base_email = "#{String.downcase(base_username)}@#{domain}"

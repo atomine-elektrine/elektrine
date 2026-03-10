@@ -7,7 +7,7 @@ defmodule Elektrine.Application do
   def start(_type, _args) do
     add_sentry_handler()
 
-    children = core_children() ++ profile_children(runtime_profile())
+    children = core_children() ++ web_children()
 
     opts = [strategy: :one_for_one, name: Elektrine.Supervisor]
     Supervisor.start_link(children, opts)
@@ -15,7 +15,7 @@ defmodule Elektrine.Application do
 
   @impl true
   def config_change(changed, _new, removed) do
-    if runtime_profile() == :full and Code.ensure_loaded?(ElektrineWeb.Endpoint) do
+    if Code.ensure_loaded?(ElektrineWeb.Endpoint) do
       ElektrineWeb.Endpoint.config_change(changed, removed)
     end
 
@@ -33,16 +33,15 @@ defmodule Elektrine.Application do
     end
   end
 
-  defp runtime_profile do
-    Application.get_env(:elektrine, :runtime_profile, :full)
-  end
-
   defp core_children do
     [
       Elektrine.Repo,
       {DNSCluster, query: Application.get_env(:elektrine, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Elektrine.PubSub},
       {Finch, name: Elektrine.Finch},
+      {Registry, keys: :unique, name: Elektrine.Messaging.FederationSessionRegistry},
+      {DynamicSupervisor,
+       strategy: :one_for_one, name: Elektrine.Messaging.FederationSessionSupervisor},
       {Oban, Application.fetch_env!(:elektrine, Oban)},
       Elektrine.AppCache,
       Elektrine.Encryption.KeyCache,
@@ -54,11 +53,7 @@ defmodule Elektrine.Application do
     ]
   end
 
-  defp profile_children(:chat_auth) do
-    []
-  end
-
-  defp profile_children(_full) do
+  defp web_children do
     [
       ElektrineWeb.Telemetry,
       Elektrine.Scheduler,

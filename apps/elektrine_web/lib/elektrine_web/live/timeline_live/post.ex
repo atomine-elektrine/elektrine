@@ -551,6 +551,10 @@ defmodule ElektrineWeb.TimelineLive.Post do
     end
   end
 
+  def handle_event("update_reply_content", %{"value" => content}, socket) do
+    {:noreply, assign(socket, :reply_content, content)}
+  end
+
   def handle_event("update_reply_content", %{"content" => content}, socket) do
     {:noreply, assign(socket, :reply_content, content)}
   end

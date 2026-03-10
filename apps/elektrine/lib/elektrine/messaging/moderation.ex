@@ -10,6 +10,7 @@ defmodule Elektrine.Messaging.Moderation do
     CommunityBan,
     CommunityFlair,
     ConversationMember,
+    Federation,
     ModerationAction,
     UserTimeout
   }
@@ -246,6 +247,26 @@ defmodule Elektrine.Messaging.Moderation do
           on_conflict: {:replace, [:banned_by_id, :reason, :expires_at, :updated_at]},
           conflict_target: [:conversation_id, :user_id]
         )
+        |> case do
+          {:ok, ban} ->
+            maybe_remove_banned_member(target_member)
+
+            _ =
+              Federation.publish_ban_state(
+                community_id,
+                user_id,
+                banned_by_id,
+                "active",
+                reason,
+                expires_at
+              )
+
+            _ = Federation.publish_membership_state(community_id, user_id, "banned")
+            {:ok, ban}
+
+          error ->
+            error
+        end
       end
     else
       {:error, :unauthorized}
@@ -266,6 +287,8 @@ defmodule Elektrine.Messaging.Moderation do
       )
       |> Repo.delete_all()
 
+      _ = Federation.publish_ban_state(community_id, user_id, unbanned_by_id, "lifted")
+      _ = Federation.publish_membership_state(community_id, user_id, "left")
       {:ok, :unbanned}
     else
       {:error, :unauthorized}
@@ -459,6 +482,17 @@ defmodule Elektrine.Messaging.Moderation do
     from(c in Elektrine.Messaging.Conversation, where: c.id == ^conversation_id)
     |> Repo.update_all(set: [member_count: count])
   end
+
+  defp maybe_remove_banned_member(%ConversationMember{} = member) do
+    member
+    |> ConversationMember.remove_member_changeset()
+    |> Repo.update()
+
+    update_member_count(member.conversation_id)
+    :ok
+  end
+
+  defp maybe_remove_banned_member(_member), do: :ok
 
   defp broadcast_timeout_event(event_type, timeout) do
     # Broadcast to conversation if it's conversation-specific

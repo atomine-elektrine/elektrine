@@ -20,7 +20,7 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
       end
 
     if object_id do
-      case Messaging.get_message_by_activitypub_id(object_id) do
+      case Messaging.get_message_by_activitypub_ref(object_id) do
         nil ->
           {:ok, :unknown_object}
 

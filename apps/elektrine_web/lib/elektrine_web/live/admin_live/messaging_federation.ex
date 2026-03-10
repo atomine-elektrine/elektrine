@@ -151,6 +151,19 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
     {:noreply, socket |> load_controls() |> put_flash(:info, "Refreshed")}
   end
 
+  def handle_event("refresh_discovery", %{"domain" => domain}, socket) do
+    case Federation.refresh_peer_discovery(domain) do
+      {:ok, _peer} ->
+        {:noreply,
+         socket
+         |> load_controls()
+         |> put_flash(:info, "Peer discovery refreshed")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Discovery refresh failed: #{inspect(reason)}")}
+    end
+  end
+
   defp load_controls(socket) do
     controls = Federation.list_peer_controls()
     query = socket.assigns[:search_query] || ""
@@ -209,8 +222,9 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         <div>
           <h1 class="text-xl sm:text-2xl font-bold">Arblarg Messaging Federation</h1>
           <p class="text-sm opacity-70 mt-1">
-            Controls signed Arblarg chat federation between servers (DMs, channels, reactions, read
-            receipts). This is separate from ActivityPub moderation and Bluesky bridging.
+            Controls signed Arblarg chat federation between servers, including configured peers and
+            dynamically discovered domains. This is separate from ActivityPub moderation and Bluesky
+            bridging.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -233,7 +247,8 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
         <span class="text-sm">
           Incoming controls whether this server accepts Arblarg events from a peer. Outgoing controls
-          whether this server sends local events to that peer.
+          whether this server sends local events to that peer. Discovered peers come from open
+          federation bootstrap and keep their own trust/key-rotation metadata.
         </span>
       </div>
 
@@ -330,7 +345,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                     <th>Status</th>
                     <th>Incoming Arblarg</th>
                     <th>Outgoing Arblarg</th>
-                    <th class="hidden md:table-cell">Reason / Note</th>
+                    <th class="hidden md:table-cell">Discovery / Note</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -339,11 +354,42 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                     <tr>
                       <td>
                         <div class="font-mono text-xs sm:text-sm">{peer.domain}</div>
-                        <div class="text-xs opacity-60">
-                          <%= if peer.configured do %>
-                            configured policy
-                          <% else %>
-                            runtime override only
+                        <div class="flex flex-wrap gap-1 mt-1">
+                          <span :if={peer.configured} class="badge badge-neutral badge-xs">
+                            configured
+                          </span>
+                          <span :if={peer.discovered} class="badge badge-info badge-xs">
+                            discovered
+                          </span>
+                          <span
+                            :if={peer.trust_state && peer.trust_state != "trusted"}
+                            class={[
+                              "badge badge-xs",
+                              if(peer.trust_state == "rotated",
+                                do: "badge-warning",
+                                else: "badge-error"
+                              )
+                            ]}
+                          >
+                            {peer.trust_state}
+                          </span>
+                          <span
+                            :if={peer.requires_operator_action}
+                            class="badge badge-error badge-xs"
+                          >
+                            review required
+                          </span>
+                        </div>
+                        <div class="text-xs opacity-60 mt-1">
+                          <%= cond do %>
+                            <% peer.configured and peer.discovered -> %>
+                              configured + discovery metadata
+                            <% peer.configured -> %>
+                              configured policy
+                            <% peer.discovered -> %>
+                              discovery cache
+                            <% true -> %>
+                              runtime override only
                           <% end %>
                         </div>
                       </td>
@@ -353,6 +399,9 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                         <% else %>
                           <span class="badge badge-success badge-sm">Active</span>
                         <% end %>
+                        <div :if={peer.protocol_version} class="text-xs opacity-60 mt-1">
+                          ARBP {peer.protocol_version}
+                        </div>
                       </td>
                       <td>
                         <div class="flex flex-col gap-1">
@@ -414,8 +463,26 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                           </select>
                         </div>
                       </td>
-                      <td class="hidden md:table-cell text-xs opacity-70 max-w-xs truncate">
-                        {peer.reason || "-"}
+                      <td class="hidden md:table-cell text-xs opacity-70 max-w-xs">
+                        <div>{peer.reason || "-"}</div>
+                        <div :if={peer.base_url} class="font-mono opacity-60 mt-1 break-all">
+                          {peer.base_url}
+                        </div>
+                        <div :if={peer.discovery_url} class="font-mono opacity-60 mt-1 break-all">
+                          {peer.discovery_url}
+                        </div>
+                        <div :if={peer.last_discovered_at} class="opacity-60 mt-1">
+                          discovered {Calendar.strftime(
+                            peer.last_discovered_at,
+                            "%Y-%m-%d %H:%M:%S UTC"
+                          )}
+                        </div>
+                        <div :if={peer.last_key_change_at} class="opacity-60 mt-1">
+                          key change {Calendar.strftime(
+                            peer.last_key_change_at,
+                            "%Y-%m-%d %H:%M:%S UTC"
+                          )}
+                        </div>
                       </td>
                       <td>
                         <div class="flex items-center gap-1">
@@ -449,6 +516,15 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                           >
                             <.icon name="hero-arrow-path-rounded-square" class="w-3 h-3" />
                             <span class="hidden lg:inline">Reset</span>
+                          </button>
+                          <button
+                            phx-click="refresh_discovery"
+                            phx-value-domain={peer.domain}
+                            class="btn btn-xs btn-ghost"
+                            title="Refresh peer discovery metadata"
+                          >
+                            <.icon name="hero-arrow-path" class="w-3 h-3" />
+                            <span class="hidden lg:inline">Discover</span>
                           </button>
                         </div>
                       </td>

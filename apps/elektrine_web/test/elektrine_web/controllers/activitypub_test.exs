@@ -3,7 +3,10 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.Domains
+  alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
   alias Elektrine.SocialFixtures
   alias Elektrine.System, as: SystemSettings
 
@@ -42,7 +45,32 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "self" and
-                 link["href"] == "#{ActivityPub.instance_url()}/c/#{community.name}"
+                 link["href"] == ActivityPub.community_actor_uri(community.name)
+             end)
+    end
+
+    test "canonicalizes community webfinger responses to slugged actor ids", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "webfingercommunityowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "Machine Learning #{unique}"})
+
+      domain = Elektrine.ActivityPub.instance_domain()
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: "acct:!#{community.name}@#{domain}"})
+
+      response = json_response(conn, 200)
+      slug = ActivityPub.community_slug(community.name)
+
+      assert response["subject"] == "acct:!#{slug}@#{domain}"
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "self" and
+                 link["href"] == ActivityPub.community_actor_uri(community.name)
              end)
     end
 
@@ -401,6 +429,27 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
     end
   end
 
+  describe "GET /c/:name" do
+    test "resolves slugged community actor paths", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communityactorowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "Machine Learning #{unique}"})
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/c/#{ActivityPub.community_slug(community.name)}")
+
+      response = json_response(conn, 200)
+
+      assert response["id"] == ActivityPub.community_actor_uri(community.name)
+      assert response["preferredUsername"] == ActivityPub.community_slug(community.name)
+      assert response["name"] == community.name
+    end
+  end
+
   describe "GET /c/:name/posts/:id" do
     setup do
       unique = System.unique_integer([:positive])
@@ -417,11 +466,11 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       conn =
         conn
         |> put_req_header("accept", "application/activity+json")
-        |> get("/c/#{community.name}/posts/#{post.id}")
+        |> get("/c/#{ActivityPub.community_slug(community.name)}/posts/#{post.id}")
 
       response = json_response(conn, 200)
-      community_url = "#{ActivityPub.instance_url()}/c/#{community.name}"
-      post_id = "#{community_url}/posts/#{post.id}"
+      community_url = ActivityPub.community_actor_uri(community.name)
+      post_id = ActivityPub.community_post_uri(community.name, post.id)
 
       assert response["type"] == "Page"
       assert response["id"] == post_id
@@ -436,16 +485,128 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       conn =
         conn
         |> put_req_header("accept", "application/activity+json")
-        |> get("/c/#{community.name}/posts/#{post.id}/activity")
+        |> get("/c/#{ActivityPub.community_slug(community.name)}/posts/#{post.id}/activity")
 
       response = json_response(conn, 200)
-      community_url = "#{ActivityPub.instance_url()}/c/#{community.name}"
-      post_id = "#{community_url}/posts/#{post.id}"
+      community_url = ActivityPub.community_actor_uri(community.name)
+      post_id = ActivityPub.community_post_uri(community.name, post.id)
 
       assert response["type"] == "Create"
       assert response["id"] == "#{post_id}/activity"
       assert response["actor"] == community_url
       assert response["object"]["id"] == post_id
+    end
+
+    test "includes inReplyTo for community replies", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communityreplyowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "Machine Learning #{unique}"})
+
+      parent_post = SocialFixtures.discussion_post_fixture(%{user: owner, community: community})
+      reply = community_reply_fixture(owner, community, parent_post)
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/c/#{ActivityPub.community_slug(community.name)}/posts/#{reply.id}")
+
+      response = json_response(conn, 200)
+
+      assert response["type"] == "Note"
+
+      assert response["inReplyTo"] ==
+               ActivityPub.community_post_uri(community.name, parent_post.id)
+    end
+  end
+
+  describe "POST /c/:name/inbox" do
+    setup do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communityinboxowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "Machine Learning #{unique}"})
+
+      {:ok, group_actor} = ActivityPub.get_or_create_community_actor(community.id)
+      remote_actor = remote_actor_fixture("communityfollower")
+
+      %{community: community, group_actor: group_actor, remote_actor: remote_actor}
+    end
+
+    test "persists remote follows for local communities", %{
+      conn: conn,
+      community: community,
+      group_actor: group_actor,
+      remote_actor: remote_actor
+    } do
+      follow_id = "https://remote.example/activities/#{System.unique_integer([:positive])}"
+
+      activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => follow_id,
+        "type" => "Follow",
+        "actor" => remote_actor.uri,
+        "object" => group_actor.uri
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", activity)
+
+      assert json_response(conn, 202) == %{}
+
+      assert follow = ActivityPub.get_group_follow(remote_actor.id, group_actor.id)
+      assert follow.activitypub_id == follow_id
+    end
+
+    test "removes persisted community follows on Undo", %{
+      conn: conn,
+      community: community,
+      group_actor: group_actor,
+      remote_actor: remote_actor
+    } do
+      follow_id = "https://remote.example/activities/#{System.unique_integer([:positive])}"
+
+      follow_activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => follow_id,
+        "type" => "Follow",
+        "actor" => remote_actor.uri,
+        "object" => group_actor.uri
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", follow_activity)
+
+      assert json_response(conn, 202) == %{}
+      assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id)
+
+      undo_activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Undo",
+        "actor" => remote_actor.uri,
+        "object" => follow_activity
+      }
+
+      conn =
+        build_conn()
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", undo_activity)
+
+      assert json_response(conn, 202) == %{}
+      assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id) == nil
     end
   end
 
@@ -505,5 +666,37 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       response = json_response(conn, 200)
       assert response["type"] in ["OrderedCollection", "OrderedCollectionPage", "Collection"]
     end
+  end
+
+  defp community_reply_fixture(author, community, parent_post) do
+    %Message{}
+    |> Message.changeset(%{
+      conversation_id: community.id,
+      sender_id: author.id,
+      content: "Reply #{System.unique_integer([:positive])}",
+      message_type: "text",
+      visibility: "public",
+      post_type: "comment",
+      reply_to_id: parent_post.id
+    })
+    |> Repo.insert!()
+    |> Repo.preload([:sender, :conversation])
+  end
+
+  defp remote_actor_fixture(label) do
+    unique = System.unique_integer([:positive])
+    username = "#{label}#{unique}"
+    uri = "https://remote.example/users/#{username}"
+
+    %Actor{}
+    |> Actor.changeset(%{
+      uri: uri,
+      username: username,
+      domain: "remote.example",
+      inbox_url: "https://remote.example/users/#{username}/inbox",
+      public_key: "-----BEGIN PUBLIC KEY-----test-key-----END PUBLIC KEY-----",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
   end
 end

@@ -2,6 +2,7 @@ defmodule ElektrineWeb.RecoveryEmailControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
   alias Elektrine.Repo
 
   setup do
@@ -29,7 +30,7 @@ defmodule ElektrineWeb.RecoveryEmailControllerTest do
         email_restricted_at: now,
         recovery_email: "recovery@example.com",
         recovery_email_verified: false,
-        recovery_email_verification_token: token,
+        recovery_email_verification_token: User.hash_sensitive_token(token),
         recovery_email_verification_sent_at: now
       })
       |> Repo.update!()
@@ -64,7 +65,7 @@ defmodule ElektrineWeb.RecoveryEmailControllerTest do
       |> Ecto.Changeset.change(%{
         email_sending_restricted: true,
         recovery_email: "recovery@example.com",
-        recovery_email_verification_token: token,
+        recovery_email_verification_token: User.hash_sensitive_token(token),
         recovery_email_verification_sent_at: expired_time
       })
       |> Repo.update!()
@@ -113,7 +114,7 @@ defmodule ElektrineWeb.RecoveryEmailControllerTest do
       |> Ecto.Changeset.change(%{
         email_sending_restricted: true,
         recovery_email: "recovery@example.com",
-        recovery_email_verification_token: token,
+        recovery_email_verification_token: User.hash_sensitive_token(token),
         recovery_email_verification_sent_at: now
       })
       |> Repo.update!()
@@ -141,7 +142,7 @@ defmodule ElektrineWeb.RecoveryEmailControllerTest do
       |> Ecto.Changeset.change(%{
         email_sending_restricted: true,
         recovery_email: "recovery@example.com",
-        recovery_email_verification_token: token,
+        recovery_email_verification_token: User.hash_sensitive_token(token),
         recovery_email_verification_sent_at: expired_time
       })
       |> Repo.update!()

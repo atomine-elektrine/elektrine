@@ -3,6 +3,7 @@ defmodule Elektrine.Accounts.Authentication do
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.{AppPassword, TwoFactor, User}
   alias Elektrine.DB.WriteGuard
+  alias Elektrine.Email
   alias Elektrine.Email.Mailbox
   alias Elektrine.Repo
   require Logger
@@ -80,8 +81,35 @@ defmodule Elektrine.Accounts.Authentication do
   end
 
   @doc ~s|Updates a user's password.\n\n## Examples\n\n    iex> update_user_password(user, %{password: \"new password\", password_confirmation: \"new password\"})\n    {:ok, %User{}}\n\n    iex> update_user_password(user, %{password: \"invalid\"})\n    {:error, %Ecto.Changeset{}}\n\n|
-  def update_user_password(%User{} = user, attrs) do
-    user |> User.password_changeset(attrs) |> Repo.update()
+  def update_user_password(%User{} = user, attrs, opts \\ []) do
+    password_changeset = User.password_changeset(user, attrs)
+    mailbox_rewrap = Keyword.get(opts, :private_mailbox_rewrap)
+
+    if password_changeset.valid? do
+      case Repo.transaction(fn ->
+             case Repo.update(password_changeset) do
+               {:ok, updated_user} ->
+                 case maybe_rewrap_private_mailbox(user.id, mailbox_rewrap) do
+                   :ok -> updated_user
+                   {:error, reason} -> Repo.rollback(reason)
+                 end
+
+               {:error, changeset} ->
+                 Repo.rollback(changeset)
+             end
+           end) do
+        {:ok, updated_user} ->
+          {:ok, updated_user}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          {:error, changeset}
+
+        {:error, reason} ->
+          {:error, password_changeset_error(password_changeset, reason)}
+      end
+    else
+      {:error, password_changeset}
+    end
   end
 
   @doc ~s|Returns an `%Ecto.Changeset{}` for tracking user password changes.\n|
@@ -259,6 +287,70 @@ defmodule Elektrine.Accounts.Authentication do
     user |> User.admin_2fa_reset_changeset() |> Repo.update()
   end
 
+  defp maybe_rewrap_private_mailbox(user_id, mailbox_rewrap) do
+    case Email.get_user_mailbox(user_id) do
+      mailbox when not is_nil(mailbox) ->
+        cond do
+          !Mailbox.private_storage_account_password?(mailbox) ->
+            :ok
+
+          !valid_private_mailbox_rewrap?(mailbox_rewrap) ->
+            {:error, :private_mailbox_rewrap_required}
+
+          true ->
+            mailbox
+            |> Mailbox.private_storage_changeset(%{
+              private_storage_enabled: mailbox.private_storage_enabled,
+              private_storage_public_key: mailbox.private_storage_public_key,
+              private_storage_wrapped_private_key: mailbox_rewrap.wrapped_private_key,
+              private_storage_verifier: mailbox_rewrap.verifier
+            })
+            |> Repo.update()
+            |> case do
+              {:ok, _updated_mailbox} -> :ok
+              {:error, _changeset} -> {:error, :private_mailbox_rewrap_invalid}
+            end
+        end
+
+      _mailbox ->
+        :ok
+    end
+  end
+
+  defp valid_private_mailbox_rewrap?(%{
+         wrapped_private_key: wrapped_private_key,
+         verifier: verifier,
+         unlock_mode: "account_password"
+       })
+       when is_map(wrapped_private_key) and is_map(verifier),
+       do: true
+
+  defp valid_private_mailbox_rewrap?(_value), do: false
+
+  defp password_changeset_error(password_changeset, :private_mailbox_rewrap_required) do
+    password_changeset
+    |> Map.put(:action, :update)
+    |> Ecto.Changeset.add_error(
+      :current_password,
+      "Your private mailbox must be rewrapped in this browser before changing your password."
+    )
+  end
+
+  defp password_changeset_error(password_changeset, :private_mailbox_rewrap_invalid) do
+    password_changeset
+    |> Map.put(:action, :update)
+    |> Ecto.Changeset.add_error(
+      :current_password,
+      "Private mailbox protection could not be updated with the new password."
+    )
+  end
+
+  defp password_changeset_error(password_changeset, _reason) do
+    password_changeset
+    |> Map.put(:action, :update)
+    |> Ecto.Changeset.add_error(:current_password, "Password update failed.")
+  end
+
   @doc ~s|Lists all app passwords for a user.\n|
   def list_app_passwords(user_id) do
     AppPassword |> where(user_id: ^user_id) |> order_by(desc: :inserted_at) |> Repo.all()
@@ -355,10 +447,16 @@ defmodule Elektrine.Accounts.Authentication do
           domain = String.downcase(domain)
 
           user =
-            if Elektrine.Domains.local_email_domain?(domain) do
-              get_user_by_username_case_insensitive(username)
-            else
-              get_user_by_mailbox_email(normalized_identifier)
+            case get_user_by_username_case_insensitive(username) do
+              nil ->
+                get_user_by_mailbox_email(normalized_identifier)
+
+              candidate_user ->
+                if domain in Elektrine.Domains.available_email_domains_for_user(candidate_user) do
+                  candidate_user
+                else
+                  get_user_by_mailbox_email(normalized_identifier)
+                end
             end
 
           if user do
@@ -468,7 +566,12 @@ defmodule Elektrine.Accounts.Authentication do
 
   @doc ~s|Gets a user by password reset token.\n|
   def get_user_by_password_reset_token(token) when is_binary(token) do
-    Repo.get_by(User, password_reset_token: token)
+    hashed_token = User.hash_sensitive_token(token)
+
+    User
+    |> where([u], u.password_reset_token == ^hashed_token)
+    |> maybe_allow_legacy_token_lookup(:password_reset_token, token)
+    |> Repo.one()
   end
 
   @doc ~s|Resets a user's password using a valid token.\n|
@@ -549,6 +652,20 @@ defmodule Elektrine.Accounts.Authentication do
 
   defp generate_password_reset_token do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+  end
+
+  @legacy_password_reset_token_pattern ~r/^[A-Za-z0-9_-]{43}$/
+
+  defp maybe_allow_legacy_token_lookup(query, field_name, token) do
+    if legacy_password_reset_token?(token) do
+      from(u in query, or_where: field(u, ^field_name) == ^token)
+    else
+      query
+    end
+  end
+
+  defp legacy_password_reset_token?(token) when is_binary(token) do
+    Regex.match?(@legacy_password_reset_token_pattern, token)
   end
 
   defp send_password_reset_email(%User{recovery_email: recovery_email} = user, token)

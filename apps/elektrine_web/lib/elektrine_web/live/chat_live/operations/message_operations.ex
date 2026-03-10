@@ -228,6 +228,11 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                       {:user_stopped_typing, socket.assigns.current_user.id}
                     )
 
+                    Elektrine.Messaging.Federation.publish_typing_stopped(
+                      conversation.id,
+                      socket.assigns.current_user.id
+                    )
+
                     message_with_sender = Elektrine.Repo.preload(message, sender: [:profile])
                     conversations = socket.assigns.conversation.list
 
@@ -367,6 +372,11 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
                socket.assigns.current_user.handle || socket.assigns.current_user.username}
             )
 
+            Elektrine.Messaging.Federation.publish_typing_started(
+              socket.assigns.conversation.selected.id,
+              socket.assigns.current_user.id
+            )
+
             assign(socket, :last_typing_broadcast, System.system_time(:millisecond))
           else
             socket
@@ -414,6 +424,11 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
           self(),
           "conversation:#{conversation.id}",
           {:user_stopped_typing, socket.assigns.current_user.id}
+        )
+
+        Elektrine.Messaging.Federation.publish_typing_stopped(
+          conversation.id,
+          socket.assigns.current_user.id
         )
 
         {:noreply, assign(socket, :typing_timer, nil)}

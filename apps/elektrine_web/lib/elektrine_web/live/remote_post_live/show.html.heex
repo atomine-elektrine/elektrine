@@ -381,7 +381,7 @@
 
             <%= if @show_reply_form && @current_user do %>
               <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
-                <%= if length(@quick_reply_recent_replies) > 0 && length(@replies) == 0 do %>
+                <%= if length(@quick_reply_recent_replies) > 0 do %>
                   <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
                     <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                     <%= for reply <- @quick_reply_recent_replies do %>
@@ -1142,7 +1142,7 @@
 <!-- Reply Form -->
                     <%= if @show_reply_form do %>
                       <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
-                        <%= if length(@quick_reply_recent_replies) > 0 && length(@replies) == 0 do %>
+                        <%= if length(@quick_reply_recent_replies) > 0 do %>
                           <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
                             <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                             <%= for reply <- @quick_reply_recent_replies do %>
@@ -1421,7 +1421,9 @@
                             navigate={"/remote/!#{@community_actor.username}@#{@community_actor.domain}"}
                             class="font-bold hover:underline"
                           >
-                            {@community_actor.display_name || @community_actor.username}
+                            {raw(
+                              ElektrineWeb.HtmlHelpers.render_actor_display_name(@community_actor)
+                            )}
                           </.link>
                           <div class="text-xs opacity-70">
                             !{@community_actor.username}@{@community_actor.domain}

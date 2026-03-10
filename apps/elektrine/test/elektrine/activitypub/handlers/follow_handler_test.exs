@@ -8,6 +8,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
   alias Elektrine.ActivityPub.{Activity, Actor}
   alias Elektrine.ActivityPub.Handlers.FollowHandler
   alias Elektrine.Profiles
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
 
   describe "handle/3 - Follow activity" do
@@ -116,6 +117,42 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
   end
 
   describe "handle_accept/3" do
+    test "accepts a local follow only from the followed actor" do
+      user = user_fixture()
+      remote_actor = remote_actor_fixture(%{username: "accept_target"})
+      follow_id = create_local_follow_request(user, remote_actor)
+
+      activity = %{
+        "type" => "Accept",
+        "actor" => remote_actor.uri,
+        "object" => follow_id
+      }
+
+      assert {:ok, :follow_accepted} =
+               FollowHandler.handle_accept(activity, remote_actor.uri, nil)
+
+      follow = Profiles.get_follow_to_remote_actor(user.id, remote_actor.id)
+      assert follow.pending == false
+    end
+
+    test "rejects Accept from an actor that was not originally followed" do
+      user = user_fixture()
+      intended_actor = remote_actor_fixture(%{username: "intended_accept_target"})
+      other_actor = remote_actor_fixture(%{username: "other_accept_target"})
+      follow_id = create_local_follow_request(user, intended_actor)
+
+      activity = %{
+        "type" => "Accept",
+        "actor" => other_actor.uri,
+        "object" => %{"type" => "Follow", "id" => follow_id}
+      }
+
+      assert {:ok, :unauthorized} = FollowHandler.handle_accept(activity, other_actor.uri, nil)
+
+      follow = Profiles.get_follow_to_remote_actor(user.id, intended_actor.id)
+      assert follow.pending == true
+    end
+
     test "returns :unhandled for non-Follow Accept" do
       activity = %{
         "type" => "Accept",
@@ -143,6 +180,39 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
   end
 
   describe "handle_reject/3" do
+    test "rejects a local follow only from the followed actor" do
+      user = user_fixture()
+      remote_actor = remote_actor_fixture(%{username: "reject_target"})
+      follow_id = create_local_follow_request(user, remote_actor)
+
+      activity = %{
+        "type" => "Reject",
+        "actor" => remote_actor.uri,
+        "object" => %{"type" => "Follow", "id" => follow_id}
+      }
+
+      assert {:ok, :follow_rejected} =
+               FollowHandler.handle_reject(activity, remote_actor.uri, nil)
+
+      assert is_nil(Profiles.get_follow_to_remote_actor(user.id, remote_actor.id))
+    end
+
+    test "rejects Reject from an actor that was not originally followed" do
+      user = user_fixture()
+      intended_actor = remote_actor_fixture(%{username: "intended_reject_target"})
+      other_actor = remote_actor_fixture(%{username: "other_reject_target"})
+      follow_id = create_local_follow_request(user, intended_actor)
+
+      activity = %{
+        "type" => "Reject",
+        "actor" => other_actor.uri,
+        "object" => %{"type" => "Follow", "id" => follow_id}
+      }
+
+      assert {:ok, :unauthorized} = FollowHandler.handle_reject(activity, other_actor.uri, nil)
+      assert Profiles.get_follow_to_remote_actor(user.id, intended_actor.id)
+    end
+
     test "returns :unhandled for non-Follow Reject" do
       activity = %{
         "type" => "Reject",
@@ -215,5 +285,38 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
     %Actor{}
     |> Actor.changeset(Map.merge(defaults, attrs))
     |> Repo.insert!()
+  end
+
+  defp create_local_follow_request(user, remote_actor) do
+    follow_id = "https://example.com/activities/#{Ecto.UUID.generate()}"
+    local_actor_uri = "#{ActivityPub.instance_url()}/users/#{user.username}"
+
+    %Follow{}
+    |> Follow.changeset(%{
+      follower_id: user.id,
+      remote_actor_id: remote_actor.id,
+      activitypub_id: follow_id,
+      pending: true
+    })
+    |> Repo.insert!()
+
+    %Activity{}
+    |> Activity.changeset(%{
+      activity_id: follow_id,
+      activity_type: "Follow",
+      actor_uri: local_actor_uri,
+      object_id: remote_actor.uri,
+      data: %{
+        "id" => follow_id,
+        "type" => "Follow",
+        "actor" => local_actor_uri,
+        "object" => remote_actor.uri
+      },
+      local: true,
+      internal_user_id: user.id
+    })
+    |> Repo.insert!()
+
+    follow_id
   end
 end

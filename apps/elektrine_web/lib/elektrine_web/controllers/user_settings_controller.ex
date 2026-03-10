@@ -4,6 +4,8 @@ defmodule ElektrineWeb.UserSettingsController do
 
   alias Elektrine.Accounts
   alias Elektrine.Auth.RateLimiter
+  alias Elektrine.Email
+  alias Elektrine.Email.Mailbox
 
   plug :assign_user
 
@@ -41,7 +43,7 @@ defmodule ElektrineWeb.UserSettingsController do
   def edit_password(conn, _params) do
     user = conn.assigns.current_user
     changeset = Accounts.change_user_password(user)
-    render(conn, :edit_password, changeset: changeset)
+    render_edit_password(conn, changeset)
   end
 
   def update_password(conn, %{"user" => user_params}) do
@@ -50,22 +52,40 @@ defmodule ElektrineWeb.UserSettingsController do
     # Require 2FA verification if user has 2FA enabled
     case verify_2fa_for_password_change(user, user_params) do
       :ok ->
-        case Accounts.update_user_password(user, user_params) do
-          {:ok, _user} ->
-            conn
-            |> put_flash(:info, "Password updated successfully.")
-            |> redirect(to: ~p"/account")
+        case decode_private_mailbox_rewrap(user_params) do
+          {:ok, mailbox_rewrap} ->
+            case Accounts.update_user_password(user, user_params,
+                   private_mailbox_rewrap: mailbox_rewrap
+                 ) do
+              {:ok, _user} ->
+                conn
+                |> put_flash(:info, "Password updated successfully.")
+                |> redirect(to: ~p"/account")
 
-          {:error, changeset} ->
-            render(conn, :edit_password, changeset: changeset)
+              {:error, changeset} ->
+                render_edit_password(conn, changeset)
+            end
+
+          {:error, :invalid_private_mailbox_rewrap} ->
+            changeset =
+              user
+              |> Accounts.change_user_password(user_params)
+              |> Map.put(:action, :update)
+              |> Ecto.Changeset.add_error(
+                :current_password,
+                "Private mailbox protection could not be updated. Reload and try again."
+              )
+
+            render_edit_password(conn, changeset)
         end
 
       {:error, reason} ->
         changeset =
           Accounts.change_user_password(user, user_params)
+          |> Map.put(:action, :update)
           |> Ecto.Changeset.add_error(:two_factor_code, reason)
 
-        render(conn, :edit_password, changeset: changeset)
+        render_edit_password(conn, changeset)
     end
   end
 
@@ -417,6 +437,56 @@ defmodule ElektrineWeb.UserSettingsController do
 
   defp assign_user(conn, _opts) do
     assign(conn, :user, conn.assigns.current_user)
+  end
+
+  defp render_edit_password(conn, changeset) do
+    private_mailbox = Email.get_user_mailbox(conn.assigns.current_user.id)
+
+    render(conn, :edit_password,
+      changeset: changeset,
+      private_mailbox: private_mailbox,
+      private_mailbox_unlock_mode: Mailbox.private_storage_unlock_mode(private_mailbox)
+    )
+  end
+
+  defp decode_private_mailbox_rewrap(params) when is_map(params) do
+    wrapped_private_key = Map.get(params, "private_mailbox_wrapped_private_key")
+    verifier = Map.get(params, "private_mailbox_verifier")
+    unlock_mode = Map.get(params, "private_mailbox_unlock_mode")
+
+    cond do
+      blank_string?(wrapped_private_key) and blank_string?(verifier) ->
+        {:ok, nil}
+
+      true ->
+        with {:ok, wrapped_private_key_payload} <- decode_json_payload(wrapped_private_key),
+             {:ok, verifier_payload} <- decode_json_payload(verifier),
+             true <- unlock_mode == "account_password" do
+          {:ok,
+           %{
+             wrapped_private_key: wrapped_private_key_payload,
+             verifier: verifier_payload,
+             unlock_mode: unlock_mode
+           }}
+        else
+          _ -> {:error, :invalid_private_mailbox_rewrap}
+        end
+    end
+  end
+
+  defp decode_private_mailbox_rewrap(_params), do: {:ok, nil}
+
+  defp decode_json_payload(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
+      _ -> {:error, :invalid}
+    end
+  end
+
+  defp decode_json_payload(_value), do: {:error, :invalid}
+
+  defp blank_string?(value) do
+    !is_binary(value) || String.trim(value) == ""
   end
 
   defp handle_avatar_upload(%{"avatar" => %Plug.Upload{} = upload} = user_params, user) do

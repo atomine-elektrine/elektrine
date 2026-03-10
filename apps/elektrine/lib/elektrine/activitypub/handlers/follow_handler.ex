@@ -3,6 +3,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
   require Logger
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Builder, Publisher, Relay}
+  alias Elektrine.Async
   alias Elektrine.Profiles
   @doc "Handles an incoming Follow activity.\n"
   def handle(
@@ -71,14 +72,14 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
       "FollowHandler: Received Accept with Follow object, id=#{follow_id}, actor=#{actor_uri}"
     )
 
-    case Relay.handle_accept(follow_id) do
+    case Relay.handle_accept(follow_id, actor_uri) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_accepted}
 
       {:error, :subscription_not_found} ->
         case Relay.handle_accept_from_actor(actor_uri) do
           {:ok, _subscription} -> {:ok, :relay_subscription_accepted}
-          {:error, :subscription_not_found} -> handle_user_accept(follow_id)
+          {:error, :subscription_not_found} -> handle_user_accept(follow_id, actor_uri)
         end
     end
   end
@@ -93,14 +94,14 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
       "FollowHandler: Received Accept with string object=#{follow_id}, actor=#{actor_uri}"
     )
 
-    case Relay.handle_accept(follow_id) do
+    case Relay.handle_accept(follow_id, actor_uri) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_accepted}
 
       {:error, :subscription_not_found} ->
         case Relay.handle_accept_from_actor(actor_uri) do
           {:ok, _subscription} -> {:ok, :relay_subscription_accepted}
-          {:error, :subscription_not_found} -> handle_user_accept(follow_id)
+          {:error, :subscription_not_found} -> handle_user_accept(follow_id, actor_uri)
         end
     end
   end
@@ -109,26 +110,35 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     {:ok, :unhandled}
   end
 
-  defp handle_user_accept(follow_id) do
+  defp handle_user_accept(follow_id, actor_uri) do
     case ActivityPub.get_activity_by_id(follow_id) do
       nil ->
         Logger.warning("Received Accept for unknown Follow: #{follow_id}")
         {:ok, :unknown_follow}
 
       activity ->
-        if activity.internal_user_id do
-          Profiles.accept_follow_by_activity_id(follow_id)
+        cond do
+          !activity.internal_user_id ->
+            {:ok, :not_our_follow}
 
-          Task.start(fn ->
-            Elektrine.Notifications.FederationNotifications.notify_follow_accepted(
-              activity.internal_user_id,
-              activity.object_id
+          !follow_target_matches_actor?(activity, actor_uri) ->
+            Logger.warning(
+              "Rejecting Accept for Follow #{follow_id}: actor #{actor_uri} does not match original follow target #{activity.object_id}"
             )
-          end)
 
-          {:ok, :follow_accepted}
-        else
-          {:ok, :not_our_follow}
+            {:ok, :unauthorized}
+
+          true ->
+            Profiles.accept_follow_by_activity_id(follow_id)
+
+            Async.run(fn ->
+              Elektrine.Notifications.FederationNotifications.notify_follow_accepted(
+                activity.internal_user_id,
+                activity.object_id
+              )
+            end)
+
+            {:ok, :follow_accepted}
         end
     end
   end
@@ -136,10 +146,10 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
   @doc "Handles an incoming Reject activity for a Follow.\n"
   def handle_reject(
         %{"object" => %{"type" => "Follow", "id" => follow_id}},
-        _actor_uri,
+        actor_uri,
         _target_user
       ) do
-    case Relay.handle_reject(follow_id) do
+    case Relay.handle_reject(follow_id, actor_uri) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_rejected}
 
@@ -149,11 +159,20 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
             {:ok, :unknown_follow}
 
           activity ->
-            if activity.internal_user_id do
-              Profiles.delete_follow_by_activity_id(follow_id)
-              {:ok, :follow_rejected}
-            else
-              {:ok, :not_our_follow}
+            cond do
+              !activity.internal_user_id ->
+                {:ok, :not_our_follow}
+
+              !follow_target_matches_actor?(activity, actor_uri) ->
+                Logger.warning(
+                  "Rejecting Reject for Follow #{follow_id}: actor #{actor_uri} does not match original follow target #{activity.object_id}"
+                )
+
+                {:ok, :unauthorized}
+
+              true ->
+                Profiles.delete_follow_by_activity_id(follow_id)
+                {:ok, :follow_rejected}
             end
         end
     end
@@ -200,6 +219,23 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     {:ok, :invalid}
   end
 
+  defp follow_target_matches_actor?(%{object_id: object_id}, actor_uri)
+       when is_binary(object_id) and is_binary(actor_uri) do
+    normalize_actor_uri(object_id) == normalize_actor_uri(actor_uri)
+  end
+
+  defp follow_target_matches_actor?(_, _), do: false
+
+  defp normalize_actor_uri(uri) when is_binary(uri) do
+    uri
+    |> String.trim()
+    |> String.split("#", parts: 2)
+    |> hd()
+    |> String.split("?", parts: 2)
+    |> hd()
+    |> String.trim_trailing("/")
+  end
+
   defp handle_user_follow(remote_actor, object_uri, follow_id, _actor_uri) do
     case get_local_user_from_uri(object_uri) do
       {:ok, followed_user} ->
@@ -223,7 +259,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
                ) do
             {:ok, follow} ->
               if pending do
-                Task.start(fn ->
+                Async.run(fn ->
                   Elektrine.Notifications.FederationNotifications.notify_remote_follow(
                     followed_user.id,
                     remote_actor.id
@@ -234,7 +270,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
               else
                 send_accept(followed_user, remote_actor, follow, object_uri)
 
-                Task.start(fn ->
+                Async.run(fn ->
                   Elektrine.Notifications.FederationNotifications.notify_remote_follow(
                     followed_user.id,
                     remote_actor.id

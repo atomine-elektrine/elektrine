@@ -1,0 +1,96 @@
+{
+  "$id": "arblarg://schemas/1.0/typing.stop",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "required": [
+        "server",
+        "channel"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
+  ],
+  "properties": {
+    "actor": {
+      "properties": {
+        "avatar_url": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "handle": {
+          "minLength": 3,
+          "type": "string"
+        },
+        "id": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "uri": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "username": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "username",
+        "domain",
+        "handle"
+      ],
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "refs": {
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "channel_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
+    },
+    "stopped_at": {
+      "format": "date-time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "actor",
+    "stopped_at"
+  ],
+  "title": "Arblarg typing.stop payload",
+  "type": "object"
+}

@@ -2,7 +2,7 @@ defmodule Elektrine.EncryptedSearchTest do
   use Elektrine.DataCase
 
   alias Elektrine.{Accounts, Messaging, Repo}
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Messaging.ChatMessage
 
   setup do
     # Create test users
@@ -299,7 +299,7 @@ defmodule Elektrine.EncryptedSearchTest do
         )
 
       # Reload from database
-      db_message = Repo.get(Message, message.id)
+      db_message = Repo.get(ChatMessage, message.id)
 
       # Calculate expected hashes
       important_hash = Elektrine.Encryption.hash_keyword("important", user1.id)
@@ -325,7 +325,7 @@ defmodule Elektrine.EncryptedSearchTest do
           "Original content with keyword1"
         )
 
-      original_db_message = Repo.get(Message, message.id)
+      original_db_message = Repo.get(ChatMessage, message.id)
       keyword1_hash = Elektrine.Encryption.hash_keyword("keyword1", user1.id)
       assert keyword1_hash in original_db_message.search_index
 
@@ -337,7 +337,7 @@ defmodule Elektrine.EncryptedSearchTest do
           "Updated content with keyword2"
         )
 
-      updated_db_message = Repo.get(Message, message.id)
+      updated_db_message = Repo.get(ChatMessage, message.id)
       keyword2_hash = Elektrine.Encryption.hash_keyword("keyword2", user1.id)
 
       # New keyword should be in index
@@ -365,8 +365,8 @@ defmodule Elektrine.EncryptedSearchTest do
           content
         )
 
-      db_msg1 = Repo.get(Message, msg1.id)
-      db_msg2 = Repo.get(Message, msg2.id)
+      db_msg1 = Repo.get(ChatMessage, msg1.id)
+      db_msg2 = Repo.get(ChatMessage, msg2.id)
 
       # Same content, different users = different search indexes
       assert db_msg1.search_index != db_msg2.search_index

@@ -67,6 +67,7 @@ defmodule ElektrineWeb.API.MailboxController do
     %{
       id: mailbox.id,
       email: mailbox.email,
+      addresses: Elektrine.Email.Mailbox.get_all_emails(mailbox),
       username: mailbox.username,
       forward_enabled: mailbox.forward_enabled,
       forward_to: if(mailbox.forward_enabled, do: mailbox.forward_to, else: nil),

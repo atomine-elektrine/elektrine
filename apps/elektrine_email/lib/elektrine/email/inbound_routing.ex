@@ -105,16 +105,10 @@ defmodule Elektrine.Email.InboundRouting do
     to_clean = extract_clean_email(to) || ""
 
     sender_mailbox =
-      Mailbox
-      |> where([m], fragment("lower(?)", m.email) == ^String.downcase(from_clean))
-      |> limit(1)
-      |> Repo.one()
+      Email.get_mailbox_by_email(from_clean)
 
     recipient_mailbox =
-      Mailbox
-      |> where([m], fragment("lower(?)", m.email) == ^String.downcase(to_clean))
-      |> limit(1)
-      |> Repo.one()
+      Email.get_mailbox_by_email(to_clean)
 
     if sender_mailbox && recipient_mailbox do
       ten_minutes_ago = DateTime.utc_now() |> DateTime.add(-600, :second)
@@ -208,13 +202,13 @@ defmodule Elektrine.Email.InboundRouting do
 
   defp local_domain?(email) do
     case String.split(email, "@") do
-      [_local_part, domain] -> domain in supported_domains()
+      [_local_part, domain] -> String.downcase(domain) in supported_domains()
       _ -> false
     end
   end
 
   defp supported_domains do
-    Elektrine.Domains.supported_email_domains()
+    Elektrine.Domains.receiving_email_domains()
   end
 
   defp find_existing_mailbox(to, rcpt_to) do
@@ -244,28 +238,9 @@ defmodule Elektrine.Email.InboundRouting do
   end
 
   defp find_cross_domain_mailbox(clean_email) do
-    case String.split(clean_email, "@") do
-      [local_part, domain] ->
-        supported_domains = supported_domains()
-
-        if domain in supported_domains do
-          base_local_part = local_part |> String.split("+") |> List.first() |> String.downcase()
-
-          candidate_emails =
-            Enum.map(supported_domains, fn supported_domain ->
-              "#{base_local_part}@#{supported_domain}"
-            end)
-
-          Mailbox
-          |> where([m], fragment("lower(?)", m.email) in ^candidate_emails)
-          |> limit(1)
-          |> Repo.one()
-        else
-          nil
-        end
-
-      _ ->
-        nil
+    case Email.get_mailbox_by_email(clean_email) do
+      %Mailbox{} = mailbox -> mailbox
+      _ -> nil
     end
   end
 

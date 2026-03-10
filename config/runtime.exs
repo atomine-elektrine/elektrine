@@ -16,41 +16,8 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
-runtime_profile =
-  case System.get_env("ELEKTRINE_RUNTIME_PROFILE") || System.get_env("RELEASE_NAME") do
-    "chat_auth" -> :chat_auth
-    "elektrine_chat_auth" -> :chat_auth
-    _ -> :full
-  end
-
-config :elektrine, :runtime_profile, runtime_profile
-
-if runtime_profile == :chat_auth do
-  config :elektrine, Oban,
-    queues: [
-      default: 2,
-      messaging_federation: 4,
-      webhooks: 1
-    ],
-    plugins: [
-      {Oban.Plugins.Pruner, max_age: 60 * 60 * 24},
-      {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
-      {Oban.Plugins.Cron,
-       crontab: [
-         {"* * * * *", Elektrine.Messaging.FederationOutboxRetryWorker},
-         {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker}
-       ]}
-    ]
-end
-
 if System.get_env("PHX_SERVER") do
-  case runtime_profile do
-    :chat_auth ->
-      config :elektrine_chat_web, ElektrineChatWeb.Endpoint, server: true
-
-    _ ->
-      config :elektrine, ElektrineWeb.Endpoint, server: true
-  end
+  config :elektrine, ElektrineWeb.Endpoint, server: true
 end
 
 # Lightweight messaging federation runtime configuration
@@ -159,6 +126,16 @@ parse_bool_env = fn env_name, default ->
     _ ->
       default
   end
+end
+
+first_present_env = fn env_names ->
+  Enum.find_value(env_names, fn env_name ->
+    case System.get_env(env_name) do
+      nil -> nil
+      "" -> nil
+      value -> value
+    end
+  end)
 end
 
 messaging_federation_delivery_concurrency =
@@ -321,8 +298,9 @@ config :elektrine, :email_auto_suppression, email_auto_suppression_enabled
 if System.get_env("EMAIL_SERVICE") == "haraka" do
   config :elektrine, Elektrine.Mailer,
     adapter: Elektrine.Email.HarakaAdapter,
-    api_key: System.get_env("HARAKA_OUTBOUND_API_KEY") || System.get_env("HARAKA_API_KEY"),
-    base_url: System.get_env("HARAKA_BASE_URL", "https://haraka.elektrine.com"),
+    api_key:
+      first_present_env.(["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY"]),
+    base_url: first_present_env.(["HARAKA_BASE_URL"]) || "https://mail.elektrine.com",
     timeout: 30_000
 
   # Enable API client for Haraka
@@ -614,10 +592,102 @@ if config_env() == :prod do
     ([host_domain] ++ supported_email_domains ++ profile_base_domains)
     |> Enum.uniq()
 
+  custom_domain_mx_host =
+    case System.get_env("CUSTOM_DOMAIN_MX_HOST") do
+      nil -> primary_domain
+      "" -> primary_domain
+      value -> normalize_domain.(value)
+    end
+
+  custom_domain_mx_priority = parse_int_env.("CUSTOM_DOMAIN_MX_PRIORITY", 10)
+
+  custom_domain_spf_include =
+    case System.get_env("CUSTOM_DOMAIN_SPF_INCLUDE") do
+      nil -> nil
+      "" -> nil
+      value -> normalize_domain.(value)
+    end
+
+  custom_domain_dkim_selector =
+    case System.get_env("CUSTOM_DOMAIN_DKIM_SELECTOR") do
+      nil -> "default"
+      "" -> "default"
+      value -> value
+    end
+
+  custom_domain_dkim_sync_enabled = parse_bool_env.("CUSTOM_DOMAIN_DKIM_SYNC_ENABLED", true)
+
+  custom_domain_haraka_base_url =
+    case first_present_env.(["CUSTOM_DOMAIN_HARAKA_BASE_URL", "HARAKA_BASE_URL"]) do
+      nil -> nil
+      value -> String.trim_trailing(value, "/")
+    end
+
+  custom_domain_haraka_api_key =
+    case first_present_env.([
+           "CUSTOM_DOMAIN_HARAKA_API_KEY",
+           "HARAKA_HTTP_API_KEY",
+           "HARAKA_OUTBOUND_API_KEY",
+           "HARAKA_API_KEY"
+         ]) do
+      nil -> nil
+      value -> value
+    end
+
+  custom_domain_haraka_timeout = parse_int_env.("CUSTOM_DOMAIN_HARAKA_TIMEOUT_MS", 10_000)
+
+  custom_domain_haraka_dkim_path =
+    case System.get_env("CUSTOM_DOMAIN_HARAKA_DKIM_PATH") do
+      nil -> "/api/v1/dkim/domains"
+      "" -> "/api/v1/dkim/domains"
+      value -> value
+    end
+
+  custom_domain_dmarc_policy =
+    case System.get_env("CUSTOM_DOMAIN_DMARC_POLICY") do
+      nil -> "quarantine"
+      "" -> "quarantine"
+      value -> String.downcase(value)
+    end
+
+  custom_domain_dmarc_rua =
+    case System.get_env("CUSTOM_DOMAIN_DMARC_RUA") do
+      nil -> nil
+      "" -> nil
+      value -> value
+    end
+
+  custom_domain_dmarc_adkim =
+    case System.get_env("CUSTOM_DOMAIN_DMARC_ADKIM") do
+      nil -> "s"
+      "" -> "s"
+      value -> String.downcase(value)
+    end
+
+  custom_domain_dmarc_aspf =
+    case System.get_env("CUSTOM_DOMAIN_DMARC_ASPF") do
+      nil -> "s"
+      "" -> "s"
+      value -> String.downcase(value)
+    end
+
   config :elektrine, :email,
     domain: primary_domain,
     allow_insecure_receiver_webhook: false,
-    supported_domains: supported_email_domains
+    supported_domains: supported_email_domains,
+    custom_domain_mx_host: custom_domain_mx_host,
+    custom_domain_mx_priority: custom_domain_mx_priority,
+    custom_domain_spf_include: custom_domain_spf_include,
+    custom_domain_dkim_selector: custom_domain_dkim_selector,
+    custom_domain_dkim_sync_enabled: custom_domain_dkim_sync_enabled,
+    custom_domain_haraka_base_url: custom_domain_haraka_base_url,
+    custom_domain_haraka_api_key: custom_domain_haraka_api_key,
+    custom_domain_haraka_timeout: custom_domain_haraka_timeout,
+    custom_domain_haraka_dkim_path: custom_domain_haraka_dkim_path,
+    custom_domain_dmarc_policy: custom_domain_dmarc_policy,
+    custom_domain_dmarc_rua: custom_domain_dmarc_rua,
+    custom_domain_dmarc_adkim: custom_domain_dmarc_adkim,
+    custom_domain_dmarc_aspf: custom_domain_dmarc_aspf
 
   config :elektrine, :profile_base_domains, profile_base_domains
   config :elektrine, :primary_domain, primary_domain
@@ -698,7 +768,6 @@ if config_env() == :prod do
   # Fly terminates TLS at the edge for clearnet traffic.
   # Onion traffic can terminate TLS in-app on :https when cert/key files are present.
   config :elektrine, ElektrineWeb.Endpoint, endpoint_config
-  config :elektrine_chat_web, ElektrineChatWeb.Endpoint, endpoint_config
 
   # WebAuthn/Passkey configuration for production
   # Uses the PHX_HOST environment variable for RP ID

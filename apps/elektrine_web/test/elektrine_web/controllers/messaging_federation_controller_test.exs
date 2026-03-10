@@ -3,8 +3,12 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation
+  alias Elektrine.Messaging.FederationDiscoveredPeer
+  alias Elektrine.Messaging.FederationOutboxEvent
   alias Elektrine.Messaging.Server
+  alias Elektrine.PubSubTopics
   alias Elektrine.Repo
 
   setup do
@@ -34,7 +38,7 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
             %{"id" => "k0", "secret" => "old-shared-secret"}
           ],
           "allow_incoming" => true,
-          "allow_outgoing" => false
+          "allow_outgoing" => true
         }
       ]
     )
@@ -48,25 +52,27 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
   describe "POST /federation/messaging/sync" do
     test "accepts valid signed snapshot", %{conn: conn} do
-      payload = %{
-        "version" => 1,
-        "origin_domain" => "remote.test",
-        "server" => %{
-          "id" => "https://remote.test/federation/messaging/servers/7",
-          "name" => "remote-seven",
-          "description" => "Remote test server",
-          "is_public" => true,
-          "member_count" => 3
-        },
-        "channels" => [
-          %{
-            "id" => "https://remote.test/federation/messaging/channels/9",
-            "name" => "general",
-            "position" => 0
-          }
-        ],
-        "messages" => []
-      }
+      payload =
+        %{
+          "version" => 1,
+          "origin_domain" => "remote.test",
+          "server" => %{
+            "id" => "https://remote.test/federation/messaging/servers/7",
+            "name" => "remote-seven",
+            "description" => "Remote test server",
+            "is_public" => true,
+            "member_count" => 3
+          },
+          "channels" => [
+            %{
+              "id" => "https://remote.test/federation/messaging/channels/9",
+              "name" => "general",
+              "position" => 0
+            }
+          ],
+          "messages" => []
+        }
+        |> sign_snapshot("k1", "test-shared-secret")
 
       body = Jason.encode!(payload)
 
@@ -95,28 +101,30 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
       conn =
         conn
-        |> put_req_header("x-elektrine-federation-domain", "remote.test")
+        |> put_req_header("x-arblarg-domain", "remote.test")
         |> put_req_header(
-          "x-elektrine-federation-timestamp",
+          "x-arblarg-timestamp",
           Integer.to_string(System.system_time(:second))
         )
-        |> put_req_header("x-elektrine-federation-signature", "invalid")
+        |> put_req_header("x-arblarg-signature", "invalid")
         |> post("/federation/messaging/sync", payload)
 
       _response = json_response(conn, 401)
     end
 
     test "accepts rotated key signatures by key id", %{conn: conn} do
-      payload = %{
-        "version" => 1,
-        "origin_domain" => "remote.test",
-        "server" => %{
-          "id" => "https://remote.test/federation/messaging/servers/88",
-          "name" => "rotated-key-server"
-        },
-        "channels" => [],
-        "messages" => []
-      }
+      payload =
+        %{
+          "version" => 1,
+          "origin_domain" => "remote.test",
+          "server" => %{
+            "id" => "https://remote.test/federation/messaging/servers/88",
+            "name" => "rotated-key-server"
+          },
+          "channels" => [],
+          "messages" => []
+        }
+        |> sign_snapshot("k0", "old-shared-secret")
 
       body = Jason.encode!(payload)
 
@@ -134,6 +142,99 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
       response = json_response(conn, 200)
       assert response["status"] == "ok"
+    end
+
+    test "bootstraps unknown peers through discovery metadata", %{conn: conn} do
+      current = Application.get_env(:elektrine, :messaging_federation)
+
+      Application.put_env(
+        :elektrine,
+        :messaging_federation,
+        current
+        |> Keyword.put(:peers, [])
+        |> Keyword.put(:dns_identity_fetcher, fn
+          "_arblarg.dynamic.test", "dynamic.test" ->
+            [
+              authenticated_dns_identity_proof(
+                dynamic_discovery_document("dynamic.test", "dynamic-test-secret")
+              )
+            ]
+
+          _name, _domain ->
+            []
+        end)
+        |> Keyword.put(:discovery_fetcher, fn
+          "dynamic.test", _urls ->
+            {:ok, dynamic_discovery_document("dynamic.test", "dynamic-test-secret")}
+
+          _domain, _urls ->
+            {:error, :not_found}
+        end)
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :messaging_federation, current)
+      end)
+
+      payload =
+        %{
+          "version" => 1,
+          "origin_domain" => "dynamic.test",
+          "server" => %{
+            "id" => "https://dynamic.test/federation/messaging/servers/7",
+            "name" => "dynamic-seven",
+            "description" => "Remote dynamic test server",
+            "is_public" => true,
+            "member_count" => 3
+          },
+          "channels" => [],
+          "messages" => []
+        }
+        |> sign_snapshot("k1", "dynamic-test-secret")
+
+      body = Jason.encode!(payload)
+
+      conn =
+        conn
+        |> signed_federation_headers("POST", "/federation/messaging/sync",
+          domain: "dynamic.test",
+          raw_body: body,
+          secret: "dynamic-test-secret"
+        )
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/sync", body)
+
+      response = json_response(conn, 200)
+      assert response["status"] == "ok"
+
+      assert %FederationDiscoveredPeer{} =
+               Repo.get_by(FederationDiscoveredPeer, domain: "dynamic.test")
+    end
+
+    test "rejects snapshots without governance and stream_positions", %{conn: conn} do
+      payload =
+        %{
+          "version" => 1,
+          "origin_domain" => "remote.test",
+          "server" => %{
+            "id" => "https://remote.test/federation/messaging/servers/17",
+            "name" => "missing-checkpoints"
+          },
+          "channels" => [],
+          "messages" => []
+        }
+        |> sign_snapshot_exact("k1", "test-shared-secret")
+
+      body = Jason.encode!(payload)
+
+      conn =
+        conn
+        |> signed_federation_headers("POST", "/federation/messaging/sync", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/sync", body)
+
+      response = json_response(conn, 400)
+      assert response["code"] == "invalid_snapshot_governance"
     end
   end
 
@@ -193,16 +294,10 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       _response = json_response(conn, 409)
     end
 
-    test "requires envelope signatures for ARBP protocol envelopes", %{conn: conn} do
-      legacy_event = server_upsert_event("evt-arbp-nosig", 1, "strict-room")
-
+    test "requires envelope signatures for Arblarg protocol envelopes", %{conn: conn} do
       event =
-        legacy_event
-        |> Map.put("protocol", "arblarg")
-        |> Map.put("protocol_id", "arbp")
-        |> Map.put("protocol_version", "1.0")
-        |> Map.put("protocol_label", "arbp/1.0")
-        |> Map.put("payload", legacy_event["data"])
+        server_upsert_event("evt-arblarg-nosig", 1, "strict-room")
+        |> Map.delete("signature")
 
       body = Jason.encode!(event)
 
@@ -241,6 +336,202 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
     end
   end
 
+  describe "POST /federation/messaging/events/batch" do
+    test "applies ordered event batches and returns per-event statuses", %{conn: conn} do
+      batch = %{
+        "version" => 1,
+        "batch_id" => "batch-1",
+        "events" => [
+          server_upsert_event("evt-batch-1", 1, "batch-room-v1"),
+          server_upsert_event("evt-batch-2", 2, "batch-room-v2")
+        ]
+      }
+
+      body = Jason.encode!(batch)
+
+      conn =
+        conn
+        |> signed_federation_headers("POST", "/federation/messaging/events/batch", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/events/batch", body)
+
+      response = json_response(conn, 200)
+
+      assert response["batch_id"] == "batch-1"
+      assert response["event_count"] == 2
+      assert response["counts"]["applied"] == 2
+      assert Enum.map(response["results"], & &1["status"]) == ["applied", "applied"]
+
+      mirror =
+        Repo.get_by(Server, federation_id: "https://remote.test/federation/messaging/servers/77")
+
+      assert mirror.name == "batch-room-v2"
+    end
+
+    test "accepts CBOR batches and returns CBOR summaries", %{conn: conn} do
+      batch = %{
+        "version" => 1,
+        "batch_id" => "batch-cbor-1",
+        "events" => [server_upsert_event("evt-batch-cbor-1", 1, "batch-room-cbor")]
+      }
+
+      body = CBOR.encode(batch)
+
+      conn =
+        conn
+        |> signed_federation_headers("POST", "/federation/messaging/events/batch", raw_body: body)
+        |> put_req_header("content-type", "application/arblarg-batch+cbor")
+        |> post("/federation/messaging/events/batch", body)
+
+      assert response(conn, 200)
+      assert [content_type] = get_resp_header(conn, "content-type")
+      assert String.starts_with?(content_type, "application/arblarg-batch+cbor")
+
+      assert {:ok, response, ""} = CBOR.decode(conn.resp_body)
+      assert response["batch_id"] == "batch-cbor-1"
+      assert response["counts"]["applied"] == 1
+    end
+
+    test "rejects CBOR batches with trailing bytes", %{conn: conn} do
+      batch = %{
+        "version" => 1,
+        "batch_id" => "batch-cbor-trailing",
+        "events" => [
+          server_upsert_event("evt-batch-cbor-trailing", 1, "batch-room-cbor-trailing")
+        ]
+      }
+
+      body = CBOR.encode(batch) <> <<0>>
+
+      conn =
+        conn
+        |> signed_federation_headers("POST", "/federation/messaging/events/batch", raw_body: body)
+        |> put_req_header("content-type", "application/arblarg-batch+cbor")
+        |> post("/federation/messaging/events/batch", body)
+
+      response = json_response(conn, 400)
+      assert response["code"] == "invalid_payload"
+    end
+  end
+
+  describe "POST /federation/messaging/ephemeral" do
+    test "applies presence and typing updates without durable event replay", %{conn: conn} do
+      bootstrap_event = server_upsert_event("evt-ephemeral-bootstrap", 1, "ephemeral-room")
+      bootstrap_body = Jason.encode!(bootstrap_event)
+
+      assert "applied" ==
+               (conn
+                |> signed_federation_headers("POST", "/federation/messaging/events",
+                  raw_body: bootstrap_body
+                )
+                |> put_req_header("content-type", "application/json")
+                |> post("/federation/messaging/events", bootstrap_body)
+                |> json_response(200))["status"]
+
+      mirror =
+        Repo.get_by(Server, federation_id: "https://remote.test/federation/messaging/servers/77")
+
+      mirror_channel =
+        Repo.get_by(Elektrine.Messaging.Conversation,
+          federated_source: "https://remote.test/federation/messaging/channels/10"
+        )
+
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, PubSubTopics.conversation(mirror_channel.id))
+
+      payload = %{
+        "version" => 1,
+        "batch_id" => "ephemeral-1",
+        "items" => [
+          %{
+            "event_type" => "presence.update",
+            "origin_domain" => "remote.test",
+            "payload" => %{
+              "refs" => %{"server_id" => mirror.federation_id},
+              "presence" => %{
+                "actor" => canonical_actor("typing-bot", "remote.test"),
+                "status" => "online",
+                "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+              }
+            }
+          },
+          %{
+            "event_type" => "typing.start",
+            "origin_domain" => "remote.test",
+            "payload" => %{
+              "refs" => %{
+                "server_id" => mirror.federation_id,
+                "channel_id" => "https://remote.test/federation/messaging/channels/10"
+              },
+              "actor" => canonical_actor("typing-bot", "remote.test"),
+              "started_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "ttl_ms" => 3000
+            }
+          }
+        ]
+      }
+
+      body = Jason.encode!(payload)
+
+      response =
+        build_conn()
+        |> signed_federation_headers("POST", "/federation/messaging/ephemeral", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/ephemeral", body)
+        |> json_response(200)
+
+      assert response["counts"]["applied"] == 2
+      assert_receive {:user_typing, remote_key, _label}, 1_000
+      assert String.starts_with?(remote_key, "remote:")
+    end
+
+    test "rejects legacy ephemeral items that send data instead of payload", %{conn: conn} do
+      bootstrap_event = server_upsert_event("evt-ephemeral-legacy-bootstrap", 1, "ephemeral-room")
+      bootstrap_body = Jason.encode!(bootstrap_event)
+
+      assert "applied" ==
+               (conn
+                |> signed_federation_headers("POST", "/federation/messaging/events",
+                  raw_body: bootstrap_body
+                )
+                |> put_req_header("content-type", "application/json")
+                |> post("/federation/messaging/events", bootstrap_body)
+                |> json_response(200))["status"]
+
+      payload = %{
+        "version" => 1,
+        "batch_id" => "ephemeral-legacy",
+        "items" => [
+          %{
+            "event_type" => "typing.start",
+            "origin_domain" => "remote.test",
+            "data" => %{
+              "refs" => %{
+                "server_id" => "https://remote.test/federation/messaging/servers/77",
+                "channel_id" => "https://remote.test/federation/messaging/channels/10"
+              },
+              "actor" => canonical_actor("typing-bot", "remote.test"),
+              "started_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "ttl_ms" => 3000
+            }
+          }
+        ]
+      }
+
+      body = Jason.encode!(payload)
+
+      response =
+        build_conn()
+        |> signed_federation_headers("POST", "/federation/messaging/ephemeral", raw_body: body)
+        |> put_req_header("content-type", "application/json")
+        |> post("/federation/messaging/ephemeral", body)
+        |> json_response(200)
+
+      assert response["counts"]["error"] == 1
+      assert response["error_counts"]["invalid_event_payload"] == 1
+      assert [%{"status" => "error", "code" => "invalid_event_payload"}] = response["results"]
+    end
+  end
+
   describe "GET /federation/messaging/servers/:server_id/snapshot" do
     test "returns snapshot for local server when request is signed", %{conn: conn} do
       owner = AccountsFixtures.user_fixture()
@@ -258,6 +549,61 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       assert response["version"] == 1
       assert response["server"]["name"] == "local-federated"
       assert is_list(response["channels"])
+      assert is_map(response["governance"])
+      assert is_list(response["stream_positions"])
+      assert response["signature"]["algorithm"] == "ed25519"
+    end
+  end
+
+  describe "GET /federation/messaging/streams/events" do
+    test "exports compact ref-based stream events for replay", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture()
+      {:ok, server} = Messaging.create_server(owner.id, %{name: "fast-lane"})
+
+      {:ok, channel} =
+        Messaging.create_server_channel(server.id, owner.id, %{name: "general", description: "x"})
+
+      {:ok, message} =
+        Messaging.create_chat_text_message(channel.id, owner.id, "hello compact federation")
+
+      assert :ok = Federation.publish_message_created(message)
+
+      outbox =
+        FederationOutboxEvent
+        |> Repo.all()
+        |> Enum.filter(&(&1.event_type == "message.create"))
+        |> Enum.max_by(& &1.id)
+
+      query_string =
+        URI.encode_query(%{
+          "stream_id" => outbox.stream_id,
+          "after_sequence" => Integer.to_string(max(outbox.sequence - 1, 0)),
+          "limit" => "10"
+        })
+
+      conn =
+        conn
+        |> signed_federation_headers("GET", "/federation/messaging/streams/events",
+          query_string: query_string
+        )
+        |> get("/federation/messaging/streams/events?#{query_string}")
+
+      response = json_response(conn, 200)
+
+      assert response["stream_id"] == outbox.stream_id
+      assert response["after_sequence"] == max(outbox.sequence - 1, 0)
+      assert response["events"] |> length() == 1
+
+      [event] = response["events"]
+
+      assert get_in(event, ["payload", "refs", "server_id"]) ==
+               outbox.payload["payload"]["refs"]["server_id"]
+
+      assert get_in(event, ["payload", "refs", "channel_id"]) ==
+               outbox.payload["payload"]["refs"]["channel_id"]
+
+      refute get_in(event, ["payload", "server"])
+      refute get_in(event, ["payload", "channel"])
     end
   end
 
@@ -305,39 +651,57 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
       assert response["version"] == 1
       assert response["domain"] == Elektrine.ActivityPub.instance_domain()
-      assert response["protocol"] == "arblarg"
-      assert response["protocol_id"] == "arbp"
+      assert response["protocol"] == ArblargSDK.protocol_name()
+      assert response["protocol_id"] == "arblarg"
       assert response["identity"]["current_key_id"] == "k1"
       assert is_binary(response["endpoints"]["events"])
+      assert is_binary(response["endpoints"]["events_batch"])
+      assert is_binary(response["endpoints"]["ephemeral"])
+      assert is_binary(response["endpoints"]["stream_events"])
+      assert is_binary(response["endpoints"]["session_websocket"])
       assert is_binary(response["endpoints"]["profiles"])
       assert is_binary(response["endpoints"]["public_servers"])
       refute Map.has_key?(response, "profiles")
       assert response["features"]["relay_transport"] == true
-    end
+      assert response["features"]["batched_event_delivery"] == true
+      assert response["features"]["stream_catch_up"] == true
+      assert response["features"]["binary_event_batches"] == true
+      assert response["features"]["read_cursors"] == true
+      assert response["features"]["ephemeral_lane"] == true
+      assert response["features"]["origin_owned_identifiers"] == true
+      assert response["features"]["signed_snapshots"] == true
+      assert response["limits"]["max_batch_events"] >= 1
+      assert "session_websocket" in response["transport_profiles"]["preferred_order"]
 
-    test "serves legacy discovery aliases", %{conn: conn} do
-      alias_response =
-        conn
-        |> get("/.well-known/elektrine")
-        |> json_response(200)
+      assert String.ends_with?(
+               response["endpoints"]["session_websocket"],
+               "/federation/messaging/session"
+             )
 
-      legacy_response =
-        build_conn()
-        |> get("/.well-known/elektrine-messaging-federation")
-        |> json_response(200)
+      assert response["transport_profiles"]["session_websocket"]["framing"] ==
+               "arblarg_websocket_stream_session"
 
-      assert alias_response["domain"] == legacy_response["domain"]
-      assert alias_response["endpoints"] == legacy_response["endpoints"]
+      assert response["transport_profiles"]["session_websocket"]["request_path"] ==
+               "/federation/messaging/session"
+
+      assert response["transport_profiles"]["session_websocket"]["delivery_ops"] == [
+               "stream_batch",
+               "deliver_ephemeral"
+             ]
+
+      assert response["transport_profiles"]["session_websocket"]["flow_control"][
+               "max_inflight_batches"
+             ] >= 1
     end
 
     test "serves version-pinned discovery document", %{conn: conn} do
       conn = get(conn, "/.well-known/arblarg/1.0")
       response = json_response(conn, 200)
 
-      assert response["protocol_id"] == "arbp"
-      assert response["default_protocol_label"] == "arbp/1.0"
+      assert response["protocol_id"] == "arblarg"
+      assert response["default_protocol_label"] == "arblarg/1.0"
       assert response["default_protocol_version"] == "1.0"
-      assert response["protocol"] == "arblarg"
+      assert response["protocol"] == ArblargSDK.protocol_name()
     end
 
     test "returns public event schema documents", %{conn: conn} do
@@ -352,17 +716,21 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       conn = get(conn, "/federation/messaging/arblarg/profiles")
       response = json_response(conn, 200)
 
-      assert response["protocol_id"] == "arbp"
+      assert response["protocol_id"] == "arblarg"
       assert response["profiles"] != []
-      assert "arbp-core/1.0" in response["compatibility_claims"]
+      assert "arblarg-core/1.0" in response["compatibility_claims"]
       assert response["features"]["strict_profiles"] == true
       assert response["relay_transport"]["official_operator"] == "Relay Collective"
 
-      discord_profile = Enum.find(response["profiles"], &(&1["id"] == "arbp-discord/1.0"))
-      assert is_map(discord_profile)
-      assert discord_profile["status"] == "unverified"
+      community_profile =
+        Enum.find(response["profiles"], &(&1["id"] == "arblarg-community/1.0"))
 
-      roles_extension = Enum.find(response["extensions"], &(&1["urn"] == "urn:arbp:ext:roles:1"))
+      assert is_map(community_profile)
+      assert community_profile["status"] == "unverified"
+
+      roles_extension =
+        Enum.find(response["extensions"], &(&1["urn"] == "urn:arblarg:ext:roles:1"))
+
       assert is_map(roles_extension)
       assert roles_extension["conformance"]["status"] == "unverified"
       assert is_binary(roles_extension["conformance"]["suite_version"])
@@ -393,11 +761,12 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
   defp signed_federation_headers(conn, method, path, opts \\ []) do
     timestamp = Integer.to_string(System.system_time(:second))
-    domain = "remote.test"
+    domain = Keyword.get(opts, :domain, "remote.test")
     key_id = Keyword.get(opts, :key_id, "k1")
     secret = Keyword.get(opts, :secret, "test-shared-secret")
     raw_body = Keyword.get(opts, :raw_body, "")
     request_id = Keyword.get(opts, :request_id, Ecto.UUID.generate())
+    query_string = Keyword.get(opts, :query_string, "")
     content_digest = Federation.body_digest(raw_body)
 
     signature =
@@ -406,7 +775,7 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
           domain,
           method,
           path,
-          "",
+          query_string,
           timestamp,
           content_digest,
           request_id
@@ -415,28 +784,148 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
       )
 
     conn
-    |> put_req_header("x-elektrine-federation-domain", domain)
-    |> put_req_header("x-elektrine-federation-key-id", key_id)
-    |> put_req_header("x-elektrine-federation-timestamp", timestamp)
-    |> put_req_header("x-elektrine-federation-content-digest", content_digest)
+    |> put_req_header("x-arblarg-domain", domain)
+    |> put_req_header("x-arblarg-key-id", key_id)
+    |> put_req_header("x-arblarg-timestamp", timestamp)
+    |> put_req_header("x-arblarg-content-digest", content_digest)
     |> put_req_header("x-arblarg-request-id", request_id)
     |> put_req_header("x-arblarg-signature-algorithm", "ed25519")
-    |> put_req_header("x-elektrine-federation-signature", signature)
+    |> put_req_header("x-arblarg-signature", signature)
   end
+
+  defp dynamic_discovery_document(domain, secret) do
+    {public_key, _private_key} = ArblargSDK.derive_keypair_from_secret(secret)
+    base_url = "https://#{domain}"
+
+    unsigned = %{
+      "protocol" => ArblargSDK.protocol_name(),
+      "protocol_id" => ArblargSDK.protocol_id(),
+      "protocol_labels" => [ArblargSDK.protocol_label()],
+      "default_protocol_label" => ArblargSDK.protocol_label(),
+      "default_protocol_version" => ArblargSDK.protocol_version(),
+      "version" => 1,
+      "domain" => domain,
+      "identity" => %{
+        "algorithm" => "ed25519",
+        "current_key_id" => "k1",
+        "keys" => [
+          %{
+            "id" => "k1",
+            "algorithm" => "ed25519",
+            "public_key" => Base.url_encode64(public_key, padding: false)
+          }
+        ]
+      },
+      "endpoints" => %{
+        "well_known" => "#{base_url}/.well-known/arblarg",
+        "events" => "#{base_url}/federation/messaging/events",
+        "events_batch" => "#{base_url}/federation/messaging/events/batch",
+        "ephemeral" => "#{base_url}/federation/messaging/ephemeral",
+        "sync" => "#{base_url}/federation/messaging/sync",
+        "stream_events" => "#{base_url}/federation/messaging/streams/events",
+        "session_websocket" => "wss://#{domain}/federation/messaging/session",
+        "snapshot_template" => "#{base_url}/federation/messaging/servers/{server_id}/snapshot",
+        "public_servers" => "#{base_url}/federation/messaging/servers/public",
+        "profiles" => "#{base_url}/federation/messaging/arblarg/profiles",
+        "schema_template" => "#{base_url}/federation/messaging/arblarg/{version}/schemas/{name}"
+      }
+    }
+
+    Map.put(unsigned, "signature", %{
+      "algorithm" => "ed25519",
+      "key_id" => "k1",
+      "value" =>
+        unsigned
+        |> ArblargSDK.canonical_json_payload()
+        |> ArblargSDK.sign_payload(secret)
+    })
+  end
+
+  defp discovery_fingerprint(%{
+         "identity" => %{"current_key_id" => current_key_id, "keys" => keys}
+       })
+       when is_list(keys) do
+    normalized =
+      keys
+      |> Enum.map(fn key ->
+        %{
+          "id" => key["id"],
+          "public_key" => key["public_key"]
+        }
+      end)
+      |> Enum.sort_by(&{&1["id"] || "", &1["public_key"] || ""})
+
+    :crypto.hash(
+      :sha256,
+      Jason.encode!(%{"current_key_id" => current_key_id, "keys" => normalized})
+    )
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp authenticated_dns_identity_proof(discovery_document) do
+    %{
+      text: "fingerprint=#{discovery_fingerprint(discovery_document)}",
+      authenticated: true
+    }
+  end
+
+  defp canonical_actor(username, domain, opts \\ []) do
+    uri =
+      Keyword.get(opts, :uri) ||
+        "https://#{domain}/users/#{username}"
+
+    {public_key, _private_key} = ArblargSDK.derive_keypair_from_secret("actor:#{uri}")
+
+    %{
+      "id" => uri,
+      "uri" => uri,
+      "username" => username,
+      "display_name" => Keyword.get(opts, :display_name, username),
+      "domain" => domain,
+      "handle" => "#{username}@#{domain}",
+      "key_id" => "#{uri}#arblarg-key",
+      "public_key" => Base.url_encode64(public_key, padding: false)
+    }
+  end
+
+  defp sign_snapshot(payload, key_id, secret)
+       when is_map(payload) and is_binary(key_id) and is_binary(secret) do
+    payload =
+      payload
+      |> Map.put_new("governance", %{"memberships" => [], "invites" => [], "bans" => []})
+      |> Map.put_new("stream_positions", default_snapshot_stream_positions(payload))
+
+    sign_snapshot_exact(payload, key_id, secret)
+  end
+
+  defp sign_snapshot_exact(payload, key_id, secret)
+       when is_map(payload) and is_binary(key_id) and is_binary(secret) do
+    Map.put(payload, "signature", %{
+      "algorithm" => "ed25519",
+      "key_id" => key_id,
+      "value" =>
+        payload
+        |> ArblargSDK.canonical_json_payload()
+        |> ArblargSDK.sign_payload(secret)
+    })
+  end
+
+  defp default_snapshot_stream_positions(%{"server" => %{"id" => server_id}})
+       when is_binary(server_id) do
+    [%{"stream_id" => "server:#{server_id}", "last_sequence" => 0}]
+  end
+
+  defp default_snapshot_stream_positions(_payload), do: []
 
   defp server_upsert_event(event_id, sequence, server_name) do
     server_id = "https://remote.test/federation/messaging/servers/77"
     stream_id = "server:#{server_id}"
 
-    %{
-      "version" => 1,
-      "event_id" => event_id,
-      "event_type" => "server.upsert",
-      "origin_domain" => "remote.test",
-      "stream_id" => stream_id,
-      "sequence" => sequence,
-      "sent_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-      "data" => %{
+    sign_remote_event(
+      "server.upsert",
+      stream_id,
+      sequence,
+      %{
         "server" => %{
           "id" => server_id,
           "name" => server_name,
@@ -451,7 +940,27 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
             "position" => 0
           }
         ]
-      }
+      },
+      event_id: event_id
+    )
+  end
+
+  defp sign_remote_event(event_type, stream_id, sequence, payload, opts) do
+    unsigned = %{
+      "protocol" => ArblargSDK.protocol_name(),
+      "protocol_id" => ArblargSDK.protocol_id(),
+      "protocol_label" => ArblargSDK.protocol_label(),
+      "protocol_version" => ArblargSDK.protocol_version(),
+      "event_id" => Keyword.get(opts, :event_id, "evt-#{Ecto.UUID.generate()}"),
+      "event_type" => event_type,
+      "origin_domain" => "remote.test",
+      "stream_id" => stream_id,
+      "sequence" => sequence,
+      "sent_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      "idempotency_key" => Keyword.get(opts, :idempotency_key, "idem-#{Ecto.UUID.generate()}"),
+      "payload" => payload
     }
+
+    ArblargSDK.sign_event_envelope(unsigned, "k1", "test-shared-secret")
   end
 end

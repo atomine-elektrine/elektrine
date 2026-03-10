@@ -39,15 +39,16 @@ defmodule Elektrine.Bluesky do
   @doc "Mirrors a local message to Bluesky when all bridge requirements are met.\n"
   def mirror_post(%Message{} = message) do
     with :ok <- ensure_bridge_enabled(),
-         :ok <- ensure_mirrorable_message(message),
+         {:ok, message} <- refresh_message_for_mirror(message),
          {:ok, user} <- fetch_sender(message.sender_id),
          {:ok, text} <- build_post_text(message),
          {:ok, reply_payload} <- maybe_build_reply_payload(message.reply_to_id),
          {:ok, session} <- session_for_user(user),
          {:ok, record} <- build_record(message, text, reply_payload, session),
          {:ok, published} <-
-           create_record(session.service_url, session.access_jwt, session.did, record) do
-      persist_message_mapping(message.id, published)
+           create_record(session.service_url, session.access_jwt, session.did, record),
+         :ok <- persist_message_mapping(message.id, published, session) do
+      :ok
     else
       {:skip, reason} ->
         {:skipped, reason}
@@ -275,8 +276,27 @@ defmodule Elektrine.Bluesky do
       message.federated -> {:skip, :remote_message}
       message.post_type == "message" -> {:skip, :not_timeline_post}
       is_nil(message.sender_id) -> {:skip, :missing_sender}
+      not is_nil(message.deleted_at) -> {:skip, :already_deleted}
       is_binary(message.bluesky_uri) and message.bluesky_uri != "" -> {:skip, :already_mirrored}
       true -> :ok
+    end
+  end
+
+  defp refresh_message_for_mirror(%Message{id: message_id}) when is_integer(message_id) do
+    case Repo.get(Message, message_id) do
+      %Message{} = fresh_message ->
+        with :ok <- ensure_mirrorable_message(fresh_message) do
+          {:ok, fresh_message}
+        end
+
+      nil ->
+        {:skip, :message_not_found}
+    end
+  end
+
+  defp refresh_message_for_mirror(%Message{} = message) do
+    with :ok <- ensure_mirrorable_message(message) do
+      {:ok, message}
     end
   end
 
@@ -1524,27 +1544,40 @@ defmodule Elektrine.Bluesky do
     end)
   end
 
-  defp find_record_uri(session, collection, matcher, cursor \\ nil, depth \\ 0)
+  defp find_record_uri(session, collection, matcher, cursor \\ nil, seen_cursors \\ MapSet.new())
 
-  defp find_record_uri(_session, _collection, _matcher, _cursor, depth) when depth >= 10 do
-    {:ok, nil}
-  end
+  defp find_record_uri(session, collection, matcher, cursor, seen_cursors) do
+    if is_binary(cursor) and cursor != "" and MapSet.member?(seen_cursors, cursor) do
+      {:error, :record_cursor_loop}
+    else
+      next_seen_cursors =
+        if is_binary(cursor) and cursor != "" do
+          MapSet.put(seen_cursors, cursor)
+        else
+          seen_cursors
+        end
 
-  defp find_record_uri(session, collection, matcher, cursor, depth) do
-    with {:ok, response} <-
-           list_records(session.service_url, session.access_jwt, session.did, collection, cursor) do
-      case Enum.find(response.records, matcher) do
-        %{"uri" => uri} when is_binary(uri) and uri != "" ->
-          {:ok, uri}
+      with {:ok, response} <-
+             list_records(
+               session.service_url,
+               session.access_jwt,
+               session.did,
+               collection,
+               cursor
+             ) do
+        case Enum.find(response.records, matcher) do
+          %{"uri" => uri} when is_binary(uri) and uri != "" ->
+            {:ok, uri}
 
-        _ ->
-          case response.cursor do
-            next_cursor when is_binary(next_cursor) and next_cursor != "" ->
-              find_record_uri(session, collection, matcher, next_cursor, depth + 1)
+          _ ->
+            case response.cursor do
+              next_cursor when is_binary(next_cursor) and next_cursor != "" ->
+                find_record_uri(session, collection, matcher, next_cursor, next_seen_cursors)
 
-            _ ->
-              {:ok, nil}
-          end
+              _ ->
+                {:ok, nil}
+            end
+        end
       end
     end
   end
@@ -1619,11 +1652,48 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp persist_message_mapping(message_id, %{uri: uri, cid: cid}) do
-    from(m in Message, where: m.id == ^message_id and is_nil(m.bluesky_uri))
-    |> Repo.update_all(set: [bluesky_uri: uri, bluesky_cid: cid])
+  defp persist_message_mapping(message_id, %{uri: uri, cid: cid} = published, session) do
+    case from(m in Message,
+           where: m.id == ^message_id and is_nil(m.bluesky_uri) and is_nil(m.deleted_at)
+         )
+         |> Repo.update_all(set: [bluesky_uri: uri, bluesky_cid: cid]) do
+      {1, _} ->
+        :ok
 
-    :ok
+      {0, _} ->
+        handle_unclaimed_message_mapping(message_id, published, session)
+    end
+  end
+
+  defp handle_unclaimed_message_mapping(message_id, published, session) do
+    with :ok <- cleanup_orphaned_published_post(session, published) do
+      case Repo.get(Message, message_id) do
+        nil ->
+          {:skip, :message_not_found}
+
+        %Message{deleted_at: deleted_at} when not is_nil(deleted_at) ->
+          {:skip, :already_deleted}
+
+        %Message{bluesky_uri: uri} when is_binary(uri) and uri != "" ->
+          {:skip, :already_mirrored}
+
+        _ ->
+          {:error, :message_mapping_not_persisted}
+      end
+    end
+  end
+
+  defp cleanup_orphaned_published_post(session, %{uri: uri}) when is_binary(uri) and uri != "" do
+    case maybe_delete_record_by_uri(session, @post_collection, uri) do
+      :ok ->
+        :ok
+
+      {:error, {:delete_record_failed, 404}} ->
+        :ok
+
+      {:error, reason} ->
+        {:error, {:cleanup_failed, reason}}
+    end
   end
 
   defp persist_message_mapping_update(message_id, %{uri: uri, cid: cid}) do

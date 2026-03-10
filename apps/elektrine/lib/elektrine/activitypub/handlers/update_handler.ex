@@ -7,6 +7,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
 
   alias Elektrine.ActivityPub
   alias Elektrine.Messaging
+  alias Elektrine.Repo
 
   @doc """
   Handles an incoming Update activity.
@@ -55,7 +56,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
   end
 
   defp update_note(object, actor_uri) do
-    case Messaging.get_message_by_activitypub_id(object["id"]) do
+    case Messaging.get_message_by_activitypub_ref(object["id"]) do
       nil ->
         {:ok, :unknown_object}
 
@@ -64,13 +65,24 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
 
         if remote_actor && message.remote_actor_id == remote_actor.id do
           content = strip_html(object["content"] || "")
+          edited_at = DateTime.utc_now() |> DateTime.truncate(:second)
 
-          Messaging.update_message(message, %{
-            content: content,
-            edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
-          })
+          case message
+               |> Ecto.Changeset.change(%{
+                 content: content,
+                 edited_at: edited_at
+               })
+               |> Repo.update() do
+            {:ok, _updated_message} ->
+              {:ok, :updated}
 
-          {:ok, :updated}
+            {:error, changeset} ->
+              Logger.warning(
+                "Failed to update federated message #{message.id}: #{inspect(changeset.errors)}"
+              )
+
+              {:error, :update_failed}
+          end
         else
           {:error, :unauthorized}
         end

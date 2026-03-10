@@ -14,7 +14,7 @@ defmodule Elektrine.Messaging do
   alias Elektrine.Repo
 
   # Delegate to sub-contexts
-  alias Elektrine.Messaging.{ChatMessages, Conversation}
+  alias Elektrine.Messaging.{ChatMessage, ChatMessages, Conversation}
   alias Elektrine.Messaging.Conversations
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Messages
@@ -342,12 +342,24 @@ defmodule Elektrine.Messaging do
   @doc """
   Edits a message.
   """
-  defdelegate edit_message(message_id, user_id, new_content), to: Messages
+  def edit_message(message_id, user_id, new_content) when is_integer(message_id) do
+    if Repo.get(ChatMessage, message_id) do
+      ChatMessages.edit_message(message_id, user_id, new_content)
+    else
+      Messages.edit_message(message_id, user_id, new_content)
+    end
+  end
 
   @doc """
   Deletes a message.
   """
-  defdelegate delete_message(message_id, user_id, is_admin \\ false), to: Messages
+  def delete_message(message_id, user_id, is_admin \\ false) when is_integer(message_id) do
+    if Repo.get(ChatMessage, message_id) do
+      ChatMessages.delete_message(message_id, user_id, is_admin)
+    else
+      Messages.delete_message(message_id, user_id, is_admin)
+    end
+  end
 
   @doc """
   Admin deletes a message (bypasses ownership check).

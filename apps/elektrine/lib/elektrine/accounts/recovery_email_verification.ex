@@ -6,7 +6,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   This also handles lifting email restrictions for users who hit rate limits.
   """
 
-  import Swoosh.Email
+  import Ecto.Query
+  import Swoosh.Email, except: [from: 2]
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
   require Logger
@@ -61,7 +62,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   defp update_verification_token(user, token) do
     user
     |> Ecto.Changeset.change(%{
-      recovery_email_verification_token: token,
+      recovery_email_verification_token: User.hash_sensitive_token(token),
       recovery_email_verification_sent_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
     |> Repo.update()
@@ -82,7 +83,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
     # Use Swoosh email directly via Mailer
     new()
     |> to(user.recovery_email)
-    |> from({"Elektrine", "noreply@elektrine.com"})
+    |> Swoosh.Email.from({"Elektrine", "noreply@elektrine.com"})
     |> subject(subject)
     |> html_body(html_body)
     |> text_body(text_body)
@@ -335,13 +336,17 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   Returns the user or nil if not found.
   """
   def get_user_by_token(token) when is_binary(token) and byte_size(token) > 0 do
-    Repo.get_by(User, recovery_email_verification_token: token)
+    find_user_by_token(token)
   end
 
   def get_user_by_token(_), do: nil
 
   defp find_user_by_token(token) do
-    Repo.get_by(User, recovery_email_verification_token: token)
+    hashed_token = User.hash_sensitive_token(token)
+
+    from(u in User, where: u.recovery_email_verification_token == ^hashed_token)
+    |> maybe_allow_legacy_token_lookup(:recovery_email_verification_token, token)
+    |> Repo.one()
   end
 
   defp token_expired?(user) do
@@ -418,6 +423,20 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
         has_recovery_email = !is_nil(user.recovery_email) && user.recovery_email != ""
         has_recovery_email && !user.recovery_email_verified
     end
+  end
+
+  @legacy_recovery_token_pattern ~r/^[A-Za-z0-9_-]{43}$/
+
+  defp maybe_allow_legacy_token_lookup(query, field_name, token) do
+    if legacy_recovery_token?(token) do
+      from(u in query, or_where: field(u, ^field_name) == ^token)
+    else
+      query
+    end
+  end
+
+  defp legacy_recovery_token?(token) when is_binary(token) do
+    Regex.match?(@legacy_recovery_token_pattern, token)
   end
 
   @doc """

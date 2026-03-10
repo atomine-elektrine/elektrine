@@ -550,8 +550,10 @@ defmodule ElektrineWeb.FriendsLive do
 
   defp visible_friends(friends, query, status_filter, sort, user_statuses) do
     friends
-    |> Enum.filter(&friend_matches_query?(&1, query))
-    |> Enum.filter(&friend_matches_status_filter?(&1, status_filter, user_statuses))
+    |> Enum.filter(
+      &(friend_matches_query?(&1, query) and
+          friend_matches_status_filter?(&1, status_filter, user_statuses))
+    )
     |> Enum.sort_by(&friend_sort_key(&1, sort, user_statuses))
   end
 

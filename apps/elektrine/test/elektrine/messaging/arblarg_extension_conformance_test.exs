@@ -9,15 +9,15 @@ defmodule Elektrine.Messaging.ArblargExtensionConformanceTest do
                   __DIR__
                 )
 
-  test "CONFX-001 registry publishes discord extension pack metadata" do
+  test "CONFX-001 registry publishes community extension pack metadata" do
     registry = ArblargProfiles.extension_registry()
     extension_urns = Enum.map(registry, & &1["urn"])
 
-    assert "urn:arbp:ext:roles:1" in extension_urns
-    assert "urn:arbp:ext:permissions:1" in extension_urns
-    assert "urn:arbp:ext:threads:1" in extension_urns
-    assert "urn:arbp:ext:presence:1" in extension_urns
-    assert "urn:arbp:ext:moderation:1" in extension_urns
+    assert "urn:arblarg:ext:roles:1" in extension_urns
+    assert "urn:arblarg:ext:permissions:1" in extension_urns
+    assert "urn:arblarg:ext:threads:1" in extension_urns
+    assert "urn:arblarg:ext:presence:1" in extension_urns
+    assert "urn:arblarg:ext:moderation:1" in extension_urns
 
     Enum.each(registry, fn extension ->
       assert is_map(extension["conformance"])
@@ -56,9 +56,9 @@ defmodule Elektrine.Messaging.ArblargExtensionConformanceTest do
 
   defp build_envelope(event_type, payload) do
     %{
-      "protocol" => "arblarg",
-      "protocol_id" => "arbp",
-      "protocol_version" => "1.0",
+      "protocol" => ArblargSDK.protocol_name(),
+      "protocol_id" => ArblargSDK.protocol_id(),
+      "protocol_version" => ArblargSDK.protocol_version(),
       "event_type" => event_type,
       "event_id" => "evt-#{Ecto.UUID.generate()}",
       "origin_domain" => "example.net",
@@ -68,6 +68,7 @@ defmodule Elektrine.Messaging.ArblargExtensionConformanceTest do
       "idempotency_key" => "idem-#{Ecto.UUID.generate()}",
       "payload" => payload
     }
+    |> ArblargSDK.sign_event_envelope("k1", "extension-conformance-secret")
   end
 
   defp read_vectors! do

@@ -341,7 +341,11 @@
                             navigate={"/remote/#{request.remote_actor.username}@#{request.remote_actor.domain}"}
                             class="font-semibold hover:underline block truncate"
                           >
-                            {request.remote_actor.display_name || request.remote_actor.username}
+                            {raw(
+                              ElektrineWeb.HtmlHelpers.render_actor_display_name(
+                                request.remote_actor
+                              )
+                            )}
                           </.link>
                           <p class="text-xs opacity-70 truncate">
                             @{request.remote_actor.username}@{request.remote_actor.domain}

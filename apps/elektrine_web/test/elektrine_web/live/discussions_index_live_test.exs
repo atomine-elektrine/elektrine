@@ -2,7 +2,11 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  alias Elektrine.{AccountsFixtures, Messaging, Repo, SocialFixtures}
+  alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Messaging
+  alias Elektrine.Repo
+  alias Elektrine.SocialFixtures
 
   defp log_in_user(conn, user) do
     token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
@@ -96,6 +100,47 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     assert html =~ joined_community.name
     assert html =~ discover_community.name
     assert has_element?(view, "h4", "Trending thread #{unique}")
+  end
+
+  test "overview renders federated active threads when conversation is not loaded", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/groups/federated-#{unique}",
+        username: "federated#{unique}",
+        domain: "remote.example",
+        display_name: "Federated #{unique}",
+        inbox_url: "https://remote.example/inbox",
+        actor_type: "Group",
+        public_key: "test-public-key-#{unique}"
+      })
+      |> Repo.insert!()
+
+    assert {:ok, _message} =
+             Messaging.create_federated_message(%{
+               content: "Remote community discussion",
+               title: "Federated thread #{unique}",
+               visibility: "public",
+               post_type: "discussion",
+               activitypub_id: "https://remote.example/posts/#{unique}",
+               activitypub_url: "https://remote.example/posts/#{unique}",
+               remote_actor_id: remote_actor.id
+             })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/communities")
+
+    html = render_async(view)
+
+    assert has_element?(view, "h2", "Active Threads")
+    assert html =~ "Federated thread #{unique}"
+    assert html =~ "!#{remote_actor.username}@#{remote_actor.domain}"
+    assert html =~ ~s(href="/remote/post/)
   end
 
   test "community search replaces the overview with matching results", %{conn: conn} do

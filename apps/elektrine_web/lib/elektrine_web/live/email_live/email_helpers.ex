@@ -113,59 +113,78 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
   Generate a clean preview from email content, handling HTML and base64 encoding
   """
   def email_preview(message, max_length \\ 150) do
-    # Get plain text content
-    content =
-      cond do
-        message.text_body && String.trim(message.text_body) != "" ->
-          message.text_body
-          # Decode quoted-printable encoding first
-          |> decode_body()
-          # Remove image URLs in square brackets like [https://...]
-          |> String.replace(~r/\[https?:\/\/[^\]]+\]/i, "")
-          # Remove bare URLs
-          |> String.replace(~r/https?:\/\/\S+/i, "")
-          # Strip any HTML tags that might be in plain text
-          |> String.replace(~r/<[^>]+>/, " ")
-          |> decode_all_html_entities()
+    if private_message?(message) do
+      gettext("Unlock your mailbox to preview this message.")
+    else
+      # Get plain text content
+      content =
+        cond do
+          message.text_body && String.trim(message.text_body) != "" ->
+            message.text_body
+            # Decode quoted-printable encoding first
+            |> decode_body()
+            # Remove image URLs in square brackets like [https://...]
+            |> String.replace(~r/\[https?:\/\/[^\]]+\]/i, "")
+            # Remove bare URLs
+            |> String.replace(~r/https?:\/\/\S+/i, "")
+            # Strip any HTML tags that might be in plain text
+            |> String.replace(~r/<[^>]+>/, " ")
+            |> decode_all_html_entities()
 
-        message.html_body && String.trim(message.html_body) != "" ->
-          # Simple HTML to text conversion
-          message.html_body
-          # Decode quoted-printable encoding first
-          |> decode_body()
-          # Remove script and style blocks entirely (with proper multiline matching)
-          |> String.replace(~r/<script\b[^>]*>.*?<\/script>/ims, "")
-          |> String.replace(~r/<style\b[^>]*>.*?<\/style>/ims, "")
-          # Also remove any CSS that might be at the start (common in email templates)
-          |> String.replace(~r/^[\s]*[a-z\s,#\.]+\{[^}]*\}/m, "")
-          # Remove image tags and their alt text
-          |> String.replace(~r/<img[^>]*>/i, "")
-          # Remove links but keep link text
-          |> String.replace(~r/<a[^>]*>/i, "")
-          |> String.replace(~r/<\/a>/i, " ")
-          # Remove all other HTML tags
-          |> String.replace(~r/<[^>]+>/, " ")
-          # Remove URLs that might be left in the text
-          |> String.replace(~r/https?:\/\/\S+/i, "")
-          |> decode_all_html_entities()
+          message.html_body && String.trim(message.html_body) != "" ->
+            # Simple HTML to text conversion
+            message.html_body
+            # Decode quoted-printable encoding first
+            |> decode_body()
+            # Remove script and style blocks entirely (with proper multiline matching)
+            |> String.replace(~r/<script\b[^>]*>.*?<\/script>/ims, "")
+            |> String.replace(~r/<style\b[^>]*>.*?<\/style>/ims, "")
+            # Also remove any CSS that might be at the start (common in email templates)
+            |> String.replace(~r/^[\s]*[a-z\s,#\.]+\{[^}]*\}/m, "")
+            # Remove image tags and their alt text
+            |> String.replace(~r/<img[^>]*>/i, "")
+            # Remove links but keep link text
+            |> String.replace(~r/<a[^>]*>/i, "")
+            |> String.replace(~r/<\/a>/i, " ")
+            # Remove all other HTML tags
+            |> String.replace(~r/<[^>]+>/, " ")
+            # Remove URLs that might be left in the text
+            |> String.replace(~r/https?:\/\/\S+/i, "")
+            |> decode_all_html_entities()
 
-        true ->
-          "(No content available)"
-      end
+          true ->
+            "(No content available)"
+        end
 
-    content
-    |> ensure_valid_utf8()
-    # Remove any remaining CSS-like patterns (rules with curly braces)
-    |> String.replace(~r/[a-z\-]+\s*:\s*[^;}]+;/i, "")
-    |> String.replace(~r/\{[^}]*\}/m, " ")
-    # Collapse multiple spaces
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-    # Skip leading content that looks like CSS comments or directives
-    |> String.replace(~r/^\/\*.*?\*\//m, "")
-    |> String.trim()
-    |> truncate(max_length)
+      content
+      |> ensure_valid_utf8()
+      # Remove any remaining CSS-like patterns (rules with curly braces)
+      |> String.replace(~r/[a-z\-]+\s*:\s*[^;}]+;/i, "")
+      |> String.replace(~r/\{[^}]*\}/m, " ")
+      # Collapse multiple spaces
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+      # Skip leading content that looks like CSS comments or directives
+      |> String.replace(~r/^\/\*.*?\*\//m, "")
+      |> String.trim()
+      |> truncate(max_length)
+    end
   end
+
+  def private_message?(message) do
+    payload = Map.get(message, :client_encrypted_payload)
+    is_map(payload) and map_size(payload) > 0
+  end
+
+  def private_attachment?(attachment) when is_map(attachment) do
+    payload =
+      Map.get(attachment, "private_encrypted_payload") ||
+        Map.get(attachment, :private_encrypted_payload)
+
+    is_map(payload) and map_size(payload) > 0
+  end
+
+  def private_attachment?(_attachment), do: false
 
   defp ensure_valid_utf8(text) do
     if String.valid?(text) do
@@ -271,6 +290,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
   attr :unread_count, :integer, required: true
   attr :current_page, :string, required: true
   attr :current_user, :map, required: true
+  attr :mailbox_addresses, :list, default: nil
   attr :custom_folders, :list, default: []
   attr :current_folder_id, :integer, default: nil
 
@@ -280,6 +300,18 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     # Ensure custom_folders has a default value
     assigns = assign_new(assigns, :custom_folders, fn -> [] end)
     assigns = assign_new(assigns, :current_folder_id, fn -> nil end)
+
+    assigns =
+      assign_new(assigns, :mailbox_addresses, fn ->
+        default_sidebar_mailbox_addresses(assigns.mailbox)
+      end)
+
+    assigns =
+      assign(
+        assigns,
+        :mailbox_addresses,
+        normalize_sidebar_mailbox_addresses(assigns.mailbox, assigns.mailbox_addresses)
+      )
 
     ~H"""
     <!-- Sidebar -->
@@ -296,20 +328,34 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
                 <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/50">
                   {gettext("Mailbox")}
                 </p>
-                <div class="mt-2 flex items-center gap-2">
-                  <p class="text-sm font-mono text-base-content/75 truncate" title={@mailbox.email}>
-                    {@mailbox.email}
-                  </p>
-                  <button
-                    id={"copy-email-mobile-#{@mailbox.id}"}
-                    type="button"
-                    phx-hook="CopyEmail"
-                    data-email={@mailbox.email}
-                    class="btn btn-ghost btn-xs flex-shrink-0"
-                    title={gettext("Copy to clipboard")}
-                  >
-                    <.icon name="hero-clipboard-document" class="w-3 h-3" />
-                  </button>
+                <div class="mt-2 space-y-1.5">
+                  <%= for address <- @mailbox_addresses do %>
+                    <% primary_address = String.downcase(address) == String.downcase(@mailbox.email) %>
+                    <div class="flex items-center gap-2">
+                      <p
+                        class={[
+                          "font-mono truncate flex-1",
+                          if(primary_address,
+                            do: "text-sm text-base-content/75",
+                            else: "text-xs text-base-content/55"
+                          )
+                        ]}
+                        title={address}
+                      >
+                        {address}
+                      </p>
+                      <button
+                        id={"copy-email-mobile-#{@mailbox.id}-#{:erlang.phash2(address)}"}
+                        type="button"
+                        phx-hook="CopyEmail"
+                        data-email={address}
+                        class="btn btn-ghost btn-xs flex-shrink-0"
+                        title={gettext("Copy to clipboard")}
+                      >
+                        <.icon name="hero-clipboard-document" class="w-3 h-3" />
+                      </button>
+                    </div>
+                  <% end %>
                 </div>
               </div>
 
@@ -570,37 +616,26 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
             <div class="flex-1 min-w-0">
               <h2 class="font-bold text-lg">{gettext("Your Mailbox")}</h2>
               <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                  <p
-                    class="text-sm text-base-content/70 font-mono truncate flex-1"
-                    title={@mailbox.email}
-                  >
-                    {@mailbox.email}
-                  </p>
-                  <button
-                    id={"copy-email-primary-#{@mailbox.id}"}
-                    type="button"
-                    phx-hook="CopyEmail"
-                    data-email={@mailbox.email}
-                    class="btn btn-ghost btn-xs flex-shrink-0"
-                    title={gettext("Copy to clipboard")}
-                  >
-                    <.icon name="hero-clipboard-document" class="w-3 h-3" />
-                  </button>
-                </div>
-                <%= for alternate_email <- Elektrine.Domains.alternate_local_addresses(@mailbox.email) do %>
+                <%= for address <- @mailbox_addresses do %>
+                  <% primary_address = String.downcase(address) == String.downcase(@mailbox.email) %>
                   <div class="flex items-center gap-2">
                     <p
-                      class="text-xs text-base-content/50 font-mono truncate flex-1"
-                      title={alternate_email}
+                      class={[
+                        "font-mono truncate flex-1",
+                        if(primary_address,
+                          do: "text-sm text-base-content/70",
+                          else: "text-xs text-base-content/50"
+                        )
+                      ]}
+                      title={address}
                     >
-                      {alternate_email}
+                      {address}
                     </p>
                     <button
-                      id={"copy-email-alternate-#{@mailbox.id}-#{:erlang.phash2(alternate_email)}"}
+                      id={"copy-email-alternate-#{@mailbox.id}-#{:erlang.phash2(address)}"}
                       type="button"
                       phx-hook="CopyEmail"
-                      data-email={alternate_email}
+                      data-email={address}
                       class="btn btn-ghost btn-xs flex-shrink-0"
                       title={gettext("Copy to clipboard")}
                     >
@@ -996,6 +1031,42 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
   end
 
   def get_recipient_initials(_), do: "?"
+
+  def mailbox_addresses(mailbox, user) do
+    mailbox
+    |> default_sidebar_mailbox_addresses()
+    |> then(fn default_addresses ->
+      case Elektrine.Domains.email_addresses_for_user(user) do
+        [] -> default_addresses
+        user_addresses -> normalize_sidebar_mailbox_addresses(mailbox, user_addresses)
+      end
+    end)
+  end
+
+  defp default_sidebar_mailbox_addresses(%{email: email}) when is_binary(email) do
+    normalize_sidebar_mailbox_addresses(%{email: email}, [
+      email | Elektrine.Domains.alternate_local_addresses(email)
+    ])
+  end
+
+  defp default_sidebar_mailbox_addresses(_), do: []
+
+  defp normalize_sidebar_mailbox_addresses(%{email: email}, addresses) when is_binary(email) do
+    ([email] ++ List.wrap(addresses))
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+  end
+
+  defp normalize_sidebar_mailbox_addresses(_, addresses) do
+    addresses
+    |> List.wrap()
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
+  end
 
   @doc """
   Decode MIME-encoded headers (RFC 2047)

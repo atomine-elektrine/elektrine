@@ -28,6 +28,9 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageInfoOperations do
       {:chat_remote_read_receipt, receipt} when is_map(receipt) ->
         {:handled, handle_chat_remote_read_receipt(socket, receipt)}
 
+      {:chat_remote_read_cursor, cursor} when is_map(cursor) ->
+        {:handled, handle_chat_remote_read_cursor(socket, cursor)}
+
       {:federation_presence_update, payload} when is_map(payload) ->
         {:handled, handle_federation_presence_update(socket, payload)}
 
@@ -182,6 +185,51 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageInfoOperations do
         |> Kernel.++([remote_reader])
 
       updated_read_status = Map.put(current_read_status, message_id, updated_readers)
+
+      {:noreply,
+       Phoenix.Component.assign(socket, :message, %{
+         socket.assigns.message
+         | read_status: updated_read_status
+       })}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_chat_remote_read_cursor(socket, cursor) when is_map(cursor) do
+    read_through_message_id =
+      cursor[:read_through_message_id] || cursor["read_through_message_id"] ||
+        cursor[:message_id] || cursor["message_id"]
+
+    remote_actor_id = cursor[:remote_actor_id] || cursor["remote_actor_id"]
+
+    if is_integer(read_through_message_id) and is_integer(remote_actor_id) do
+      current_read_status = socket.assigns.message.read_status || %{}
+
+      remote_reader = %{
+        user_id: nil,
+        remote_actor_id: remote_actor_id,
+        username: cursor[:username] || cursor["username"] || "@remote",
+        avatar: cursor[:avatar] || cursor["avatar"]
+      }
+
+      updated_read_status =
+        Enum.reduce(socket.assigns.messages, current_read_status, fn message, acc ->
+          if is_integer(message.id) and message.id <= read_through_message_id do
+            readers =
+              acc
+              |> Map.get(message.id, [])
+              |> Enum.reject(fn reader ->
+                is_integer(reader[:remote_actor_id]) and
+                  reader[:remote_actor_id] == remote_reader.remote_actor_id
+              end)
+              |> Kernel.++([remote_reader])
+
+            Map.put(acc, message.id, readers)
+          else
+            acc
+          end
+        end)
 
       {:noreply,
        Phoenix.Component.assign(socket, :message, %{

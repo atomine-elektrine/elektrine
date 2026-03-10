@@ -6,6 +6,38 @@ defmodule ElektrineWeb.Live.AuthHooks do
 
   alias ElektrineWeb.AdminSecurity
 
+  # These pages live in the shared :main live_session for seamless navigation,
+  # so authentication must be enforced explicitly during on_mount.
+  @authenticated_live_modules [
+    ElektrineWeb.ChatLive.Index,
+    ElektrineWeb.ContactsLive.Index,
+    ElektrineWeb.EmailLive.Compose,
+    ElektrineWeb.EmailLive.Index,
+    ElektrineWeb.EmailLive.Raw,
+    ElektrineWeb.EmailLive.Search,
+    ElektrineWeb.EmailLive.Settings,
+    ElektrineWeb.EmailLive.Show,
+    ElektrineWeb.FriendsLive,
+    ElektrineWeb.ListLive.Index,
+    ElektrineWeb.ListLive.Show,
+    ElektrineWeb.NotificationsLive,
+    ElektrineWeb.OverviewLive.Index,
+    ElektrineWeb.ProfileLive.Analytics,
+    ElektrineWeb.ProfileLive.Edit,
+    ElektrineWeb.SearchLive,
+    ElektrineWeb.SettingsLive.AppPasswords,
+    ElektrineWeb.SettingsLive.DeleteAccount,
+    ElektrineWeb.SettingsLive.EditPassword,
+    ElektrineWeb.SettingsLive.PasskeyManage,
+    ElektrineWeb.SettingsLive.PasswordManager,
+    ElektrineWeb.SettingsLive.RSS,
+    ElektrineWeb.SettingsLive.TwoFactorManage,
+    ElektrineWeb.SettingsLive.TwoFactorSetup,
+    ElektrineWeb.StorageLive,
+    ElektrineWeb.UserSettingsLive,
+    ElektrineWeb.VPNLive.Index
+  ]
+
   # Flash helper for auth on-mount hooks
   defp notify_error(socket, message), do: Phoenix.LiveView.put_flash(socket, :error, message)
 
@@ -181,26 +213,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
   end
 
   # LiveView modules that require authentication
-  defp requires_auth_module?(module) do
-    auth_modules = [
-      ElektrineWeb.ProfileLive.Edit,
-      ElektrineWeb.ProfileLive.Analytics,
-      ElektrineWeb.StorageLive,
-      ElektrineWeb.ChatLive.Index,
-      ElektrineWeb.FriendsLive,
-      ElektrineWeb.NotificationsLive,
-      ElektrineWeb.SettingsLive.AppPasswords,
-      ElektrineWeb.EmailLive.Index,
-      ElektrineWeb.EmailLive.Compose,
-      ElektrineWeb.EmailLive.Show,
-      ElektrineWeb.EmailLive.Raw,
-      ElektrineWeb.EmailLive.Search,
-      ElektrineWeb.VPNLive.Index,
-      ElektrineWeb.SearchLive
-    ]
-
-    module in auth_modules
-  end
+  defp requires_auth_module?(module), do: module in @authenticated_live_modules
 
   # Verify admin session IP hasn't changed (session hijacking detection)
   defp verify_admin_session_ip(socket, session, _user) do

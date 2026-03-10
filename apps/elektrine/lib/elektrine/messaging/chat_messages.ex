@@ -19,7 +19,7 @@ defmodule Elektrine.Messaging.ChatMessages do
     ConversationMember,
     Conversations,
     Federation,
-    FederationReadReceipt
+    FederationReadCursor
   }
 
   alias Elektrine.PubSubTopics
@@ -619,10 +619,12 @@ defmodule Elektrine.Messaging.ChatMessages do
       |> Repo.all()
 
     remote_readers =
-      from(rr in FederationReadReceipt,
+      from(rr in FederationReadCursor,
         join: actor in ActivityPubActor,
         on: actor.id == rr.remote_actor_id,
-        where: rr.chat_message_id == ^message_id,
+        where:
+          rr.conversation_id == ^conversation_id and
+            rr.chat_message_id >= ^message_id,
         select: %{
           user_id: nil,
           remote_actor_id: actor.id,
@@ -678,13 +680,13 @@ defmodule Elektrine.Messaging.ChatMessages do
         |> Repo.all()
         |> Enum.group_by(& &1.message_id)
 
-      remote_reads_by_message =
-        from(rr in FederationReadReceipt,
+      remote_read_cursors =
+        from(rr in FederationReadCursor,
           join: actor in ActivityPubActor,
           on: actor.id == rr.remote_actor_id,
-          where: rr.chat_message_id in ^message_ids,
+          where: rr.conversation_id == ^conversation_id,
           select: %{
-            message_id: rr.chat_message_id,
+            read_through_message_id: rr.chat_message_id,
             user_id: nil,
             remote_actor_id: actor.id,
             username: actor.username,
@@ -696,14 +698,13 @@ defmodule Elektrine.Messaging.ChatMessages do
         |> Repo.all()
         |> Enum.map(fn reader ->
           %{
-            message_id: reader.message_id,
+            read_through_message_id: reader.read_through_message_id,
             user_id: nil,
             remote_actor_id: reader.remote_actor_id,
             username: remote_reader_label(reader),
             avatar: reader.avatar
           }
         end)
-        |> Enum.group_by(& &1.message_id)
 
       Enum.reduce(message_ids, %{}, fn message_id, acc ->
         sender_id = Map.get(message_sender_map, message_id)
@@ -713,7 +714,18 @@ defmodule Elektrine.Messaging.ChatMessages do
           |> Map.get(message_id, [])
           |> Enum.reject(fn reader -> reader.user_id == sender_id end)
 
-        remote_readers = Map.get(remote_reads_by_message, message_id, [])
+        remote_readers =
+          remote_read_cursors
+          |> Enum.filter(&(&1.read_through_message_id >= message_id))
+          |> Enum.map(fn reader ->
+            %{
+              user_id: nil,
+              remote_actor_id: reader.remote_actor_id,
+              username: reader.username,
+              avatar: reader.avatar
+            }
+          end)
+
         readers = dedupe_readers(local_readers ++ remote_readers)
 
         Map.put(acc, message_id, readers)
@@ -749,14 +761,23 @@ defmodule Elektrine.Messaging.ChatMessages do
           user_id
         end)
 
-      remote_reads_count_by_message =
-        from(rr in FederationReadReceipt,
-          where: rr.chat_message_id in ^message_ids,
-          group_by: rr.chat_message_id,
-          select: {rr.chat_message_id, count(rr.id)}
+      conversation_ids =
+        message_info_list
+        |> Enum.map(fn {conversation_id, _message_id, _inserted_at} -> conversation_id end)
+        |> Enum.uniq()
+
+      remote_read_cursors_by_conversation =
+        from(rr in FederationReadCursor,
+          where: rr.conversation_id in ^conversation_ids,
+          select: {rr.conversation_id, rr.chat_message_id}
         )
         |> Repo.all()
-        |> Map.new()
+        |> Enum.group_by(
+          fn {conversation_id, _message_id} -> conversation_id end,
+          fn {_conversation_id, message_id} ->
+            message_id
+          end
+        )
 
       message_info_list
       |> Enum.map(fn {conversation_id, message_id, _inserted_at} ->
@@ -769,7 +790,11 @@ defmodule Elektrine.Messaging.ChatMessages do
           |> Enum.uniq()
           |> length()
 
-        remote_reader_count = Map.get(remote_reads_count_by_message, message_id, 0)
+        remote_reader_count =
+          remote_read_cursors_by_conversation
+          |> Map.get(conversation_id, [])
+          |> Enum.count(&(&1 >= message_id))
+
         reader_count = local_reader_count + remote_reader_count
 
         {conversation_id, %{is_read: reader_count > 0, reader_count: reader_count}}
@@ -816,14 +841,16 @@ defmodule Elektrine.Messaging.ChatMessages do
     limit = Keyword.get(opts, :limit, 50)
     user_id = Keyword.get(opts, :user_id)
 
-    # Create search tokens from query (same logic as indexing)
-    search_tokens =
-      query
-      |> String.downcase()
-      |> String.split(~r/\s+/, trim: true)
-      |> Enum.filter(&(String.length(&1) >= 2))
+    keywords = Elektrine.Encryption.extract_keywords(query)
 
-    query =
+    if is_nil(user_id) or Enum.empty?(keywords) do
+      []
+    else
+      keyword_hashes =
+        Enum.map(keywords, fn keyword ->
+          Elektrine.Encryption.hash_keyword(keyword, user_id)
+        end)
+
       from(m in ChatMessage,
         left_join: h in ChatUserHiddenMessage,
         on: h.chat_message_id == m.id and h.user_id == ^user_id,
@@ -831,16 +858,15 @@ defmodule Elektrine.Messaging.ChatMessages do
           m.conversation_id == ^conversation_id and
             is_nil(m.deleted_at) and
             is_nil(h.id) and
-            fragment("? && ?", m.search_index, ^search_tokens),
+            fragment("? && ?", m.search_index, ^keyword_hashes),
         order_by: [desc: m.inserted_at],
         limit: ^limit,
         preload: [:sender, reactions: [:user, :remote_actor]]
       )
-
-    query
-    |> Repo.all()
-    |> ChatMessage.decrypt_messages()
-    |> hydrate_remote_senders()
+      |> Repo.all()
+      |> ChatMessage.decrypt_messages()
+      |> hydrate_remote_senders()
+    end
   end
 
   # Private helpers
@@ -1125,7 +1151,7 @@ defmodule Elektrine.Messaging.ChatMessages do
         if original_sender_id && original_sender_id != sender_id do
           user = Accounts.get_user!(original_sender_id)
 
-          if Map.get(user, :notify_on_reply, true) do
+          if notification_preference_enabled?(user, :notify_on_reply) do
             Elektrine.Notifications.create_notification(%{
               user_id: original_sender_id,
               actor_id: sender_id,
@@ -1162,7 +1188,7 @@ defmodule Elektrine.Messaging.ChatMessages do
           unless reply_to_id && member.user_id == original_sender_id do
             should_notify =
               case conversation.type do
-                "dm" -> Map.get(member, :notify_on_direct_message, true)
+                "dm" -> notification_preference_enabled?(member, :notify_on_direct_message)
                 _ -> true
               end
 
@@ -1205,6 +1231,10 @@ defmodule Elektrine.Messaging.ChatMessages do
       _ ->
         :ok
     end
+  end
+
+  defp notification_preference_enabled?(subject, field) when is_atom(field) do
+    Map.get(subject, field) != false
   end
 
   defp notify_mentions_in_chat(content, members_with_preferences, sender, sender_id, message_id) do

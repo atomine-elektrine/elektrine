@@ -5,6 +5,7 @@ defmodule Elektrine.ActivityPub.Builder do
 
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
+  alias Elektrine.Messaging.Conversation
   alias Elektrine.Messaging.Message
 
   @doc """
@@ -110,11 +111,10 @@ defmodule Elektrine.ActivityPub.Builder do
   @doc """
   Builds a Group actor document for a community/discussion (Lemmy-compatible).
   """
-  def build_group(%Elektrine.Messaging.Conversation{} = community) do
+  def build_group(%Conversation{} = community) do
     base_url = ActivityPub.instance_url()
-    # Use community name as identifier (URL-safe)
-    community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-    actor_url = "#{base_url}/c/#{community_slug}"
+    community_slug = ActivityPub.community_slug(community.name)
+    actor_url = ActivityPub.community_actor_uri(community.name, base_url)
     public_key = get_community_public_key(community)
 
     %{
@@ -135,11 +135,11 @@ defmodule Elektrine.ActivityPub.Builder do
       "preferredUsername" => community_slug,
       "name" => community.name,
       "summary" => community.description || "A community on #{ActivityPub.instance_domain()}",
-      "url" => "#{base_url}/communities/#{community.name}",
-      "inbox" => "#{actor_url}/inbox",
-      "outbox" => "#{actor_url}/outbox",
-      "followers" => "#{actor_url}/followers",
-      "moderators" => "#{actor_url}/moderators",
+      "url" => ActivityPub.community_web_url(community.name, base_url),
+      "inbox" => ActivityPub.community_inbox_uri(community.name, base_url),
+      "outbox" => ActivityPub.community_outbox_uri(community.name, base_url),
+      "followers" => ActivityPub.community_followers_uri(community.name, base_url),
+      "moderators" => ActivityPub.community_moderators_uri(community.name, base_url),
       "published" => format_datetime(community.inserted_at),
       "manuallyApprovesFollowers" => !community.is_public,
       "discoverable" => community.is_public,
@@ -221,7 +221,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "attributedTo" => "#{base_url}/users/#{user.username}",
       "content" => format_content(message),
       "published" => format_datetime(message.inserted_at),
-      "to" => build_to_addresses(message, community_uri),
+      "to" => build_to_addresses(message, user, community_uri),
       "cc" => build_cc_addresses(message, user),
       "sensitive" => message.sensitive || false,
       "attachment" => build_attachments(message),
@@ -256,6 +256,51 @@ defmodule Elektrine.ActivityPub.Builder do
 
   def format_datetime(nil), do: nil
 
+  @doc """
+  Builds a community post object for local Group actors.
+  """
+  def build_community_note(%Message{} = post, %Conversation{} = community, opts \\ []) do
+    base_url = get_builder_opt(opts, :base_url, ActivityPub.instance_url())
+    community_actor_url = ActivityPub.community_actor_uri(community.name, base_url)
+    post_id = ActivityPub.community_post_uri(community.name, post.id, base_url)
+
+    author_uri =
+      case get_builder_opt(opts, :author_uri) do
+        value when is_binary(value) and value != "" ->
+          value
+
+        _ ->
+          case post.sender do
+            %{username: username} -> "#{base_url}/users/#{username}"
+            _ -> community_actor_url
+          end
+      end
+
+    object_type = if post.reply_to_id, do: "Note", else: "Page"
+
+    %{
+      "id" => post_id,
+      "type" => object_type,
+      "attributedTo" => author_uri,
+      "content" => post.content || "",
+      "mediaType" => "text/html",
+      "published" => format_datetime(post.inserted_at),
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [community_actor_url],
+      "audience" => community_actor_url,
+      "url" => ActivityPub.community_post_web_url(community.name, post.id, base_url),
+      "inReplyTo" => build_community_in_reply_to(post, community, base_url),
+      "sensitive" => post.sensitive || false,
+      "context" => community_actor_url,
+      "commentsEnabled" => is_nil(post.locked_at),
+      "stickied" => post.is_pinned || false,
+      "distinguished" => false
+    }
+    |> maybe_put("updated", format_datetime(post.edited_at))
+    |> maybe_put("summary", post.content_warning)
+    |> maybe_put("name", if(object_type == "Page", do: post.title, else: nil))
+  end
+
   defp format_content(message) do
     # Convert message content to HTML
     # Handle nil or empty content (e.g., boost posts)
@@ -270,15 +315,16 @@ defmodule Elektrine.ActivityPub.Builder do
     end
   end
 
-  defp build_to_addresses(message, community_uri \\ nil) do
+  defp build_to_addresses(message, user, community_uri \\ nil) do
+    base_url = ActivityPub.instance_url()
+
     base =
       case message.visibility do
         "public" ->
           ["https://www.w3.org/ns/activitystreams#Public"]
 
         "followers" ->
-          # Send to followers collection
-          []
+          ["#{base_url}/users/#{user.username}/followers"]
 
         _ ->
           # Direct/conversation - send to specific recipients
@@ -537,10 +583,38 @@ defmodule Elektrine.ActivityPub.Builder do
       "closed" => format_datetime(poll.closes_at),
       "votersCount" => poll.total_votes || 0,
       if(poll.allow_multiple, do: "anyOf", else: "oneOf") => options,
-      "to" => build_to_addresses(message),
+      "to" => build_to_addresses(message, user),
       "cc" => build_cc_addresses(message, user)
     }
   end
+
+  defp build_community_in_reply_to(%Message{reply_to_id: nil}, _community, _base_url), do: nil
+
+  defp build_community_in_reply_to(%Message{reply_to_id: reply_to_id}, community, base_url) do
+    case Elektrine.Messaging.get_message(reply_to_id) do
+      %Message{activitypub_id: activitypub_id}
+      when is_binary(activitypub_id) and activitypub_id != "" ->
+        activitypub_id
+
+      %Message{id: parent_id} ->
+        ActivityPub.community_post_uri(community.name, parent_id, base_url)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp get_builder_opt(opts, key, default \\ nil)
+
+  defp get_builder_opt(opts, key, default) when is_list(opts) do
+    Keyword.get(opts, key, default)
+  end
+
+  defp get_builder_opt(opts, key, default) when is_map(opts) do
+    Map.get(opts, key, default)
+  end
+
+  defp get_builder_opt(_, _, default), do: default
 
   @doc """
   Builds a Follow activity.

@@ -5,6 +5,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Developer
   alias Elektrine.Email
+  alias Elektrine.Email.Mailbox
   alias Elektrine.Email.ListTypes
   alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
@@ -58,11 +59,18 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:loading_danger, true)
      |> assign(:pending_deletion, nil)
      |> assign(:mailboxes, [])
+     |> assign(:primary_mailbox, nil)
      |> assign(:aliases, [])
      |> assign(:user_emails, [])
      |> assign(:lists, [])
      |> assign(:lists_by_type, %{})
      |> assign(:unsubscribe_status, %{})
+     |> assign(:private_mailbox_configured, false)
+     |> assign(:private_mailbox_enabled, false)
+     |> assign(:private_mailbox_public_key, nil)
+     |> assign(:private_mailbox_wrapped_private_key, nil)
+     |> assign(:private_mailbox_verifier, nil)
+     |> assign(:private_mailbox_unlock_mode, "account_password")
      |> assign(:email_restriction_status, %{restricted: false})
      |> assign(:rss_subscriptions, [])
      |> assign(:new_feed_url, "")
@@ -135,7 +143,8 @@ defmodule ElektrineWeb.UserSettingsLive do
       aliases = Task.await(aliases_task)
 
       user_emails =
-        (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.alias_email)) |> Enum.uniq()
+        (Elektrine.Domains.email_addresses_for_user(user) ++ Enum.map(aliases, & &1.alias_email))
+        |> Enum.uniq()
 
       socket
       |> assign(:pending_deletion, pending_deletion)
@@ -174,18 +183,22 @@ defmodule ElektrineWeb.UserSettingsLive do
       aliases = Task.await(aliases_task)
 
       user_emails =
-        (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.alias_email)) |> Enum.uniq()
+        (Elektrine.Domains.email_addresses_for_user(user) ++ Enum.map(aliases, & &1.alias_email))
+        |> Enum.uniq()
 
       list_ids = Enum.map(lists, & &1.id)
       unsubscribe_status = Unsubscribes.batch_check_unsubscribed(user_emails, list_ids)
+      primary_mailbox = Enum.find(mailboxes, &(&1.user_id == user.id)) || List.first(mailboxes)
 
       socket
       |> assign(:lists, lists)
       |> assign(:lists_by_type, lists_by_type)
       |> assign(:mailboxes, mailboxes)
+      |> assign(:primary_mailbox, primary_mailbox)
       |> assign(:aliases, aliases)
       |> assign(:user_emails, user_emails)
       |> assign(:unsubscribe_status, unsubscribe_status)
+      |> assign_private_mailbox_state(primary_mailbox)
       |> assign(:loading_email, false)
     else
       socket
@@ -699,6 +712,91 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   @impl true
+  def handle_event("private_mailbox_setup", %{"private_mailbox" => params}, socket) do
+    mailbox = socket.assigns.primary_mailbox
+    current_user = socket.assigns.current_user
+
+    with %Mailbox{} <- mailbox,
+         {:ok, decoded_params} <- decode_private_mailbox_setup_params(params),
+         :ok <- verify_private_mailbox_setup_password_mode(current_user, decoded_params),
+         {:ok, updated_mailbox} <-
+           Email.update_mailbox_private_storage(mailbox, %{
+             private_storage_enabled: true,
+             private_storage_public_key: decoded_params["public_key"],
+             private_storage_wrapped_private_key: decoded_params["wrapped_private_key"],
+             private_storage_verifier: decoded_params["verifier"]
+           }) do
+      {:noreply,
+       socket
+       |> assign(:primary_mailbox, updated_mailbox)
+       |> assign_private_mailbox_state(updated_mailbox)
+       |> notify_info("Private mailbox storage enabled")}
+    else
+      nil ->
+        {:noreply, notify_error(socket, "Mailbox not found")}
+
+      {:error, :invalid_payload} ->
+        {:noreply,
+         notify_error(
+           socket,
+           "Private mailbox setup payload is invalid. Generate it in the browser and try again."
+         )}
+
+      {:error, :invalid_account_password} ->
+        {:noreply,
+         notify_error(
+           socket,
+           "Your current account password was incorrect, so private mailbox storage was not enabled."
+         )}
+
+      {:error, changeset} ->
+        {:noreply, notify_error(socket, private_mailbox_changeset_error(changeset))}
+    end
+  end
+
+  @impl true
+  def handle_event("enable_private_mailbox", _params, socket) do
+    mailbox = socket.assigns.primary_mailbox
+
+    if mailbox && Mailbox.private_storage_configured?(mailbox) do
+      case Email.update_mailbox_private_storage(mailbox, %{private_storage_enabled: true}) do
+        {:ok, updated_mailbox} ->
+          {:noreply,
+           socket
+           |> assign(:primary_mailbox, updated_mailbox)
+           |> assign_private_mailbox_state(updated_mailbox)
+           |> notify_info("Private mailbox storage resumed")}
+
+        {:error, _changeset} ->
+          {:noreply, notify_error(socket, "Failed to enable private mailbox storage")}
+      end
+    else
+      {:noreply, notify_error(socket, "Set up a private mailbox key before enabling storage")}
+    end
+  end
+
+  @impl true
+  def handle_event("disable_private_mailbox", _params, socket) do
+    mailbox = socket.assigns.primary_mailbox
+
+    if mailbox && Mailbox.private_storage_configured?(mailbox) do
+      case Email.update_mailbox_private_storage(mailbox, %{private_storage_enabled: false}) do
+        {:ok, updated_mailbox} ->
+          {:noreply,
+           socket
+           |> assign(:primary_mailbox, updated_mailbox)
+           |> assign_private_mailbox_state(updated_mailbox)
+           |> notify_info("Private mailbox storage paused")}
+
+        {:error, _changeset} ->
+          {:noreply, notify_error(socket, "Failed to pause private mailbox storage")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("add_rss_feed", %{"url" => url}, socket) do
     url = String.trim(url)
 
@@ -1163,7 +1261,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   defp bluesky_managed_error_message({:create_session_failed, 401}) do
-    "Could not authenticate with managed Bluesky. Ensure your account password matches your managed Bluesky password."
+    "Could not authenticate with managed Bluesky. Stored Bluesky credentials may be stale."
   end
 
   defp bluesky_managed_error_message({:create_session_failed, _status}) do
@@ -1607,6 +1705,72 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   defp parse_token_expiration(_), do: :error
+
+  defp assign_private_mailbox_state(socket, %Mailbox{} = mailbox) do
+    socket
+    |> assign(:private_mailbox_configured, Mailbox.private_storage_configured?(mailbox))
+    |> assign(:private_mailbox_enabled, mailbox.private_storage_enabled)
+    |> assign(:private_mailbox_public_key, mailbox.private_storage_public_key)
+    |> assign(:private_mailbox_wrapped_private_key, mailbox.private_storage_wrapped_private_key)
+    |> assign(:private_mailbox_verifier, mailbox.private_storage_verifier)
+    |> assign(:private_mailbox_unlock_mode, Mailbox.private_storage_unlock_mode(mailbox))
+  end
+
+  defp assign_private_mailbox_state(socket, _mailbox) do
+    socket
+    |> assign(:private_mailbox_configured, false)
+    |> assign(:private_mailbox_enabled, false)
+    |> assign(:private_mailbox_public_key, nil)
+    |> assign(:private_mailbox_wrapped_private_key, nil)
+    |> assign(:private_mailbox_verifier, nil)
+    |> assign(:private_mailbox_unlock_mode, "account_password")
+  end
+
+  defp decode_private_mailbox_setup_params(params) when is_map(params) do
+    with {:ok, decoded} <- decode_payload_field(params, "wrapped_private_key", required: true),
+         {:ok, decoded} <- decode_payload_field(decoded, "verifier", required: true),
+         public_key when is_binary(public_key) <- Map.get(decoded, "public_key"),
+         true <- String.trim(public_key) != "",
+         unlock_mode <- Map.get(decoded, "unlock_mode", "account_password"),
+         true <- unlock_mode in ["account_password", "separate_passphrase"] do
+      {:ok, decoded}
+    else
+      _ -> {:error, :invalid_payload}
+    end
+  end
+
+  defp decode_private_mailbox_setup_params(_params), do: {:error, :invalid_payload}
+
+  defp verify_private_mailbox_setup_password_mode(
+         current_user,
+         %{"unlock_mode" => "account_password"} = decoded_params
+       ) do
+    case Map.get(decoded_params, "current_account_password") do
+      password when is_binary(password) and password != "" ->
+        case Accounts.verify_user_password(current_user, password) do
+          {:ok, _user} -> :ok
+          _ -> {:error, :invalid_account_password}
+        end
+
+      _ ->
+        {:error, :invalid_account_password}
+    end
+  end
+
+  defp verify_private_mailbox_setup_password_mode(_current_user, _decoded_params), do: :ok
+
+  defp private_mailbox_changeset_error(changeset) do
+    details =
+      changeset.errors
+      |> Keyword.keys()
+      |> Enum.map_join(", ", &to_string/1)
+
+    if details == "" do
+      "Could not enable private mailbox storage."
+    else
+      "Could not enable private mailbox storage (#{details})."
+    end
+  end
 
   defp decode_setup_params(params) when is_map(params) do
     decode_payload_field(params, "encrypted_verifier", required: true)

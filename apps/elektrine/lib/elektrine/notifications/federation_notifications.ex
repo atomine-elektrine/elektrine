@@ -122,7 +122,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         type: "reply",
         title: "Reply from the fediverse",
         body: "@#{actor.username}@#{actor.domain} replied to your post",
-        url: "/timeline/post/#{message_id}",
+        url: Notifications.resolve_message_notification_url(message_id, "reply"),
         source_type: "message",
         source_id: message_id,
         priority: "normal"
@@ -142,7 +142,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         type: "mention",
         title: "Mentioned in a post",
         body: "@#{actor.username}@#{actor.domain} mentioned you in a post",
-        url: "/timeline/post/#{message_id}",
+        url: Notifications.resolve_message_notification_url(message_id, "mention"),
         source_type: "message",
         source_id: message_id,
         priority: "normal"

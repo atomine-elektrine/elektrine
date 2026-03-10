@@ -138,7 +138,21 @@ config :elektrine, :email,
   # keep permissive in dev/test, fail-closed in prod unless explicitly configured.
   allow_insecure_receiver_webhook: config_env() != :prod,
   # Supported domains for multi-domain access
-  supported_domains: supported_email_domains
+  supported_domains: supported_email_domains,
+  custom_domain_mx_host: primary_domain,
+  custom_domain_mx_priority: 10,
+  custom_domain_spf_include: nil,
+  custom_domain_dkim_selector: "default",
+  custom_domain_dkim_sync_enabled: true,
+  custom_domain_haraka_base_url: nil,
+  custom_domain_haraka_api_key: nil,
+  custom_domain_haraka_timeout: 10_000,
+  custom_domain_haraka_dkim_path: "/api/v1/dkim/domains",
+  custom_domain_http_client: Elektrine.Email.DKIM.FinchClient,
+  custom_domain_dmarc_policy: "quarantine",
+  custom_domain_dmarc_adkim: "s",
+  custom_domain_dmarc_aspf: "s",
+  custom_domain_dmarc_rua: nil
 
 config :elektrine, :profile_base_domains, profile_base_domains
 config :elektrine, :profile_host_scope, profile_host_scope
@@ -200,16 +214,6 @@ config :elektrine, ElektrineWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: ElektrineWeb.ErrorHTML, json: ElektrineWeb.ErrorJSON],
-    layout: false
-  ],
-  pubsub_server: Elektrine.PubSub,
-  live_view: [signing_salt: "ewG/v8k5"]
-
-config :elektrine_chat_web, ElektrineChatWeb.Endpoint,
-  url: [host: "localhost"],
-  adapter: Bandit.PhoenixAdapter,
-  render_errors: [
-    formats: [json: ElektrineChatWeb.ErrorJSON],
     layout: false
   ],
   pubsub_server: Elektrine.PubSub,
@@ -289,7 +293,7 @@ config :elektrine, :uploads,
   max_image_width: 2048,
   max_image_height: 2048
 
-# Messaging federation (Discord-lite, self-hosted peer sync)
+# Messaging federation (community-style, self-hosted peer sync)
 # Enabled by default; configure peers and identity material in runtime config.
 config :elektrine, :messaging_federation,
   enabled: true,

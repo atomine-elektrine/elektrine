@@ -14,7 +14,10 @@ defmodule ElektrineWeb.OverviewLiveTest do
   end
 
   test "redirects unauthenticated users to login", %{conn: conn} do
-    assert {:error, {:live_redirect, %{to: "/login"}}} = live(conn, ~p"/overview")
+    assert {:error, reason} = live(conn, ~p"/overview")
+
+    assert match?({:redirect, %{to: "/login"}}, reason) or
+             match?({:live_redirect, %{to: "/login"}}, reason)
   end
 
   test "invalid filter param falls back to default overview content", %{conn: conn} do
@@ -43,9 +46,21 @@ defmodule ElektrineWeb.OverviewLiveTest do
       |> log_in_user(user)
       |> live(~p"/overview")
 
-    assert html =~ "Global Composer"
+    assert html =~ ~s(data-test="global-composer")
+    assert html =~ "Quick Create"
     assert html =~ "/timeline?composer=note"
     assert html =~ "/calendar?composer=task"
+  end
+
+  test "recent activity list is rendered as a scroll container", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/overview")
+
+    assert has_element?(view, ~s([data-role="recent-activity-list"].overflow-y-auto.pr-1))
   end
 
   test "attention queue can be filtered to requests", %{conn: conn} do

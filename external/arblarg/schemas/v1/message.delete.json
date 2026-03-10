@@ -1,27 +1,55 @@
 {
+  "$id": "arblarg://schemas/1.0/message.delete",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/message.delete",
-  "title": "Arblarg message.delete payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "message_id"
+  "anyOf": [
+    {
+      "required": [
+        "server",
+        "channel"
+      ]
+    },
+    {
+      "required": [
+        "refs"
+      ]
+    }
   ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
     "channel": {
       "type": "object"
     },
-    "message_id": {
-      "type": "string",
-      "minLength": 1
-    },
     "deleted_at": {
-      "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "type": "string"
+    },
+    "message_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "refs": {
+      "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "server_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "channel_id"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "message_id"
+  ],
+  "title": "Arblarg message.delete payload",
+  "type": "object"
 }

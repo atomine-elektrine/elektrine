@@ -4,9 +4,12 @@ defmodule ElektrineWeb.MessagingFederationController do
   """
   use ElektrineWeb, :controller
 
+  alias Elektrine.Constants
   alias Elektrine.Messaging
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation
+  alias Elektrine.Messaging.FederationSessionWebSock
+  alias WebSockAdapter
 
   @discovery_cache_control "public, max-age=300, stale-while-revalidate=60"
   @schema_cache_control "public, max-age=3600, stale-while-revalidate=300"
@@ -14,8 +17,6 @@ defmodule ElektrineWeb.MessagingFederationController do
   @doc """
   GET /.well-known/arblarg
   Public discovery metadata for cross-domain bootstrap.
-
-  Legacy aliases are still served for compatibility.
   """
   def well_known(conn, _params) do
     payload = Federation.local_discovery_document()
@@ -66,7 +67,7 @@ defmodule ElektrineWeb.MessagingFederationController do
 
   @doc """
   GET /federation/messaging/arblarg/profiles
-  Returns ARBP profile badges and extension registry information.
+  Returns Arblarg profile badges and extension registry information.
   """
   def profiles(conn, _params) do
     payload = Federation.arblarg_profiles_document()
@@ -97,6 +98,22 @@ defmodule ElektrineWeb.MessagingFederationController do
     |> put_cache_headers(payload, @discovery_cache_control)
     |> put_status(:ok)
     |> json(payload)
+  end
+
+  @doc """
+  GET /federation/messaging/session
+  Upgrades an authenticated federation connection to the transport-neutral
+  websocket session profile.
+  """
+  def session_websocket(conn, _params) do
+    conn
+    |> maybe_put_session_subprotocol()
+    |> WebSockAdapter.upgrade(
+      FederationSessionWebSock,
+      %{remote_domain: conn.assigns.federation_peer_domain},
+      timeout: Constants.websocket_timeout()
+    )
+    |> halt()
   end
 
   defp schema_name_from_params(%{"name" => name, "format" => format})
@@ -178,71 +195,175 @@ defmodule ElektrineWeb.MessagingFederationController do
 
       {:error, :sequence_gap} ->
         case Federation.recover_sequence_gap(payload, remote_domain) do
+          {:ok, :recovered_via_stream} ->
+            conn
+            |> put_status(:accepted)
+            |> json(%{status: "recovered_via_stream"})
+
           {:ok, :recovered} ->
             conn
             |> put_status(:accepted)
             |> json(%{status: "recovered_via_snapshot"})
 
-          {:error, _reason} ->
+          {:ok, :recovered_via_snapshot} ->
             conn
-            |> put_status(:conflict)
-            |> json(%{error: "Sequence gap for stream"})
+            |> put_status(:accepted)
+            |> json(%{status: "recovered_via_snapshot"})
+
+          {:error, _reason} ->
+            render_error(conn, :conflict, :sequence_gap, "Sequence gap for stream")
         end
 
       {:error, :unsupported_event_type} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Unsupported event type"})
+        render_error(
+          conn,
+          :unprocessable_entity,
+          :unsupported_event_type,
+          "Unsupported event type"
+        )
 
       {:error, :unsupported_version} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Unsupported federation payload version"})
+        render_error(
+          conn,
+          :bad_request,
+          :unsupported_version,
+          "Unsupported federation payload version"
+        )
 
       {:error, :unsupported_protocol} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Unsupported federation protocol identifier"})
+        render_error(
+          conn,
+          :bad_request,
+          :unsupported_protocol,
+          "Unsupported federation protocol identifier"
+        )
 
       {:error, :origin_domain_mismatch} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Origin domain mismatch"})
+        render_error(conn, :bad_request, :origin_domain_mismatch, "Origin domain mismatch")
+
+      {:error, :origin_actor_domain_mismatch} ->
+        render_error(
+          conn,
+          :bad_request,
+          :origin_actor_domain_mismatch,
+          "Origin actor domain mismatch"
+        )
+
+      {:error, :origin_identifier_host_mismatch} ->
+        render_error(
+          conn,
+          :bad_request,
+          :origin_identifier_host_mismatch,
+          "Origin-owned identifier host mismatch"
+        )
+
+      {:error, :origin_stream_host_mismatch} ->
+        render_error(
+          conn,
+          :bad_request,
+          :origin_stream_host_mismatch,
+          "Origin-owned stream host mismatch"
+        )
 
       {:error, :invalid_payload} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Invalid payload"})
+        render_error(conn, :bad_request, :invalid_payload, "Invalid payload")
 
       {:error, :invalid_event_payload} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Invalid event payload"})
+        render_error(conn, :bad_request, :invalid_event_payload, "Invalid event payload")
 
       {:error, :invalid_idempotency_key} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Invalid idempotency key"})
+        render_error(conn, :bad_request, :invalid_idempotency_key, "Invalid idempotency key")
 
       {:error, :invalid_event_signature} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Invalid event signature"})
+        render_error(conn, :bad_request, :invalid_event_signature, "Invalid event signature")
 
       {:error, :federation_origin_conflict} ->
-        conn
-        |> put_status(:conflict)
-        |> json(%{error: "Federation origin conflict for mirrored resource"})
+        render_error(
+          conn,
+          :conflict,
+          :federation_origin_conflict,
+          "Federation origin conflict for mirrored resource"
+        )
 
       {:error, {:post_recovery_apply_failed, :federation_origin_conflict}} ->
-        conn
-        |> put_status(:conflict)
-        |> json(%{error: "Federation origin conflict for mirrored resource"})
+        render_error(
+          conn,
+          :conflict,
+          :federation_origin_conflict,
+          "Federation origin conflict for mirrored resource"
+        )
 
       {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to process event: #{inspect(reason)}"})
+        render_error(
+          conn,
+          :unprocessable_entity,
+          reason,
+          "Failed to process event: #{inspect(reason)}"
+        )
+    end
+  end
+
+  @doc """
+  POST /federation/messaging/events/batch
+  Imports a signed batch of ordered/idempotent events from a trusted peer.
+  """
+  def event_batch(conn, payload) do
+    remote_domain = conn.assigns[:federation_peer_domain]
+
+    with {:ok, decoded_payload} <- decode_request_payload(conn, payload),
+         {:ok, response} <- Federation.receive_event_batch(decoded_payload, remote_domain) do
+      render_federation_payload(conn, :ok, response, :batch)
+    else
+      {:error, :invalid_payload} ->
+        render_error(conn, :bad_request, :invalid_payload, "Invalid payload")
+
+      {:error, :batch_limit_exceeded} ->
+        render_error(
+          conn,
+          :unprocessable_entity,
+          :batch_limit_exceeded,
+          "Event batch exceeds the negotiated limit"
+        )
+
+      {:error, reason} ->
+        render_error(
+          conn,
+          :unprocessable_entity,
+          reason,
+          "Failed to process event batch: #{inspect(reason)}"
+        )
+    end
+  end
+
+  @doc """
+  POST /federation/messaging/ephemeral
+  Imports ephemeral presence and typing updates from a trusted peer.
+  """
+  def ephemeral(conn, payload) do
+    remote_domain = conn.assigns[:federation_peer_domain]
+
+    with {:ok, decoded_payload} <- decode_request_payload(conn, payload),
+         {:ok, response} <- Federation.receive_ephemeral_batch(decoded_payload, remote_domain) do
+      render_federation_payload(conn, :ok, response, :ephemeral)
+    else
+      {:error, :invalid_payload} ->
+        render_error(conn, :bad_request, :invalid_payload, "Invalid payload")
+
+      {:error, :ephemeral_limit_exceeded} ->
+        render_error(
+          conn,
+          :unprocessable_entity,
+          :ephemeral_limit_exceeded,
+          "Ephemeral batch exceeds the negotiated limit"
+        )
+
+      {:error, reason} ->
+        render_error(
+          conn,
+          :unprocessable_entity,
+          reason,
+          "Failed to process ephemeral payload: #{inspect(reason)}"
+        )
     end
   end
 
@@ -269,29 +390,61 @@ defmodule ElektrineWeb.MessagingFederationController do
         |> json(%{error: "Unsupported federation payload version"})
 
       {:error, :origin_domain_mismatch} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Origin domain mismatch"})
+        render_error(conn, :bad_request, :origin_domain_mismatch, "Origin domain mismatch")
 
       {:error, :invalid_payload} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Invalid payload"})
+        render_error(conn, :bad_request, :invalid_payload, "Invalid payload")
 
       {:error, :invalid_server_payload} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "Invalid server payload"})
+        render_error(conn, :bad_request, :invalid_server_payload, "Invalid server payload")
+
+      {:error, :invalid_snapshot_stream_positions} ->
+        render_error(
+          conn,
+          :bad_request,
+          :invalid_snapshot_stream_positions,
+          "Invalid snapshot stream positions"
+        )
+
+      {:error, :invalid_snapshot_signature} ->
+        render_error(
+          conn,
+          :bad_request,
+          :invalid_snapshot_signature,
+          "Invalid snapshot signature"
+        )
+
+      {:error, :invalid_snapshot_governance} ->
+        render_error(
+          conn,
+          :bad_request,
+          :invalid_snapshot_governance,
+          "Invalid snapshot governance payload"
+        )
+
+      {:error, :snapshot_limit_exceeded} ->
+        render_error(
+          conn,
+          :unprocessable_entity,
+          :snapshot_limit_exceeded,
+          "Snapshot exceeds negotiated limits"
+        )
 
       {:error, :federation_origin_conflict} ->
-        conn
-        |> put_status(:conflict)
-        |> json(%{error: "Federation origin conflict for mirrored resource"})
+        render_error(
+          conn,
+          :conflict,
+          :federation_origin_conflict,
+          "Federation origin conflict for mirrored resource"
+        )
 
       {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to import snapshot: #{inspect(reason)}"})
+        render_error(
+          conn,
+          :unprocessable_entity,
+          reason,
+          "Failed to import snapshot: #{inspect(reason)}"
+        )
     end
   end
 
@@ -329,5 +482,117 @@ defmodule ElektrineWeb.MessagingFederationController do
         |> put_status(:bad_request)
         |> json(%{error: "Invalid server_id"})
     end
+  end
+
+  @doc """
+  GET /federation/messaging/streams/events
+  Exports local ordered events for a single stream after a cursor.
+  """
+  def stream_events(conn, params) do
+    stream_id = params["stream_id"]
+    after_sequence = parse_positive_int(params["after_sequence"], 0)
+    limit = parse_positive_int(params["limit"], 128)
+
+    if is_binary(stream_id) and String.trim(stream_id) != "" do
+      payload =
+        Federation.export_stream_events(stream_id,
+          after_sequence: after_sequence,
+          limit: limit
+        )
+
+      conn
+      |> put_status(:ok)
+      |> json(payload)
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{error: "Invalid stream_id"})
+    end
+  end
+
+  defp parse_positive_int(nil, default), do: default
+
+  defp parse_positive_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int >= 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_positive_int(value, _default) when is_integer(value) and value >= 0, do: value
+  defp parse_positive_int(_value, default), do: default
+
+  defp decode_request_payload(conn, payload) do
+    case request_format(conn) do
+      :cbor ->
+        conn.assigns[:raw_body]
+        |> decode_cbor_payload()
+
+      :json ->
+        if is_map(payload) or is_list(payload),
+          do: {:ok, payload},
+          else: {:error, :invalid_payload}
+    end
+  end
+
+  defp render_federation_payload(conn, status, payload, kind) do
+    case request_format(conn) do
+      :cbor ->
+        content_type =
+          case kind do
+            :ephemeral -> "application/arblarg-ephemeral+cbor"
+            _ -> "application/arblarg-batch+cbor"
+          end
+
+        conn
+        |> put_resp_content_type(content_type)
+        |> send_resp(status, CBOR.encode(payload))
+
+      :json ->
+        conn
+        |> put_status(status)
+        |> json(payload)
+    end
+  end
+
+  defp request_format(conn) do
+    content_type = get_req_header(conn, "content-type") |> List.first() |> to_string()
+
+    cond do
+      String.starts_with?(content_type, "application/arblarg-batch+cbor") -> :cbor
+      String.starts_with?(content_type, "application/arblarg-ephemeral+cbor") -> :cbor
+      true -> :json
+    end
+  end
+
+  defp decode_cbor_payload(body) when is_binary(body) do
+    case CBOR.decode(body) do
+      {:ok, decoded, ""} -> {:ok, decoded}
+      {:ok, _decoded, _rest} -> {:error, :invalid_payload}
+      {:error, _reason} -> {:error, :invalid_payload}
+    end
+  end
+
+  defp decode_cbor_payload(_body), do: {:error, :invalid_payload}
+
+  defp maybe_put_session_subprotocol(conn) do
+    requested_subprotocol? =
+      conn
+      |> get_req_header("sec-websocket-protocol")
+      |> Enum.flat_map(&String.split(&1, ",", trim: true))
+      |> Enum.map(&String.trim/1)
+      |> Enum.member?("arblarg.session.v1")
+
+    if requested_subprotocol? do
+      put_resp_header(conn, "sec-websocket-protocol", "arblarg.session.v1")
+    else
+      conn
+    end
+  end
+
+  defp render_error(conn, status, reason, message) do
+    conn
+    |> put_status(status)
+    |> json(%{error: message, code: Federation.error_code(reason)})
   end
 end

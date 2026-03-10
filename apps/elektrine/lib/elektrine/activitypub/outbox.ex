@@ -504,10 +504,12 @@ defmodule Elektrine.ActivityPub.Outbox do
   defp federate_local_community_post(message, community) do
     with {:ok, community_actor} <- ActivityPub.get_or_create_community_actor(community.id),
          user <- Accounts.get_user!(message.sender_id) do
-      post_id = community_post_id(community, message.id)
+      post_id = ActivityPub.community_post_uri(community.name, message.id)
 
       page_object =
-        build_community_page_object(message, community, community_actor, user, post_id)
+        Builder.build_community_note(message, community,
+          author_uri: "#{ActivityPub.instance_url()}/users/#{user.username}"
+        )
 
       create_activity =
         build_community_create_activity(message, community_actor, page_object, post_id)
@@ -527,43 +529,6 @@ defmodule Elektrine.ActivityPub.Outbox do
     end
   end
 
-  defp community_post_id(community, message_id) do
-    base_url = ActivityPub.instance_url()
-    community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-    "#{base_url}/c/#{community_slug}/posts/#{message_id}"
-  end
-
-  defp build_community_page_object(message, community, community_actor, user, post_id) do
-    base_url = ActivityPub.instance_url()
-
-    %{
-      "id" => post_id,
-      "type" => community_object_type(message),
-      "attributedTo" => "#{base_url}/users/#{user.username}",
-      "content" => message.content || "",
-      "mediaType" => "text/html",
-      "published" => Builder.format_datetime(message.inserted_at),
-      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => [community_actor.uri],
-      "audience" => community_actor.uri,
-      "url" => "#{base_url}/communities/#{community.name}/post/#{message.id}",
-      "inReplyTo" => nil,
-      "sensitive" => message.sensitive || false,
-      "context" => community_actor.uri,
-      "commentsEnabled" => is_nil(message.locked_at),
-      "stickied" => message.is_pinned || false
-    }
-    |> maybe_put("name", message.title)
-    |> maybe_put("summary", message.content_warning)
-    |> maybe_put("updated", format_updated_at(message.edited_at))
-  end
-
-  defp community_object_type(%Message{reply_to_id: nil}), do: "Page"
-  defp community_object_type(_), do: "Note"
-
-  defp format_updated_at(nil), do: nil
-  defp format_updated_at(edited_at), do: Builder.format_datetime(edited_at)
-
   defp build_community_create_activity(message, community_actor, page_object, post_id) do
     %{
       "@context" => "https://www.w3.org/ns/activitystreams",
@@ -582,18 +547,13 @@ defmodule Elektrine.ActivityPub.Outbox do
          community,
          post_id
        ) do
-    base_url = ActivityPub.instance_url()
-
     Elektrine.Messaging.update_message(message, %{
       activitypub_id: post_id,
-      activitypub_url: "#{base_url}/communities/#{community.name}/post/#{message.id}"
+      activitypub_url: ActivityPub.community_post_web_url(community.name, message.id)
     })
   end
 
   defp maybe_set_community_activitypub_id(_message, _community, _post_id), do: :ok
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   @doc """
   Sends a poll vote for a remote ActivityPub poll (viewed on remote post page).

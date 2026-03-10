@@ -9,6 +9,7 @@
   <div class="flex flex-col lg:flex-row gap-6">
     <.sidebar
       mailbox={@mailbox}
+      mailbox_addresses={@mailbox_addresses}
       storage_info={@storage_info}
       unread_count={@unread_count}
       current_page="compose"
@@ -88,6 +89,98 @@
                   <% end %>
                 </select>
               </.form>
+            </div>
+          <% end %>
+
+          <%= if @original_message && private_message?(@original_message) do %>
+            <div
+              id="private-mailbox-compose"
+              class="rounded-2xl border border-info/30 bg-info/10 p-4 mb-6"
+              phx-hook="PrivateMailboxCompose"
+              data-private-mailbox-id={@mailbox.id}
+              data-private-compose-mode={@mode}
+              data-private-original-payload={
+                Jason.encode!(@original_message.client_encrypted_payload)
+              }
+              data-private-original-from={@original_message.from || ""}
+              data-private-original-to={@original_message.to || ""}
+              data-private-original-subject={decode_subject(@original_message.subject || "")}
+              data-private-original-inserted-at={
+                DateTime.to_iso8601(@original_message.inserted_at)
+              }
+              data-private-original-status={@original_message.status}
+              data-private-original-attachments={
+                Jason.encode!(@original_message.attachments || %{})
+              }
+            >
+              <div
+                id="private-mailbox-unlock-compose"
+                class="space-y-3"
+                phx-hook="MailboxPrivateStorage"
+                data-private-mailbox-configured="true"
+                data-private-mailbox-enabled={to_string(@mailbox.private_storage_enabled)}
+                data-private-mailbox-id={@mailbox.id}
+                data-private-mailbox-unlock-mode={
+                  Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox)
+                }
+                data-private-mailbox-wrapped-key={
+                  Jason.encode!(@mailbox.private_storage_wrapped_private_key)
+                }
+                data-private-mailbox-verifier={Jason.encode!(@mailbox.private_storage_verifier)}
+              >
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2 font-semibold">
+                    <.icon name="hero-shield-check" class="w-5 h-5" />
+                    <span>{gettext("Protected Original Message")}</span>
+                  </div>
+                  <p class="text-sm text-base-content/70" data-private-mailbox-locked-content>
+                    {gettext(
+                      "Unlock this mailbox in the current tab to load the protected quote, subject, and any protected attachments into this composer."
+                    )}
+                  </p>
+                  <p class="text-xs text-base-content/60" data-private-mailbox-status>
+                    {gettext("Mailbox locked.")}
+                  </p>
+                </div>
+
+                <div
+                  class="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  data-private-mailbox-locked-content
+                >
+                  <input
+                    type="password"
+                    class="input input-bordered input-sm w-full sm:w-64"
+                    placeholder={
+                      if Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox) ==
+                           "account_password",
+                         do: gettext("Account password"),
+                         else: gettext("Mailbox passphrase")
+                    }
+                    data-private-mailbox-passphrase
+                  />
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      data-private-mailbox-unlock
+                    >
+                      {gettext("Unlock")}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  class="hidden flex items-center justify-between gap-3"
+                  data-private-mailbox-unlocked-content
+                >
+                  <span class="text-sm text-base-content/80" data-private-mailbox-status>
+                    {gettext("Mailbox unlocked in this tab.")}
+                  </span>
+                  <button type="button" class="btn btn-ghost btn-sm" data-private-mailbox-lock>
+                    {gettext("Lock")}
+                  </button>
+                </div>
+              </div>
             </div>
           <% end %>
 
@@ -370,6 +463,12 @@
               <input type="hidden" name="email[to]" value={Enum.join(@to_tags, ", ")} />
               <input type="hidden" name="email[cc]" value={Enum.join(@cc_tags, ", ")} />
               <input type="hidden" name="email[bcc]" value={Enum.join(@bcc_tags, ", ")} />
+              <input
+                type="hidden"
+                name="email[private_forward_attachments]"
+                id="private-forward-attachments"
+                value=""
+              />
               
 <!-- Subject Field -->
               <div>
@@ -385,6 +484,94 @@
                   class="input input-bordered w-full text-sm"
                   placeholder={gettext("Enter email subject (optional)")}
                 />
+              </div>
+
+              <div class="rounded-xl border border-base-300 bg-base-200/40 p-4 space-y-3">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                      <.icon name="hero-lock-closed" class="h-4 w-4 text-secondary" />
+                      <span class="font-semibold">{gettext("Protected Delivery")}</span>
+                    </div>
+                    <p class="text-xs text-base-content/70 max-w-2xl">
+                      {gettext(
+                        "OpenPGP wraps the message body for recipients with public keys. Subject, headers, and attachments remain standard email metadata."
+                      )}
+                    </p>
+                  </div>
+
+                  <label class="form-control w-full lg:max-w-xs">
+                    <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
+                      {gettext("Mode")}
+                    </span>
+                    <select
+                      name="email[encryption_mode]"
+                      class="select select-bordered select-sm"
+                      value={@encryption_mode}
+                    >
+                      <option value="off" selected={@encryption_mode == "off"}>
+                        {gettext("Standard delivery")}
+                      </option>
+                      <option value="auto" selected={@encryption_mode == "auto"}>
+                        {gettext("Encrypt when possible")}
+                      </option>
+                      <option value="require" selected={@encryption_mode == "require"}>
+                        {gettext("Require encryption")}
+                      </option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="space-y-2 text-sm">
+                  <%= if not @encryption_status.server_ready? and @encryption_mode != "off" do %>
+                    <div class="rounded-lg border border-error/30 bg-error/10 px-3 py-2 text-error">
+                      {gettext("OpenPGP delivery is not available on this server right now.")}
+                    </div>
+                  <% end %>
+
+                  <%= cond do %>
+                    <% @encryption_status.total_count == 0 -> %>
+                      <div class="rounded-lg border border-base-300 bg-base-100/70 px-3 py-2 text-base-content/70">
+                        {gettext(
+                          "Add recipients to check whether protected delivery can be used."
+                        )}
+                      </div>
+                    <% @encryption_status.can_encrypt? -> %>
+                      <div class="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-success">
+                        {gettext(
+                          "Public keys are available for all %{count} recipients.",
+                          count: @encryption_status.total_count
+                        )}
+                      </div>
+                    <% true -> %>
+                      <div class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning">
+                        {gettext(
+                          "Public keys are available for %{available} of %{total} recipients.",
+                          available: @encryption_status.available_count,
+                          total: @encryption_status.total_count
+                        )}
+                        <%= if @encryption_status.missing_recipients != [] do %>
+                          <div class="mt-1 text-xs">
+                            {gettext("Missing keys for:")} {Enum.join(
+                              Enum.take(@encryption_status.missing_recipients, 4),
+                              ", "
+                            )}
+                            <%= if length(@encryption_status.missing_recipients) > 4 do %>
+                              , ...
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                  <% end %>
+                </div>
+
+                <%= if @uploads.attachments.entries != [] || (@original_message && @original_message.attachments && is_map(@original_message.attachments) && map_size(@original_message.attachments) > 0) do %>
+                  <div class="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs text-warning">
+                    {gettext(
+                      "Attachments are still sent as normal attachments. Use Require encryption only for body-only messages."
+                    )}
+                  </div>
+                <% end %>
               </div>
               
 <!-- Message Body -->
@@ -607,7 +794,10 @@
                           else: "Forwarded message:"}
                       </div>
                       <!-- Always show plain text preview since body field contains plain text -->
-                      <div class="textarea textarea-bordered bg-base-200/50 h-32 overflow-auto text-sm text-base-content/70 resize-none break-words">
+                      <div
+                        class="textarea textarea-bordered bg-base-200/50 h-32 overflow-auto text-sm text-base-content/70 resize-none break-words"
+                        data-private-compose-preview
+                      >
                         {@form[:body].value}
                       </div>
                     </div>
@@ -620,7 +810,10 @@
                           {gettext("Attachments to forward:")}
                         </div>
                         <div class="bg-base-200/30 border border-base-300 rounded-lg p-4">
-                          <div class="grid grid-cols-1 gap-2">
+                          <div
+                            class="grid grid-cols-1 gap-2"
+                            data-private-compose-attachments-preview
+                          >
                             <%= for {_attachment_id, attachment} <- @original_message.attachments do %>
                               <div class="flex items-center justify-between p-2 bg-base-200 rounded border border-base-300">
                                 <div class="flex items-center gap-2">
@@ -660,6 +853,7 @@
                       name="email[body]"
                       id="full-message-body"
                       value={@form[:body].value}
+                      data-private-compose-hidden-body
                     />
                   </div>
                 <% else %>

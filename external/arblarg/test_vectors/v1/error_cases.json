@@ -1,5 +1,5 @@
 {
-  "name": "arbp-v1-validation-error-cases",
+  "name": "arblarg-v1-validation-error-cases",
   "cases": [
     {
       "id": "unsupported_protocol_id",
@@ -30,7 +30,7 @@
       "id": "invalid_sequence",
       "envelope": {
         "protocol": "arblarg",
-        "protocol_id": "arbp",
+        "protocol_id": "arblarg",
         "protocol_version": "1.0",
         "event_type": "message.create",
         "event_id": "evt-bad-2",

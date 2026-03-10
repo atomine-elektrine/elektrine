@@ -1,60 +1,60 @@
 {
+  "$id": "arblarg://schemas/1.0/role.assignment.upsert",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/role.assignment.upsert",
-  "title": "Arblarg role.assignment.upsert payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "assignment"
-  ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
-    "channel": {
-      "type": "object"
-    },
     "assignment": {
-      "type": "object",
+      "properties": {
+        "role_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "assigned",
+            "removed"
+          ],
+          "type": "string"
+        },
+        "target": {
+          "properties": {
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "user",
+                "member"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
       "required": [
         "role_id",
         "target",
         "state"
       ],
-      "properties": {
-        "role_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "target": {
-          "type": "object",
-          "required": [
-            "type",
-            "id"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": [
-                "user",
-                "member"
-              ]
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "assigned",
-            "removed"
-          ]
-        }
-      }
+      "type": "object"
+    },
+    "channel": {
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "server",
+    "channel",
+    "assignment"
+  ],
+  "title": "Arblarg role.assignment.upsert payload",
+  "type": "object"
 }

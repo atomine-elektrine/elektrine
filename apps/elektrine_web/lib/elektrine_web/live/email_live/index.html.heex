@@ -20,6 +20,7 @@
   <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
     <.sidebar
       mailbox={@mailbox}
+      mailbox_addresses={@mailbox_addresses}
       storage_info={@storage_info}
       unread_count={@unread_count}
       current_page={@current_tab}
@@ -397,6 +398,79 @@
                 </div>
               </div>
             <% end %>
+          <% end %>
+
+          <%= if @mailbox.private_storage_wrapped_private_key do %>
+            <div
+              id="private-mailbox-unlock-index"
+              class="rounded-2xl border border-info/30 bg-info/10 p-4 mb-6"
+              phx-hook="MailboxPrivateStorage"
+              data-private-mailbox-configured="true"
+              data-private-mailbox-enabled={to_string(@mailbox.private_storage_enabled)}
+              data-private-mailbox-id={@mailbox.id}
+              data-private-mailbox-unlock-mode={
+                Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox)
+              }
+              data-private-mailbox-wrapped-key={
+                Jason.encode!(@mailbox.private_storage_wrapped_private_key)
+              }
+              data-private-mailbox-verifier={Jason.encode!(@mailbox.private_storage_verifier)}
+            >
+              <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2 font-semibold">
+                    <.icon name="hero-shield-check" class="w-5 h-5" />
+                    <span>{gettext("Private Mailbox")}</span>
+                  </div>
+                  <p class="text-sm text-base-content/70" data-private-mailbox-locked-content>
+                    {gettext(
+                      "Unlock protected subjects, previews, and attachments in this browser tab."
+                    )}
+                  </p>
+                  <p class="text-xs text-base-content/60" data-private-mailbox-status>
+                    {gettext("Mailbox locked.")}
+                  </p>
+                </div>
+
+                <div
+                  class="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  data-private-mailbox-locked-content
+                >
+                  <input
+                    type="password"
+                    class="input input-bordered input-sm w-full sm:w-64"
+                    placeholder={
+                      if Elektrine.Email.Mailbox.private_storage_unlock_mode(@mailbox) ==
+                           "account_password",
+                         do: gettext("Account password"),
+                         else: gettext("Mailbox passphrase")
+                    }
+                    data-private-mailbox-passphrase
+                  />
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      data-private-mailbox-unlock
+                    >
+                      {gettext("Unlock")}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  class="hidden flex items-center justify-between gap-3"
+                  data-private-mailbox-unlocked-content
+                >
+                  <span class="text-sm text-base-content/80" data-private-mailbox-status>
+                    {gettext("Mailbox unlocked in this tab.")}
+                  </span>
+                  <button type="button" class="btn btn-ghost btn-sm" data-private-mailbox-lock>
+                    {gettext("Lock")}
+                  </button>
+                </div>
+              </div>
+            </div>
           <% end %>
           
 <!-- Contacts Tab View -->
@@ -804,9 +878,25 @@
                   </div>
                 <% end %>
               </div>
+
+              <%= if @mailbox.private_storage_wrapped_private_key do %>
+                <div class="alert alert-info mb-4">
+                  <.icon name="hero-shield-check" class="w-5 h-5" />
+                  <span class="text-sm">
+                    {gettext(
+                      "Protected mailbox previews appear after you unlock your mailbox in Account Settings for this browser tab."
+                    )}
+                  </span>
+                </div>
+              <% end %>
               
 <!-- Messages -->
-              <div class="space-y-2" id="message-list">
+              <div
+                class="space-y-2"
+                id="message-list"
+                phx-hook="PrivateMailboxMessages"
+                data-private-mailbox-id={@mailbox.id}
+              >
                 <%= for message <- @messages do %>
                   <div
                     id={"message-#{message.id}"}
@@ -817,6 +907,12 @@
                         "border-l-4 border-l-error bg-error/5"
                     ]}
                     data-message-id={message.id}
+                    data-private-message={to_string(private_message?(message))}
+                    data-private-message-payload={
+                      if private_message?(message),
+                        do: Jason.encode!(message.client_encrypted_payload),
+                        else: ""
+                    }
                   >
                     <.link
                       navigate={
@@ -933,9 +1029,15 @@
                             if(message_unread_for_list?(message),
                               do: "font-semibold",
                               else: "font-medium"
-                            )
+                            ),
+                            private_message?(message) && "private-message-subject"
                           ]}>
-                            {decode_subject(message.subject)}
+                            <span
+                              data-private-subject
+                              data-private-subject-placeholder={decode_subject(message.subject)}
+                            >
+                              {decode_subject(message.subject)}
+                            </span>
                           </h3>
                           
 <!-- Labels -->
@@ -954,7 +1056,12 @@
                           
 <!-- Preview -->
                           <p class="message-preview text-xs sm:text-sm text-base-content/60 line-clamp-2 transition-colors duration-150">
-                            {email_preview(message)}
+                            <span
+                              data-private-preview
+                              data-private-preview-placeholder={email_preview(message)}
+                            >
+                              {email_preview(message)}
+                            </span>
                           </p>
                         </div>
                         

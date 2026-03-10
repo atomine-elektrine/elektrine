@@ -2,20 +2,22 @@ defmodule ElektrineWeb.TimelineLive.Index do
   use ElektrineWeb, :live_view
   require Logger
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.PubSubTopics
   alias Elektrine.RSS
   alias Elektrine.Social
   alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineWeb.TimelineLive.ReplyContextPreviews
   import ElektrineWeb.Components.Social.RSSItem
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.TimelinePost
   import ElektrineWeb.Components.Social.ReplyItem
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Live.Helpers.PostStateHelpers
-  alias ElektrineWeb.TimelineLive.Operations.PostOperations
   alias ElektrineWeb.TimelineLive.Operations.Helpers, as: TimelineHelpers
+  alias ElektrineWeb.TimelineLive.Operations.PostOperations
   alias ElektrineWeb.TimelineLive.Router
   @remote_replies_poll_interval_ms 1500
   @remote_replies_poll_max_attempts 6
@@ -52,6 +54,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:timeline_posts, [])
       |> assign(:post_replies, %{})
       |> assign(:loading_remote_replies, MapSet.new())
+      |> assign(:manual_loading_remote_replies, MapSet.new())
       |> assign(
         :current_filter,
         default_source_filter(user)
@@ -346,6 +349,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
      |> maybe_schedule_background_refresh(posts)
      |> maybe_schedule_reply_ingestion(posts)
      |> maybe_queue_remote_data(posts)
+     |> maybe_queue_reply_context_previews(posts)
      |> start_timeline_hydration(posts, filter, timeline_view, user)}
   end
 
@@ -366,6 +370,16 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     if timeline_remote_enrichment_enabled?() && connected?(socket) && posts_to_fetch != [] do
       send(self(), {:load_remote_data, posts_to_fetch})
+    end
+
+    socket
+  end
+
+  defp maybe_queue_reply_context_previews(socket, posts) do
+    refs = ReplyContextPreviews.candidate_refs(posts)
+
+    if connected?(socket) && refs != [] do
+      send(self(), {:load_reply_context_previews, refs})
     end
 
     socket
@@ -645,6 +659,51 @@ defmodule ElektrineWeb.TimelineLive.Index do
   end
 
   @impl true
+  def handle_info({:load_reply_context_previews, refs}, socket) do
+    if refs == [] do
+      {:noreply, socket}
+    else
+      parent = self()
+
+      Task.start(fn ->
+        previews = ReplyContextPreviews.fetch_previews(refs)
+        send(parent, {:reply_context_previews_loaded, previews})
+      end)
+
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:reply_context_previews_loaded, previews}, socket) do
+    if previews == %{} do
+      {:noreply, socket}
+    else
+      update_fn = &ReplyContextPreviews.apply_previews(&1, previews)
+
+      updated_cache =
+        Enum.reduce(socket.assigns.special_view_cache || %{}, %{}, fn {key, entry}, acc ->
+          updated_entry =
+            entry
+            |> Map.update(:posts, [], fn
+              posts when is_list(posts) -> update_fn.(posts)
+              posts -> posts
+            end)
+
+          Map.put(acc, key, updated_entry)
+        end)
+
+      {:noreply,
+       socket
+       |> assign(:timeline_posts, update_fn.(socket.assigns.timeline_posts || []))
+       |> assign(:base_timeline_posts, update_fn.(socket.assigns.base_timeline_posts || []))
+       |> assign(:queued_posts, update_fn.(socket.assigns.queued_posts || []))
+       |> assign(:special_view_cache, updated_cache)
+       |> apply_timeline_filter()}
+    end
+  end
+
+  @impl true
   def handle_info(
         {:remote_data_loaded, request_ref, posts, lemmy_counts, remote_post_data,
          lemmy_top_comments},
@@ -894,6 +953,12 @@ defmodule ElektrineWeb.TimelineLive.Index do
         update(updated_socket, :queued_posts, fn queued -> [post_with_associations | queued] end)
       end
 
+    refs = ReplyContextPreviews.candidate_refs([post_with_associations])
+
+    if refs != [] do
+      send(self(), {:load_reply_context_previews, refs})
+    end
+
     {:noreply, updated_socket}
   end
 
@@ -935,10 +1000,12 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
       true ->
         loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
+        manual_loading_set = MapSet.delete(socket.assigns.manual_loading_remote_replies, post_id)
 
         {:noreply,
          socket
          |> assign(:loading_remote_replies, loading_set)
+         |> assign(:manual_loading_remote_replies, manual_loading_set)
          |> TimelineHelpers.refresh_filtered_post(post_id)}
     end
   end
@@ -1012,12 +1079,20 @@ defmodule ElektrineWeb.TimelineLive.Index do
       already_in_timeline =
         Enum.any?(updated_socket.assigns.timeline_posts, fn p -> p.id == post_id end)
 
-      if already_queued || already_in_timeline do
-        {:noreply, updated_socket}
-      else
-        {:noreply,
-         update(updated_socket, :queued_posts, fn queued -> [post_with_associations | queued] end)}
+      updated_socket =
+        if already_queued || already_in_timeline do
+          updated_socket
+        else
+          update(updated_socket, :queued_posts, fn queued -> [post_with_associations | queued] end)
+        end
+
+      refs = ReplyContextPreviews.candidate_refs([post_with_associations])
+
+      if refs != [] do
+        send(self(), {:load_reply_context_previews, refs})
       end
+
+      {:noreply, updated_socket}
     end
   end
 
@@ -1057,11 +1132,13 @@ defmodule ElektrineWeb.TimelineLive.Index do
   def handle_info({:post_replies_loaded, post_id, replies}, socket) do
     updated_post_replies = Map.put(socket.assigns.post_replies, post_id, replies)
     loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
+    manual_loading_set = MapSet.delete(socket.assigns.manual_loading_remote_replies, post_id)
 
     {:noreply,
      socket
      |> assign(:post_replies, updated_post_replies)
      |> assign(:loading_remote_replies, loading_set)
+     |> assign(:manual_loading_remote_replies, manual_loading_set)
      |> TimelineHelpers.refresh_filtered_post(post_id)}
   end
 
@@ -1087,13 +1164,28 @@ defmodule ElektrineWeb.TimelineLive.Index do
           socket.assigns.reply_to_post_recent_replies
       end
 
-    loading_set = MapSet.delete(socket.assigns.loading_remote_replies, post_id)
+    manual_loading? = MapSet.member?(socket.assigns.manual_loading_remote_replies, post_id)
+
+    loading_set =
+      if manual_loading? and merged_replies == [] do
+        socket.assigns.loading_remote_replies
+      else
+        MapSet.delete(socket.assigns.loading_remote_replies, post_id)
+      end
+
+    manual_loading_set =
+      if merged_replies == [] do
+        socket.assigns.manual_loading_remote_replies
+      else
+        MapSet.delete(socket.assigns.manual_loading_remote_replies, post_id)
+      end
 
     {:noreply,
      socket
      |> assign(:post_replies, updated_post_replies)
      |> assign(:reply_to_post_recent_replies, updated_recent_replies)
      |> assign(:loading_remote_replies, loading_set)
+     |> assign(:manual_loading_remote_replies, manual_loading_set)
      |> TimelineHelpers.refresh_filtered_post(post_id)}
   end
 
@@ -1311,7 +1403,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
     Task.start(fn ->
       post_with_associations =
-        Elektrine.Repo.preload(post, [:sender, :remote_actor, :link_preview, poll: [options: []]])
+        Elektrine.Repo.preload(post, MessagingMessages.timeline_post_preloads())
 
       send(parent, {:new_post_preloaded, source, post_with_associations})
     end)

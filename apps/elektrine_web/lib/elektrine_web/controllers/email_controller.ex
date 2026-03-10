@@ -128,6 +128,9 @@ defmodule ElektrineWeb.EmailController do
             # Sanitize the content (no need to decode - already decoded in DB)
             content =
               cond do
+                Email.Message.private_encrypted?(message) ->
+                  "<div style=\"display: flex; align-items: center; justify-content: center; height: 300px; color: #666; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\"><p style=\"max-width: 32rem; text-align: center;\">This message is protected by mailbox encryption. Unlock it in webmail to view the contents.</p></div>"
+
                 message.html_body && String.trim(message.html_body) != "" ->
                   safe_sanitize_email_html(message.html_body)
 

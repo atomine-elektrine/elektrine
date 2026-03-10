@@ -42,6 +42,49 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       # Test with non-existent email
       assert Email.get_mailbox_by_email("nonexistent@elektrine.com") == nil
     end
+
+    test "update_mailbox_email keeps username in sync for cross-domain lookup", %{user: user} do
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      new_email = "renamed@elektrine.com"
+      alternate_domain =
+        Elektrine.Domains.supported_email_domains()
+        |> Enum.reject(&(&1 == Elektrine.Domains.primary_email_domain()))
+        |> List.first()
+
+      assert {:ok, updated_mailbox} = Email.update_mailbox_email(mailbox, new_email)
+      assert updated_mailbox.email == new_email
+      assert updated_mailbox.username == "renamed"
+
+      if alternate_domain do
+        resolved_mailbox = Email.get_mailbox_by_email("renamed@#{alternate_domain}")
+        assert resolved_mailbox.id == updated_mailbox.id
+        assert resolved_mailbox.user_id == user.id
+      end
+    end
+
+    test "transition_mailbox_for_username_change creates a domain-agnostic mailbox", %{user: user} do
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      renamed_user = %{user | username: "renamed"}
+      new_email = "renamed@elektrine.com"
+      alternate_domain =
+        Elektrine.Domains.supported_email_domains()
+        |> Enum.reject(&(&1 == Elektrine.Domains.primary_email_domain()))
+        |> List.first()
+
+      assert {:ok, new_mailbox} =
+               Email.transition_mailbox_for_username_change(renamed_user, mailbox, new_email)
+
+      assert new_mailbox.email == new_email
+      assert new_mailbox.username == "renamed"
+
+      if alternate_domain do
+        assert Email.get_mailbox_by_email("renamed@#{alternate_domain}").id == new_mailbox.id
+      end
+
+      old_mailbox = Email.Mailboxes.get_mailbox_internal(mailbox.id)
+      assert old_mailbox.user_id == nil
+      assert old_mailbox.username == nil
+    end
   end
 
   describe "message creation and storage" do

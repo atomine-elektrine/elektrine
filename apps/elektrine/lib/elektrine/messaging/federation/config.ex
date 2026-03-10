@@ -11,8 +11,58 @@ defmodule Elektrine.Messaging.Federation.Config do
     peer.event_endpoint || "#{peer.base_url}/federation/messaging/events"
   end
 
+  def outbound_events_batch_url(peer) do
+    peer.events_batch_endpoint || "#{peer.base_url}/federation/messaging/events/batch"
+  end
+
+  def outbound_ephemeral_url(peer) do
+    peer.ephemeral_endpoint || "#{peer.base_url}/federation/messaging/ephemeral"
+  end
+
   def outbound_sync_url(peer) do
     peer.sync_endpoint || "#{peer.base_url}/federation/messaging/sync"
+  end
+
+  def outbound_stream_events_url(peer, query_string \\ "") do
+    base = peer.stream_events_endpoint || "#{peer.base_url}/federation/messaging/streams/events"
+
+    case normalize_optional_string(query_string) do
+      nil -> base
+      query -> base <> "?" <> query
+    end
+  end
+
+  def outbound_session_websocket_url(peer) do
+    allow_insecure_transport =
+      Application.get_env(:elektrine, :messaging_federation, [])
+      |> allow_insecure_transport?()
+
+    outbound_session_websocket_url(peer, allow_insecure_transport)
+  end
+
+  def outbound_session_websocket_url(peer, allow_insecure_transport)
+      when is_boolean(allow_insecure_transport) do
+    explicit_endpoint =
+      peer
+      |> value_from(:session_websocket_endpoint)
+      |> normalize_optional_string()
+
+    cond do
+      valid_session_websocket_url?(explicit_endpoint, allow_insecure_transport) ->
+        explicit_endpoint
+
+      is_binary(normalize_optional_string(value_from(peer, :base_url))) ->
+        case peer
+             |> value_from(:base_url)
+             |> normalize_optional_string()
+             |> websocket_base_url(allow_insecure_transport) do
+          base when is_binary(base) -> base <> "/federation/messaging/session"
+          _ -> nil
+        end
+
+      true ->
+        nil
+    end
   end
 
   def outbound_snapshot_url(peer, remote_server_id) do
@@ -35,6 +85,10 @@ defmodule Elektrine.Messaging.Federation.Config do
 
   def outbox_max_attempts(config) when is_list(config) do
     Keyword.get(config, :outbox_max_attempts, 8)
+  end
+
+  def delivery_batch_size(config) when is_list(config) do
+    Keyword.get(config, :delivery_batch_size, 32)
   end
 
   def outbox_base_backoff_seconds(config) when is_list(config) do
@@ -60,6 +114,50 @@ defmodule Elektrine.Messaging.Federation.Config do
 
   def replay_nonce_ttl_seconds(config, default_clock_skew_seconds) when is_list(config) do
     max(clock_skew_seconds(config, default_clock_skew_seconds) * 2, 600)
+  end
+
+  def stream_replay_limit(config) when is_list(config) do
+    Keyword.get(config, :stream_replay_limit, 128)
+  end
+
+  def incoming_batch_limit(config) when is_list(config) do
+    Keyword.get(config, :incoming_batch_limit, 128)
+  end
+
+  def incoming_ephemeral_limit(config) when is_list(config) do
+    Keyword.get(config, :incoming_ephemeral_limit, 256)
+  end
+
+  def snapshot_channel_limit(config) when is_list(config) do
+    Keyword.get(config, :snapshot_channel_limit, 500)
+  end
+
+  def snapshot_message_limit(config) when is_list(config) do
+    Keyword.get(config, :snapshot_message_limit, 5_000)
+  end
+
+  def snapshot_governance_limit(config) when is_list(config) do
+    Keyword.get(config, :snapshot_governance_limit, 5_000)
+  end
+
+  def discovery_ttl_seconds(config) when is_list(config) do
+    Keyword.get(config, :discovery_ttl_seconds, 3_600)
+  end
+
+  def session_max_inflight_batches(config) when is_list(config) do
+    Keyword.get(config, :session_max_inflight_batches, 8)
+  end
+
+  def session_max_inflight_events(config) when is_list(config) do
+    Keyword.get(config, :session_max_inflight_events, 256)
+  end
+
+  def discovery_stale_grace_seconds(config) when is_list(config) do
+    Keyword.get(config, :discovery_stale_grace_seconds, 86_400)
+  end
+
+  def presence_ttl_seconds(config) when is_list(config) do
+    Keyword.get(config, :presence_ttl_seconds, 120)
   end
 
   def allow_insecure_transport?(config) when is_list(config) do
@@ -149,6 +247,10 @@ defmodule Elektrine.Messaging.Federation.Config do
     |> Keyword.get(:peers, [])
     |> Enum.map(&normalize_peer(&1, allow_insecure_transport))
     |> Enum.reject(&is_nil/1)
+  end
+
+  def normalize_peer_config(peer, allow_insecure_transport) do
+    normalize_peer(peer, allow_insecure_transport)
   end
 
   def infer_local_base_url(domain) when is_binary(domain) do
@@ -293,8 +395,15 @@ defmodule Elektrine.Messaging.Federation.Config do
         allow_incoming: value_from(peer, :allow_incoming, true) == true,
         allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
         event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
+        events_batch_endpoint:
+          normalize_optional_string(value_from(peer, :events_batch_endpoint)),
+        ephemeral_endpoint: normalize_optional_string(value_from(peer, :ephemeral_endpoint)),
         sync_endpoint: normalize_optional_string(value_from(peer, :sync_endpoint)),
         directory_endpoint: normalize_optional_string(value_from(peer, :directory_endpoint)),
+        stream_events_endpoint:
+          normalize_optional_string(value_from(peer, :stream_events_endpoint)),
+        session_websocket_endpoint:
+          normalize_optional_string(value_from(peer, :session_websocket_endpoint)),
         snapshot_endpoint_template:
           normalize_optional_string(value_from(peer, :snapshot_endpoint_template))
       }
@@ -330,7 +439,7 @@ defmodule Elektrine.Messaging.Federation.Config do
 
       [
         %{
-          id: "legacy",
+          id: "k1",
           secret: shared_secret,
           public_key: public_key,
           private_key: private_key,
@@ -347,7 +456,7 @@ defmodule Elektrine.Messaging.Federation.Config do
 
     [
       %{
-        id: "legacy",
+        id: "k1",
         secret: shared_secret,
         public_key: public_key,
         private_key: private_key,
@@ -472,6 +581,37 @@ defmodule Elektrine.Messaging.Federation.Config do
   end
 
   defp normalize_optional_string(_), do: nil
+
+  defp valid_session_websocket_url?(url, allow_insecure_transport)
+       when is_binary(url) and is_boolean(allow_insecure_transport) do
+    case URI.parse(url) do
+      %URI{scheme: "wss", host: host} when is_binary(host) and host != "" ->
+        true
+
+      %URI{scheme: "ws", host: host}
+      when is_binary(host) and host != "" and allow_insecure_transport ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_session_websocket_url?(_url, _allow_insecure_transport), do: false
+
+  defp websocket_base_url(base_url, allow_insecure_transport)
+       when is_binary(base_url) and is_boolean(allow_insecure_transport) do
+    case URI.parse(base_url) do
+      %URI{scheme: "https"} = uri ->
+        %{uri | scheme: "wss"} |> URI.to_string() |> String.trim_trailing("/")
+
+      %URI{scheme: "http"} = uri when allow_insecure_transport ->
+        %{uri | scheme: "ws"} |> URI.to_string() |> String.trim_trailing("/")
+
+      _ ->
+        nil
+    end
+  end
 
   defp value_from(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, Atom.to_string(key), default))

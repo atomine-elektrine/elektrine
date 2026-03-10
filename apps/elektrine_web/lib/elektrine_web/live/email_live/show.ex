@@ -84,6 +84,7 @@ defmodule ElektrineWeb.EmailLive.Show do
      socket
      |> assign(:page_title, message.subject)
      |> assign(:mailbox, mailbox)
+     |> assign(:mailbox_addresses, mailbox_addresses(mailbox, user))
      |> assign(:message, message)
      |> assign(:thread_messages, thread_messages)
      |> assign(:unread_count, unread_count)
@@ -459,24 +460,28 @@ defmodule ElektrineWeb.EmailLive.Show do
   end
 
   def thread_preview(message) do
-    content = message.text_body || message.html_body || ""
+    if private_message?(message) do
+      gettext("Unlock your mailbox to read this message.")
+    else
+      content = message.text_body || message.html_body || ""
 
-    preview =
-      content
-      |> String.replace(~r/<[^>]+>/, " ")
-      |> String.replace(~r/\s+/, " ")
-      |> String.trim()
+      preview =
+        content
+        |> String.replace(~r/<[^>]+>/, " ")
+        |> String.replace(~r/\s+/, " ")
+        |> String.trim()
 
-    case preview do
-      "" ->
-        gettext("(No preview)")
+      case preview do
+        "" ->
+          gettext("(No preview)")
 
-      text ->
-        if String.length(text) <= 140 do
-          text
-        else
-          String.slice(text, 0, 140) <> "..."
-        end
+        text ->
+          if String.length(text) <= 140 do
+            text
+          else
+            String.slice(text, 0, 140) <> "..."
+          end
+      end
     end
   end
 

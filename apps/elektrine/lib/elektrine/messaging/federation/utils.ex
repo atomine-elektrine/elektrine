@@ -47,27 +47,80 @@ defmodule Elektrine.Messaging.Federation.Utils do
     }
   end
 
+  def event_refs_payload(server, channel) do
+    %{
+      "server_id" => server.federation_id || server_federation_id(server.id),
+      "channel_id" => channel.federated_source || channel_federation_id(channel.id)
+    }
+  end
+
   def message_payload(message, channel) do
     %{
       "id" => message.federated_source || message_federation_id(message.id),
       "channel_id" => channel.federated_source || channel_federation_id(channel.id),
       "content" => message.content,
       "message_type" => message.message_type,
-      "media_urls" => message.media_urls || [],
-      "media_metadata" => message.media_metadata || %{},
+      "attachments" => attachment_payloads(message),
       "created_at" => format_created_at(message.inserted_at),
       "edited_at" => format_created_at(message.edited_at),
       "sender" => format_sender(message.sender)
     }
   end
 
-  def sender_payload(user) do
+  def event_message_payload(message) do
     %{
-      "uri" => "#{local_base_url()}/users/#{user.username}",
+      "id" => message.federated_source || message_federation_id(message.id),
+      "content" => message.content,
+      "message_type" => message.message_type,
+      "attachments" => attachment_payloads(message),
+      "created_at" => format_created_at(message.inserted_at),
+      "edited_at" => format_created_at(message.edited_at),
+      "sender" => format_sender(message.sender)
+    }
+  end
+
+  def attachment_payloads(message) do
+    metadata = attachment_metadata_source(message)
+    metadata_attachments = normalize_metadata_attachments(metadata["attachments"])
+    media_urls = normalize_media_urls(message.media_urls || [])
+
+    if metadata_attachments != [] do
+      metadata_attachments
+    else
+      media_urls
+      |> Enum.with_index()
+      |> Enum.map(fn {url, index} ->
+        %{
+          "id" => attachment_id(metadata, url, index),
+          "url" => url,
+          "mime_type" => attachment_mime_type(metadata, index),
+          "byte_size" => attachment_numeric(metadata, "byte_sizes", index),
+          "sha256" => attachment_text(metadata, "sha256", index),
+          "authorization" => attachment_authorization(metadata, index),
+          "retention" => attachment_retention(metadata, index),
+          "expires_at" => attachment_text(metadata, "expires_at", index),
+          "alt_text" => attachment_text(metadata, "alt_texts", index),
+          "width" => attachment_numeric(metadata, "widths", index),
+          "height" => attachment_numeric(metadata, "heights", index),
+          "duration_ms" => attachment_numeric(metadata, "duration_ms", index)
+        }
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+      end)
+    end
+  end
+
+  def sender_payload(user) do
+    uri = "#{local_base_url()}/users/#{user.username}"
+    handle = "#{user.username}@#{local_domain()}"
+
+    %{
+      "id" => uri,
+      "uri" => uri,
       "username" => user.username,
       "display_name" => user.display_name || user.username,
       "domain" => local_domain(),
-      "handle" => "#{user.username}@#{local_domain()}"
+      "handle" => handle
     }
   end
 
@@ -140,6 +193,16 @@ defmodule Elektrine.Messaging.Federation.Utils do
     canonical_content_digest(to_string(content_digest))
   end
 
+  def normalize_media_urls(values) when is_list(values) do
+    values
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.take(10)
+  end
+
+  def normalize_media_urls(_values), do: []
+
   def server_federation_id(server_id) do
     "#{local_base_url()}/federation/messaging/servers/#{server_id}"
   end
@@ -156,16 +219,98 @@ defmodule Elektrine.Messaging.Federation.Utils do
     "#{local_base_url()}/federation/messaging/dms/#{conversation_id}"
   end
 
+  defp attachment_metadata_source(message) do
+    case Map.get(message, :media_metadata) do
+      %{} = metadata -> metadata
+      _ -> %{}
+    end
+  end
+
+  defp normalize_metadata_attachments(attachments) when is_list(attachments) do
+    attachments
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(fn attachment ->
+      attachment
+      |> Enum.reduce(%{}, fn {key, value}, acc ->
+        if is_nil(value), do: acc, else: Map.put(acc, to_string(key), value)
+      end)
+    end)
+    |> Enum.filter(fn attachment ->
+      is_binary(attachment["id"]) and
+        is_binary(attachment["url"]) and
+        is_binary(attachment["mime_type"])
+    end)
+  end
+
+  defp normalize_metadata_attachments(_attachments), do: []
+
+  defp attachment_id(metadata, url, index) do
+    attachment_text(metadata, "ids", index) ||
+      attachment_text(metadata, "attachment_ids", index) ||
+      "#{index}-#{:crypto.hash(:sha256, url) |> Base.url_encode64(padding: false)}"
+  end
+
+  defp attachment_mime_type(metadata, index) do
+    attachment_text(metadata, "mime_types", index) || "application/octet-stream"
+  end
+
+  defp attachment_authorization(metadata, index) do
+    attachment_text(metadata, "authorization", index) || "public"
+  end
+
+  defp attachment_retention(metadata, index) do
+    attachment_text(metadata, "retention", index) || "origin"
+  end
+
+  defp attachment_text(metadata, key, index) when is_map(metadata) and is_binary(key) do
+    case Map.get(metadata, key) do
+      %{} = values -> values[to_string(index)] || values[index]
+      values when is_list(values) -> Enum.at(values, index)
+      value when is_binary(value) and index == 0 -> value
+      _ -> nil
+    end
+    |> case do
+      value when is_binary(value) ->
+        trimmed = String.trim(value)
+        if trimmed == "", do: nil, else: trimmed
+
+      _ ->
+        nil
+    end
+  end
+
+  defp attachment_text(_metadata, _key, _index), do: nil
+
+  defp attachment_numeric(metadata, key, index) when is_map(metadata) and is_binary(key) do
+    case Map.get(metadata, key) do
+      %{} = values -> values[to_string(index)] || values[index]
+      values when is_list(values) -> Enum.at(values, index)
+      value when is_integer(value) and index == 0 -> value
+      _ -> nil
+    end
+    |> case do
+      value when is_integer(value) and value >= 0 -> value
+      _ -> nil
+    end
+  end
+
+  defp attachment_numeric(_metadata, _key, _index), do: nil
+
   def format_sender(nil) do
     nil
   end
 
   def format_sender(sender) do
+    uri = "#{local_base_url()}/users/#{sender.username}"
+    handle = "#{sender.username}@#{local_domain()}"
+
     %{
+      "id" => uri,
+      "uri" => uri,
       "username" => sender.username,
       "display_name" => sender.display_name || sender.username,
       "domain" => local_domain(),
-      "handle" => "#{sender.username}@#{local_domain()}"
+      "handle" => handle
     }
   end
 
@@ -208,8 +353,13 @@ defmodule Elektrine.Messaging.Federation.Utils do
   end
 
   def infer_remote_server_id(payload) when is_map(payload) do
-    payload_data = payload["payload"] || payload["data"] || %{}
-    server_id_from_data = get_in(payload_data, ["server", "id"]) |> extract_trailing_integer()
+    payload_data = payload["payload"] || %{}
+    refs = payload_data["refs"] || %{}
+
+    server_id_from_data =
+      (get_in(payload_data, ["server", "id"]) || refs["server_id"])
+      |> extract_trailing_integer()
+
     stream_id = payload["stream_id"]
 
     server_id_from_stream =

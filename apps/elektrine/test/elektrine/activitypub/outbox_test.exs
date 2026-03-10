@@ -12,6 +12,23 @@ defmodule Elektrine.ActivityPub.OutboxTest do
     }
   end
 
+  defp mock_message(attrs) do
+    defaults = %{
+      id: 1,
+      content: "Test post",
+      inserted_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      visibility: "public",
+      message_type: "text",
+      post_type: "post",
+      extracted_hashtags: [],
+      media_urls: [],
+      media_metadata: %{},
+      sensitive: false
+    }
+
+    struct(Elektrine.Messaging.Message, Map.merge(defaults, attrs))
+  end
+
   describe "EmojiReact activity builder" do
     test "builds correct EmojiReact activity structure" do
       user = mock_user()
@@ -49,6 +66,21 @@ defmodule Elektrine.ActivityPub.OutboxTest do
       assert undo["object"]["type"] == "Announce"
       assert undo["object"]["object"] == message_id
       assert String.contains?(undo["actor"], user.username)
+    end
+  end
+
+  describe "Note builder" do
+    test "serializes followers-only posts to the followers collection" do
+      user = mock_user("followersonly")
+      message = mock_message(%{visibility: "followers"})
+
+      note = Builder.build_note(message, user)
+
+      assert note["to"] == [
+               "#{Elektrine.ActivityPub.instance_url()}/users/#{user.username}/followers"
+             ]
+
+      refute "https://www.w3.org/ns/activitystreams#Public" in note["to"]
     end
   end
 

@@ -1221,7 +1221,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
                         <% end %>
                         <div>
                           <div class="font-medium text-sm">
-                            {actor.display_name || actor.username}
+                            {raw(ElektrineWeb.HtmlHelpers.render_actor_display_name(actor))}
                           </div>
                           <div class="text-xs opacity-50 sm:hidden">
                             @{actor.username}@{actor.domain}

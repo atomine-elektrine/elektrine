@@ -4,7 +4,10 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
   import Elektrine.AccountsFixtures
 
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.LikeHandler
+  alias Elektrine.Messaging
+  alias Elektrine.Repo
 
   describe "handle/3 - Like activity" do
     setup do
@@ -48,6 +51,32 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       # Should extract id from map and process
       result = LikeHandler.handle(activity, "https://remote.server/users/liker", nil)
       assert result == {:error, :handle_like_failed}
+    end
+
+    test "matches a cached federated post by activitypub URL variant" do
+      liker = remote_actor_fixture("liker")
+      author = remote_actor_fixture("author")
+      canonical_id = "https://remote.server/objects/#{System.unique_integer([:positive])}"
+      object_url = "#{canonical_id}/view"
+
+      assert {:ok, _message} =
+               Messaging.create_federated_message(%{
+                 content: "Remote post",
+                 visibility: "public",
+                 activitypub_id: canonical_id,
+                 activitypub_url: object_url,
+                 federated: true,
+                 remote_actor_id: author.id,
+                 inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               })
+
+      activity = %{
+        "type" => "Like",
+        "actor" => liker.uri,
+        "object" => object_url
+      }
+
+      assert {:ok, :liked} = LikeHandler.handle(activity, liker.uri, nil)
     end
   end
 
@@ -192,5 +221,21 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       result = LikeHandler.handle_undo_dislike(object, "https://remote.server/users/disliker")
       assert result == {:error, :undo_dislike_failed}
     end
+  end
+
+  defp remote_actor_fixture(label) do
+    unique_id = System.unique_integer([:positive])
+    username = "#{label}#{unique_id}"
+
+    %Actor{}
+    |> Actor.changeset(%{
+      uri: "https://remote.server/users/#{username}",
+      username: username,
+      domain: "remote.server",
+      inbox_url: "https://remote.server/users/#{username}/inbox",
+      public_key: "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
   end
 end

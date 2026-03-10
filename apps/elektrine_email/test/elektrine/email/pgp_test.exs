@@ -1,7 +1,10 @@
 defmodule Elektrine.Email.PGPTest do
   use Elektrine.DataCase
 
+  import ExUnit.CaptureLog
+
   alias Elektrine.Accounts
+  alias Elektrine.Email.Contact
   alias Elektrine.Email.PGP
   alias Elektrine.Email.PgpKeyCache
   alias Elektrine.Repo
@@ -56,6 +59,17 @@ defmodule Elektrine.Email.PGPTest do
     test "empty string produces valid hash" do
       hash = PGP.wkd_hash("")
       assert is_binary(hash)
+    end
+  end
+
+  describe "lookup_wkd/1" do
+    test "blocks unsafe WKD hosts before fetching" do
+      log =
+        capture_log(fn ->
+          assert {:error, :not_found} = PGP.lookup_wkd("user@127.0.0.1")
+        end)
+
+      assert log =~ "WKD: blocked unsafe lookup"
     end
   end
 
@@ -375,6 +389,75 @@ defmodule Elektrine.Email.PGPTest do
       # Should not crash with mixed case
       result = PGP.lookup_recipient_key("TEST@EXAMPLE.COM", user.id)
       assert {:error, :no_key} = result
+    end
+  end
+
+  describe "recipient_encryption_status/3" do
+    setup do
+      {:ok, sender} =
+        Accounts.create_user(%{
+          username: "statussender#{System.unique_integer([:positive])}",
+          password: "Test123456!",
+          password_confirmation: "Test123456!"
+        })
+
+      {:ok, local_user} =
+        Accounts.create_user(%{
+          username: "statuslocal#{System.unique_integer([:positive])}",
+          password: "Test123456!",
+          password_confirmation: "Test123456!"
+        })
+
+      local_user =
+        local_user
+        |> Ecto.Changeset.change(%{pgp_public_key: "local test key"})
+        |> Repo.update!()
+
+      contact =
+        %Contact{}
+        |> Contact.changeset(%{
+          user_id: sender.id,
+          name: "External Contact",
+          email: "contact#{System.unique_integer([:positive])}@example.com"
+        })
+        |> Ecto.Changeset.change(%{pgp_public_key: "contact test key"})
+        |> Repo.insert!()
+
+      %{sender: sender, local_user: local_user, contact: contact}
+    end
+
+    test "reports local users and contacts with keys as available", %{
+      sender: sender,
+      local_user: local_user,
+      contact: contact
+    } do
+      status =
+        PGP.recipient_encryption_status(
+          ["#{local_user.username}@elektrine.com", contact.email],
+          sender.id,
+          fetch_remote: false
+        )
+
+      assert status.can_encrypt?
+      assert status.available_count == 2
+      assert status.total_count == 2
+      assert status.missing_recipients == []
+    end
+
+    test "reports missing recipients without forcing WKD lookups", %{
+      sender: sender,
+      contact: contact
+    } do
+      status =
+        PGP.recipient_encryption_status(
+          [contact.email, "missing#{System.unique_integer([:positive])}@example.com"],
+          sender.id,
+          fetch_remote: false
+        )
+
+      refute status.can_encrypt?
+      assert status.available_count == 1
+      assert length(status.missing_recipients) == 1
     end
   end
 

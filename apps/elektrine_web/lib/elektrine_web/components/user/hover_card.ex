@@ -288,10 +288,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
   defp strip_html(nil), do: ""
 
   defp strip_html(html) when is_binary(html) do
-    html
-    |> String.replace(~r/<[^>]*>/, "")
-    |> String.replace(~r/&[a-zA-Z]+;/, " ")
-    |> String.trim()
+    ElektrineWeb.HtmlHelpers.plain_text_content(html)
   end
 
   defp strip_html(_), do: ""

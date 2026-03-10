@@ -130,8 +130,11 @@ defmodule ElektrineWeb.Endpoint do
     paths: [
       "/webhook/stripe",
       "/federation/messaging/events",
+      "/federation/messaging/events/batch",
+      "/federation/messaging/ephemeral",
       "/federation/messaging/sync"
-    ]
+    ],
+    suffixes: ["/inbox"]
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

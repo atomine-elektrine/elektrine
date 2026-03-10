@@ -311,7 +311,7 @@ defmodule Elektrine.Accounts do
 
   defdelegate authenticate_user(username, password), to: Authentication
   defdelegate verify_user_password(user, password), to: Authentication
-  defdelegate update_user_password(user, attrs), to: Authentication
+  defdelegate update_user_password(user, attrs, opts \\ []), to: Authentication
   defdelegate change_user_password(user, attrs \\ %{}), to: Authentication
 
   # Two-Factor Authentication

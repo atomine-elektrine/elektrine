@@ -28,6 +28,7 @@ defmodule ElektrineWeb.AuthLive.Login do
           bare={true}
           phx-hook="FormSubmit"
           id="login-form"
+          data-private-mailbox-login-form="true"
         >
           <.input
             field={f[:username]}

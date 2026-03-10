@@ -185,8 +185,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
   end
 
   # Updates the reply content as the user types.
+  def handle_event("update_reply_content", %{"value" => content}, socket) do
+    {:noreply, update_reply_content(socket, content)}
+  end
+
   def handle_event("update_reply_content", %{"content" => content}, socket) do
-    {:noreply, assign(socket, :reply_content, content)}
+    {:noreply, update_reply_content(socket, content)}
   end
 
   def handle_event("load_remote_replies", %{"post_id" => post_id}, socket) do
@@ -199,12 +203,16 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
         else
           send(self(), {:refresh_remote_replies, normalized_post_id, 1})
 
+          manual_loading_set = socket.assigns[:manual_loading_remote_replies] || MapSet.new()
+
           {:noreply,
-           assign(
-             socket,
-             :loading_remote_replies,
-             MapSet.put(loading_set, normalized_post_id)
-           )}
+           socket
+           |> assign(:loading_remote_replies, MapSet.put(loading_set, normalized_post_id))
+           |> assign(
+             :manual_loading_remote_replies,
+             MapSet.put(manual_loading_set, normalized_post_id)
+           )
+           |> Helpers.refresh_filtered_post(normalized_post_id)}
         end
 
       {:error, :invalid_id} ->
@@ -259,6 +267,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
     |> Enum.sort_by(&reply_inserted_at_unix/1, :desc)
     |> Enum.take(3)
     |> Enum.reverse()
+  end
+
+  defp update_reply_content(socket, content) do
+    active_post_id = socket.assigns.reply_to_post && socket.assigns.reply_to_post.id
+
+    socket
+    |> assign(:reply_content, content)
+    |> Helpers.refresh_filtered_post(active_post_id)
   end
 
   defp query_recent_replies(message_id) do

@@ -280,7 +280,7 @@ defmodule ElektrineWeb.VPNAPIController do
   - public_key: WireGuard public key
 
   Optional params:
-  - country_code, city, endpoint_port, internal_ip_range, dns_servers
+  - country_code, city, endpoint_host, endpoint_port, client_mtu, internal_ip_range, dns_servers
 
   Returns server_id and api_key for future authentication.
   """
@@ -300,10 +300,12 @@ defmodule ElektrineWeb.VPNAPIController do
             name: params["name"],
             location: params["location"],
             public_ip: public_ip,
+            endpoint_host: params["endpoint_host"],
             public_key: params["public_key"],
             country_code: params["country_code"],
             city: params["city"],
             endpoint_port: params["endpoint_port"],
+            client_mtu: params["client_mtu"],
             internal_ip_range: params["internal_ip_range"],
             dns_servers: params["dns_servers"]
           }

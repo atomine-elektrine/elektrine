@@ -275,14 +275,15 @@
                           class="block group"
                         >
                           <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-                            <%= if post.title do %>
+                            <% pinned_title = plain_text_content(post.title) %>
+                            <%= if pinned_title != "" do %>
                               <h3 class="font-semibold text-sm line-clamp-1 text-[var(--profile-text)]">
-                                {post.title}
+                                {pinned_title}
                               </h3>
                             <% end %>
-                            <%= if post.content && post.content != "" do %>
+                            <%= if plain_text_preview(post.content, 80) != "" do %>
                               <p class="text-sm line-clamp-2 mt-1 text-[var(--profile-text)] opacity-70">
-                                {String.slice(post.content, 0..80)}
+                                {plain_text_preview(post.content, 80)}
                               </p>
                             <% end %>
                           </div>
@@ -307,10 +308,7 @@
                         # Get the actual content source - use shared_message for boosts
                         content_source = if is_boost, do: post.shared_message, else: post
 
-                        display_content =
-                          if content_source.content && String.trim(content_source.content) != "",
-                            do: content_source.content,
-                            else: ""
+                        display_content = plain_text_preview(content_source.content, 140)
 
                         # Check for media on the content source
                         has_media =
@@ -425,9 +423,9 @@
                                   />
                                   {quote_author}
                                 </div>
-                                <%= if quoted.content && quoted.content != "" do %>
+                                <%= if plain_text_preview(quoted.content, 120) != "" do %>
                                   <p class="text-xs line-clamp-2 text-[var(--profile-text)] opacity-80">
-                                    {quoted.content}
+                                    {plain_text_preview(quoted.content, 120)}
                                   </p>
                                 <% else %>
                                   <p class="text-xs text-[var(--profile-text)] opacity-60">
@@ -519,7 +517,7 @@
                             Elektrine.Messaging.discussion_post_path(
                               community_name,
                               post.id,
-                              post.title || post.content
+                              plain_text_content(post.title || post.content)
                             )
                           ) %>
                         <.link href={discussion_url} class="block group">
@@ -527,13 +525,14 @@
                             <div class="text-xs mb-1 font-medium text-[var(--profile-accent)]">
                               {community_name}
                             </div>
-                            <%= if post.title do %>
+                            <% discussion_title = plain_text_content(post.title) %>
+                            <%= if discussion_title != "" do %>
                               <p class="text-sm font-medium line-clamp-1 text-[var(--profile-text)]">
-                                {post.title}
+                                {discussion_title}
                               </p>
                             <% else %>
                               <p class="text-sm line-clamp-1 text-[var(--profile-text)] opacity-80">
-                                {post.content}
+                                {plain_text_preview(post.content, 80)}
                               </p>
                             <% end %>
                           </div>
@@ -1554,14 +1553,15 @@
                       class="block"
                     >
                       <div class="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-                        <%= if post.title do %>
+                        <% pinned_title = plain_text_content(post.title) %>
+                        <%= if pinned_title != "" do %>
                           <h3 class="font-semibold text-sm line-clamp-1 text-[var(--profile-text)]">
-                            {post.title}
+                            {pinned_title}
                           </h3>
                         <% end %>
-                        <%= if post.content && post.content != "" do %>
+                        <%= if plain_text_preview(post.content, 80) != "" do %>
                           <p class="text-sm line-clamp-2 mt-1 text-[var(--profile-text)] opacity-70">
-                            {String.slice(post.content, 0..80)}
+                            {plain_text_preview(post.content, 80)}
                           </p>
                         <% end %>
                       </div>
@@ -1583,10 +1583,7 @@
 
                   content_source = if is_boost, do: post.shared_message, else: post
 
-                  display_content =
-                    if content_source.content && String.trim(content_source.content) != "",
-                      do: content_source.content,
-                      else: ""
+                  display_content = plain_text_preview(content_source.content, 140)
 
                   has_media = content_source.media_urls && !Enum.empty?(content_source.media_urls)
 
@@ -1668,9 +1665,9 @@
                             />
                             {quote_author}
                           </div>
-                          <%= if quoted.content && quoted.content != "" do %>
+                          <%= if plain_text_preview(quoted.content, 120) != "" do %>
                             <p class="text-xs line-clamp-2 text-[var(--profile-text)] opacity-80">
-                              {quoted.content}
+                              {plain_text_preview(quoted.content, 120)}
                             </p>
                           <% else %>
                             <p class="text-xs text-[var(--profile-text)] opacity-60">

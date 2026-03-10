@@ -100,6 +100,49 @@ defmodule ElektrineWeb.HtmlHelpers do
     ""
   end
 
+  @doc """
+  Converts possibly-HTML content into plain text for preview and title surfaces.
+
+  Handles malformed trailing tags and decodes common HTML entities.
+  """
+  def plain_text_content(nil), do: ""
+  def plain_text_content(""), do: ""
+
+  def plain_text_content(content) when is_binary(content) do
+    content
+    |> String.replace(~r/<br\s*\/?>/i, " ")
+    |> String.replace(~r/<\/p>/i, " ")
+    |> String.replace(~r/<p[^>]*>/i, " ")
+    |> String.replace(~r/<[^>]*>/, " ")
+    |> String.replace(~r/<\/?[A-Za-z][^>]*\z/, " ")
+    |> HtmlEntities.decode()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+  rescue
+    _ ->
+      content
+      |> HtmlSanitizeEx.strip_tags()
+      |> HtmlEntities.decode()
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+  end
+
+  def plain_text_content(_), do: ""
+
+  @doc """
+  Returns a truncated plain-text preview for possibly-HTML content.
+  """
+  def plain_text_preview(content, max_length \\ 200)
+
+  def plain_text_preview(content, max_length)
+      when is_integer(max_length) and max_length >= 0 do
+    content
+    |> plain_text_content()
+    |> String.slice(0, max_length)
+  end
+
+  def plain_text_preview(content, _max_length), do: plain_text_content(content)
+
   @doc ~s|Converts URLs in already-escaped HTML to clickable links.\n\nIMPORTANT: Only call this on already-escaped content!\n|
   def linkify_urls(escaped_html) when is_binary(escaped_html) do
     url_pattern = ~r/(https?:\/\/[^\s&<>]+)/
@@ -350,6 +393,96 @@ defmodule ElektrineWeb.HtmlHelpers do
   def render_display_name_with_emojis(_, _instance_domain) do
     ""
   end
+
+  @doc """
+  Renders an ActivityPub actor or community display name with custom emojis.
+  Falls back to username when the stored display name is blank or URL-like.
+  """
+  def render_actor_display_name(actor_or_name, instance_domain \\ nil)
+
+  def render_actor_display_name(actor, instance_domain) when is_map(actor) do
+    render_display_name_with_emojis(
+      actor_display_name_text(actor),
+      actor_domain(actor) || instance_domain
+    )
+  end
+
+  def render_actor_display_name(display_name, instance_domain) when is_binary(display_name) do
+    render_display_name_with_emojis(display_name, instance_domain)
+  end
+
+  def render_actor_display_name(_, instance_domain) do
+    render_display_name_with_emojis("", instance_domain)
+  end
+
+  @doc """
+  Returns the best plain-text display name for an ActivityPub actor or community.
+  """
+  def actor_display_name_text(actor_or_name)
+
+  def actor_display_name_text(actor) when is_map(actor) do
+    display_name =
+      normalize_actor_display_name(
+        Map.get(actor, :display_name) || Map.get(actor, "display_name") ||
+          Map.get(actor, :name) || Map.get(actor, "name")
+      )
+
+    username =
+      normalize_actor_display_name(
+        Map.get(actor, :username) || Map.get(actor, "username") ||
+          Map.get(actor, :handle) || Map.get(actor, "handle")
+      )
+
+    cond do
+      display_name && !url_like_actor_display_name?(display_name) ->
+        display_name
+
+      username ->
+        username
+
+      true ->
+        display_name || ""
+    end
+  end
+
+  def actor_display_name_text(value) when is_binary(value) do
+    normalize_actor_display_name(value) || ""
+  end
+
+  def actor_display_name_text(_), do: ""
+
+  defp actor_domain(actor) when is_map(actor) do
+    Map.get(actor, :domain) || Map.get(actor, "domain")
+  end
+
+  defp actor_domain(_), do: nil
+
+  defp normalize_actor_display_name(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_actor_display_name(_), do: nil
+
+  defp url_like_actor_display_name?(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case URI.parse(trimmed) do
+      %URI{scheme: scheme, host: host}
+      when is_binary(scheme) and scheme != "" and is_binary(host) and host != "" ->
+        true
+
+      %URI{path: path} when is_binary(path) ->
+        String.starts_with?(path, "/remote/")
+
+      _ ->
+        false
+    end
+  end
+
+  defp url_like_actor_display_name?(_), do: false
 
   @doc ~s|Ensures a URL uses HTTPS instead of HTTP to prevent mixed content warnings.\nReturns nil if the input is nil.\n\n## Examples\n\n    iex> ensure_https(\"http://example.com/image.png\")\n    \"https://example.com/image.png\"\n\n    iex> ensure_https(\"https://example.com/image.png\")\n    \"https://example.com/image.png\"\n\n    iex> ensure_https(nil)\n    nil\n|
   def ensure_https(nil) do

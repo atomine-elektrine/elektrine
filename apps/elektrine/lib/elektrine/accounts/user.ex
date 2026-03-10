@@ -4,9 +4,6 @@ defmodule Elektrine.Accounts.User do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
-  @default_preferred_email_domain Application.compile_env(:elektrine, :email, [])
-                                  |> Keyword.get(:domain, "elektrine.com")
-
   schema "users" do
     # Authentication
     field :username, :string
@@ -93,7 +90,7 @@ defmodule Elektrine.Accounts.User do
 
     # Email Settings
     field :email_signature, :string
-    field :preferred_email_domain, :string, default: @default_preferred_email_domain
+    field :preferred_email_domain, :string
 
     # Email Sending Restrictions (anti-spam)
     field :email_sending_restricted, :boolean, default: false
@@ -173,6 +170,7 @@ defmodule Elektrine.Accounts.User do
     |> generate_unique_id()
     |> assign_initial_handle()
     |> put_display_name_from_username()
+    |> maybe_put_default_preferred_email_domain()
     |> hash_password()
   end
 
@@ -199,6 +197,7 @@ defmodule Elektrine.Accounts.User do
     |> generate_unique_id()
     |> assign_initial_handle()
     |> put_display_name_from_username()
+    |> maybe_put_default_preferred_email_domain()
     |> hash_password()
   end
 
@@ -210,6 +209,22 @@ defmodule Elektrine.Accounts.User do
   end
 
   defp hash_password(changeset), do: changeset
+
+  defp validate_preferred_email_domain(changeset, user) do
+    case get_field(changeset, :preferred_email_domain) do
+      nil ->
+        changeset
+
+      preferred_domain ->
+        allowed_domains = Elektrine.Domains.available_email_domains_for_user(user)
+
+        if preferred_domain in allowed_domains do
+          changeset
+        else
+          add_error(changeset, :preferred_email_domain, "must be one of your available domains")
+        end
+    end
+  end
 
   # Generate a unique ID for the user
   defp generate_unique_id(changeset) do
@@ -350,11 +365,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_inclusion(:default_post_visibility, ["public", "followers", "friends", "private"])
     |> validate_inclusion(:locale, ~w(en zh), message: "is not a supported locale")
     |> validate_inclusion(:time_format, ~w(12 24), message: "must be 12 or 24")
-    |> validate_inclusion(
-      :preferred_email_domain,
-      Elektrine.Domains.supported_email_domains(),
-      message: "must be one of the configured domains"
-    )
+    |> validate_preferred_email_domain(user)
     |> validate_bluesky_settings()
   end
 
@@ -382,7 +393,29 @@ defmodule Elektrine.Accounts.User do
     |> validate_required([:username, :password_hash])
     |> validate_length(:username, min: 2, max: 30)
     |> validate_format(:username, ~r/^[a-zA-Z0-9]+$/, message: "only letters and numbers allowed")
+    |> maybe_put_default_preferred_email_domain()
     |> unique_constraint(:username)
+  end
+
+  defp maybe_put_default_preferred_email_domain(changeset) do
+    case get_field(changeset, :preferred_email_domain) do
+      nil ->
+        put_change(
+          changeset,
+          :preferred_email_domain,
+          Elektrine.Domains.default_user_handle_domain()
+        )
+
+      "" ->
+        put_change(
+          changeset,
+          :preferred_email_domain,
+          Elektrine.Domains.default_user_handle_domain()
+        )
+
+      _ ->
+        changeset
+    end
   end
 
   @doc """
@@ -900,7 +933,7 @@ defmodule Elektrine.Accounts.User do
 
     user
     |> cast(%{}, [])
-    |> put_change(:password_reset_token, token)
+    |> put_change(:password_reset_token, hash_sensitive_token(token))
     |> put_change(:password_reset_token_expires_at, expires_at)
   end
 
@@ -936,6 +969,13 @@ defmodule Elektrine.Accounts.User do
 
   def valid_password_reset_token?(%__MODULE__{password_reset_token_expires_at: expires_at}) do
     DateTime.compare(DateTime.utc_now(), expires_at) == :lt
+  end
+
+  @doc """
+  Hashes one-time recovery tokens before they are stored.
+  """
+  def hash_sensitive_token(token) when is_binary(token) do
+    :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
   end
 
   @doc """

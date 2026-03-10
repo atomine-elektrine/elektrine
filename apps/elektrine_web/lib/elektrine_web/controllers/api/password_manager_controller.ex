@@ -54,23 +54,24 @@ defmodule ElektrineWeb.API.PasswordManagerController do
     user = conn.assigns.current_user
     attrs = Map.get(params, "entry", params)
 
-    with {:ok, attrs} <- decode_encrypted_params(attrs) do
-      case PasswordManager.create_entry(user.id, attrs) do
-        {:ok, entry} ->
-          Response.created(conn, %{entry: format_entry(entry)})
+    case decode_encrypted_params(attrs) do
+      {:ok, attrs} ->
+        case PasswordManager.create_entry(user.id, attrs) do
+          {:ok, entry} ->
+            Response.created(conn, %{entry: format_entry(entry)})
 
-        {:error, :vault_not_configured} ->
-          Response.error(
-            conn,
-            :precondition_required,
-            "vault_not_configured",
-            "Vault is not configured"
-          )
+          {:error, :vault_not_configured} ->
+            Response.error(
+              conn,
+              :precondition_required,
+              "vault_not_configured",
+              "Vault is not configured"
+            )
 
-        {:error, changeset} ->
-          {:error, changeset}
-      end
-    else
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+
       {:error, :bad_request} ->
         Response.error(conn, :bad_request, "invalid_payload", "Invalid entry payload")
     end

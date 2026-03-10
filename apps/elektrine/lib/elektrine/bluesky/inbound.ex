@@ -56,9 +56,21 @@ defmodule Elektrine.Bluesky.Inbound do
       with {:ok, session} <- Bluesky.session_for_user(user),
            {:ok, payload} <- list_notifications(session, user.bluesky_inbound_cursor),
            {:ok, notification_result} <-
-             process_notifications(user, payload["notifications"] || []),
-           {:ok, feed_result} <- sync_feed_posts(user, session) do
+             process_notifications(user, payload["notifications"] || []) do
         update_poll_tracking(user.id, payload["cursor"])
+
+        feed_result =
+          case sync_feed_posts(user, session) do
+            {:ok, result} ->
+              result
+
+            {:error, reason} ->
+              Logger.warning(
+                "Bluesky inbound feed sync failed for user #{user.id}/#{user.username}: #{inspect(reason)}"
+              )
+
+              %{synced_feed_posts: 0}
+          end
 
         {:ok,
          %{

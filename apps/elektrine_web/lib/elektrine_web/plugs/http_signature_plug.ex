@@ -17,6 +17,9 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
 
   alias Elektrine.ActivityPub.SigningKey
 
+  @default_signature_max_age_seconds 300
+  @default_signature_clock_skew_seconds 300
+
   def init(opts), do: opts
 
   # Skip if already validated
@@ -67,13 +70,21 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
     case build_signing_string(conn, headers_list, signature_params) do
       {:ok, signing_string} ->
         if SigningKey.verify(signing_key, signing_string, signature) do
-          # Load the associated user or remote actor
-          actor = load_actor_for_key(signing_key)
+          case validate_signature_constraints(conn, headers_list, signature_params) do
+            :ok ->
+              # Load the associated user or remote actor
+              actor = load_actor_for_key(signing_key)
 
-          conn
-          |> assign(:valid_signature, true)
-          |> assign(:signature_actor, actor)
-          |> assign(:signing_key, signing_key)
+              conn
+              |> assign(:valid_signature, true)
+              |> assign(:signature_actor, actor)
+              |> assign(:signing_key, signing_key)
+
+            {:error, reason} ->
+              conn
+              |> assign(:valid_signature, false)
+              |> assign(:signature_error, reason)
+          end
         else
           Logger.info("Signature verification failed for key #{signing_key.key_id}")
 
@@ -98,12 +109,20 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
         case build_signing_string(conn, headers_list, signature_params) do
           {:ok, signing_string} ->
             if SigningKey.verify(refreshed_key, signing_string, signature) do
-              actor = load_actor_for_key(refreshed_key)
+              case validate_signature_constraints(conn, headers_list, signature_params) do
+                :ok ->
+                  actor = load_actor_for_key(refreshed_key)
 
-              conn
-              |> assign(:valid_signature, true)
-              |> assign(:signature_actor, actor)
-              |> assign(:signing_key, refreshed_key)
+                  conn
+                  |> assign(:valid_signature, true)
+                  |> assign(:signature_actor, actor)
+                  |> assign(:signing_key, refreshed_key)
+
+                {:error, reason} ->
+                  conn
+                  |> assign(:valid_signature, false)
+                  |> assign(:signature_error, reason)
+              end
             else
               Logger.warning("Signature verification failed even after key refresh")
 
@@ -234,5 +253,212 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
       value when is_binary(value) and value != "" -> {:ok, value}
       _ -> {:error, :missing}
     end
+  end
+
+  defp validate_signature_constraints(conn, headers_list, signature_params) do
+    with :ok <- validate_signature_timing(conn, headers_list, signature_params) do
+      validate_request_digest(conn, headers_list)
+    end
+  end
+
+  defp validate_signature_timing(conn, headers_list, signature_params) do
+    cond do
+      "(created)" in headers_list or "(expires)" in headers_list ->
+        validate_created_expires(signature_params)
+
+      "date" in headers_list ->
+        validate_date_header(conn)
+
+      true ->
+        {:error, :missing_signature_timestamp}
+    end
+  end
+
+  defp validate_created_expires(signature_params) do
+    now = DateTime.utc_now()
+    max_age_seconds = signature_max_age_seconds()
+    clock_skew_seconds = signature_clock_skew_seconds()
+
+    with {:ok, created_at} <- parse_optional_unix_timestamp(signature_params, "created"),
+         {:ok, expires_at} <- parse_optional_unix_timestamp(signature_params, "expires"),
+         :ok <- validate_created_timestamp(now, created_at, max_age_seconds, clock_skew_seconds),
+         :ok <- validate_expires_timestamp(now, expires_at, clock_skew_seconds) do
+      validate_created_before_expires(created_at, expires_at)
+    end
+  end
+
+  defp validate_date_header(conn) do
+    now = DateTime.utc_now()
+    max_age_seconds = signature_max_age_seconds()
+    clock_skew_seconds = signature_clock_skew_seconds()
+
+    case get_req_header(conn, "date") do
+      [date_header | _] ->
+        with {:ok, date_time} <- parse_http_date(date_header),
+             diff_seconds <- DateTime.diff(now, date_time, :second),
+             true <- diff_seconds <= max_age_seconds,
+             true <- diff_seconds >= -clock_skew_seconds do
+          :ok
+        else
+          false ->
+            {:error, :stale_signature}
+
+          {:error, _reason} ->
+            {:error, :invalid_signature_date}
+        end
+
+      [] ->
+        {:error, :missing_signature_timestamp}
+    end
+  end
+
+  defp validate_created_timestamp(_now, nil, _max_age_seconds, _clock_skew_seconds), do: :ok
+
+  defp validate_created_timestamp(now, created_at, max_age_seconds, clock_skew_seconds) do
+    cond do
+      DateTime.diff(created_at, now, :second) > clock_skew_seconds ->
+        {:error, :signature_not_yet_valid}
+
+      DateTime.diff(now, created_at, :second) > max_age_seconds ->
+        {:error, :stale_signature}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_expires_timestamp(_now, nil, _clock_skew_seconds), do: :ok
+
+  defp validate_expires_timestamp(now, expires_at, clock_skew_seconds) do
+    if DateTime.diff(now, expires_at, :second) > clock_skew_seconds do
+      {:error, :signature_expired}
+    else
+      :ok
+    end
+  end
+
+  defp validate_created_before_expires(nil, _expires_at), do: :ok
+  defp validate_created_before_expires(_created_at, nil), do: :ok
+
+  defp validate_created_before_expires(created_at, expires_at) do
+    if DateTime.compare(created_at, expires_at) == :gt do
+      {:error, :invalid_signature_window}
+    else
+      :ok
+    end
+  end
+
+  defp parse_optional_unix_timestamp(signature_params, key) do
+    case Map.get(signature_params, key) do
+      nil ->
+        {:ok, nil}
+
+      value when is_binary(value) ->
+        parse_unix_timestamp(value)
+
+      value when is_integer(value) ->
+        DateTime.from_unix(value)
+
+      _ ->
+        {:error, :invalid_signature_timestamp}
+    end
+  end
+
+  defp parse_unix_timestamp(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {unix_seconds, ""} -> DateTime.from_unix(unix_seconds)
+      _ -> {:error, :invalid_signature_timestamp}
+    end
+  end
+
+  defp parse_http_date(value) when is_binary(value) do
+    case :httpd_util.convert_request_date(String.to_charlist(value)) do
+      {{year, month, day}, {hour, minute, second}} ->
+        NaiveDateTime.new(year, month, day, hour, minute, second)
+        |> case do
+          {:ok, naive} -> {:ok, DateTime.from_naive!(naive, "Etc/UTC")}
+          {:error, reason} -> {:error, reason}
+        end
+
+      _ ->
+        {:error, :invalid_signature_date}
+    end
+  rescue
+    _ -> {:error, :invalid_signature_date}
+  end
+
+  defp validate_request_digest(conn, headers_list) do
+    if request_body_expected?(conn) or "digest" in headers_list do
+      if "digest" in headers_list do
+        validate_digest_header(conn)
+      else
+        {:error, :missing_digest_in_signature}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp request_body_expected?(%Plug.Conn{method: method}) do
+    method in ["POST", "PUT", "PATCH"]
+  end
+
+  defp validate_digest_header(conn) do
+    case get_req_header(conn, "digest") do
+      [digest_header | _] ->
+        with {:ok, expected_digest} <- extract_sha256_digest(digest_header),
+             {:ok, raw_body} <- raw_body(conn) do
+          actual_digest = Base.encode64(:crypto.hash(:sha256, raw_body))
+
+          if Plug.Crypto.secure_compare(expected_digest, actual_digest) do
+            :ok
+          else
+            {:error, :digest_mismatch}
+          end
+        end
+
+      [] ->
+        {:error, :missing_digest_header}
+    end
+  end
+
+  defp extract_sha256_digest(header_value) when is_binary(header_value) do
+    header_value
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.find_value(fn entry ->
+      case String.split(entry, "=", parts: 2) do
+        [algorithm, value] ->
+          if String.upcase(String.trim(algorithm)) == "SHA-256" do
+            {:ok, String.trim(value)}
+          else
+            nil
+          end
+
+        _ ->
+          nil
+      end
+    end)
+    |> case do
+      {:ok, digest} when digest != "" -> {:ok, digest}
+      _ -> {:error, :unsupported_digest_algorithm}
+    end
+  end
+
+  defp raw_body(conn) do
+    case conn.assigns[:raw_body] || conn.private[:cached_body] do
+      body when is_binary(body) -> {:ok, body}
+      _ -> {:error, :missing_raw_body}
+    end
+  end
+
+  defp signature_max_age_seconds do
+    Application.get_env(:elektrine, :activitypub, [])
+    |> Keyword.get(:signature_max_age_seconds, @default_signature_max_age_seconds)
+  end
+
+  defp signature_clock_skew_seconds do
+    Application.get_env(:elektrine, :activitypub, [])
+    |> Keyword.get(:signature_clock_skew_seconds, @default_signature_clock_skew_seconds)
   end
 end

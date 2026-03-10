@@ -218,6 +218,65 @@ defmodule Elektrine.BlueskyManagedTest do
     assert Enum.count(requests) == 2
     assert Enum.at(requests, 0).url =~ "/xrpc/com.atproto.server.createSession"
     assert Enum.at(requests, 1).url =~ "/xrpc/com.atproto.server.createAppPassword"
+
+    session_payload =
+      Enum.at(requests, 0).body
+      |> Jason.decode!()
+
+    assert session_payload["password"] == "old-app-password"
+  end
+
+  test "reconnect_for_user falls back to the current password when the stored app password is stale" do
+    user = user_fixture()
+
+    {:ok, user} =
+      Accounts.update_user(user, %{
+        "bluesky_enabled" => true,
+        "bluesky_identifier" => "did:plc:testdid",
+        "bluesky_app_password" => "stale-app-password",
+        "bluesky_pds_url" => "https://pds.example.com"
+      })
+
+    from(u in User, where: u.id == ^user.id)
+    |> Repo.update_all(set: [bluesky_did: "did:plc:testdid"])
+
+    MockHTTPClient.put_responses([
+      {:ok, %Finch.Response{status: 401, body: Jason.encode!(%{"error" => "Unauthorized"})}},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "accessJwt" => "jwt-reconnect",
+             "did" => "did:plc:testdid",
+             "handle" => "#{user.username}.bsky.example.com"
+           })
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"name" => "elektrine", "password" => "app-password-2"})
+       }}
+    ])
+
+    assert {:ok, %{user: updated_user, did: "did:plc:testdid"}} =
+             Managed.reconnect_for_user(user, valid_user_password())
+
+    assert updated_user.bluesky_app_password == "app-password-2"
+
+    requests = MockHTTPClient.requests()
+    assert Enum.count(requests) == 3
+
+    first_session_payload =
+      Enum.at(requests, 0).body
+      |> Jason.decode!()
+
+    second_session_payload =
+      Enum.at(requests, 1).body
+      |> Jason.decode!()
+
+    assert first_session_payload["password"] == "stale-app-password"
+    assert second_session_payload["password"] == valid_user_password()
   end
 
   test "reconnect_for_user uses a unique app password name on each reconnect" do

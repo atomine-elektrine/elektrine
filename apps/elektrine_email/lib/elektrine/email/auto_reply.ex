@@ -141,7 +141,7 @@ defmodule Elektrine.Email.AutoReply do
     mailbox = Elektrine.Email.get_user_mailbox(user_id)
 
     own_addresses =
-      Elektrine.Domains.local_addresses_for_username(user.username)
+      Elektrine.Domains.email_addresses_for_user(user)
       |> Enum.map(&String.downcase/1)
       |> case do
         addresses when is_map(mailbox) -> [String.downcase(mailbox.email) | addresses]

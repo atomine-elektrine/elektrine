@@ -4,6 +4,7 @@ defmodule Elektrine.Email.PGP do
   alias Elektrine.Email.Contact
   alias Elektrine.Email.PgpKeyCache
   alias Elektrine.Repo
+  alias Elektrine.Security.URLValidator
   import Ecto.Query
   import Bitwise
   require Logger
@@ -112,38 +113,85 @@ defmodule Elektrine.Email.PGP do
     end
   end
 
-  @doc "Looks up a PGP public key for an email address.\nFirst checks cache, then contacts, then WKD.\n"
-  def lookup_key(email) when is_binary(email) do
-    clean_email = String.downcase(String.trim(email))
+  @doc "Looks up a PGP public key for an email address.\nChecks local users, then cache, then optional WKD.\n"
+  def lookup_key(email, opts \\ [])
 
-    case get_cached_key(clean_email) do
+  def lookup_key(email, opts) when is_binary(email) and is_list(opts) do
+    clean_email = String.downcase(String.trim(email))
+    fetch_remote = Keyword.get(opts, :fetch_remote, true)
+
+    case get_local_user_key_by_email(clean_email) do
       {:ok, key} ->
         {:ok, key}
 
-      {:not_found, _} ->
-        {:error, :no_key}
-
-      :miss ->
-        case lookup_wkd(clean_email) do
+      {:error, :no_key} ->
+        case get_cached_key(clean_email) do
           {:ok, key} ->
-            cache_key(clean_email, key, "wkd")
             {:ok, key}
 
-          {:error, _reason} ->
-            cache_not_found(clean_email)
+          {:not_found, _} ->
             {:error, :no_key}
+
+          :miss ->
+            if fetch_remote do
+              case lookup_wkd(clean_email) do
+                {:ok, key} ->
+                  cache_key(clean_email, key, "wkd")
+                  {:ok, key}
+
+                {:error, _reason} ->
+                  cache_not_found(clean_email)
+                  {:error, :no_key}
+              end
+            else
+              {:error, :no_key}
+            end
         end
     end
   end
 
   @doc "Looks up a recipient's key, checking user's contacts first.\n"
-  def lookup_recipient_key(email, user_id) when is_binary(email) do
+  def lookup_recipient_key(email, user_id, opts \\ [])
+
+  def lookup_recipient_key(email, user_id, opts) when is_binary(email) and is_list(opts) do
     clean_email = String.downcase(String.trim(email))
 
     case get_contact_key_by_email(clean_email, user_id) do
       {:ok, key} -> {:ok, key}
-      {:error, :no_key} -> lookup_key(clean_email)
+      {:error, :no_key} -> lookup_key(clean_email, opts)
     end
+  end
+
+  @doc "Looks up keys for a list of recipients and returns available and missing recipients.\n"
+  def lookup_recipient_keys(recipients, user_id, opts \\ []) when is_list(recipients) do
+    recipients
+    |> normalize_recipients()
+    |> Enum.reduce(%{available: %{}, missing: []}, fn recipient, acc ->
+      case lookup_recipient_key(recipient, user_id, opts) do
+        {:ok, key} ->
+          %{acc | available: Map.put(acc.available, recipient, key)}
+
+        {:error, _reason} ->
+          %{acc | missing: acc.missing ++ [recipient]}
+      end
+    end)
+  end
+
+  @doc "Returns a compose-friendly encryption status for a recipient list.\n"
+  def recipient_encryption_status(recipients, user_id, opts \\ []) when is_list(recipients) do
+    normalized_recipients = normalize_recipients(recipients)
+
+    %{available: available, missing: missing} =
+      lookup_recipient_keys(normalized_recipients, user_id, opts)
+
+    %{
+      recipients: normalized_recipients,
+      available_recipients: Map.keys(available),
+      missing_recipients: missing,
+      available_count: map_size(available),
+      total_count: length(normalized_recipients),
+      can_encrypt?: normalized_recipients != [] and missing == []
+    }
   end
 
   defp get_contact_key_by_email(email, user_id) do
@@ -160,6 +208,24 @@ defmodule Elektrine.Email.PGP do
       nil -> {:error, :no_key}
       key -> {:ok, key}
     end
+  end
+
+  defp get_local_user_key_by_email(email) do
+    case get_key_by_email(email) do
+      {:ok, key} -> {:ok, key}
+      {:error, _reason} -> {:error, :no_key}
+    end
+  end
+
+  defp normalize_recipients(recipients) do
+    recipients
+    |> Enum.map(fn
+      email when is_binary(email) -> String.downcase(String.trim(email))
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
   end
 
   @doc "Performs a Web Key Directory (WKD) lookup for an email address.\nImplements the advanced method as per draft-koch-openpgp-webkey-service.\n"
@@ -195,19 +261,29 @@ defmodule Elektrine.Email.PGP do
   end
 
   defp fetch_wkd_key(url) do
-    headers = [{"Accept", "application/octet-stream"}, {"User-Agent", "Elektrine-WKD-Client/1.0"}]
-    request = Finch.build(:get, url, headers)
+    with :ok <- URLValidator.validate(url) do
+      headers = [
+        {"Accept", "application/octet-stream"},
+        {"User-Agent", "Elektrine-WKD-Client/1.0"}
+      ]
 
-    case Finch.request(request, Elektrine.Finch, receive_timeout: @wkd_timeout) do
-      {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) > 0 ->
-        armored = armor_public_key(body)
-        {:ok, armored}
+      request = Finch.build(:get, url, headers)
 
-      {:ok, %Finch.Response{status: status}} ->
-        {:error, {:http_error, status}}
+      case Finch.request(request, Elektrine.Finch, receive_timeout: @wkd_timeout) do
+        {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) > 0 ->
+          armored = armor_public_key(body)
+          {:ok, armored}
 
+        {:ok, %Finch.Response{status: status}} ->
+          {:error, {:http_error, status}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
       {:error, reason} ->
-        {:error, reason}
+        Logger.warning("WKD: blocked unsafe lookup to #{url}: #{inspect(reason)}")
+        {:error, {:unsafe_url, reason}}
     end
   end
 
@@ -444,65 +520,33 @@ defmodule Elektrine.Email.PGP do
     {:error, :invalid_length}
   end
 
-  @doc "Encrypts a message using the recipient's PGP public key.\nUses GPG command-line tool for encryption.\nReturns {:ok, encrypted_armor} or {:error, reason}\n"
+  @doc "Encrypts a message using one or more recipient public keys.\nUses GPG command-line tool for encryption.\nReturns {:ok, encrypted_armor} or {:error, reason}\n"
   def encrypt(plaintext, public_key_armor)
       when is_binary(plaintext) and is_binary(public_key_armor) do
-    key_file = System.tmp_dir!() |> Path.join("pgp_key_#{:rand.uniform(1_000_000)}.asc")
-    input_file = System.tmp_dir!() |> Path.join("pgp_input_#{:rand.uniform(1_000_000)}.txt")
-    keyring_dir = System.tmp_dir!() |> Path.join("pgp_keyring_#{:rand.uniform(1_000_000)}")
+    encrypt(plaintext, [public_key_armor])
+  end
 
-    try do
-      File.write!(key_file, public_key_armor)
-      File.write!(input_file, plaintext)
-      File.mkdir_p!(keyring_dir)
+  def encrypt(plaintext, public_key_armors)
+      when is_binary(plaintext) and is_list(public_key_armors) do
+    normalized_keys =
+      public_key_armors
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
 
-      {_output, import_status} =
-        System.cmd("gpg", ["--homedir", keyring_dir, "--batch", "--yes", "--import", key_file],
-          stderr_to_stdout: true
-        )
+    cond do
+      plaintext == "" ->
+        {:error, :empty_plaintext}
 
-      if import_status != 0 do
-        {:error, :key_import_failed}
-      else
-        {output, encrypt_status} =
-          System.cmd(
-            "gpg",
-            [
-              "--homedir",
-              keyring_dir,
-              "--batch",
-              "--yes",
-              "--trust-model",
-              "always",
-              "--armor",
-              "--encrypt",
-              "--recipient-file",
-              key_file,
-              input_file
-            ],
-            stderr_to_stdout: true
-          )
+      normalized_keys == [] ->
+        {:error, :no_recipient_keys}
 
-        encrypted_file = input_file <> ".asc"
+      not gpg_available?() ->
+        {:error, :gpg_unavailable}
 
-        if encrypt_status == 0 and File.exists?(encrypted_file) do
-          encrypted = File.read!(encrypted_file)
-          File.rm(encrypted_file)
-          {:ok, encrypted}
-        else
-          Logger.error("PGP encryption failed: #{output}")
-          {:error, :encryption_failed}
-        end
-      end
-    rescue
-      e ->
-        Logger.error("PGP encryption error: #{inspect(e)}")
-        {:error, :encryption_error}
-    after
-      File.rm(key_file)
-      File.rm(input_file)
-      File.rm(input_file <> ".asc")
-      File.rm_rf(keyring_dir)
+      true ->
+        encrypt_with_gpg(plaintext, normalized_keys)
     end
   end
 
@@ -536,6 +580,11 @@ defmodule Elektrine.Email.PGP do
       {:error, _} ->
         params
     end
+  end
+
+  @doc "Returns true when the `gpg` executable is available on this node.\n"
+  def gpg_available? do
+    match?(path when is_binary(path), System.find_executable("gpg"))
   end
 
   @doc "Converts binary key data to ASCII armor format.\n"
@@ -580,5 +629,76 @@ defmodule Elektrine.Email.PGP do
   def cleanup_expired_cache do
     query = from(c in PgpKeyCache, where: c.expires_at < ^DateTime.utc_now())
     Repo.delete_all(query)
+  end
+
+  defp encrypt_with_gpg(plaintext, public_key_armors) do
+    temp_dir = Path.join(System.tmp_dir!(), "pgp_encrypt_#{System.unique_integer([:positive])}")
+    input_file = Path.join(temp_dir, "message.txt")
+    encrypted_file = input_file <> ".asc"
+
+    try do
+      File.mkdir_p!(temp_dir)
+      File.write!(input_file, plaintext)
+
+      key_files =
+        public_key_armors
+        |> Enum.with_index()
+        |> Enum.map(fn {armor, index} ->
+          key_file = Path.join(temp_dir, "recipient_#{index}.asc")
+          File.write!(key_file, armor)
+          key_file
+        end)
+
+      case import_keys(temp_dir, key_files) do
+        :ok ->
+          encrypt_args =
+            [
+              "--homedir",
+              temp_dir,
+              "--batch",
+              "--yes",
+              "--trust-model",
+              "always",
+              "--armor",
+              "--encrypt"
+            ] ++ Enum.flat_map(key_files, &["--recipient-file", &1]) ++ [input_file]
+
+          {output, encrypt_status} =
+            System.cmd("gpg", encrypt_args, stderr_to_stdout: true)
+
+          if encrypt_status == 0 and File.exists?(encrypted_file) do
+            {:ok, File.read!(encrypted_file)}
+          else
+            Logger.error("PGP encryption failed: #{output}")
+            {:error, :encryption_failed}
+          end
+
+        {:error, output} ->
+          Logger.error("PGP key import failed: #{output}")
+          {:error, :key_import_failed}
+      end
+    rescue
+      e ->
+        Logger.error("PGP encryption error: #{inspect(e)}")
+        {:error, :encryption_error}
+    after
+      File.rm_rf(temp_dir)
+    end
+  end
+
+  defp import_keys(homedir, key_files) do
+    Enum.reduce_while(key_files, :ok, fn key_file, _acc ->
+      case System.cmd(
+             "gpg",
+             ["--homedir", homedir, "--batch", "--yes", "--import", key_file],
+             stderr_to_stdout: true
+           ) do
+        {_output, 0} ->
+          {:cont, :ok}
+
+        {output, _status} ->
+          {:halt, {:error, output}}
+      end
+    end)
   end
 end

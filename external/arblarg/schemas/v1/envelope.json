@@ -1,8 +1,94 @@
 {
+  "$id": "arblarg://schemas/1.0/envelope",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/envelope",
-  "title": "Arblarg Event Envelope",
-  "type": "object",
+  "properties": {
+    "event_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "event_type": {
+      "enum": [
+        "urn:arblarg:ext:bootstrap:1#server.upsert",
+        "message.create",
+        "message.update",
+        "message.delete",
+        "reaction.add",
+        "reaction.remove",
+        "read.cursor",
+        "membership.upsert",
+        "invite.upsert",
+        "ban.upsert",
+        "urn:arblarg:ext:roles:1#role.upsert",
+        "urn:arblarg:ext:roles:1#role.assignment.upsert",
+        "urn:arblarg:ext:permissions:1#overwrite.upsert",
+        "urn:arblarg:ext:threads:1#thread.upsert",
+        "urn:arblarg:ext:threads:1#thread.archive",
+        "urn:arblarg:ext:presence:1#presence.update",
+        "urn:arblarg:ext:presence:1#typing.start",
+        "urn:arblarg:ext:presence:1#typing.stop",
+        "urn:arblarg:ext:moderation:1#action.recorded",
+        "urn:arblarg:ext:dm:1#message.create"
+      ],
+      "type": "string"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "origin_domain": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "protocol": {
+      "const": "arblarg",
+      "type": "string"
+    },
+    "protocol_id": {
+      "const": "arblarg",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1.0",
+      "type": "string"
+    },
+    "sent_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "signature": {
+      "properties": {
+        "algorithm": {
+          "const": "ed25519",
+          "type": "string"
+        },
+        "key_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "key_id",
+        "value"
+      ],
+      "type": "object"
+    },
+    "stream_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
   "required": [
     "protocol",
     "protocol_id",
@@ -17,86 +103,6 @@
     "payload",
     "signature"
   ],
-  "properties": {
-    "protocol": {
-      "type": "string",
-      "const": "arblarg"
-    },
-    "protocol_id": {
-      "type": "string",
-      "const": "arbp"
-    },
-    "protocol_version": {
-      "type": "string",
-      "const": "1.0"
-    },
-    "event_type": {
-      "type": "string",
-      "enum": [
-        "message.create",
-        "urn:arbp:ext:bootstrap:1#server.upsert",
-        "message.update",
-        "message.delete",
-        "reaction.add",
-        "reaction.remove",
-        "read.receipt",
-        "urn:arbp:ext:roles:1#role.upsert",
-        "urn:arbp:ext:roles:1#role.assignment.upsert",
-        "urn:arbp:ext:permissions:1#overwrite.upsert",
-        "urn:arbp:ext:threads:1#thread.upsert",
-        "urn:arbp:ext:threads:1#thread.archive",
-        "urn:arbp:ext:presence:1#presence.update",
-        "urn:arbp:ext:moderation:1#action.recorded"
-      ]
-    },
-    "event_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "origin_domain": {
-      "type": "string",
-      "minLength": 1
-    },
-    "stream_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "sequence": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "sent_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "idempotency_key": {
-      "type": "string",
-      "minLength": 1
-    },
-    "payload": {
-      "type": "object"
-    },
-    "signature": {
-      "type": "object",
-      "required": [
-        "algorithm",
-        "key_id",
-        "value"
-      ],
-      "properties": {
-        "algorithm": {
-          "type": "string",
-          "const": "ed25519"
-        },
-        "key_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "value": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    }
-  }
+  "title": "Arblarg Event Envelope",
+  "type": "object"
 }

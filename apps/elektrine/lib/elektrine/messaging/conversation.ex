@@ -205,8 +205,8 @@ defmodule Elektrine.Messaging.Conversation do
       is_binary(name) and String.trim(name) != "" ->
         name
 
-      is_binary(federated_source) and String.starts_with?(federated_source, "arbp:dm:") ->
-        "@" <> String.replace_prefix(federated_source, "arbp:dm:", "")
+      is_binary(federated_source) and String.starts_with?(federated_source, "arblarg:dm:") ->
+        "@" <> String.replace_prefix(federated_source, "arblarg:dm:", "")
 
       true ->
         "Unknown User"

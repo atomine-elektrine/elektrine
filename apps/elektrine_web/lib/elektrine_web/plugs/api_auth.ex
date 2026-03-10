@@ -127,7 +127,7 @@ defmodule ElektrineWeb.Plugs.APIAuth do
     with {:ok, %{user_id: user_id, timestamp: timestamp, signature: signature, data: data}} <-
            parse_token(token),
          true <- verify_signature(data, signature),
-         false <- token_revoked?(token) do
+         {:ok, false} <- token_revoked?(token) do
       now = System.system_time(:second)
       token_age = now - timestamp
 
@@ -148,7 +148,7 @@ defmodule ElektrineWeb.Plugs.APIAuth do
       end
     else
       false -> {:error, :invalid_signature}
-      true -> {:error, :token_revoked}
+      {:ok, true} -> {:error, :token_revoked}
       {:error, reason} -> {:error, reason}
       _ -> {:error, :invalid_token}
     end
@@ -192,15 +192,14 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   defp token_revoked?(token) do
     case Repo.get_by(APITokenRevocation, token_hash: token_hash(token)) do
       %APITokenRevocation{expires_at: expires_at} ->
-        DateTime.compare(expires_at, DateTime.utc_now()) == :gt
+        {:ok, DateTime.compare(expires_at, DateTime.utc_now()) == :gt}
 
       _ ->
-        false
+        {:ok, false}
     end
   rescue
     _ ->
-      # During rolling deploys before migration, fail open rather than 500.
-      false
+      {:error, :revocation_lookup_failed}
   end
 
   defp token_hash(token) do

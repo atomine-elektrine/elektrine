@@ -8,6 +8,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   alias Elektrine.Social.Drafts
   alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
+  alias ElektrineWeb.TimelineLive.ReplyContextPreviews
   alias ElektrineWeb.TimelineLive.Operations.Helpers
 
   def handle_event("toggle_post_composer", _params, socket) do
@@ -365,7 +366,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     if post do
       report_metadata = %{
         "sender_id" => post.sender_id,
-        "content_preview" => String.slice(post.content || "", 0, 100),
+        "content_preview" => ElektrineWeb.HtmlHelpers.plain_text_preview(post.content, 100),
         "source" => "timeline"
       }
 
@@ -909,6 +910,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     |> assign(:timeline_posts, updated_timeline_posts)
     |> Helpers.apply_timeline_filter()
     |> maybe_queue_remote_data_fetch(more_posts)
+    |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
     |> maybe_schedule_reply_ingestion_jobs(more_posts)
   end
@@ -924,6 +926,16 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
   defp maybe_queue_remote_data_fetch(socket, posts) do
     if timeline_remote_enrichment_enabled?() && posts != [] do
       send(self(), {:load_remote_data, posts})
+    end
+
+    socket
+  end
+
+  defp maybe_queue_reply_context_preview_fetch(socket, posts) do
+    refs = ReplyContextPreviews.candidate_refs(posts)
+
+    if refs != [] do
+      send(self(), {:load_reply_context_previews, refs})
     end
 
     socket

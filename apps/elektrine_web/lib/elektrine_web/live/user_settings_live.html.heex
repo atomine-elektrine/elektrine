@@ -2111,7 +2111,7 @@
                     name="user[preferred_email_domain]"
                     class="select select-bordered w-full"
                   >
-                    <%= for domain <- Elektrine.Domains.supported_email_domains() do %>
+                    <%= for domain <- Elektrine.Domains.available_email_domains_for_user(@user) do %>
                       <option
                         value={domain}
                         selected={
@@ -2165,6 +2165,281 @@
                   </.button>
                 </div>
               </.form>
+            </div>
+          </div>
+
+          <div
+            id="private-mailbox-settings"
+            phx-hook="MailboxPrivateStorage"
+            class="card glass-card shadow-lg"
+            data-private-mailbox-configured={to_string(@private_mailbox_configured)}
+            data-private-mailbox-enabled={to_string(@private_mailbox_enabled)}
+            data-private-mailbox-unlock-mode={@private_mailbox_unlock_mode}
+            data-private-mailbox-id={@primary_mailbox && @primary_mailbox.id}
+            data-private-mailbox-wrapped-key={
+              encode_payload(@private_mailbox_wrapped_private_key)
+            }
+            data-private-mailbox-verifier={encode_payload(@private_mailbox_verifier)}
+          >
+            <div class="card-body p-4 sm:p-6">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                    <.icon name="hero-shield-check" class="w-5 h-5" />
+                    {gettext("Private Mailbox Storage")}
+                  </h3>
+                  <p class="text-xs sm:text-sm text-base-content/70 mt-1">
+                    {gettext(
+                      "Store protected email with a browser-generated mailbox key. By default, the key is wrapped with your account password so the mailbox can unlock after password login."
+                    )}
+                  </p>
+                </div>
+
+                <div class={[
+                  "badge",
+                  if(@private_mailbox_enabled, do: "badge-success", else: "badge-outline")
+                ]}>
+                  <%= if @private_mailbox_enabled do %>
+                    {gettext("Active")}
+                  <% else %>
+                    {gettext("Inactive")}
+                  <% end %>
+                </div>
+              </div>
+
+              <%= if @primary_mailbox do %>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mt-4">
+                  <div class="rounded-xl border border-base-300 bg-base-200/40 p-4 space-y-4">
+                    <%= if @private_mailbox_configured do %>
+                      <div>
+                        <h4 class="font-semibold text-sm">{gettext("Unlock Mailbox")}</h4>
+                        <p
+                          class="text-xs text-base-content/70 mt-1"
+                          data-private-mailbox-locked-content
+                        >
+                          <%= if @private_mailbox_unlock_mode == "account_password" do %>
+                            {gettext(
+                              "This mailbox uses your account password by default. Password logins can unlock it automatically in this tab, and passkey or remembered sessions can unlock it with your account password."
+                            )}
+                          <% else %>
+                            {gettext(
+                              "Unlock once per browser tab with your separate mailbox passphrase to view protected message content."
+                            )}
+                          <% end %>
+                        </p>
+                      </div>
+
+                      <div class="space-y-3" data-private-mailbox-locked-content>
+                        <input
+                          type="password"
+                          class="input input-bordered w-full"
+                          placeholder={
+                            if @private_mailbox_unlock_mode == "account_password",
+                              do: gettext("Enter account password"),
+                              else: gettext("Enter mailbox passphrase")
+                          }
+                          autocomplete="current-password"
+                          data-private-mailbox-passphrase
+                        />
+
+                        <div class="flex flex-col sm:flex-row gap-2">
+                          <button
+                            type="button"
+                            class="btn btn-primary btn-sm flex-1"
+                            data-private-mailbox-unlock
+                          >
+                            {gettext("Unlock")}
+                          </button>
+                        </div>
+
+                        <p class="text-xs text-base-content/70" data-private-mailbox-status>
+                          {gettext("Mailbox locked.")}
+                        </p>
+                      </div>
+
+                      <div
+                        class="hidden rounded-xl border border-success/30 bg-success/10 p-3"
+                        data-private-mailbox-unlocked-content
+                      >
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p class="text-sm text-base-content/80" data-private-mailbox-status>
+                            {gettext("Mailbox unlocked in this tab.")}
+                          </p>
+                          <button
+                            type="button"
+                            class="btn btn-outline btn-sm"
+                            data-private-mailbox-lock
+                          >
+                            {gettext("Lock")}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="divider my-2"></div>
+
+                      <div class="flex flex-col sm:flex-row gap-2">
+                        <%= if @private_mailbox_enabled do %>
+                          <button
+                            type="button"
+                            phx-click="disable_private_mailbox"
+                            class="btn btn-outline btn-sm flex-1"
+                          >
+                            {gettext("Pause Protection")}
+                          </button>
+                        <% else %>
+                          <button
+                            type="button"
+                            phx-click="enable_private_mailbox"
+                            class="btn btn-primary btn-sm flex-1"
+                          >
+                            {gettext("Resume Protection")}
+                          </button>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <div>
+                        <h4 class="font-semibold text-sm">{gettext("Set Up Private Mailbox")}</h4>
+                        <p class="text-xs text-base-content/70 mt-1">
+                          {gettext(
+                            "Generate a mailbox keypair in this browser, then choose whether to wrap it with your account password or a separate mailbox passphrase."
+                          )}
+                        </p>
+                      </div>
+
+                      <.form
+                        for={%{}}
+                        phx-submit="private_mailbox_setup"
+                        data-private-mailbox-setup-form
+                      >
+                        <div class="space-y-3">
+                          <div class="space-y-2">
+                            <label class="label py-0">
+                              <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
+                                {gettext("Unlock method")}
+                              </span>
+                            </label>
+                            <select
+                              name="private_mailbox[unlock_mode]"
+                              class="select select-bordered w-full"
+                              data-private-mailbox-setup-mode
+                            >
+                              <option value="account_password" selected>
+                                {gettext("Use account password")}
+                              </option>
+                              <option value="separate_passphrase">
+                                {gettext("Use separate mailbox passphrase")}
+                              </option>
+                            </select>
+                          </div>
+
+                          <div
+                            class="space-y-3"
+                            data-private-mailbox-account-password-fields
+                          >
+                            <input
+                              type="password"
+                              name="private_mailbox[current_account_password]"
+                              class="input input-bordered w-full"
+                              placeholder={gettext("Current account password")}
+                              autocomplete="current-password"
+                              data-private-mailbox-account-password
+                            />
+                            <p class="text-xs text-base-content/60">
+                              {gettext(
+                                "Recommended. This makes password login the default unlock path. Passkey and remembered sessions can still unlock manually with your account password."
+                              )}
+                            </p>
+                          </div>
+
+                          <div
+                            class="space-y-3 hidden"
+                            data-private-mailbox-custom-passphrase-fields
+                          >
+                            <input
+                              type="password"
+                              name="_private_mailbox_passphrase"
+                              class="input input-bordered w-full"
+                              placeholder={gettext("New mailbox passphrase")}
+                              autocomplete="new-password"
+                              data-private-mailbox-setup-passphrase
+                            />
+                            <input
+                              type="password"
+                              name="_private_mailbox_passphrase_confirm"
+                              class="input input-bordered w-full"
+                              placeholder={gettext("Confirm passphrase")}
+                              autocomplete="new-password"
+                              data-private-mailbox-setup-passphrase-confirm
+                            />
+                            <p class="text-xs text-base-content/60">
+                              {gettext(
+                                "Choose this only if you want mailbox unlock to stay separate from account login."
+                              )}
+                            </p>
+                          </div>
+
+                          <input
+                            type="hidden"
+                            name="private_mailbox[wrapped_private_key]"
+                            data-private-mailbox-wrapped-key-input
+                          />
+                          <input
+                            type="hidden"
+                            name="private_mailbox[public_key]"
+                            data-private-mailbox-public-key-input
+                          />
+                          <input
+                            type="hidden"
+                            name="private_mailbox[verifier]"
+                            data-private-mailbox-verifier-input
+                          />
+
+                          <button
+                            type="button"
+                            class="btn btn-primary btn-sm w-full"
+                            data-private-mailbox-setup-submit
+                          >
+                            {gettext("Enable Private Storage")}
+                          </button>
+                        </div>
+                      </.form>
+                    <% end %>
+                  </div>
+
+                  <div class="rounded-xl border border-base-300 bg-base-200/40 p-4">
+                    <h4 class="font-semibold text-sm mb-3">{gettext("What is protected")}</h4>
+                    <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm text-base-content/70">
+                      <li>
+                        {gettext(
+                          "Stored message subjects, bodies, and attachments are encrypted at rest."
+                        )}
+                      </li>
+                      <li>
+                        {gettext(
+                          "The browser unlocks content locally after password login or after you enter the mailbox unlock secret in this tab."
+                        )}
+                      </li>
+                      <li>
+                        {gettext(
+                          "Search previews stay generic until you unlock the mailbox in this tab."
+                        )}
+                      </li>
+                      <li>
+                        {gettext(
+                          "Normal SMTP headers like From, To, CC, and BCC are still stored as standard metadata."
+                        )}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              <% else %>
+                <div class="alert alert-info mt-4">
+                  <.icon name="hero-information-circle" class="w-5 h-5" />
+                  <span class="text-sm">
+                    {gettext("Create a mailbox first before enabling private storage.")}
+                  </span>
+                </div>
+              <% end %>
             </div>
           </div>
           

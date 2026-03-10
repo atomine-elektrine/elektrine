@@ -10,6 +10,7 @@ defmodule Elektrine.Messaging.FederationPresenceState do
     field :status, :string
     field :activities, :map, default: %{}
     field :updated_at_remote, :utc_datetime
+    field :expires_at_remote, :utc_datetime
 
     belongs_to :server, Elektrine.Messaging.Server
     belongs_to :remote_actor, Elektrine.ActivityPub.Actor
@@ -25,6 +26,7 @@ defmodule Elektrine.Messaging.FederationPresenceState do
       :status,
       :activities,
       :updated_at_remote,
+      :expires_at_remote,
       :server_id,
       :remote_actor_id
     ])

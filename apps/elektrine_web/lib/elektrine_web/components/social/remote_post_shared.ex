@@ -116,6 +116,7 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
   attr :textarea_hook, :string, default: nil
   attr :textarea_mounted, :any, default: nil
   attr :textarea_update, :string, default: nil
+  attr :live_update_event, :string, default: nil
   attr :required, :boolean, default: true
   attr :hidden_fields, :list, default: []
   attr :show_counter, :boolean, default: false
@@ -125,9 +126,14 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
   def inline_reply_form(assigns) do
     content_length = String.length(assigns.content || "")
 
+    live_update_event =
+      assigns.live_update_event ||
+        if(assigns.textarea_hook == "AutoExpandTextarea", do: assigns.on_change)
+
     assigns =
       assigns
       |> assign(:content_length, content_length)
+      |> assign(:live_update_event, live_update_event)
       |> assign(
         :submit_disabled,
         is_integer(assigns.content_min) && content_length < assigns.content_min
@@ -151,6 +157,7 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
           phx-hook={@textarea_hook}
           phx-mounted={@textarea_mounted}
           phx-update={@textarea_update}
+          data-live-update-event={@live_update_event}
           required={@required}
         ><%= @content %></textarea>
         <div class="flex gap-2 justify-end">

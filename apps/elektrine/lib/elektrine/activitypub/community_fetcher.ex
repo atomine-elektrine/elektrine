@@ -33,7 +33,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
   @impl true
   def handle_info(:fetch_community_posts, state) do
     # Get all followed Group actors
-    followed_communities = get_followed_communities()
+    followed_communities = followed_communities_fun().()
 
     # Only process a limited number per cycle to avoid pool exhaustion
     communities_to_fetch = Enum.take(followed_communities, @max_communities_per_cycle)
@@ -42,7 +42,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
     Enum.each(communities_to_fetch, fn community_actor ->
       fetch_and_store_community_posts(community_actor)
       # Add delay between communities to avoid HTTP pool exhaustion
-      Process.sleep(@delay_between_fetches)
+      sleep_fun().(@delay_between_fetches)
     end)
 
     # Schedule next fetch
@@ -74,24 +74,35 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
   defp fetch_and_store_community_posts(community_actor) do
     # Use the same timeline fetching we use for remote users
     # This works for both Person and Group actors
-    case ActivityPub.fetch_remote_user_timeline(community_actor.id, limit: 20) do
+    case activitypub_module().fetch_remote_user_timeline(community_actor.id, limit: 20) do
       {:ok, posts} ->
         # Store each post if we don't have it
         Enum.each(posts, fn post_object ->
           post_id = post_object["id"]
 
           unless post_already_exists?(post_id) do
+            # Community outboxes contain posts authored by member actors, not the Group itself.
+            actor_uri = post_actor_uri(post_object, community_actor.uri)
+
             # Store using the handler (same as remote user posts)
-            case Handler.store_remote_post(post_object, community_actor.uri) do
-              {:ok, message} ->
+            case handler_module().store_remote_post(post_object, actor_uri) do
+              {:ok, %Elektrine.Messaging.Message{} = message} ->
                 # Mark it as from the followed community.
                 # Do not copy raw "audience" values because many posts use Public there.
-                Elektrine.Messaging.update_message(message, %{
+                messaging_module().update_message(message, %{
                   media_metadata:
                     Map.merge(message.media_metadata || %{}, %{
                       "community_actor_uri" => community_actor.uri
                     })
                 })
+
+              {:ok, :unauthorized} ->
+                Logger.warning(
+                  "Skipping unauthorized community post #{inspect(post_id)} from #{community_actor.uri}"
+                )
+
+              {:ok, _status} ->
+                :ok
 
               {:error, _reason} ->
                 :ok
@@ -107,6 +118,36 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
   end
 
   defp post_already_exists?(activitypub_id) do
-    Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) != nil
+    messaging_module().get_message_by_activitypub_id(activitypub_id) != nil
+  end
+
+  defp post_actor_uri(post_object, fallback_uri) when is_map(post_object) do
+    post_object["actor"] || post_object["attributedTo"] || fallback_uri
+  end
+
+  defp post_actor_uri(_post_object, fallback_uri), do: fallback_uri
+
+  defp followed_communities_fun do
+    Keyword.get(community_fetcher_config(), :followed_communities, &get_followed_communities/0)
+  end
+
+  defp activitypub_module do
+    Keyword.get(community_fetcher_config(), :activitypub, ActivityPub)
+  end
+
+  defp handler_module do
+    Keyword.get(community_fetcher_config(), :handler, Handler)
+  end
+
+  defp messaging_module do
+    Keyword.get(community_fetcher_config(), :messaging, Elektrine.Messaging)
+  end
+
+  defp sleep_fun do
+    Keyword.get(community_fetcher_config(), :sleep, &Process.sleep/1)
+  end
+
+  defp community_fetcher_config do
+    Application.get_env(:elektrine, :community_fetcher, [])
   end
 end

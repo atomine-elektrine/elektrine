@@ -1,57 +1,57 @@
 {
+  "$id": "arblarg://schemas/1.0/role.upsert",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "arbp://schemas/1.0/role.upsert",
-  "title": "Arblarg role.upsert payload",
-  "type": "object",
-  "required": [
-    "server",
-    "channel",
-    "role"
-  ],
   "properties": {
-    "server": {
-      "type": "object"
-    },
     "channel": {
       "type": "object"
     },
     "role": {
-      "type": "object",
-      "required": [
-        "id",
-        "name",
-        "permissions",
-        "position"
-      ],
       "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "permissions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "position": {
-          "type": "integer",
-          "minimum": 0
-        },
         "color": {
           "type": "string"
         },
         "hoist": {
           "type": "boolean"
         },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
         "mentionable": {
           "type": "boolean"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "permissions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "position": {
+          "minimum": 0,
+          "type": "integer"
         }
-      }
+      },
+      "required": [
+        "id",
+        "name",
+        "permissions",
+        "position"
+      ],
+      "type": "object"
+    },
+    "server": {
+      "type": "object"
     }
-  }
+  },
+  "required": [
+    "server",
+    "channel",
+    "role"
+  ],
+  "title": "Arblarg role.upsert payload",
+  "type": "object"
 }

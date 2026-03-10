@@ -176,10 +176,7 @@ defmodule ElektrineWeb.Components.Social.RSSItem do
   defp strip_html(nil), do: ""
 
   defp strip_html(html) when is_binary(html) do
-    html
-    |> String.replace(~r/<[^>]+>/, " ")
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
+    ElektrineWeb.HtmlHelpers.plain_text_content(html)
   end
 
   defp sanitize_html(text) when is_binary(text) do

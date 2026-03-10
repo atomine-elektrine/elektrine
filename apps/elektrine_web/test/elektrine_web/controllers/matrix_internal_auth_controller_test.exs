@@ -9,7 +9,29 @@ defmodule ElektrineWeb.MatrixInternalAuthControllerTest do
   alias Elektrine.Auth.RateLimiter, as: AuthRateLimiter
   alias Elektrine.Repo
 
+  setup %{conn: conn} do
+    previous_api_key = System.get_env("PHOENIX_API_KEY")
+    api_key = "test-matrix-internal-api-key"
+
+    System.put_env("PHOENIX_API_KEY", api_key)
+
+    on_exit(fn ->
+      if is_nil(previous_api_key) do
+        System.delete_env("PHOENIX_API_KEY")
+      else
+        System.put_env("PHOENIX_API_KEY", previous_api_key)
+      end
+    end)
+
+    {:ok, conn: authorize(conn, api_key), api_key: api_key}
+  end
+
   describe "POST /_matrix-internal/identity/v1/check_credentials" do
+    test "requires the internal API key" do
+      conn = post(build_conn(), "/_matrix-internal/identity/v1/check_credentials", %{})
+      assert conn.status == 401
+    end
+
     test "returns success for valid credentials", %{conn: conn} do
       user = user_fixture()
 
@@ -164,7 +186,7 @@ defmodule ElektrineWeb.MatrixInternalAuthControllerTest do
       assert status.locked == true
     end
 
-    test "applies API rate limiting to matrix internal auth endpoint" do
+    test "applies API rate limiting to matrix internal auth endpoint", %{api_key: api_key} do
       ip_tuple = {203, 0, 113, 77}
       limiter_key = "ip:203.0.113.77"
 
@@ -177,6 +199,7 @@ defmodule ElektrineWeb.MatrixInternalAuthControllerTest do
       Enum.each(1..60, fn _ ->
         request_conn =
           build_conn()
+          |> authorize(api_key)
           |> Map.put(:remote_ip, ip_tuple)
           |> post("/_matrix-internal/identity/v1/check_credentials", %{})
 
@@ -185,10 +208,15 @@ defmodule ElektrineWeb.MatrixInternalAuthControllerTest do
 
       limited_conn =
         build_conn()
+        |> authorize(api_key)
         |> Map.put(:remote_ip, ip_tuple)
         |> post("/_matrix-internal/identity/v1/check_credentials", %{})
 
       assert limited_conn.status == 429
     end
+  end
+
+  defp authorize(conn, api_key) do
+    put_req_header(conn, "x-api-key", api_key)
   end
 end

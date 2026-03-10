@@ -117,7 +117,8 @@ defmodule ElektrineWeb.API.EmailController do
           subject: Map.get(email_params, "subject", ""),
           text_body: Map.get(email_params, "text_body") || Map.get(email_params, "body", ""),
           cc: Map.get(email_params, "cc"),
-          bcc: Map.get(email_params, "bcc")
+          bcc: Map.get(email_params, "bcc"),
+          encryption_mode: Map.get(email_params, "encryption_mode")
         }
         |> Enum.reject(fn {_, v} -> is_nil(v) || v == "" end)
         |> Map.new()

@@ -6,6 +6,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   require Logger
 
   alias Elektrine.ActivityPub
+  alias Elektrine.Async
   alias Elektrine.Messaging
 
   @doc """
@@ -18,7 +19,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
         with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
           case Messaging.create_federated_boost(message.id, remote_actor.id) do
             {:ok, _} ->
-              Task.start(fn ->
+              Async.run(fn ->
                 Elektrine.Notifications.FederationNotifications.notify_remote_announce(
                   message.id,
                   remote_actor.id
@@ -301,7 +302,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
         get_message_by_id(id)
 
       true ->
-        case Messaging.get_message_by_activitypub_id(uri) do
+        case Messaging.get_message_by_activitypub_ref(uri) do
           nil -> {:error, :message_not_found}
           message -> {:ok, message}
         end

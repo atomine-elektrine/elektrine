@@ -28,7 +28,12 @@ defmodule Elektrine.BlueskyTest do
       case Process.get(:bluesky_mock_responses, []) do
         [next | rest] ->
           Process.put(:bluesky_mock_responses, rest)
-          next
+
+          cond do
+            is_function(next, 1) -> next.(request)
+            is_function(next, 0) -> next.()
+            true -> next
+          end
 
         [] ->
           {:error, :no_mock_response}
@@ -115,6 +120,85 @@ defmodule Elektrine.BlueskyTest do
     assert record_payload["text"] == "hello bluesky"
   end
 
+  test "re-reads the message state before mirroring a stale struct" do
+    user = bluesky_user_fixture()
+    message = post_fixture(%{user: user, visibility: "public", content: "hello twice"})
+
+    MockHTTPClient.put_responses([
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"accessJwt" => "jwt_token", "did" => "did:plc:testdid"})
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "uri" => "at://did:plc:testdid/app.bsky.feed.post/once",
+             "cid" => "bafycid-once"
+           })
+       }}
+    ])
+
+    assert :ok = Bluesky.mirror_post(message)
+
+    MockHTTPClient.clear_requests()
+
+    assert {:skipped, :already_mirrored} = Bluesky.mirror_post(message)
+    assert MockHTTPClient.requests() == []
+  end
+
+  test "skips stale deleted posts before mirroring" do
+    user = bluesky_user_fixture()
+    message = post_fixture(%{user: user, visibility: "public", content: "delete me"})
+
+    from(m in Message, where: m.id == ^message.id)
+    |> Repo.update_all(set: [deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)])
+
+    assert {:skipped, :already_deleted} = Bluesky.mirror_post(message)
+    assert MockHTTPClient.requests() == []
+  end
+
+  test "cleans up created remote posts if the message is deleted during publish" do
+    user = bluesky_user_fixture()
+    message = post_fixture(%{user: user, visibility: "public", content: "race cleanup"})
+
+    MockHTTPClient.put_responses([
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"accessJwt" => "jwt_token", "did" => "did:plc:testdid"})
+       }},
+      fn _request ->
+        from(m in Message, where: m.id == ^message.id)
+        |> Repo.update_all(set: [deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)])
+
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "uri" => "at://did:plc:testdid/app.bsky.feed.post/race1",
+               "cid" => "racecid1"
+             })
+         }}
+      end,
+      {:ok, %Finch.Response{status: 200, body: "{}"}}
+    ])
+
+    assert {:skipped, :already_deleted} = Bluesky.mirror_post(message)
+
+    requests = MockHTTPClient.requests()
+    assert Enum.count(requests) == 3
+    assert Enum.at(requests, 1).url =~ "/xrpc/com.atproto.repo.createRecord"
+    assert Enum.at(requests, 2).url =~ "/xrpc/com.atproto.repo.deleteRecord"
+
+    reloaded_message = Repo.get!(Message, message.id)
+    assert is_nil(reloaded_message.bluesky_uri)
+    assert is_nil(reloaded_message.bluesky_cid)
+  end
+
   test "skips replies when parent is not mirrored yet" do
     user = bluesky_user_fixture()
     parent = post_fixture(%{user: user, visibility: "public", content: "parent"})
@@ -191,7 +275,13 @@ defmodule Elektrine.BlueskyTest do
         content: "post with media",
         media_urls: [first_key, second_key]
       })
-      |> Map.put(:media_metadata, %{"alt_texts" => %{"0" => "First alt", "1" => "Second alt"}})
+
+    from(m in Message, where: m.id == ^message.id)
+    |> Repo.update_all(
+      set: [media_metadata: %{"alt_texts" => %{"0" => "First alt", "1" => "Second alt"}}]
+    )
+
+    message = Repo.get!(Message, message.id)
 
     MockHTTPClient.put_responses([
       {:ok,
@@ -440,7 +530,11 @@ defmodule Elektrine.BlueskyTest do
         content: "video post",
         media_urls: [video_key]
       })
-      |> Map.put(:media_metadata, %{"alt_texts" => %{"0" => "Video alt"}})
+
+    from(m in Message, where: m.id == ^message.id)
+    |> Repo.update_all(set: [media_metadata: %{"alt_texts" => %{"0" => "Video alt"}}])
+
+    message = Repo.get!(Message, message.id)
 
     MockHTTPClient.put_responses([
       {:ok,
@@ -598,6 +692,68 @@ defmodule Elektrine.BlueskyTest do
 
     assert like_payload["collection"] == "app.bsky.feed.like"
     assert like_payload["record"]["subject"]["uri"] == message.bluesky_uri
+  end
+
+  test "unlike paginates beyond ten record pages to find the existing like" do
+    user = bluesky_user_fixture()
+    message = post_fixture(%{user: user, visibility: "public", content: "deep like target"})
+
+    from(m in Message, where: m.id == ^message.id)
+    |> Repo.update_all(
+      set: [
+        bluesky_uri: "at://did:plc:testdid/app.bsky.feed.post/deep-like",
+        bluesky_cid: "deep-like-cid"
+      ]
+    )
+
+    message = Repo.get!(Message, message.id)
+
+    list_record_responses =
+      Enum.map(1..10, fn page ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body: Jason.encode!(%{"records" => [], "cursor" => "cursor-#{page}"})
+         }}
+      end)
+
+    matching_page =
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "records" => [
+               %{
+                 "uri" => "at://did:plc:testdid/app.bsky.feed.like/deep-like-1",
+                 "value" => %{"subject" => %{"uri" => message.bluesky_uri}}
+               }
+             ]
+           })
+       }}
+
+    MockHTTPClient.put_responses(
+      [
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body: Jason.encode!(%{"accessJwt" => "jwt_token", "did" => "did:plc:testdid"})
+         }}
+      ] ++
+        list_record_responses ++ [matching_page, {:ok, %Finch.Response{status: 200, body: "{}"}}]
+    )
+
+    assert :ok = Bluesky.mirror_unlike(message.id, user.id)
+
+    requests = MockHTTPClient.requests()
+
+    assert Enum.count(
+             requests,
+             &String.contains?(&1.url, "/xrpc/com.atproto.repo.listRecords")
+           ) ==
+             11
+
+    assert List.last(requests).url =~ "/xrpc/com.atproto.repo.deleteRecord"
   end
 
   test "mirrors reposts and follows (plus undo)" do

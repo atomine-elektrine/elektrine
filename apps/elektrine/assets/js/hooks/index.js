@@ -100,6 +100,13 @@ import {
 // Password manager hooks
 import { PasswordVault } from './password_manager_hooks'
 
+// Mailbox private storage hooks
+import {
+  MailboxPrivateStorage,
+  PrivateMailboxCompose,
+  PrivateMailboxMessages
+} from './mailbox_private_storage_hooks'
+
 // Passkey hooks
 import {
   PasskeyRegister,
@@ -204,6 +211,9 @@ export const Hooks = {
   VPNDownload,
   Turnstile,
   PasswordVault,
+  MailboxPrivateStorage,
+  PrivateMailboxCompose,
+  PrivateMailboxMessages,
 
   // Static Site
   DragDrop,

@@ -1,0 +1,22 @@
+{
+  "local_domain": "elektrine.com",
+  "local_to_reference": "applied",
+  "reference_to_local": "applied",
+  "generated_at": "2026-03-08T04:09:23Z",
+  "reference_domain": "reference.test",
+  "reference_summary": {
+    "domain": "reference.test",
+    "events": 1,
+    "streams": 1,
+    "trustable_features": {
+      "batched_event_delivery": true,
+      "binary_event_batches": true,
+      "compact_event_refs": true,
+      "dynamic_peer_discovery": true,
+      "ephemeral_lane": true,
+      "open_domain_bootstrap": true,
+      "read_cursors": true,
+      "stream_catch_up": true
+    }
+  }
+}

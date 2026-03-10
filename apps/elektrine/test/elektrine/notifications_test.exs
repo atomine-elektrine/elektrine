@@ -1,8 +1,14 @@
 defmodule Elektrine.NotificationsTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.{Accounts, Notifications}
+  import Ecto.Query
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Accounts.User
+  alias Elektrine.Messaging.Message
+  alias Elektrine.Notifications.FederationNotifications
+  alias Elektrine.{Accounts, Messaging, Notifications, Repo}
   import Elektrine.AccountsFixtures
+  import Elektrine.SocialFixtures
 
   describe "notification preferences" do
     setup do
@@ -207,5 +213,129 @@ defmodule Elektrine.NotificationsTest do
       Notifications.mark_all_as_read(user.id)
       assert Notifications.get_unread_count(user.id) == 0
     end
+  end
+
+  describe "chat notification delivery" do
+    test "direct message notifications are still delivered when the preference is nil" do
+      sender = user_fixture()
+      recipient = user_fixture()
+
+      from(u in User, where: u.id == ^recipient.id)
+      |> Repo.update_all(set: [notify_on_direct_message: nil])
+
+      assert {:ok, conversation} = Messaging.create_dm_conversation(sender.id, recipient.id)
+      assert {:ok, message} = Messaging.create_text_message(conversation.id, sender.id, "hello")
+
+      notifications = Notifications.list_notifications(recipient.id)
+
+      assert Enum.any?(notifications, fn notification ->
+               notification.type == "new_message" and notification.source_id == message.id
+             end)
+    end
+  end
+
+  describe "message notification urls" do
+    setup do
+      user = user_fixture()
+      parent_post = post_fixture(user: user)
+      remote_actor = remote_actor_fixture()
+      remote_reply = federated_reply_fixture(parent_post, remote_actor)
+
+      {:ok,
+       user: user,
+       parent_post: parent_post,
+       remote_actor: remote_actor,
+       remote_reply: remote_reply}
+    end
+
+    test "list_notifications rewrites legacy fediverse reply and mention urls", %{
+      user: user,
+      parent_post: parent_post,
+      remote_reply: remote_reply
+    } do
+      {:ok, reply_notification} =
+        Notifications.create_notification(%{
+          user_id: user.id,
+          type: "reply",
+          title: "Reply from the fediverse",
+          body: "Legacy reply notification",
+          url: "/timeline/post/#{remote_reply.id}",
+          source_type: "message",
+          source_id: remote_reply.id,
+          priority: "normal"
+        })
+
+      {:ok, mention_notification} =
+        Notifications.create_notification(%{
+          user_id: user.id,
+          type: "mention",
+          title: "Mentioned in a post",
+          body: "Legacy mention notification",
+          source_type: "message",
+          source_id: remote_reply.id,
+          priority: "normal"
+        })
+
+      notifications = Notifications.list_notifications(user.id)
+
+      expected_url = "/remote/post/#{parent_post.id}#message-#{remote_reply.id}"
+
+      assert Enum.find(notifications, &(&1.id == reply_notification.id)).url == expected_url
+      assert Enum.find(notifications, &(&1.id == mention_notification.id)).url == expected_url
+    end
+
+    test "new fediverse reply and mention notifications store canonical thread urls", %{
+      user: user,
+      parent_post: parent_post,
+      remote_actor: remote_actor,
+      remote_reply: remote_reply
+    } do
+      expected_url = "/remote/post/#{parent_post.id}#message-#{remote_reply.id}"
+
+      assert {:ok, reply_notification} =
+               FederationNotifications.notify_remote_reply(remote_reply.id, remote_actor.id)
+
+      assert {:ok, mention_notification} =
+               FederationNotifications.notify_remote_mention(
+                 user.id,
+                 remote_reply.id,
+                 remote_actor.id
+               )
+
+      assert reply_notification.url == expected_url
+      assert mention_notification.url == expected_url
+    end
+  end
+
+  defp remote_actor_fixture do
+    {:ok, actor} =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://poa.st/users/waifupoaster#{System.unique_integer([:positive])}",
+        username: "waifupoaster#{System.unique_integer([:positive])}",
+        domain: "poa.st",
+        inbox_url: "https://poa.st/inbox",
+        public_key: "test-public-key"
+      })
+      |> Repo.insert()
+
+    actor
+  end
+
+  defp federated_reply_fixture(parent_post, remote_actor) do
+    {:ok, reply} =
+      %Message{}
+      |> Message.federated_changeset(%{
+        content: "Remote reply",
+        visibility: "public",
+        post_type: "post",
+        activitypub_id: "https://poa.st/notes/#{System.unique_integer([:positive])}",
+        activitypub_url: "https://poa.st/@waifupoaster/#{System.unique_integer([:positive])}",
+        remote_actor_id: remote_actor.id,
+        reply_to_id: parent_post.id
+      })
+      |> Repo.insert()
+
+    reply
   end
 end

@@ -797,10 +797,9 @@
                               <%= if post.content && post.content != "" do %>
                                 <div class="break-words text-sm sm:text-base mb-3 post-content line-clamp-3 overflow-hidden">
                                   {raw(
-                                    make_links_clickable(
-                                      String.trim(String.slice(post.content, 0, 200))
-                                    )
-                                  )}{if String.length(post.content) > 200, do: "..."}
+                                    make_links_clickable(plain_text_preview(post.content, 200))
+                                  )}{if String.length(plain_text_content(post.content)) > 200,
+                                    do: "..."}
                                 </div>
                               <% end %>
                               <.embedded_post
@@ -916,13 +915,14 @@
                                       </div>
                                     </div>
                                   <% end %>
-                                  <%= if post.content && String.trim(post.content) != "" && String.trim(post.content) != post.primary_url do %>
+                                  <%= if plain_text_preview(post.content, 200) != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
                                     <div class="break-words text-sm sm:text-base post-content mt-2 line-clamp-3 overflow-hidden">
                                       {raw(
                                         make_links_clickable(
-                                          String.trim(String.slice(post.content, 0, 200))
+                                          plain_text_preview(post.content, 200)
                                         )
-                                      )}{if String.length(post.content) > 200, do: "..."}
+                                      )}{if String.length(plain_text_content(post.content)) > 200,
+                                        do: "..."}
                                     </div>
                                   <% end %>
                                 <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
@@ -953,22 +953,25 @@
                                       </button>
                                     <% end %>
                                   </div>
-                                  <%= if post.content && String.trim(post.content) != "" do %>
+                                  <%= if plain_text_preview(post.content, 200) != "" do %>
                                     <div class="break-words text-sm post-content line-clamp-3 overflow-hidden">
                                       {raw(
                                         make_links_clickable(
-                                          String.trim(String.slice(post.content, 0, 200))
+                                          plain_text_preview(post.content, 200)
                                         )
                                       )}
                                     </div>
                                   <% end %>
                                 <% true -> %>
                                   <!-- Regular text post -->
-                                  <%= if post.content && String.trim(post.content) != "" do %>
+                                  <%= if plain_text_preview(post.content, 200) != "" do %>
                                     <p class="text-sm sm:text-base opacity-80 line-clamp-3">
-                                      {String.slice(post.content, 0, 200)}{if String.length(
-                                                                                post.content
-                                                                              ) > 200, do: "..."}
+                                      {plain_text_preview(post.content, 200)}{if String.length(
+                                                                                   plain_text_content(
+                                                                                     post.content
+                                                                                   )
+                                                                                 ) > 200,
+                                                                                 do: "..."}
                                     </p>
                                   <% end %>
                               <% end %>
@@ -1388,13 +1391,16 @@
 
                           <%= if post.shared_message_id && post.shared_message do %>
                             <!-- Cross-posted: Show comment + embedded post -->
-                            <%= if post.content && post.content != "" do %>
+                            <%= if plain_text_preview(post.content, 300) != "" do %>
                               <div class="break-words text-sm sm:text-base mb-3 post-content line-clamp-3 overflow-hidden">
-                                {raw(
-                                  make_links_clickable(
-                                    String.trim(String.slice(post.content, 0, 200))
-                                  )
-                                )}{if String.length(post.content) > 200, do: "..."}
+                                {raw(make_links_clickable(plain_text_preview(post.content, 300)))}{if String.length(
+                                                                                                        plain_text_content(
+                                                                                                          post.content
+                                                                                                        )
+                                                                                                      ) >
+                                                                                                        300,
+                                                                                                      do:
+                                                                                                        "..."}
                               </div>
                             <% end %>
                             <.embedded_post
@@ -1429,12 +1435,10 @@
                                     </div>
                                   </div>
                                 </a>
-                                <%= if post.content && String.trim(post.content) != post.primary_url do %>
+                                <%= if plain_text_preview(post.content, 300) != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
                                   <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
                                     {raw(
-                                      make_links_clickable(
-                                        String.trim(String.slice(post.content, 0, 300))
-                                      )
+                                      make_links_clickable(plain_text_preview(post.content, 300))
                                     )}
                                   </div>
                                 <% end %>
@@ -1466,12 +1470,10 @@
                                     </button>
                                   <% end %>
                                 </div>
-                                <%= if post.content && String.trim(post.content) != "" do %>
+                                <%= if plain_text_preview(post.content, 300) != "" do %>
                                   <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
                                     {raw(
-                                      make_links_clickable(
-                                        String.trim(String.slice(post.content, 0, 300))
-                                      )
+                                      make_links_clickable(plain_text_preview(post.content, 300))
                                     )}
                                   </div>
                                 <% end %>
@@ -1489,13 +1491,16 @@
                                 <% content =
                                   Elektrine.Messaging.Message.display_content(post) || "" %>
                                 <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
-                                  {raw(
-                                    make_links_clickable(
-                                      String.trim(String.slice(content, 0, 300))
-                                    )
-                                  )}{if String.length(content) > 300, do: "..."}
+                                  {raw(make_links_clickable(plain_text_preview(content, 300)))}{if String.length(
+                                                                                                     plain_text_content(
+                                                                                                       content
+                                                                                                     )
+                                                                                                   ) >
+                                                                                                     300,
+                                                                                                   do:
+                                                                                                     "..."}
                                 </div>
-                                <%= if String.length(content) > 300 do %>
+                                <%= if String.length(plain_text_content(content)) > 300 do %>
                                   <span class="text-primary text-sm mt-2 inline-block group-hover:underline">
                                     Read more →
                                   </span>
@@ -1899,7 +1904,7 @@
                         </h4>
 
                         <div class="text-sm break-words line-clamp-4">
-                          {post.content || ""}
+                          {plain_text_preview(post.content, 280)}
                         </div>
 
                         <div class="flex items-center gap-2 mt-3 text-xs opacity-70">

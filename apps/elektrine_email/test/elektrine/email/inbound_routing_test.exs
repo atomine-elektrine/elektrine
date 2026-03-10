@@ -63,6 +63,30 @@ defmodule Elektrine.Email.InboundRoutingTest do
       assert {:forward_external, "target@example.net", ^alias_email} =
                InboundRouting.resolve_recipient_mailbox(alias_email, alias_email)
     end
+
+    test "resolves verified custom-domain recipients to the owner's mailbox" do
+      user = user_fixture(%{username: "customroute"})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      {:ok, custom_domain} =
+        Email.create_custom_domain(user, %{"domain" => "mail.customroute.test"})
+
+      assert {:ok, _verified_domain} =
+               custom_domain
+               |> Ecto.Changeset.change(
+                 status: "verified",
+                 verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               )
+               |> Elektrine.Repo.update()
+
+      assert {:ok, resolved_mailbox} =
+               InboundRouting.resolve_recipient_mailbox(
+                 "customroute@mail.customroute.test",
+                 "customroute@mail.customroute.test"
+               )
+
+      assert resolved_mailbox.id == mailbox.id
+    end
   end
 
   describe "validate_mailbox_route/3" do

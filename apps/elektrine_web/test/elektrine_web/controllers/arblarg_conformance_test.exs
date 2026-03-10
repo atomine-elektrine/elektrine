@@ -48,11 +48,14 @@ defmodule ElektrineWeb.ArblargConformanceTest do
         |> get("/.well-known/arblarg")
         |> json_response(200)
 
-      assert discovery["protocol"] == "arblarg"
-      assert discovery["protocol_id"] == "arbp"
-      assert discovery["default_protocol_label"] == "arbp/1.0"
+      assert discovery["protocol"] == ArblargSDK.protocol_name()
+      assert discovery["protocol_id"] == "arblarg"
+      assert discovery["default_protocol_label"] == "arblarg/1.0"
       assert "1.0" in discovery["protocol_versions"]
-      assert "arbp/1.0" in discovery["protocol_labels"]
+      assert "arblarg/1.0" in discovery["protocol_labels"]
+      assert discovery["signature"]["algorithm"] == "ed25519"
+      assert is_binary(discovery["signature"]["key_id"])
+      assert is_binary(discovery["signature"]["value"])
       assert is_binary(discovery["endpoints"]["profiles"])
       assert is_binary(discovery["endpoints"]["schema_template"])
       assert discovery["features"]["relay_transport"] == true
@@ -78,8 +81,10 @@ defmodule ElektrineWeb.ArblargConformanceTest do
         |> get("/federation/messaging/arblarg/profiles")
         |> json_response(200)
 
-      assert "arbp-core/1.0" in profiles["compatibility_claims"]
+      assert "arblarg-core/1.0" in profiles["compatibility_claims"]
       assert "message.create" in profiles["events"]["core"]
+      assert profiles["features"]["wire_contract_frozen"] == true
+      assert profiles["wire_contract"]["status"] == "stable"
       assert is_binary(profiles["schemas"]["envelope"])
       assert is_binary(profiles["schemas"]["role.upsert"])
     end
@@ -109,7 +114,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
               "message_type" => "text",
               "media_urls" => [],
               "media_metadata" => %{},
-              "sender" => %{"username" => "alice", "domain" => @remote_domain}
+              "sender" => canonical_actor("alice", @remote_domain)
             }
           }
         )
@@ -129,7 +134,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
     test "CONF-003 replayed signed request is rejected", %{conn: conn} do
       event =
         build_event(
-          "urn:arbp:ext:bootstrap:1#server.upsert",
+          "urn:arblarg:ext:bootstrap:1#server.upsert",
           "server:https://remote.test/federation/messaging/servers/conformance-2",
           1,
           "idem-conf-003",
@@ -192,7 +197,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
             "message_type" => "text",
             "media_urls" => [],
             "media_metadata" => %{},
-            "sender" => %{"username" => "alice", "domain" => @remote_domain}
+            "sender" => canonical_actor("alice", @remote_domain)
           }
         })
 
@@ -224,7 +229,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
       assert response["status"] == "duplicate"
     end
 
-    test "CONF-005 read.receipt core event is accepted", %{conn: conn} do
+    test "CONF-005 read.cursor core event is accepted", %{conn: conn} do
       actor_uri = "https://remote.test/users/alice"
 
       {:ok, _actor} =
@@ -259,7 +264,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
             "message_type" => "text",
             "media_urls" => [],
             "media_metadata" => %{},
-            "sender" => %{"username" => "bob", "domain" => @remote_domain}
+            "sender" => canonical_actor("bob", @remote_domain)
           }
         })
 
@@ -273,7 +278,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
                 |> json_response(200))["status"]
 
       read_event =
-        build_event("read.receipt", stream_id, 2, "idem-conf-005-read", %{
+        build_event("read.cursor", stream_id, 2, "idem-conf-005-read", %{
           "server" => %{
             "id" => "https://remote.test/federation/messaging/servers/conformance-5",
             "name" => "Conformance",
@@ -284,8 +289,8 @@ defmodule ElektrineWeb.ArblargConformanceTest do
             "name" => "general",
             "position" => 0
           },
-          "message_id" => "https://remote.test/federation/messaging/messages/conf-5",
-          "actor" => %{"uri" => actor_uri},
+          "read_through_message_id" => "https://remote.test/federation/messaging/messages/conf-5",
+          "actor" => canonical_actor("alice", @remote_domain, uri: actor_uri),
           "read_at" => DateTime.utc_now() |> DateTime.to_iso8601()
         })
 
@@ -304,11 +309,10 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
   defp build_event(event_type, stream_id, sequence, idempotency_key, payload) do
     unsigned = %{
-      "protocol" => "arblarg",
-      "protocol_id" => "arbp",
-      "protocol_label" => "arbp/1.0",
-      "protocol_version" => "1.0",
-      "version" => 1,
+      "protocol" => ArblargSDK.protocol_name(),
+      "protocol_id" => ArblargSDK.protocol_id(),
+      "protocol_label" => ArblargSDK.protocol_label(),
+      "protocol_version" => ArblargSDK.protocol_version(),
       "event_id" => "evt-#{Ecto.UUID.generate()}",
       "event_type" => event_type,
       "origin_domain" => @remote_domain,
@@ -316,8 +320,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
       "sequence" => sequence,
       "sent_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
       "idempotency_key" => idempotency_key,
-      "payload" => payload,
-      "data" => payload
+      "payload" => payload
     }
 
     ArblargSDK.sign_event_envelope(unsigned, @remote_key_id, @remote_secret)
@@ -341,12 +344,31 @@ defmodule ElektrineWeb.ArblargConformanceTest do
       |> Federation.sign_payload(@remote_secret)
 
     conn
-    |> put_req_header("x-elektrine-federation-domain", @remote_domain)
-    |> put_req_header("x-elektrine-federation-key-id", @remote_key_id)
-    |> put_req_header("x-elektrine-federation-timestamp", timestamp)
-    |> put_req_header("x-elektrine-federation-content-digest", content_digest)
+    |> put_req_header("x-arblarg-domain", @remote_domain)
+    |> put_req_header("x-arblarg-key-id", @remote_key_id)
+    |> put_req_header("x-arblarg-timestamp", timestamp)
+    |> put_req_header("x-arblarg-content-digest", content_digest)
     |> put_req_header("x-arblarg-request-id", request_id)
     |> put_req_header("x-arblarg-signature-algorithm", "ed25519")
-    |> put_req_header("x-elektrine-federation-signature", signature)
+    |> put_req_header("x-arblarg-signature", signature)
+  end
+
+  defp canonical_actor(username, domain, opts \\ []) do
+    uri =
+      Keyword.get(opts, :uri) ||
+        "https://#{domain}/users/#{username}"
+
+    {public_key, _private_key} = ArblargSDK.derive_keypair_from_secret("actor:#{uri}")
+
+    %{
+      "id" => uri,
+      "uri" => uri,
+      "username" => username,
+      "display_name" => Keyword.get(opts, :display_name, username),
+      "domain" => domain,
+      "handle" => "#{username}@#{domain}",
+      "key_id" => "#{uri}#arblarg-key",
+      "public_key" => Base.url_encode64(public_key, padding: false)
+    }
   end
 end

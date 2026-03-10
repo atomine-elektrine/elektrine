@@ -8,13 +8,17 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   @api_key "test_haraka_api_key"
 
   setup do
+    previous_haraka_api_key = System.get_env("HARAKA_API_KEY")
+    previous_phoenix_api_key = System.get_env("PHOENIX_API_KEY")
+
     # Set test API key
     System.put_env("HARAKA_API_KEY", @api_key)
     old_async_setting = Application.get_env(:elektrine, :haraka_async_ingest, true)
     Application.put_env(:elektrine, :haraka_async_ingest, false)
 
     on_exit(fn ->
-      System.delete_env("HARAKA_API_KEY")
+      restore_env("HARAKA_API_KEY", previous_haraka_api_key)
+      restore_env("PHOENIX_API_KEY", previous_phoenix_api_key)
       Application.put_env(:elektrine, :haraka_async_ingest, old_async_setting)
     end)
 
@@ -49,6 +53,24 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   defp assert_spoof_alert_count(mailbox_id, expected_count, 0) do
     actual_count = mailbox_id |> spoof_alert_messages() |> length()
     assert actual_count == expected_count
+  end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
+
+  describe "directional API key aliases" do
+    test "accepts PHOENIX_API_KEY for haraka domain discovery", %{conn: conn} do
+      System.delete_env("HARAKA_API_KEY")
+      System.put_env("PHOENIX_API_KEY", @api_key)
+
+      conn =
+        conn
+        |> put_req_header("x-api-key", @api_key)
+        |> get(~p"/api/haraka/domains")
+
+      assert %{"domains" => domains} = json_response(conn, 200)
+      assert "elektrine.com" in domains
+    end
   end
 
   describe "mailing list email handling" do
@@ -222,6 +244,46 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       # Should return error indicating no mailbox
       response = json_response(conn, 404)
       assert response["error"] =~ "Mailbox"
+    end
+
+    test "delivers email to a verified custom-domain mailbox", %{conn: conn} do
+      user = user_fixture(%{username: "harakacustom"})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      {:ok, custom_domain} =
+        Email.create_custom_domain(user, %{"domain" => "mail.harakacustom.test"})
+
+      assert {:ok, _verified_domain} =
+               custom_domain
+               |> Ecto.Changeset.change(
+                 status: "verified",
+                 verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               )
+               |> Elektrine.Repo.update()
+
+      params = %{
+        "from" => "sender@example.com",
+        "to" => "harakacustom@mail.harakacustom.test",
+        "rcpt_to" => "harakacustom@mail.harakacustom.test",
+        "subject" => "Custom domain delivery",
+        "text_body" => "Delivered through a verified custom domain",
+        "message_id" => "test-custom-domain-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] =
+        mailbox.id
+        |> Email.list_inbox_messages()
+        |> Enum.filter(&(&1.message_id == params["message_id"]))
+
+      assert message.mailbox_id == mailbox.id
+      assert message.subject == "Custom domain delivery"
     end
 
     test "handles elektrine.net domain in rcpt_to for mailing lists", %{conn: conn} do
@@ -952,6 +1014,29 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       # Should include built-in domains
       assert "elektrine.com" in response["domains"]
       assert "elektrine.net" in response["domains"]
+    end
+
+    test "includes verified custom domains", %{conn: conn} do
+      user = user_fixture(%{username: "domainfeed"})
+
+      {:ok, custom_domain} =
+        Email.create_custom_domain(user, %{"domain" => "mail.domainfeed.test"})
+
+      assert {:ok, _verified_domain} =
+               custom_domain
+               |> Ecto.Changeset.change(
+                 status: "verified",
+                 verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               )
+               |> Elektrine.Repo.update()
+
+      conn =
+        conn
+        |> auth_conn()
+        |> get(~p"/api/haraka/domains")
+
+      response = json_response(conn, 200)
+      assert "mail.domainfeed.test" in response["domains"]
     end
 
     test "rejects request without API key", %{conn: conn} do

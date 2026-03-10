@@ -7,7 +7,7 @@ defmodule Elektrine.Email.Mailboxes do
   import Ecto.Query, warn: false
   require Logger
   alias Ecto.Multi
-  alias Elektrine.Email.{Mailbox, Message}
+  alias Elektrine.Email.{CustomDomains, Mailbox, Message}
   alias Elektrine.Repo
 
   @doc """
@@ -59,20 +59,7 @@ defmodule Elektrine.Email.Mailboxes do
         mailbox
 
       nil ->
-        # Try username-based lookup for domain-agnostic approach
-        case String.split(email, "@", parts: 2) do
-          [username, domain] ->
-            if Elektrine.Domains.local_email_domain?(domain) do
-              # Support plus addressing (e.g., username+tag@domain.com -> username@domain.com)
-              base_username = username |> String.split("+") |> List.first()
-              get_mailbox_by_username(base_username)
-            else
-              nil
-            end
-
-          _ ->
-            nil
-        end
+        get_mailbox_for_domain_variant(email)
     end
   end
 
@@ -195,20 +182,35 @@ defmodule Elektrine.Email.Mailboxes do
   Updates a mailbox email address (used when username changes).
   """
   def update_mailbox_email(mailbox, new_email) do
+    attrs =
+      case mailbox_username_for_email(new_email) do
+        nil -> %{email: new_email}
+        username -> %{email: new_email, username: username}
+      end
+
     # Check if the new email is already taken by another mailbox
     case get_mailbox_by_email(new_email) do
       nil ->
         # Email is available, update it
-        update_mailbox(mailbox, %{email: new_email})
+        update_mailbox(mailbox, attrs)
 
       existing_mailbox when existing_mailbox.id == mailbox.id ->
         # Same mailbox, no change needed
-        {:ok, mailbox}
+        update_mailbox(mailbox, attrs)
 
       _other_mailbox ->
         # Email is taken by another mailbox
         {:error, "Email address already in use by another mailbox"}
     end
+  end
+
+  @doc """
+  Updates browser-managed private mailbox storage settings.
+  """
+  def update_mailbox_private_storage(%Mailbox{} = mailbox, attrs) do
+    mailbox
+    |> Mailbox.private_storage_changeset(attrs)
+    |> Repo.update()
   end
 
   @doc """
@@ -220,13 +222,21 @@ defmodule Elektrine.Email.Mailboxes do
     multi =
       Multi.new()
       # Step 1: Create new clean mailbox for user
-      |> Multi.insert(:new_mailbox, %Mailbox{email: new_email, user_id: user.id})
+      |> Multi.insert(
+        :new_mailbox,
+        Mailbox.changeset(%Mailbox{}, %{
+          email: new_email,
+          username: mailbox_username_for_email(new_email) || user.username,
+          user_id: user.id
+        })
+      )
       # Step 2: Clear old mailbox user association and data
       |> Multi.update(
         :clear_old_mailbox,
         Mailbox.changeset(old_mailbox, %{
           # Unassign from user
           user_id: nil,
+          username: nil,
           forward_to: nil,
           forward_enabled: false
         })
@@ -251,6 +261,49 @@ defmodule Elektrine.Email.Mailboxes do
         )
 
         {:error, "Failed to transition mailbox"}
+    end
+  end
+
+  defp mailbox_username_for_email(email) when is_binary(email) do
+    case String.split(String.downcase(String.trim(email)), "@", parts: 2) do
+      [username, domain] ->
+        if username != "" and Elektrine.Domains.local_email_domain?(domain) do
+          username
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp mailbox_username_for_email(_), do: nil
+
+  defp get_mailbox_for_domain_variant(email) do
+    case String.split(String.downcase(String.trim(email)), "@", parts: 2) do
+      [username, domain] ->
+        base_username = username |> String.split("+") |> List.first() |> String.downcase()
+
+        if Elektrine.Domains.local_email_domain?(domain) do
+          get_mailbox_by_username(base_username)
+        else
+          case CustomDomains.get_verified_custom_domain(domain) do
+            %Elektrine.Email.CustomDomain{user_id: user_id, user: %{username: owner_username}}
+            when is_integer(user_id) ->
+              if String.downcase(owner_username) == base_username do
+                get_user_mailbox(user_id)
+              else
+                nil
+              end
+
+            _ ->
+              nil
+          end
+        end
+
+      _ ->
+        nil
     end
   end
 
