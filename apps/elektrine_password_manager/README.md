@@ -24,4 +24,4 @@ Standalone umbrella app for password-vault domain logic.
 
 ## License
 
-MIT (see `../../LICENSE`).
+AGPL-3.0-only (see `../../LICENSE`).

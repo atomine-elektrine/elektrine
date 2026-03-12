@@ -13,6 +13,11 @@ This repository is an umbrella project. All apps in `apps/` are open source unde
 - `apps/elektrine_vpn`
 - `apps/elektrine_password_manager`
 
+## License
+
+This repository is licensed under `AGPL-3.0-only` (see `LICENSE`).
+By contributing, you agree that your contributions are provided under that same license.
+
 ## Development Setup
 
 1. Install Elixir/Erlang and PostgreSQL.

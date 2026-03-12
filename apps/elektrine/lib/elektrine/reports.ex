@@ -51,14 +51,40 @@ defmodule Elektrine.Reports do
   Lists all reports with optional filters.
   """
   def list_reports(filters \\ %{}) do
-    Report
-    |> filter_by_status(filters[:status])
-    |> filter_by_priority(filters[:priority])
-    |> filter_by_reportable_type(filters[:reportable_type])
-    |> filter_by_reporter(filters[:reporter_id])
+    filters
+    |> reports_query()
     |> order_by([r], desc: r.inserted_at)
     |> preload([:reporter, :reviewed_by])
     |> Repo.all()
+  end
+
+  @doc """
+  Returns a paginated slice of reports for admin surfaces.
+  """
+  def paginate_reports(filters \\ %{}, page \\ 1, per_page \\ 50) do
+    page = normalize_page(page)
+    per_page = normalize_per_page(per_page)
+    query = reports_query(filters)
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = total_pages(total_count, per_page)
+    safe_page = min(page, total_pages)
+    safe_offset = (safe_page - 1) * per_page
+
+    entries =
+      query
+      |> order_by([r], desc: r.inserted_at)
+      |> preload([:reporter, :reviewed_by])
+      |> limit(^per_page)
+      |> offset(^safe_offset)
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: safe_page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
   end
 
   @doc """
@@ -68,6 +94,34 @@ defmodule Elektrine.Reports do
     Report
     |> where([r], r.status == "pending")
     |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Counts reports matching optional filters without loading rows.
+  """
+  def count_reports(filters \\ %{}) do
+    filters
+    |> reports_query()
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Returns aggregate counts used by the admin reports dashboard.
+  """
+  def dashboard_stats do
+    status_counts =
+      Report
+      |> group_by([r], r.status)
+      |> select([r], {r.status, count(r.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    %{
+      pending: Map.get(status_counts, "pending", 0),
+      reviewing: Map.get(status_counts, "reviewing", 0),
+      resolved: Map.get(status_counts, "resolved", 0),
+      critical: count_reports(%{priority: "critical", status: "pending"})
+    }
   end
 
   @doc """
@@ -161,6 +215,14 @@ defmodule Elektrine.Reports do
 
   # Private helper functions
 
+  defp reports_query(filters) do
+    Report
+    |> filter_by_status(filters[:status])
+    |> filter_by_priority(filters[:priority])
+    |> filter_by_reportable_type(filters[:reportable_type])
+    |> filter_by_reporter(filters[:reporter_id])
+  end
+
   defp filter_by_status(query, nil), do: query
 
   defp filter_by_status(query, status) do
@@ -184,6 +246,18 @@ defmodule Elektrine.Reports do
   defp filter_by_reporter(query, reporter_id) do
     where(query, [r], r.reporter_id == ^reporter_id)
   end
+
+  defp normalize_page(page) when is_integer(page) and page > 0, do: page
+  defp normalize_page(_page), do: 1
+
+  defp normalize_per_page(per_page) when is_integer(per_page) and per_page > 0, do: per_page
+  defp normalize_per_page(_per_page), do: 50
+
+  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
+    div(total_count + per_page - 1, per_page)
+  end
+
+  defp total_pages(_, _), do: 1
 
   @doc """
   Builds metadata for different reportable types.

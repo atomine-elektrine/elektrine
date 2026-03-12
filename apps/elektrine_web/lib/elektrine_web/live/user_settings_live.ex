@@ -4,6 +4,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Accounts.RecoveryEmailVerification
   alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Developer
+  alias Elektrine.Developer.ApiToken
   alias Elektrine.Email
   alias Elektrine.Email.ListTypes
   alias Elektrine.Email.Mailbox
@@ -82,15 +83,16 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:password_manager_form, password_manager_entry_form(user.id))
      |> assign(:api_tokens, [])
      |> assign(:webhooks, [])
+     |> assign(:recent_webhook_deliveries, [])
+     |> assign(:webhook_deliveries_by_webhook, %{})
      |> assign(:pending_exports, [])
      |> assign(:show_create_token_modal, false)
      |> assign(:show_create_webhook_modal, false)
-     |> assign(
-       :token_form,
-       to_form(%{"name" => "", "scopes" => [], "expires_in" => ""}, as: :token)
-     )
+     |> assign(:token_form_params, default_token_form_params())
+     |> assign(:token_form, to_form(default_token_form_params(), as: :token))
      |> assign(:webhook_form, to_form(%{"name" => "", "url" => "", "events" => []}, as: :webhook))
      |> assign(:new_token, nil)
+     |> assign(:revealed_webhook_secret, nil)
      |> allow_upload(:avatar,
        accept: ~w(.jpg .jpeg .png .gif .webp),
        max_entries: 1,
@@ -241,18 +243,8 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp load_tab_data(socket, "developer") do
     if socket.assigns.loading_developer do
-      user = socket.assigns.user
-      api_tokens_task = Task.async(fn -> Developer.list_api_tokens(user.id) end)
-      webhooks_task = Task.async(fn -> Developer.list_webhooks(user.id) end)
-      pending_exports_task = Task.async(fn -> Developer.get_pending_exports(user.id) end)
-      api_tokens = Task.await(api_tokens_task)
-      webhooks = Task.await(webhooks_task)
-      pending_exports = Task.await(pending_exports_task)
-
       socket
-      |> assign(:api_tokens, api_tokens)
-      |> assign(:webhooks, webhooks)
-      |> assign(:pending_exports, pending_exports)
+      |> assign_developer_state(socket.assigns.user.id)
       |> assign(:loading_developer, false)
     else
       socket
@@ -271,6 +263,32 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp load_tab_data(socket, _tab) do
     socket
+  end
+
+  defp assign_developer_state(socket, user_id) do
+    api_tokens_task = Task.async(fn -> Developer.list_api_tokens(user_id) end)
+    webhooks_task = Task.async(fn -> Developer.list_webhooks(user_id) end)
+    pending_exports_task = Task.async(fn -> Developer.get_pending_exports(user_id) end)
+    deliveries_task = Task.async(fn -> Developer.list_webhook_deliveries(user_id, limit: 30) end)
+
+    api_tokens = Task.await(api_tokens_task)
+    webhooks = Task.await(webhooks_task)
+    pending_exports = Task.await(pending_exports_task)
+    deliveries = Task.await(deliveries_task)
+
+    deliveries_by_webhook =
+      deliveries
+      |> Enum.group_by(& &1.webhook_id)
+      |> Map.new(fn {webhook_id, webhook_deliveries} ->
+        {webhook_id, Enum.sort_by(webhook_deliveries, & &1.inserted_at, {:desc, NaiveDateTime})}
+      end)
+
+    socket
+    |> assign(:api_tokens, api_tokens)
+    |> assign(:webhooks, webhooks)
+    |> assign(:pending_exports, pending_exports)
+    |> assign(:recent_webhook_deliveries, deliveries)
+    |> assign(:webhook_deliveries_by_webhook, deliveries_by_webhook)
   end
 
   @impl true
@@ -886,44 +904,73 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("show_create_token_modal", _params, socket) do
+    token_form_params = default_token_form_params()
+
     {:noreply,
      socket
      |> assign(:show_create_token_modal, true)
      |> assign(:new_token, nil)
-     |> assign(
-       :token_form,
-       to_form(%{"name" => "", "scopes" => [], "expires_in" => ""}, as: :token)
-     )}
+     |> assign(:token_form_params, token_form_params)
+     |> assign(:token_form, to_form(token_form_params, as: :token))}
   end
 
   @impl true
   def handle_event("close_token_modal", _params, socket) do
-    {:noreply, socket |> assign(:show_create_token_modal, false) |> assign(:new_token, nil)}
+    token_form_params = default_token_form_params()
+
+    {:noreply,
+     socket
+     |> assign(:show_create_token_modal, false)
+     |> assign(:new_token, nil)
+     |> assign(:token_form_params, token_form_params)
+     |> assign(:token_form, to_form(token_form_params, as: :token))}
+  end
+
+  @impl true
+  def handle_event("token_form_changed", %{"token" => token_params}, socket) do
+    token_form_params = normalize_token_form_params(token_params)
+
+    {:noreply,
+     socket
+     |> assign(:token_form_params, token_form_params)
+     |> assign(:token_form, to_form(token_form_params, as: :token))}
   end
 
   @impl true
   def handle_event("create_token", %{"token" => token_params}, socket) do
     user = socket.assigns.current_user
-    scopes = Map.get(token_params, "scopes", [])
+    token_form_params = normalize_token_form_params(token_params)
+    scopes = resolve_token_scopes(token_form_params)
 
-    case parse_token_expiration(token_params["expires_in"]) do
+    case parse_token_expiration(token_form_params["expires_in"]) do
       {:ok, expires_at} ->
-        attrs = %{name: token_params["name"], scopes: scopes, expires_at: expires_at}
+        attrs = %{name: token_form_params["name"], scopes: scopes, expires_at: expires_at}
 
         case Developer.create_api_token(user.id, attrs) do
           {:ok, token} ->
             {:noreply,
              socket
              |> assign(:new_token, token.token)
-             |> assign(:api_tokens, Developer.list_api_tokens(user.id))}
+             |> assign(:token_form_params, token_form_params)
+             |> assign(:token_form, to_form(token_form_params, as: :token))
+             |> assign_developer_state(user.id)}
 
           {:error, changeset} ->
             error_msg = changeset_error_to_string(changeset)
-            {:noreply, notify_error(socket, "Failed to create token: #{error_msg}")}
+
+            {:noreply,
+             socket
+             |> assign(:token_form_params, token_form_params)
+             |> assign(:token_form, to_form(token_form_params, as: :token))
+             |> notify_error("Failed to create token: #{error_msg}")}
         end
 
       :error ->
-        {:noreply, notify_error(socket, "Invalid token expiration. Use 30, 90, or 365 days.")}
+        {:noreply,
+         socket
+         |> assign(:token_form_params, token_form_params)
+         |> assign(:token_form, to_form(token_form_params, as: :token))
+         |> notify_error("Invalid token expiration. Use 30, 90, or 365 days.")}
     end
   end
 
@@ -937,7 +984,7 @@ defmodule ElektrineWeb.UserSettingsLive do
           {:ok, _} ->
             {:noreply,
              socket
-             |> assign(:api_tokens, Developer.list_api_tokens(user.id))
+             |> assign_developer_state(user.id)
              |> notify_success("Token revoked successfully")}
 
           {:error, :not_found} ->
@@ -945,6 +992,32 @@ defmodule ElektrineWeb.UserSettingsLive do
 
           {:error, _} ->
             {:noreply, notify_error(socket, "Failed to revoke token")}
+        end
+
+      _ ->
+        {:noreply, notify_error(socket, "Invalid token id")}
+    end
+  end
+
+  @impl true
+  def handle_event("duplicate_token", %{"id" => token_id}, socket) do
+    user = socket.assigns.current_user
+
+    case Integer.parse(token_id) do
+      {id, ""} ->
+        case Developer.get_api_token(user.id, id) do
+          nil ->
+            {:noreply, notify_error(socket, "Token not found")}
+
+          token ->
+            token_form_params = token_form_params_for_existing_token(token)
+
+            {:noreply,
+             socket
+             |> assign(:show_create_token_modal, true)
+             |> assign(:new_token, nil)
+             |> assign(:token_form_params, token_form_params)
+             |> assign(:token_form, to_form(token_form_params, as: :token))}
         end
 
       _ ->
@@ -980,11 +1053,15 @@ defmodule ElektrineWeb.UserSettingsLive do
     attrs = %{name: webhook_params["name"], url: webhook_params["url"], events: events}
 
     case Developer.create_webhook(user.id, attrs) do
-      {:ok, _webhook} ->
+      {:ok, webhook} ->
         {:noreply,
          socket
-         |> assign(:webhooks, Developer.list_webhooks(user.id))
+         |> assign_developer_state(user.id)
          |> assign(:show_create_webhook_modal, false)
+         |> assign(
+           :revealed_webhook_secret,
+           %{webhook_id: webhook.id, name: webhook.name, secret: webhook.secret}
+         )
          |> assign(
            :webhook_form,
            to_form(%{"name" => "", "url" => "", "events" => []}, as: :webhook)
@@ -1011,7 +1088,8 @@ defmodule ElektrineWeb.UserSettingsLive do
           {:ok, _} ->
             {:noreply,
              socket
-             |> assign(:webhooks, Developer.list_webhooks(user.id))
+             |> assign_developer_state(user.id)
+             |> maybe_clear_revealed_webhook_secret(id)
              |> notify_success("Webhook deleted successfully")}
 
           {:error, :not_found} ->
@@ -1036,7 +1114,7 @@ defmodule ElektrineWeb.UserSettingsLive do
           {:ok, status} ->
             {:noreply,
              socket
-             |> assign(:webhooks, Developer.list_webhooks(user.id))
+             |> assign_developer_state(user.id)
              |> notify_success("Webhook test delivered (HTTP #{status})")}
 
           {:error, :not_found} ->
@@ -1045,19 +1123,81 @@ defmodule ElektrineWeb.UserSettingsLive do
           {:error, {:http_error, status}} ->
             {:noreply,
              socket
-             |> assign(:webhooks, Developer.list_webhooks(user.id))
+             |> assign_developer_state(user.id)
              |> notify_error("Webhook endpoint returned HTTP #{status}")}
 
           {:error, {:request_failed, reason}} ->
             {:noreply,
              socket
-             |> assign(:webhooks, Developer.list_webhooks(user.id))
+             |> assign_developer_state(user.id)
              |> notify_error("Webhook test failed: #{inspect(reason)}")}
         end
 
       _ ->
         {:noreply, notify_error(socket, "Invalid webhook id")}
     end
+  end
+
+  @impl true
+  def handle_event("rotate_webhook_secret", %{"id" => webhook_id}, socket) do
+    user = socket.assigns.current_user
+
+    case Integer.parse(webhook_id) do
+      {id, ""} ->
+        case Developer.rotate_webhook_secret(user.id, id) do
+          {:ok, webhook} ->
+            {:noreply,
+             socket
+             |> assign_developer_state(user.id)
+             |> assign(
+               :revealed_webhook_secret,
+               %{webhook_id: webhook.id, name: webhook.name, secret: webhook.secret}
+             )
+             |> notify_success("Webhook secret rotated")}
+
+          {:error, :not_found} ->
+            {:noreply, notify_error(socket, "Webhook not found")}
+
+          {:error, _reason} ->
+            {:noreply, notify_error(socket, "Failed to rotate webhook secret")}
+        end
+
+      _ ->
+        {:noreply, notify_error(socket, "Invalid webhook id")}
+    end
+  end
+
+  @impl true
+  def handle_event("replay_webhook_delivery", %{"id" => delivery_id}, socket) do
+    user = socket.assigns.current_user
+
+    case Integer.parse(delivery_id) do
+      {id, ""} ->
+        case Developer.replay_webhook_delivery(user.id, id) do
+          {:ok, :queued} ->
+            {:noreply,
+             socket
+             |> assign_developer_state(user.id)
+             |> notify_success("Webhook delivery replay queued")}
+
+          {:error, :not_found} ->
+            {:noreply, notify_error(socket, "Webhook delivery not found")}
+
+          {:error, {:enqueue_failed, _reason}} ->
+            {:noreply, notify_error(socket, "Failed to queue webhook replay")}
+
+          {:error, _reason} ->
+            {:noreply, notify_error(socket, "Failed to replay webhook delivery")}
+        end
+
+      _ ->
+        {:noreply, notify_error(socket, "Invalid delivery id")}
+    end
+  end
+
+  @impl true
+  def handle_event("close_webhook_secret_notice", _params, socket) do
+    {:noreply, assign(socket, :revealed_webhook_secret, nil)}
   end
 
   @impl true
@@ -1071,7 +1211,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
         {:noreply,
          socket
-         |> assign(:pending_exports, Developer.get_pending_exports(user.id))
+         |> assign_developer_state(user.id)
          |> notify_success("Export started. You'll be notified when it's ready.")}
 
       {:error, changeset} ->
@@ -1334,6 +1474,98 @@ defmodule ElektrineWeb.UserSettingsLive do
     |> Enum.map_join("; ", & &1)
   end
 
+  defp default_token_form_params do
+    %{
+      "name" => "",
+      "preset" => "search_read_only",
+      "scopes" => [],
+      "expires_in" => Integer.to_string(ApiToken.default_expiration_days())
+    }
+  end
+
+  defp normalize_token_form_params(params) when is_map(params) do
+    %{
+      "name" => Map.get(params, "name", ""),
+      "preset" => Map.get(params, "preset", "search_read_only"),
+      "scopes" => normalize_scope_values(Map.get(params, "scopes", [])),
+      "expires_in" =>
+        case Map.get(params, "expires_in") do
+          nil -> Integer.to_string(ApiToken.default_expiration_days())
+          value -> to_string(value)
+        end
+    }
+  end
+
+  defp normalize_token_form_params(_params), do: default_token_form_params()
+
+  defp resolve_token_scopes(%{"preset" => "custom", "scopes" => scopes}), do: scopes
+
+  defp resolve_token_scopes(%{"preset" => preset}) when is_binary(preset) and preset != "" do
+    scopes = ApiToken.preset_scopes(preset)
+    if scopes == [], do: [], else: scopes
+  end
+
+  defp resolve_token_scopes(%{"scopes" => scopes}), do: scopes
+  defp resolve_token_scopes(_), do: []
+
+  defp token_form_params_for_existing_token(token) do
+    preset = ApiToken.preset_for_scopes(token.scopes || [])
+
+    %{
+      "name" => "#{token.name} copy",
+      "preset" => preset,
+      "scopes" => if(preset == "custom", do: token.scopes || [], else: []),
+      "expires_in" => Integer.to_string(ApiToken.default_expiration_days())
+    }
+  end
+
+  defp token_presets do
+    ApiToken.token_presets() ++
+      [
+        %{
+          id: "custom",
+          name: "Custom scopes",
+          description: "Pick exact scopes for a least-privilege token.",
+          scopes: []
+        }
+      ]
+  end
+
+  defp selected_token_preset(%{"preset" => preset}) when is_binary(preset) do
+    Enum.find(token_presets(), &(&1.id == preset))
+  end
+
+  defp selected_token_preset(_), do: nil
+
+  defp token_preview_scopes(%{"preset" => "custom", "scopes" => scopes}), do: scopes
+
+  defp token_preview_scopes(%{"preset" => preset}) when is_binary(preset) do
+    ApiToken.preset_scopes(preset)
+  end
+
+  defp token_preview_scopes(_), do: []
+
+  defp normalize_scope_values(scopes) when is_list(scopes) do
+    scopes
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp normalize_scope_values(scope) when is_binary(scope) do
+    normalize_scope_values([scope])
+  end
+
+  defp normalize_scope_values(_), do: []
+
+  defp maybe_clear_revealed_webhook_secret(socket, webhook_id) do
+    case socket.assigns[:revealed_webhook_secret] do
+      %{webhook_id: ^webhook_id} -> assign(socket, :revealed_webhook_secret, nil)
+      _ -> socket
+    end
+  end
+
   defp normalize_selected_tab(tab) when tab in @valid_tabs do
     tab
   end
@@ -1482,7 +1714,12 @@ defmodule ElektrineWeb.UserSettingsLive do
             </div>
           <% else %>
             <!-- Token Creation Form -->
-            <.form for={@token_form} phx-submit="create_token" class="space-y-4">
+            <.form
+              for={@token_form}
+              phx-submit="create_token"
+              phx-change="token_form_changed"
+              class="space-y-4"
+            >
               <div class="form-control">
                 <label class="label"><span class="label-text">{gettext("Token Name")}</span></label>
                 <input
@@ -1497,41 +1734,101 @@ defmodule ElektrineWeb.UserSettingsLive do
               </div>
 
               <div class="form-control">
-                <label class="label"><span class="label-text">{gettext("Expiration")}</span></label>
-                <select name="token[expires_in]" class="select select-bordered w-full">
-                  <option value="">{gettext("Never")}</option>
-                  <option value="30">{gettext("30 days")}</option>
-                  <option value="90">{gettext("90 days")}</option>
-                  <option value="365">{gettext("1 year")}</option>
+                <label class="label">
+                  <span class="label-text">{gettext("Integration Template")}</span>
+                </label>
+                <select
+                  name="token[preset]"
+                  class="select select-bordered w-full"
+                >
+                  <%= for preset <- token_presets() do %>
+                    <option value={preset.id} selected={preset.id == @token_form_params["preset"]}>
+                      {preset.name}
+                    </option>
+                  <% end %>
                 </select>
+                <%= if preset = selected_token_preset(@token_form_params) do %>
+                  <label class="label">
+                    <span class="label-text-alt text-base-content/60">{preset.description}</span>
+                  </label>
+                <% end %>
               </div>
 
               <div class="form-control">
-                <label class="label"><span class="label-text">{gettext("Scopes")}</span></label>
-                <div class="max-h-52 overflow-y-auto border border-base-300 rounded-lg p-3 space-y-3">
-                  <%= for {category, scopes} <- Elektrine.Developer.ApiToken.scopes_by_category() do %>
-                    <div>
-                      <div class="font-medium text-sm text-base-content/70 mb-2">{category}</div>
-                      <div class="space-y-1">
-                        <%= for {scope, description} <- scopes do %>
-                          <label class="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name="token[scopes][]"
-                              value={scope}
-                              class="checkbox checkbox-sm checkbox-primary"
-                            />
-                            <span class="text-sm font-mono">{scope}</span>
-                            <span class="text-sm text-base-content/50 hidden sm:inline">
-                              - {description}
-                            </span>
-                          </label>
-                        <% end %>
-                      </div>
-                    </div>
-                  <% end %>
+                <label class="label"><span class="label-text">{gettext("Expiration")}</span></label>
+                <select
+                  name="token[expires_in]"
+                  class="select select-bordered w-full"
+                >
+                  <option value="" selected={@token_form_params["expires_in"] == ""}>
+                    {gettext("Never")}
+                  </option>
+                  <option value="30" selected={@token_form_params["expires_in"] == "30"}>
+                    {gettext("30 days")}
+                  </option>
+                  <option value="90" selected={@token_form_params["expires_in"] == "90"}>
+                    {gettext("90 days")}
+                  </option>
+                  <option value="365" selected={@token_form_params["expires_in"] == "365"}>
+                    {gettext("1 year")}
+                  </option>
+                </select>
+                <label class="label">
+                  <span class="label-text-alt text-base-content/60">
+                    {gettext("90 days is the recommended default for personal integrations.")}
+                  </span>
+                </label>
+              </div>
+
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">{gettext("Permission Preview")}</span>
+                </label>
+                <div class="rounded-lg border border-base-300 bg-base-200/50 p-3">
+                  <div class="flex flex-wrap gap-1">
+                    <%= for scope <- token_preview_scopes(@token_form_params) do %>
+                      <span class="badge badge-sm badge-outline">{scope}</span>
+                    <% end %>
+                    <%= if token_preview_scopes(@token_form_params) == [] do %>
+                      <span class="text-sm text-base-content/60">
+                        {gettext("Choose a template or custom scopes.")}
+                      </span>
+                    <% end %>
+                  </div>
                 </div>
               </div>
+
+              <%= if @token_form_params["preset"] == "custom" do %>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">{gettext("Custom Scopes")}</span>
+                  </label>
+                  <div class="max-h-52 overflow-y-auto border border-base-300 rounded-lg p-3 space-y-3">
+                    <%= for {category, scopes} <- ApiToken.scopes_by_category() do %>
+                      <div>
+                        <div class="font-medium text-sm text-base-content/70 mb-2">{category}</div>
+                        <div class="space-y-1">
+                          <%= for {scope, description} <- scopes do %>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                name="token[scopes][]"
+                                value={scope}
+                                checked={scope in (@token_form_params["scopes"] || [])}
+                                class="checkbox checkbox-sm checkbox-primary"
+                              />
+                              <span class="text-sm font-mono">{scope}</span>
+                              <span class="text-sm text-base-content/50 hidden sm:inline">
+                                - {description}
+                              </span>
+                            </label>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
 
               <div class="modal-action">
                 <button type="button" phx-click="close_token_modal" class="btn btn-ghost">

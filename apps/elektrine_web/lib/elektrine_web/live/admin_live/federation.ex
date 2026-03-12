@@ -493,14 +493,16 @@ defmodule ElektrineWeb.AdminLive.Federation do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="p-4 sm:p-6">
-      <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div class="admin-page">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold">ActivityPub Federation</h1>
-          <p class="text-sm opacity-70 mt-1">
-            Moderate remote ActivityPub instances, actors, and activities. This does not control
-            Arblarg chat federation or Bluesky bridge credentials.
+          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">
+            Federation Policy
+          </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight">ActivityPub Federation</h1>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Moderate remote ActivityPub instances, actors, and activity flow without touching
+            Arblarg chat peering or Bluesky bridge credentials.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -527,7 +529,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
         </div>
       </div>
 
-      <div class="alert bg-base-200 border border-base-300 mb-6">
+      <div class="alert bg-base-200 border border-base-300">
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
         <span class="text-sm">
           Use this page for ActivityPub trust and safety policy. For Arblarg chat server peering use
@@ -536,7 +538,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       </div>
       
     <!-- Stats Cards -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-4 mb-6">
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 lg:grid-cols-8">
         <div class="card glass-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
@@ -612,7 +614,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       </div>
       
     <!-- Tabs -->
-      <div class="tabs tabs-boxed mb-4 bg-base-200 p-1">
+      <div class="tabs tabs-boxed bg-base-200 p-1">
         <button
           phx-click="switch_tab"
           phx-value-tab="instances"
@@ -644,7 +646,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       </div>
       
     <!-- Search -->
-      <div class="mb-4">
+      <div>
         <form phx-submit="search" class="flex gap-2">
           <div class="join flex-1">
             <input

@@ -19,4 +19,4 @@ Chat-facing app API now lives in `../elektrine_chat`.
 
 ## License
 
-MIT (see `../../LICENSE`).
+AGPL-3.0-only (see `../../LICENSE`).

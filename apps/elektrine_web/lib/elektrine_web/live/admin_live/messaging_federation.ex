@@ -165,38 +165,19 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   end
 
   defp load_controls(socket) do
-    controls = Federation.list_peer_controls()
     query = socket.assigns[:search_query] || ""
     page = socket.assigns[:page] || 1
     per_page = socket.assigns[:per_page] || 50
-
-    filtered_controls =
-      if query == "" do
-        controls
-      else
-        needle = String.downcase(String.trim(query))
-        Enum.filter(controls, &String.contains?(String.downcase(&1.domain), needle))
-      end
-
-    total_count = length(filtered_controls)
-    total_pages = total_pages(total_count, per_page)
-    safe_page = clamp_page(page, total_pages)
-    offset = (safe_page - 1) * per_page
-
-    paged_controls =
-      filtered_controls
-      |> Enum.drop(offset)
-      |> Enum.take(per_page)
+    result = Federation.paginate_peer_controls(query, page, per_page)
 
     socket
-    |> assign(:all_peer_controls, controls)
-    |> assign(:peer_controls, paged_controls)
-    |> assign(:filtered_peer_total_count, total_count)
-    |> assign(:total_pages, total_pages)
-    |> assign(:page, safe_page)
-    |> assign(:blocked_peer_count, Enum.count(controls, & &1.blocked))
-    |> assign(:incoming_denied_count, Enum.count(controls, &(not &1.effective_allow_incoming)))
-    |> assign(:outgoing_denied_count, Enum.count(controls, &(not &1.effective_allow_outgoing)))
+    |> assign(:peer_controls, result.entries)
+    |> assign(:filtered_peer_total_count, result.total_count)
+    |> assign(:total_pages, result.total_pages)
+    |> assign(:page, result.page)
+    |> assign(:blocked_peer_count, result.stats.blocked)
+    |> assign(:incoming_denied_count, result.stats.incoming_denied)
+    |> assign(:outgoing_denied_count, result.stats.outgoing_denied)
   end
 
   defp mode_to_override("allow"), do: {:ok, true}
@@ -204,27 +185,19 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   defp mode_to_override("inherit"), do: {:ok, nil}
   defp mode_to_override(_), do: :error
 
-  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
-    div(total_count + per_page - 1, per_page)
-  end
-
-  defp total_pages(_, _), do: 1
-
-  defp clamp_page(page, _total_pages) when page < 1, do: 1
-  defp clamp_page(page, total_pages) when page > total_pages, do: total_pages
-  defp clamp_page(page, _total_pages), do: page
-
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="p-4 sm:p-6 space-y-6">
+    <div class="admin-page">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold">Arblarg Messaging Federation</h1>
-          <p class="text-sm opacity-70 mt-1">
-            Controls signed Arblarg chat federation between servers, including configured peers and
-            dynamically discovered domains. This is separate from ActivityPub moderation and Bluesky
-            bridging.
+          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
+            Network Controls
+          </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight">Arblarg Messaging Federation</h1>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Manage signed Arblarg chat federation, including configured peers, discovery metadata,
+            and per-direction runtime overrides.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">

@@ -107,12 +107,39 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:calendar"])
   end
 
+  pipeline :api_pat_email_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:email", "write:email"], any: true)
+  end
+
+  pipeline :api_pat_chat_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:chat", "write:chat"], any: true)
+  end
+
+  pipeline :api_pat_social_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:social", "write:social"], any: true)
+  end
+
+  pipeline :api_pat_contacts_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:contacts", "write:contacts"], any: true)
+  end
+
   pipeline :api_pat_account_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:account", "write:account"], any: true)
   end
 
   pipeline :api_pat_account_write_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:account"])
+  end
+
+  pipeline :api_pat_vault_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth,
+      scopes: ["read:vault", "write:vault", "read:account", "write:account"],
+      any: true
+    )
+  end
+
+  pipeline :api_pat_vault_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault", "write:account"], any: true)
   end
 
   pipeline :api_pat_export_scope do
@@ -395,6 +422,7 @@ defmodule ElektrineWeb.Router do
     get("/robots.txt", SitemapController, :robots)
 
     # ActivityPub external interaction compatibility (Lemmy/Mastodon clients)
+    get("/authorize_interaction", ExternalInteractionController, :show)
     get("/activitypub/externalInteraction", ExternalInteractionController, :show)
 
     # Temporary email routes disabled
@@ -625,6 +653,7 @@ defmodule ElektrineWeb.Router do
     # Mailbox management (Admin.MailboxesController)
     get("/mailboxes", Admin.MailboxesController, :index)
     delete("/mailboxes/:id", Admin.MailboxesController, :delete)
+    get("/custom-domains", Admin.CustomDomainsController, :index)
 
     # Message management (Admin.MessagesController)
     get("/messages", Admin.MessagesController, :index)
@@ -1012,12 +1041,54 @@ defmodule ElektrineWeb.Router do
   end
 
   # External PAT-authenticated API endpoints for integrations.
+  scope "/api/ext/v1", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated])
+
+    get("/capabilities", MetaController, :capabilities)
+  end
+
+  scope "/api/ext/v1", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
+
+    get("/me", MetaController, :me)
+  end
+
   scope "/api/ext/v1/search", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_search_read_scope])
 
     get("/", GlobalSearchController, :index)
     get("/actions", GlobalSearchController, :actions)
     post("/actions/execute", GlobalSearchController, :execute)
+  end
+
+  scope "/api/ext/v1/email", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_email_read_scope])
+
+    get("/messages", ExtEmailController, :index)
+    get("/messages/:id", ExtEmailController, :show)
+  end
+
+  scope "/api/ext/v1/chat", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_chat_read_scope])
+
+    get("/conversations", ExtChatController, :index)
+    get("/conversations/:id", ExtChatController, :show)
+    get("/conversations/:id/messages", ExtChatController, :messages)
+  end
+
+  scope "/api/ext/v1/social", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_social_read_scope])
+
+    get("/feed", ExtSocialController, :feed)
+    get("/posts/:id", ExtSocialController, :show)
+    get("/users/:user_id/posts", ExtSocialController, :user_posts)
+  end
+
+  scope "/api/ext/v1/contacts", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_contacts_read_scope])
+
+    get("/", ExtContactsController, :index)
+    get("/:id", ExtContactsController, :show)
   end
 
   scope "/api/ext/v1/calendars", ElektrineWeb.API do
@@ -1042,14 +1113,14 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
+    pipe_through([:api_pat_authenticated, :api_pat_vault_read_scope])
 
     get("/entries", PasswordManagerController, :index)
     get("/entries/:id", PasswordManagerController, :show)
   end
 
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_account_write_scope])
+    pipe_through([:api_pat_authenticated, :api_pat_vault_write_scope])
 
     post("/vault/setup", PasswordManagerController, :setup)
     post("/entries", PasswordManagerController, :create)
@@ -1076,6 +1147,7 @@ defmodule ElektrineWeb.Router do
     post("/:id/test", WebhookController, :test)
     post("/:id/rotate-secret", WebhookController, :rotate_secret)
     get("/:id/deliveries", WebhookController, :deliveries)
+    post("/:id/deliveries/:delivery_id/replay", WebhookController, :replay)
   end
 
   # Backward-compatible unversioned external endpoints.

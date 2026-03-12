@@ -1,5 +1,7 @@
 defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   use ElektrineWeb, :live_view
+
+  alias Elektrine.Messaging
   alias Elektrine.Reports
   import ElektrineWeb.Components.User.Avatar
 
@@ -13,7 +15,11 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
      |> assign(:filter_status, "pending")
      |> assign(:filter_type, "all")
      |> assign(:filter_priority, "all")
+     |> assign(:page, 1)
+     |> assign(:per_page, 25)
      |> assign(:reports, [])
+     |> assign(:reports_total_count, 0)
+     |> assign(:total_pages, 1)
      |> assign(:selected_report, nil)
      |> assign(:stats, %{})
      |> load_reports()
@@ -28,11 +34,16 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div class="admin-page">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 class="text-3xl font-bold">Reports Dashboard</h1>
-          <p class="mt-2 text-base-content/70">Review, triage, and resolve user reports.</p>
+          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-warning/80">
+            Moderation
+          </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight">Reports</h1>
+          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Review, triage, and resolve user reports across messages, users, and conversations.
+          </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <.link href={~p"/pripyat/content-moderation"} class="btn btn-sm btn-ghost">
@@ -44,73 +55,81 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         </div>
       </div>
 
-      <div class="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <button
           phx-click="set_filter_status"
           phx-value-status="pending"
           class={[
-            "rounded-xl border p-4 text-left transition",
+            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
             if(@filter_status == "pending",
-              do: "border-warning/60 bg-warning/10",
-              else: "border-base-300 bg-base-200/60 hover:border-warning/40"
+              do: "border-warning/30 bg-warning/10 shadow-md",
+              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-warning/30"
             )
           ]}
         >
-          <div class="text-xs uppercase tracking-wide opacity-70">Pending</div>
-          <div class="mt-1 text-2xl font-semibold text-warning">{@stats[:pending] || 0}</div>
-          <div class="text-xs opacity-60">Needs initial review</div>
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Pending
+          </div>
+          <div class="mt-2 text-3xl font-semibold text-warning">{@stats[:pending] || 0}</div>
+          <div class="mt-2 text-xs text-base-content/55">Needs initial review.</div>
         </button>
 
         <button
           phx-click="set_filter_status"
           phx-value-status="reviewing"
           class={[
-            "rounded-xl border p-4 text-left transition",
+            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
             if(@filter_status == "reviewing",
-              do: "border-info/60 bg-info/10",
-              else: "border-base-300 bg-base-200/60 hover:border-info/40"
+              do: "border-info/30 bg-info/10 shadow-md",
+              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-info/30"
             )
           ]}
         >
-          <div class="text-xs uppercase tracking-wide opacity-70">Reviewing</div>
-          <div class="mt-1 text-2xl font-semibold text-info">{@stats[:reviewing] || 0}</div>
-          <div class="text-xs opacity-60">In progress</div>
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Reviewing
+          </div>
+          <div class="mt-2 text-3xl font-semibold text-info">{@stats[:reviewing] || 0}</div>
+          <div class="mt-2 text-xs text-base-content/55">In progress.</div>
         </button>
 
         <button
           phx-click="set_filter_status"
           phx-value-status="resolved"
           class={[
-            "rounded-xl border p-4 text-left transition",
+            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
             if(@filter_status == "resolved",
-              do: "border-success/60 bg-success/10",
-              else: "border-base-300 bg-base-200/60 hover:border-success/40"
+              do: "border-success/30 bg-success/10 shadow-md",
+              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-success/30"
             )
           ]}
         >
-          <div class="text-xs uppercase tracking-wide opacity-70">Resolved</div>
-          <div class="mt-1 text-2xl font-semibold text-success">{@stats[:resolved] || 0}</div>
-          <div class="text-xs opacity-60">Closed with action</div>
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Resolved
+          </div>
+          <div class="mt-2 text-3xl font-semibold text-success">{@stats[:resolved] || 0}</div>
+          <div class="mt-2 text-xs text-base-content/55">Closed with action.</div>
         </button>
 
         <button
           phx-click="set_filter_status"
           phx-value-status="all"
           class={[
-            "rounded-xl border p-4 text-left transition",
+            "rounded-box border border-base-300 bg-base-200/60 px-4 py-4 text-left shadow-sm transition",
             if(@filter_status == "all",
-              do: "border-error/60 bg-error/10",
-              else: "border-base-300 bg-base-200/60 hover:border-error/40"
+              do: "border-error/30 bg-error/10 shadow-md",
+              else: "border-base-content/10 hover:-translate-y-0.5 hover:border-error/30"
             )
           ]}
         >
-          <div class="text-xs uppercase tracking-wide opacity-70">Critical Pending</div>
-          <div class="mt-1 text-2xl font-semibold text-error">{@stats[:critical] || 0}</div>
-          <div class="text-xs opacity-60">High-risk unresolved</div>
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Critical Pending
+          </div>
+          <div class="mt-2 text-3xl font-semibold text-error">{@stats[:critical] || 0}</div>
+          <div class="mt-2 text-xs text-base-content/55">High-risk unresolved.</div>
         </button>
       </div>
 
-      <div class="card glass-card mb-6 shadow-xl">
+      <div class="card glass-card">
         <div class="card-body gap-4">
           <div class="tabs tabs-boxed overflow-x-auto flex-nowrap">
             <button
@@ -190,12 +209,14 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
             <span class="badge badge-outline">Status: {String.capitalize(@filter_status)}</span>
             <span class="badge badge-outline">Type: {String.capitalize(@filter_type)}</span>
             <span class="badge badge-outline">Priority: {String.capitalize(@filter_priority)}</span>
-            <span class="badge badge-ghost">{length(@reports)} loaded</span>
+            <span class="badge badge-ghost">
+              Showing {length(@reports)} of {@reports_total_count}
+            </span>
           </div>
         </div>
       </div>
 
-      <div class="card glass-card shadow-xl">
+      <div class="card glass-card">
         <div class="card-body p-0">
           <%= if @reports == [] do %>
             <div class="p-10 text-center">
@@ -353,7 +374,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
             <div class="space-y-3 p-4 lg:hidden">
               <%= for report <- @reports do %>
-                <article class="rounded-xl border border-base-300 bg-base-100/70 p-4">
+                <article class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
                   <div class="mb-3 flex items-start justify-between gap-3">
                     <div>
                       <div class="font-semibold">Report #{report.id}</div>
@@ -443,6 +464,30 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
           <% end %>
         </div>
       </div>
+
+      <%= if @total_pages > 1 do %>
+        <div class="mt-4 flex items-center justify-between gap-3">
+          <div class="text-sm text-base-content/70">
+            Page {@page} of {@total_pages}
+          </div>
+          <div class="join">
+            <button
+              phx-click="prev_page"
+              class="btn btn-sm join-item"
+              disabled={@page <= 1}
+            >
+              Previous
+            </button>
+            <button
+              phx-click="next_page"
+              class="btn btn-sm join-item"
+              disabled={@page >= @total_pages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      <% end %>
 
       <%= if @selected_report do %>
         <div class="modal modal-open">
@@ -730,6 +775,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
     {:noreply,
      socket
      |> assign(:filter_status, status)
+     |> assign(:page, 1)
      |> load_reports()
      |> load_stats()}
   end
@@ -747,6 +793,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
      |> assign(:filter_status, filters.status)
      |> assign(:filter_type, filters.type)
      |> assign(:filter_priority, filters.priority)
+     |> assign(:page, 1)
      |> load_reports(filters)}
   end
 
@@ -812,6 +859,14 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
     end
   end
 
+  def handle_event("prev_page", _params, socket) do
+    {:noreply, socket |> assign(:page, socket.assigns.page - 1) |> load_reports()}
+  end
+
+  def handle_event("next_page", _params, socket) do
+    {:noreply, socket |> assign(:page, socket.assigns.page + 1) |> load_reports()}
+  end
+
   def handle_event("admin_action", %{"action" => action} = params, socket) do
     # Handle admin actions like suspend/ban user, delete content
     case action do
@@ -844,7 +899,8 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                "User suspended until #{Calendar.strftime(suspended_until, "%B %d, %Y")}"
              )
              |> assign(:selected_report, nil)
-             |> load_reports()}
+             |> load_reports()
+             |> load_stats()}
 
           {:error, :cannot_suspend_admin} ->
             {:noreply,
@@ -876,7 +932,8 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
              socket
              |> put_flash(:info, "User has been permanently banned")
              |> assign(:selected_report, nil)
-             |> load_reports()}
+             |> load_reports()
+             |> load_stats()}
 
           {:error, :cannot_ban_admin} ->
             {:noreply,
@@ -887,10 +944,38 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         end
 
       "delete_message" ->
-        # Implement message deletion logic
-        _message_id = String.to_integer(params["message_id"])
+        message_id = String.to_integer(params["message_id"])
 
-        {:noreply, put_flash(socket, :info, "Message deletion not yet implemented")}
+        case Messaging.admin_delete_message(message_id, socket.assigns.current_user) do
+          {:ok, _message} ->
+            if socket.assigns.selected_report do
+              Reports.review_report(socket.assigns.selected_report, %{
+                status: "resolved",
+                action_taken: "content_removed",
+                reviewed_by_id: socket.assigns.current_user.id,
+                resolution_notes: "Message deleted by admin from reports dashboard"
+              })
+            end
+
+            {:noreply,
+             socket
+             |> put_flash(:info, "Message deleted")
+             |> assign(:selected_report, nil)
+             |> load_reports()
+             |> load_stats()}
+
+          {:error, :already_deleted} ->
+            {:noreply, put_flash(socket, :error, "Message has already been deleted")}
+
+          {:error, :not_found} ->
+            {:noreply, put_flash(socket, :error, "Message not found")}
+
+          {:error, :unauthorized} ->
+            {:noreply, put_flash(socket, :error, "You are not allowed to delete this message")}
+
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to delete message")}
+        end
 
       _ ->
         {:noreply, socket}
@@ -898,15 +983,13 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   end
 
   def handle_event("view_reported_item", %{"type" => type, "id" => id}, socket) do
-    # Redirect to the appropriate page based on type
-    path =
-      case type do
-        "user" -> "/pripyat/users/#{id}"
-        "message" -> "/pripyat/messages/#{id}"
-        _ -> "#"
-      end
+    case reported_item_path(type, String.to_integer(id)) do
+      {:ok, path} ->
+        {:noreply, redirect(socket, to: path)}
 
-    {:noreply, redirect(socket, external: path)}
+      :error ->
+        {:noreply, put_flash(socket, :error, "No admin view is available for this report target")}
+    end
   end
 
   # Private Functions
@@ -929,19 +1012,19 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         {k, v}, acc -> Map.put(acc, k, v)
       end)
 
-    reports = Reports.list_reports(filters)
-    assign(socket, :reports, reports)
+    page = socket.assigns.page || 1
+    per_page = socket.assigns.per_page || 25
+    result = Reports.paginate_reports(filters, page, per_page)
+
+    socket
+    |> assign(:reports, result.entries)
+    |> assign(:reports_total_count, result.total_count)
+    |> assign(:total_pages, result.total_pages)
+    |> assign(:page, result.page)
   end
 
   defp load_stats(socket) do
-    stats = %{
-      pending: Reports.count_pending_reports(),
-      reviewing: Enum.count(Reports.list_reports(%{status: "reviewing"})),
-      resolved: Enum.count(Reports.list_reports(%{status: "resolved"})),
-      critical: Enum.count(Reports.list_reports(%{priority: "critical", status: "pending"}))
-    }
-
-    assign(socket, :stats, stats)
+    assign(socket, :stats, Reports.dashboard_stats())
   end
 
   defp apply_filters(socket, params) do
@@ -951,6 +1034,23 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
     |> assign(:filter_priority, params["priority"] || socket.assigns.filter_priority)
     |> load_reports()
   end
+
+  defp reported_item_path("user", id), do: {:ok, "/pripyat/users/#{id}/edit"}
+
+  defp reported_item_path(type, id) when type in ["message", "post"] do
+    cond do
+      Elektrine.Repo.get(Elektrine.Messaging.ChatMessage, id) ->
+        {:ok, "/pripyat/arblarg/messages/#{id}/view"}
+
+      Elektrine.Repo.get(Elektrine.Messaging.Message, id) ->
+        {:ok, "/timeline/post/#{id}"}
+
+      true ->
+        :error
+    end
+  end
+
+  defp reported_item_path(_, _id), do: :error
 
   defp format_reason(nil), do: "Unspecified"
 

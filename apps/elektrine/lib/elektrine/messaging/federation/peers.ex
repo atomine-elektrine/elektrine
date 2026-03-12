@@ -89,6 +89,45 @@ defmodule Elektrine.Messaging.Federation.Peers do
     PeerPolicies.list_peer_controls(Runtime.configured_peers(), discovered_peer_controls())
   end
 
+  def paginate_peer_controls(search_query, page, per_page) do
+    configured_peers = Runtime.configured_peers()
+    filtered_configured_peers = filter_configured_peers(configured_peers, search_query)
+
+    domains =
+      filtered_configured_peers
+      |> Enum.map(&String.downcase(&1.domain))
+      |> Enum.concat(Discovery.list_discovered_peer_domains(search_query))
+      |> Enum.concat(PeerPolicies.list_policy_domains(search_query))
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    total_count = length(domains)
+    total_pages = total_pages(total_count, per_page)
+    safe_page = clamp_page(page, total_pages)
+    offset = (safe_page - 1) * per_page
+    page_domains = Enum.slice(domains, offset, per_page)
+
+    {policy_overrides, users_by_id} =
+      PeerPolicies.list_policy_overrides(domains: page_domains, include_users: true)
+
+    discovered_controls =
+      Discovery.list_discovered_peer_controls(discovery_context(), domains: page_domains)
+
+    page_entries =
+      filtered_configured_peers
+      |> Enum.filter(fn peer -> String.downcase(peer.domain) in page_domains end)
+      |> PeerPolicies.build_peer_controls(discovered_controls, policy_overrides, users_by_id)
+
+    %{
+      entries: page_entries,
+      page: safe_page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages,
+      stats: peer_control_stats(configured_peers)
+    }
+  end
+
   def upsert_peer_policy(domain, attrs, updated_by_id \\ nil) when is_map(attrs) do
     PeerPolicies.upsert_peer_policy(domain, attrs, updated_by_id)
   end
@@ -119,6 +158,41 @@ defmodule Elektrine.Messaging.Federation.Peers do
       truncate: &Utils.truncate/1
     })
   end
+
+  defp peer_control_stats(configured_peers) do
+    discovered_state = Discovery.discovered_peer_state_map()
+    policy_overrides = PeerPolicies.list_policy_overrides()
+
+    PeerPolicies.control_stats(configured_peers, discovered_state, policy_overrides)
+  end
+
+  defp filter_configured_peers(configured_peers, search_query)
+       when is_list(configured_peers) and is_binary(search_query) do
+    case String.trim(search_query) do
+      "" ->
+        configured_peers
+
+      trimmed ->
+        needle = String.downcase(trimmed)
+
+        Enum.filter(configured_peers, fn peer ->
+          String.contains?(String.downcase(peer.domain), needle)
+        end)
+    end
+  end
+
+  defp filter_configured_peers(configured_peers, _search_query) when is_list(configured_peers),
+    do: configured_peers
+
+  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
+    div(total_count + per_page - 1, per_page)
+  end
+
+  defp total_pages(_, _), do: 1
+
+  defp clamp_page(page, _total_pages) when page < 1, do: 1
+  defp clamp_page(page, total_pages) when page > total_pages, do: total_pages
+  defp clamp_page(page, _total_pages), do: page
 
   defp normalize_optional_string(value) when is_binary(value) do
     case String.trim(value) do

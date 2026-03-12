@@ -30,15 +30,24 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-2xl mx-auto">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold mb-2">{gettext("Passkeys")}</h1>
-        <p class="text-base-content/70">
-          {gettext("Sign in without a password using your device's biometrics or security key")}
-        </p>
-      </div>
+    <div class="max-w-3xl mx-auto space-y-6">
+      <section class="card glass-card shadow-xl border border-base-300">
+        <div class="card-body max-w-2xl px-6 py-7 sm:px-8">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">
+            Account Security
+          </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight">{gettext("Passkeys")}</h1>
+          <p class="mt-3 text-base-content/70">
+            {gettext("Sign in without a password using your device's biometrics or security key")}
+          </p>
+        </div>
+      </section>
 
-      <div id="passkey-manage-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
+      <div
+        id="passkey-manage-card"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-xl border border-base-300"
+      >
         <div class="card-body">
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-4">

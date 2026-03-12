@@ -3,6 +3,7 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.Message
 
   describe "get_message_by_activitypub_ref/1" do
     test "matches refs with query and fragment variants" do
@@ -73,6 +74,44 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
 
       assert %{} = found = Messaging.get_message_by_activitypub_ref(ref)
       assert found.id == by_id.id
+    end
+
+    test "falls back to legacy rows without canonical columns populated" do
+      actor = remote_actor_fixture()
+      canonical_ref = "https://legacy.example/users/alice/statuses/42"
+
+      message =
+        Repo.insert!(%Message{
+          content: "legacy ref",
+          visibility: "public",
+          federated: true,
+          activitypub_id: canonical_ref <> "/?ctx=reply#fragment",
+          activitypub_url: canonical_ref <> "?view=web",
+          remote_actor_id: actor.id
+        })
+
+      assert %{} = found = Messaging.get_message_by_activitypub_ref(canonical_ref)
+      assert found.id == message.id
+    end
+
+    test "caches missing refs and invalidates the cache when a matching federated message is created" do
+      actor = remote_actor_fixture()
+      ref = "https://mastodon.social/@alice/114173199?foo=bar#context"
+
+      assert Messaging.get_message_by_activitypub_ref(ref) == nil
+
+      assert {:ok, message} =
+               Messaging.create_federated_message(%{
+                 content: "arrived after miss",
+                 visibility: "public",
+                 federated: true,
+                 activitypub_id: "https://origin.example/objects/ghi789",
+                 activitypub_url: "https://mastodon.social/@alice/114173199",
+                 remote_actor_id: actor.id
+               })
+
+      assert %{} = found = Messaging.get_message_by_activitypub_ref(ref)
+      assert found.id == message.id
     end
   end
 

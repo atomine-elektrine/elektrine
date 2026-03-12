@@ -15,4 +15,4 @@ Phoenix web interface app for the Elektrine umbrella.
 
 ## License
 
-MIT (see `../../LICENSE`).
+AGPL-3.0-only (see `../../LICENSE`).

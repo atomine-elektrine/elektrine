@@ -199,6 +199,49 @@ defmodule ElektrineWeb.API.WebhookController do
     end
   end
 
+  @doc """
+  POST /api/ext/v1/webhooks/:id/deliveries/:delivery_id/replay
+  """
+  def replay(conn, %{"id" => id, "delivery_id" => delivery_id}) do
+    user = conn.assigns.current_user
+
+    with {:ok, webhook_id} <- parse_id(id),
+         {:ok, replay_delivery_id} <- parse_id(delivery_id),
+         %Webhook{} <- Developer.get_webhook(user.id, webhook_id),
+         %WebhookDelivery{webhook_id: ^webhook_id} <-
+           Developer.get_webhook_delivery(user.id, replay_delivery_id),
+         {:ok, :queued} <- Developer.replay_webhook_delivery(user.id, replay_delivery_id) do
+      Response.accepted(conn, %{message: "Webhook delivery replay queued"})
+    else
+      :error ->
+        Response.error(conn, :bad_request, "invalid_id", "Invalid webhook or delivery id")
+
+      nil ->
+        Response.error(conn, :not_found, "not_found", "Webhook delivery not found")
+
+      {:error, :not_found} ->
+        Response.error(conn, :not_found, "not_found", "Webhook delivery not found")
+
+      {:error, {:enqueue_failed, reason}} ->
+        Response.error(
+          conn,
+          :unprocessable_entity,
+          "enqueue_failed",
+          "Failed to queue webhook replay",
+          inspect(reason)
+        )
+
+      {:error, reason} ->
+        Response.error(
+          conn,
+          :unprocessable_entity,
+          "replay_failed",
+          "Failed to replay webhook delivery",
+          inspect(reason)
+        )
+    end
+  end
+
   defp webhook_payload(params) do
     source = Map.get(params, "webhook", params)
 

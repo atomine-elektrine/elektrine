@@ -7,7 +7,11 @@ defmodule Elektrine.Application do
   def start(_type, _args) do
     add_sentry_handler()
 
-    children = core_children() ++ web_children()
+    children =
+      core_children() ++
+        jobs_children() ++
+        web_children() ++
+        mail_children()
 
     opts = [strategy: :one_for_one, name: Elektrine.Supervisor]
     Supervisor.start_link(children, opts)
@@ -42,41 +46,69 @@ defmodule Elektrine.Application do
       {Registry, keys: :unique, name: Elektrine.Messaging.FederationSessionRegistry},
       {DynamicSupervisor,
        strategy: :one_for_one, name: Elektrine.Messaging.FederationSessionSupervisor},
-      {Oban, Application.fetch_env!(:elektrine, Oban)},
       Elektrine.AppCache,
       Elektrine.Encryption.KeyCache,
       Elektrine.Messaging.RateLimiter,
       Elektrine.Auth.RateLimiter,
       Elektrine.API.RateLimiter,
       Elektrine.Search.RateLimiter,
-      Elektrine.HTTP.Backoff
+      Elektrine.HTTP.Backoff,
+      Elektrine.Email.Cache,
+      Elektrine.MailAuth.RateLimiter,
+      Elektrine.Email.RateLimiter
     ]
   end
 
+  defp jobs_children do
+    if component_enabled?(:jobs) do
+      [
+        {Oban, Application.fetch_env!(:elektrine, Oban)},
+        Elektrine.Scheduler
+      ]
+    else
+      []
+    end
+  end
+
   defp web_children do
-    [
-      ElektrineWeb.Telemetry,
-      Elektrine.Scheduler,
-      Elektrine.Email.Cache,
-      Elektrine.MailAuth.RateLimiter,
-      Elektrine.Email.RateLimiter,
-      Elektrine.Webhook.RateLimiter,
-      Elektrine.Timeline.RateLimiter,
-      Elektrine.DAV.RateLimiter,
-      Elektrine.SecurityAlerts.Cache,
-      Elektrine.VPN.PeerCache,
-      Elektrine.VPN.HealthMonitor,
-      Elektrine.VPN.StatsAggregator,
-      ElektrineWeb.Presence,
-      Elektrine.POP3.Supervisor,
-      Elektrine.IMAP.Supervisor,
-      Elektrine.SMTP.Supervisor,
-      Elektrine.ActivityPub.InboxRateLimiter,
-      Elektrine.ActivityPub.DomainThrottler,
-      Elektrine.ActivityPub.InboxQueue,
-      Elektrine.ActivityPub.Nodeinfo,
-      Elektrine.ActivityPub.CommunityFetcher,
-      ElektrineWeb.Endpoint
-    ]
+    if component_enabled?(:web) do
+      [
+        ElektrineWeb.Telemetry,
+        Elektrine.Webhook.RateLimiter,
+        Elektrine.Timeline.RateLimiter,
+        Elektrine.DAV.RateLimiter,
+        Elektrine.SecurityAlerts.Cache,
+        Elektrine.VPN.PeerCache,
+        Elektrine.VPN.HealthMonitor,
+        Elektrine.VPN.StatsAggregator,
+        ElektrineWeb.Presence,
+        Elektrine.ActivityPub.InboxRateLimiter,
+        Elektrine.ActivityPub.DomainThrottler,
+        Elektrine.ActivityPub.InboxQueue,
+        Elektrine.ActivityPub.Nodeinfo,
+        Elektrine.ActivityPub.CommunityFetcher,
+        ElektrineWeb.Endpoint
+      ]
+    else
+      []
+    end
+  end
+
+  defp mail_children do
+    if component_enabled?(:mail) do
+      [
+        Elektrine.POP3.Supervisor,
+        Elektrine.IMAP.Supervisor,
+        Elektrine.SMTP.Supervisor
+      ]
+    else
+      []
+    end
+  end
+
+  defp component_enabled?(component) do
+    :elektrine
+    |> Application.get_env(:runtime_components, [])
+    |> Keyword.get(component, true)
   end
 end

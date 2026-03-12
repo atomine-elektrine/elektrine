@@ -1,0 +1,508 @@
+<div class="space-y-6 sm:space-y-8">
+  <section class="card glass-card shadow-xl border border-base-300">
+    <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
+      <div class="max-w-3xl">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
+          Email Infrastructure
+        </div>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+          Custom Domains
+        </h1>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
+          Inspect every bring-your-own-domain setup across the platform, including ownership,
+          verification health, DKIM sync state, and the DNS records admins expect users to publish.
+        </p>
+      </div>
+
+      <div class="grid w-full gap-3 sm:grid-cols-2 lg:w-auto lg:min-w-[22rem]">
+        <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3 shadow-sm">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.2em] text-base-content/45">
+            Verified
+          </div>
+          <div class="mt-2 text-2xl font-semibold text-success">{@overview.verified}</div>
+        </div>
+        <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3 shadow-sm">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.2em] text-base-content/45">
+            Attention
+          </div>
+          <div class="mt-2 text-2xl font-semibold text-warning">{@overview.attention}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Total Domains
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-info">{@overview.total}</div>
+      <div class="mt-2 text-xs text-base-content/55">All claimed custom sender domains.</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Verified
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-success">{@overview.verified}</div>
+      <div class="mt-2 text-xs text-base-content/55">TXT and MX checks have passed.</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Pending
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-secondary">{@overview.pending}</div>
+      <div class="mt-2 text-xs text-base-content/55">Still waiting for DNS verification.</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Attention
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-warning">{@overview.attention}</div>
+      <div class="mt-2 text-xs text-base-content/55">
+        Latest verification or DKIM sync reported an issue.
+      </div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Preferred
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-primary">{@overview.preferred}</div>
+      <div class="mt-2 text-xs text-base-content/55">
+        Used as the owner’s primary outgoing domain.
+      </div>
+    </div>
+  </section>
+
+  <section class="card glass-card shadow-xl border border-base-300">
+    <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <form method="get" action={~p"/pripyat/custom-domains"} class="flex-1">
+          <label class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Search
+          </label>
+          <div class="mt-2 flex flex-col gap-3 md:flex-row">
+            <div class="join w-full max-w-2xl">
+              <input
+                type="text"
+                name="search"
+                value={@search_query}
+                placeholder="Search domain, owner, or preferred domain..."
+                class="input input-bordered join-item w-full"
+              />
+              <input type="hidden" name="status" value={@status_filter} />
+              <button type="submit" class="btn btn-primary join-item">
+                <.icon name="hero-magnifying-glass" class="h-4 w-4" /> Search
+              </button>
+            </div>
+
+            <%= if @search_query != "" or @status_filter != "all" do %>
+              <.link href={~p"/pripyat/custom-domains"} class="btn btn-ghost">
+                <.icon name="hero-x-mark" class="h-4 w-4" /> Clear
+              </.link>
+            <% end %>
+          </div>
+        </form>
+
+        <.link href={~p"/pripyat"} class="btn btn-ghost">
+          <.icon name="hero-arrow-left" class="h-4 w-4" /> Dashboard
+        </.link>
+      </div>
+
+      <div class="mt-5 flex flex-wrap gap-2">
+        <%= for status <- @status_filters do %>
+          <.link
+            href={build_custom_domains_url(@search_query, status, 1)}
+            class={[
+              "rounded-box border px-3 py-2 text-sm font-medium transition",
+              if(status == @status_filter,
+                do: "border-primary bg-primary text-primary-content shadow-sm",
+                else:
+                  "border-base-content/10 bg-base-200/60 text-base-content/70 hover:border-primary/40 hover:text-base-content"
+              )
+            ]}
+          >
+            {custom_domain_filter_label(status)}
+          </.link>
+        <% end %>
+      </div>
+
+      <%= if @search_query != "" or @status_filter != "all" do %>
+        <div class="mt-4 rounded-box border border-info/15 bg-info/5 px-4 py-3 text-sm text-base-content/75">
+          Showing {@total_count} result{if @total_count != 1, do: "s"}
+          <%= if @search_query != "" do %>
+            for <span class="font-semibold text-base-content">"{@search_query}"</span>
+          <% end %>
+          <%= if @status_filter != "all" do %>
+            in
+            <span class="font-semibold text-base-content">
+              {custom_domain_filter_label(@status_filter)}
+            </span>
+          <% end %>
+          .
+        </div>
+      <% end %>
+    </div>
+
+    <div class="px-5 py-5 sm:px-6">
+      <%= if @total_count == 0 do %>
+        <div class="rounded-box border border-dashed border-base-300 bg-base-200/40 px-6 py-12 text-center">
+          <.icon name="hero-globe-alt" class="mx-auto h-12 w-12 text-base-content/25" />
+          <h2 class="mt-4 text-lg font-semibold">No custom domains found</h2>
+          <p class="mt-2 text-sm text-base-content/60">
+            Adjust the search or filter to broaden the result set.
+          </p>
+        </div>
+      <% else %>
+        <div class="hidden xl:block overflow-x-auto">
+          <table class="table w-full">
+            <thead>
+              <tr class="text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+                <th>Domain</th>
+                <th>Owner</th>
+                <th>Health</th>
+                <th>Verification</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for custom_domain <- @custom_domains do %>
+                <tr class="align-top">
+                  <td class="w-[32%]">
+                    <div class="space-y-3">
+                      <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                          <div class="font-semibold text-base">{custom_domain.domain}</div>
+                          <span class={[
+                            "badge badge-sm border-0",
+                            custom_domain_status_badge_class(custom_domain.status)
+                          ]}>
+                            {String.capitalize(custom_domain.status)}
+                          </span>
+                        </div>
+                        <div class="mt-2 font-mono text-sm text-base-content/70 break-all">
+                          {custom_domain_primary_email(custom_domain)}
+                        </div>
+                      </div>
+
+                      <details class="group rounded-box border border-base-300 bg-base-200/60">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-base-content/75">
+                          <span>DNS Blueprint</span>
+                          <span class="text-xs text-base-content/45 transition group-open:rotate-180">
+                            <.icon name="hero-chevron-down" class="h-4 w-4" />
+                          </span>
+                        </summary>
+                        <div class="space-y-3 border-t border-base-content/10 px-4 py-4">
+                          <%= for record <- Elektrine.Email.dns_records_for_custom_domain(custom_domain) do %>
+                            <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3">
+                              <div class="flex flex-wrap items-center gap-2">
+                                <span class="badge badge-outline badge-sm">{record.type}</span>
+                                <span class="text-xs font-medium text-base-content/55">
+                                  {record.label}
+                                </span>
+                                <%= if record.priority do %>
+                                  <span class="text-xs text-base-content/45">
+                                    priority {record.priority}
+                                  </span>
+                                <% end %>
+                              </div>
+                              <div class="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                                Host
+                              </div>
+                              <div class="mt-1 font-mono text-xs leading-5 text-base-content/75 break-all">
+                                {record.host}
+                              </div>
+                              <div class="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                                Value
+                              </div>
+                              <div class="mt-1 font-mono text-xs leading-5 text-base-content/75 break-all">
+                                {record.value}
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      </details>
+                    </div>
+                  </td>
+
+                  <td class="w-[18%]">
+                    <div class="space-y-2">
+                      <%= if custom_domain.user do %>
+                        <.link
+                          href={~p"/pripyat/users/#{custom_domain.user.id}/edit"}
+                          class="font-semibold text-primary hover:underline"
+                        >
+                          {custom_domain.user.username}
+                        </.link>
+                        <div class="text-sm text-base-content/60">
+                          Preferred:
+                          <span class="font-medium text-base-content/75">
+                            {custom_domain.user.preferred_email_domain || "default"}
+                          </span>
+                        </div>
+                        <%= if String.downcase(custom_domain.user.preferred_email_domain || "") ==
+                              String.downcase(custom_domain.domain) do %>
+                          <div class="badge badge-outline badge-primary">
+                            Primary Sending Domain
+                          </div>
+                        <% end %>
+                      <% else %>
+                        <span class="text-sm text-base-content/45">Unknown owner</span>
+                      <% end %>
+                    </div>
+                  </td>
+
+                  <td class="w-[20%]">
+                    <div class="space-y-2">
+                      <span class={[
+                        "badge badge-sm border-0",
+                        custom_domain_health_badge_class(custom_domain_health(custom_domain))
+                      ]}>
+                        {custom_domain_health_label(custom_domain_health(custom_domain))}
+                      </span>
+                      <div class="text-sm text-base-content/65">
+                        DKIM:
+                        <span class={custom_domain_dkim_state_class(custom_domain)}>
+                          {custom_domain_dkim_state_label(custom_domain)}
+                        </span>
+                      </div>
+                      <%= if custom_domain_error_summary(custom_domain) do %>
+                        <div class="rounded-xl border border-warning/20 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning-content/80">
+                          {custom_domain_error_summary(custom_domain)}
+                        </div>
+                      <% end %>
+                    </div>
+                  </td>
+
+                  <td class="w-[18%]">
+                    <div class="space-y-2 text-sm">
+                      <div>
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                          Last Checked
+                        </div>
+                        <%= if custom_domain.last_checked_at do %>
+                          <.local_time
+                            datetime={custom_domain.last_checked_at}
+                            format="date"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        <% else %>
+                          <span class="text-base-content/45">Never</span>
+                        <% end %>
+                      </div>
+
+                      <div>
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                          Verified At
+                        </div>
+                        <%= if custom_domain.verified_at do %>
+                          <.local_time
+                            datetime={custom_domain.verified_at}
+                            format="date"
+                            timezone={@timezone}
+                            time_format={@time_format}
+                          />
+                        <% else %>
+                          <span class="text-base-content/45">Pending</span>
+                        <% end %>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="w-[12%] text-sm text-base-content/60">
+                    <.local_time
+                      datetime={custom_domain.inserted_at}
+                      format="date"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="space-y-4 xl:hidden">
+          <%= for custom_domain <- @custom_domains do %>
+            <article class="rounded-box border border-base-300 bg-base-200/60 p-4 shadow-sm">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="truncate text-lg font-semibold tracking-tight">
+                      {custom_domain.domain}
+                    </h2>
+                    <span class={[
+                      "badge badge-sm border-0",
+                      custom_domain_status_badge_class(custom_domain.status)
+                    ]}>
+                      {String.capitalize(custom_domain.status)}
+                    </span>
+                  </div>
+                  <div class="mt-2 font-mono text-xs text-base-content/65 break-all">
+                    {custom_domain_primary_email(custom_domain)}
+                  </div>
+                </div>
+
+                <span class={[
+                  "badge badge-sm border-0",
+                  custom_domain_health_badge_class(custom_domain_health(custom_domain))
+                ]}>
+                  {custom_domain_health_label(custom_domain_health(custom_domain))}
+                </span>
+              </div>
+
+              <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                    Owner
+                  </div>
+                  <%= if custom_domain.user do %>
+                    <.link
+                      href={~p"/pripyat/users/#{custom_domain.user.id}/edit"}
+                      class="mt-1 inline-flex font-medium text-primary hover:underline"
+                    >
+                      {custom_domain.user.username}
+                    </.link>
+                    <div class="mt-1 text-sm text-base-content/60">
+                      Preferred:
+                      <span class="font-medium text-base-content/75">
+                        {custom_domain.user.preferred_email_domain || "default"}
+                      </span>
+                    </div>
+                  <% else %>
+                    <div class="mt-1 text-sm text-base-content/45">Unknown owner</div>
+                  <% end %>
+                </div>
+
+                <div>
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                    DKIM
+                  </div>
+                  <div class={[
+                    "mt-1 text-sm font-medium",
+                    custom_domain_dkim_state_class(custom_domain)
+                  ]}>
+                    {custom_domain_dkim_state_label(custom_domain)}
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                    Last Checked
+                  </div>
+                  <div class="mt-1 text-sm text-base-content/65">
+                    <%= if custom_domain.last_checked_at do %>
+                      <.local_time
+                        datetime={custom_domain.last_checked_at}
+                        format="date"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    <% else %>
+                      Never
+                    <% end %>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/40">
+                    Created
+                  </div>
+                  <div class="mt-1 text-sm text-base-content/65">
+                    <.local_time
+                      datetime={custom_domain.inserted_at}
+                      format="date"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <%= if custom_domain_error_summary(custom_domain) do %>
+                <div class="mt-4 rounded-2xl border border-warning/20 bg-warning/5 px-4 py-3 text-sm leading-6 text-base-content/75">
+                  {custom_domain_error_summary(custom_domain)}
+                </div>
+              <% end %>
+
+              <details class="mt-4 rounded-2xl border border-base-content/10 bg-base-200/30">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-base-content/75">
+                  <span>DNS Blueprint</span>
+                  <.icon name="hero-chevron-down" class="h-4 w-4" />
+                </summary>
+                <div class="space-y-3 border-t border-base-content/10 px-4 py-4">
+                  <%= for record <- Elektrine.Email.dns_records_for_custom_domain(custom_domain) do %>
+                    <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="badge badge-outline badge-sm">{record.type}</span>
+                        <span class="text-xs font-medium text-base-content/55">
+                          {record.label}
+                        </span>
+                      </div>
+                      <div class="mt-2 font-mono text-xs leading-5 text-base-content/75 break-all">
+                        {record.host}
+                      </div>
+                      <div class="mt-2 font-mono text-xs leading-5 text-base-content/75 break-all">
+                        {record.value}
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </details>
+            </article>
+          <% end %>
+        </div>
+
+        <%= if @total_pages > 1 do %>
+          <div class="mt-6 flex flex-col gap-4 border-t border-base-content/10 pt-5">
+            <div class="text-sm text-base-content/60">
+              Page {@current_page} of {@total_pages} • {@total_count} total custom domains
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <%= if @current_page > 1 do %>
+                <.link
+                  href={
+                    build_custom_domains_url(@search_query, @status_filter, @current_page - 1)
+                  }
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-chevron-left" class="h-4 w-4" />
+                </.link>
+              <% end %>
+
+              <%= for page_num <- @page_range do %>
+                <.link
+                  href={build_custom_domains_url(@search_query, @status_filter, page_num)}
+                  class={
+                    if page_num == @current_page,
+                      do: "btn btn-sm btn-primary",
+                      else: "btn btn-sm btn-ghost"
+                  }
+                >
+                  {page_num}
+                </.link>
+              <% end %>
+
+              <%= if @current_page < @total_pages do %>
+                <.link
+                  href={
+                    build_custom_domains_url(@search_query, @status_filter, @current_page + 1)
+                  }
+                  class="btn btn-sm"
+                >
+                  <.icon name="hero-chevron-right" class="h-4 w-4" />
+                </.link>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+</div>

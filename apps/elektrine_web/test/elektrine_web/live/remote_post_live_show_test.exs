@@ -129,6 +129,44 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
     refute html =~ "Continue 1 nested reply on origin thread"
   end
 
+  test "navigates embedded local post URLs" do
+    socket = %Phoenix.LiveView.Socket{assigns: %{}}
+
+    assert {:noreply, updated_socket} =
+             Show.handle_event(
+               "navigate_to_embedded_post",
+               %{"url" => "/timeline/post/42"},
+               socket
+             )
+
+    assert inspect(updated_socket.redirected) =~ "/timeline/post/42"
+  end
+
+  test "routes embedded remote post URLs through remote post detail" do
+    socket = %Phoenix.LiveView.Socket{assigns: %{}}
+
+    assert {:noreply, updated_socket} =
+             Show.handle_event(
+               "navigate_to_embedded_post",
+               %{"url" => "https://example.com/posts/1"},
+               socket
+             )
+
+    assert inspect(updated_socket.redirected) =~
+             "/remote/post/https%3A%2F%2Fexample.com%2Fposts%2F1"
+  end
+
+  test "ignores placeholder embedded post URLs" do
+    socket = %Phoenix.LiveView.Socket{assigns: %{}}
+
+    assert {:noreply, ^socket} =
+             Show.handle_event(
+               "navigate_to_embedded_post",
+               %{"url" => "#"},
+               socket
+             )
+  end
+
   test "uses mastodon account fallback for avatar and profile link when actor cache misses" do
     comments = [
       %{
@@ -171,6 +209,8 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
     assert html =~ "Bobby"
     assert html =~ "https://mastodon.social/avatars/original/missing.png"
     assert html =~ "/remote/bobby@mastodon.social"
+    assert html =~ ~s(aria-label="Open Bobby profile")
+    refute html =~ ~s(alt="Bobby")
   end
 
   test "uses lemmy fallback avatar in remote community comment threads when actor cache misses" do
@@ -212,6 +252,8 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
     assert html =~ "Lemmy Bob"
     assert html =~ "https://lemmy.world/pictrs/image/avatar_bob.png"
     assert html =~ "/remote/lemmy_bob@lemmy.world"
+    assert html =~ ~s(aria-label="Open Lemmy Bob profile")
+    refute html =~ ~s(alt="Lemmy Bob")
   end
 
   test "renders local post when sender is missing" do
@@ -363,6 +405,73 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
 
     assert html =~ "https://www.youtube.com/embed/dQw4w9WgXcQ"
     assert html =~ "Video title"
+  end
+
+  test "renders a stable loading placeholder while comments are loading" do
+    local_message = %{
+      id: 54_322,
+      sender: nil,
+      title: "Loading comments",
+      content: "Post body",
+      post_type: nil,
+      poll: nil,
+      quoted_message_id: nil,
+      quoted_message: nil,
+      media_urls: [],
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      inserted_at: ~N[2026-02-25 03:31:05]
+    }
+
+    assigns = %{
+      __changed__: %{},
+      z: %{},
+      loading: false,
+      load_error: nil,
+      is_local_post: true,
+      local_message: local_message,
+      post: nil,
+      remote_actor: nil,
+      community_actor: nil,
+      community_stats: %{members: 0, posts: 0},
+      is_community_post: false,
+      is_following_community: false,
+      is_pending_community: false,
+      replies: [],
+      threaded_replies: [],
+      replies_loading: true,
+      replies_loaded: false,
+      comment_sort: "hot",
+      post_interactions: %{},
+      user_saves: %{},
+      lemmy_counts: nil,
+      mastodon_counts: nil,
+      show_reply_form: false,
+      reply_content: "",
+      quick_reply_recent_replies: [],
+      replying_to_comment_id: nil,
+      comment_reply_content: "",
+      show_image_modal: false,
+      modal_image_url: nil,
+      modal_images: [],
+      modal_image_index: 0,
+      modal_post: nil,
+      post_reactions: %{},
+      in_reply_to: nil,
+      reply_parent: nil,
+      reply_parent_actor: nil,
+      reply_ancestors: [],
+      current_user: nil
+    }
+
+    html =
+      assigns
+      |> Show.render()
+      |> rendered_to_string()
+
+    assert html =~ "data-comments-loading-placeholder"
+    refute html =~ ">Load Comments<"
   end
 
   test "ancestor context links prefer post reference over actor profile url" do

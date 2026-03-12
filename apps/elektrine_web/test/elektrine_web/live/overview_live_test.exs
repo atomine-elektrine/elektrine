@@ -63,6 +63,17 @@ defmodule ElektrineWeb.OverviewLiveTest do
     assert has_element?(view, ~s([data-role="recent-activity-list"].overflow-y-auto.pr-1))
   end
 
+  test "attention queue is rendered as a scroll container", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/overview")
+
+    assert has_element?(view, ~s([data-role="attention-queue-list"].overflow-y-auto.pr-1))
+  end
+
   test "attention queue can be filtered to requests", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     requester = AccountsFixtures.user_fixture()

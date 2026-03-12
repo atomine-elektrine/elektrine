@@ -160,7 +160,8 @@ defmodule ElektrineWeb.WebFingerController do
         rel: "self",
         type: "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
         href: actor_url
-      }
+      },
+      subscribe_link(base_url)
     ]
 
     aliases = [actor_url, profile_url]
@@ -187,7 +188,8 @@ defmodule ElektrineWeb.WebFingerController do
         rel: "self",
         type: "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
         href: actor_url
-      }
+      },
+      subscribe_link(base_url)
     ]
 
     aliases = [actor_url, web_url]
@@ -232,7 +234,10 @@ defmodule ElektrineWeb.WebFingerController do
     link_elements =
       Enum.map(links, fn link ->
         type_attr = if link[:type], do: " type=\"#{xml_escape(link.type)}\"", else: ""
-        "<Link rel=\"#{xml_escape(link.rel)}\"#{type_attr} href=\"#{xml_escape(link.href)}\" />"
+        href_attr = if link[:href], do: " href=\"#{xml_escape(link.href)}\"", else: ""
+        template_attr = if link[:template], do: " template=\"#{xml_escape(link.template)}\"", else: ""
+
+        "<Link rel=\"#{xml_escape(link.rel)}\"#{type_attr}#{href_attr}#{template_attr} />"
       end)
       |> Enum.map_join("\n    ", & &1)
 
@@ -283,5 +288,12 @@ defmodule ElektrineWeb.WebFingerController do
       true ->
         ActivityPub.instance_url()
     end
+  end
+
+  defp subscribe_link(base_url) do
+    %{
+      rel: "http://ostatus.org/schema/1.0/subscribe",
+      template: "#{base_url}/authorize_interaction?uri={uri}"
+    }
   end
 end

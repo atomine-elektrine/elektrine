@@ -138,6 +138,11 @@ first_present_env = fn env_names ->
   end)
 end
 
+config :elektrine, :runtime_components,
+  web: parse_bool_env.("ELEKTRINE_ENABLE_WEB", true),
+  jobs: parse_bool_env.("ELEKTRINE_ENABLE_JOBS", true),
+  mail: parse_bool_env.("ELEKTRINE_ENABLE_MAIL", true)
+
 messaging_federation_delivery_concurrency =
   parse_int_env.("MESSAGING_FEDERATION_DELIVERY_CONCURRENCY", 6)
 
@@ -278,6 +283,14 @@ timeline_remote_enrichment_enabled =
 
 config :elektrine, :timeline_remote_enrichment, timeline_remote_enrichment_enabled
 
+recommendations_enabled =
+  case System.get_env("RECOMMENDATIONS_ENABLED", "true") do
+    value when value in ["0", "false", "FALSE", "no", "NO", "off", "OFF"] -> false
+    _ -> true
+  end
+
+config :elektrine, :recommendations_enabled, recommendations_enabled
+
 haraka_async_ingest_enabled =
   case System.get_env("HARAKA_ASYNC_INGEST", "true") do
     value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
@@ -386,6 +399,8 @@ if config_env() == :prod do
       hostname -> hostname
     end
 
+  db_ssl_enabled = parse_bool_env.("DATABASE_SSL_ENABLED", true)
+
   db_ssl_verify =
     case System.get_env("DATABASE_SSL_VERIFY") do
       nil ->
@@ -399,58 +414,62 @@ if config_env() == :prod do
     end
 
   db_ssl_opts =
-    case db_ssl_verify do
-      "none" ->
-        [verify: :verify_none]
+    if db_ssl_enabled do
+      db_ssl_opts =
+        case db_ssl_verify do
+          "none" ->
+            [verify: :verify_none]
 
-      "peer" ->
-        if is_nil(db_ssl_server_name) do
-          raise """
-          DATABASE_SSL_VERIFY=peer requires a database hostname.
-          Set DATABASE_SSL_SERVER_NAME or include a host in DATABASE_URL.
-          """
-        end
+          "peer" ->
+            if is_nil(db_ssl_server_name) do
+              raise """
+              DATABASE_SSL_VERIFY=peer requires a database hostname.
+              Set DATABASE_SSL_SERVER_NAME or include a host in DATABASE_URL.
+              """
+            end
 
-        [
-          verify: :verify_peer,
-          server_name_indication: String.to_charlist(db_ssl_server_name),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        ]
-
-      value ->
-        raise """
-        invalid DATABASE_SSL_VERIFY value: #{value}
-        Expected one of: peer, none
-        """
-    end
-
-  db_ssl_opts =
-    case System.get_env("DATABASE_SSL_CACERTFILE") do
-      nil ->
-        if db_ssl_verify == "peer" do
-          default_cacertfile =
             [
-              "/etc/ssl/certs/ca-certificates.crt",
-              "/etc/pki/tls/certs/ca-bundle.crt",
-              "/etc/ssl/cert.pem"
+              verify: :verify_peer,
+              server_name_indication: String.to_charlist(db_ssl_server_name),
+              customize_hostname_check: [
+                match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+              ]
             ]
-            |> Enum.find(&File.exists?/1)
 
-          case default_cacertfile do
-            nil -> db_ssl_opts
-            path -> Keyword.put(db_ssl_opts, :cacertfile, path)
-          end
-        else
-          db_ssl_opts
+          value ->
+            raise """
+            invalid DATABASE_SSL_VERIFY value: #{value}
+            Expected one of: peer, none
+            """
         end
 
-      "" ->
-        db_ssl_opts
+      case System.get_env("DATABASE_SSL_CACERTFILE") do
+        nil ->
+          if db_ssl_verify == "peer" do
+            default_cacertfile =
+              [
+                "/etc/ssl/certs/ca-certificates.crt",
+                "/etc/pki/tls/certs/ca-bundle.crt",
+                "/etc/ssl/cert.pem"
+              ]
+              |> Enum.find(&File.exists?/1)
 
-      cacertfile ->
-        Keyword.put(db_ssl_opts, :cacertfile, cacertfile)
+            case default_cacertfile do
+              nil -> db_ssl_opts
+              path -> Keyword.put(db_ssl_opts, :cacertfile, path)
+            end
+          else
+            db_ssl_opts
+          end
+
+        "" ->
+          db_ssl_opts
+
+        cacertfile ->
+          Keyword.put(db_ssl_opts, :cacertfile, cacertfile)
+      end
+    else
+      false
     end
 
   db_prepare =
@@ -497,13 +516,14 @@ if config_env() == :prod do
   query_timeout_ms = env_int.("DB_TIMEOUT_MS", 30_000)
   pool_timeout_ms = env_int.("DB_POOL_TIMEOUT_MS", 15_000)
   connect_timeout_ms = env_int.("DB_CONNECT_TIMEOUT_MS", 15_000)
-  ap_inbox_max_per_ip_per_minute = env_int.("AP_INBOX_MAX_PER_IP_PER_MINUTE", 20)
-  ap_inbox_max_per_domain_per_minute = env_int.("AP_INBOX_MAX_PER_DOMAIN_PER_MINUTE", 40)
-  ap_inbox_max_global_per_second = env_int.("AP_INBOX_MAX_GLOBAL_PER_SECOND", 8)
+  ap_inbox_max_per_ip_per_minute = env_int.("AP_INBOX_MAX_PER_IP_PER_MINUTE", 10)
+  ap_inbox_max_per_domain_per_minute = env_int.("AP_INBOX_MAX_PER_DOMAIN_PER_MINUTE", 20)
+  ap_inbox_max_global_per_second = env_int.("AP_INBOX_MAX_GLOBAL_PER_SECOND", 4)
 
   # SSL configuration for PostgreSQL.
   # Defaults to certificate verification (DATABASE_SSL_VERIFY=peer).
   # To disable verification for private-network deployments, set DATABASE_SSL_VERIFY=none.
+  # To disable TLS entirely for internal-only databases, set DATABASE_SSL_ENABLED=false.
   config :elektrine, Elektrine.Repo,
     ssl: db_ssl_opts,
     url: database_url,
@@ -883,9 +903,15 @@ end
 # Always use port 2110 (non-privileged port) to avoid permission issues.
 # Keep test isolated from host mail daemons by letting test.exs own these ports.
 if config_env() != :test do
+  mail_enabled = parse_bool_env.("ELEKTRINE_ENABLE_MAIL", true)
+
   config :elektrine,
-    pop3_enabled: true,
-    pop3_port: 2110
+    pop3_enabled: mail_enabled and parse_bool_env.("POP3_ENABLED", true),
+    pop3_port: parse_int_env.("POP3_PORT", 2110),
+    imap_enabled: mail_enabled and parse_bool_env.("IMAP_ENABLED", true),
+    imap_port: parse_int_env.("IMAP_PORT", 2143),
+    smtp_enabled: mail_enabled and parse_bool_env.("SMTP_ENABLED", true),
+    smtp_port: parse_int_env.("SMTP_PORT", 2587)
 end
 
 # Stripe configuration for subscriptions

@@ -8,6 +8,18 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /api/ext/v1/capabilities:
+    get:
+      summary: Inspect token capabilities and allowed endpoints
+      responses:
+        "200":
+          description: Token capabilities
+  /api/ext/v1/me:
+    get:
+      summary: Inspect the authenticated user and token metadata
+      responses:
+        "200":
+          description: Current user
   /api/ext/v1/search:
     get:
       summary: Global search
@@ -47,6 +59,177 @@ paths:
       responses:
         "200":
           description: Action executed
+  /api/ext/v1/email/messages:
+    get:
+      summary: List email messages across the authenticated user's mailboxes
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: folder
+          schema:
+            type: string
+        - in: query
+          name: mailbox_id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message list
+  /api/ext/v1/email/messages/{id}:
+    get:
+      summary: Get a single email message
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Email message
+  /api/ext/v1/chat/conversations:
+    get:
+      summary: List chat conversations
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Conversation list
+  /api/ext/v1/chat/conversations/{id}:
+    get:
+      summary: Get a chat conversation with recent messages
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation detail
+  /api/ext/v1/chat/conversations/{id}/messages:
+    get:
+      summary: List messages for a chat conversation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: before_id
+          schema:
+            type: integer
+        - in: query
+          name: after_id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation message list
+  /api/ext/v1/social/feed:
+    get:
+      summary: List home or public social feed posts
+      parameters:
+        - in: query
+          name: scope
+          schema:
+            type: string
+            enum: [home, public]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Feed posts
+  /api/ext/v1/social/posts/{id}:
+    get:
+      summary: Get a visible social post
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Social post
+  /api/ext/v1/social/users/{user_id}/posts:
+    get:
+      summary: List visible posts for a specific user
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: User post list
+  /api/ext/v1/contacts:
+    get:
+      summary: List address book contacts
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Contact list
+  /api/ext/v1/contacts/{id}:
+    get:
+      summary: Get a single address book contact
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact detail
   /api/ext/v1/calendars:
     get:
       summary: List calendars
@@ -260,6 +443,23 @@ paths:
       responses:
         "200":
           description: Delivery list
+  /api/ext/v1/webhooks/{id}/deliveries/{delivery_id}/replay:
+    post:
+      summary: Replay a webhook delivery
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: delivery_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Replay queued
 components:
   securitySchemes:
     bearerAuth:

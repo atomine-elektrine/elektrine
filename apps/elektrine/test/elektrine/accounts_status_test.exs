@@ -126,5 +126,19 @@ defmodule Elektrine.AccountsStatusTest do
       diff = DateTime.diff(reloaded_user.last_seen_at, past_time, :second)
       assert abs(diff) <= 1
     end
+
+    test "repeated last_seen updates for the same user are throttled locally", %{user: user} do
+      Accounts.update_last_seen(user.id)
+
+      stale_time = DateTime.utc_now() |> DateTime.add(-600, :second) |> DateTime.truncate(:second)
+      query = from u in Elektrine.Accounts.User, where: u.id == ^user.id
+      {1, _} = Elektrine.Repo.update_all(query, set: [last_seen_at: stale_time])
+
+      assert {0, nil} = Accounts.update_last_seen(user.id)
+
+      reloaded_user = Elektrine.Repo.get(Elektrine.Accounts.User, user.id)
+      diff = DateTime.diff(reloaded_user.last_seen_at, stale_time, :second)
+      assert abs(diff) <= 1
+    end
   end
 end

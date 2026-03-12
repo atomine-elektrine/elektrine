@@ -56,38 +56,55 @@ defmodule Elektrine.Messaging.Federation.Discovery do
   def resolve_peer(_domain, _context), do: nil
 
   def discovered_peer_controls(context) when is_map(context) do
-    from(peer in FederationDiscoveredPeer, order_by: [asc: peer.domain])
-    |> Repo.all()
-    |> Enum.map(fn peer ->
-      effective_peer = build_discovered_peer(peer, context)
-
-      %{
-        domain: peer.domain,
-        configured: false,
-        discovered: true,
-        base_url: peer.base_url,
-        discovery_url: peer.discovery_url,
-        blocked: peer.trust_state == "replaced",
-        reason: peer.last_error,
-        allow_incoming_override: nil,
-        allow_outgoing_override: nil,
-        effective_allow_incoming:
-          if(is_map(effective_peer), do: effective_peer.allow_incoming == true, else: false),
-        effective_allow_outgoing:
-          if(is_map(effective_peer), do: effective_peer.allow_outgoing == true, else: false),
-        updated_at: peer.updated_at,
-        updated_by: nil,
-        trust_state: peer.trust_state,
-        protocol_version: peer.protocol_version,
-        features: peer.features || %{},
-        last_discovered_at: peer.last_discovered_at,
-        last_key_change_at: peer.last_key_change_at,
-        requires_operator_action: peer.trust_state == "replaced"
-      }
-    end)
+    list_discovered_peer_controls(context)
   rescue
     _ ->
       []
+  end
+
+  def list_discovered_peer_controls(context, opts \\ []) when is_map(context) and is_list(opts) do
+    query =
+      FederationDiscoveredPeer
+      |> order_by([peer], asc: peer.domain)
+      |> maybe_filter_discovered_domains(Keyword.get(opts, :domains))
+      |> maybe_filter_discovered_search(Keyword.get(opts, :search))
+
+    Repo.all(query)
+    |> Enum.map(&build_discovered_peer_control(&1, context))
+  end
+
+  def list_discovered_peer_domains(search_query \\ nil) do
+    FederationDiscoveredPeer
+    |> maybe_filter_discovered_search(search_query)
+    |> select([peer], peer.domain)
+    |> order_by([peer], asc: peer.domain)
+    |> Repo.all()
+  rescue
+    _ ->
+      []
+  end
+
+  def discovered_peer_state_map(search_query \\ nil) do
+    FederationDiscoveredPeer
+    |> maybe_filter_discovered_search(search_query)
+    |> select([peer], %{
+      domain: peer.domain,
+      trust_state: peer.trust_state
+    })
+    |> Repo.all()
+    |> Map.new(fn peer ->
+      allow? = peer.trust_state != "replaced"
+
+      {peer.domain,
+       %{
+         blocked: peer.trust_state == "replaced",
+         effective_allow_incoming: allow?,
+         effective_allow_outgoing: allow?
+       }}
+    end)
+  rescue
+    _ ->
+      %{}
   end
 
   def sign_discovery_document(document, context) when is_map(document) and is_map(context) do
@@ -1241,6 +1258,58 @@ defmodule Elektrine.Messaging.Federation.Discovery do
   end
 
   defp build_discovered_peer(_record, _context), do: nil
+
+  defp build_discovered_peer_control(%FederationDiscoveredPeer{} = peer, context) do
+    effective_peer = build_discovered_peer(peer, context)
+
+    %{
+      domain: peer.domain,
+      configured: false,
+      discovered: true,
+      base_url: peer.base_url,
+      discovery_url: peer.discovery_url,
+      blocked: peer.trust_state == "replaced",
+      reason: peer.last_error,
+      allow_incoming_override: nil,
+      allow_outgoing_override: nil,
+      effective_allow_incoming:
+        if(is_map(effective_peer), do: effective_peer.allow_incoming == true, else: false),
+      effective_allow_outgoing:
+        if(is_map(effective_peer), do: effective_peer.allow_outgoing == true, else: false),
+      updated_at: peer.updated_at,
+      updated_by: nil,
+      trust_state: peer.trust_state,
+      protocol_version: peer.protocol_version,
+      features: peer.features || %{},
+      last_discovered_at: peer.last_discovered_at,
+      last_key_change_at: peer.last_key_change_at,
+      requires_operator_action: peer.trust_state == "replaced"
+    }
+  end
+
+  defp maybe_filter_discovered_search(query, search_query) when is_binary(search_query) do
+    case String.trim(search_query) do
+      "" -> query
+      trimmed -> where(query, [peer], ilike(peer.domain, ^"%#{trimmed}%"))
+    end
+  end
+
+  defp maybe_filter_discovered_search(query, _search_query), do: query
+
+  defp maybe_filter_discovered_domains(query, domains) when is_list(domains) do
+    normalized_domains =
+      domains
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.downcase/1)
+      |> Enum.uniq()
+
+    case normalized_domains do
+      [] -> where(query, [peer], false)
+      _ -> where(query, [peer], peer.domain in ^normalized_domains)
+    end
+  end
+
+  defp maybe_filter_discovered_domains(query, _domains), do: query
 
   defp discovered_peer_permissions(trust_state) do
     case normalize_optional_string(trust_state) do

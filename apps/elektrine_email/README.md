@@ -24,4 +24,4 @@ Email domain and protocol services for the Elektrine umbrella.
 
 ## License
 
-MIT (see `../../LICENSE`).
+AGPL-3.0-only (see `../../LICENSE`).

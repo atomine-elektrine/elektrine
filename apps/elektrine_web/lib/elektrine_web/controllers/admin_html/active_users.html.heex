@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-6">
+<div class="admin-page">
   <div class="mb-4 sm:mb-6">
     <h1 class="text-xl sm:text-2xl font-bold">Active Users - {@title}</h1>
     <p class="opacity-70 mt-2 text-sm sm:text-base">Total: {@total_count} users</p>
@@ -13,7 +13,7 @@
           {"24h", "Last 24 Hours"},
           {"7d", "Last 7 Days"},
           {"30d", "Last 30 Days"},
-          {"never", "Never Logged In"}
+          {"never", "Never Active"}
         ] do %>
           <.link
             navigate={~p"/pripyat/active-users?timeframe=#{value}"}
@@ -34,7 +34,7 @@
           <thead>
             <tr>
               <th class="text-xs sm:text-sm">User</th>
-              <th class="text-xs sm:text-sm">Last Login</th>
+              <th class="text-xs sm:text-sm">Last Activity</th>
               <th class="text-xs sm:text-sm hidden lg:table-cell">IP Address</th>
               <th class="text-xs sm:text-sm hidden md:table-cell">Login Count</th>
               <th class="text-xs sm:text-sm">Status</th>
@@ -56,12 +56,15 @@
                   </div>
                 </td>
                 <td>
-                  <%= if user.last_login_at do %>
+                  <%= if user.last_activity_at do %>
                     <div class="text-sm">
-                      {Calendar.strftime(user.last_login_at, "%Y-%m-%d %H:%M")}
+                      {Calendar.strftime(user.last_activity_at, "%Y-%m-%d %H:%M")}
                     </div>
-                    <div class="text-xs opacity-50">
-                      {time_ago_in_words(user.last_login_at)} ago
+                    <div class="mt-1 flex flex-wrap items-center gap-2 text-xs opacity-60">
+                      <span>{time_ago_in_words(user.last_activity_at)} ago</span>
+                      <span class="badge badge-outline badge-xs">
+                        {activity_source_label(user.last_activity_source)}
+                      </span>
                     </div>
                   <% else %>
                     <span class="opacity-50">Never</span>
@@ -69,7 +72,10 @@
                 </td>
                 <td class="hidden lg:table-cell">
                   <span class="font-medium text-xs break-all max-w-xs">
-                    {user.last_login_ip || "-"}
+                    {if(user.last_activity_source == :web,
+                      do: user.last_login_ip || "-",
+                      else: "-"
+                    )}
                   </span>
                 </td>
                 <td class="hidden md:table-cell">
@@ -80,7 +86,7 @@
                     <%= if user.two_factor_enabled do %>
                       <div class="badge badge-success badge-sm">2FA</div>
                     <% end %>
-                    <%= if user.last_login_at && DateTime.diff(DateTime.utc_now(), user.last_login_at, :hour) < 1 do %>
+                    <%= if user.last_activity_at && DateTime.diff(DateTime.utc_now(), user.last_activity_at, :hour) < 1 do %>
                       <div class="badge badge-success badge-sm">Online</div>
                     <% end %>
                   </div>

@@ -165,6 +165,72 @@ defmodule Elektrine.ActivityPub.Relay do
   end
 
   @doc """
+  Returns a paginated slice of relay subscriptions for admin surfaces.
+  """
+  def paginate_subscriptions(page, per_page) when is_integer(page) and is_integer(per_page) do
+    page = max(page, 1)
+    per_page = max(per_page, 1)
+    query = from(s in RelaySubscription)
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = total_pages(total_count, per_page)
+    safe_page = min(page, total_pages)
+    offset = (safe_page - 1) * per_page
+
+    entries =
+      from(s in RelaySubscription,
+        order_by: [desc: s.inserted_at],
+        preload: [:subscribed_by],
+        limit: ^per_page,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: safe_page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  @doc """
+  Returns aggregate relay subscription counts without loading all rows.
+  """
+  def subscription_stats do
+    counts =
+      from(s in RelaySubscription,
+        group_by: [s.status, s.accepted],
+        select: {s.status, s.accepted, count(s.id)}
+      )
+      |> Repo.all()
+
+    Enum.reduce(counts, %{total: 0, active: 0, pending: 0, error: 0}, fn {status, accepted, count},
+                                                                         acc ->
+      acc
+      |> Map.update!(:total, &(&1 + count))
+      |> Map.update!(
+        :active,
+        &(&1 + if(status == "active" and accepted == true, do: count, else: 0))
+      )
+      |> Map.update!(:pending, &(&1 + if(status == "pending", do: count, else: 0)))
+      |> Map.update!(
+        :error,
+        &(&1 + if(status in ["error", "rejected"], do: count, else: 0))
+      )
+    end)
+  end
+
+  @doc """
+  Returns subscribed relay URLs for quick membership checks in the admin UI.
+  """
+  def subscribed_relay_uris do
+    from(s in RelaySubscription, select: s.relay_uri)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
   Gets active relay subscriptions.
   """
   def list_active_subscriptions do
@@ -263,6 +329,12 @@ defmodule Elektrine.ActivityPub.Relay do
         activate_subscription(subscription)
     end
   end
+
+  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
+    div(total_count + per_page - 1, per_page)
+  end
+
+  defp total_pages(_, _), do: 1
 
   defp activate_subscription(subscription) do
     case subscription

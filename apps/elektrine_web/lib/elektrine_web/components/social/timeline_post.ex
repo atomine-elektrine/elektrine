@@ -94,6 +94,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :on_image_click, :string, default: "open_image_modal"
   attr :on_like, :string, default: "like_post"
   attr :on_unlike, :string, default: "unlike_post"
+  attr :on_comment, :string, default: "show_reply_form"
   attr :on_downvote, :string, default: "downvote_post"
   attr :on_undownvote, :string, default: "undownvote_post"
   attr :on_react, :string, default: "react_to_post"
@@ -101,6 +102,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :source, :string, default: "timeline"
   attr :resolve_reply_refs, :boolean, default: false
   attr :show_ancestor_actions, :boolean, default: false
+  attr :show_quote_button, :boolean, default: true
+  attr :show_save_button, :boolean, default: true
 
   def timeline_post(assigns) do
     # Dispatch based on layout variant
@@ -248,6 +251,9 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             display_comment_count={@display_comment_count}
             show_follow_button={@show_follow_button}
             show_view_button={@show_view_button}
+            on_comment={@on_comment}
+            show_quote_button={@show_quote_button}
+            show_save_button={@show_save_button}
           />
           
     <!-- Emoji Reactions -->
@@ -2108,6 +2114,9 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :display_comment_count, :integer, default: 0
   attr :show_follow_button, :boolean, default: true
   attr :show_view_button, :boolean, default: false
+  attr :on_comment, :string, default: "show_reply_form"
+  attr :show_quote_button, :boolean, default: true
+  attr :show_save_button, :boolean, default: true
 
   defp post_footer(assigns) do
     ~H"""
@@ -2126,6 +2135,9 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           comment_count={@display_comment_count}
           boost_count={@post.share_count || 0}
           quote_count={@post.quote_count || 0}
+          on_comment={@on_comment}
+          show_quote={@show_quote_button}
+          show_save={@show_save_button}
           value_name="message_id"
           size={:xs}
         />

@@ -55,28 +55,23 @@ defmodule ElektrineWeb.Components.User.UsernameEffects do
       cond do
         # Plain map without profile (e.g., from member queries)
         is_map(assigns.user) && !Map.has_key?(assigns.user, :__struct__) ->
-          # Try to load full user if we have user_id
-          full_user =
-            if Map.has_key?(assigns.user, :user_id) do
-              Elektrine.Repo.get(Elektrine.Accounts.User, assigns.user.user_id)
-              |> Elektrine.Repo.preload(:profile)
-            else
-              # Convert map to struct-like access
-              assigns.user
+          user =
+            case Map.get(assigns.user, :user_id) do
+              user_id when is_integer(user_id) ->
+                Elektrine.Repo.get(Elektrine.Accounts.User, user_id)
+                |> maybe_preload_profile()
+                |> Kernel.||(assigns.user)
+
+              _ ->
+                assigns.user
             end
 
-          {full_user || assigns.user, full_user && full_user.profile}
+          {user, extract_profile(user)}
 
         # Ecto struct - check if profile is loaded
         Map.has_key?(assigns.user, :__struct__) && Map.has_key?(assigns.user, :profile) ->
-          user =
-            if Ecto.assoc_loaded?(assigns.user.profile) do
-              assigns.user
-            else
-              Elektrine.Repo.preload(assigns.user, :profile)
-            end
-
-          {user, user.profile}
+          user = maybe_preload_profile(assigns.user)
+          {user, extract_profile(user)}
 
         # Fallback
         true ->
@@ -84,8 +79,11 @@ defmodule ElektrineWeb.Components.User.UsernameEffects do
       end
 
     username =
-      if assigns.display_name && profile && profile.display_name do
-        profile.display_name
+      if assigns.display_name do
+        profile_display_name(profile) ||
+          Map.get(user, :display_name) ||
+          Map.get(user, :handle) ||
+          Map.get(user, :username)
       else
         Map.get(user, :handle) || Map.get(user, :username)
       end
@@ -142,6 +140,25 @@ defmodule ElektrineWeb.Components.User.UsernameEffects do
     </span>
     """
   end
+
+  defp maybe_preload_profile(nil), do: nil
+
+  defp maybe_preload_profile(user) do
+    if Ecto.assoc_loaded?(user.profile) do
+      user
+    else
+      Elektrine.Repo.preload(user, :profile)
+    end
+  end
+
+  defp extract_profile(nil), do: nil
+  defp extract_profile(user), do: Map.get(user, :profile)
+
+  defp profile_display_name(%{display_name: display_name})
+       when is_binary(display_name) and display_name != "",
+       do: display_name
+
+  defp profile_display_name(_), do: nil
 
   defp get_effect_class(nil), do: ""
 

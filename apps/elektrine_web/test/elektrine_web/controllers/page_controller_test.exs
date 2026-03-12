@@ -3,7 +3,13 @@ defmodule ElektrineWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    # Check for Elektrine in the page title or content
-    assert html_response(conn, 200) =~ "Elektrine"
+    html = html_response(conn, 200)
+
+    assert html =~ "Software you can own."
+
+    assert html =~
+             ~r/Elektrine is a modular platform for operators who want to run internet\s+services under their own control\./
+
+    assert html =~ "Sign in"
   end
 end

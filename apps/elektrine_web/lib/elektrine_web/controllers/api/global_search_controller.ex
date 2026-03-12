@@ -17,7 +17,13 @@ defmodule ElektrineWeb.API.GlobalSearchController do
   def index(conn, %{"q" => query} = params) do
     user = conn.assigns.current_user
     limit = parse_positive_int(params["limit"], @default_limit) |> min(@max_limit)
-    result = Search.global_search(user, query, limit: limit)
+
+    result =
+      Search.global_search(user, query,
+        limit: limit,
+        scopes: token_scopes(conn),
+        enforce_scopes: true
+      )
 
     Response.ok(
       conn,

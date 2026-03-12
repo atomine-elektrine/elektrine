@@ -283,7 +283,7 @@ defmodule ElektrineWeb.Admin.UsersController do
         redirect_path =
           case get_req_header(conn, "referer") do
             [referer] when is_binary(referer) ->
-              if String.contains?(referer, "/admin/users/#{id}/edit") do
+              if String.contains?(referer, "/pripyat/users/#{id}/edit") do
                 ~p"/pripyat/users/#{id}/edit"
               else
                 ~p"/pripyat/users"
@@ -302,7 +302,7 @@ defmodule ElektrineWeb.Admin.UsersController do
         redirect_path =
           case get_req_header(conn, "referer") do
             [referer] when is_binary(referer) ->
-              if String.contains?(referer, "/admin/users/#{id}/edit") do
+              if String.contains?(referer, "/pripyat/users/#{id}/edit") do
                 ~p"/pripyat/users/#{id}/edit"
               else
                 ~p"/pripyat/users"

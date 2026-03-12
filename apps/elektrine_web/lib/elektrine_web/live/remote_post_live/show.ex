@@ -6,9 +6,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging
   alias Elektrine.Social
+  alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.RemotePostLive.{Interactions, SurfaceHelpers, Threading}
 
   import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.Loaders.Skeleton
 
@@ -218,11 +221,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                   <.link
                     navigate={"/#{local_user.handle || local_user.username}"}
                     class="flex-shrink-0"
+                    aria-label={"Open #{local_user.display_name || local_user.username} profile"}
                   >
                     <%= if local_user.avatar do %>
                       <img
                         src={Elektrine.Uploads.avatar_url(local_user.avatar)}
-                        alt={local_user.username}
+                        alt=""
                         class="w-6 h-6 rounded-full object-cover"
                       />
                     <% else %>
@@ -245,11 +249,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     <.link
                       navigate={reply_profile_path}
                       class="flex-shrink-0"
+                      aria-label={"Open #{reply_display_name} profile"}
                     >
                       <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
                         <img
                           src={reply_avatar_url}
-                          alt={reply_display_name}
+                          alt=""
                           class="w-6 h-6 rounded-full object-cover"
                         />
                       <% else %>
@@ -274,8 +279,9 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
                       <img
                         src={reply_avatar_url}
-                        alt={reply_display_name}
+                        alt=""
                         class="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                        aria-hidden="true"
                       />
                     <% else %>
                       <div class="w-6 h-6 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
@@ -371,11 +377,15 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             <div class="flex items-center gap-2 mb-2">
               <%= if is_local_reply && local_user do %>
                 <!-- Local user reply -->
-                <.link navigate={"/#{local_user.handle || local_user.username}"} class="flex-shrink-0">
+                <.link
+                  navigate={"/#{local_user.handle || local_user.username}"}
+                  class="flex-shrink-0"
+                  aria-label={"Open #{local_user.display_name || local_user.username} profile"}
+                >
                   <%= if local_user.avatar do %>
                     <img
                       src={Elektrine.Uploads.avatar_url(local_user.avatar)}
-                      alt={local_user.username}
+                      alt=""
                       class="w-8 h-8 rounded-full"
                     />
                   <% else %>
@@ -400,11 +410,15 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 </div>
               <% else %>
                 <%= if reply_profile_path do %>
-                  <.link navigate={reply_profile_path} class="flex-shrink-0">
+                  <.link
+                    navigate={reply_profile_path}
+                    class="flex-shrink-0"
+                    aria-label={"Open #{reply_display_name} profile"}
+                  >
                     <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
                       <img
                         src={reply_avatar_url}
-                        alt={reply_display_name}
+                        alt=""
                         class="w-8 h-8 rounded-full object-cover"
                       />
                     <% else %>
@@ -417,8 +431,9 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                   <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
                     <img
                       src={reply_avatar_url}
-                      alt={reply_display_name}
+                      alt=""
                       class="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                      aria-hidden="true"
                     />
                   <% else %>
                     <div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
@@ -859,6 +874,225 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     """
   end
 
+  attr :message, :map, required: true
+  attr :replies, :list, default: []
+  attr :post_interactions, :map, default: %{}
+  attr :user_saves, :map, default: %{}
+  attr :post_reactions, :map, default: %{}
+  attr :current_user, :map, default: nil
+
+  def standard_timeline_detail_post(assigns) do
+    message = detail_message_with_reply_count(assigns.message, assigns.replies)
+    interaction_state = detail_message_interaction(assigns.post_interactions, message)
+
+    assigns =
+      assigns
+      |> assign(:message, message)
+      |> assign(:interaction_state, interaction_state)
+      |> assign(:reactions, detail_message_reactions(assigns.post_reactions, message))
+      |> assign(:saved?, detail_message_saved?(assigns.user_saves, message))
+
+    ~H"""
+    <.timeline_post
+      post={@message}
+      current_user={@current_user}
+      user_likes={%{@message.id => @interaction_state.liked}}
+      user_boosts={%{@message.id => @interaction_state.boosted}}
+      user_saves={%{@message.id => @saved?}}
+      reactions={@reactions}
+      click_event="stop_event"
+      source="timeline"
+      id_prefix="remote-post-detail"
+      show_follow_button={false}
+      show_admin_actions={false}
+      show_post_dropdown={false}
+      on_comment="toggle_reply_form"
+      show_quote_button={false}
+    />
+    """
+  end
+
+  attr :replies_loading, :boolean, default: false
+  attr :replies_loaded, :boolean, default: false
+  attr :empty_message, :string, default: "No comments yet"
+  attr :load_label, :string, default: "Load Comments"
+
+  def empty_comments_state(assigns) do
+    ~H"""
+    <div
+      class="card social-page-card border border-base-300 rounded-lg p-4 min-h-[14rem]"
+      data-comments-state={if @replies_loading, do: "loading", else: "idle"}
+    >
+      <%= if @replies_loading do %>
+        <div class="space-y-3" data-comments-loading-placeholder>
+          <div class="flex items-center gap-2 text-sm font-medium text-base-content/60">
+            <.icon name="hero-arrow-path" class="w-4 h-4 animate-spin" /> Loading comments...
+          </div>
+          <.reply_skeleton />
+          <.reply_skeleton />
+          <.reply_skeleton />
+        </div>
+      <% else %>
+        <div class="flex min-h-[12rem] flex-col items-center justify-center text-center text-base-content/60">
+          <.icon name="hero-chat-bubble-left" class="w-12 h-12 mb-3 opacity-30" />
+          <%= if @replies_loaded do %>
+            <p>{@empty_message}</p>
+          <% else %>
+            <button phx-click="load_comments" class="btn btn-primary btn-sm">
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> {@load_label}
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :show_reply_form, :boolean, default: false
+  attr :current_user, :map, default: nil
+  attr :quick_reply_recent_replies, :list, default: []
+  attr :reply_content, :string, default: ""
+  attr :reply_content_domain, :any, default: nil
+
+  def standard_timeline_detail_reply_box(assigns) do
+    ~H"""
+    <%= if @show_reply_form && @current_user do %>
+      <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-6">
+        <div class="space-y-3">
+          <%= if length(@quick_reply_recent_replies) > 0 do %>
+            <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
+              <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
+              <%= for reply <- @quick_reply_recent_replies do %>
+                <% author_preview = quick_reply_author_preview(reply) %>
+                <div class="text-sm">
+                  <div class="flex items-center gap-2 mb-1 min-w-0">
+                    <%= if author_preview.profile_path do %>
+                      <.link
+                        navigate={author_preview.profile_path}
+                        class="w-5 h-5 flex-shrink-0"
+                        phx-click="stop_propagation"
+                      >
+                        <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                          <img
+                            src={author_preview.avatar_url}
+                            alt=""
+                            class="w-5 h-5 rounded-full object-cover"
+                          />
+                        <% else %>
+                          <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
+                            <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                          </div>
+                        <% end %>
+                      </.link>
+                      <.link
+                        navigate={author_preview.profile_path}
+                        class="font-medium truncate hover:underline"
+                        phx-click="stop_propagation"
+                      >
+                        {author_preview.label}
+                      </.link>
+                    <% else %>
+                      <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                        <img
+                          src={author_preview.avatar_url}
+                          alt=""
+                          class="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                        />
+                      <% else %>
+                        <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                          <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                        </div>
+                      <% end %>
+                      <span class="font-medium truncate">{author_preview.label}</span>
+                    <% end %>
+                    <%= if reply["published"] do %>
+                      <span class="text-xs opacity-50">
+                        · {format_activitypub_date(reply["published"])}
+                      </span>
+                    <% end %>
+                  </div>
+                  <div class="text-xs opacity-75 line-clamp-2 break-words">
+                    {raw(render_remote_post_content(reply["content"] || "", @reply_content_domain))}
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+
+          <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+            wrapper_class=""
+            content={@reply_content}
+            textarea_id="remote-post-reply-textarea"
+            textarea_class="textarea textarea-bordered w-full"
+            rows={4}
+            form_class="space-y-3"
+            on_submit="submit_reply"
+            on_change="update_reply_content"
+            on_cancel="toggle_reply_form"
+            cancel_class="btn btn-ghost btn-sm"
+            submit_class="btn btn-secondary btn-sm"
+            textarea_debounce="300"
+            textarea_hook="AutoExpandTextarea"
+            submit_label="Reply"
+            submit_icon="hero-paper-airplane"
+            submit_icon_class="w-4 h-4 mr-1"
+            submit_disable_with="Posting..."
+            content_min={3}
+            counter_suffix={gettext(" required chars")}
+            show_counter={true}
+          />
+        </div>
+      </div>
+    <% end %>
+
+    <%= if !@current_user do %>
+      <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-6 text-center">
+        <.link navigate={~p"/login"} class="btn btn-secondary btn-sm">
+          Sign in to interact
+        </.link>
+      </div>
+    <% end %>
+    """
+  end
+
+  defp use_standard_timeline_detail?(message, is_community_post) do
+    !is_community_post && is_map(message) &&
+      (loaded_assoc?(Map.get(message, :sender)) || loaded_assoc?(Map.get(message, :remote_actor)))
+  end
+
+  defp loaded_assoc?(%Ecto.Association.NotLoaded{}), do: false
+  defp loaded_assoc?(nil), do: false
+  defp loaded_assoc?(_), do: true
+
+  defp detail_message_with_reply_count(message, replies) when is_map(message) do
+    %{message | reply_count: max(length(replies), message.reply_count || 0)}
+  end
+
+  defp detail_message_interaction(post_interactions, message) do
+    post_interactions
+    |> PostInteractions.interaction_state(detail_interaction_key(message))
+    |> Map.put_new(:liked, false)
+    |> Map.put_new(:boosted, false)
+  end
+
+  defp detail_message_reactions(post_reactions, message) do
+    [message.activitypub_id, message.id]
+    |> Enum.filter(& &1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.find_value([], &Map.get(post_reactions, &1))
+  end
+
+  defp detail_message_saved?(user_saves, message) do
+    [message.activitypub_id, message.id]
+    |> Enum.filter(& &1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.any?(&Map.get(user_saves, &1, false))
+  end
+
+  defp detail_interaction_key(message) do
+    message.activitypub_id || message.id
+  end
+
   @impl true
   def mount(%{"post_id" => post_id}, _session, socket) do
     # post_id could be a URL-encoded ActivityPub ID or a numeric local ID
@@ -942,10 +1176,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           %{} = msg ->
             msg = preload_cached_message_associations(msg)
 
-            cached_is_community =
-              community_post_url?(msg.activitypub_id || "") ||
-                community_post_url?(msg.activitypub_url || "") ||
-                is_binary(community_uri_from_local_message(msg))
+            cached_is_community = PostUtilities.community_post?(msg)
 
             # Build post object from cached message
             post_object = build_post_object_from_message(msg)
@@ -955,6 +1186,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             |> assign(:post, post_object)
             |> assign(:remote_actor, msg.remote_actor)
             |> assign(:is_community_post, socket.assigns.is_community_post || cached_is_community)
+            |> assign(:replies_loading, true)
             |> assign(:loading, false)
             |> assign(
               :page_title,
@@ -988,9 +1220,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           # Always try to load community for federated posts - it will be nil if none exists
           cached_community_uri = community_uri_from_local_message(cached_msg)
 
-          if (is_binary(cached_msg.activitypub_id) &&
-                community_post_url?(cached_msg.activitypub_id)) ||
-               is_binary(cached_community_uri) do
+          if PostUtilities.community_post?(cached_msg) || is_binary(cached_community_uri) do
             send(self(), {:load_community_for_cached, decoded_post_id, cached_community_uri})
           end
 
@@ -2447,6 +2677,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         socket =
           socket
           |> assign(:loading, false)
+          |> assign(:replies_loading, true)
           |> assign(
             :page_title,
             post_object["name"] || "Post by @#{remote_actor.username}@#{remote_actor.domain}"
@@ -2667,8 +2898,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     replies_object = cached_replies_object(msg, replies_count)
     comments_object = cached_comments_object(msg, replies_count)
 
-    is_community_post =
-      community_post_url?(post_id || "") || community_post_url?(post_url || "")
+    is_community_post = PostUtilities.community_post?(msg)
 
     # Build a post object from the cached message for reply fetching.
     # Include URL/count metadata so fallback fetchers (context APIs) run when needed.
@@ -2686,7 +2916,9 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end
 
     {:noreply,
-     assign(socket, :is_community_post, socket.assigns.is_community_post || is_community_post)}
+     socket
+     |> assign(:replies_loading, is_binary(post_id))
+     |> assign(:is_community_post, socket.assigns.is_community_post || is_community_post)}
   end
 
   # Load interactions for the main post immediately (for cached posts)
@@ -3164,6 +3396,88 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   @impl true
   def handle_event("toggle_reply_form", _params, socket) do
     {:noreply, assign(socket, :show_reply_form, !socket.assigns.show_reply_form)}
+  end
+
+  def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
+      when is_binary(url) and url != "" and url != "#" do
+    trimmed_url = String.trim(url)
+
+    case URI.parse(trimmed_url) do
+      %URI{scheme: nil, host: nil} ->
+        {:noreply, push_navigate(socket, to: trimmed_url)}
+
+      %URI{scheme: scheme} when scheme in ["http", "https"] ->
+        {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(trimmed_url)}")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("navigate_to_embedded_post", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, post_id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, message_id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
+      when is_binary(url) and url != "" do
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(url)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, post_id)
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+  end
+
+  def handle_event("navigate_to_remote_post", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("open_external_link", %{"url" => url}, socket)
+      when is_binary(url) and url != "" do
+    {:noreply, redirect(socket, external: url)}
+  end
+
+  def handle_event("open_external_link", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("navigate_to_profile", %{"handle" => handle}, socket)
+      when is_binary(handle) and handle != "" do
+    {:noreply, push_navigate(socket, to: "/#{handle}")}
+  end
+
+  def handle_event("navigate_to_profile", %{"username" => username}, socket)
+      when is_binary(username) and username != "" do
+    {:noreply, push_navigate(socket, to: "/#{username}")}
+  end
+
+  def handle_event("stop_propagation", _params, socket) do
+    {:noreply, socket}
   end
 
   def handle_event("toggle_comment_reply", %{"comment_id" => comment_id}, socket) do
@@ -3712,6 +4026,48 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   def handle_event(_event, _params, socket) do
     {:noreply, socket}
   end
+
+  defp normalize_navigate_post_id(socket, value) do
+    decoded_value = decode_post_ref(value)
+
+    case parse_local_message_id(decoded_value) do
+      {:ok, id} ->
+        case socket.assigns[:local_message] do
+          %{id: ^id, activitypub_id: activitypub_id}
+          when is_binary(activitypub_id) and activitypub_id != "" ->
+            activitypub_id
+
+          _ ->
+            Integer.to_string(id)
+        end
+
+      :error ->
+        to_string(decoded_value)
+    end
+  end
+
+  defp parse_local_message_id(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_local_message_id(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_local_message_id(_), do: :error
+
+  defp decode_post_ref(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    try do
+      URI.decode_www_form(trimmed)
+    rescue
+      ArgumentError -> trimmed
+    end
+  end
+
+  defp decode_post_ref(value), do: value
 
   defp initial_community_stats(%{actor_type: "Group", metadata: metadata}) do
     metadata = metadata || %{}

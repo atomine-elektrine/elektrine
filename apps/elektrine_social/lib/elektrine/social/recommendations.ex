@@ -15,42 +15,51 @@ defmodule Elektrine.Social.Recommendations do
   def get_for_you_feed(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     session_context = Keyword.get(opts, :session_context, %{})
-    user_profile = build_user_profile(user_id, session_context)
-    candidates = get_candidate_posts_fast(user_id, limit * 10)
 
-    pre_scored =
-      candidates
-      |> Enum.map(fn post -> {post, score_post_quick(post, user_profile)} end)
-      |> Enum.sort_by(fn {_post, score} -> score end, :desc)
-      |> Enum.take(limit * 3)
+    if recommendations_enabled?() do
+      user_profile = build_user_profile(user_id, session_context)
+      candidates = get_candidate_posts_fast(user_id, limit * 10)
 
-    fully_scored =
-      pre_scored
-      |> Enum.map(fn {post, _quick_score} ->
-        {post, score_post_full(post, user_profile, user_id)}
-      end)
-      |> Enum.filter(fn {post, score} ->
-        score >= @min_score_threshold or qualifies_for_feed?(post, user_profile)
-      end)
-      |> Enum.sort_by(fn {_post, score} -> score end, :desc)
+      pre_scored =
+        candidates
+        |> Enum.map(fn post -> {post, score_post_quick(post, user_profile)} end)
+        |> Enum.sort_by(fn {_post, score} -> score end, :desc)
+        |> Enum.take(limit * 3)
 
-    {exploit_posts, explore_candidates} = split_for_exploration(fully_scored, user_profile)
+      fully_scored =
+        pre_scored
+        |> Enum.map(fn {post, _quick_score} ->
+          {post, score_post_full(post, user_profile, user_id)}
+        end)
+        |> Enum.filter(fn {post, score} ->
+          score >= @min_score_threshold or qualifies_for_feed?(post, user_profile)
+        end)
+        |> Enum.sort_by(fn {_post, score} -> score end, :desc)
 
-    main_feed =
-      exploit_posts
-      |> Enum.take(ceil(limit * (1 - @exploration_ratio)))
-      |> Enum.map(fn {post, _score} -> post end)
+      {exploit_posts, explore_candidates} = split_for_exploration(fully_scored, user_profile)
 
-    exploration_count = ceil(limit * @exploration_ratio)
+      main_feed =
+        exploit_posts
+        |> Enum.take(ceil(limit * (1 - @exploration_ratio)))
+        |> Enum.map(fn {post, _score} -> post end)
 
-    explore_posts =
-      explore_candidates
-      |> Enum.filter(fn {post, _score} -> (post.like_count || 0) >= 5 end)
-      |> Enum.take_random(exploration_count)
-      |> Enum.map(fn {post, _score} -> post end)
+      exploration_count = ceil(limit * @exploration_ratio)
 
-    interleaved = interleave_posts(main_feed, explore_posts)
-    diversify_feed(interleaved)
+      explore_posts =
+        explore_candidates
+        |> Enum.filter(fn {post, _score} -> (post.like_count || 0) >= 5 end)
+        |> Enum.take_random(exploration_count)
+        |> Enum.map(fn {post, _score} -> post end)
+
+      interleaved = interleave_posts(main_feed, explore_posts)
+      diversify_feed(interleaved)
+    else
+      Social.get_public_timeline(user_id: user_id, limit: limit)
+    end
+  end
+
+  defp recommendations_enabled? do
+    Application.get_env(:elektrine, :recommendations_enabled, true)
   end
 
   defp qualifies_for_feed?(post, user_profile) do

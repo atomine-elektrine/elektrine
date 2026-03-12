@@ -229,6 +229,23 @@ defmodule Elektrine.Email do
   defdelegate verification_host(custom_domain), to: Elektrine.Email.CustomDomains
   defdelegate verification_value(custom_domain), to: Elektrine.Email.CustomDomains
 
+  def list_custom_domains_admin(
+        search_query \\ "",
+        status_filter \\ "all",
+        page \\ 1,
+        per_page \\ 20
+      ),
+      do:
+        Elektrine.Email.CustomDomains.list_custom_domains_admin(
+          search_query,
+          status_filter,
+          page,
+          per_page
+        )
+
+  def custom_domain_admin_stats(limit_recent \\ 5),
+    do: Elektrine.Email.CustomDomains.custom_domain_admin_stats(limit_recent)
+
   @doc """
   Verifies that a user owns or has access to a specific email address.
   This prevents unauthorized email access by validating ownership.

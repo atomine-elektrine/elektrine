@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-6">
+<div class="admin-page">
   <% search_active = @search_query != "" %>
   <% current_page_count = length(@content) %>
   <% active_type_total =
@@ -146,10 +146,10 @@
         <% conversation_name = if(item.conversation, do: item.conversation.name, else: nil) %>
         <% conversation_type = if(item.conversation, do: item.conversation.type, else: nil) %>
         <% media_count = if(is_list(item.media_urls), do: length(item.media_urls), else: 0) %>
-        <article class="rounded-xl border border-base-300 bg-base-100/70 p-4 shadow-sm sm:p-5">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <article class="rounded-box border border-base-300 bg-base-100/70 p-4 shadow-sm">
+          <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div class="min-w-0 flex-1">
-              <div class="mb-2 flex flex-wrap items-center gap-2 text-sm">
+              <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <span class="badge badge-ghost badge-sm">#{item.id}</span>
                 <span class="font-semibold">@{sender_handle}</span>
                 <span class="text-xs opacity-60">(@{sender_username})</span>
@@ -191,49 +191,69 @@
               <% end %>
             </div>
 
-            <div class="flex flex-wrap gap-2 lg:w-auto">
+            <div class="flex shrink-0 flex-wrap items-center gap-1.5 sm:flex-nowrap lg:justify-end lg:pl-4">
               <%= if @content_type == "timeline" do %>
                 <.link
                   navigate={~p"/timeline/post/#{item.id}"}
-                  class="btn btn-sm btn-ghost"
+                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
                   target="_blank"
+                  rel="noopener noreferrer"
+                  title="View post"
                 >
-                  <.icon name="hero-eye" class="w-4 h-4" /> View
+                  <.icon name="hero-eye" class="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span class="hidden sm:inline">View</span>
                 </.link>
               <% end %>
 
               <%= if @content_type == "discussions" && conversation_name do %>
                 <.link
                   navigate={~p"/discussions/#{conversation_name}/post/#{item.id}"}
-                  class="btn btn-sm btn-ghost"
+                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
                   target="_blank"
+                  rel="noopener noreferrer"
+                  title="View post"
                 >
-                  <.icon name="hero-eye" class="w-4 h-4" /> View
+                  <.icon name="hero-eye" class="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span class="hidden sm:inline">View</span>
                 </.link>
               <% end %>
 
               <%= if @content_type == "chat" do %>
                 <.link
                   href={~p"/pripyat/arblarg/messages/#{item.id}/view"}
-                  class="btn btn-sm btn-ghost"
+                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
+                  title="Review message"
                 >
-                  <.icon name="hero-eye" class="w-4 h-4" /> Review
+                  <.icon name="hero-eye" class="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span class="hidden sm:inline">Review</span>
                 </.link>
               <% end %>
 
-              <.link href={~p"/pripyat/users/#{item.sender_id}/edit"} class="btn btn-sm btn-ghost">
-                <.icon name="hero-user" class="w-4 h-4" /> User
+              <.link
+                href={~p"/pripyat/users/#{item.sender_id}/edit"}
+                class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
+                title="Open user"
+              >
+                <.icon name="hero-user" class="w-3 h-3 sm:w-4 sm:h-4" />
+                <span class="hidden sm:inline">User</span>
               </.link>
 
-              <.form for={%{}} action={~p"/pripyat/content-moderation/delete"} method="post">
+              <.form
+                for={%{}}
+                action={~p"/pripyat/content-moderation/delete"}
+                method="post"
+                class="shrink-0"
+              >
                 <input type="hidden" name="content_id" value={item.id} />
                 <input type="hidden" name="type" value={@content_type} />
-                <.button
-                  class="btn btn-sm btn-secondary"
+                <button
+                  type="submit"
+                  class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap text-error hover:bg-error/10"
                   data-confirm={"Delete this #{String.replace(@content_type, "discussions", "discussion")} item by @#{sender_handle}?"}
                 >
-                  <.icon name="hero-trash" class="w-4 h-4" /> Delete
-                </.button>
+                  <.icon name="hero-trash" class="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span class="hidden sm:inline">Delete</span>
+                </button>
               </.form>
             </div>
           </div>

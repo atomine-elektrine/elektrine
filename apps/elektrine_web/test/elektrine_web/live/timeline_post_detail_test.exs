@@ -307,6 +307,18 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
       assert html =~ "Newer reply content"
     end
 
+    test "renders the shared timeline card for standard local posts", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, post} = Social.create_timeline_post(user.id, "Local post", visibility: "public")
+
+      {:ok, view, _initial_html} = live(conn, ~p"/remote/post/#{post.id}")
+      html = render(view)
+
+      assert html =~ "timeline-post-card"
+      assert html =~ "timeline-post-card-body"
+    end
+
     test "supports inline nested replies for local comments", %{conn: conn} do
       author = AccountsFixtures.user_fixture()
       replier = AccountsFixtures.user_fixture()

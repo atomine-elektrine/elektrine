@@ -7,6 +7,55 @@ ONION_TLS_DIR="/data/certs/live"
 ONION_TLS_CERT="$ONION_TLS_DIR/onion-cert.pem"
 ONION_TLS_KEY="$ONION_TLS_DIR/onion-key.pem"
 ONION_TLS_HOST_CACHE="$ONION_TLS_DIR/onion-hostname.txt"
+ROLE="${1:-${ELEKTRINE_RUNTIME_ROLE:-all}}"
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+configure_role() {
+  local role="$1"
+  local web_default="true"
+  local jobs_default="true"
+  local mail_default="true"
+  local tor_default="true"
+
+  case "$role" in
+    all)
+      ;;
+    app|edge)
+      jobs_default="false"
+      ;;
+    web)
+      jobs_default="false"
+      mail_default="false"
+      tor_default="false"
+      ;;
+    worker)
+      web_default="false"
+      mail_default="false"
+      tor_default="false"
+      ;;
+    mail)
+      web_default="false"
+      jobs_default="false"
+      tor_default="false"
+      ;;
+    *)
+      echo "Unknown Elektrine runtime role: $role" >&2
+      exit 1
+      ;;
+  esac
+
+  export ELEKTRINE_RUNTIME_ROLE="$role"
+  export ELEKTRINE_ENABLE_WEB="${ELEKTRINE_ENABLE_WEB:-$web_default}"
+  export ELEKTRINE_ENABLE_JOBS="${ELEKTRINE_ENABLE_JOBS:-$jobs_default}"
+  export ELEKTRINE_ENABLE_MAIL="${ELEKTRINE_ENABLE_MAIL:-$mail_default}"
+  export ELEKTRINE_ENABLE_TOR="${ELEKTRINE_ENABLE_TOR:-$tor_default}"
+}
 
 base64_no_wrap() {
   local file_path="$1"
@@ -89,30 +138,39 @@ write_onion_tls_cert() {
   echo "Updated onion TLS certificate: $ONION_TLS_CERT"
 }
 
-# Start Tor in background (it will run as the current user - nobody)
-echo "Starting Tor..."
-tor -f /etc/tor/torrc &
-TOR_PID=$!
+configure_role "$ROLE"
 
-# Wait for Tor to generate the onion address
-for i in {1..60}; do
-  if [ -f "$TOR_HS_DIR/hostname" ]; then
-    echo "Onion address: $(cat "$TOR_HS_DIR/hostname")"
-    write_tor_backup_snapshot
-    write_onion_tls_cert
-    break
-  fi
-  # Check if Tor is still running
-  if ! kill -0 $TOR_PID 2>/dev/null; then
-    echo "Tor process exited, continuing without onion service"
-    break
-  fi
-  echo "Waiting for Tor to initialize... ($i/60)"
-  sleep 1
-done
+if is_truthy "$ELEKTRINE_ENABLE_TOR"; then
+  # Start Tor in background (it will run as the current user - nobody)
+  echo "Starting Tor..."
+  tor -f /etc/tor/torrc &
+  TOR_PID=$!
 
-# Start Phoenix app
-echo "Starting Phoenix..."
-export PHX_SERVER=true
+  # Wait for Tor to generate the onion address
+  for i in {1..60}; do
+    if [ -f "$TOR_HS_DIR/hostname" ]; then
+      echo "Onion address: $(cat "$TOR_HS_DIR/hostname")"
+      write_tor_backup_snapshot
+      write_onion_tls_cert
+      break
+    fi
+    # Check if Tor is still running
+    if ! kill -0 $TOR_PID 2>/dev/null; then
+      echo "Tor process exited, continuing without onion service"
+      break
+    fi
+    echo "Waiting for Tor to initialize... ($i/60)"
+    sleep 1
+  done
+else
+  echo "Skipping Tor for role: $ROLE"
+fi
+
+echo "Starting Elektrine role: $ROLE"
+if is_truthy "$ELEKTRINE_ENABLE_WEB"; then
+  export PHX_SERVER=true
+else
+  unset PHX_SERVER || true
+fi
 RELEASE_NAME="${RELEASE_NAME:-elektrine}"
 exec "/app/bin/${RELEASE_NAME}" start
