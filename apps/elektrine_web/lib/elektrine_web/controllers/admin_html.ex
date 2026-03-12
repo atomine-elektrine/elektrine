@@ -33,6 +33,11 @@ defmodule ElektrineWeb.AdminHTML do
 
   def time_ago_in_words(datetime), do: Elektrine.TextHelpers.time_ago_in_words(datetime)
 
+  def activity_source_label(:web), do: "Web"
+  def activity_source_label(:imap), do: "IMAP"
+  def activity_source_label(:pop3), do: "POP3"
+  def activity_source_label(_), do: "Unknown"
+
   # Content moderation helper functions
   def truncate_content(nil), do: ""
 
@@ -63,6 +68,230 @@ defmodule ElektrineWeb.AdminHTML do
     "/admin/communities?" <> Enum.join(params, "&")
   end
 
+  def build_custom_domains_url(search, status, page) do
+    params = []
+
+    params =
+      if String.trim(search || "") != "" do
+        params ++ ["search=#{URI.encode_www_form(search)}"]
+      else
+        params
+      end
+
+    params = if status != "all", do: params ++ ["status=#{status}"], else: params
+    params = params ++ ["page=#{page}"]
+
+    "/pripyat/custom-domains?" <> Enum.join(params, "&")
+  end
+
+  def admin_nav_sections do
+    [
+      %{
+        label: "Main",
+        items: [
+          %{label: "Dashboard", path: "/pripyat", icon: "hero-squares-2x2"}
+        ]
+      },
+      %{
+        label: "Users",
+        items: [
+          %{label: "Users", path: "/pripyat/users", icon: "hero-users"},
+          %{
+            label: "Multi-Accounts",
+            path: "/pripyat/multi-accounts",
+            icon: "hero-user-circle"
+          },
+          %{
+            label: "Account Lookup",
+            path: "/pripyat/account-lookup",
+            icon: "hero-magnifying-glass"
+          },
+          %{
+            label: "Invite Codes",
+            path: "/pripyat/invite-codes",
+            icon: "hero-ticket"
+          },
+          %{
+            label: "Badges",
+            path: "/pripyat/badges",
+            icon: "hero-star",
+            navigate: true
+          }
+        ]
+      },
+      %{
+        label: "Email",
+        items: [
+          %{label: "VPN", path: "/pripyat/vpn", icon: "hero-shield-check"},
+          %{
+            label: "Mailboxes",
+            path: "/pripyat/mailboxes",
+            icon: "hero-envelope"
+          },
+          %{
+            label: "Custom Domains",
+            path: "/pripyat/custom-domains",
+            icon: "hero-globe-alt"
+          },
+          %{label: "Aliases", path: "/pripyat/aliases", icon: "hero-at-symbol"},
+          %{
+            label: "Forwarded Messages",
+            path: "/pripyat/forwarded-messages",
+            icon: "hero-arrow-right-circle"
+          },
+          %{
+            label: "Messages",
+            path: "/pripyat/messages",
+            icon: "hero-chat-bubble-left-ellipsis"
+          },
+          %{
+            label: "Arblarg Messages",
+            path: "/pripyat/arblarg/messages",
+            icon: "hero-chat-bubble-left-right"
+          }
+        ]
+      },
+      %{
+        label: "Content",
+        items: [
+          %{
+            label: "Content Moderation",
+            path: "/pripyat/content-moderation",
+            icon: "hero-shield-exclamation"
+          },
+          %{
+            label: "Communities",
+            path: "/pripyat/communities",
+            icon: "hero-user-group"
+          },
+          %{
+            label: "Reports",
+            path: "/pripyat/reports",
+            icon: "hero-flag",
+            navigate: true
+          },
+          %{
+            label: "Deletion Requests",
+            path: "/pripyat/deletion-requests",
+            icon: "hero-trash"
+          }
+        ]
+      },
+      %{
+        label: "System",
+        items: [
+          %{
+            label: "Audit Log",
+            path: "/pripyat/audit-logs",
+            icon: "hero-clipboard-document-list"
+          },
+          %{
+            label: "Announcements",
+            path: "/pripyat/announcements",
+            icon: "hero-megaphone"
+          },
+          %{
+            label: "Platform Updates",
+            path: "/pripyat/updates",
+            icon: "hero-newspaper"
+          },
+          %{
+            label: "Subscriptions",
+            path: "/pripyat/subscriptions",
+            icon: "hero-credit-card"
+          },
+          %{
+            label: "ActivityPub Policies",
+            path: "/pripyat/federation",
+            icon: "hero-globe-alt",
+            navigate: true
+          },
+          %{
+            label: "Arblarg Messaging",
+            path: "/pripyat/messaging-federation",
+            icon: "hero-chat-bubble-left-right",
+            navigate: true
+          },
+          %{
+            label: "Bluesky Bridge",
+            path: "/pripyat/bluesky-bridge",
+            icon: "hero-link",
+            navigate: true
+          },
+          %{
+            label: "ActivityPub Relays",
+            path: "/pripyat/relays",
+            icon: "hero-signal",
+            navigate: true
+          }
+        ]
+      }
+    ]
+  end
+
+  def custom_domain_filter_label("all"), do: "All Domains"
+  def custom_domain_filter_label("verified"), do: "Verified"
+  def custom_domain_filter_label("pending"), do: "Pending"
+  def custom_domain_filter_label("attention"), do: "Needs Attention"
+  def custom_domain_filter_label(_), do: "Custom Domains"
+
+  def custom_domain_status_badge_class("verified"), do: "bg-success/15 text-success"
+  def custom_domain_status_badge_class("pending"), do: "bg-secondary/15 text-secondary"
+  def custom_domain_status_badge_class(_), do: "bg-base-200 text-base-content/70"
+
+  def custom_domain_health(custom_domain) do
+    cond do
+      present_error?(custom_domain.dkim_last_error) -> :attention
+      present_error?(custom_domain.last_error) -> :attention
+      custom_domain.status == "verified" -> :healthy
+      true -> :pending
+    end
+  end
+
+  def custom_domain_health_badge_class(:healthy), do: "bg-success/15 text-success"
+  def custom_domain_health_badge_class(:pending), do: "bg-info/15 text-info"
+  def custom_domain_health_badge_class(:attention), do: "bg-warning/20 text-warning-content"
+  def custom_domain_health_badge_class(_), do: "bg-base-200 text-base-content/70"
+
+  def custom_domain_health_label(:healthy), do: "Healthy"
+  def custom_domain_health_label(:pending), do: "Pending DNS"
+  def custom_domain_health_label(:attention), do: "Needs Attention"
+  def custom_domain_health_label(_), do: "Unknown"
+
+  def custom_domain_primary_email(%{user: %{username: username}, domain: domain})
+      when is_binary(username) and is_binary(domain) do
+    "#{username}@#{domain}"
+  end
+
+  def custom_domain_primary_email(%{domain: domain}) when is_binary(domain), do: "@#{domain}"
+  def custom_domain_primary_email(_), do: "Unavailable"
+
+  def custom_domain_error_summary(custom_domain) do
+    [custom_domain.last_error, custom_domain.dkim_last_error]
+    |> Enum.filter(&present_error?/1)
+    |> Enum.join(" ")
+    |> case do
+      "" -> nil
+      message -> message
+    end
+  end
+
+  def custom_domain_dkim_state_label(custom_domain) do
+    cond do
+      present_error?(custom_domain.dkim_last_error) -> "Sync issue"
+      custom_domain.dkim_synced_at -> "Synced"
+      true -> "Waiting for sync"
+    end
+  end
+
+  def custom_domain_dkim_state_class(custom_domain) do
+    cond do
+      present_error?(custom_domain.dkim_last_error) -> "text-warning"
+      custom_domain.dkim_synced_at -> "text-success"
+      true -> "text-base-content/55"
+    end
+  end
+
   # VPN helper - render country flag emoji
   def render_country_flag(country_code) when is_binary(country_code) do
     country_code
@@ -86,4 +315,7 @@ defmodule ElektrineWeb.AdminHTML do
   end
 
   def format_bytes(_), do: "0 B"
+
+  defp present_error?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_error?(_), do: false
 end

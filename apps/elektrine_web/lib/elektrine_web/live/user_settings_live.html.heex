@@ -2768,6 +2768,10 @@
                                     "%b %d, %Y"
                                   )}
                                 </span>
+                                <%= if token.last_used_ip do %>
+                                  <span class="mx-1">·</span>
+                                  <span>{gettext("from")} {token.last_used_ip}</span>
+                                <% end %>
                               <% else %>
                                 <span class="mx-1">·</span>
                                 <span class="text-warning">{gettext("Never used")}</span>
@@ -2795,18 +2799,28 @@
                               <% end %>
                             </div>
                           </div>
-                          <button
-                            phx-click="revoke_token"
-                            phx-value-id={token.id}
-                            data-confirm={
-                              gettext(
-                                "Are you sure you want to revoke this token? This cannot be undone."
-                              )
-                            }
-                            class="btn btn-ghost btn-sm text-error hover:bg-error/10"
-                          >
-                            <.icon name="hero-trash" class="w-4 h-4" />
-                          </button>
+                          <div class="flex gap-1">
+                            <button
+                              phx-click="duplicate_token"
+                              phx-value-id={token.id}
+                              class="btn btn-ghost btn-sm"
+                              title={gettext("Create a new token with the same scopes")}
+                            >
+                              <.icon name="hero-document-duplicate" class="w-4 h-4" />
+                            </button>
+                            <button
+                              phx-click="revoke_token"
+                              phx-value-id={token.id}
+                              data-confirm={
+                                gettext(
+                                  "Are you sure you want to revoke this token? This cannot be undone."
+                                )
+                              }
+                              class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                            >
+                              <.icon name="hero-trash" class="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     <% end %>
@@ -2824,6 +2838,11 @@
                     curl -H "Authorization: Bearer ekt_xxxxx" \<br />
                     &nbsp;&nbsp;"https://elektrine.com/api/ext/v1/search?q=inbox"
                   </code>
+                  <p class="mt-2">
+                    {gettext(
+                      "Responses include X-RateLimit-* headers and a request id in meta.request_id for easier debugging."
+                    )}
+                  </p>
                   <p class="mt-2">
                     {gettext(
                       "Note: /api/* routes are first-party mobile/session APIs. PAT integrations should use /api/ext/v1/*."
@@ -2947,6 +2966,41 @@
                   )}
                 </p>
 
+                <%= if @revealed_webhook_secret do %>
+                  <div class="alert alert-warning mb-4">
+                    <div class="flex-1 min-w-0">
+                      <div class="font-medium">
+                        {gettext("Copy the signing secret for")} {@revealed_webhook_secret.name}
+                      </div>
+                      <div class="join w-full mt-2">
+                        <input
+                          type="text"
+                          value={@revealed_webhook_secret.secret}
+                          readonly
+                          class="input input-bordered join-item flex-1 font-mono text-xs"
+                          id="revealed-webhook-secret-input"
+                        />
+                        <button
+                          type="button"
+                          class="btn btn-primary join-item"
+                          phx-hook="CopyToClipboard"
+                          id="copy-webhook-secret-btn"
+                          data-copy-target="revealed-webhook-secret-input"
+                        >
+                          <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="close_webhook_secret_notice"
+                      class="btn btn-ghost btn-sm"
+                    >
+                      <.icon name="hero-x-mark" class="w-4 h-4" />
+                    </button>
+                  </div>
+                <% end %>
+
                 <%= if Enum.empty?(@webhooks) do %>
                   <div class="text-center py-8 text-base-content/50">
                     <.icon name="hero-bell-slash" class="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -2973,16 +3027,118 @@
                                 </span>
                               <% end %>
                             </div>
-                            <code class="text-xs text-base-content/60 break-all">
-                              {webhook.url}
-                            </code>
+                            <div class="text-xs text-base-content/60 mt-1 space-y-1">
+                              <code class="block break-all">{webhook.url}</code>
+                              <div>
+                                {gettext("Secret")}:
+                                <code class="font-mono">
+                                  {String.slice(webhook.secret, 0, 8)}...
+                                </code>
+                              </div>
+                              <%= if webhook.last_triggered_at do %>
+                                <div>
+                                  {gettext("Last delivery")} {Calendar.strftime(
+                                    webhook.last_triggered_at,
+                                    "%b %d, %Y"
+                                  )}
+                                  <%= if webhook.last_response_status do %>
+                                    <span class="mx-1">·</span>
+                                    <span>HTTP {webhook.last_response_status}</span>
+                                  <% end %>
+                                </div>
+                              <% end %>
+                              <%= if webhook.last_error do %>
+                                <div class="text-error">{webhook.last_error}</div>
+                              <% end %>
+                            </div>
                             <div class="flex flex-wrap gap-1 mt-2">
                               <%= for event <- webhook.events do %>
                                 <span class="badge badge-xs badge-outline">{event}</span>
                               <% end %>
                             </div>
+                            <div class="mt-3 rounded-lg bg-base-200/60 p-3">
+                              <div class="flex items-center justify-between gap-2 mb-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                                  {gettext("Recent Deliveries")}
+                                </span>
+                                <span class="text-xs text-base-content/50">
+                                  {gettext("Signed with x-elektrine-signature")}
+                                </span>
+                              </div>
+                              <%= if Enum.empty?(Map.get(@webhook_deliveries_by_webhook, webhook.id, [])) do %>
+                                <p class="text-sm text-base-content/60">
+                                  {gettext(
+                                    "No deliveries yet. Send a test delivery to verify this destination."
+                                  )}
+                                </p>
+                              <% else %>
+                                <div class="space-y-2">
+                                  <%= for delivery <- Enum.take(Map.get(@webhook_deliveries_by_webhook, webhook.id, []), 3) do %>
+                                    <div class="flex items-start justify-between gap-3 rounded border border-base-300/70 p-2">
+                                      <div class="min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                          <span class="text-sm font-medium">
+                                            {delivery.event}
+                                          </span>
+                                          <%= case delivery.status do %>
+                                            <% "delivered" -> %>
+                                              <span class="badge badge-success badge-xs">
+                                                {gettext("Delivered")}
+                                              </span>
+                                            <% "failed" -> %>
+                                              <span class="badge badge-error badge-xs">
+                                                {gettext("Failed")}
+                                              </span>
+                                            <% _ -> %>
+                                              <span class="badge badge-ghost badge-xs">
+                                                {delivery.status}
+                                              </span>
+                                          <% end %>
+                                        </div>
+                                        <div class="text-xs text-base-content/60 mt-1">
+                                          <%= if delivery.response_status do %>
+                                            <span>HTTP {delivery.response_status}</span>
+                                          <% end %>
+                                          <%= if delivery.duration_ms do %>
+                                            <span class="mx-1">·</span>
+                                            <span>{delivery.duration_ms}ms</span>
+                                          <% end %>
+                                          <span class="mx-1">·</span>
+                                          <span>
+                                            {Calendar.strftime(delivery.inserted_at, "%b %d, %Y")}
+                                          </span>
+                                        </div>
+                                        <%= if delivery.error do %>
+                                          <div class="text-xs text-error mt-1">
+                                            {delivery.error}
+                                          </div>
+                                        <% end %>
+                                      </div>
+                                      <%= if delivery.status == "failed" do %>
+                                        <button
+                                          phx-click="replay_webhook_delivery"
+                                          phx-value-id={delivery.id}
+                                          class="btn btn-ghost btn-xs"
+                                          title={gettext("Replay delivery")}
+                                        >
+                                          <.icon name="hero-arrow-path" class="w-3 h-3" />
+                                        </button>
+                                      <% end %>
+                                    </div>
+                                  <% end %>
+                                </div>
+                              <% end %>
+                            </div>
                           </div>
                           <div class="flex gap-1">
+                            <button
+                              phx-click="rotate_webhook_secret"
+                              phx-value-id={webhook.id}
+                              class="btn btn-ghost btn-sm"
+                              title={gettext("Rotate signing secret")}
+                            >
+                              <.icon name="hero-arrow-path" class="w-4 h-4" />
+                            </button>
                             <button
                               phx-click="test_webhook"
                               phx-value-id={webhook.id}
@@ -3018,7 +3174,12 @@
 
                 <div class="prose prose-sm max-w-none">
                   <p class="text-base-content/70">
-                    {gettext("External PAT endpoints (/api/ext/v1):")}
+                    {gettext("Current external PAT endpoints (/api/ext/v1):")}
+                  </p>
+                  <p class="text-base-content/60">
+                    {gettext(
+                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, exports, vault access, and webhook management."
+                    )}
                   </p>
                   <p>
                     <a href="/openapi/ext-v1.yaml" target="_blank" class="link link-primary">
@@ -3036,14 +3197,63 @@
                       </thead>
                       <tbody>
                         <tr>
+                          <td><code>GET /api/ext/v1/capabilities</code></td>
+                          <td><code>any PAT</code></td>
+                          <td>{gettext("Inspect scopes, presets, and allowed endpoints")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/me</code></td>
+                          <td><code>read:account</code></td>
+                          <td>{gettext("Inspect the authenticated user and token metadata")}</td>
+                        </tr>
+                        <tr>
                           <td><code>GET /api/ext/v1/search</code></td>
                           <td><code>read:* (any)</code></td>
-                          <td>{gettext("Global search across account data")}</td>
+                          <td>
+                            {gettext(
+                              "Global search across only the resources your token can read"
+                            )}
+                          </td>
                         </tr>
                         <tr>
                           <td><code>POST /api/ext/v1/search/actions/execute</code></td>
                           <td><code>varies by action</code></td>
                           <td>{gettext("Execute scoped actions")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/email/messages</code></td>
+                          <td><code>read:email</code></td>
+                          <td>{gettext("List email messages across your mailboxes")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/email/messages/:id</code></td>
+                          <td><code>read:email</code></td>
+                          <td>{gettext("Get a single email message")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/chat/conversations</code></td>
+                          <td><code>read:chat</code></td>
+                          <td>{gettext("List chat conversations")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/chat/conversations/:id/messages</code></td>
+                          <td><code>read:chat</code></td>
+                          <td>{gettext("List messages in a chat conversation")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/social/feed</code></td>
+                          <td><code>read:social</code></td>
+                          <td>{gettext("List your home feed or the public timeline")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/social/posts/:id</code></td>
+                          <td><code>read:social</code></td>
+                          <td>{gettext("Get a single visible social post")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/contacts</code></td>
+                          <td><code>read:contacts</code></td>
+                          <td>{gettext("List address book contacts")}</td>
                         </tr>
                         <tr>
                           <td><code>GET /api/ext/v1/calendars</code></td>
@@ -3057,7 +3267,7 @@
                         </tr>
                         <tr>
                           <td><code>GET /api/ext/v1/password-manager/entries</code></td>
-                          <td><code>read:account</code></td>
+                          <td><code>read:vault</code></td>
                           <td>{gettext("List encrypted vault entries")}</td>
                         </tr>
                         <tr>
@@ -3070,9 +3280,23 @@
                           <td><code>webhook</code></td>
                           <td>{gettext("List and inspect webhooks + delivery history")}</td>
                         </tr>
+                        <tr>
+                          <td>
+                            <code>
+                              POST /api/ext/v1/webhooks/:id/deliveries/:delivery_id/replay
+                            </code>
+                          </td>
+                          <td><code>webhook</code></td>
+                          <td>{gettext("Replay a failed or historical webhook delivery")}</td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
+                  <p class="mt-3 text-base-content/60">
+                    {gettext(
+                      "Use /api/ext/v1/capabilities to power SDKs, CLIs, or setup wizards that need to inspect the current token."
+                    )}
+                  </p>
                 </div>
               </div>
             </div>

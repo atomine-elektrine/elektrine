@@ -30,22 +30,33 @@ defmodule ElektrineWeb.Admin.MonitoringController do
     page = SafeConvert.parse_page(params)
     timeframe = Map.get(params, "timeframe", "24h")
     per_page = 20
-    offset = (page - 1) * per_page
+    safe_page = max(page, 1)
+    offset = (safe_page - 1) * per_page
+    now = DateTime.utc_now()
+    epoch = ~U[1970-01-01 00:00:00Z]
 
     {cutoff_date, title} =
       case timeframe do
-        "1h" -> {DateTime.add(DateTime.utc_now(), -1, :hour), "Last Hour"}
-        "24h" -> {DateTime.add(DateTime.utc_now(), -1, :day), "Last 24 Hours"}
-        "7d" -> {DateTime.add(DateTime.utc_now(), -7, :day), "Last 7 Days"}
-        "30d" -> {DateTime.add(DateTime.utc_now(), -30, :day), "Last 30 Days"}
-        "never" -> {nil, "Never Logged In"}
+        "1h" -> {DateTime.add(now, -1, :hour), "Last Hour"}
+        "24h" -> {DateTime.add(now, -1, :day), "Last 24 Hours"}
+        "7d" -> {DateTime.add(now, -7, :day), "Last 7 Days"}
+        "30d" -> {DateTime.add(now, -30, :day), "Last 30 Days"}
+        "never" -> {nil, "Never Active"}
       end
 
     base_query =
       if timeframe == "never" do
-        from(u in Accounts.User, where: is_nil(u.last_login_at))
+        from(u in Accounts.User,
+          where:
+            is_nil(u.last_login_at) and is_nil(u.last_imap_access) and is_nil(u.last_pop3_access)
+        )
       else
-        from(u in Accounts.User, where: u.last_login_at >= ^cutoff_date)
+        from(u in Accounts.User,
+          where:
+            u.last_login_at >= ^cutoff_date or
+              u.last_imap_access >= ^cutoff_date or
+              u.last_pop3_access >= ^cutoff_date
+        )
       end
 
     total_count = Repo.aggregate(base_query, :count)
@@ -56,22 +67,47 @@ defmodule ElektrineWeb.Admin.MonitoringController do
         id: u.id,
         username: u.username,
         last_login_at: u.last_login_at,
+        last_imap_access: u.last_imap_access,
+        last_pop3_access: u.last_pop3_access,
         last_login_ip: u.last_login_ip,
         login_count: u.login_count,
         is_admin: u.is_admin,
         two_factor_enabled: u.two_factor_enabled,
-        inserted_at: u.inserted_at
+        inserted_at: u.inserted_at,
+        last_activity_at:
+          fragment(
+            "GREATEST(COALESCE(?, ?), COALESCE(?, ?), COALESCE(?, ?))",
+            u.last_login_at,
+            type(^epoch, :utc_datetime),
+            u.last_imap_access,
+            type(^epoch, :utc_datetime),
+            u.last_pop3_access,
+            type(^epoch, :utc_datetime)
+          )
       })
-      |> order_by([u], desc: u.last_login_at)
+      |> order_by(
+        [u],
+        desc:
+          fragment(
+            "GREATEST(COALESCE(?, ?), COALESCE(?, ?), COALESCE(?, ?))",
+            u.last_login_at,
+            type(^epoch, :utc_datetime),
+            u.last_imap_access,
+            type(^epoch, :utc_datetime),
+            u.last_pop3_access,
+            type(^epoch, :utc_datetime)
+          )
+      )
       |> limit(^per_page)
       |> offset(^offset)
       |> Repo.all()
+      |> Enum.map(&add_activity_metadata/1)
 
     total_pages = ceil(total_count / per_page)
 
     render(conn, :active_users,
       active_users: active_users,
-      page: page,
+      page: safe_page,
       total_pages: total_pages,
       total_count: total_count,
       timeframe: timeframe,
@@ -293,6 +329,28 @@ defmodule ElektrineWeb.Admin.MonitoringController do
   defp get_db_pool_stats do
     pool_size = Application.get_env(:elektrine, Elektrine.Repo)[:pool_size] || 10
     %{pool_size: pool_size}
+  end
+
+  defp add_activity_metadata(user) do
+    activities =
+      [
+        {:web, user.last_login_at},
+        {:imap, user.last_imap_access},
+        {:pop3, user.last_pop3_access}
+      ]
+      |> Enum.filter(fn {_source, timestamp} -> not is_nil(timestamp) end)
+
+    case Enum.max_by(activities, fn {_source, timestamp} -> timestamp end, fn -> nil end) do
+      {source, timestamp} ->
+        user
+        |> Map.put(:last_activity_at, timestamp)
+        |> Map.put(:last_activity_source, source)
+
+      nil ->
+        user
+        |> Map.put(:last_activity_at, nil)
+        |> Map.put(:last_activity_source, nil)
+    end
   end
 
   defp pagination_range(_current_page, total_pages) when total_pages <= 7 do

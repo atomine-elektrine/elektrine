@@ -280,6 +280,49 @@ body[data-grid="orange"], body.grid-orange {
   z-index: 1;
 }
 
+.admin-layout {
+  color-scheme: dark;
+}
+
+.admin-navbar {
+  z-index: 400 !important;
+  isolation: isolate;
+  overflow: visible !important;
+}
+
+.admin-layout > main {
+  position: relative;
+  z-index: 0;
+}
+
+.admin-navbar .navbar-start,
+.admin-navbar .navbar-center,
+.admin-navbar .navbar-end,
+.admin-navbar .dropdown {
+  overflow: visible !important;
+}
+
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .admin-page {
+    gap: 2rem;
+  }
+}
+
+.admin-page > :first-child {
+  margin-bottom: 0 !important;
+}
+
+.admin-layout .dropdown-content,
+.admin-layout .menu.dropdown-content {
+  z-index: 450 !important;
+}
+
 /* Logo glow effect - purple variant */
 .logo-glow-purple {
   filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.25)) drop-shadow(0 0 20px rgba(168, 85, 247, 0.12));

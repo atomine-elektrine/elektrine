@@ -95,7 +95,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
       <div class="card bg-base-100 shadow-sm border border-base-300">
         <div class="card-body p-4">
           <% attention_count =
@@ -132,15 +132,25 @@
           </div>
 
           <%= if @loading_dashboard do %>
-            <div class="space-y-2 animate-pulse">
-              <%= for _i <- 1..4 do %>
-                <div class="h-20 bg-base-300 rounded-lg"></div>
-              <% end %>
+            <div
+              data-role="attention-queue-list"
+              class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
+              style="scrollbar-gutter: stable"
+            >
+              <div class="space-y-2 animate-pulse">
+                <%= for _i <- 1..4 do %>
+                  <div class="h-20 bg-base-300 rounded-lg"></div>
+                <% end %>
+              </div>
             </div>
           <% else %>
             <% attention_items =
               filtered_attention_queue(@dashboard.attention_queue, @attention_filter) %>
-            <div class="space-y-2">
+            <div
+              data-role="attention-queue-list"
+              class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
+              style="scrollbar-gutter: stable"
+            >
               <%= if Enum.empty?(attention_items) do %>
                 <div class="rounded-lg border border-dashed border-base-300 p-4 text-sm opacity-70">
                   <%= if @attention_filter == "all" do %>
@@ -225,7 +235,7 @@
             <% else %>
               <div
                 data-role="recent-activity-list"
-                class="space-y-2 max-h-[24rem] overflow-y-auto pr-1 sm:max-h-[28rem] xl:max-h-[calc(100vh-18rem)]"
+                class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
                 style="scrollbar-gutter: stable"
               >
                 <%= if Enum.empty?(@dashboard.recent_activity) do %>
@@ -261,26 +271,6 @@
           </div>
         </div>
 
-        <div class="card bg-base-100 shadow-sm border border-base-300">
-          <div class="card-body p-4">
-            <div class="flex items-center justify-between">
-              <h3 class="font-semibold flex items-center gap-2">
-                <.icon name="hero-queue-list" class="w-5 h-5" /> Queue Sources
-              </h3>
-              <span class="text-xs opacity-60">Live counts</span>
-            </div>
-            <div class="mt-3 space-y-2">
-              <%= for filter <- ["email", "chat", "requests", "social", "system"] do %>
-                <div class="flex items-center justify-between rounded-lg border border-base-300 px-3 py-2 text-sm">
-                  <span class="opacity-70">{attention_filter_label(filter)}</span>
-                  <span class="font-medium">
-                    {Map.get(@dashboard.attention_counts || %{}, filter, 0)}
-                  </span>
-                </div>
-              <% end %>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>

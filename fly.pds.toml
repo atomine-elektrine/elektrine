@@ -1,6 +1,6 @@
 # Fly app config for managed Bluesky PDS
 app = "elektrine-bsky-pds"
-primary_region = "iad"
+primary_region = "ord"
 
 [build]
   image = "ghcr.io/bluesky-social/pds:0.4"
@@ -25,7 +25,7 @@ primary_region = "iad"
   min_machines_running = 1
 
 [[mounts]]
-  source = "pds_data"
+  source = "pds_data_ord"
   destination = "/pds"
 
 [[vm]]

@@ -6,6 +6,30 @@ defmodule Elektrine.DeveloperTokensTest do
   alias Elektrine.Developer
 
   describe "create_api_token/2" do
+    test "requires at least one scope" do
+      user = user_fixture()
+
+      assert {:error, changeset} =
+               Developer.create_api_token(user.id, %{
+                 name: "token-without-scopes",
+                 scopes: []
+               })
+
+      assert "must include at least one scope" in errors_on(changeset).scopes
+    end
+
+    test "accepts dedicated vault scopes" do
+      user = user_fixture()
+
+      assert {:ok, token} =
+               Developer.create_api_token(user.id, %{
+                 name: "vault-token",
+                 scopes: ["read:vault", "write:vault"]
+               })
+
+      assert Enum.sort(token.scopes) == ["read:vault", "write:vault"]
+    end
+
     test "enforces the maximum number of active tokens per user" do
       user = user_fixture()
 

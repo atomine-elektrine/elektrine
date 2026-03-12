@@ -85,8 +85,10 @@ defmodule Elektrine.Messaging.Message do
     # ActivityPub Federation
     # Text in DB (long URLs)
     field :activitypub_id, :string
+    field :activitypub_id_canonical, :string
     # Text in DB (long URLs)
     field :activitypub_url, :string
+    field :activitypub_url_canonical, :string
     # Text in DB (at://did/app.bsky.feed.post/rkey)
     field :bluesky_uri, :string
     field :bluesky_cid, :string
@@ -192,6 +194,7 @@ defmodule Elektrine.Messaging.Message do
     |> validate_content_security()
     |> validate_media_urls_security()
     |> validate_content_or_media()
+    |> normalize_activitypub_refs()
     |> foreign_key_constraint(:conversation_id)
     |> foreign_key_constraint(:sender_id)
     |> foreign_key_constraint(:reply_to_id)
@@ -226,6 +229,7 @@ defmodule Elektrine.Messaging.Message do
       :quoted_message_id
     ])
     |> normalize_federated_columns()
+    |> normalize_activitypub_refs()
     |> validate_required([:activitypub_id, :remote_actor_id])
     |> put_change(:federated, true)
     |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private"])
@@ -418,6 +422,7 @@ defmodule Elektrine.Messaging.Message do
       :downvotes,
       :score
     ])
+    |> normalize_activitypub_refs()
   end
 
   @doc """
@@ -425,6 +430,34 @@ defmodule Elektrine.Messaging.Message do
   """
   def deleted?(%__MODULE__{deleted_at: nil}), do: false
   def deleted?(%__MODULE__{}), do: true
+
+  defp normalize_activitypub_refs(changeset) do
+    changeset
+    |> put_change(
+      :activitypub_id_canonical,
+      canonicalize_activitypub_ref(get_field(changeset, :activitypub_id))
+    )
+    |> put_change(
+      :activitypub_url_canonical,
+      canonicalize_activitypub_ref(get_field(changeset, :activitypub_url))
+    )
+  end
+
+  defp canonicalize_activitypub_ref(ref) when is_binary(ref) do
+    ref
+    |> String.trim()
+    |> String.split("#", parts: 2)
+    |> hd()
+    |> String.split("?", parts: 2)
+    |> hd()
+    |> String.trim_trailing("/")
+    |> case do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp canonicalize_activitypub_ref(_), do: nil
 
   @doc """
   Checks if the message has been edited.

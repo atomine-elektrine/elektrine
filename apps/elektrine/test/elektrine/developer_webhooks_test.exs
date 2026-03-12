@@ -121,5 +121,52 @@ defmodule Elektrine.DeveloperWebhooksTest do
       assert delivery.error == nil
       assert delivery.attempt_count >= 1
     end
+
+    test "replays a webhook delivery by queueing a fresh attempt" do
+      user = user_fixture()
+
+      {:ok, listener} =
+        :gen_tcp.listen(0, [:binary, packet: :raw, active: false, reuseaddr: true])
+
+      {:ok, port} = :inet.port(listener)
+      parent = self()
+
+      Task.start(fn ->
+        for _attempt <- 1..2 do
+          {:ok, socket} = :gen_tcp.accept(listener)
+          {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
+          send(parent, {:replay_request, request})
+          :ok = :gen_tcp.send(socket, "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok")
+          :gen_tcp.close(socket)
+        end
+
+        :gen_tcp.close(listener)
+      end)
+
+      {:ok, webhook} =
+        Developer.create_webhook(user.id, %{
+          name: "Replay Hook",
+          url: "http://127.0.0.1:#{port}/webhook",
+          events: ["post.created"]
+        })
+
+      assert [{_webhook_id, {:ok, :queued}}] =
+               Developer.deliver_event(user.id, "post.created", %{post_id: 123})
+
+      assert_receive {:replay_request, first_request}, 5_000
+      assert first_request =~ "POST /webhook HTTP/1.1"
+
+      [delivery | _] =
+        Developer.list_webhook_deliveries(user.id, webhook_id: webhook.id, limit: 5)
+
+      assert {:ok, :queued} = Developer.replay_webhook_delivery(user.id, delivery.id)
+
+      assert_receive {:replay_request, replay_request}, 5_000
+      assert replay_request =~ "POST /webhook HTTP/1.1"
+
+      deliveries = Developer.list_webhook_deliveries(user.id, webhook_id: webhook.id, limit: 10)
+      assert length(deliveries) == 2
+      assert Enum.all?(deliveries, &(&1.status == "delivered"))
+    end
   end
 end

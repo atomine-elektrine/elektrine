@@ -366,29 +366,40 @@ defmodule Elektrine.Accounts.Moderation do
       status: status,
       reviewed_at: DateTime.utc_now() |> DateTime.truncate(:second),
       reviewed_by_id: admin.id,
-      admin_notes: Map.get(attrs, :admin_notes)
+      admin_notes: Map.get(attrs, :admin_notes) || Map.get(attrs, "admin_notes")
     }
 
-    result =
-      request
-      |> AccountDeletionRequest.review_changeset(review_attrs)
-      |> Repo.update()
+    case Repo.transaction(fn ->
+           updated_request =
+             case request
+                  |> AccountDeletionRequest.review_changeset(review_attrs)
+                  |> Repo.update() do
+               {:ok, updated_request} ->
+                 updated_request
 
-    case result do
-      {:ok, updated_request} when status == "approved" ->
-        # If approved, delete the user account
-        user = Repo.get!(User, request.user_id)
+               {:error, changeset} ->
+                 Repo.rollback(changeset)
+             end
 
-        case admin_delete_user(user) do
-          {:ok, _user} -> {:ok, updated_request}
-          {:error, _changeset} -> {:error, "Failed to delete user account"}
-        end
+           if status == "approved" do
+             user = Repo.get!(User, request.user_id)
 
+             case admin_delete_user(user) do
+               {:ok, _user} -> updated_request
+               {:error, error} -> Repo.rollback(error)
+             end
+           else
+             updated_request
+           end
+         end) do
       {:ok, updated_request} ->
         {:ok, updated_request}
 
-      {:error, changeset} ->
+      {:error, %Ecto.Changeset{} = changeset} ->
         {:error, changeset}
+
+      {:error, _error} ->
+        {:error, "Failed to delete user account"}
     end
   end
 

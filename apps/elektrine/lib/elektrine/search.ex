@@ -28,6 +28,8 @@ defmodule Elektrine.Search do
   """
   def global_search(user, query, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
+    scopes = Keyword.get(opts, :scopes, []) |> normalize_scopes()
+    strict_scopes? = Keyword.get(opts, :enforce_scopes, false)
 
     safe_query = sanitize_search_term(query)
     trimmed_query = String.trim(safe_query)
@@ -46,18 +48,34 @@ defmodule Elektrine.Search do
           results
         else
           results
-          |> Kernel.++(search_people(user, search_term, limit))
-          |> Kernel.++(search_chat_messages(user, search_term, limit))
-          |> Kernel.++(search_timeline_posts(user, search_term, limit))
-          |> Kernel.++(search_discussions(user, search_term, limit))
-          |> Kernel.++(search_communities(user, search_term, limit))
-          |> Kernel.++(search_federated_posts(search_term, limit))
-          |> Kernel.++(search_emails(user, search_term, limit))
-          |> Kernel.++(search_files(user, search_term, limit))
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
+            search_people(user, search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:chat"], fn ->
+            search_chat_messages(user, search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
+            search_timeline_posts(user, search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
+            search_discussions(user, search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
+            search_communities(user, search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
+            search_federated_posts(search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:email"], fn ->
+            search_emails(user, search_term, limit)
+          end)
+          |> maybe_append_search_results(scopes, strict_scopes?, ["read:email"], fn ->
+            search_files(user, search_term, limit)
+          end)
         end
 
-      results = results ++ search_settings(command_query, limit)
-      results = results ++ search_actions(command_query, limit)
+      results = results ++ search_settings(command_query, limit, scopes, strict_scopes?)
+      results = results ++ search_actions(command_query, limit, scopes, strict_scopes?)
 
       # Sort by relevance and limit results
       sorted_results =
@@ -443,18 +461,22 @@ defmodule Elektrine.Search do
     end)
   end
 
-  defp search_settings(query, limit) do
+  defp search_settings(query, limit, scopes, strict_scopes?) do
     query = normalize_command_query(query)
 
-    setting_entries()
-    |> Enum.filter(&entry_matches?(&1, query))
-    |> Enum.take(max(div(limit, 6), 4))
+    if scope_allowed?(scopes, strict_scopes?, ["read:account"]) do
+      setting_entries()
+      |> Enum.filter(&entry_matches?(&1, query))
+      |> Enum.take(max(div(limit, 6), 4))
+    else
+      []
+    end
   end
 
-  defp search_actions(query, limit) do
+  defp search_actions(query, limit, scopes, strict_scopes?) do
     query = normalize_command_query(query)
 
-    action_entries()
+    list_actions(scopes: scopes, enforce_scopes: strict_scopes?)
     |> Enum.filter(&entry_matches?(&1, query))
     |> Enum.take(max(div(limit, 6), 4))
   end
@@ -598,6 +620,28 @@ defmodule Elektrine.Search do
   end
 
   defp normalize_scopes(_), do: MapSet.new()
+
+  defp maybe_append_search_results(results, scopes, strict_scopes?, required_scopes, fun)
+       when is_list(results) and is_list(required_scopes) and is_function(fun, 0) do
+    if scope_allowed?(scopes, strict_scopes?, required_scopes) do
+      results ++ fun.()
+    else
+      results
+    end
+  end
+
+  defp scope_allowed?(scopes, strict_scopes?, required_scopes) do
+    cond do
+      required_scopes == [] ->
+        true
+
+      not strict_scopes? and MapSet.size(scopes) == 0 ->
+        true
+
+      true ->
+        Enum.any?(required_scopes, &MapSet.member?(scopes, &1))
+    end
+  end
 
   defp entry_matches?(_entry, ""), do: true
 

@@ -14,7 +14,7 @@ defmodule Elektrine.Messaging do
   alias Elektrine.Repo
 
   # Delegate to sub-contexts
-  alias Elektrine.Messaging.{ChatMessage, ChatMessages, Conversation}
+  alias Elektrine.Messaging.{ChatMessage, ChatMessages, Conversation, Message}
   alias Elektrine.Messaging.Conversations
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Messages
@@ -364,7 +364,29 @@ defmodule Elektrine.Messaging do
   @doc """
   Admin deletes a message (bypasses ownership check).
   """
-  defdelegate admin_delete_message(message_id, admin_user), to: Messages
+  def admin_delete_message(message_id, %User{} = admin_user) when is_integer(message_id) do
+    cond do
+      not admin_user.is_admin ->
+        {:error, :unauthorized}
+
+      chat_message = Repo.get(ChatMessage, message_id) ->
+        if chat_message.deleted_at do
+          {:error, :already_deleted}
+        else
+          ChatMessages.delete_message(message_id, admin_user.id, true)
+        end
+
+      message = Repo.get(Message, message_id) ->
+        if message.deleted_at do
+          {:error, :already_deleted}
+        else
+          Messages.delete_message(message_id, admin_user.id, true)
+        end
+
+      true ->
+        {:error, :not_found}
+    end
+  end
 
   @doc """
   Get messages for a conversation with pagination support.

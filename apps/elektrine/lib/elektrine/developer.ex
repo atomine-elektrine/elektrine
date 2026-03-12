@@ -276,6 +276,16 @@ defmodule Elektrine.Developer do
   end
 
   @doc """
+  Gets a webhook delivery by id for a specific user.
+  """
+  def get_webhook_delivery(user_id, delivery_id) do
+    WebhookDelivery
+    |> where([d], d.id == ^delivery_id and d.user_id == ^user_id)
+    |> preload(:webhook)
+    |> Repo.one()
+  end
+
+  @doc """
   Sends a test webhook delivery.
   """
   def test_webhook(user_id, webhook_id) do
@@ -292,6 +302,25 @@ defmodule Elektrine.Developer do
 
         with {:ok, delivery} <- create_webhook_delivery(webhook, "webhook.test", test_payload) do
           run_webhook_delivery(%{delivery | webhook: webhook}, 1)
+        end
+    end
+  end
+
+  @doc """
+  Replays a historical webhook delivery by creating a fresh delivery attempt.
+  """
+  def replay_webhook_delivery(user_id, delivery_id) do
+    case get_webhook_delivery(user_id, delivery_id) do
+      nil ->
+        {:error, :not_found}
+
+      %WebhookDelivery{} = delivery ->
+        case get_webhook(user_id, delivery.webhook_id) do
+          nil ->
+            {:error, :not_found}
+
+          webhook ->
+            enqueue_webhook_delivery(webhook, delivery.event, delivery.payload)
         end
     end
   end

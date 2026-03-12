@@ -100,6 +100,87 @@ defmodule Elektrine.Email.CustomDomains do
 
   def list_user_custom_domains(_), do: []
 
+  def list_custom_domains_admin(
+        search_query \\ "",
+        status_filter \\ "all",
+        page \\ 1,
+        per_page \\ 20
+      ) do
+    normalized_search = normalize_admin_search(search_query)
+    normalized_status = normalize_admin_status_filter(status_filter)
+    safe_page = max(page, 1)
+    safe_per_page = max(per_page, 1)
+
+    base_query =
+      CustomDomain
+      |> join(:left, [d], u in assoc(d, :user))
+      |> maybe_filter_admin_status(normalized_status)
+      |> maybe_search_admin(normalized_search)
+
+    total_count = Repo.aggregate(base_query, :count, :id)
+
+    custom_domains =
+      base_query
+      |> order_by([d, _u], desc: d.inserted_at, asc: d.domain)
+      |> preload([_d, u], user: u)
+      |> limit(^safe_per_page)
+      |> offset(^((safe_page - 1) * safe_per_page))
+      |> Repo.all()
+      |> Enum.map(&hydrate_custom_domain/1)
+
+    {custom_domains, total_count}
+  end
+
+  def custom_domain_admin_stats(limit_recent \\ 5) do
+    total = Repo.aggregate(CustomDomain, :count, :id)
+
+    verified =
+      Repo.aggregate(
+        from(d in CustomDomain, where: d.status == ^@verified_status),
+        :count,
+        :id
+      )
+
+    attention =
+      Repo.aggregate(
+        from(d in CustomDomain,
+          where:
+            (not is_nil(d.last_error) and d.last_error != "") or
+              (not is_nil(d.dkim_last_error) and d.dkim_last_error != "")
+        ),
+        :count,
+        :id
+      )
+
+    preferred =
+      Repo.aggregate(
+        from(d in CustomDomain,
+          join: u in assoc(d, :user),
+          where: fragment("lower(coalesce(?, '')) = lower(?)", u.preferred_email_domain, d.domain)
+        ),
+        :count,
+        :id
+      )
+
+    recent_domains =
+      from(d in CustomDomain,
+        join: u in assoc(d, :user),
+        preload: [user: u],
+        order_by: [desc: d.inserted_at, asc: d.domain],
+        limit: ^max(limit_recent, 0)
+      )
+      |> Repo.all()
+
+    %{
+      total: total,
+      verified: verified,
+      pending: max(total - verified, 0),
+      attention: attention,
+      preferred: preferred,
+      recent_domains: recent_domains
+    }
+  end
+
   def get_custom_domain(id, user_id) when is_integer(id) and is_integer(user_id) do
     CustomDomain
     |> where(id: ^id, user_id: ^user_id)
@@ -441,4 +522,44 @@ defmodule Elektrine.Email.CustomDomains do
 
   defp normalize_mx_value(value) when is_binary(value), do: normalize_domain(value)
   defp normalize_mx_value(value), do: value |> to_string() |> normalize_domain()
+
+  defp maybe_search_admin(query, ""), do: query
+
+  defp maybe_search_admin(query, search_query) do
+    search_pattern = "%#{search_query}%"
+
+    from([d, u] in query,
+      where:
+        ilike(d.domain, ^search_pattern) or
+          ilike(fragment("coalesce(?, '')", u.username), ^search_pattern) or
+          ilike(fragment("coalesce(?, '')", u.preferred_email_domain), ^search_pattern)
+    )
+  end
+
+  defp maybe_filter_admin_status(query, "all"), do: query
+
+  defp maybe_filter_admin_status(query, "attention") do
+    from([d, _u] in query,
+      where:
+        (not is_nil(d.last_error) and d.last_error != "") or
+          (not is_nil(d.dkim_last_error) and d.dkim_last_error != "")
+    )
+  end
+
+  defp maybe_filter_admin_status(query, status) do
+    from([d, _u] in query, where: d.status == ^status)
+  end
+
+  defp normalize_admin_search(search_query) when is_binary(search_query) do
+    search_query |> String.trim()
+  end
+
+  defp normalize_admin_search(_), do: ""
+
+  defp normalize_admin_status_filter(status_filter)
+       when status_filter in ["all", "pending", "verified", "attention"] do
+    status_filter
+  end
+
+  defp normalize_admin_status_filter(_), do: "all"
 end

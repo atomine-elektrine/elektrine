@@ -20,6 +20,7 @@ defmodule Elektrine.Messaging.Federation do
   defdelegate local_domain, to: Peers
   defdelegate list_server_presence_states(server_id), to: Peers
   defdelegate list_peer_controls, to: Peers
+  defdelegate paginate_peer_controls(search_query, page, per_page), to: Peers
   defdelegate upsert_peer_policy(domain, attrs), to: Peers
   defdelegate upsert_peer_policy(domain, attrs, updated_by_id), to: Peers
   defdelegate clear_peer_policy(domain), to: Peers
@@ -86,7 +87,10 @@ defmodule Elektrine.Messaging.Federation do
   defdelegate receive_session_stream_batch(payload, remote_domain), to: Ingress
   defdelegate receive_session_stream_batch(payload, remote_domain, frame_delivery_id), to: Ingress
   defdelegate receive_session_ephemeral_batch(payload, remote_domain), to: Ingress
-  defdelegate receive_session_ephemeral_batch(payload, remote_domain, frame_delivery_id), to: Ingress
+
+  defdelegate receive_session_ephemeral_batch(payload, remote_domain, frame_delivery_id),
+    to: Ingress
+
   defdelegate export_stream_events(stream_id), to: Ingress
   defdelegate export_stream_events(stream_id, opts), to: Ingress
   defdelegate recover_sequence_gap(payload, remote_domain), to: Ingress

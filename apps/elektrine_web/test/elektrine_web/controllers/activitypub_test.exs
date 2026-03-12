@@ -14,6 +14,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
     test "returns webfinger for valid user", %{conn: conn} do
       user = AccountsFixtures.user_fixture(%{username: "webfingertest"})
       domain = Elektrine.ActivityPub.instance_domain()
+      base_url = ActivityPub.instance_url()
 
       conn =
         conn
@@ -23,6 +24,11 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       response = json_response(conn, 200)
       assert response["subject"] =~ user.username
       assert is_list(response["links"])
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "http://ostatus.org/schema/1.0/subscribe" and
+                 link["template"] == "#{base_url}/authorize_interaction?uri={uri}"
+             end)
     end
 
     test "returns webfinger for community acct handle", %{conn: conn} do
@@ -46,6 +52,11 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "self" and
                  link["href"] == ActivityPub.community_actor_uri(community.name)
+             end)
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "http://ostatus.org/schema/1.0/subscribe" and
+                 link["template"] == "#{ActivityPub.instance_url()}/authorize_interaction?uri={uri}"
              end)
     end
 

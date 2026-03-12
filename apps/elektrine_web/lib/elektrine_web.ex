@@ -10,7 +10,7 @@ defmodule ElektrineWeb do
   Keep quoted blocks focused on imports, aliases, and `use` declarations.
   """
 
-  def static_paths, do: ~w(assets fonts images uploads favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images openapi uploads favicon.ico robots.txt)
 
   def router do
     quote do

@@ -4,10 +4,14 @@
 #
 
 app = 'elektrine'
-primary_region = 'iad'
+primary_region = 'ord'
 kill_signal = 'SIGTERM'
 
 [build]
+
+[processes]
+  app = "/app/docker-entrypoint.sh app"
+  worker = "/app/docker-entrypoint.sh worker"
 
 [deploy]
   release_command = '/app/bin/elektrine eval "Elektrine.Release.migrate"'
@@ -21,7 +25,7 @@ kill_signal = 'SIGTERM'
   DB_TIMEOUT_MS = '30000'
   DB_POOL_TIMEOUT_MS = '30000'
   DB_CONNECT_TIMEOUT_MS = '30000'
-  MIGRATION_POOL_SIZE = '2'
+  MIGRATION_POOL_SIZE = '1'
   MIGRATION_TIMEOUT_MS = '120000'
   MIGRATION_POOL_TIMEOUT_MS = '60000'
   MIGRATION_CONNECT_TIMEOUT_MS = '60000'
@@ -33,6 +37,7 @@ kill_signal = 'SIGTERM'
 # Uses non-privileged port internally since app runs as nobody user
 # =========================================================================
 [[services]]
+  processes = ['app']
   internal_port = 8080
   protocol = 'tcp'
   auto_stop_machines = 'suspend'
@@ -60,17 +65,26 @@ kill_signal = 'SIGTERM'
     soft_limit = 400
 
 [[vm]]
+  processes = ['app']
   memory = '4gb'
   cpu_kind = 'shared'
   cpus = 8
 
 # Single volume for runtime data
 [[mounts]]
-  source = 'app_data'
+  source = 'app_data_ord'
   destination = '/data'
+  processes = ['app']
+
+[[vm]]
+  processes = ['worker']
+  memory = '4gb'
+  cpu_kind = 'shared'
+  cpus = 4
 
 # POP3 Service (port 2110 internally, 995 externally with TLS)
 [[services]]
+  processes = ['app']
   internal_port = 2110
   protocol = 'tcp'
   auto_stop_machines = 'suspend'
@@ -89,6 +103,7 @@ kill_signal = 'SIGTERM'
 
 # IMAP Service (port 2143 internally, 993 externally with TLS)
 [[services]]
+  processes = ['app']
   internal_port = 2143
   protocol = 'tcp'
   auto_stop_machines = 'suspend'
@@ -107,6 +122,7 @@ kill_signal = 'SIGTERM'
 
 # SMTP Service (port 2587 internally, 465 externally with TLS)
 [[services]]
+  processes = ['app']
   internal_port = 2587
   protocol = 'tcp'
   auto_stop_machines = 'suspend'

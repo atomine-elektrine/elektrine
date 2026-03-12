@@ -27,6 +27,8 @@ defmodule Elektrine.Developer.ApiToken do
   - `write:calendar` - Create/update/delete events
   - `read:account` - Read account info, settings
   - `write:account` - Update settings (not password)
+  - `read:vault` - Read encrypted password vault entries
+  - `write:vault` - Create/update/delete encrypted password vault entries
   - `export` - Trigger and download data exports
   - `webhook` - Manage webhook subscriptions
   """
@@ -40,8 +42,48 @@ defmodule Elektrine.Developer.ApiToken do
     read:contacts write:contacts
     read:calendar write:calendar
     read:account write:account
+    read:vault write:vault
     export webhook
   )
+  @token_presets [
+    %{
+      id: "search_read_only",
+      name: "Read-only search",
+      description: "Search across account data without write access.",
+      scopes: [
+        "read:account",
+        "read:email",
+        "read:chat",
+        "read:social",
+        "read:contacts",
+        "read:calendar"
+      ]
+    },
+    %{
+      id: "calendar_sync",
+      name: "Calendar sync",
+      description: "Read and write calendar events for sync tools or bots.",
+      scopes: ["read:calendar", "write:calendar"]
+    },
+    %{
+      id: "backup_export",
+      name: "Backup and export",
+      description: "Trigger and download account exports.",
+      scopes: ["export"]
+    },
+    %{
+      id: "webhook_admin",
+      name: "Webhook admin",
+      description: "Create, test, rotate, and inspect webhook subscriptions.",
+      scopes: ["webhook"]
+    },
+    %{
+      id: "vault_access",
+      name: "Vault access",
+      description: "Read and write encrypted password vault entries.",
+      scopes: ["read:vault", "write:vault"]
+    }
+  ]
 
   schema "api_tokens" do
     field :name, :string
@@ -65,6 +107,41 @@ defmodule Elektrine.Developer.ApiToken do
   Returns list of all valid scopes.
   """
   def valid_scopes, do: @valid_scopes
+
+  @doc """
+  Returns recommended token presets for common integrations.
+  """
+  def token_presets, do: @token_presets
+
+  @doc """
+  Returns the preferred default token expiration in days.
+  """
+  def default_expiration_days, do: 90
+
+  @doc """
+  Returns the scopes for a preset id.
+  """
+  def preset_scopes(preset_id) when is_binary(preset_id) do
+    case Enum.find(@token_presets, &(&1.id == preset_id)) do
+      %{scopes: scopes} -> scopes
+      _ -> []
+    end
+  end
+
+  def preset_scopes(_preset_id), do: []
+
+  @doc """
+  Finds a preset that matches a scope list exactly.
+  """
+  def preset_for_scopes(scopes) when is_list(scopes) do
+    normalized = normalize_scope_list(scopes)
+
+    Enum.find_value(@token_presets, "custom", fn preset ->
+      if normalize_scope_list(preset.scopes) == normalized, do: preset.id
+    end)
+  end
+
+  def preset_for_scopes(_), do: "custom"
 
   @doc """
   Returns scopes grouped by category for UI display.
@@ -95,6 +172,10 @@ defmodule Elektrine.Developer.ApiToken do
         {"read:account", "Read account info and settings"},
         {"write:account", "Update account settings"}
       ],
+      "Vault" => [
+        {"read:vault", "Read encrypted password vault entries"},
+        {"write:vault", "Create, update, and delete vault entries"}
+      ],
       "Developer" => [
         {"export", "Trigger and download data exports"},
         {"webhook", "Manage webhook subscriptions"}
@@ -110,6 +191,8 @@ defmodule Elektrine.Developer.ApiToken do
     |> cast(attrs, [:name, :token_hash, :token_prefix, :scopes, :expires_at, :user_id])
     |> validate_required([:name, :token_hash, :token_prefix, :user_id])
     |> validate_length(:name, min: 1, max: 100)
+    |> update_change(:scopes, &normalize_scope_list/1)
+    |> validate_scope_selection()
     |> validate_scopes()
     |> unique_constraint(:token_hash)
     |> foreign_key_constraint(:user_id)
@@ -219,4 +302,25 @@ defmodule Elektrine.Developer.ApiToken do
         end
     end
   end
+
+  defp validate_scope_selection(changeset) do
+    scopes = get_field(changeset, :scopes, [])
+
+    if Enum.empty?(scopes) do
+      add_error(changeset, :scopes, "must include at least one scope")
+    else
+      changeset
+    end
+  end
+
+  defp normalize_scope_list(scopes) when is_list(scopes) do
+    scopes
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp normalize_scope_list(_), do: []
 end

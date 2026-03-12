@@ -46,23 +46,22 @@ defmodule ElektrineWeb.Admin.DeletionRequestsController do
     request = Accounts.get_deletion_request!(id)
     admin = conn.assigns.current_user
 
-    # Log the admin approval action BEFORE deletion (while user still exists)
-    Elektrine.AuditLog.log(
-      admin.id,
-      "approve",
-      "deletion_request",
-      target_user_id: request.user_id,
-      details: %{
-        request_id: request.id,
-        admin_notes: admin_notes,
-        requested_at: request.inserted_at
-      },
-      ip_address: get_remote_ip(conn),
-      user_agent: get_req_header(conn, "user-agent") |> List.first()
-    )
-
     case Accounts.review_deletion_request(request, admin, "approved", %{admin_notes: admin_notes}) do
       {:ok, _updated_request} ->
+        Elektrine.AuditLog.log(
+          admin.id,
+          "approve",
+          "deletion_request",
+          target_user_id: request.user_id,
+          details: %{
+            request_id: request.id,
+            admin_notes: admin_notes,
+            requested_at: request.inserted_at
+          },
+          ip_address: get_remote_ip(conn),
+          user_agent: get_req_header(conn, "user-agent") |> List.first()
+        )
+
         conn
         |> put_flash(:info, "Account deletion request approved and user account deleted.")
         |> redirect(to: ~p"/pripyat/deletion-requests")

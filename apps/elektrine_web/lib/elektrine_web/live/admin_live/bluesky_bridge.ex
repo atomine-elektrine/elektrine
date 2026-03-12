@@ -207,13 +207,15 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="p-4 sm:p-6 space-y-6">
+    <div class="admin-page">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold">Bluesky Bridge (ATProto)</h1>
-          <p class="text-sm opacity-70 mt-1">
-            Monitor Bluesky cross-posting and inbound sync status. This page is only for Bluesky
-            bridge behavior, not ActivityPub moderation or Arblarg peer controls.
+          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
+            Bridge Status
+          </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight">Bluesky Bridge</h1>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Monitor ATProto cross-posting, inbound sync health, and outbound mirror queue pressure.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">

@@ -2,6 +2,7 @@ defmodule ElektrineWeb.Layouts do
   @moduledoc ~s|This module holds different layouts used by your application.\n\nSee the `layouts` directory for all templates available.\nThe \"root\" layout is a skeleton rendered as part of the\napplication router. The \"app\" layout is set as the default\nlayout on both `use ElektrineWeb, :controller` and\n`use ElektrineWeb, :live_view`.\n|
   use ElektrineWeb, :html
   import ElektrineWeb.Components.User.Avatar
+  import ElektrineWeb.AdminHTML, only: [admin_nav_sections: 0]
   embed_templates("layouts/*")
 
   @doc ~s|Gets active announcements for display in layouts.\nThis function is called from the layout templates.\n|

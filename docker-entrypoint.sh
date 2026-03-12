@@ -4,6 +4,7 @@ set -euo pipefail
 TOR_HS_DIR="/data/tor/elektrine"
 TOR_DATA_DIR="/data/tor/data"
 CERTS_DIR="/data/certs"
+ROLE="${1:-${ELEKTRINE_RUNTIME_ROLE:-all}}"
 
 decode_b64_to_file() {
   local value="$1"
@@ -47,4 +48,4 @@ chown -R nobody:nogroup /data 2>/dev/null || true
 chmod 700 "$TOR_HS_DIR" 2>/dev/null || true
 
 # Drop to nobody and run the start script
-exec su -s /bin/bash nobody -c "/app/start.sh"
+exec su -s /bin/bash nobody -c "/app/start.sh ${ROLE}"

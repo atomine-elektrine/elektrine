@@ -19,6 +19,9 @@ defmodule Elektrine.AppCache do
   @object_ttl :timer.minutes(10)
   # Failed object fetches are cached briefly to avoid hammering unavailable remotes.
   @object_negative_ttl :timer.seconds(90)
+  # ActivityPub ref lookups are hot during inbox processing.
+  @activitypub_ref_ttl :timer.minutes(5)
+  @activitypub_ref_negative_ttl :timer.seconds(15)
   # WebFinger lookups cached longer since they rarely change
   @webfinger_ttl :timer.hours(6)
   # Instance metadata (nodeinfo) cached for a day
@@ -315,6 +318,35 @@ defmodule Elektrine.AppCache do
   """
   def invalidate_object(uri) do
     delete_with_telemetry({:object, uri})
+  end
+
+  @doc """
+  Caches message lookups by normalized ActivityPub ref.
+  Missing refs are cached briefly to avoid repeated expensive misses during inbox storms.
+  """
+  def get_activitypub_message_ref(ref, fetch_fn) when is_binary(ref) do
+    key = {:activitypub_ref, normalize_activitypub_ref(ref)}
+
+    case fetch_with_telemetry(key, fn _key ->
+           case fetch_fn.() do
+             nil -> {:commit, :not_found, ttl: @activitypub_ref_negative_ttl}
+             value -> {:commit, value, ttl: @activitypub_ref_ttl}
+           end
+         end) do
+      {:commit, :not_found} -> nil
+      {:ok, :not_found} -> nil
+      {:commit, value} -> value
+      {:commit, value, _opts} -> value
+      {:ok, value} -> value
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Invalidates a cached ActivityPub ref lookup.
+  """
+  def invalidate_activitypub_message_ref(ref) when is_binary(ref) do
+    delete_with_telemetry({:activitypub_ref, normalize_activitypub_ref(ref)})
   end
 
   # WebFinger caching
@@ -738,6 +770,16 @@ defmodule Elektrine.AppCache do
   defp cachex_result({:ok, _}), do: :ok
   defp cachex_result(:ok), do: :ok
   defp cachex_result(_), do: :error
+
+  defp normalize_activitypub_ref(ref) do
+    ref
+    |> String.trim()
+    |> String.split("#", parts: 2)
+    |> hd()
+    |> String.split("?", parts: 2)
+    |> hd()
+    |> String.trim_trailing("/")
+  end
 
   defp emit_cache(operation, result, key) do
     Events.cache(:app_cache, operation, result, %{scope: cache_scope(key)})

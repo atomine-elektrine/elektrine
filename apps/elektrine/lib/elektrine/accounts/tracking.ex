@@ -9,6 +9,10 @@ defmodule Elektrine.Accounts.Tracking do
   alias Elektrine.DB.WriteGuard
   alias Elektrine.Repo
 
+  @last_seen_db_interval_seconds 5 * 60
+  @last_seen_local_throttle_ms @last_seen_db_interval_seconds * 1000
+  @last_seen_table :last_seen_update_throttle
+
   @doc """
   Update user login information (IP address, login time, login count).
   """
@@ -40,16 +44,22 @@ defmodule Elektrine.Accounts.Tracking do
 
   @doc """
   Update user's last_seen_at timestamp.
-  Only updates if last update was more than 60 seconds ago to reduce database load.
+  Only updates if the last write attempt was more than 5 minutes ago to reduce database load.
   """
   def update_last_seen(user_id) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-    cutoff = DateTime.add(now, -60, :second)
+    now_ms = System.monotonic_time(:millisecond)
 
-    from(u in User,
-      where: u.id == ^user_id and (is_nil(u.last_seen_at) or u.last_seen_at < ^cutoff)
-    )
-    |> Repo.update_all(set: [last_seen_at: now])
+    if allow_last_seen_update?(user_id, now_ms) do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      cutoff = DateTime.add(now, -@last_seen_db_interval_seconds, :second)
+
+      from(u in User,
+        where: u.id == ^user_id and (is_nil(u.last_seen_at) or u.last_seen_at < ^cutoff)
+      )
+      |> Repo.update_all(set: [last_seen_at: now])
+    else
+      {0, nil}
+    end
   end
 
   @doc """
@@ -116,5 +126,32 @@ defmodule Elektrine.Accounts.Tracking do
       from(u in User, where: u.id == ^user_id)
       |> Repo.update_all(set: [{field, now}])
     end)
+  end
+
+  defp allow_last_seen_update?(user_id, now_ms) when is_integer(user_id) do
+    ensure_last_seen_table()
+
+    case :ets.lookup(@last_seen_table, user_id) do
+      [{^user_id, last_ms}] when now_ms - last_ms < @last_seen_local_throttle_ms ->
+        false
+
+      _ ->
+        :ets.insert(@last_seen_table, {user_id, now_ms})
+        true
+    end
+  end
+
+  defp ensure_last_seen_table do
+    case :ets.whereis(@last_seen_table) do
+      :undefined ->
+        try do
+          :ets.new(@last_seen_table, [:named_table, :public, :set, {:write_concurrency, true}])
+        rescue
+          ArgumentError -> @last_seen_table
+        end
+
+      _ ->
+        @last_seen_table
+    end
   end
 end

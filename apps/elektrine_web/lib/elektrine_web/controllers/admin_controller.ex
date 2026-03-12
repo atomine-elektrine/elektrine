@@ -64,6 +64,8 @@ defmodule ElektrineWeb.AdminController do
         {:two_factor_users, fn -> get_2fa_user_count() end, 0},
         {:imap_users, fn -> get_imap_user_count() end, 0},
         {:pop3_users, fn -> get_pop3_user_count() end, 0},
+        {:custom_domains, fn -> Email.custom_domain_admin_stats() end,
+         default_custom_domain_stats()},
         {:email_storage, fn -> get_email_storage_stats() end, default_email_storage_stats()},
         {:active_users, fn -> get_active_user_stats() end, default_active_user_stats()},
         {:pending_reports, fn -> Elektrine.Reports.count_pending_reports() end, 0},
@@ -102,6 +104,7 @@ defmodule ElektrineWeb.AdminController do
       two_factor_users: Map.get(async_stats, :two_factor_users, 0),
       imap_users: Map.get(async_stats, :imap_users, 0),
       pop3_users: Map.get(async_stats, :pop3_users, 0),
+      custom_domains: Map.get(async_stats, :custom_domains, default_custom_domain_stats()),
       email_storage: Map.get(async_stats, :email_storage, default_email_storage_stats()),
       active_users: Map.get(async_stats, :active_users, default_active_user_stats()),
       pending_reports: Map.get(async_stats, :pending_reports, 0),
@@ -439,6 +442,17 @@ defmodule ElektrineWeb.AdminController do
       active_products: 0,
       active_subscriptions: 0,
       total_subscriptions: 0
+    }
+  end
+
+  defp default_custom_domain_stats do
+    %{
+      total: 0,
+      verified: 0,
+      pending: 0,
+      attention: 0,
+      preferred: 0,
+      recent_domains: []
     }
   end
 

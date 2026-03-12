@@ -5,7 +5,6 @@ defmodule ElektrineWeb.AdminLive.Relays do
   use ElektrineWeb, :live_view
 
   alias Elektrine.ActivityPub.Relay
-  alias Elektrine.ActivityPub.RelaySubscription
 
   @impl true
   def mount(_params, _session, socket) do
@@ -28,33 +27,17 @@ defmodule ElektrineWeb.AdminLive.Relays do
   end
 
   defp load_relays(socket) do
-    subscriptions = Relay.list_subscriptions()
     page = socket.assigns[:page] || 1
     per_page = socket.assigns[:per_page] || 25
-    total_count = length(subscriptions)
-    total_pages = total_pages(total_count, per_page)
-    safe_page = clamp_page(page, total_pages)
-    offset = (safe_page - 1) * per_page
-
-    paged_subscriptions =
-      subscriptions
-      |> Enum.drop(offset)
-      |> Enum.take(per_page)
-
-    stats = %{
-      total: length(subscriptions),
-      active: Enum.count(subscriptions, &RelaySubscription.active?/1),
-      pending: Enum.count(subscriptions, fn s -> s.status == "pending" end),
-      error: Enum.count(subscriptions, fn s -> s.status in ["error", "rejected"] end)
-    }
+    page_data = Relay.paginate_subscriptions(page, per_page)
 
     socket
-    |> assign(:subscriptions, paged_subscriptions)
-    |> assign(:all_subscriptions, subscriptions)
-    |> assign(:page, safe_page)
-    |> assign(:total_pages, total_pages)
-    |> assign(:total_count, total_count)
-    |> assign(:stats, stats)
+    |> assign(:subscriptions, page_data.entries)
+    |> assign(:subscription_urls, Relay.subscribed_relay_uris())
+    |> assign(:page, page_data.page)
+    |> assign(:total_pages, page_data.total_pages)
+    |> assign(:total_count, page_data.total_count)
+    |> assign(:stats, Relay.subscription_stats())
   end
 
   @impl true
@@ -201,26 +184,19 @@ defmodule ElektrineWeb.AdminLive.Relays do
     {:noreply, socket |> assign(:page, socket.assigns.page + 1) |> load_relays()}
   end
 
-  defp total_pages(total_count, per_page) when total_count > 0 and per_page > 0 do
-    div(total_count + per_page - 1, per_page)
-  end
-
-  defp total_pages(_, _), do: 1
-
-  defp clamp_page(page, _total_pages) when page < 1, do: 1
-  defp clamp_page(page, total_pages) when page > total_pages, do: total_pages
-  defp clamp_page(page, _total_pages), do: page
-
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="p-4 sm:p-6">
-      <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div class="admin-page">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold">ActivityPub Relay Management</h1>
-          <p class="text-sm opacity-70 mt-1">
-            Subscribe to ActivityPub relays to discover content from other instances
+          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-secondary/80">
+            Network Controls
+          </div>
+          <h1 class="mt-2 text-3xl font-semibold tracking-tight">ActivityPub Relays</h1>
+          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
+            Subscribe to relays, monitor subscription state, and seed discovery across the broader
+            fediverse.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -247,7 +223,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Stats -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div class="card glass-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
@@ -299,7 +275,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Info alert -->
-      <div class="alert alert-info mb-6">
+      <div class="alert alert-info">
         <.icon name="hero-information-circle" class="w-5 h-5" />
         <div>
           <div class="font-medium">What are relays?</div>
@@ -312,7 +288,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Subscriptions Table -->
-      <div class="card glass-card shadow">
+      <div class="card glass-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-signal" class="w-5 h-5" /> Relay Subscriptions
@@ -447,7 +423,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Popular Relays -->
-      <div class="card glass-card shadow mt-6">
+      <div class="card glass-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-2">
             <.icon name="hero-star" class="w-5 h-5" /> Popular Relays
@@ -470,7 +446,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="1775 participants - Large general relay"
               participants={1775}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Intahnet"
@@ -478,7 +454,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="1477 participants - European relay"
               participants={1477}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Fedinet"
@@ -486,7 +462,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="1166 participants - General relay"
               participants={1166}
               status="down"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
           </div>
           
@@ -499,7 +475,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="592 participants"
               participants={592}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Froth Zone"
@@ -507,7 +483,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="564 participants"
               participants={564}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Rel.re"
@@ -515,7 +491,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="521 participants"
               participants={521}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Infosec Exchange"
@@ -523,7 +499,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="427 participants - Security community"
               participants={427}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Dresden Network"
@@ -531,7 +507,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="409 participants - German relay"
               participants={409}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="MyCrowd"
@@ -539,7 +515,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="396 participants - Canadian relay"
               participants={396}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="101010.pl"
@@ -547,7 +523,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="394 participants - Polish relay"
               participants={394}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Yukimochi"
@@ -555,7 +531,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="313 participants - Japanese relay"
               participants={313}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Fedibird"
@@ -563,7 +539,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="308 participants - Japanese relay"
               participants={308}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
           </div>
           
@@ -576,7 +552,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="218 participants"
               participants={218}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Relay.Gay"
@@ -584,7 +560,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="200 participants - LGBTQ+ community"
               participants={200}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Mastodon.nu"
@@ -592,7 +568,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="154 participants - Swedish relay"
               participants={154}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Uggs.io"
@@ -600,7 +576,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="122 participants"
               participants={122}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
             <.relay_suggestion
               name="Beep.Computer"
@@ -608,7 +584,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
               description="110 participants"
               participants={110}
               status="up"
-              subscriptions={@all_subscriptions}
+              subscription_urls={@subscription_urls}
             />
           </div>
         </div>
@@ -640,12 +616,9 @@ defmodule ElektrineWeb.AdminLive.Relays do
   end
 
   defp relay_suggestion(assigns) do
-    already_subscribed =
-      Enum.any?(assigns.subscriptions, fn s -> s.relay_uri == assigns.url end)
-
     assigns =
       assigns
-      |> assign(:already_subscribed, already_subscribed)
+      |> assign(:already_subscribed, MapSet.member?(assigns.subscription_urls, assigns.url))
       |> assign_new(:participants, fn -> nil end)
       |> assign_new(:status, fn -> "up" end)
 

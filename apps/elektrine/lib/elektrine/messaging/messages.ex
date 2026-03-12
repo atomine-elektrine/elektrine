@@ -5,7 +5,7 @@ defmodule Elektrine.Messaging.Messages do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Accounts
+  alias Elektrine.{Accounts, AppCache}
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
@@ -1549,6 +1549,14 @@ defmodule Elektrine.Messaging.Messages do
     %Message{}
     |> Message.federated_changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, message} = result ->
+        invalidate_activitypub_ref_cache_for_message(message)
+        result
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -1566,39 +1574,70 @@ defmodule Elektrine.Messaging.Messages do
   or the URL form used by some servers.
   """
   def get_message_by_activitypub_ref(activitypub_ref) when is_binary(activitypub_ref) do
-    refs = activitypub_ref_variants(activitypub_ref)
+    case canonical_activitypub_ref(activitypub_ref) do
+      nil ->
+        nil
 
-    if Enum.empty?(refs) do
-      nil
-    else
-      case message_by_activitypub_id_refs(refs) do
-        %Message{} = message ->
-          message
-
-        nil ->
-          message_by_activitypub_url_refs(refs)
-      end
+      canonical_ref ->
+        AppCache.get_activitypub_message_ref(activitypub_ref, fn ->
+          lookup_message_by_activitypub_ref(canonical_ref)
+        end)
     end
   end
 
   def get_message_by_activitypub_ref(_), do: nil
 
-  defp message_by_activitypub_id_refs(refs) when is_list(refs) do
+  defp lookup_message_by_activitypub_ref(canonical_ref) when is_binary(canonical_ref) do
+    case message_id_by_activitypub_ref(canonical_ref, [
+           :activitypub_id_canonical,
+           :activitypub_id,
+           :activitypub_url_canonical,
+           :activitypub_url
+         ]) do
+      id when is_integer(id) ->
+        load_activitypub_lookup_message(id)
+
+      nil ->
+        nil
+    end
+  end
+
+  defp message_id_by_activitypub_ref(ref, field_names)
+       when is_binary(ref) and is_list(field_names) do
+    Enum.find_value(field_names, fn field_name ->
+      message_id_by_exact_activitypub_ref(ref, field_name) ||
+        message_id_by_canonicalized_activitypub_ref(ref, field_name)
+    end)
+  end
+
+  defp message_id_by_exact_activitypub_ref(ref, field_name)
+       when is_binary(ref) and is_atom(field_name) do
     from(m in Message,
-      where: m.activitypub_id in ^refs,
-      limit: 1,
-      preload: [:sender, :remote_actor]
+      where: field(m, ^field_name) == ^ref,
+      select: m.id,
+      limit: 1
     )
     |> Repo.one()
   end
 
-  defp message_by_activitypub_url_refs(refs) when is_list(refs) do
+  defp message_id_by_canonicalized_activitypub_ref(ref, field_name)
+       when is_binary(ref) and is_atom(field_name) do
     from(m in Message,
-      where: m.activitypub_url in ^refs,
-      limit: 1,
-      preload: [:sender, :remote_actor]
+      where:
+        fragment(
+          "NULLIF(trim(trailing '/' from split_part(split_part(btrim(?), '#', 1), chr(63), 1)), '')",
+          field(m, ^field_name)
+        ) == ^ref,
+      select: m.id,
+      limit: 1
     )
     |> Repo.one()
+  end
+
+  defp load_activitypub_lookup_message(id) when is_integer(id) do
+    Message
+    |> Repo.get(id)
+    |> Repo.preload([:sender, :remote_actor])
   end
 
   @doc """
@@ -1611,13 +1650,24 @@ defmodule Elektrine.Messaging.Messages do
     |> Repo.all()
   end
 
-  defp activitypub_ref_variants(ref) do
-    trimmed = String.trim(ref)
-    without_fragment = trimmed |> String.split("#", parts: 2) |> hd()
-    without_query = without_fragment |> String.split("?", parts: 2) |> hd()
-    without_trailing_slash = String.trim_trailing(without_query, "/")
+  defp canonical_activitypub_ref(ref) do
+    ref
+    |> String.trim()
+    |> String.split("#", parts: 2)
+    |> hd()
+    |> String.split("?", parts: 2)
+    |> hd()
+    |> String.trim_trailing("/")
+    |> case do
+      "" -> nil
+      value -> value
+    end
+  end
 
-    [trimmed, without_fragment, without_query, without_trailing_slash]
+  defp activitypub_ref_variants(ref) do
+    canonical_ref = canonical_activitypub_ref(ref)
+
+    [ref, canonical_ref]
     |> Enum.reject(&(&1 in ["", nil]))
     |> Enum.uniq()
   end
@@ -1709,9 +1759,20 @@ defmodule Elektrine.Messaging.Messages do
   Updates a message.
   """
   def update_message(message, attrs) do
+    old_refs = cacheable_activitypub_refs(message)
+
     message
     |> Message.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_message} = result ->
+        invalidate_activitypub_ref_cache(old_refs)
+        invalidate_activitypub_ref_cache_for_message(updated_message)
+        result
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -1719,9 +1780,40 @@ defmodule Elektrine.Messaging.Messages do
   Safe for both regular and federated messages since it doesn't require conversation_id/sender_id.
   """
   def update_message_metadata(message, attrs) do
+    old_refs = cacheable_activitypub_refs(message)
+
     message
     |> Message.metadata_changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_message} = result ->
+        invalidate_activitypub_ref_cache(old_refs)
+        invalidate_activitypub_ref_cache_for_message(updated_message)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  defp invalidate_activitypub_ref_cache_for_message(%Message{} = message) do
+    message
+    |> cacheable_activitypub_refs()
+    |> invalidate_activitypub_ref_cache()
+  end
+
+  defp invalidate_activitypub_ref_cache(refs) when is_list(refs) do
+    refs
+    |> Enum.each(&AppCache.invalidate_activitypub_message_ref/1)
+  end
+
+  defp cacheable_activitypub_refs(%Message{} = message) do
+    [message.activitypub_id, message.activitypub_url]
+    |> Enum.flat_map(fn
+      ref when is_binary(ref) -> activitypub_ref_variants(ref)
+      _ -> []
+    end)
+    |> Enum.uniq()
   end
 
   @doc """

@@ -16,8 +16,8 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
   # Auto-away timeout in milliseconds (5 minutes) - must match JS
   @auto_away_timeout_ms 5 * 60 * 1000
 
-  # Minimum interval between last_seen database updates (2 minutes)
-  @last_seen_update_interval_ms 2 * 60 * 1000
+  # Minimum interval between periodic last_seen database updates (5 minutes)
+  @last_seen_update_interval_ms 5 * 60 * 1000
 
   def on_mount(:default, _params, _session, socket) do
     # Skip if already mounted (idempotent)
@@ -46,8 +46,8 @@ defmodule ElektrineWeb.Live.Hooks.PresenceHook do
           # Subscribe to personal channel for status updates
           Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
 
-          # Update last_seen_at timestamp via Accounts context
-          Elektrine.Accounts.update_last_seen(user.id)
+          # Update last_seen_at timestamp via Accounts context without blocking mount.
+          Elektrine.Accounts.update_last_seen_async(user.id)
 
           # Track this user's presence globally (use string ID for consistency)
           tracked_status = user.status || "online"
