@@ -220,6 +220,13 @@ body.bg-base-100 {
     );
 }
 
+@media (max-width: 640px) {
+  body.bg-base-100 {
+    background-attachment: scroll;
+    background-size: 32px 32px;
+  }
+}
+
 /* Grid color variants */
 body[data-grid="purple"], body.grid-purple {
   --grid-color: rgba(168, 85, 247, 0.06);

@@ -1,0 +1,86 @@
+defmodule ElektrineWeb.RemoteUserLive.FollowButtonTest do
+  use ElektrineWeb.ConnCase, async: false
+
+  import Phoenix.LiveViewTest
+
+  alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Repo
+
+  defp log_in_user(conn, user) do
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  defp remote_actor_fixture(attrs) do
+    unique = System.unique_integer([:positive])
+
+    attrs =
+      Enum.into(attrs, %{
+        uri: "https://remote.example/users/remote#{unique}",
+        username: "remote#{unique}",
+        domain: "remote.example",
+        display_name: "Remote #{unique}",
+        inbox_url: "https://remote.example/inbox",
+        public_key: "test-public-key"
+      })
+
+    %Actor{}
+    |> Actor.changeset(attrs)
+    |> Repo.insert!()
+  end
+
+  test "person follow button renders as a non-submit button", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    actor =
+      remote_actor_fixture(%{
+        uri: "https://mastodon.social/users/foodcoopbcn",
+        username: "foodcoopbcn",
+        domain: "mastodon.social",
+        display_name: "Food Coop BCN",
+        inbox_url: "https://mastodon.social/inbox"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/#{actor.username}@#{actor.domain}")
+
+    document = Floki.parse_document!(html)
+
+    buttons = Floki.find(document, ~s(button[phx-click="toggle_follow"]))
+
+    assert length(buttons) == 1
+    assert Enum.all?(buttons, &(Floki.attribute(&1, "type") == ["button"]))
+  end
+
+  test "community join buttons render as non-submit buttons", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    actor =
+      remote_actor_fixture(%{
+        actor_type: "Group",
+        uri: "https://lemmy.example/c/test-community",
+        username: "test-community",
+        domain: "lemmy.example",
+        display_name: "Test Community",
+        inbox_url: "https://lemmy.example/inbox"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/#{actor.username}@#{actor.domain}")
+
+    document = Floki.parse_document!(html)
+
+    buttons = Floki.find(document, ~s(button[phx-click="toggle_follow"]))
+
+    assert length(buttons) == 2
+    assert Enum.all?(buttons, &(Floki.attribute(&1, "type") == ["button"]))
+  end
+end

@@ -54,12 +54,24 @@ config :elektrine, Oban,
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
     {Oban.Plugins.Cron,
      crontab: [
+       # Deactivate expired announcements every hour
+       {"0 * * * *", Elektrine.Jobs.DeactivateExpiredAnnouncementsWorker},
        # Clean up old failed deliveries daily at 3 AM
        {"0 3 * * *", Elektrine.ActivityPub.DeliveryCleanupWorker},
+       # Auto-promote users based on trust level requirements daily
+       {"0 3 * * *", Elektrine.Jobs.AutoPromoteEligibleUsersWorker},
        # Re-enqueue pending federation deliveries when next_retry_at is due
        {"* * * * *", Elektrine.ActivityPub.DeliveryRetryWorker},
        # Check for stale RSS feeds every 15 minutes
        {"*/15 * * * *", Elektrine.RSS.SchedulerWorker},
+       # Recalculate discussion scores every 6 hours
+       {"0 */6 * * *", Elektrine.Jobs.RecalculateRecentDiscussionScoresWorker},
+       # Recategorize recent email every 30 minutes
+       {"*/30 * * * *", Elektrine.Jobs.EmailRecategorizer},
+       # Process due reply-later messages every 5 minutes
+       {"*/5 * * * *", Elektrine.Jobs.ReplyLaterProcessor},
+       # Clean up stale calls every 30 minutes
+       {"*/30 * * * *", Elektrine.Jobs.StaleCallCleanup},
        # Re-enqueue due messaging federation outbox rows
        {"* * * * *", Elektrine.Messaging.FederationOutboxRetryWorker},
        # Refresh counts for recent federated posts hourly
@@ -157,6 +169,10 @@ config :elektrine, :email,
 config :elektrine, :profile_base_domains, profile_base_domains
 config :elektrine, :profile_host_scope, profile_host_scope
 config :elektrine, :primary_domain, primary_domain
+
+config :elektrine, :compiled_platform_modules, [:chat, :social, :email, :vault, :vpn]
+
+config :elektrine, :platform_modules, enabled: [:chat, :social, :email, :vault, :vpn]
 
 # Process Haraka inbound payloads asynchronously through Oban.
 # Can be overridden with HARAKA_ASYNC_INGEST at runtime.
@@ -263,25 +279,6 @@ config :elektrine, ElektrineWeb.Gettext,
 
 # Configure Swoosh API client
 config :swoosh, :api_client, Swoosh.ApiClient.Hackney
-
-# Quantum scheduler configuration
-config :elektrine, Elektrine.Scheduler,
-  jobs: [
-    # Deactivate expired announcements every hour
-    {"0 * * * *", {Elektrine.Admin, :deactivate_expired_announcements, []}},
-    # Recalculate discussion scores every 6 hours (reduced from hourly)
-    {"0 */6 * * *", {Elektrine.Social, :recalculate_recent_discussion_scores, []}},
-    # Recategorize emails every 30 minutes (reduced from 5 minutes)
-    {"*/30 * * * *", {Elektrine.Jobs.EmailRecategorizer, :run, []}},
-    # Process reply later messages every 5 minutes (reduced from every minute)
-    {"*/5 * * * *", {Elektrine.Jobs.ReplyLaterProcessor, :run, []}},
-    # DISABLED: StorageRecalculator - too expensive, causes pool exhaustion
-    # {"0 * * * *", {Elektrine.Jobs.StorageRecalculator, :run, []}},
-    # Clean up stale calls every 30 minutes (reduced from 5 minutes)
-    {"*/30 * * * *", {Elektrine.Jobs.StaleCallCleanup, :run, []}},
-    # Auto-promote users based on trust level requirements (daily at 3 AM)
-    {"0 3 * * *", {Elektrine.Accounts.TrustLevel, :auto_promote_eligible_users, []}}
-  ]
 
 # S3-compatible storage configuration (Cloudflare R2, AWS S3, etc.)
 # Configure in runtime.exs for production

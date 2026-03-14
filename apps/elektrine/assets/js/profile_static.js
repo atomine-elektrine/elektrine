@@ -47,8 +47,6 @@ const SELECTORS = {
   
   // Buttons (outside container, in modals)
   closeModal: '[data-action="close-modal"]',
-  closeShareModal: '[data-action="close-share-modal"]',
-  closeWidgetImage: '[data-action="close-widget-image"]',
   copyProfileUrl: '[data-action="copy-profile-url"]',
   profileShareUrl: "#profile-share-url",
   
@@ -400,20 +398,11 @@ function setupTimelineDrawer(container) {
 /**
  * Set up modal close buttons
  */
-function setupModalCloseButtons(followersModal, followingModal, shareModal, widgetImageModal) {
+function setupModalCloseButtons() {
   document.querySelectorAll(SELECTORS.closeModal).forEach((button) => {
     button.addEventListener("click", () => {
-      closeModal(followersModal)
-      closeModal(followingModal)
+      closeModal(button.closest(".modal"))
     })
-  })
-
-  document.querySelectorAll(SELECTORS.closeShareModal).forEach((button) => {
-    button.addEventListener("click", () => closeModal(shareModal))
-  })
-
-  document.querySelectorAll(SELECTORS.closeWidgetImage).forEach((button) => {
-    button.addEventListener("click", () => closeModal(widgetImageModal))
   })
 }
 
@@ -635,7 +624,7 @@ export function initProfileStatic() {
 
   // Set up all interactive features
   setupTimelineDrawer(container)
-  setupModalCloseButtons(followersModal, followingModal, shareModal, widgetImageModal)
+  setupModalCloseButtons()
   setupFollowersModal(container, followersModal, handle)
   setupFollowingModal(container, followingModal, handle)
   setupShareModal(container, shareModal)

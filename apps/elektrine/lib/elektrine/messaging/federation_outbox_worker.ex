@@ -22,7 +22,7 @@ defmodule Elektrine.Messaging.FederationOutboxWorker do
   def enqueue(outbox_event_id) when is_integer(outbox_event_id) do
     %{outbox_event_id: outbox_event_id}
     |> new()
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """
@@ -37,7 +37,7 @@ defmodule Elektrine.Messaging.FederationOutboxWorker do
     if jobs == [] do
       {:ok, []}
     else
-      Oban.insert_all(jobs)
+      Elektrine.JobQueue.insert_all(jobs)
     end
   end
 end

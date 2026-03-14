@@ -112,7 +112,7 @@ defmodule ElektrineWeb.Components.EmojiPicker do
       <%= if @filtered_emojis do %>
         <div class="p-2">
           <div class="text-xs text-base-content/50 mb-2">Search Results</div>
-          <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
+          <div class="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto sm:grid-cols-8">
             <%= for emoji <- @filtered_emojis do %>
               <%= if is_binary(emoji) do %>
                 <button
@@ -177,7 +177,7 @@ defmodule ElektrineWeb.Components.EmojiPicker do
     <!-- Emoji Grid -->
         <div class="p-2">
           <%= if @active_tab == "Custom" && !Enum.empty?(@custom_emojis) do %>
-            <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
+            <div class="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto sm:grid-cols-8">
               <%= for emoji <- @custom_emojis do %>
                 <button
                   type="button"
@@ -191,7 +191,7 @@ defmodule ElektrineWeb.Components.EmojiPicker do
               <% end %>
             </div>
           <% else %>
-            <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
+            <div class="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto sm:grid-cols-8">
               <%= for emoji <- Map.get(@categories, @active_tab, []) do %>
                 <button
                   type="button"

@@ -32,7 +32,8 @@ defmodule ElektrineWeb.ProfileController do
   """
 
   use ElektrineWeb, :controller
-  alias Elektrine.{Accounts, Domains, Friends, Messaging, Profiles, Social, StaticSites}
+  alias Elektrine.{Accounts, Domains, Friends, Messaging, Profiles, StaticSites}
+  alias ElektrineWeb.Platform.Integrations
 
   # Reserved usernames that conflict with routes
   @reserved_usernames [
@@ -570,8 +571,8 @@ defmodule ElektrineWeb.ProfileController do
 
     %{
       user_timeline_posts:
-        Social.get_user_timeline_posts(user.id, limit: 5, viewer_id: viewer_id),
-      pinned_posts: Social.get_pinned_posts(user.id, viewer_id: viewer_id),
+        Integrations.profile_timeline_posts(user.id, limit: 5, viewer_id: viewer_id),
+      pinned_posts: Integrations.profile_pinned_posts(user.id, viewer_id: viewer_id),
       user_discussion_posts: Messaging.get_user_discussion_posts(user.id, limit: 5),
       user_number: Accounts.get_user_number(user),
       user_badges: Profiles.list_visible_user_badges(user.id),

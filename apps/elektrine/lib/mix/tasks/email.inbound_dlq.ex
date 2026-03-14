@@ -122,7 +122,7 @@ defmodule Mix.Tasks.Email.InboundDlq do
           max_attempts: 10
         )
 
-      case Oban.insert(job) do
+      case Elektrine.JobQueue.insert(job) do
         {:ok, inserted} -> {:ok, inserted, :queued}
         {:error, reason} -> {:error, reason}
       end

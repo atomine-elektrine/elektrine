@@ -2,9 +2,11 @@ defmodule ElektrineWeb.ProfileLive.Show do
   use ElektrineWeb, :live_view
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.Profile.Containers
+  import ElektrineWeb.Components.Profile.Modals
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
-  alias Elektrine.{Accounts, Domains, Messaging, Profiles, Social}
+  alias Elektrine.{Accounts, Domains, Messaging, Profiles}
+  alias ElektrineWeb.Platform.Integrations
   @impl true
   def mount(%{"handle" => handle}, session, socket) do
     if !String.valid?(handle) or String.length(handle) > 100 or handle =~ ~r/[\x00-\x1f]/ do
@@ -580,8 +582,8 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
     posts_task =
       Task.async(fn ->
-        {Social.get_user_timeline_posts(user_id, limit: 5, viewer_id: viewer_id),
-         Social.get_pinned_posts(user_id, viewer_id: viewer_id),
+        {Integrations.profile_timeline_posts(user_id, limit: 5, viewer_id: viewer_id),
+         Integrations.profile_pinned_posts(user_id, viewer_id: viewer_id),
          Messaging.get_user_discussion_posts(user_id, limit: 5)}
       end)
 

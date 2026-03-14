@@ -71,13 +71,10 @@ config :swoosh, :api_client, false
 # Print only warnings and errors during test
 config :logger, level: :warning
 
-# Disable Oban in test
-config :elektrine, Oban, testing: :inline
-
-# Disable Quantum cron jobs in test.
+# Disable Oban cron/plugins in test.
 # Scheduled jobs run in independent processes and can hit Ecto sandbox
 # ownership errors when they query the DB during ExUnit.
-config :elektrine, Elektrine.Scheduler, jobs: []
+config :elektrine, Oban, testing: :inline, plugins: []
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime

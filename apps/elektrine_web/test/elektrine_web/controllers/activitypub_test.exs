@@ -56,7 +56,8 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "http://ostatus.org/schema/1.0/subscribe" and
-                 link["template"] == "#{ActivityPub.instance_url()}/authorize_interaction?uri={uri}"
+                 link["template"] ==
+                   "#{ActivityPub.instance_url()}/authorize_interaction?uri={uri}"
              end)
     end
 
@@ -331,6 +332,31 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
                "alsoKnownAs"
              ]
     end
+
+    test "allows unsigned actor fetches when authorized fetch mode is enabled", %{
+      conn: conn,
+      user: user
+    } do
+      previous_activitypub_config = Application.get_env(:elektrine, :activitypub, [])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :activitypub, previous_activitypub_config)
+      end)
+
+      Application.put_env(
+        :elektrine,
+        :activitypub,
+        Keyword.put(previous_activitypub_config, :authorized_fetch_mode, true)
+      )
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
+    end
   end
 
   describe "GET /users/:username/outbox" do
@@ -458,6 +484,36 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert response["id"] == ActivityPub.community_actor_uri(community.name)
       assert response["preferredUsername"] == ActivityPub.community_slug(community.name)
       assert response["name"] == community.name
+    end
+
+    test "allows unsigned community actor fetches when authorized fetch mode is enabled", %{
+      conn: conn
+    } do
+      unique = System.unique_integer([:positive])
+      owner = AccountsFixtures.user_fixture(%{username: "communityfetchowner#{unique}"})
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{name: "Community #{unique}"})
+
+      previous_activitypub_config = Application.get_env(:elektrine, :activitypub, [])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :activitypub, previous_activitypub_config)
+      end)
+
+      Application.put_env(
+        :elektrine,
+        :activitypub,
+        Keyword.put(previous_activitypub_config, :authorized_fetch_mode, true)
+      )
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/c/#{ActivityPub.community_slug(community.name)}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == ActivityPub.community_actor_uri(community.name)
     end
   end
 

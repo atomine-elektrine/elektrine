@@ -11,6 +11,7 @@ defmodule ElektrineChat.MixProject do
       lockfile: "../../mix.lock",
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: elixirc_options(),
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -26,9 +27,30 @@ defmodule ElektrineChat.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
+  defp elixirc_options do
+    if Mix.env() == :test do
+      [ignore_module_conflict: true]
+    else
+      []
+    end
+  end
+
   defp deps do
     [
-      {:elektrine, in_umbrella: true}
+      internal_dep(:elektrine),
+      internal_dep(:elektrine_web),
+      {:phoenix, "== 1.8.3"},
+      {:phoenix_html, "== 4.3.0"},
+      {:phoenix_live_view, "== 1.1.23"},
+      {:jason, "== 1.4.4"}
     ]
+  end
+
+  defp internal_dep(app) do
+    if Mix.Project.umbrella?() do
+      {app, in_umbrella: true}
+    else
+      {app, path: "../#{app}"}
+    end
   end
 end

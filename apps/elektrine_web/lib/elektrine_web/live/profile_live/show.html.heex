@@ -364,7 +364,9 @@
 
                             <div class="flex items-center gap-2 mb-1">
                               <span class="text-xs text-[var(--profile-accent)] opacity-70">
-                                {Elektrine.Social.time_ago_in_words(post.inserted_at)}
+                                {ElektrineWeb.Platform.Integrations.social_time_ago(
+                                  post.inserted_at
+                                )}
                               </span>
                               <%= if has_media do %>
                                 <span class="text-xs text-[var(--profile-text)] opacity-50">
@@ -885,14 +887,22 @@
                   phx-click="toggle_follow"
                   data-action="toggle-follow"
                   data-following={@is_following}
-                  class={"btn btn-sm sm:btn-md #{if @is_following, do: "btn-outline", else: ""}"}
+                  class={
+                    "btn btn-sm sm:btn-md transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 #{if @is_following, do: "btn-outline", else: ""}"
+                  }
                   style={
                     if @is_following,
                       do: "border-color: var(--profile-accent); color: var(--profile-accent);",
                       else: "background-color: var(--profile-accent); color: #{btn_text_color};"
                   }
                 >
-                  {if @is_following, do: "Following", else: "Follow"}
+                  <span class="phx-click-loading:hidden">
+                    {if @is_following, do: "Following", else: "Follow"}
+                  </span>
+                  <span class="hidden phx-click-loading:inline-flex items-center">
+                    <.spinner size="sm" class="mr-1" />
+                    {if @is_following, do: "Unfollowing...", else: "Following..."}
+                  </span>
                 </button>
                 
 <!-- Report Button -->
@@ -1612,7 +1622,7 @@
 
                       <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs text-[var(--profile-accent)] opacity-70">
-                          {Elektrine.Social.time_ago_in_words(post.inserted_at)}
+                          {ElektrineWeb.Platform.Integrations.social_time_ago(post.inserted_at)}
                         </span>
                         <%= if has_media do %>
                           <span class="text-xs text-[var(--profile-text)] opacity-50">
@@ -1736,53 +1746,153 @@
     
 <!-- Followers Modal -->
     <%= if @profile_static do %>
-      <div class="modal" data-modal="followers">
-        <div class="modal-box max-w-md">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold">Followers</h2>
-            <button data-action="close-modal" class="btn btn-ghost btn-sm btn-circle">
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
-          </div>
-
-          <div class="max-h-72 overflow-y-auto" data-role="followers-list"></div>
-          <p class="text-center text-base-content/60 hidden" data-role="followers-empty">
-            No followers yet
-          </p>
-        </div>
-        <div class="modal-backdrop" data-action="close-modal"></div>
-      </div>
+      <.basic_modal
+        data_modal="followers"
+        open={false}
+        title="Followers"
+        close_mode={:data}
+        close_action="close-modal"
+        max_width="max-w-md"
+        header_class="flex justify-between items-center mb-4"
+      >
+        <div class="max-h-72 overflow-y-auto" data-role="followers-list"></div>
+        <p class="text-center text-base-content/60 hidden" data-role="followers-empty">
+          No followers yet
+        </p>
+      </.basic_modal>
     <% else %>
       <%= if @show_followers do %>
-        <div class="modal modal-open">
-          <div class="modal-box max-w-md">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="text-xl font-bold">Followers</h2>
-              <button phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
-                <.icon name="hero-x-mark" class="w-5 h-5" />
-              </button>
-            </div>
-
-            <div class="max-h-72 overflow-y-auto">
-              <%= if length(@followers_list) > 0 do %>
-                <div class="space-y-2">
-                  <%= for follower <- @followers_list do %>
-                    <%= if follower.type == "remote" do %>
-                      <!-- Remote follower from Mastodon -->
+        <.basic_modal
+          open={true}
+          title="Followers"
+          close_mode={:phx}
+          close_action="close_modal"
+          max_width="max-w-md"
+          header_class="flex justify-between items-center mb-4"
+        >
+          <div class="max-h-72 overflow-y-auto">
+            <%= if length(@followers_list) > 0 do %>
+              <div class="space-y-2">
+                <%= for follower <- @followers_list do %>
+                  <%= if follower.type == "remote" do %>
+                    <!-- Remote follower from Mastodon -->
+                    <.link
+                      href={
+                        profile_url(
+                          @base_url,
+                          "/remote/#{follower.remote_actor.username}@#{follower.remote_actor.domain}"
+                        )
+                      }
+                      class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                    >
+                      <%= if follower.remote_actor.avatar_url do %>
+                        <img
+                          src={follower.remote_actor.avatar_url}
+                          class="w-10 h-10 rounded-full object-cover"
+                          alt={follower.remote_actor.username}
+                        />
+                      <% else %>
+                        <.placeholder_avatar size="md" />
+                      <% end %>
+                      <div class="flex-1 min-w-0">
+                        <p class="font-medium truncate">
+                          {raw(
+                            render_display_name_with_emojis(
+                              follower.remote_actor.display_name ||
+                                follower.remote_actor.username,
+                              follower.remote_actor.domain
+                            )
+                          )}
+                        </p>
+                        <p class="text-xs opacity-70 truncate">
+                          @{follower.remote_actor.username}@{follower.remote_actor.domain}
+                        </p>
+                      </div>
+                    </.link>
+                  <% else %>
+                    <!-- Local follower -->
+                    <.link
+                      href={
+                        profile_url(
+                          @base_url,
+                          ~p"/#{follower.user.handle || follower.user.username}"
+                        )
+                      }
+                      class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                    >
+                      <.user_avatar user={follower.user} size="md" />
+                      <div class="flex-1">
+                        <span class="font-medium">
+                          {raw(
+                            render_display_name_with_emojis(
+                              follower.user.display_name || follower.user.username,
+                              nil
+                            )
+                          )}
+                        </span>
+                        <p class="text-xs opacity-70">
+                          @{follower.user.handle || follower.user.username}@{Elektrine.Domains.default_user_handle_domain()}
+                        </p>
+                      </div>
+                    </.link>
+                  <% end %>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-center text-base-content/60">No followers yet</p>
+            <% end %>
+          </div>
+        </.basic_modal>
+      <% end %>
+    <% end %>
+    
+<!-- Following Modal -->
+    <%= if @profile_static do %>
+      <.basic_modal
+        data_modal="following"
+        open={false}
+        title="Following"
+        close_mode={:data}
+        close_action="close-modal"
+        max_width="max-w-md"
+        header_class="flex justify-between items-center mb-4"
+      >
+        <div class="max-h-72 overflow-y-auto" data-role="following-list"></div>
+        <p class="text-center text-base-content/60 hidden" data-role="following-empty">
+          Not following anyone yet
+        </p>
+      </.basic_modal>
+    <% else %>
+      <%= if @show_following do %>
+        <.basic_modal
+          open={true}
+          title="Following"
+          close_mode={:phx}
+          close_action="close_modal"
+          max_width="max-w-md"
+          header_class="flex justify-between items-center mb-4"
+        >
+          <div class="max-h-72 overflow-y-auto">
+            <%= if length(@following_list) > 0 do %>
+              <div class="space-y-2">
+                <%= for following <- @following_list do %>
+                  <%= if following.type == "remote" do %>
+                    <!-- Remote user from Mastodon -->
+                    <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
                       <.link
                         href={
                           profile_url(
                             @base_url,
-                            "/remote/#{follower.remote_actor.username}@#{follower.remote_actor.domain}"
+                            "/remote/#{following.remote_actor.username}@#{following.remote_actor.domain}"
                           )
                         }
-                        class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                        class="flex items-center gap-3 flex-1 min-w-0"
                       >
-                        <%= if follower.remote_actor.avatar_url do %>
+                        <%= if following.remote_actor.avatar_url do %>
                           <img
-                            src={follower.remote_actor.avatar_url}
+                            src={following.remote_actor.avatar_url}
                             class="w-10 h-10 rounded-full object-cover"
-                            alt={follower.remote_actor.username}
+                            alt={following.remote_actor.username}
                           />
                         <% else %>
                           <.placeholder_avatar size="md" />
@@ -1791,402 +1901,112 @@
                           <p class="font-medium truncate">
                             {raw(
                               render_display_name_with_emojis(
-                                follower.remote_actor.display_name ||
-                                  follower.remote_actor.username,
-                                follower.remote_actor.domain
+                                following.remote_actor.display_name ||
+                                  following.remote_actor.username,
+                                following.remote_actor.domain
                               )
                             )}
                           </p>
                           <p class="text-xs opacity-70 truncate">
-                            @{follower.remote_actor.username}@{follower.remote_actor.domain}
+                            @{following.remote_actor.username}@{following.remote_actor.domain}
                           </p>
                         </div>
                       </.link>
-                    <% else %>
-                      <!-- Local follower -->
+                      <%= if @current_user && @current_user.id == @user.id do %>
+                        <button
+                          phx-click="unfollow_remote"
+                          phx-value-remote-actor-id={following.remote_actor.id}
+                          class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                        >
+                          <span class="phx-click-loading:hidden">Unfollow</span>
+                          <span class="hidden phx-click-loading:inline-flex items-center">
+                            <.spinner size="sm" class="mr-1" /> Unfollowing...
+                          </span>
+                        </button>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <!-- Local user -->
+                    <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
                       <.link
                         href={
                           profile_url(
                             @base_url,
-                            ~p"/#{follower.user.handle || follower.user.username}"
+                            ~p"/#{following.user.handle || following.user.username}"
                           )
                         }
-                        class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg"
+                        class="flex items-center gap-3 flex-1"
                       >
-                        <.user_avatar user={follower.user} size="md" />
+                        <.user_avatar user={following.user} size="md" />
                         <div class="flex-1">
                           <span class="font-medium">
                             {raw(
                               render_display_name_with_emojis(
-                                follower.user.display_name || follower.user.username,
+                                following.user.display_name || following.user.username,
                                 nil
                               )
                             )}
                           </span>
                           <p class="text-xs opacity-70">
-                            @{follower.user.handle || follower.user.username}@{Elektrine.Domains.default_user_handle_domain()}
+                            @{following.user.handle || following.user.username}@{Elektrine.Domains.default_user_handle_domain()}
                           </p>
                         </div>
                       </.link>
-                    <% end %>
-                  <% end %>
-                </div>
-              <% else %>
-                <p class="text-center text-base-content/60">No followers yet</p>
-              <% end %>
-            </div>
-          </div>
-          <div class="modal-backdrop" phx-click="close_modal"></div>
-        </div>
-      <% end %>
-    <% end %>
-    
-<!-- Following Modal -->
-    <%= if @profile_static do %>
-      <div class="modal" data-modal="following">
-        <div class="modal-box max-w-md">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold">Following</h2>
-            <button data-action="close-modal" class="btn btn-ghost btn-sm btn-circle">
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
-          </div>
-
-          <div class="max-h-72 overflow-y-auto" data-role="following-list"></div>
-          <p class="text-center text-base-content/60 hidden" data-role="following-empty">
-            Not following anyone yet
-          </p>
-        </div>
-        <div class="modal-backdrop" data-action="close-modal"></div>
-      </div>
-    <% else %>
-      <%= if @show_following do %>
-        <div class="modal modal-open">
-          <div class="modal-box max-w-md">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="text-xl font-bold">Following</h2>
-              <button phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
-                <.icon name="hero-x-mark" class="w-5 h-5" />
-              </button>
-            </div>
-
-            <div class="max-h-72 overflow-y-auto">
-              <%= if length(@following_list) > 0 do %>
-                <div class="space-y-2">
-                  <%= for following <- @following_list do %>
-                    <%= if following.type == "remote" do %>
-                      <!-- Remote user from Mastodon -->
-                      <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
-                        <.link
-                          href={
-                            profile_url(
-                              @base_url,
-                              "/remote/#{following.remote_actor.username}@#{following.remote_actor.domain}"
-                            )
-                          }
-                          class="flex items-center gap-3 flex-1 min-w-0"
+                      <%= if @current_user && @current_user.id == @user.id do %>
+                        <button
+                          phx-click="unfollow_local"
+                          phx-value-followed-id={following.user.id}
+                          class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                         >
-                          <%= if following.remote_actor.avatar_url do %>
-                            <img
-                              src={following.remote_actor.avatar_url}
-                              class="w-10 h-10 rounded-full object-cover"
-                              alt={following.remote_actor.username}
-                            />
-                          <% else %>
-                            <.placeholder_avatar size="md" />
-                          <% end %>
-                          <div class="flex-1 min-w-0">
-                            <p class="font-medium truncate">
-                              {raw(
-                                render_display_name_with_emojis(
-                                  following.remote_actor.display_name ||
-                                    following.remote_actor.username,
-                                  following.remote_actor.domain
-                                )
-                              )}
-                            </p>
-                            <p class="text-xs opacity-70 truncate">
-                              @{following.remote_actor.username}@{following.remote_actor.domain}
-                            </p>
-                          </div>
-                        </.link>
-                        <%= if @current_user && @current_user.id == @user.id do %>
-                          <button
-                            phx-click="unfollow_remote"
-                            phx-value-remote-actor-id={following.remote_actor.id}
-                            class="btn btn-ghost btn-sm"
-                          >
-                            Unfollow
-                          </button>
-                        <% end %>
-                      </div>
-                    <% else %>
-                      <!-- Local user -->
-                      <div class="flex items-center gap-3 p-2 hover:bg-base-200 rounded-lg">
-                        <.link
-                          href={
-                            profile_url(
-                              @base_url,
-                              ~p"/#{following.user.handle || following.user.username}"
-                            )
-                          }
-                          class="flex items-center gap-3 flex-1"
-                        >
-                          <.user_avatar user={following.user} size="md" />
-                          <div class="flex-1">
-                            <span class="font-medium">
-                              {raw(
-                                render_display_name_with_emojis(
-                                  following.user.display_name || following.user.username,
-                                  nil
-                                )
-                              )}
-                            </span>
-                            <p class="text-xs opacity-70">
-                              @{following.user.handle || following.user.username}@{Elektrine.Domains.default_user_handle_domain()}
-                            </p>
-                          </div>
-                        </.link>
-                        <%= if @current_user && @current_user.id == @user.id do %>
-                          <button
-                            phx-click="unfollow_local"
-                            phx-value-followed-id={following.user.id}
-                            class="btn btn-ghost btn-sm"
-                          >
-                            Unfollow
-                          </button>
-                        <% end %>
-                      </div>
-                    <% end %>
+                          <span class="phx-click-loading:hidden">Unfollow</span>
+                          <span class="hidden phx-click-loading:inline-flex items-center">
+                            <.spinner size="sm" class="mr-1" /> Unfollowing...
+                          </span>
+                        </button>
+                      <% end %>
+                    </div>
                   <% end %>
-                </div>
-              <% else %>
-                <p class="text-center text-base-content/60">Not following anyone yet</p>
-              <% end %>
-            </div>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-center text-base-content/60">Not following anyone yet</p>
+            <% end %>
           </div>
-          <div class="modal-backdrop" phx-click="close_modal"></div>
-        </div>
+        </.basic_modal>
       <% end %>
     <% end %>
     
 <!-- Share Modal -->
     <%= if @profile_static do %>
-      <div class="modal" data-modal="share">
-        <div class="modal-box max-w-md">
-          <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-bold">Share Profile</h2>
-            <button data-action="close-share-modal" class="btn btn-ghost btn-sm btn-circle">
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
-          </div>
-          <div class="mb-6 flex justify-center">
-            <% # Generate QR code for profile URL
-            qr_code =
-              try do
-                @profile_url
-                |> EQRCode.encode()
-                |> EQRCode.svg(
-                  width: 200,
-                  height: 200,
-                  background_color: "#ffffff",
-                  color: "#000000"
-                )
-              rescue
-                _ -> nil
-              end %>
-            <%= if qr_code do %>
-              <div class="inline-block rounded-lg bg-white p-3 border-2 border-base-300 shadow-lg">
-                {Phoenix.HTML.raw(qr_code)}
-              </div>
-            <% end %>
-          </div>
-          <div class="mb-6">
-            <label class="block text-sm font-medium mb-2">Profile URL</label>
-            <div class="flex gap-2">
-              <input
-                type="text"
-                readonly
-                value={@profile_url}
-                id="profile-share-url"
-                class="input input-bordered flex-1 text-sm"
-              />
-              <button
-                data-action="copy-profile-url"
-                class="btn btn-primary btn-square"
-                title="Copy to clipboard"
-              >
-                <.icon name="hero-clipboard-document" class="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-3">Share to</label>
-            <div class="grid grid-cols-4 gap-3">
-              <a
-                href={"https://twitter.com/intent/tweet?url=#{URI.encode(@profile_url)}&text=Check%20out%20#{@user.username}'s%20profile"}
-                target="_blank"
-                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                title="Share on X"
-              >
-                <div class="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white">
-                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("twitter"))}
-                </div>
-                <span class="text-xs">X</span>
-              </a>
-              <a
-                href={"https://www.facebook.com/sharer/sharer.php?u=#{URI.encode(@profile_url)}"}
-                target="_blank"
-                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                title="Share on Facebook"
-              >
-                <div class="w-12 h-12 rounded-full bg-[#1877F2] flex items-center justify-center text-white">
-                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("facebook"))}
-                </div>
-                <span class="text-xs">Facebook</span>
-              </a>
-              <a
-                href={"https://www.linkedin.com/sharing/share-offsite/?url=#{URI.encode(@profile_url)}"}
-                target="_blank"
-                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                title="Share on LinkedIn"
-              >
-                <div class="w-12 h-12 rounded-full bg-[#0A66C2] flex items-center justify-center text-white">
-                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("linkedin"))}
-                </div>
-                <span class="text-xs">LinkedIn</span>
-              </a>
-              <a
-                href={"mailto:?subject=Check%20out%20#{@user.username}'s%20profile&body=#{URI.encode(@profile_url)}"}
-                class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                title="Share via Email"
-              >
-                <div class="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center text-white">
-                  {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("email"))}
-                </div>
-                <span class="text-xs">Email</span>
-              </a>
-            </div>
-          </div>
-        </div>
-        <div class="modal-backdrop" data-action="close-share-modal"></div>
-      </div>
+      <.basic_modal
+        data_modal="share"
+        open={false}
+        title="Share Profile"
+        close_mode={:data}
+        close_action="close-modal"
+        max_width="max-w-md"
+      >
+        <.profile_share_modal_body
+          profile_static={true}
+          profile_url={@profile_url}
+          user={@user}
+        />
+      </.basic_modal>
     <% else %>
       <%= if @show_share_modal do %>
-        <div class="modal modal-open">
-          <div class="modal-box max-w-md">
-            <div class="flex justify-between items-center mb-6">
-              <h2 class="text-xl font-bold">Share Profile</h2>
-              <button phx-click="close_share_modal" class="btn btn-ghost btn-sm btn-circle">
-                <.icon name="hero-x-mark" class="w-5 h-5" />
-              </button>
-            </div>
-            
-<!-- QR Code -->
-            <div class="mb-6 flex justify-center">
-              <% # Generate QR code for profile URL
-              qr_code =
-                try do
-                  @profile_url
-                  |> EQRCode.encode()
-                  |> EQRCode.svg(
-                    width: 200,
-                    height: 200,
-                    background_color: "#ffffff",
-                    color: "#000000"
-                  )
-                rescue
-                  _ -> nil
-                end %>
-              <%= if qr_code do %>
-                <div class="inline-block rounded-lg bg-white p-3 border-2 border-base-300 shadow-lg">
-                  {Phoenix.HTML.raw(qr_code)}
-                </div>
-              <% end %>
-            </div>
-            
-<!-- Copy Link -->
-            <div class="mb-6">
-              <label class="block text-sm font-medium mb-2">Profile URL</label>
-              <div class="flex gap-2">
-                <input
-                  type="text"
-                  readonly
-                  value={@profile_url}
-                  id="profile-share-url"
-                  class="input input-bordered flex-1 text-sm"
-                />
-                <button
-                  id="copy-profile-url-btn"
-                  phx-click="copy_profile_url"
-                  phx-hook="CopyButton"
-                  class="btn btn-primary btn-square"
-                  title="Copy to clipboard"
-                >
-                  <.icon name="hero-clipboard-document" class="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-<!-- Share to Platforms -->
-            <div>
-              <label class="block text-sm font-medium mb-3">Share to</label>
-              <div class="grid grid-cols-4 gap-3">
-                <!-- Twitter/X -->
-                <a
-                  href={"https://twitter.com/intent/tweet?url=#{URI.encode(@profile_url)}&text=Check%20out%20#{@user.username}'s%20profile"}
-                  target="_blank"
-                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                  title="Share on X"
-                >
-                  <div class="w-12 h-12 rounded-full bg-black flex items-center justify-center text-white">
-                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("twitter"))}
-                  </div>
-                  <span class="text-xs">X</span>
-                </a>
-                
-<!-- Facebook -->
-                <a
-                  href={"https://www.facebook.com/sharer/sharer.php?u=#{URI.encode(@profile_url)}"}
-                  target="_blank"
-                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                  title="Share on Facebook"
-                >
-                  <div class="w-12 h-12 rounded-full bg-[#1877F2] flex items-center justify-center text-white">
-                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("facebook"))}
-                  </div>
-                  <span class="text-xs">Facebook</span>
-                </a>
-                
-<!-- LinkedIn -->
-                <a
-                  href={"https://www.linkedin.com/sharing/share-offsite/?url=#{URI.encode(@profile_url)}"}
-                  target="_blank"
-                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                  title="Share on LinkedIn"
-                >
-                  <div class="w-12 h-12 rounded-full bg-[#0A66C2] flex items-center justify-center text-white">
-                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("linkedin"))}
-                  </div>
-                  <span class="text-xs">LinkedIn</span>
-                </a>
-                
-<!-- Email -->
-                <a
-                  href={"mailto:?subject=Check%20out%20#{@user.username}'s%20profile&body=#{URI.encode(@profile_url)}"}
-                  class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
-                  title="Share via Email"
-                >
-                  <div class="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center text-white">
-                    {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg("email"))}
-                  </div>
-                  <span class="text-xs">Email</span>
-                </a>
-              </div>
-            </div>
-          </div>
-          <div class="modal-backdrop" phx-click="close_share_modal"></div>
-        </div>
+        <.basic_modal
+          open={true}
+          title="Share Profile"
+          close_mode={:phx}
+          close_action="close_share_modal"
+          max_width="max-w-md"
+        >
+          <.profile_share_modal_body
+            profile_static={false}
+            profile_url={@profile_url}
+            user={@user}
+          />
+        </.basic_modal>
       <% end %>
     <% end %>
     
@@ -2204,27 +2024,25 @@
 <!-- Image Modal -->
     <%= if @profile_static do %>
       <!-- Static Image Modal for widget images -->
-      <div class="modal" data-modal="widget-image">
-        <div class="modal-box max-w-4xl p-2 bg-black/90">
-          <div class="flex justify-end mb-2">
-            <button
-              data-action="close-widget-image"
-              class="btn btn-ghost btn-sm btn-circle text-white"
-            >
-              <.icon name="hero-x-mark" class="w-5 h-5" />
-            </button>
-          </div>
-          <div class="flex items-center justify-center">
-            <img
-              data-role="widget-image-content"
-              src=""
-              alt=""
-              class="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-          </div>
+      <.basic_modal
+        data_modal="widget-image"
+        open={false}
+        close_mode={:data}
+        close_action="close-modal"
+        max_width="max-w-4xl"
+        box_class="p-2 bg-black/90"
+        header_class="flex justify-end mb-2"
+        close_button_class="text-white"
+      >
+        <div class="flex items-center justify-center">
+          <img
+            data-role="widget-image-content"
+            src=""
+            alt=""
+            class="max-w-full max-h-[80vh] object-contain rounded-lg"
+          />
         </div>
-        <div class="modal-backdrop" data-action="close-widget-image"></div>
-      </div>
+      </.basic_modal>
     <% else %>
       <.image_modal
         show={@show_image_modal}

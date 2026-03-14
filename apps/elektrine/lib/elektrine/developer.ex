@@ -357,7 +357,7 @@ defmodule Elektrine.Developer do
     with {:ok, delivery} <- create_webhook_delivery(webhook, event, payload) do
       case %{delivery_id: delivery.id}
            |> WebhookDeliveryWorker.new()
-           |> Oban.insert() do
+           |> Elektrine.JobQueue.insert() do
         {:ok, _job} ->
           {:ok, :queued}
 

@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Components.Social.PollDisplay do
 
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
+  alias ElektrineWeb.Platform.Integrations
 
   # For local polls (Poll struct)
   attr(:poll, :map, default: nil)
@@ -35,7 +36,7 @@ defmodule ElektrineWeb.Components.Social.PollDisplay do
 
   # Render a local Poll struct
   defp render_local_poll(assigns) do
-    is_open = Elektrine.Social.Poll.open?(assigns.poll)
+    is_open = Integrations.social_poll_open?(assigns.poll)
 
     # If we have fresh remote poll data, use it to override local vote counts
     # Build a map of option_text => remote_votes for merging
@@ -151,7 +152,7 @@ defmodule ElektrineWeb.Components.Social.PollDisplay do
         <span>{@total_votes} {if @total_votes == 1, do: "vote", else: "votes"}</span>
         <span>
           <%= if @poll.closes_at do %>
-            <%= if Elektrine.Social.Poll.closed?(@poll) do %>
+            <%= if Integrations.social_poll_closed?(@poll) do %>
               Poll closed
             <% else %>
               <% hours_left = calculate_hours_left(@poll.closes_at) %>

@@ -8,11 +8,10 @@ defmodule ElektrineWeb.UserAuth do
   import Phoenix.Controller
 
   alias Elektrine.Accounts
-  alias Elektrine.AppCache
   alias Elektrine.Constants
-  alias Elektrine.Email.Cached, as: EmailCached
   alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.ClientIP
+  alias ElektrineWeb.Platform.Integrations
 
   # Make the remember me cookie valid for 60 days.
   # If you want to customize, set :elektrine, :user_remember_me_cookie_max_age
@@ -382,16 +381,7 @@ defmodule ElektrineWeb.UserAuth do
 
   # Private cache warming function
   defp warm_user_caches(user) do
-    # Get user's mailbox
-    case Elektrine.Email.get_user_mailbox(user.id) do
-      nil ->
-        :ok
-
-      mailbox ->
-        # Warm both email and app caches
-        EmailCached.warm_user_cache(user.id, mailbox.id)
-        AppCache.warm_user_cache(user.id, mailbox.id)
-    end
+    Integrations.warm_user_auth_email_caches(user)
   end
 
   # Helper function to get remote IP address

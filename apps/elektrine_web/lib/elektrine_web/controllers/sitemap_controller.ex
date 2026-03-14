@@ -1,24 +1,35 @@
 defmodule ElektrineWeb.SitemapController do
   use ElektrineWeb, :controller
+  alias Elektrine.Platform.Modules
 
   def index(conn, _params) do
     base_url = ElektrineWeb.Endpoint.url()
 
     # Static pages
-    static_urls = [
-      %{loc: "#{base_url}/", changefreq: "daily", priority: "1.0"},
-      %{loc: "#{base_url}/about", changefreq: "monthly", priority: "0.8"},
-      %{loc: "#{base_url}/terms", changefreq: "monthly", priority: "0.5"},
-      %{loc: "#{base_url}/privacy", changefreq: "monthly", priority: "0.5"},
-      %{loc: "#{base_url}/faq", changefreq: "weekly", priority: "0.7"},
-      %{loc: "#{base_url}/contact", changefreq: "monthly", priority: "0.6"},
-      %{loc: "#{base_url}/login", changefreq: "monthly", priority: "0.9"},
-      %{loc: "#{base_url}/register", changefreq: "monthly", priority: "0.9"},
-      %{loc: "#{base_url}/timeline", changefreq: "hourly", priority: "0.9"},
-      %{loc: "#{base_url}/discussions", changefreq: "hourly", priority: "0.8"},
-      %{loc: "#{base_url}/chat", changefreq: "always", priority: "0.7"},
-      %{loc: "#{base_url}/lists", changefreq: "daily", priority: "0.7"}
-    ]
+    static_urls =
+      [
+        %{loc: "#{base_url}/", changefreq: "daily", priority: "1.0"},
+        %{loc: "#{base_url}/about", changefreq: "monthly", priority: "0.8"},
+        %{loc: "#{base_url}/terms", changefreq: "monthly", priority: "0.5"},
+        %{loc: "#{base_url}/privacy", changefreq: "monthly", priority: "0.5"},
+        %{loc: "#{base_url}/faq", changefreq: "weekly", priority: "0.7"},
+        %{loc: "#{base_url}/contact", changefreq: "monthly", priority: "0.6"},
+        %{loc: "#{base_url}/login", changefreq: "monthly", priority: "0.9"},
+        %{loc: "#{base_url}/register", changefreq: "monthly", priority: "0.9"},
+        if(Modules.enabled?(:social),
+          do: %{loc: "#{base_url}/timeline", changefreq: "hourly", priority: "0.9"}
+        ),
+        if(Modules.enabled?(:social),
+          do: %{loc: "#{base_url}/discussions", changefreq: "hourly", priority: "0.8"}
+        ),
+        if(Modules.enabled?(:chat),
+          do: %{loc: "#{base_url}/chat", changefreq: "always", priority: "0.7"}
+        ),
+        if(Modules.enabled?(:social),
+          do: %{loc: "#{base_url}/lists", changefreq: "daily", priority: "0.7"}
+        )
+      ]
+      |> Enum.reject(&is_nil/1)
 
     # Get public timeline posts (recent 100)
     timeline_urls =
@@ -88,28 +99,34 @@ defmodule ElektrineWeb.SitemapController do
 
     # Get public lists
     list_urls =
-      try do
-        import Ecto.Query
+      if Modules.enabled?(:social) do
+        try do
+          import Ecto.Query
 
-        public_lists =
-          from(l in Elektrine.Social.List,
-            where: l.visibility == "public",
-            order_by: [desc: l.updated_at],
-            limit: 50,
-            select: %{id: l.id, updated_at: l.updated_at}
-          )
-          |> Elektrine.Repo.all()
+          list_module = :"Elixir.Elektrine.Social.List"
 
-        Enum.map(public_lists, fn list ->
-          %{
-            loc: "#{base_url}/lists/#{list.id}",
-            lastmod: format_date(list.updated_at),
-            changefreq: "daily",
-            priority: "0.5"
-          }
-        end)
-      rescue
-        _ -> []
+          public_lists =
+            from(l in list_module,
+              where: l.visibility == "public",
+              order_by: [desc: l.updated_at],
+              limit: 50,
+              select: %{id: l.id, updated_at: l.updated_at}
+            )
+            |> Elektrine.Repo.all()
+
+          Enum.map(public_lists, fn list ->
+            %{
+              loc: "#{base_url}/lists/#{list.id}",
+              lastmod: format_date(list.updated_at),
+              changefreq: "daily",
+              priority: "0.5"
+            }
+          end)
+        rescue
+          _ -> []
+        end
+      else
+        []
       end
 
     all_urls = static_urls ++ timeline_urls ++ discussion_urls ++ list_urls

@@ -10,8 +10,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   alias Elektrine.Messaging.MessageReaction
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
-  alias Elektrine.Social.{PostBoost, PostLike}
-  alias Elektrine.Social.SavedItem
+  alias ElektrineWeb.Platform.Integrations
 
   @doc """
   Gets a map of message_id => is_liked for the given user and posts.
@@ -34,12 +33,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
       %{}
     else
       # Batch query to check all likes at once
-      liked_ids =
-        from(l in PostLike,
-          where: l.user_id == ^user_id and l.message_id in ^message_ids,
-          select: l.message_id
-        )
-        |> Repo.all()
+      liked_ids = Integrations.social_user_liked_ids(user_id, message_ids)
 
       # Build map of message_id => is_liked
       Enum.reduce(message_ids, %{}, fn message_id, acc ->
@@ -68,12 +62,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
       %{}
     else
       # Batch query to check all boosts at once
-      boosted_ids =
-        from(b in PostBoost,
-          where: b.user_id == ^user_id and b.message_id in ^message_ids,
-          select: b.message_id
-        )
-        |> Repo.all()
+      boosted_ids = Integrations.social_user_boosted_ids(user_id, message_ids)
 
       # Build map of message_id => is_boosted
       Enum.reduce(message_ids, %{}, fn message_id, acc ->
@@ -326,12 +315,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
     if Enum.empty?(message_ids) do
       %{}
     else
-      saved_ids =
-        from(s in SavedItem,
-          where: s.user_id == ^user_id and s.message_id in ^message_ids,
-          select: s.message_id
-        )
-        |> Repo.all()
+      saved_ids = Integrations.social_user_saved_ids(user_id, message_ids)
 
       Enum.reduce(message_ids, %{}, fn message_id, acc ->
         Map.put(acc, message_id, message_id in saved_ids)

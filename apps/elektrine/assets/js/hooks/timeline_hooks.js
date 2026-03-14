@@ -13,6 +13,34 @@ const BATCH_INTERVAL_MS = 5000
 let dwellTimeBuffer = new Map()
 let batchTimeout = null
 
+const REMOTE_FOLLOW_BUTTON_CLASSES = [
+  'btn-ghost',
+  'btn-secondary',
+  'btn-primary',
+  'btn-disabled',
+  'phx-click-loading:bg-base-200',
+  'phx-click-loading:text-base-content'
+]
+
+const REMOTE_FOLLOW_BUTTON_VARIANTS = {
+  timeline: {
+    following: { add: ['btn-ghost'], disabled: false },
+    pending: { add: ['btn-ghost'], disabled: false },
+    none: {
+      add: ['btn-secondary', 'phx-click-loading:bg-base-200', 'phx-click-loading:text-base-content'],
+      disabled: false
+    }
+  },
+  'hover-card': {
+    following: { add: ['btn-ghost'], disabled: false },
+    pending: { add: ['btn-disabled'], disabled: true },
+    none: {
+      add: ['btn-primary', 'phx-click-loading:bg-base-200', 'phx-click-loading:text-base-content'],
+      disabled: false
+    }
+  }
+}
+
 /**
  * Post Click Hook
  * Handles navigation when clicking on posts and tracks dwell time
@@ -171,6 +199,45 @@ export const PostClick = {
         })
       } catch (e) {}
     }
+  }
+}
+
+/**
+ * Remote Follow Button Hook
+ * Updates follow buttons in streamed cards without re-inserting the entire post.
+ */
+export const RemoteFollowButton = {
+  mounted() {
+    this.remoteActorId = String(this.el.dataset.remoteActorId || '')
+
+    this.handleEvent('remote_follow_state_changed', ({ remote_actor_id, state }) => {
+      if (String(remote_actor_id) !== this.remoteActorId) return
+
+      this.el.dataset.followState = state
+      this.syncState()
+    })
+
+    this.syncState()
+  },
+
+  updated() {
+    this.syncState()
+  },
+
+  syncState() {
+    const state = this.el.dataset.followState || 'none'
+    const variantName = this.el.dataset.followVariant || 'timeline'
+    const variant =
+      REMOTE_FOLLOW_BUTTON_VARIANTS[variantName] || REMOTE_FOLLOW_BUTTON_VARIANTS.timeline
+    const config = variant[state] || variant.none
+
+    this.el.classList.remove(...REMOTE_FOLLOW_BUTTON_CLASSES)
+    this.el.classList.add(...config.add)
+    this.el.disabled = !!config.disabled
+
+    this.el.querySelectorAll('[data-follow-display]').forEach((display) => {
+      display.classList.toggle('hidden', display.dataset.followDisplay !== state)
+    })
   }
 }
 

@@ -7,7 +7,9 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
   alias Elektrine.Accounts.User
   alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.Friends
+  alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social
@@ -18,6 +20,24 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  defp remote_actor_fixture(attrs \\ %{}) do
+    unique = System.unique_integer([:positive])
+
+    attrs =
+      Enum.into(attrs, %{
+        uri: "https://remote.example/users/remote#{unique}",
+        username: "remote#{unique}",
+        domain: "remote.example",
+        display_name: "Remote #{unique}",
+        inbox_url: "https://remote.example/inbox",
+        public_key: "test-public-key-#{unique}"
+      })
+
+    %Actor{}
+    |> Actor.changeset(attrs)
+    |> Repo.insert!()
   end
 
   test "switching to posts view applies immediately when current filter is all", %{conn: conn} do
@@ -91,6 +111,171 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
     assert render_hook(textarea, "update_reply_content", %{"value" => "typed live"}) =~
              "10/3 required chars"
+  end
+
+  test "saving a timeline post immediately flips the bookmark button to solid", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Save interaction target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Save interaction target"
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="save_post"][phx-value-message_id="#{post.id}"] .hero-bookmark)
+           )
+
+    render_hook(view, "save_post", %{"message_id" => Integer.to_string(post.id)})
+
+    assert Social.post_saved?(viewer.id, post.id)
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="unsave_post"][phx-value-message_id="#{post.id}"] .hero-bookmark-solid)
+           )
+  end
+
+  test "liking a timeline post immediately flips the heart button to solid", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Like interaction target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Like interaction target"
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="like_post"][phx-value-message_id="#{post.id}"] .hero-heart)
+           )
+
+    render_hook(view, "like_post", %{"message_id" => Integer.to_string(post.id)})
+
+    assert Social.user_liked_post?(viewer.id, post.id)
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="unlike_post"][phx-value-message_id="#{post.id}"] .hero-heart-solid)
+           )
+  end
+
+  test "boosting a timeline post immediately flips the repost button to solid", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Boost interaction target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert render(view) =~ "Boost interaction target"
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="boost_post"][phx-value-message_id="#{post.id}"] .hero-arrow-path)
+           )
+
+    render_hook(view, "boost_post", %{"message_id" => Integer.to_string(post.id)})
+
+    assert Social.user_boosted?(viewer.id, post.id)
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="unboost_post"][phx-value-message_id="#{post.id}"] .hero-arrow-path-solid)
+           )
+  end
+
+  test "suggested follows use the same local follow button path", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    suggestion = AccountsFixtures.user_fixture()
+
+    {:ok, _post} =
+      Social.create_timeline_post(
+        suggestion.id,
+        "Suggested follow target",
+        visibility: "public"
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    selector = "#suggested-follow-#{suggestion.id}"
+
+    assert render(view) =~ "Suggested Follows"
+    assert has_element?(view, selector)
+    assert has_element?(view, ~s(#{selector}[phx-click="toggle_follow"]), "Follow")
+    refute has_element?(view, ~s(#{selector}[phx-click="follow_suggested_user"]))
+
+    view
+    |> element(selector)
+    |> render_click()
+
+    assert Social.following?(viewer.id, suggestion.id)
+    refute has_element?(view, selector)
+  end
+
+  test "remote follow button stays requested until follow acceptance arrives", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    actor = remote_actor_fixture()
+    actor_id = actor.id
+    unique = System.unique_integer([:positive])
+
+    {:ok, _message} =
+      Messaging.create_federated_message(%{
+        content: "Remote follow target #{unique}",
+        visibility: "public",
+        activitypub_id: "https://remote.example/objects/#{unique}",
+        activitypub_url: "https://remote.example/objects/#{unique}",
+        federated: true,
+        remote_actor_id: actor.id
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    selector =
+      ~s(button[phx-click="toggle_follow_remote"][phx-value-remote_actor_id="#{actor_id}"])
+
+    assert render(view) =~ "Remote follow target #{unique}"
+    assert has_element?(view, selector, "Follow")
+
+    view
+    |> element(selector)
+    |> render_click()
+
+    assert_push_event(view, "remote_follow_state_changed", %{
+      remote_actor_id: ^actor_id,
+      state: "pending"
+    })
+
+    assert %Elektrine.Profiles.Follow{pending: true} =
+             Elektrine.Profiles.get_follow_to_remote_actor(viewer.id, actor_id)
+
+    send(view.pid, {:follow_accepted, actor_id})
+
+    assert_push_event(view, "remote_follow_state_changed", %{
+      remote_actor_id: ^actor_id,
+      state: "following"
+    })
   end
 
   test "note composer route opens a private note template", %{conn: conn} do

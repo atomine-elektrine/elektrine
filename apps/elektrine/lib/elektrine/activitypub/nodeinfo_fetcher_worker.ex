@@ -65,7 +65,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
   defp do_enqueue(domain) do
     %{domain: domain}
     |> new()
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @impl Oban.Worker

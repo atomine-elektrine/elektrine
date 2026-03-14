@@ -15,6 +15,7 @@ ARG ELIXIR_VERSION=1.18.3
 ARG OTP_VERSION=27.3.4
 ARG DEBIAN_VERSION=bullseye-20250428-slim
 ARG RELEASE_NAME=elektrine
+ARG ELEKTRINE_RELEASE_MODULES=all
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
@@ -22,6 +23,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 FROM ${BUILDER_IMAGE} as builder
 
 ARG RELEASE_NAME
+ARG ELEKTRINE_RELEASE_MODULES
 
 # Retry helper function for flaky network operations
 SHELL ["/bin/bash", "-c"]
@@ -46,9 +48,14 @@ RUN for i in 1 2 3 4 5; do \
 
 # set build ENV
 ENV MIX_ENV="prod"
+ENV ELEKTRINE_RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES}"
 
 # install mix dependencies
-COPY mix.exs mix.lock ./
+COPY mix.lock ./
+COPY release_builder/mix.exs release_builder/mix.exs
+COPY release_builder/module_selection.exs release_builder/module_selection.exs
+COPY release_builder/config/config.exs release_builder/config/config.exs
+COPY release_builder/config/runtime.exs release_builder/config/runtime.exs
 COPY apps/elektrine/mix.exs apps/elektrine/mix.exs
 COPY apps/elektrine_chat/mix.exs apps/elektrine_chat/mix.exs
 COPY apps/elektrine_web/mix.exs apps/elektrine_web/mix.exs
@@ -56,19 +63,20 @@ COPY apps/elektrine_email/mix.exs apps/elektrine_email/mix.exs
 COPY apps/elektrine_social/mix.exs apps/elektrine_social/mix.exs
 COPY apps/elektrine_password_manager/mix.exs apps/elektrine_password_manager/mix.exs
 COPY apps/elektrine_vpn/mix.exs apps/elektrine_vpn/mix.exs
+COPY config/config.exs config/prod.exs config/
+WORKDIR /app/release_builder
 RUN for i in 1 2 3 4 5; do \
       mix deps.get --only $MIX_ENV && break || \
       echo "Retry $i failed, waiting..." && sleep 5; \
     done
-RUN mkdir -p config apps
-
-# copy compile-time config files before we compile dependencies
-# to ensure any relevant config change will trigger the dependencies
-# to be re-compiled.
-COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
+WORKDIR /app
 
 COPY apps apps
+COPY release_builder release_builder
+COPY config/runtime.exs config/runtime.exs
+COPY --chmod=755 scripts/deploy_release.sh scripts/deploy_release.sh
+COPY scripts/lib scripts/lib
 
 # Install Node.js 20.x (required for Tailwind v4)
 RUN for i in 1 2 3 4 5; do \
@@ -91,26 +99,19 @@ RUN for i in 1 2 3 4 5; do \
 
 # Install esbuild with retry (tailwind is now installed via npm)
 RUN for i in 1 2 3 4 5; do \
-      mix esbuild.install && break || \
+      cd release_builder && mix esbuild.install && cd /app && break || \
       echo "Retry $i failed, waiting..." && sleep 5; \
     done
 
-# compile assets
-RUN mix assets.deploy
-
-# Compile the release
-RUN mix compile
-
-# Changes to config/runtime.exs don't require recompiling the code
-COPY config/runtime.exs config/
-
-RUN mix release ${RELEASE_NAME}
+# Build the selected hoster release through release_builder/
+RUN ./scripts/deploy_release.sh --release-name ${RELEASE_NAME} --mix-env ${MIX_ENV}
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE}
 
 ARG RELEASE_NAME
+ARG ELEKTRINE_RELEASE_MODULES
 
 SHELL ["/bin/bash", "-c"]
 
@@ -146,9 +147,10 @@ COPY --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
 ENV MIX_ENV="prod"
 ENV PATH="/usr/bin:$PATH"
 ENV RELEASE_NAME="${RELEASE_NAME}"
+ENV ELEKTRINE_RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES}"
 
 # Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/${RELEASE_NAME} ./
+COPY --from=builder --chown=nobody:root /app/_deploy_release/${RELEASE_NAME} ./
 
 # Expose ports for HTTP and HTTPS (non-privileged ports, fly.toml maps external 80/443)
 EXPOSE 8080 8443

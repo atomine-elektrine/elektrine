@@ -70,7 +70,7 @@ defmodule Elektrine.Bluesky.OutboundWorker do
     args
     |> Map.put("action", action)
     |> new()
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   defp dispatch(@action_mirror_post, %{"message_id" => message_id}) do

@@ -14,6 +14,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.User.HoverCard
+  alias ElektrineWeb.Platform.Integrations
 
   @doc """
   Renders a reply item with consistent styling regardless of source.
@@ -38,7 +39,9 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   attr :user_statuses, :map, default: %{}
   attr :user_follows, :map, default: %{}
   attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
   attr :user_likes, :map, default: %{}
+  attr :user_boosts, :map, default: %{}
   attr :timezone, :string, default: "UTC"
   attr :time_format, :string, default: "12h"
   attr :show_actions, :boolean, default: true
@@ -77,6 +80,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
                 remote_actor={@reply.remote_actor}
                 user_follows={@user_follows}
                 pending_follows={@pending_follows}
+                remote_follow_overrides={@remote_follow_overrides}
                 current_user={@current_user}
               >
                 <.link
@@ -147,6 +151,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
                   remote_actor={@reply.remote_actor}
                   user_follows={@user_follows}
                   pending_follows={@pending_follows}
+                  remote_follow_overrides={@remote_follow_overrides}
                   current_user={@current_user}
                 >
                   <.link
@@ -201,6 +206,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
             post={@post}
             current_user={@current_user}
             user_likes={@user_likes}
+            user_boosts={@user_boosts}
             on_reply_click={@on_reply_click}
           />
         <% end %>
@@ -215,6 +221,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   attr :post, :map, default: nil
   attr :current_user, :map, required: true
   attr :user_likes, :map, default: %{}
+  attr :user_boosts, :map, default: %{}
   attr :on_reply_click, :string, default: "show_reply_to_reply_form"
 
   defp reply_actions(assigns) do
@@ -233,21 +240,26 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
           phx-click="like_post"
           phx-value-message_id={@interaction_id}
           class={[
-            "btn btn-xs btn-ghost",
-            Map.get(@user_likes, @interaction_id, false) && "text-red-500"
+            "btn btn-xs btn-ghost transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            Map.get(@user_likes, @interaction_id, false) &&
+              "text-red-500 phx-click-loading:text-base-content/70",
+            !Map.get(@user_likes, @interaction_id, false) &&
+              "phx-click-loading:text-red-500"
           ]}
           type="button"
         >
           <% is_liked = Map.get(@user_likes, @interaction_id, false) %>
-          <.icon
-            name={
-              if is_liked,
-                do: "hero-heart-solid",
-                else: "hero-heart"
-            }
-            class={["w-3 h-3", is_liked && "text-red-500"]}
-          />
-          <span class="text-xs">{@normalized.like_count}</span>
+          <span class="inline-flex items-center gap-1">
+            <.icon
+              name={
+                if is_liked,
+                  do: "hero-heart-solid",
+                  else: "hero-heart"
+              }
+              class={["w-3 h-3", is_liked && "text-red-500"]}
+            />
+            <span class="text-xs">{@normalized.like_count || 0}</span>
+          </span>
         </button>
       <% end %>
       
@@ -257,7 +269,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
           phx-click={@on_reply_click}
           phx-value-reply_id={@reply_target_id}
           phx-value-post_id={@post.id}
-          class="btn btn-xs btn-ghost"
+          class="btn btn-xs btn-ghost phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
           type="button"
           title="Reply to this comment"
         >
@@ -270,16 +282,25 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
       
     <!-- Boost Button -->
       <%= if @interaction_id do %>
+        <% is_boosted = Map.get(@user_boosts, @interaction_id, false) %>
         <button
-          phx-click="boost_post"
+          phx-click={if is_boosted, do: "unboost_post", else: "boost_post"}
           phx-value-message_id={@interaction_id}
-          class="btn btn-xs btn-ghost"
+          class={[
+            "btn btn-xs btn-ghost transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            is_boosted &&
+              "text-success phx-click-loading:text-base-content/70",
+            !is_boosted && "phx-click-loading:text-success"
+          ]}
           type="button"
         >
-          <.icon name="hero-arrow-path" class="w-3 h-3" />
-          <%= if @normalized.share_count > 0 do %>
-            <span class="text-xs">{@normalized.share_count}</span>
-          <% end %>
+          <span class="inline-flex items-center gap-1">
+            <.icon
+              name={if is_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
+              class={["w-3 h-3", is_boosted && "text-success"]}
+            />
+            <span class="text-xs">{@normalized.share_count || 0}</span>
+          </span>
         </button>
       <% end %>
 
@@ -407,7 +428,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   defp format_timestamp(nil), do: nil
 
   defp format_timestamp(datetime) do
-    Elektrine.Social.time_ago_in_words(datetime)
+    Integrations.social_time_ago(datetime)
   end
 
   # Federated replies can be interactive when we've materialized them as local messages.

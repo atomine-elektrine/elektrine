@@ -65,7 +65,7 @@ defmodule Elektrine.Email.SendEmailWorker do
 
     args
     |> new(job_opts)
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   # Convert atom keys to strings for JSON storage

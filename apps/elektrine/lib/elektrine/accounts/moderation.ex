@@ -6,6 +6,7 @@ defmodule Elektrine.Accounts.Moderation do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.{AccountDeletionRequest, User}
+  alias Elektrine.Platform.Modules
   alias Elektrine.Repo
 
   require Logger
@@ -152,8 +153,7 @@ defmodule Elektrine.Accounts.Moderation do
 
     case result do
       {:ok, user} ->
-        # Create a mailbox for the user
-        Elektrine.Email.create_mailbox(user)
+        maybe_create_user_mailbox(user)
         {:ok, user}
 
       error ->
@@ -210,21 +210,7 @@ defmodule Elektrine.Accounts.Moderation do
   def admin_delete_user(%User{} = user) do
     # Delete all user's data first
     Repo.transaction(fn ->
-      # Delete user's messages through their mailboxes
-      from(m in Elektrine.Email.Message,
-        join: mb in Elektrine.Email.Mailbox,
-        on: m.mailbox_id == mb.id,
-        where: mb.user_id == ^user.id
-      )
-      |> Repo.delete_all()
-
-      # Delete user's mailboxes
-      from(mb in Elektrine.Email.Mailbox, where: mb.user_id == ^user.id)
-      |> Repo.delete_all()
-
-      # Delete user's email aliases
-      from(a in Elektrine.Email.Alias, where: a.user_id == ^user.id)
-      |> Repo.delete_all()
+      maybe_delete_email_data(user)
 
       # Finally delete the user
       case Repo.delete(user) do
@@ -406,45 +392,82 @@ defmodule Elektrine.Accounts.Moderation do
   # Updates the user's mailbox email address to match their new username.
   # This prevents duplicate mailboxes when usernames change.
   defp update_mailbox_email_for_username_change(user) do
-    case Elektrine.Email.get_user_mailbox(user.id) do
-      nil ->
-        :ok
-
-      mailbox ->
-        # Calculate the new email address based on current username
-        domain = Application.get_env(:elektrine, :email)[:domain] || "elektrine.com"
-        new_email = "#{user.username}@#{domain}"
-
-        # Only process if the email is different
-        if mailbox.email != new_email do
-          # Check if the new email conflicts with an existing mailbox
-          case Elektrine.Email.get_mailbox_by_email(new_email) do
-            nil ->
-              # New email is available - transition the mailbox
-              case Elektrine.Email.transition_mailbox_for_username_change(
-                     user,
-                     mailbox,
-                     new_email
-                   ) do
-                {:ok, _new_mailbox} ->
-                  :ok
-
-                {:error, reason} ->
-                  Logger.error(
-                    "Failed to transition mailbox for user #{user.id}: #{inspect(reason)}"
-                  )
-
-                  :ok
-              end
-
-            _existing_mailbox ->
-              # Conflict! The new username's email is already taken
-              Logger.error("Cannot create #{new_email} for user #{user.id} - email already taken")
-              :ok
-          end
-        else
+    if email_module_compiled?() do
+      case Elektrine.Email.get_user_mailbox(user.id) do
+        nil ->
           :ok
-        end
+
+        mailbox ->
+          # Calculate the new email address based on current username
+          domain = Application.get_env(:elektrine, :email)[:domain] || "elektrine.com"
+          new_email = "#{user.username}@#{domain}"
+
+          # Only process if the email is different
+          if mailbox.email != new_email do
+            # Check if the new email conflicts with an existing mailbox
+            case Elektrine.Email.get_mailbox_by_email(new_email) do
+              nil ->
+                # New email is available - transition the mailbox
+                case Elektrine.Email.transition_mailbox_for_username_change(
+                       user,
+                       mailbox,
+                       new_email
+                     ) do
+                  {:ok, _new_mailbox} ->
+                    :ok
+
+                  {:error, reason} ->
+                    Logger.error(
+                      "Failed to transition mailbox for user #{user.id}: #{inspect(reason)}"
+                    )
+
+                    :ok
+                end
+
+              _existing_mailbox ->
+                Logger.error(
+                  "Cannot create #{new_email} for user #{user.id} - email already taken"
+                )
+
+                :ok
+            end
+          else
+            :ok
+          end
+      end
+    else
+      :ok
     end
+  end
+
+  defp maybe_create_user_mailbox(user) do
+    if email_module_compiled?() do
+      Elektrine.Email.create_mailbox(user)
+    else
+      :ok
+    end
+  end
+
+  defp maybe_delete_email_data(user) do
+    if email_module_compiled?() do
+      from(m in Elektrine.Email.Message,
+        join: mb in Elektrine.Email.Mailbox,
+        on: m.mailbox_id == mb.id,
+        where: mb.user_id == ^user.id
+      )
+      |> Repo.delete_all()
+
+      from(mb in Elektrine.Email.Mailbox, where: mb.user_id == ^user.id)
+      |> Repo.delete_all()
+
+      from(a in Elektrine.Email.Alias, where: a.user_id == ^user.id)
+      |> Repo.delete_all()
+    else
+      :ok
+    end
+  end
+
+  defp email_module_compiled? do
+    Modules.compiled?(:email)
   end
 end

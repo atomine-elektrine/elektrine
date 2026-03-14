@@ -377,7 +377,7 @@ defmodule ElektrineWeb.NotificationsLive do
   end
 
   defp notification_group_title(%{type: :single, notification: notification}) do
-    notification.title || "Notification"
+    single_notification_title(notification)
   end
 
   defp notification_group_detail(%{type: :chat_group, latest_notification: notification}) do
@@ -389,7 +389,14 @@ defmodule ElektrineWeb.NotificationsLive do
   end
 
   defp notification_group_detail(%{type: :single, notification: notification}) do
-    notification.body || notification.title || "New activity"
+    body = normalize_notification_text(notification.body)
+    title = normalize_notification_text(single_notification_title(notification))
+
+    if is_nil(body) or body == title do
+      nil
+    else
+      body
+    end
   end
 
   defp notification_icon_for_group(%{type: :chat_group}), do: "hero-chat-bubble-left-right"
@@ -493,6 +500,40 @@ defmodule ElektrineWeb.NotificationsLive do
       if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
     ]
   end
+
+  defp single_notification_title(%{type: "follow"} = notification) do
+    title = normalize_notification_text(notification.title)
+    body = normalize_notification_text(notification.body)
+
+    cond do
+      title in ["New follower from the fediverse", "Follow request accepted"] and not is_nil(body) ->
+        body
+
+      not is_nil(title) ->
+        title
+
+      not is_nil(body) ->
+        body
+
+      true ->
+        "Notification"
+    end
+  end
+
+  defp single_notification_title(notification) do
+    normalize_notification_text(notification.title) ||
+      normalize_notification_text(notification.body) ||
+      "Notification"
+  end
+
+  defp normalize_notification_text(text) when is_binary(text) do
+    case String.trim(text) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_notification_text(_), do: nil
 
   # Helper functions
   defp notification_icon(type) do

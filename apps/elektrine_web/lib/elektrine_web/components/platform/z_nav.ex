@@ -13,6 +13,8 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
     router: ElektrineWeb.Router,
     statics: ElektrineWeb.static_paths()
 
+  alias Elektrine.Platform.Modules
+
   @doc """
   Renders the unified product navigation tabs.
 
@@ -67,6 +69,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "overview",
         label: gettext("Overview"),
         href: ~p"/overview",
+        platform_module: nil,
         icon: "hero-squares-2x2",
         active_icon: "hero-squares-2x2-solid"
       },
@@ -74,6 +77,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "search",
         label: gettext("Search"),
         href: ~p"/search",
+        platform_module: nil,
         icon: "hero-magnifying-glass",
         active_icon: "hero-magnifying-glass"
       },
@@ -81,6 +85,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "chat",
         label: gettext("Chat"),
         href: ~p"/chat",
+        platform_module: :chat,
         icon: "hero-chat-bubble-left-right",
         active_icon: "hero-chat-bubble-left-right-solid"
       },
@@ -88,6 +93,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "timeline",
         label: gettext("Timeline"),
         href: ~p"/timeline",
+        platform_module: :social,
         icon: "hero-rectangle-stack",
         active_icon: "hero-rectangle-stack-solid"
       },
@@ -95,6 +101,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "discussions",
         label: gettext("Communities"),
         href: ~p"/communities",
+        platform_module: :social,
         icon: "hero-chat-bubble-bottom-center-text",
         active_icon: "hero-chat-bubble-bottom-center-text-solid"
       },
@@ -102,6 +109,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "gallery",
         label: gettext("Gallery"),
         href: ~p"/gallery",
+        platform_module: :social,
         icon: "hero-photo",
         active_icon: "hero-photo-solid"
       },
@@ -109,6 +117,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "lists",
         label: gettext("Lists"),
         href: ~p"/lists",
+        platform_module: :social,
         icon: "hero-queue-list",
         active_icon: "hero-queue-list-solid"
       },
@@ -116,6 +125,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "friends",
         label: gettext("Friends"),
         href: ~p"/friends",
+        platform_module: :chat,
         icon: "hero-user-group",
         active_icon: "hero-user-group-solid"
       },
@@ -123,6 +133,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "email",
         label: gettext("Email"),
         href: ~p"/email",
+        platform_module: :email,
         icon: "hero-envelope",
         active_icon: "hero-envelope-solid"
       },
@@ -130,6 +141,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "password_manager",
         label: gettext("Vault"),
         href: ~p"/account/password-manager",
+        platform_module: :vault,
         icon: "hero-key",
         active_icon: "hero-key-solid"
       },
@@ -137,11 +149,16 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
         id: "vpn",
         label: gettext("VPN"),
         href: ~p"/vpn",
+        platform_module: :vpn,
         icon: "hero-shield-check",
         active_icon: "hero-shield-check-solid"
       }
     ]
+    |> Enum.filter(&module_visible?/1)
   end
+
+  defp module_visible?(%{platform_module: nil}), do: true
+  defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
 
   defp tab_class(active_tab, tab_id) do
     [

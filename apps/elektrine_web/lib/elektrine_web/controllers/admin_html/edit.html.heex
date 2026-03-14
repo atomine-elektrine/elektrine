@@ -570,53 +570,55 @@
       </div>
     </div>
   </div>
-  
-<!-- Email Aliases -->
-  <div class="card glass-card shadow-xl mt-6">
-    <div class="card-body">
-      <h2 class="card-title">Email Aliases</h2>
 
-      <%= if @aliases && length(@aliases) > 0 do %>
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Alias Email</th>
-                <th>Target Email</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= for alias <- @aliases do %>
+  <%= if assigns[:email_available] do %>
+    <!-- Email Aliases -->
+    <div class="card glass-card shadow-xl mt-6">
+      <div class="card-body">
+        <h2 class="card-title">Email Aliases</h2>
+
+        <%= if @aliases && length(@aliases) > 0 do %>
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
                 <tr>
-                  <td class="font-medium text-sm">{alias.alias_email}</td>
-                  <td class="font-medium text-sm">{alias.target_email}</td>
-                  <td class="text-sm">{alias.description || "-"}</td>
-                  <td>
-                    <%= if alias.enabled do %>
-                      <div class="badge badge-success badge-sm">Active</div>
-                    <% else %>
-                      <div class="badge badge-ghost badge-sm">Disabled</div>
-                    <% end %>
-                  </td>
-                  <td class="text-sm">
-                    {Calendar.strftime(alias.inserted_at, "%m/%d/%y")}
-                  </td>
+                  <th>Alias Email</th>
+                  <th>Target Email</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Created</th>
                 </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-        <div class="text-sm opacity-70 mt-2">
-          Total aliases: {length(@aliases)} / 5
-        </div>
-      <% else %>
-        <p class="text-sm opacity-70">No email aliases configured</p>
-      <% end %>
+              </thead>
+              <tbody>
+                <%= for alias <- @aliases do %>
+                  <tr>
+                    <td class="font-medium text-sm">{alias.alias_email}</td>
+                    <td class="font-medium text-sm">{alias.target_email}</td>
+                    <td class="text-sm">{alias.description || "-"}</td>
+                    <td>
+                      <%= if alias.enabled do %>
+                        <div class="badge badge-success badge-sm">Active</div>
+                      <% else %>
+                        <div class="badge badge-ghost badge-sm">Disabled</div>
+                      <% end %>
+                    </td>
+                    <td class="text-sm">
+                      {Calendar.strftime(alias.inserted_at, "%m/%d/%y")}
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-sm opacity-70 mt-2">
+            Total aliases: {length(@aliases)} / 5
+          </div>
+        <% else %>
+          <p class="text-sm opacity-70">No email aliases configured</p>
+        <% end %>
+      </div>
     </div>
-  </div>
+  <% end %>
   
 <!-- Related Accounts -->
   <%= if length(@related_by_registration) > 0 do %>

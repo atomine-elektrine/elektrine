@@ -35,27 +35,31 @@ defmodule ElektrineWeb.Plugs.EnsureHTTPSignaturePlug do
   end
 
   defp handle_unsigned_request(conn) do
-    # Special handling for Delete activities from unknown actors
-    # Mastodon keeps retrying Delete activities, so accept them to stop the retries
-    if conn.method == "POST" and delete_activity?(conn) do
-      Logger.debug("Accepting Delete activity from unknown/unsigned actor")
-
+    if public_activitypub_resource?(conn) do
       conn
-      |> put_status(:accepted)
-      |> json(%{})
-      |> halt()
     else
-      # Check if authorized fetch mode is enabled
-      if authorized_fetch_enabled?() do
-        Logger.warning("Rejecting unsigned ActivityPub request to #{conn.request_path}")
+      # Special handling for Delete activities from unknown actors
+      # Mastodon keeps retrying Delete activities, so accept them to stop the retries
+      if conn.method == "POST" and delete_activity?(conn) do
+        Logger.debug("Accepting Delete activity from unknown/unsigned actor")
 
         conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "Request not signed"})
+        |> put_status(:accepted)
+        |> json(%{})
         |> halt()
       else
-        # Allow unsigned requests in non-authorized fetch mode
-        conn
+        # Check if authorized fetch mode is enabled
+        if authorized_fetch_enabled?() do
+          Logger.warning("Rejecting unsigned ActivityPub request to #{conn.request_path}")
+
+          conn
+          |> put_status(:unauthorized)
+          |> json(%{error: "Request not signed"})
+          |> halt()
+        else
+          # Allow unsigned requests in non-authorized fetch mode
+          conn
+        end
       end
     end
   end
@@ -66,6 +70,22 @@ defmodule ElektrineWeb.Plugs.EnsureHTTPSignaturePlug do
       _ -> false
     end
   end
+
+  defp public_activitypub_resource?(conn) do
+    conn.method in ["GET", "HEAD"] and public_activitypub_path?(conn.request_path)
+  end
+
+  # Actor and discovery documents need to remain publicly dereferenceable so remote
+  # servers can validate follows and resolve moved identities after domain changes.
+  defp public_activitypub_path?(path) when is_binary(path) do
+    String.match?(path, ~r{^/users/[^/]+/?$}) or
+      String.match?(path, ~r{^/c/[^/]+/?$}) or
+      String.match?(path, ~r{^/relay/?$}) or
+      path in ["/.well-known/webfinger", "/.well-known/host-meta", "/.well-known/nodeinfo"] or
+      String.starts_with?(path, "/nodeinfo/")
+  end
+
+  defp public_activitypub_path?(_), do: false
 
   defp authorized_fetch_enabled? do
     Application.get_env(:elektrine, :activitypub, [])

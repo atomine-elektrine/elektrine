@@ -281,14 +281,21 @@ defmodule Elektrine.Email.Sender do
   defp normalize_recipients(nil), do: []
 
   defp normalize_recipients(recipients) when is_list(recipients) do
-    Enum.map(recipients, fn
-      {_name, email} -> String.downcase(email)
-      email when is_binary(email) -> String.downcase(email)
+    Enum.flat_map(recipients, fn
+      {_name, email} -> split_recipient_string(email)
+      email when is_binary(email) -> split_recipient_string(email)
     end)
   end
 
-  defp normalize_recipients({_name, email}), do: [String.downcase(email)]
-  defp normalize_recipients(email) when is_binary(email), do: [String.downcase(email)]
+  defp normalize_recipients({_name, email}), do: split_recipient_string(email)
+  defp normalize_recipients(email) when is_binary(email), do: split_recipient_string(email)
+
+  defp split_recipient_string(email) when is_binary(email) do
+    email
+    |> String.split(",", trim: true)
+    |> Enum.map(&(String.downcase(String.trim(&1))))
+    |> Enum.reject(&(&1 == ""))
+  end
 
   # Record all recipients after successful send
   defp record_recipients(user_id, params) do

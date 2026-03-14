@@ -60,7 +60,7 @@ defmodule ElektrineWeb.API.ExportController do
           # Enqueue the export worker
           %{export_id: export.id}
           |> Elektrine.Developer.ExportWorker.new()
-          |> Oban.insert()
+          |> Elektrine.JobQueue.insert()
 
           Response.accepted(conn, %{
             message: "Export queued successfully",

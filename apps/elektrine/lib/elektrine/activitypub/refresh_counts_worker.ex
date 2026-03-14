@@ -62,33 +62,30 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   @doc """
-  Schedules a refresh job for recent posts.
-  Call this from a scheduler (e.g., Quantum) every hour.
+  Enqueue a refresh job for recent posts.
   """
   def schedule_recent_refresh do
     %{"type" => "refresh_recent"}
     |> new(schedule_in: 60)
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """
-  Schedules a refresh job for popular posts.
-  Call this from a scheduler every 4 hours.
+  Enqueue a refresh job for popular posts.
   """
   def schedule_popular_refresh do
     %{"type" => "refresh_popular"}
     |> new(schedule_in: 60)
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """
-  Schedules a refresh for posts users have interacted with.
-  Call this from a scheduler every 30 minutes.
+  Enqueue a refresh for posts users have interacted with.
   """
   def schedule_interacted_refresh do
     %{"type" => "refresh_interacted"}
     |> new(schedule_in: 60)
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """
@@ -98,7 +95,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   def schedule_single_refresh(message_id) do
     %{"type" => "refresh_single", "message_id" => message_id}
     |> new(unique: [period: 300, keys: [:message_id]])
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """
@@ -577,7 +574,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     Enum.each(jobs, fn args ->
       args
       |> new(unique: [period: 1800, keys: [:type]])
-      |> Oban.insert()
+      |> Elektrine.JobQueue.insert()
     end)
 
     :ok

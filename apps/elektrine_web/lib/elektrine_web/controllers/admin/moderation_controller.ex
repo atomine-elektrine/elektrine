@@ -2,6 +2,7 @@ defmodule ElektrineWeb.Admin.ModerationController do
   use ElektrineWeb, :controller
 
   alias Elektrine.{Accounts, Repo}
+  alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
   plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
@@ -140,49 +141,17 @@ defmodule ElektrineWeb.Admin.ModerationController do
   end
 
   def unsubscribe_stats(conn, params) do
-    alias Elektrine.Email.ListTypes
-    alias Elektrine.Email.Unsubscribes
-
     page = SafeConvert.parse_page(params)
     per_page = 50
-
-    # Get all unsubscribes with pagination
-    query =
-      from u in Elektrine.Email.Unsubscribe,
-        order_by: [desc: u.unsubscribed_at],
-        limit: ^per_page,
-        offset: ^((page - 1) * per_page)
-
-    unsubscribes = Repo.all(query)
-    total_count = Repo.aggregate(Elektrine.Email.Unsubscribe, :count)
-    total_pages = ceil(total_count / per_page)
-
-    # Get statistics
-    stats = Unsubscribes.stats()
-
-    # Get counts per list
-    list_counts =
-      from(u in Elektrine.Email.Unsubscribe,
-        group_by: u.list_id,
-        select: {u.list_id, count(u.id)}
-      )
-      |> Repo.all()
-      |> Enum.map(fn {list_id, count} ->
-        %{
-          list_id: list_id || "general",
-          list_name: ListTypes.get_name(list_id || "elektrine-general"),
-          count: count
-        }
-      end)
-      |> Enum.sort_by(& &1.count, :desc)
+    page_data = Integrations.admin_unsubscribe_page(page, per_page)
 
     render(conn, :unsubscribe_stats,
-      unsubscribes: unsubscribes,
-      stats: stats,
-      list_counts: list_counts,
+      unsubscribes: page_data.unsubscribes,
+      stats: page_data.stats,
+      list_counts: page_data.list_counts,
       page: page,
-      total_pages: total_pages,
-      total_count: total_count
+      total_pages: page_data.total_pages,
+      total_count: page_data.total_count
     )
   end
 

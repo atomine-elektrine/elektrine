@@ -3,6 +3,8 @@ defmodule ElektrineWeb.PageLive.Home do
 
   import Ecto.Query
   require Logger
+  alias Elektrine.Platform.Modules
+  alias ElektrineWeb.Platform.Integrations
 
   on_mount({ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user})
 
@@ -28,7 +30,7 @@ defmodule ElektrineWeb.PageLive.Home do
            %{
              stats: %{
                users: Elektrine.Repo.aggregate(Elektrine.Accounts.User, :count, :id),
-               emails: Elektrine.Repo.aggregate(Elektrine.Email.Message, :count, :id),
+               emails: Integrations.email_message_count(),
                posts: get_post_count()
              },
              federation: %{
@@ -90,9 +92,11 @@ defmodule ElektrineWeb.PageLive.Home do
                     <.link href={~p"/overview"} class="btn btn-primary btn-lg">
                       {gettext("Overview")}
                     </.link>
-                    <.link href={~p"/email"} class="btn btn-ghost btn-lg">
-                      {gettext("Email")}
-                    </.link>
+                    <%= if Modules.enabled?(:email) do %>
+                      <.link href={~p"/email"} class="btn btn-ghost btn-lg">
+                        {gettext("Email")}
+                      </.link>
+                    <% end %>
                     <.link href={~p"/account"} class="btn btn-ghost btn-lg">
                       {gettext("Account")}
                     </.link>
@@ -204,6 +208,16 @@ defmodule ElektrineWeb.PageLive.Home do
       %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
       %{icon: "hero-key-mini", name: "Passwords", detail: "Vault"}
     ]
+    |> Enum.filter(fn module ->
+      case module.name do
+        "Email" -> Modules.enabled?(:email)
+        "Chat" -> Modules.enabled?(:chat)
+        "Social" -> Modules.enabled?(:social)
+        "VPN" -> Modules.enabled?(:vpn)
+        "Passwords" -> Modules.enabled?(:vault)
+        _ -> true
+      end
+    end)
   end
 
   defp github_repo_url, do: "https://github.com/atomine-elektrine/elektrine"

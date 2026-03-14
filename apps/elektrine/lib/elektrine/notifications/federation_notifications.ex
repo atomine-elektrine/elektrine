@@ -16,8 +16,11 @@ defmodule Elektrine.Notifications.FederationNotifications do
       Notifications.create_notification(%{
         user_id: followed_user_id,
         type: "follow",
-        title: "New follower from the fediverse",
-        body: "@#{actor.username}@#{actor.domain} is now following you",
+        title: "#{remote_actor_handle(actor)} is now following you",
+        body: nil,
+        url: remote_actor_profile_path(actor),
+        source_type: "activitypub_actor",
+        source_id: actor.id,
         priority: "normal"
       })
     end
@@ -35,8 +38,11 @@ defmodule Elektrine.Notifications.FederationNotifications do
         Notifications.create_notification(%{
           user_id: user_id,
           type: "follow",
-          title: "Follow request accepted",
-          body: "@#{actor.username}@#{actor.domain} accepted your follow request",
+          title: "#{remote_actor_handle(actor)} accepted your follow request",
+          body: nil,
+          url: remote_actor_profile_path(actor),
+          source_type: "activitypub_actor",
+          source_id: actor.id,
           priority: "normal"
         })
     end
@@ -148,5 +154,14 @@ defmodule Elektrine.Notifications.FederationNotifications do
         priority: "normal"
       })
     end
+  end
+
+  defp remote_actor_handle(%ActivityPub.Actor{} = actor) do
+    prefix = if actor.actor_type == "Group", do: "!", else: "@"
+    "#{prefix}#{actor.username}@#{actor.domain}"
+  end
+
+  defp remote_actor_profile_path(%ActivityPub.Actor{} = actor) do
+    "/remote/#{remote_actor_handle(actor)}"
   end
 end

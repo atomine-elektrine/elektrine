@@ -27,7 +27,7 @@ configure_role() {
     all)
       ;;
     app|edge)
-      jobs_default="false"
+      jobs_default="true"
       ;;
     web)
       jobs_default="false"

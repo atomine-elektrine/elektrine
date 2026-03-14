@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.StorageLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Accounts.Storage
+  alias ElektrineWeb.Platform.Integrations
   require Logger
 
   @impl true
@@ -20,6 +21,7 @@ defmodule ElektrineWeb.StorageLive do
      |> assign(:storage_info, storage_info)
      |> assign(:breakdown, breakdown)
      |> assign(:active_tab, "overview")
+     |> assign(:email_available, Integrations.email_available?())
      |> assign(:email_attachments, [])
      |> assign(:chat_attachments, [])
      |> assign(:profile_images, [])
@@ -31,11 +33,17 @@ defmodule ElektrineWeb.StorageLive do
     socket =
       case tab do
         "emails" ->
-          assign(
-            socket,
-            :email_attachments,
-            get_email_attachments(socket.assigns.current_user.id)
-          )
+          if socket.assigns.email_available do
+            assign(
+              socket,
+              :email_attachments,
+              Integrations.storage_email_attachments(socket.assigns.current_user.id)
+            )
+          else
+            socket
+            |> assign(:active_tab, "overview")
+            |> put_flash(:error, "Email storage is unavailable in this build.")
+          end
 
         "chat" ->
           assign(socket, :chat_attachments, get_chat_attachments(socket.assigns.current_user.id))
@@ -54,7 +62,14 @@ defmodule ElektrineWeb.StorageLive do
           socket
       end
 
-    {:noreply, assign(socket, :active_tab, tab)}
+    active_tab =
+      if tab == "emails" and !socket.assigns.email_available do
+        socket.assigns.active_tab
+      else
+        tab
+      end
+
+    {:noreply, assign(socket, :active_tab, active_tab)}
   end
 
   @impl true
@@ -65,43 +80,33 @@ defmodule ElektrineWeb.StorageLive do
       ) do
     message_id = String.to_integer(message_id)
 
-    case Elektrine.Email.get_user_message(message_id, socket.assigns.current_user.id) do
-      {:ok, message} when is_map_key(message.attachments, attachment_id) ->
-        attachment_to_delete = Map.get(message.attachments, attachment_id)
+    case Integrations.delete_storage_email_attachment(
+           socket.assigns.current_user.id,
+           message_id,
+           attachment_id
+         ) do
+      :ok ->
+        storage_info = Storage.get_storage_info(socket.assigns.current_user.id)
+        breakdown = get_storage_breakdown(socket.assigns.current_user.id)
 
-        # Remove the attachment from the message
-        updated_attachments = Map.delete(message.attachments, attachment_id)
-        has_attachments = map_size(updated_attachments) > 0
+        {:noreply,
+         socket
+         |> assign(:storage_info, storage_info)
+         |> assign(:breakdown, breakdown)
+         |> assign(
+           :email_attachments,
+           Integrations.storage_email_attachments(socket.assigns.current_user.id)
+         )
+         |> put_flash(:info, "Attachment deleted successfully")}
 
-        case Elektrine.Email.update_message_attachments(
-               message,
-               updated_attachments,
-               has_attachments
-             ) do
-          {:ok, _} ->
-            maybe_delete_email_attachment_storage(attachment_to_delete)
-            Storage.update_user_storage(socket.assigns.current_user.id)
-
-            # Refresh all storage data
-            storage_info = Storage.get_storage_info(socket.assigns.current_user.id)
-            breakdown = get_storage_breakdown(socket.assigns.current_user.id)
-
-            {:noreply,
-             socket
-             |> assign(:storage_info, storage_info)
-             |> assign(:breakdown, breakdown)
-             |> assign(:email_attachments, get_email_attachments(socket.assigns.current_user.id))
-             |> put_flash(:info, "Attachment deleted successfully")}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to delete attachment")}
-        end
-
-      {:error, _} ->
+      {:error, :message_not_found} ->
         {:noreply, put_flash(socket, :error, "Message not found or access denied")}
 
-      {:ok, _message} ->
+      {:error, :attachment_not_found} ->
         {:noreply, put_flash(socket, :error, "Attachment not found")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to delete attachment")}
     end
   end
 
@@ -275,61 +280,6 @@ defmodule ElektrineWeb.StorageLive do
     ]
   end
 
-  defp get_email_attachments(user_id) do
-    import Ecto.Query
-    mailbox = Elektrine.Email.get_user_mailbox(user_id)
-
-    if mailbox do
-      from(m in Elektrine.Email.Message,
-        where: m.mailbox_id == ^mailbox.id and m.has_attachments == true,
-        order_by: [desc: m.inserted_at],
-        limit: 50
-      )
-      |> Elektrine.Repo.all()
-      |> Enum.flat_map(fn message ->
-        if message.attachments && is_map(message.attachments) do
-          message.attachments
-          |> Enum.map(fn {key, attachment} ->
-            filename = Map.get(attachment, "filename", "unknown")
-            content_type = Map.get(attachment, "content_type", "")
-
-            # Detect image from content_type OR file extension
-            is_image =
-              String.starts_with?(content_type, "image/") ||
-                String.match?(filename, ~r/\.(jpg|jpeg|png|gif|webp)$/i)
-
-            # Generate presigned URL for images
-            preview_url =
-              if is_image do
-                case Elektrine.Email.AttachmentStorage.generate_presigned_url(attachment, 3600) do
-                  {:ok, url} -> url
-                  _ -> nil
-                end
-              else
-                nil
-              end
-
-            %{
-              message_id: message.id,
-              attachment_id: key,
-              filename: filename,
-              size: Map.get(attachment, "size", 0),
-              date: message.inserted_at,
-              from: message.from,
-              is_image: is_image,
-              preview_url: preview_url,
-              content_type: content_type
-            }
-          end)
-        else
-          []
-        end
-      end)
-    else
-      []
-    end
-  end
-
   defp get_chat_attachments(user_id) do
     import Ecto.Query
 
@@ -469,19 +419,6 @@ defmodule ElektrineWeb.StorageLive do
   end
 
   defp profile_image_url(%{url: url}), do: url
-
-  defp maybe_delete_email_attachment_storage(attachment) when is_map(attachment) do
-    case Elektrine.Email.AttachmentStorage.delete_attachment(attachment) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("Failed to delete email attachment from storage: #{inspect(reason)}")
-        :ok
-    end
-  end
-
-  defp maybe_delete_email_attachment_storage(_), do: :ok
 
   defp maybe_delete_chat_media_storage(media_urls) when is_list(media_urls) do
     media_urls

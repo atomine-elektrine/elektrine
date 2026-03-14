@@ -48,11 +48,11 @@ defmodule ElektrineWeb.CoreComponents do
   # Datetime Components
   alias ElektrineWeb.Components.Datetime.LocalTime
 
-  # Email Components
-  alias ElektrineWeb.Components.Email.Display
+  alias ElektrineWeb.Platform.Integrations
 
   # Modal component and helpers
   defdelegate modal(assigns), to: Modal
+  defdelegate basic_modal(assigns), to: Modal
   defdelegate show(js \\ %Phoenix.LiveView.JS{}, selector), to: Modal
   defdelegate hide(js \\ %Phoenix.LiveView.JS{}, selector), to: Modal
   defdelegate show_modal(js \\ %Phoenix.LiveView.JS{}, id), to: Modal
@@ -203,11 +203,16 @@ defmodule ElektrineWeb.CoreComponents do
   defp flash_icon(:error), do: "hero-exclamation-circle-solid"
 
   # Email processing functions
-  defdelegate process_email_html(html_content), to: Display
-  defdelegate clean_email_artifacts(content), to: Display
-  defdelegate safe_sanitize_email_html(html_content), to: Display
-  defdelegate permissive_email_sanitize(html_content), to: Display
-  defdelegate safe_message_to_json(message), to: Display
-  defdelegate decode_email_subject(subject), to: Display
-  defdelegate format_email_display(email_string), to: Display
+  def process_email_html(html_content), do: Integrations.process_email_html(html_content)
+  def clean_email_artifacts(content), do: Integrations.clean_email_artifacts(content)
+
+  def safe_sanitize_email_html(html_content),
+    do: Integrations.safe_sanitize_email_html(html_content)
+
+  def permissive_email_sanitize(html_content),
+    do: Integrations.permissive_email_sanitize(html_content)
+
+  def safe_message_to_json(message), do: Integrations.safe_message_to_json(message)
+  def decode_email_subject(subject), do: Integrations.decode_email_subject(subject)
+  def format_email_display(email_string), do: Integrations.format_email_display(email_string)
 end

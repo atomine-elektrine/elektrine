@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :browser do
     plug(:accepts, ["html"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
     plug(:fetch_session)
     plug(ElektrineWeb.Plugs.StaticSitePlug)
@@ -21,6 +22,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :profile do
     plug(:accepts, ["html"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
     plug(:fetch_session)
     plug(ElektrineWeb.Plugs.StaticSitePlug)
@@ -38,6 +40,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :api do
     plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -63,6 +66,7 @@ defmodule ElektrineWeb.Router do
   # Examples: profile follow/unfollow, friend requests, followers/following lists
   pipeline :browser_api do
     plug(:accepts, ["json", "html"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
     plug(:fetch_session)
     plug(:protect_from_forgery, with: :clear_session)
@@ -73,6 +77,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :api_authenticated do
     plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.APIAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
@@ -80,6 +85,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :api_pat_authenticated do
     plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.PATAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
@@ -153,6 +159,7 @@ defmodule ElektrineWeb.Router do
   pipeline :activitypub do
     # Custom plug that accepts any content type for ActivityPub federation
     plug(ElektrineWeb.Plugs.ActivityPubAccept)
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.ActivityPubRateLimit)
     # HTTP Signature validation (assigns :valid_signature and :signature_actor)
     plug(ElektrineWeb.Plugs.HTTPSignaturePlug)
@@ -161,6 +168,7 @@ defmodule ElektrineWeb.Router do
   end
 
   pipeline :messaging_federation do
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.MessagingFederationAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end
@@ -184,32 +192,37 @@ defmodule ElektrineWeb.Router do
   pipeline :jmap do
     # JMAP pipeline (RFC 8620, RFC 8621)
     plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
-    plug(ElektrineWeb.Plugs.JMAPAuth)
+    plug(ElektrineWeb.Plugs.OptionalDelegate, module: ElektrineWeb.Plugs.JMAPAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
   pipeline :jmap_discovery do
     # JMAP discovery (authenticated)
     plug(:accepts, ["json"])
-    plug(ElektrineWeb.Plugs.JMAPAuth)
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.OptionalDelegate, module: ElektrineWeb.Plugs.JMAPAuth)
   end
 
   pipeline :autoconfig do
     # Email client autodiscovery (no auth)
     plug(:accepts, ["xml", "html", "json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(:put_secure_browser_headers)
   end
 
   pipeline :mastodon_api do
     # Mastodon-compatible API pipeline
     plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: false)
   end
 
   pipeline :mastodon_api_authenticated do
     # Mastodon-compatible API pipeline (authentication required)
     plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: true)
   end
 
@@ -1115,16 +1128,20 @@ defmodule ElektrineWeb.Router do
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_vault_read_scope])
 
-    get("/entries", PasswordManagerController, :index)
-    get("/entries/:id", PasswordManagerController, :show)
+    scope "/", alias: false do
+      get("/entries", ElektrinePasswordManagerWeb.API.VaultController, :index)
+      get("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :show)
+    end
   end
 
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_vault_write_scope])
 
-    post("/vault/setup", PasswordManagerController, :setup)
-    post("/entries", PasswordManagerController, :create)
-    delete("/entries/:id", PasswordManagerController, :delete)
+    scope "/", alias: false do
+      post("/vault/setup", ElektrinePasswordManagerWeb.API.VaultController, :setup)
+      post("/entries", ElektrinePasswordManagerWeb.API.VaultController, :create)
+      delete("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :delete)
+    end
   end
 
   scope "/api/ext/v1/exports", ElektrineWeb.API do
@@ -1183,16 +1200,20 @@ defmodule ElektrineWeb.Router do
   scope "/api/ext/password-manager", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
 
-    get("/entries", PasswordManagerController, :index)
-    get("/entries/:id", PasswordManagerController, :show)
+    scope "/", alias: false do
+      get("/entries", ElektrinePasswordManagerWeb.API.VaultController, :index)
+      get("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :show)
+    end
   end
 
   scope "/api/ext/password-manager", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_account_write_scope])
 
-    post("/vault/setup", PasswordManagerController, :setup)
-    post("/entries", PasswordManagerController, :create)
-    delete("/entries/:id", PasswordManagerController, :delete)
+    scope "/", alias: false do
+      post("/vault/setup", ElektrinePasswordManagerWeb.API.VaultController, :setup)
+      post("/entries", ElektrinePasswordManagerWeb.API.VaultController, :create)
+      delete("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :delete)
+    end
   end
 
   # Data Export Download (separate scope - token-based auth, no session needed)
@@ -1276,6 +1297,7 @@ defmodule ElektrineWeb.Router do
 
     live_session :main,
       on_mount: [
+        {ElektrineWeb.Live.Hooks.PlatformModuleHook, :default},
         {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user},
         {ElektrineWeb.Live.Hooks.NotificationCountHook, :default},
         {ElektrineWeb.Live.Hooks.TimezoneHook, :default},
@@ -1362,7 +1384,11 @@ defmodule ElektrineWeb.Router do
 
       # Settings
       live("/account/app-passwords", SettingsLive.AppPasswords)
-      live("/account/password-manager", SettingsLive.PasswordManager)
+
+      scope "/", alias: false do
+        live("/account/password-manager", ElektrinePasswordManagerWeb.VaultLive, :index)
+      end
+
       live("/settings/rss", SettingsLive.RSS, :index)
 
       # Email

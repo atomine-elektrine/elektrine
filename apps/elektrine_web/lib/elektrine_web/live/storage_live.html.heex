@@ -68,13 +68,15 @@
     >
       Overview
     </button>
-    <button
-      phx-click="change_tab"
-      phx-value-tab="emails"
-      class={["tab", @active_tab == "emails" && "tab-active"]}
-    >
-      Email Attachments
-    </button>
+    <%= if @email_available do %>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="emails"
+        class={["tab", @active_tab == "emails" && "tab-active"]}
+      >
+        Email Attachments
+      </button>
+    <% end %>
     <button
       phx-click="change_tab"
       phx-value-tab="chat"

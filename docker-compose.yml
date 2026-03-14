@@ -23,6 +23,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        RELEASE_NAME: ${RELEASE_NAME:-elektrine}
+        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
     container_name: elektrine_app
     depends_on:
       postgres:
@@ -34,6 +37,7 @@ services:
       PHX_HOST: ${PHX_HOST:-elektrine.com}
       PHX_SERVER: "true"
       MIX_ENV: prod
+      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       LETS_ENCRYPT_ENABLED: ${LETS_ENCRYPT_ENABLED:-false}
       LETS_ENCRYPT_CERT_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/fullchain.pem
       LETS_ENCRYPT_KEY_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/privkey.pem

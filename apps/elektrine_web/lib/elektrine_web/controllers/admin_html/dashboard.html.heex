@@ -23,10 +23,14 @@
             Pending reports:
             <span class="font-semibold text-base-content">{@stats.pending_reports}</span>
           </div>
-          <div class="rounded-box border border-base-300 bg-base-200/60 px-3 py-2 text-sm text-base-content/70">
-            Verified custom domains:
-            <span class="font-semibold text-base-content">{@stats.custom_domains.verified}</span>
-          </div>
+          <%= if @email_available do %>
+            <div class="rounded-box border border-base-300 bg-base-200/60 px-3 py-2 text-sm text-base-content/70">
+              Verified custom domains:
+              <span class="font-semibold text-base-content">
+                {@stats.custom_domains.verified}
+              </span>
+            </div>
+          <% end %>
         </div>
 
         <%= if @stats.pending_deletions > 0 do %>
@@ -44,23 +48,25 @@
       </div>
 
       <div class="grid gap-3 sm:grid-cols-2 xl:min-w-[28rem]">
-        <.link
-          href={~p"/pripyat/custom-domains"}
-          class="group rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-info/30 hover:shadow-md"
-        >
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-              Custom Domains
-            </span>
-            <.icon name="hero-globe-alt" class="h-5 w-5 text-info" />
-          </div>
-          <div class="mt-3 text-2xl font-semibold text-base-content">
-            {@stats.custom_domains.total}
-          </div>
-          <div class="mt-2 text-sm text-base-content/60">
-            {Map.get(@stats.custom_domains, :attention, 0)} need review.
-          </div>
-        </.link>
+        <%= if @email_available do %>
+          <.link
+            href={~p"/pripyat/custom-domains"}
+            class="group rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-info/30 hover:shadow-md"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Custom Domains
+              </span>
+              <.icon name="hero-globe-alt" class="h-5 w-5 text-info" />
+            </div>
+            <div class="mt-3 text-2xl font-semibold text-base-content">
+              {@stats.custom_domains.total}
+            </div>
+            <div class="mt-2 text-sm text-base-content/60">
+              {Map.get(@stats.custom_domains, :attention, 0)} need review.
+            </div>
+          </.link>
+        <% end %>
 
         <.link
           navigate={~p"/pripyat/reports"}
@@ -134,53 +140,55 @@
       <div class="mt-2 text-sm text-base-content/55">Registered accounts.</div>
     </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
-      <div class="flex items-center justify-between">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-          Mailboxes
+    <%= if @email_available do %>
+      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Mailboxes
+          </div>
+          <.icon name="hero-envelope" class="h-5 w-5 text-success" />
         </div>
-        <.icon name="hero-envelope" class="h-5 w-5 text-success" />
+        <div class="mt-3 text-3xl font-semibold text-success">{@stats.total_mailboxes}</div>
+        <div class="mt-2 text-sm text-base-content/55">Primary mailboxes.</div>
       </div>
-      <div class="mt-3 text-3xl font-semibold text-success">{@stats.total_mailboxes}</div>
-      <div class="mt-2 text-sm text-base-content/55">Primary mailboxes.</div>
-    </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
-      <div class="flex items-center justify-between">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-          Messages
+      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Messages
+          </div>
+          <.icon name="hero-chat-bubble-left-ellipsis" class="h-5 w-5 text-warning" />
         </div>
-        <.icon name="hero-chat-bubble-left-ellipsis" class="h-5 w-5 text-warning" />
+        <div class="mt-3 text-3xl font-semibold text-warning">{@stats.total_messages}</div>
+        <div class="mt-2 text-sm text-base-content/55">
+          {@stats.email_storage.total_content_mb} MB stored.
+        </div>
       </div>
-      <div class="mt-3 text-3xl font-semibold text-warning">{@stats.total_messages}</div>
-      <div class="mt-2 text-sm text-base-content/55">
-        {@stats.email_storage.total_content_mb} MB stored.
-      </div>
-    </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
-      <div class="flex items-center justify-between">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-          Aliases
+      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Aliases
+          </div>
+          <.icon name="hero-at-symbol" class="h-5 w-5 text-secondary" />
         </div>
-        <.icon name="hero-at-symbol" class="h-5 w-5 text-secondary" />
+        <div class="mt-3 text-3xl font-semibold text-secondary">{@stats.total_aliases}</div>
+        <div class="mt-2 text-sm text-base-content/55">Alias addresses.</div>
       </div>
-      <div class="mt-3 text-3xl font-semibold text-secondary">{@stats.total_aliases}</div>
-      <div class="mt-2 text-sm text-base-content/55">Alias addresses.</div>
-    </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
-      <div class="flex items-center justify-between">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-          Custom Domains
+      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Custom Domains
+          </div>
+          <.icon name="hero-globe-alt" class="h-5 w-5 text-info" />
         </div>
-        <.icon name="hero-globe-alt" class="h-5 w-5 text-info" />
+        <div class="mt-3 text-3xl font-semibold text-info">{@stats.custom_domains.total}</div>
+        <div class="mt-2 text-sm text-base-content/55">
+          {@stats.custom_domains.verified} verified, {@stats.custom_domains.pending} pending.
+        </div>
       </div>
-      <div class="mt-3 text-3xl font-semibold text-info">{@stats.custom_domains.total}</div>
-      <div class="mt-2 text-sm text-base-content/55">
-        {@stats.custom_domains.verified} verified, {@stats.custom_domains.pending} pending.
-      </div>
-    </div>
+    <% end %>
   </section>
 
   <section class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -218,68 +226,70 @@
           </div>
         </form>
 
-        <form
-          method="get"
-          action={~p"/pripyat/mailboxes"}
-          class="rounded-box border border-base-300 bg-base-200/60 p-4"
-        >
-          <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-            Mailboxes
-          </label>
-          <div class="mt-3 join w-full">
-            <input
-              type="text"
-              name="search"
-              placeholder="address or username"
-              class="input input-bordered join-item w-full"
-            />
-            <button type="submit" class="btn btn-success join-item">
-              <.icon name="hero-envelope" class="h-4 w-4" />
-            </button>
-          </div>
-        </form>
+        <%= if @email_available do %>
+          <form
+            method="get"
+            action={~p"/pripyat/mailboxes"}
+            class="rounded-box border border-base-300 bg-base-200/60 p-4"
+          >
+            <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Mailboxes
+            </label>
+            <div class="mt-3 join w-full">
+              <input
+                type="text"
+                name="search"
+                placeholder="address or username"
+                class="input input-bordered join-item w-full"
+              />
+              <button type="submit" class="btn btn-success join-item">
+                <.icon name="hero-envelope" class="h-4 w-4" />
+              </button>
+            </div>
+          </form>
 
-        <form
-          method="get"
-          action={~p"/pripyat/messages"}
-          class="rounded-box border border-base-300 bg-base-200/60 p-4"
-        >
-          <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-            Messages
-          </label>
-          <div class="mt-3 join w-full">
-            <input
-              type="text"
-              name="search"
-              placeholder="subject, sender, recipient"
-              class="input input-bordered join-item w-full"
-            />
-            <button type="submit" class="btn btn-warning join-item">
-              <.icon name="hero-chat-bubble-left-ellipsis" class="h-4 w-4" />
-            </button>
-          </div>
-        </form>
+          <form
+            method="get"
+            action={~p"/pripyat/messages"}
+            class="rounded-box border border-base-300 bg-base-200/60 p-4"
+          >
+            <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Messages
+            </label>
+            <div class="mt-3 join w-full">
+              <input
+                type="text"
+                name="search"
+                placeholder="subject, sender, recipient"
+                class="input input-bordered join-item w-full"
+              />
+              <button type="submit" class="btn btn-warning join-item">
+                <.icon name="hero-chat-bubble-left-ellipsis" class="h-4 w-4" />
+              </button>
+            </div>
+          </form>
 
-        <form
-          method="get"
-          action={~p"/pripyat/custom-domains"}
-          class="rounded-box border border-base-300 bg-base-200/60 p-4"
-        >
-          <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-            Custom Domains
-          </label>
-          <div class="mt-3 join w-full">
-            <input
-              type="text"
-              name="search"
-              placeholder="domain or owner"
-              class="input input-bordered join-item w-full"
-            />
-            <button type="submit" class="btn btn-info join-item">
-              <.icon name="hero-globe-alt" class="h-4 w-4" />
-            </button>
-          </div>
-        </form>
+          <form
+            method="get"
+            action={~p"/pripyat/custom-domains"}
+            class="rounded-box border border-base-300 bg-base-200/60 p-4"
+          >
+            <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+              Custom Domains
+            </label>
+            <div class="mt-3 join w-full">
+              <input
+                type="text"
+                name="search"
+                placeholder="domain or owner"
+                class="input input-bordered join-item w-full"
+              />
+              <button type="submit" class="btn btn-info join-item">
+                <.icon name="hero-globe-alt" class="h-4 w-4" />
+              </button>
+            </div>
+          </form>
+        <% end %>
       </div>
     </div>
 
@@ -418,100 +428,104 @@
       </div>
     </div>
 
-    <div class="card glass-card shadow-xl border border-base-300">
-      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-              Custom Domains
-            </div>
-            <h2 class="mt-1 text-xl font-semibold tracking-tight">Domain Health</h2>
-          </div>
-          <.link href={~p"/pripyat/custom-domains"} class="btn btn-info btn-sm">
-            Open Console
-          </.link>
-        </div>
-      </div>
-
-      <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-sm text-base-content/60">Verified</div>
-          <div class="mt-2 text-3xl font-semibold text-success">
-            {@stats.custom_domains.verified}
-          </div>
-        </div>
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-sm text-base-content/60">Pending</div>
-          <div class="mt-2 text-3xl font-semibold text-secondary">
-            {@stats.custom_domains.pending}
-          </div>
-        </div>
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-sm text-base-content/60">Attention</div>
-          <div class="mt-2 text-3xl font-semibold text-warning">
-            {@stats.custom_domains.attention}
-          </div>
-        </div>
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
-          <div class="text-sm text-base-content/60">Preferred</div>
-          <div class="mt-2 text-3xl font-semibold text-info">
-            {@stats.custom_domains.preferred}
-          </div>
-        </div>
-      </div>
-
-      <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-sm font-medium text-base-content/75">Recent Domains</div>
-          <div class="text-xs uppercase tracking-[0.18em] text-base-content/40">Newest First</div>
-        </div>
-
-        <%= if Enum.empty?(@stats.custom_domains.recent_domains) do %>
-          <div class="mt-4 rounded-2xl border border-dashed border-base-content/15 bg-base-200/25 px-4 py-8 text-center text-sm text-base-content/55">
-            No custom domains yet.
-          </div>
-        <% else %>
-          <div class="mt-4 space-y-3">
-            <%= for custom_domain <- @stats.custom_domains.recent_domains do %>
-              <div class="flex flex-col gap-3 rounded-2xl border border-base-content/10 bg-base-200/25 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <div class="truncate font-semibold">{custom_domain.domain}</div>
-                    <span class={[
-                      "badge badge-sm border-0",
-                      custom_domain_status_badge_class(custom_domain.status)
-                    ]}>
-                      {String.capitalize(custom_domain.status)}
-                    </span>
-                  </div>
-                  <div class="mt-1 text-sm text-base-content/60">
-                    Owner:
-                    <span class="font-medium text-base-content/75">
-                      {custom_domain.user && custom_domain.user.username}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="flex items-center gap-3 text-sm text-base-content/55">
-                  <.local_time
-                    datetime={custom_domain.inserted_at}
-                    format="date"
-                    timezone={@timezone}
-                    time_format={@time_format}
-                  />
-                  <.link
-                    href={~p"/pripyat/custom-domains?search=#{custom_domain.domain}"}
-                    class="link link-info"
-                  >
-                    Inspect →
-                  </.link>
-                </div>
+    <%= if @email_available do %>
+      <div class="card glass-card shadow-xl border border-base-300">
+        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+                Custom Domains
               </div>
-            <% end %>
+              <h2 class="mt-1 text-xl font-semibold tracking-tight">Domain Health</h2>
+            </div>
+            <.link href={~p"/pripyat/custom-domains"} class="btn btn-info btn-sm">
+              Open Console
+            </.link>
           </div>
-        <% end %>
+        </div>
+
+        <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Verified</div>
+            <div class="mt-2 text-3xl font-semibold text-success">
+              {@stats.custom_domains.verified}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Pending</div>
+            <div class="mt-2 text-3xl font-semibold text-secondary">
+              {@stats.custom_domains.pending}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Attention</div>
+            <div class="mt-2 text-3xl font-semibold text-warning">
+              {@stats.custom_domains.attention}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+            <div class="text-sm text-base-content/60">Preferred</div>
+            <div class="mt-2 text-3xl font-semibold text-info">
+              {@stats.custom_domains.preferred}
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-sm font-medium text-base-content/75">Recent Domains</div>
+            <div class="text-xs uppercase tracking-[0.18em] text-base-content/40">
+              Newest First
+            </div>
+          </div>
+
+          <%= if Enum.empty?(@stats.custom_domains.recent_domains) do %>
+            <div class="mt-4 rounded-2xl border border-dashed border-base-content/15 bg-base-200/25 px-4 py-8 text-center text-sm text-base-content/55">
+              No custom domains yet.
+            </div>
+          <% else %>
+            <div class="mt-4 space-y-3">
+              <%= for custom_domain <- @stats.custom_domains.recent_domains do %>
+                <div class="flex flex-col gap-3 rounded-2xl border border-base-content/10 bg-base-200/25 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <div class="truncate font-semibold">{custom_domain.domain}</div>
+                      <span class={[
+                        "badge badge-sm border-0",
+                        custom_domain_status_badge_class(custom_domain.status)
+                      ]}>
+                        {String.capitalize(custom_domain.status)}
+                      </span>
+                    </div>
+                    <div class="mt-1 text-sm text-base-content/60">
+                      Owner:
+                      <span class="font-medium text-base-content/75">
+                        {custom_domain.user && custom_domain.user.username}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-3 text-sm text-base-content/55">
+                    <.local_time
+                      datetime={custom_domain.inserted_at}
+                      format="date"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                    <.link
+                      href={~p"/pripyat/custom-domains?search=#{custom_domain.domain}"}
+                      class="link link-info"
+                    >
+                      Inspect →
+                    </.link>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
       </div>
-    </div>
+    <% end %>
   </section>
 
   <section class="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">

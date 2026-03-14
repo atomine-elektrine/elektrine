@@ -35,7 +35,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
           # Trigger immediate fetch of the new feed
           %{feed_id: subscription.feed_id}
           |> Elektrine.RSS.FetchFeedWorker.new()
-          |> Oban.insert()
+          |> Elektrine.JobQueue.insert()
 
           {:noreply,
            socket

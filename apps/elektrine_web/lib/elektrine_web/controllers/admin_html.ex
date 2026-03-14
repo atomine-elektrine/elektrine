@@ -5,6 +5,8 @@ defmodule ElektrineWeb.AdminHTML do
 
   use ElektrineWeb, :html
 
+  alias Elektrine.Platform.Modules
+
   embed_templates "admin_html/*"
 
   # Helper functions for announcements
@@ -122,32 +124,42 @@ defmodule ElektrineWeb.AdminHTML do
       %{
         label: "Email",
         items: [
-          %{label: "VPN", path: "/pripyat/vpn", icon: "hero-shield-check"},
+          %{label: "VPN", path: "/pripyat/vpn", icon: "hero-shield-check", platform_module: :vpn},
           %{
             label: "Mailboxes",
             path: "/pripyat/mailboxes",
-            icon: "hero-envelope"
+            icon: "hero-envelope",
+            platform_module: :email
           },
           %{
             label: "Custom Domains",
             path: "/pripyat/custom-domains",
-            icon: "hero-globe-alt"
+            icon: "hero-globe-alt",
+            platform_module: :email
           },
-          %{label: "Aliases", path: "/pripyat/aliases", icon: "hero-at-symbol"},
+          %{
+            label: "Aliases",
+            path: "/pripyat/aliases",
+            icon: "hero-at-symbol",
+            platform_module: :email
+          },
           %{
             label: "Forwarded Messages",
             path: "/pripyat/forwarded-messages",
-            icon: "hero-arrow-right-circle"
+            icon: "hero-arrow-right-circle",
+            platform_module: :email
           },
           %{
             label: "Messages",
             path: "/pripyat/messages",
-            icon: "hero-chat-bubble-left-ellipsis"
+            icon: "hero-chat-bubble-left-ellipsis",
+            platform_module: :email
           },
           %{
             label: "Arblarg Messages",
             path: "/pripyat/arblarg/messages",
-            icon: "hero-chat-bubble-left-right"
+            icon: "hero-chat-bubble-left-right",
+            platform_module: :chat
           }
         ]
       },
@@ -162,7 +174,8 @@ defmodule ElektrineWeb.AdminHTML do
           %{
             label: "Communities",
             path: "/pripyat/communities",
-            icon: "hero-user-group"
+            icon: "hero-user-group",
+            platform_module: :social
           },
           %{
             label: "Reports",
@@ -227,7 +240,25 @@ defmodule ElektrineWeb.AdminHTML do
         ]
       }
     ]
+    |> filter_nav_sections()
   end
+
+  defp filter_nav_sections(sections) do
+    sections
+    |> Enum.map(fn section ->
+      Map.update!(section, :items, fn items ->
+        Enum.filter(items, fn item ->
+          item
+          |> Map.get(:platform_module)
+          |> module_enabled?()
+        end)
+      end)
+    end)
+    |> Enum.reject(&(Enum.empty?(&1.items) and &1.label != "Main"))
+  end
+
+  defp module_enabled?(nil), do: true
+  defp module_enabled?(module), do: Modules.enabled?(module)
 
   def custom_domain_filter_label("all"), do: "All Domains"
   def custom_domain_filter_label("verified"), do: "Verified"

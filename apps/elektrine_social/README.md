@@ -1,6 +1,6 @@
 # Elektrine Social
 
-Social and timeline domain app for the Elektrine umbrella.
+Social domain and extracted social web surface for the Elektrine umbrella.
 
 ## What this app owns
 
@@ -8,11 +8,17 @@ Social and timeline domain app for the Elektrine umbrella.
 - Likes, boosts/quotes, bookmarks, and view tracking
 - Hashtags, lists, polls, and recommendations
 - Link preview and social background jobs
+- Extracted social web surfaces under `ElektrineWeb.*`
+  including timeline/community/list/gallery/remote-profile LiveViews,
+  authenticated and external social APIs, ActivityPub/WebFinger/NodeInfo,
+  Mastodon compatibility endpoints, media proxying, and interaction redirects
 
 ## Notes
 
 - Builds on shared messaging/accounts contexts from `elektrine`.
 - Main API surface is `Elektrine.Social`.
+- `elektrine_web` mounts these modules as the host shell and keeps shared
+  layout/auth/navigation concerns.
 
 ## License
 

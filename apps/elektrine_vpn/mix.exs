@@ -36,7 +36,20 @@ defmodule ElektrineVPN.MixProject do
 
   defp deps do
     [
-      {:elektrine, in_umbrella: true}
+      internal_dep(:elektrine),
+      internal_dep(:elektrine_web),
+      {:phoenix, "== 1.8.3"},
+      {:phoenix_html, "== 4.3.0"},
+      {:phoenix_live_view, "== 1.1.23"},
+      {:jason, "== 1.4.4"}
     ]
+  end
+
+  defp internal_dep(app) do
+    if Mix.Project.umbrella?() do
+      {app, in_umbrella: true}
+    else
+      {app, path: "../#{app}"}
+    end
   end
 end
