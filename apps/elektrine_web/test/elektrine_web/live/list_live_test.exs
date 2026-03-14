@@ -170,4 +170,25 @@ defmodule ElektrineWeb.ListLiveTest do
 
     assert has_element?(view, ~s(#list-create-form option[value="public"][selected]))
   end
+
+  test "liked posts can be unliked from a list timeline", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    list = list_fixture(viewer, members: [author])
+    {:ok, post} = Social.create_timeline_post(author.id, "List unlike target", visibility: "public")
+    {:ok, _like} = Social.like_post(viewer.id, post.id)
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/lists/#{list.id}")
+
+    assert html =~ "List unlike target"
+    assert Social.user_liked_post?(viewer.id, post.id)
+
+    render_hook(view, "unlike_post", %{"message_id" => Integer.to_string(post.id)})
+
+    refute Social.user_liked_post?(viewer.id, post.id)
+  end
 end

@@ -240,7 +240,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
       result =
         args
         |> new(priority: priority)
-        |> Oban.insert()
+        |> Elektrine.JobQueue.insert()
 
       insert_time = System.monotonic_time(:millisecond) - insert_start
 

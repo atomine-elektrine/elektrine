@@ -13,6 +13,7 @@ defmodule ElektrineWeb.ProfileHTML do
 
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.Profile.Containers
+  import ElektrineWeb.Components.Profile.Modals
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
 

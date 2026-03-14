@@ -7,6 +7,7 @@ defmodule Elektrine.Accounts.Storage do
   import Ecto.Query
   alias Elektrine.Accounts.User
   alias Elektrine.Email.Message
+  alias Elektrine.Platform.Modules
   alias Elektrine.Repo
 
   @doc """
@@ -107,39 +108,39 @@ defmodule Elektrine.Accounts.Storage do
   # Public calculation functions for storage management page
 
   def calculate_email_storage(user_id) do
-    # Get user's mailbox
-    case Elektrine.Email.get_user_mailbox(user_id) do
-      nil ->
-        0
+    if Modules.compiled?(:email) do
+      # Get user's mailbox
+      case Elektrine.Email.get_user_mailbox(user_id) do
+        nil ->
+          0
 
-      mailbox ->
-        # Sum all text/html body sizes and actual attachment file sizes
-        messages =
-          Message
-          |> where([m], m.mailbox_id == ^mailbox.id)
-          |> select([m], %{
-            text_size: coalesce(fragment("length(?)", m.text_body), 0),
-            html_size: coalesce(fragment("length(?)", m.html_body), 0),
-            subject_size: coalesce(fragment("length(?)", m.subject), 0),
-            from_size: coalesce(fragment("length(?)", m.from), 0),
-            to_size: coalesce(fragment("length(?)", m.to), 0),
-            cc_size: coalesce(fragment("length(?)", m.cc), 0),
-            bcc_size: coalesce(fragment("length(?)", m.bcc), 0),
-            attachments: m.attachments
-          })
-          |> Repo.all()
+        mailbox ->
+          # Sum all text/html body sizes and actual attachment file sizes
+          messages =
+            Message
+            |> where([m], m.mailbox_id == ^mailbox.id)
+            |> select([m], %{
+              text_size: coalesce(fragment("length(?)", m.text_body), 0),
+              html_size: coalesce(fragment("length(?)", m.html_body), 0),
+              subject_size: coalesce(fragment("length(?)", m.subject), 0),
+              from_size: coalesce(fragment("length(?)", m.from), 0),
+              to_size: coalesce(fragment("length(?)", m.to), 0),
+              cc_size: coalesce(fragment("length(?)", m.cc), 0),
+              bcc_size: coalesce(fragment("length(?)", m.bcc), 0),
+              attachments: m.attachments
+            })
+            |> Repo.all()
 
-        result =
           Enum.reduce(messages, 0, fn row, acc ->
-            # Calculate attachment sizes from JSON metadata (includes S3 files)
             attachment_size = calculate_attachments_size(row.attachments)
 
             acc + row.text_size + row.html_size + row.subject_size +
               row.from_size + row.to_size + row.cc_size + row.bcc_size +
               attachment_size
           end)
-
-        result
+      end
+    else
+      0
     end
   end
 

@@ -81,6 +81,51 @@ defmodule ElektrineWeb.Components.UI.Modal do
     """
   end
 
+  @doc """
+  Renders a class-toggled modal wrapper that works for both LiveView and static pages.
+  """
+  attr :id, :string, default: nil
+  attr :title, :string, default: nil
+  attr :open, :boolean, default: false
+  attr :data_modal, :string, default: nil
+  attr :close_action, :string, required: true
+  attr :close_mode, :atom, values: [:phx, :data], default: :phx
+  attr :max_width, :string, default: "max-w-md"
+  attr :box_class, :string, default: nil
+  attr :header_class, :string, default: "flex justify-between items-center mb-6"
+  attr :title_class, :string, default: "text-xl font-bold"
+  attr :close_button_class, :string, default: nil
+  attr :show_close_button, :boolean, default: true
+  slot :inner_block, required: true
+
+  def basic_modal(assigns) do
+    assigns =
+      assign(assigns, :close_attrs, modal_close_attrs(assigns.close_mode, assigns.close_action))
+
+    ~H"""
+    <div id={@id} data-modal={@data_modal} class={["modal", @open && "modal-open"]}>
+      <div class={["modal-box", @max_width, @box_class]}>
+        <div :if={@title || @show_close_button} class={@header_class}>
+          <h2 :if={@title} class={@title_class}>{@title}</h2>
+          <button
+            :if={@show_close_button}
+            type="button"
+            class={["btn btn-ghost btn-sm btn-circle", @close_button_class]}
+            aria-label={gettext("close")}
+            {@close_attrs}
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+        </div>
+
+        {render_slot(@inner_block)}
+      </div>
+
+      <div class="modal-backdrop" {@close_attrs}></div>
+    </div>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do
@@ -134,4 +179,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
   defp icon(assigns) do
     ElektrineWeb.Components.UI.Icon.icon(assigns)
   end
+
+  defp modal_close_attrs(:data, action), do: [{"data-action", action}]
+  defp modal_close_attrs(:phx, action), do: [{"phx-click", action}]
 end

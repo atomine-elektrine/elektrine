@@ -101,7 +101,6 @@ defmodule Elektrine.MixProject do
       {:argon2_elixir, "== 4.1.3"},
       {:plug_cowboy, "== 2.8.0"},
       {:gen_smtp, "== 1.3.0"},
-      {:quantum, "== 3.5.3"},
       {:oban, "== 2.20.3"},
       {:oban_live_dashboard, "~> 0.1"},
       {:ex_aws, "== 2.6.1"},

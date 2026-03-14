@@ -1,5 +1,10 @@
 defmodule Elektrine.Jobs.EmailRecategorizer do
-  @moduledoc "Quantum job to recategorize emails that weren't properly categorized\n"
+  @moduledoc """
+  Oban worker that recategorizes recent emails that were left in the inbox.
+  """
+
+  use Oban.Worker, queue: :default, max_attempts: 1
+
   require Logger
   alias Elektrine.Email
   alias Elektrine.Email.Message
@@ -7,6 +12,13 @@ defmodule Elektrine.Jobs.EmailRecategorizer do
   import Ecto.Query
   @batch_size 50
   @batch_delay_ms 100
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{}) do
+    run()
+    :ok
+  end
+
   def run do
     cutoff = DateTime.utc_now() |> DateTime.add(-1, :day)
 
@@ -74,5 +86,11 @@ defmodule Elektrine.Jobs.EmailRecategorizer do
     e ->
       Logger.error("Failed to recategorize message #{message.id}: #{inspect(e)}")
       {:error, e}
+  end
+
+  def enqueue do
+    %{}
+    |> new()
+    |> Elektrine.JobQueue.insert()
   end
 end

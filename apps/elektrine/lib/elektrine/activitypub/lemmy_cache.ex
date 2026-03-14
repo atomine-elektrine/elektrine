@@ -166,7 +166,7 @@ defmodule Elektrine.ActivityPub.LemmyCache do
       # Schedule one job that handles all stale posts
       %{activitypub_ids: stale_ids}
       |> Elektrine.Workers.LemmyCacheWorker.new()
-      |> Oban.insert()
+      |> Elektrine.JobQueue.insert()
     else
       {:ok, :no_stale}
     end

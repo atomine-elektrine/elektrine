@@ -6,6 +6,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
   import Phoenix.HTML
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
+  alias ElektrineWeb.Platform.Integrations
 
   @doc """
   Renders an embedded post preview card.
@@ -76,7 +77,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
           </span>
           <span class="text-xs opacity-40">·</span>
           <span class="text-xs opacity-60">
-            {Elektrine.Social.time_ago_in_words(@shared_message.inserted_at)}
+            {Integrations.social_time_ago(@shared_message.inserted_at)}
           </span>
           <%= if @is_federated_link do %>
             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3 ml-auto opacity-40" />

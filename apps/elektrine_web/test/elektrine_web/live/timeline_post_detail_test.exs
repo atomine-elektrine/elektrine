@@ -359,6 +359,7 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
 
       assert nested_reply
     end
+
   end
 
   defp log_in_user(conn, user) do

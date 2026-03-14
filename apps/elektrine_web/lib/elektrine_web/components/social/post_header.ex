@@ -14,6 +14,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.User.HoverCard
   alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineWeb.Platform.Integrations
 
   @doc """
   Renders a post header with consistent styling regardless of source.
@@ -126,7 +127,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
                 <%= if @normalized.edited_at do %>
                   <span
                     class="badge badge-xs badge-ghost flex-shrink-0"
-                    title={"Edited #{Elektrine.Social.time_ago_in_words(@normalized.edited_at)}"}
+                    title={"Edited #{Integrations.social_time_ago(@normalized.edited_at)}"}
                   >
                     <.icon name="hero-pencil" class="w-2.5 h-2.5" />
                   </span>
@@ -185,7 +186,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
                 <%= if @normalized.edited_at do %>
                   <span
                     class="badge badge-xs badge-ghost"
-                    title={"Edited #{Elektrine.Social.time_ago_in_words(@normalized.edited_at)}"}
+                    title={"Edited #{Integrations.social_time_ago(@normalized.edited_at)}"}
                   >
                     <.icon name="hero-pencil" class="w-2.5 h-2.5" />
                   </span>

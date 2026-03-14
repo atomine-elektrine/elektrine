@@ -243,7 +243,7 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
   def enqueue(delivery_id) do
     %{delivery_id: delivery_id}
     |> new()
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """
@@ -255,7 +255,7 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
         new(%{delivery_id: id})
       end)
 
-    Oban.insert_all(jobs)
+    Elektrine.JobQueue.insert_all(jobs)
   end
 
   defp inbox_domain(inbox_url) when is_binary(inbox_url) do

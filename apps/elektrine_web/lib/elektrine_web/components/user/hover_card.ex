@@ -3,6 +3,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
   User hover card component that shows profile details on hover.
   """
   use ElektrineWeb, :html
+  import ElektrineWeb.Components.Social.FollowButton, only: [local_follow_button: 1]
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
@@ -27,15 +28,18 @@ defmodule ElektrineWeb.Components.User.HoverCard do
   attr :user_statuses, :map, default: %{}, doc: "User online statuses"
   attr :user_follows, :map, default: %{}, doc: "Map of followed users"
   attr :pending_follows, :map, default: %{}, doc: "Map of pending follow requests"
+  attr :remote_follow_overrides, :map, default: %{}, doc: "Remote follow UI overrides"
   attr :current_user, :map, default: nil, doc: "Current logged in user"
   slot :inner_block, required: true
 
   def user_hover_card(assigns) do
+    assigns = assign(assigns, :hover_id, generate_hover_id(assigns))
+
     ~H"""
     <div
       class={["relative inline-block", @class]}
       phx-hook="UserHoverCard"
-      id={generate_hover_id(assigns)}
+      id={@hover_id}
     >
       <div data-hover-trigger>
         {render_slot(@inner_block)}
@@ -61,7 +65,9 @@ defmodule ElektrineWeb.Components.User.HoverCard do
               remote_actor={@remote_actor}
               user_follows={@user_follows}
               pending_follows={@pending_follows}
+              remote_follow_overrides={@remote_follow_overrides}
               current_user={@current_user}
+              hover_id={@hover_id}
             />
           <% end %>
         </div>
@@ -89,8 +95,8 @@ defmodule ElektrineWeb.Components.User.HoverCard do
   # Local user card
   defp local_user_card(assigns) do
     is_self = assigns.current_user && assigns.current_user.id == assigns.user.id
-    is_following = Map.get(assigns.user_follows, {:local, assigns.user.id}, false)
-    assigns = assigns |> assign(:is_self, is_self) |> assign(:is_following, is_following)
+
+    assigns = assigns |> assign(:is_self, is_self)
 
     ~H"""
     <div class="flex flex-col gap-3">
@@ -138,20 +144,11 @@ defmodule ElektrineWeb.Components.User.HoverCard do
       
     <!-- Follow button -->
       <%= if @current_user && !@is_self do %>
-        <button
-          phx-click="toggle_follow"
-          phx-value-user_id={@user.id}
-          class={[
-            "btn btn-sm w-full",
-            if(@is_following, do: "btn-ghost", else: "btn-primary")
-          ]}
-        >
-          <%= if @is_following do %>
-            <.icon name="hero-user-minus" class="w-4 h-4 mr-1" /> Unfollow
-          <% else %>
-            <.icon name="hero-user-plus" class="w-4 h-4 mr-1" /> Follow
-          <% end %>
-        </button>
+        <.local_follow_button
+          user_id={@user.id}
+          user_follows={@user_follows}
+          variant="card"
+        />
       <% end %>
     </div>
     """
@@ -160,8 +157,18 @@ defmodule ElektrineWeb.Components.User.HoverCard do
   # Remote user card
   defp remote_user_card(assigns) do
     profile_url = "/remote/#{assigns.remote_actor.username}@#{assigns.remote_actor.domain}"
-    is_following = Map.get(assigns.user_follows, {:remote, assigns.remote_actor.id}, false)
-    is_pending = Map.get(assigns.pending_follows, {:remote, assigns.remote_actor.id}, false)
+
+    follow_state =
+      remote_follow_button_state(
+        assigns.remote_follow_overrides,
+        assigns.user_follows,
+        assigns.pending_follows,
+        assigns.remote_actor.id
+      )
+
+    is_following = follow_state == "following"
+    is_pending = follow_state == "pending"
+
     remote_handle = "#{assigns.remote_actor.username}@#{assigns.remote_actor.domain}"
 
     assigns =
@@ -169,6 +176,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
       |> assign(:profile_url, profile_url)
       |> assign(:is_following, is_following)
       |> assign(:is_pending, is_pending)
+      |> assign(:follow_state, follow_state)
       |> assign(:remote_handle, remote_handle)
 
     ~H"""
@@ -233,31 +241,94 @@ defmodule ElektrineWeb.Components.User.HoverCard do
     <!-- Follow button -->
       <%= if @current_user do %>
         <button
+          id={"#{@hover_id}-remote-follow"}
           phx-click="toggle_follow_remote"
           phx-value-remote_actor_id={@remote_actor.id}
+          phx-hook="RemoteFollowButton"
+          data-remote-actor-id={@remote_actor.id}
+          data-follow-state={@follow_state}
+          data-follow-variant="hover-card"
           disabled={@is_pending}
           class={[
-            "btn btn-sm w-full",
+            "btn btn-sm w-full phx-click-loading:pointer-events-none phx-click-loading:cursor-wait phx-click-loading:opacity-70",
             cond do
               @is_pending -> "btn-disabled"
               @is_following -> "btn-ghost"
-              true -> "btn-primary"
+              true -> "btn-primary phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
             end
           ]}
         >
-          <%= cond do %>
-            <% @is_pending -> %>
-              <.spinner size="sm" class="mr-1" /> Pending
-            <% @is_following -> %>
+          <span class="inline-flex items-center justify-center">
+            <span
+              data-follow-display="following"
+              class={[
+                "inline-flex items-center justify-center",
+                if(@follow_state != "following", do: "hidden")
+              ]}
+            >
               <.icon name="hero-user-minus" class="w-4 h-4 mr-1" /> Unfollow
-            <% true -> %>
+            </span>
+            <span
+              data-follow-display="pending"
+              class={[
+                "inline-flex items-center justify-center",
+                if(@follow_state != "pending", do: "hidden")
+              ]}
+            >
+              <.icon name="hero-clock" class="w-4 h-4 mr-1" /> Requested
+            </span>
+            <span
+              data-follow-display="none"
+              class={[
+                "inline-flex items-center justify-center",
+                if(@follow_state != "none", do: "hidden")
+              ]}
+            >
               <.icon name="hero-user-plus" class="w-4 h-4 mr-1" /> Follow
-          <% end %>
+            </span>
+          </span>
         </button>
       <% end %>
     </div>
     """
   end
+
+  defp remote_follow_button_state(
+         remote_follow_overrides,
+         user_follows,
+         pending_follows,
+         remote_actor_id
+       ) do
+    case remote_follow_override_state(remote_follow_overrides, remote_actor_id) do
+      state when state in ["following", "pending", "none"] ->
+        state
+
+      _ ->
+        cond do
+          Map.get(user_follows, {:remote, remote_actor_id}, false) ||
+              Map.get(user_follows, remote_actor_id, false) ->
+            "following"
+
+          Map.get(pending_follows, {:remote, remote_actor_id}, false) ||
+              Map.get(pending_follows, remote_actor_id, false) ->
+            "pending"
+
+          true ->
+            "none"
+        end
+    end
+  end
+
+  defp remote_follow_override_state(remote_follow_overrides, remote_actor_id)
+       when is_map(remote_follow_overrides) do
+    case Map.get(remote_follow_overrides, remote_actor_id) ||
+           Map.get(remote_follow_overrides, {:remote, remote_actor_id}) do
+      state when is_atom(state) -> Atom.to_string(state)
+      state -> state
+    end
+  end
+
+  defp remote_follow_override_state(_, _), do: nil
 
   defp get_following_count(user) do
     case user do

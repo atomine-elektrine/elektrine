@@ -160,7 +160,7 @@ defmodule Elektrine.ActivityPub.InboxQueue do
   end
 
   defp safe_insert_all(jobs) do
-    {:ok, Oban.insert_all(jobs)}
+    {:ok, Elektrine.JobQueue.insert_all(jobs)}
   rescue
     e -> {:error, e}
   end

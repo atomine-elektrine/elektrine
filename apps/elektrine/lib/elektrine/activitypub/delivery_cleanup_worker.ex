@@ -33,6 +33,6 @@ defmodule Elektrine.ActivityPub.DeliveryCleanupWorker do
   def enqueue do
     %{}
     |> new()
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 end

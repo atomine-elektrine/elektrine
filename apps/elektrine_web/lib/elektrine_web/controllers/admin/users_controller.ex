@@ -6,7 +6,8 @@ defmodule ElektrineWeb.Admin.UsersController do
 
   use ElektrineWeb, :controller
 
-  alias Elektrine.{Accounts, Email, Repo}
+  alias Elektrine.{Accounts, Repo}
+  alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
   plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
@@ -146,15 +147,14 @@ defmodule ElektrineWeb.Admin.UsersController do
   def edit(conn, %{"id" => id}) do
     user_data = Accounts.get_user_with_ip_info!(id)
     changeset = Accounts.change_user_admin(user_data.user)
-
-    # Get user's email aliases
-    aliases = Elektrine.Email.list_aliases(user_data.user.id)
+    aliases = Integrations.email_aliases(user_data.user.id)
 
     render(conn, :edit,
       user: user_data.user,
       changeset: changeset,
       related_by_registration: user_data.related_by_registration,
-      aliases: aliases
+      aliases: aliases,
+      email_available: Integrations.email_available?()
     )
   end
 
@@ -211,7 +211,9 @@ defmodule ElektrineWeb.Admin.UsersController do
         render(conn, :edit,
           user: user_data.user,
           changeset: changeset,
-          related_by_registration: user_data.related_by_registration
+          related_by_registration: user_data.related_by_registration,
+          aliases: Integrations.email_aliases(user_data.user.id),
+          email_available: Integrations.email_available?()
         )
     end
   end
@@ -536,7 +538,7 @@ defmodule ElektrineWeb.Admin.UsersController do
 
   def delete_user_alias(conn, %{"user_id" => user_id, "alias_id" => alias_id}) do
     user = Accounts.get_user!(user_id)
-    alias_record = Email.get_alias(alias_id, user.id)
+    alias_record = Integrations.admin_user_alias(alias_id, user.id)
 
     case alias_record do
       nil ->
@@ -545,7 +547,7 @@ defmodule ElektrineWeb.Admin.UsersController do
         |> redirect(to: ~p"/pripyat/users")
 
       alias_record ->
-        case Email.delete_alias(alias_record) do
+        case Integrations.admin_delete_user_alias(alias_record) do
           {:ok, _deleted_alias} ->
             # Log the admin action
             Elektrine.AuditLog.log(
@@ -575,17 +577,22 @@ defmodule ElektrineWeb.Admin.UsersController do
   end
 
   def account_lookup(conn, _params) do
+    default_search_type = default_account_search_type()
+
     render(conn, :account_lookup,
       search_results: nil,
       search_query: nil,
-      search_type: "email"
+      search_type: default_search_type,
+      email_available: Integrations.email_available?()
     )
   end
 
   def search_accounts(conn, %{"search" => search_params}) do
     admin = conn.assigns.current_user
     search_query = String.trim(search_params["query"] || "")
-    search_type = search_params["type"] || "email"
+
+    search_type =
+      normalize_account_search_type(search_params["type"] || default_account_search_type())
 
     # Check for exact match syntax (wrapped in quotes)
     is_exact_match =
@@ -626,7 +633,8 @@ defmodule ElektrineWeb.Admin.UsersController do
     render(conn, :account_lookup,
       search_results: search_results,
       search_query: search_query,
-      search_type: search_type
+      search_type: search_type,
+      email_available: Integrations.email_available?()
     )
   end
 
@@ -670,18 +678,7 @@ defmodule ElektrineWeb.Admin.UsersController do
 
   defp attach_aliases(users) do
     user_ids = Enum.map(users, & &1.id)
-
-    aliases_by_user_id =
-      if user_ids == [] do
-        %{}
-      else
-        from(a in Email.Alias,
-          where: a.user_id in ^user_ids,
-          order_by: [desc: a.inserted_at]
-        )
-        |> Repo.all()
-        |> Enum.group_by(& &1.user_id)
-      end
+    aliases_by_user_id = Integrations.admin_aliases_by_user_ids(user_ids)
 
     Enum.map(users, fn user ->
       Map.put(user, :aliases, Map.get(aliases_by_user_id, user.id, []))
@@ -823,280 +820,160 @@ defmodule ElektrineWeb.Admin.UsersController do
   end
 
   defp perform_account_search_exact(query, "email") do
-    import Ecto.Query
-
-    # Search mailboxes for exact match
-    mailboxes =
-      from(m in Email.Mailbox,
-        where: m.email == ^query,
-        preload: [:user],
-        order_by: [desc: m.inserted_at]
-      )
-      |> Repo.all()
-
-    # Search aliases for exact match
-    aliases =
-      from(a in Email.Alias,
-        where: a.alias_email == ^query or a.target_email == ^query,
-        preload: [:user],
-        order_by: [desc: a.inserted_at]
-      )
-      |> Repo.all()
-
-    # Build results with user information
-    mailbox_results =
-      Enum.map(mailboxes, fn mailbox ->
-        %{
-          type: :mailbox,
-          email: mailbox.email,
-          user: mailbox.user,
-          created_at: mailbox.inserted_at,
-          details: %{
-            forward_to: mailbox.forward_to,
-            forward_enabled: mailbox.forward_enabled
-          }
-        }
-      end)
-
-    alias_results =
-      Enum.map(aliases, fn alias_record ->
-        %{
-          type: :alias,
-          email: alias_record.alias_email,
-          user: alias_record.user,
-          created_at: alias_record.inserted_at,
-          details: %{
-            target_email: alias_record.target_email,
-            enabled: alias_record.enabled
-          }
-        }
-      end)
-
-    mailbox_results ++ alias_results
+    search_recovery_email(query, :exact) ++
+      search_mailboxes(query, :exact) ++
+      search_aliases(query, :exact)
   end
 
   defp perform_account_search_exact(query, "username") do
-    import Ecto.Query
-
-    # Find user by exact username match
-    users =
-      from(u in Accounts.User,
-        where: u.username == ^query,
-        order_by: [desc: u.inserted_at]
-      )
-      |> Repo.all()
-
-    # For each user, get their mailboxes and aliases
-    Enum.flat_map(users, fn user ->
-      mailboxes = Email.list_mailboxes(user.id)
-      aliases = Email.list_aliases(user.id)
-
-      mailbox_results =
-        Enum.map(mailboxes, fn mailbox ->
-          %{
-            type: :mailbox,
-            email: mailbox.email,
-            user: user,
-            created_at: mailbox.inserted_at,
-            details: %{
-              forward_to: mailbox.forward_to,
-              forward_enabled: mailbox.forward_enabled
-            }
-          }
-        end)
-
-      alias_results =
-        Enum.map(aliases, fn alias_record ->
-          %{
-            type: :alias,
-            email: alias_record.alias_email,
-            user: user,
-            created_at: alias_record.inserted_at,
-            details: %{
-              target_email: alias_record.target_email,
-              enabled: alias_record.enabled
-            }
-          }
-        end)
-
-      mailbox_results ++ alias_results
-    end)
+    search_users_by_identity(query, :exact, :username)
   end
 
   defp perform_account_search_exact(query, "ip") do
-    import Ecto.Query
-
-    # Find users by exact IP match
-    users =
-      from(u in Accounts.User,
-        where: u.registration_ip == ^query or u.last_login_ip == ^query,
-        order_by: [desc: u.inserted_at]
-      )
-      |> Repo.all()
-
-    # For each user, get their mailboxes
-    Enum.flat_map(users, fn user ->
-      mailboxes = Email.list_mailboxes(user.id)
-
-      Enum.map(mailboxes, fn mailbox ->
-        %{
-          type: :mailbox,
-          email: mailbox.email,
-          user: user,
-          created_at: mailbox.inserted_at,
-          details: %{
-            registration_ip: user.registration_ip,
-            last_login_ip: user.last_login_ip,
-            forward_to: mailbox.forward_to
-          }
-        }
-      end)
-    end)
+    search_users_by_identity(query, :exact, :ip)
   end
 
   defp perform_account_search(query, "email") do
-    import Ecto.Query
-    search_pattern = "%#{query}%"
-
-    # Search mailboxes for fuzzy match
-    mailboxes =
-      from(m in Email.Mailbox,
-        where: ilike(m.email, ^search_pattern),
-        preload: [:user],
-        order_by: [desc: m.inserted_at],
-        limit: 50
-      )
-      |> Repo.all()
-
-    # Search aliases for fuzzy match
-    aliases =
-      from(a in Email.Alias,
-        where: ilike(a.alias_email, ^search_pattern) or ilike(a.target_email, ^search_pattern),
-        preload: [:user],
-        order_by: [desc: a.inserted_at],
-        limit: 50
-      )
-      |> Repo.all()
-
-    # Build results with user information
-    mailbox_results =
-      Enum.map(mailboxes, fn mailbox ->
-        %{
-          type: :mailbox,
-          email: mailbox.email,
-          user: mailbox.user,
-          created_at: mailbox.inserted_at,
-          details: %{
-            forward_to: mailbox.forward_to,
-            forward_enabled: mailbox.forward_enabled
-          }
-        }
-      end)
-
-    alias_results =
-      Enum.map(aliases, fn alias_record ->
-        %{
-          type: :alias,
-          email: alias_record.alias_email,
-          user: alias_record.user,
-          created_at: alias_record.inserted_at,
-          details: %{
-            target_email: alias_record.target_email,
-            enabled: alias_record.enabled
-          }
-        }
-      end)
-
-    (mailbox_results ++ alias_results) |> Enum.take(50)
+    (search_recovery_email(query, :fuzzy) ++
+       search_mailboxes(query, :fuzzy) ++
+       search_aliases(query, :fuzzy))
+    |> Enum.take(50)
   end
 
   defp perform_account_search(query, "username") do
-    import Ecto.Query
-    search_pattern = "%#{query}%"
-
-    # Find users by fuzzy username match
-    users =
-      from(u in Accounts.User,
-        where: ilike(u.username, ^search_pattern),
-        order_by: [desc: u.inserted_at],
-        limit: 20
-      )
-      |> Repo.all()
-
-    # For each user, get their mailboxes and aliases
-    Enum.flat_map(users, fn user ->
-      mailboxes = Email.list_mailboxes(user.id)
-      aliases = Email.list_aliases(user.id)
-
-      mailbox_results =
-        Enum.map(mailboxes, fn mailbox ->
-          %{
-            type: :mailbox,
-            email: mailbox.email,
-            user: user,
-            created_at: mailbox.inserted_at,
-            details: %{
-              forward_to: mailbox.forward_to,
-              forward_enabled: mailbox.forward_enabled
-            }
-          }
-        end)
-
-      alias_results =
-        Enum.map(aliases, fn alias_record ->
-          %{
-            type: :alias,
-            email: alias_record.alias_email,
-            user: user,
-            created_at: alias_record.inserted_at,
-            details: %{
-              target_email: alias_record.target_email,
-              enabled: alias_record.enabled
-            }
-          }
-        end)
-
-      mailbox_results ++ alias_results
-    end)
+    search_users_by_identity(query, :fuzzy, :username)
     |> Enum.take(50)
   end
 
   defp perform_account_search(query, "ip") do
-    import Ecto.Query
-    search_pattern = "%#{query}%"
-
-    # Find users by fuzzy IP match
-    users =
-      from(u in Accounts.User,
-        where:
-          ilike(u.registration_ip, ^search_pattern) or ilike(u.last_login_ip, ^search_pattern),
-        order_by: [desc: u.inserted_at],
-        limit: 20
-      )
-      |> Repo.all()
-
-    # For each user, get their mailboxes
-    Enum.flat_map(users, fn user ->
-      mailboxes = Email.list_mailboxes(user.id)
-
-      Enum.map(mailboxes, fn mailbox ->
-        %{
-          type: :mailbox,
-          email: mailbox.email,
-          user: user,
-          created_at: mailbox.inserted_at,
-          details: %{
-            registration_ip: user.registration_ip,
-            last_login_ip: user.last_login_ip,
-            forward_to: mailbox.forward_to
-          }
-        }
-      end)
-    end)
+    search_users_by_identity(query, :fuzzy, :ip)
     |> Enum.take(50)
   end
 
   defp perform_account_search(_query, _type), do: []
+
+  defp search_recovery_email(query, match_type) do
+    query
+    |> recovery_email_matches(match_type)
+    |> Repo.all()
+    |> Enum.map(&account_lookup_result(&1, "recovery_email"))
+  end
+
+  defp search_mailboxes(query, match_type) do
+    query
+    |> Integrations.admin_search_email_mailboxes(match: match_type, limit: 50)
+    |> Enum.map(fn mailbox ->
+      account_lookup_result(mailbox.user, "mailbox_email", mailbox_email: mailbox.email)
+    end)
+  end
+
+  defp search_aliases(query, match_type) do
+    query
+    |> Integrations.admin_search_email_aliases(match: match_type, limit: 50)
+    |> Enum.map(fn alias_record ->
+      account_lookup_result(alias_record.user, "alias", mailbox_email: alias_record.alias_email)
+    end)
+  end
+
+  defp search_users_by_identity(query, match_type, :username) do
+    query
+    |> username_matches(match_type)
+    |> Repo.all()
+    |> Enum.map(fn user ->
+      account_lookup_result(user, "username", mailbox_email: primary_mailbox_email(user.id))
+    end)
+  end
+
+  defp search_users_by_identity(query, match_type, :ip) do
+    query
+    |> ip_matches(match_type)
+    |> Repo.all()
+    |> Enum.map(fn user ->
+      account_lookup_result(user, "ip_address", mailbox_email: primary_mailbox_email(user.id))
+    end)
+  end
+
+  defp recovery_email_matches(query, :exact) do
+    from(u in Accounts.User,
+      where: u.recovery_email == ^query,
+      order_by: [desc: u.inserted_at]
+    )
+  end
+
+  defp recovery_email_matches(query, _match_type) do
+    search_pattern = "%#{query}%"
+
+    from(u in Accounts.User,
+      where: ilike(u.recovery_email, ^search_pattern),
+      order_by: [desc: u.inserted_at],
+      limit: 50
+    )
+  end
+
+  defp username_matches(query, :exact) do
+    from(u in Accounts.User,
+      where: u.username == ^query or u.handle == ^query,
+      order_by: [desc: u.inserted_at]
+    )
+  end
+
+  defp username_matches(query, _match_type) do
+    search_pattern = "%#{query}%"
+
+    from(u in Accounts.User,
+      where: ilike(u.username, ^search_pattern) or ilike(u.handle, ^search_pattern),
+      order_by: [desc: u.inserted_at],
+      limit: 20
+    )
+  end
+
+  defp ip_matches(query, :exact) do
+    from(u in Accounts.User,
+      where: u.registration_ip == ^query or u.last_login_ip == ^query,
+      order_by: [desc: u.inserted_at]
+    )
+  end
+
+  defp ip_matches(query, _match_type) do
+    search_pattern = "%#{query}%"
+
+    from(u in Accounts.User,
+      where: ilike(u.registration_ip, ^search_pattern) or ilike(u.last_login_ip, ^search_pattern),
+      order_by: [desc: u.inserted_at],
+      limit: 20
+    )
+  end
+
+  defp primary_mailbox_email(user_id) do
+    case Integrations.email_mailboxes(user_id) do
+      [%{email: email} | _] -> email
+      _ -> nil
+    end
+  end
+
+  defp account_lookup_result(user, match_type, attrs \\ []) do
+    %{
+      id: user.id,
+      username: user.username,
+      recovery_email: user.recovery_email,
+      mailbox_email: Keyword.get(attrs, :mailbox_email),
+      match_type: match_type,
+      last_login_at: user.last_login_at,
+      registration_ip: user.registration_ip,
+      banned: user.banned
+    }
+  end
+
+  defp default_account_search_type do
+    if Integrations.email_available?(), do: "email", else: "username"
+  end
+
+  defp normalize_account_search_type("email") do
+    if Integrations.email_available?(), do: "email", else: default_account_search_type()
+  end
+
+  defp normalize_account_search_type("ip"), do: "ip"
+  defp normalize_account_search_type(_type), do: "username"
 
   defp pagination_range(_current_page, total_pages) when total_pages <= 7 do
     1..total_pages//1 |> Enum.to_list()

@@ -11,6 +11,7 @@ defmodule Elektrine.Social.Boosts do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.PostBoost
@@ -52,6 +53,8 @@ defmodule Elektrine.Social.Boosts do
           )
           |> Repo.update_all([])
 
+          safe_broadcast_share_count_update(message_id)
+
           # Create boost as a shared post on timeline
           case Elektrine.Social.share_to_timeline(message_id, user_id,
                  visibility: "public",
@@ -63,7 +66,6 @@ defmodule Elektrine.Social.Boosts do
 
             {:error, reason} ->
               # Log error but don't fail the boost
-              require Logger
               Logger.error("Failed to create boost timeline entry: #{inspect(reason)}")
               :ok
           end
@@ -104,6 +106,8 @@ defmodule Elektrine.Social.Boosts do
               update: [inc: [share_count: -1]]
             )
             |> Repo.update_all([])
+
+            safe_broadcast_share_count_update(message_id)
 
             # Delete the timeline shared post (if exists)
             from(m in Message,
@@ -219,5 +223,26 @@ defmodule Elektrine.Social.Boosts do
       where: b.user_id == ^user_id and b.message_id == ^message_id
     )
     |> Repo.exists?()
+  end
+
+  defp safe_broadcast_share_count_update(message_id) do
+    broadcast_share_count_update(message_id)
+  rescue
+    error ->
+      Logger.warning(
+        "Failed to broadcast share count update for #{inspect(message_id)}: #{Exception.message(error)}"
+      )
+
+      :ok
+  end
+
+  defp broadcast_share_count_update(message_id) do
+    message = Repo.get!(Message, message_id)
+
+    Elektrine.Messaging.Messages.broadcast_post_counts_updated(message_id, %{
+      like_count: message.like_count || 0,
+      share_count: message.share_count || 0,
+      reply_count: message.reply_count || 0
+    })
   end
 end

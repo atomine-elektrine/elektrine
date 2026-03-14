@@ -69,9 +69,7 @@
             <%= for unsub <- @unsubscribes do %>
               <tr>
                 <td class="font-medium text-sm">{unsub.email}</td>
-                <td>
-                  {Elektrine.Email.ListTypes.get_name(unsub.list_id || "elektrine-general")}
-                </td>
+                <td>{unsub.list_name}</td>
                 <td>{Calendar.strftime(unsub.unsubscribed_at, "%Y-%m-%d %H:%M UTC")}</td>
                 <td class="font-medium text-sm opacity-70">{unsub.ip_address || "N/A"}</td>
               </tr>

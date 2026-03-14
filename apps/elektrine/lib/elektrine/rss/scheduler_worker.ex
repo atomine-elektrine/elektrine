@@ -16,7 +16,7 @@ defmodule Elektrine.RSS.SchedulerWorker do
     Enum.each(stale_feeds, fn feed ->
       %{feed_id: feed.id}
       |> FetchFeedWorker.new()
-      |> Oban.insert()
+      |> Elektrine.JobQueue.insert()
     end)
 
     :ok

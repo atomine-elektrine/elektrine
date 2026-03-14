@@ -89,3 +89,5 @@ npm-debug.log*
 # Random
 .mix
 .hex
+_deploy_release
+_deploy_release/elektrine/erts-16.2/bin/erlexec

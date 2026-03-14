@@ -89,6 +89,50 @@ defmodule Elektrine.Email.SenderPipelineTest do
       refute String.contains?(sent_message.to, "blocked@example.com")
     end
 
+    test "stores parsed SMTP attachments as base64-safe data", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      attachment_data = <<255, 241, 80, 64, 12, 127, 252, 1, 64, 34, 128, 163>>
+
+      raw_email =
+        [
+          "From: #{sender_mailbox.email}",
+          "To: #{recipient_mailbox.email}",
+          "Subject: Attachment",
+          "MIME-Version: 1.0",
+          "Content-Type: multipart/mixed; boundary=\"outer-boundary\"",
+          "",
+          "--outer-boundary",
+          "Content-Type: text/plain; charset=UTF-8",
+          "",
+          "Hello",
+          "--outer-boundary",
+          "Content-Type: audio/mp4; name=\"voice-note.m4a\"",
+          "Content-Disposition: attachment; filename=\"voice-note.m4a\"",
+          "Content-Transfer-Encoding: base64",
+          "",
+          Base.encode64(attachment_data),
+          "--outer-boundary--",
+          ""
+        ]
+        |> Enum.join("\r\n")
+
+      params = %{
+        from: sender_mailbox.email,
+        to: recipient_mailbox.email,
+        raw_email: raw_email
+      }
+
+      assert {:ok, sent_message} = Sender.send_email(sender.id, params)
+      [attachment] = Map.values(sent_message.attachments)
+
+      assert attachment["encoding"] == "base64"
+      assert attachment["filename"] == "voice-note.m4a"
+      assert Base.decode64!(attachment["data"]) == attachment_data
+    end
+
     test "blocks send when every recipient is suppressed", %{
       sender: sender,
       sender_mailbox: sender_mailbox

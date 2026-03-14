@@ -1,8 +1,9 @@
 defmodule ElektrineWeb.OverviewLive.Index do
   use ElektrineWeb, :live_view
   require Logger
-  alias Elektrine.{Email, Friends, Messaging, Notifications, Profiles, Social, VPN}
-  alias Elektrine.Social.Recommendations
+  alias Elektrine.{Friends, Messaging, Notifications, Profiles}
+  alias Elektrine.Platform.Modules
+  alias ElektrineWeb.Platform.Integrations
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.TimelinePost
   import ElektrineWeb.Live.Helpers.PostStateHelpers
@@ -130,7 +131,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           end
 
           if currently_liked do
-            case Social.unlike_post(user_id, message_id) do
+            case Integrations.social_unlike_post(user_id, message_id) do
               {:ok, _} ->
                 {:noreply,
                  socket
@@ -142,7 +143,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                 {:noreply, put_flash(socket, :error, "Failed to unlike post")}
             end
           else
-            case Social.like_post(user_id, message_id) do
+            case Integrations.social_like_post(user_id, message_id) do
               {:ok, _} ->
                 {:noreply,
                  socket
@@ -189,7 +190,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           end
 
           if currently_boosted do
-            case Social.unboost_post(user_id, message_id) do
+            case Integrations.social_unboost_post(user_id, message_id) do
               {:ok, _} ->
                 {:noreply,
                  socket
@@ -201,7 +202,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                 {:noreply, put_flash(socket, :error, "Failed to unboost post")}
             end
           else
-            case Social.boost_post(user_id, message_id) do
+            case Integrations.social_boost_post(user_id, message_id) do
               {:ok, _} ->
                 {:noreply,
                  socket
@@ -521,7 +522,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
         is_following = Map.get(socket.assigns.user_follows, {:local, user_id}, false)
 
         if is_following do
-          case Social.unfollow_user(current_user.id, user_id) do
+          case Integrations.social_unfollow_user(current_user.id, user_id) do
             {:ok, _} ->
               {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))}
 
@@ -529,7 +530,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
               {:noreply, put_flash(socket, :error, "Failed to unfollow user")}
           end
         else
-          case Social.follow_user(current_user.id, user_id) do
+          case Integrations.social_follow_user(current_user.id, user_id) do
             {:ok, _} ->
               {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, true))}
 
@@ -597,7 +598,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           source: params["source"] || "overview"
         }
 
-        Elektrine.Social.Recommendations.record_view_with_dwell(user.id, post_id, attrs)
+        Integrations.overview_record_view_with_dwell(user.id, post_id, attrs)
       end
     end
 
@@ -619,7 +620,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
             source: view["source"] || "overview"
           }
 
-          Elektrine.Social.Recommendations.record_view_with_dwell(user.id, post_id, attrs)
+          Integrations.overview_record_view_with_dwell(user.id, post_id, attrs)
         end
       end)
     end
@@ -636,7 +637,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       dwell_time_ms = params["dwell_time_ms"]
 
       if post_id && type do
-        Elektrine.Social.Recommendations.record_dismissal(user.id, post_id, type, dwell_time_ms)
+        Integrations.overview_record_dismissal(user.id, post_id, type, dwell_time_ms)
       end
     end
 
@@ -803,7 +804,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       load_with_timeout(
         :for_you_feed,
         fn ->
-          Recommendations.get_for_you_feed(user.id, limit: 50, session_context: session_context)
+          Integrations.overview_for_you_feed(user.id, limit: 50, session_context: session_context)
           |> build_feed_state(user.id)
         end,
         @feed_load_timeout_ms
@@ -818,7 +819,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
           load_with_timeout(
             :public_feed_fallback,
             fn ->
-              Social.get_public_timeline(user_id: user.id, limit: 50) |> build_feed_state(user.id)
+              Integrations.overview_public_timeline(user_id: user.id, limit: 50)
+              |> build_feed_state(user.id)
             end,
             5000
           )
@@ -908,46 +910,56 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp quick_actions do
     [
-      %{
-        id: "compose_email",
-        label: "Compose Email",
-        detail: "Start a new message",
-        href: ~p"/email/compose?return_to=overview",
-        icon: "hero-pencil-square",
-        tone: "primary"
-      },
-      %{
-        id: "new_message",
-        label: "New Message",
-        detail: "Start a direct message",
-        href: ~p"/chat?#{[composer: "message"]}",
-        icon: "hero-chat-bubble-left-right",
-        tone: "neutral"
-      },
-      %{
-        id: "new_post",
-        label: "New Post",
-        detail: "Share an update",
-        href: ~p"/timeline?#{[composer: "post"]}",
-        icon: "hero-rectangle-stack",
-        tone: "neutral"
-      },
-      %{
-        id: "new_task",
-        label: "New Task",
-        detail: "Capture work on the calendar",
-        href: ~p"/calendar?#{[composer: "task"]}",
-        icon: "hero-check-circle",
-        tone: "neutral"
-      },
-      %{
-        id: "new_list",
-        label: "New List",
-        detail: "Save a smaller group",
-        href: "/lists#create-list-panel",
-        icon: "hero-queue-list",
-        tone: "neutral"
-      },
+      if Modules.enabled?(:email) do
+        %{
+          id: "compose_email",
+          label: "Compose Email",
+          detail: "Start a new message",
+          href: ~p"/email/compose?return_to=overview",
+          icon: "hero-pencil-square",
+          tone: "primary"
+        }
+      end,
+      if Modules.enabled?(:chat) do
+        %{
+          id: "new_message",
+          label: "New Message",
+          detail: "Start a direct message",
+          href: ~p"/chat?#{[composer: "message"]}",
+          icon: "hero-chat-bubble-left-right",
+          tone: "neutral"
+        }
+      end,
+      if Modules.enabled?(:social) do
+        %{
+          id: "new_post",
+          label: "New Post",
+          detail: "Share an update",
+          href: ~p"/timeline?#{[composer: "post"]}",
+          icon: "hero-rectangle-stack",
+          tone: "neutral"
+        }
+      end,
+      if Modules.enabled?(:email) do
+        %{
+          id: "new_task",
+          label: "New Task",
+          detail: "Capture work on the calendar",
+          href: ~p"/calendar?#{[composer: "task"]}",
+          icon: "hero-check-circle",
+          tone: "neutral"
+        }
+      end,
+      if Modules.enabled?(:social) do
+        %{
+          id: "new_list",
+          label: "New List",
+          detail: "Save a smaller group",
+          href: "/lists#create-list-panel",
+          icon: "hero-queue-list",
+          tone: "neutral"
+        }
+      end,
       %{
         id: "search",
         label: "Global Search",
@@ -957,15 +969,16 @@ defmodule ElektrineWeb.OverviewLive.Index do
         tone: "neutral"
       }
     ]
+    |> Enum.reject(&is_nil/1)
   end
 
   defp build_dashboard_data(user) do
-    mailbox = Email.get_user_mailbox(user.id)
+    mailbox = Integrations.email_mailbox(user.id)
 
     {inbox_messages, inbox_unread_count, reply_later_count} =
       if mailbox do
-        {Email.list_inbox_messages(mailbox.id, 5, 0), Email.unread_inbox_count(mailbox.id),
-         Email.unread_reply_later_count(mailbox.id)}
+        dashboard = Integrations.overview_email_dashboard(user.id)
+        {dashboard.inbox_messages, dashboard.inbox_unread_count, dashboard.reply_later_count}
       else
         {[], 0, 0}
       end
@@ -976,8 +989,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
     recent_notifications = Notifications.list_notifications(user.id, filter: :unread, limit: 8)
     pending_friend_requests = Friends.list_pending_requests(user.id)
     pending_follow_requests = Profiles.get_pending_follow_requests(user.id)
-    vpn_configs = VPN.list_user_configs(user.id)
-    recent_posts = Social.get_user_timeline_posts(user.id, limit: 3)
+    vpn_configs = Integrations.vpn_user_configs(user.id)
+    recent_posts = Integrations.overview_recent_posts(user.id, limit: 3)
     pending_friend_requests_count = length(pending_friend_requests)
     pending_follow_requests_count = length(pending_follow_requests)
     vpn_config_count = length(vpn_configs)
@@ -1095,7 +1108,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           priority: "medium"
         }
       end,
-      if vpn_config_count == 0 do
+      if Modules.enabled?(:vpn) and vpn_config_count == 0 do
         %{
           id: "vpn_setup",
           title: "Create your first VPN config",

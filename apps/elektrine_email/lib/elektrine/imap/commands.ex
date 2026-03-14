@@ -2287,16 +2287,23 @@ defmodule Elektrine.IMAP.Commands do
 
   defp walk_parts(%Mail.Message{} = message, acc, counter) do
     if Mail.Message.is_attachment?(message) do
-      filename = get_attachment_filename(message)
+      fallback_filename = "attachment_#{:rand.uniform(10_000)}"
+
+      filename =
+        get_attachment_filename(message) |> sanitize_attachment_filename(fallback_filename)
+
       content_type = get_content_type(message)
+      raw_body = message.body || ""
 
       attachment_map = %{
         "filename" => filename,
         "content_type" => content_type,
-        "data" => message.body || "",
+        # Keep parsed attachments JSON-safe and consistent with other outbound paths.
+        "data" => Base.encode64(raw_body),
+        "encoding" => "base64",
         "size" =>
           if message.body do
-            byte_size(message.body)
+            byte_size(raw_body)
           else
             0
           end
@@ -2335,6 +2342,15 @@ defmodule Elektrine.IMAP.Commands do
         "attachment_#{:rand.uniform(10_000)}"
     end
   end
+
+  defp sanitize_attachment_filename(filename, fallback) when is_binary(filename) do
+    case Elektrine.Email.Sanitizer.sanitize_utf8(filename) |> String.trim() do
+      "" -> fallback
+      sanitized -> sanitized
+    end
+  end
+
+  defp sanitize_attachment_filename(_, fallback), do: fallback
 
   defp get_content_type(message) do
     case Mail.Message.get_content_type(message) do

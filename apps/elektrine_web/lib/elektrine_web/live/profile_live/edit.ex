@@ -3,6 +3,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   alias Elektrine.Constants
   alias Elektrine.Profiles
   alias Elektrine.StaticSites
+  alias ElektrineWeb.Platform.Integrations
 
   @max_links Constants.max_profile_links()
   @max_widgets Constants.max_profile_widgets()
@@ -1143,8 +1144,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   # Helper function to fetch link thumbnail
   defp fetch_link_thumbnail(url) do
-    # Reuse link preview fetcher to get og:image or favicon
-    case Elektrine.Social.LinkPreviewFetcher.fetch_preview_metadata(url) do
+    case Integrations.social_link_preview_metadata(url) do
       %{image_url: image_url, status: "success"} when not is_nil(image_url) ->
         {:ok, image_url}
 

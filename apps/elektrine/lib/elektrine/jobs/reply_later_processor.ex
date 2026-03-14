@@ -1,12 +1,20 @@
 defmodule Elektrine.Jobs.ReplyLaterProcessor do
   @moduledoc """
-  Processes reply later (boomerang) messages and returns them to inbox when due.
+  Oban worker that returns due reply-later messages to the inbox.
   """
+
+  use Oban.Worker, queue: :default, max_attempts: 1
 
   require Logger
   import Ecto.Query
   alias Elektrine.Email.Message
   alias Elektrine.Repo
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{}) do
+    run()
+    :ok
+  end
 
   @doc """
   Processes all due reply later messages and returns them to inbox.
@@ -45,5 +53,11 @@ defmodule Elektrine.Jobs.ReplyLaterProcessor do
     end
 
     :ok
+  end
+
+  def enqueue do
+    %{}
+    |> new()
+    |> Elektrine.JobQueue.insert()
   end
 end

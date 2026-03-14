@@ -8,6 +8,11 @@ primary_region = 'ord'
 kill_signal = 'SIGTERM'
 
 [build]
+  [build.args]
+    ELEKTRINE_RELEASE_MODULES = 'all'
+
+# Module-aware Fly deploys should go through scripts/fly_deploy.sh, which
+# rewrites this config for the selected release module set.
 
 [processes]
   app = "/app/docker-entrypoint.sh app"
@@ -18,6 +23,13 @@ kill_signal = 'SIGTERM'
 
 [env]
   PHX_HOST = 'elektrine.com'
+  PRIMARY_DOMAIN = 'elektrine.com'
+  ELEKTRINE_ENABLED_MODULES = 'all'
+  ELEKTRINE_ENABLE_MAIL = 'true'
+  INSTANCE_DOMAIN = 'elektrine.com'
+  SUPPORTED_DOMAINS = 'elektrine.com,elektrine.net,elektrine.org,z.org'
+  PROFILE_BASE_DOMAINS = 'elektrine.com,z.org'
+  ACTIVITYPUB_MOVE_FROM_DOMAIN = 'z.org'
   ECTO_IPV6 = 'true'
   POOL_SIZE = '20'
   DB_QUEUE_TARGET_MS = '2000'
@@ -82,6 +94,7 @@ kill_signal = 'SIGTERM'
   cpu_kind = 'shared'
   cpus = 4
 
+# BEGIN EMAIL SERVICES
 # POP3 Service (port 2110 internally, 995 externally with TLS)
 [[services]]
   processes = ['app']
@@ -138,3 +151,4 @@ kill_signal = 'SIGTERM'
     interval = '30s'
     timeout = '5s'
     grace_period = '30s'
+# END EMAIL SERVICES

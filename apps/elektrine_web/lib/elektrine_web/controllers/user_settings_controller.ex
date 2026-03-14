@@ -4,8 +4,7 @@ defmodule ElektrineWeb.UserSettingsController do
 
   alias Elektrine.Accounts
   alias Elektrine.Auth.RateLimiter
-  alias Elektrine.Email
-  alias Elektrine.Email.Mailbox
+  alias ElektrineWeb.Platform.Integrations
 
   plug :assign_user
 
@@ -440,52 +439,19 @@ defmodule ElektrineWeb.UserSettingsController do
   end
 
   defp render_edit_password(conn, changeset) do
-    private_mailbox = Email.get_user_mailbox(conn.assigns.current_user.id)
+    assigns =
+      conn.assigns.current_user.id
+      |> Integrations.edit_password_assigns()
+      |> Map.put(:changeset, changeset)
 
-    render(conn, :edit_password,
-      changeset: changeset,
-      private_mailbox: private_mailbox,
-      private_mailbox_unlock_mode: Mailbox.private_storage_unlock_mode(private_mailbox)
-    )
+    render(conn, :edit_password, assigns)
   end
 
   defp decode_private_mailbox_rewrap(params) when is_map(params) do
-    wrapped_private_key = Map.get(params, "private_mailbox_wrapped_private_key")
-    verifier = Map.get(params, "private_mailbox_verifier")
-    unlock_mode = Map.get(params, "private_mailbox_unlock_mode")
-
-    if blank_string?(wrapped_private_key) and blank_string?(verifier) do
-      {:ok, nil}
-    else
-      with {:ok, wrapped_private_key_payload} <- decode_json_payload(wrapped_private_key),
-           {:ok, verifier_payload} <- decode_json_payload(verifier),
-           true <- unlock_mode == "account_password" do
-        {:ok,
-         %{
-           wrapped_private_key: wrapped_private_key_payload,
-           verifier: verifier_payload,
-           unlock_mode: unlock_mode
-         }}
-      else
-        _ -> {:error, :invalid_private_mailbox_rewrap}
-      end
-    end
+    Integrations.decode_private_mailbox_rewrap(params)
   end
 
   defp decode_private_mailbox_rewrap(_params), do: {:ok, nil}
-
-  defp decode_json_payload(value) when is_binary(value) do
-    case Jason.decode(value) do
-      {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
-      _ -> {:error, :invalid}
-    end
-  end
-
-  defp decode_json_payload(_value), do: {:error, :invalid}
-
-  defp blank_string?(value) do
-    !is_binary(value) || String.trim(value) == ""
-  end
 
   defp handle_avatar_upload(%{"avatar" => %Plug.Upload{} = upload} = user_params, user) do
     case Elektrine.Uploads.upload_avatar(upload, user.id) do

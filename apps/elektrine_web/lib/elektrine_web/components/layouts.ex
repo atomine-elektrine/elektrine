@@ -5,6 +5,8 @@ defmodule ElektrineWeb.Layouts do
   import ElektrineWeb.AdminHTML, only: [admin_nav_sections: 0]
   embed_templates("layouts/*")
 
+  alias Elektrine.Platform.Modules
+
   @doc ~s|Gets active announcements for display in layouts.\nThis function is called from the layout templates.\n|
   def get_active_announcements do
     Elektrine.Admin.list_active_announcements()
@@ -237,6 +239,7 @@ defmodule ElektrineWeb.Layouts do
         label: "Post",
         detail: "Share to timeline",
         href: ~p"/timeline?#{[composer: "post"]}",
+        platform_module: :social,
         icon: "hero-rectangle-stack"
       },
       %{
@@ -244,6 +247,7 @@ defmodule ElektrineWeb.Layouts do
         label: "Message",
         detail: "Start a direct message",
         href: ~p"/chat?#{[composer: "message"]}",
+        platform_module: :chat,
         icon: "hero-chat-bubble-left-right"
       },
       %{
@@ -251,6 +255,7 @@ defmodule ElektrineWeb.Layouts do
         label: "Email",
         detail: "Compose a new email",
         href: ~p"/email/compose",
+        platform_module: :email,
         icon: "hero-envelope"
       },
       %{
@@ -258,6 +263,7 @@ defmodule ElektrineWeb.Layouts do
         label: "Task",
         detail: "Capture something to do",
         href: ~p"/calendar?#{[composer: "task"]}",
+        platform_module: :email,
         icon: "hero-check-circle"
       },
       %{
@@ -265,6 +271,7 @@ defmodule ElektrineWeb.Layouts do
         label: "Event",
         detail: "Schedule calendar time",
         href: ~p"/calendar?#{[composer: "event"]}",
+        platform_module: :email,
         icon: "hero-calendar"
       },
       %{
@@ -272,6 +279,7 @@ defmodule ElektrineWeb.Layouts do
         label: "List",
         detail: "Create a saved set of people",
         href: "/lists#create-list-panel",
+        platform_module: :social,
         icon: "hero-queue-list"
       },
       %{
@@ -279,10 +287,16 @@ defmodule ElektrineWeb.Layouts do
         label: "Note",
         detail: "Keep a private note",
         href: ~p"/timeline?#{[composer: "note"]}",
+        platform_module: :social,
         icon: "hero-document-text"
       }
     ]
+    |> Enum.filter(fn item -> platform_module_enabled?(item.platform_module) end)
   end
+
+  @doc ~s|Returns true when a hoster-enabled platform module is available.\n|
+  def platform_module_enabled?(nil), do: true
+  def platform_module_enabled?(module), do: Modules.enabled?(module)
 
   @doc ~s|Gets the current URL from assigns if available.\n|
   def current_url(assigns) do

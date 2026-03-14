@@ -11,6 +11,7 @@ defmodule Elektrine.Social.Likes do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.PostLike
@@ -40,10 +41,11 @@ defmodule Elektrine.Social.Likes do
         # Increment like count
         increment_like_count(message_id)
 
-        # Broadcast and notify asynchronously (don't block the UI)
-        Elektrine.Async.run(fn ->
-          broadcast_like_event(:liked, like)
+        # Broadcast engagement updates synchronously so rapid toggles stay ordered for the UI.
+        safe_broadcast_like_event(:liked, like)
 
+        # Keep slower side effects async.
+        Elektrine.Async.run(fn ->
           # Only notify for local posts with sender_id
           message = Repo.get!(Message, message_id)
 
@@ -80,9 +82,11 @@ defmodule Elektrine.Social.Likes do
             # Decrement like count
             decrement_like_count(message_id)
 
-            # Broadcast unlike event asynchronously (don't block the UI)
+            # Broadcast engagement updates synchronously so rapid toggles stay ordered for the UI.
+            safe_broadcast_like_event(:unliked, deleted_like)
+
+            # Keep slower side effects async.
             Elektrine.Async.run(fn ->
-              broadcast_like_event(:unliked, deleted_like)
               # Federate the unlike to ActivityPub
               Elektrine.ActivityPub.Outbox.federate_unlike(message_id, user_id)
               # Queue durable Bluesky unlike sync
@@ -130,6 +134,17 @@ defmodule Elektrine.Social.Likes do
   defp decrement_like_count(message_id) do
     from(m in Message, where: m.id == ^message_id)
     |> Repo.update_all(inc: [like_count: -1])
+  end
+
+  defp safe_broadcast_like_event(event_type, like) do
+    broadcast_like_event(event_type, like)
+  rescue
+    error ->
+      Logger.warning(
+        "Failed to broadcast like event #{inspect(event_type)}: #{Exception.message(error)}"
+      )
+
+      :ok
   end
 
   defp broadcast_like_event(event_type, like) do

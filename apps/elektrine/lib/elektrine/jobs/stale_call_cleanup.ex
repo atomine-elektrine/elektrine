@@ -1,16 +1,24 @@
 defmodule Elektrine.Jobs.StaleCallCleanup do
   @moduledoc """
-  Cleans up stale calls that never completed.
+  Oban worker that cleans up stale calls that never completed.
 
   Calls stuck in "initiated" or "ringing" for more than 5 minutes
   are automatically marked as "missed" to prevent database pollution
   and blocking new calls.
   """
 
+  use Oban.Worker, queue: :default, max_attempts: 1
+
   require Logger
   alias Elektrine.Calls.Call
   alias Elektrine.Repo
   import Ecto.Query
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{}) do
+    run()
+    :ok
+  end
 
   def run do
     one_minute_ago = DateTime.utc_now() |> DateTime.add(-60, :second)
@@ -53,6 +61,12 @@ defmodule Elektrine.Jobs.StaleCallCleanup do
     end
 
     :ok
+  end
+
+  def enqueue do
+    %{}
+    |> new()
+    |> Elektrine.JobQueue.insert()
   end
 
   @doc """

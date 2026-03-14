@@ -6,7 +6,8 @@ defmodule ElektrineWeb.AdminController do
 
   use ElektrineWeb, :controller
 
-  alias Elektrine.{Accounts, AppCache, Email, Repo, Subscriptions}
+  alias Elektrine.{Accounts, AppCache, Repo, Subscriptions}
+  alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
   @dashboard_stat_timeout_ms 4_000
@@ -45,7 +46,11 @@ defmodule ElektrineWeb.AdminController do
 
     refresh_enabled = Map.get(params, "refresh") == "1"
 
-    render(conn, :dashboard, stats: stats, refresh_enabled: refresh_enabled)
+    render(conn, :dashboard,
+      stats: stats,
+      refresh_enabled: refresh_enabled,
+      email_available: Integrations.email_available?()
+    )
   end
 
   defp build_dashboard_stats do
@@ -64,7 +69,8 @@ defmodule ElektrineWeb.AdminController do
         {:two_factor_users, fn -> get_2fa_user_count() end, 0},
         {:imap_users, fn -> get_imap_user_count() end, 0},
         {:pop3_users, fn -> get_pop3_user_count() end, 0},
-        {:custom_domains, fn -> Email.custom_domain_admin_stats() end,
+        {:custom_domains,
+         fn -> Integrations.admin_custom_domain_stats(default_custom_domain_stats()) end,
          default_custom_domain_stats()},
         {:email_storage, fn -> get_email_storage_stats() end, default_email_storage_stats()},
         {:active_users, fn -> get_active_user_stats() end, default_active_user_stats()},
@@ -123,15 +129,15 @@ defmodule ElektrineWeb.AdminController do
   end
 
   defp get_mailbox_count do
-    Repo.aggregate(Email.Mailbox, :count, :id)
+    Integrations.admin_email_record_count(:mailboxes)
   end
 
   defp get_message_count do
-    Repo.aggregate(Email.Message, :count, :id)
+    Integrations.admin_email_record_count(:messages)
   end
 
   defp get_alias_count do
-    Repo.aggregate(Email.Alias, :count, :id)
+    Integrations.admin_email_record_count(:aliases)
   end
 
   defp get_active_announcements_count do

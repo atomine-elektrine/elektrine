@@ -2,11 +2,10 @@ defmodule ElektrineWeb.CalendarLive.Index do
   use ElektrineWeb, :live_view
 
   import ElektrineWeb.Components.Platform.ElektrineNav
-  import ElektrineWeb.EmailLive.EmailHelpers, only: [sidebar: 1]
   alias Elektrine.Calendar, as: Cal
   alias Elektrine.Calendar.Calendar, as: CalendarSchema
   alias Elektrine.Calendar.Event
-  alias Elektrine.Email
+  alias ElektrineWeb.Platform.Integrations
 
   import ElektrineWeb.CalendarLive.Operations.CalendarOperations
 
@@ -19,14 +18,14 @@ defmodule ElektrineWeb.CalendarLive.Index do
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
     today = Date.utc_today()
-    mailbox = Email.get_user_mailbox(user.id)
+    mailbox = Integrations.email_mailbox(user.id)
 
     {:ok, cached_storage} =
       Elektrine.AppCache.get_storage_info(user.id, fn ->
         Elektrine.Accounts.Storage.get_storage_info(user.id)
       end)
 
-    unread_count = if mailbox, do: Email.unread_count(mailbox.id), else: 0
+    unread_count = if mailbox, do: Integrations.email_unread_count(mailbox.id), else: 0
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:calendar")
@@ -93,7 +92,10 @@ defmodule ElektrineWeb.CalendarLive.Index do
     events_task =
       Task.async(fn -> Cal.list_user_events_in_range(user.id, start_date, end_date) end)
 
-    unread_task = Task.async(fn -> if mailbox, do: Email.unread_count(mailbox.id), else: 0 end)
+    unread_task =
+      Task.async(fn ->
+        if mailbox, do: Integrations.email_unread_count(mailbox.id), else: 0
+      end)
 
     events = Task.await(events_task)
     unread_count = Task.await(unread_task)
@@ -220,5 +222,9 @@ defmodule ElektrineWeb.CalendarLive.Index do
       date.month != view_date.month -> "text-base-content/30"
       true -> ""
     end
+  end
+
+  def sidebar(assigns) do
+    Integrations.calendar_sidebar(assigns)
   end
 end

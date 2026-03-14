@@ -111,7 +111,7 @@
                 Quick Create
               </p>
               <p class="mt-1 text-sm text-base-content/70">
-                Start a post, message, email, task, event, list, or note.
+                Start something from the modules enabled on this host.
               </p>
             </div>
             <div class="mt-1 space-y-1">
@@ -345,30 +345,36 @@
                 <% end %>
               </.link>
             </li>
-            <li>
-              <.link
-                navigate={~p"/timeline?#{[filter: "saved", view: "all"]}"}
-                class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-bookmark" class="w-4 h-4" /> {gettext("Saved Posts")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/friends"}
-                class="gap-3 hover:bg-success/20 hover:text-success hover:border-l-4 hover:border-success transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-user-group" class="w-4 h-4" /> {gettext("Friends")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/lists"}
-                class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Lists")}
-              </.link>
-            </li>
+            <%= if platform_module_enabled?(:social) do %>
+              <li>
+                <.link
+                  navigate={~p"/timeline?#{[filter: "saved", view: "all"]}"}
+                  class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-bookmark" class="w-4 h-4" /> {gettext("Saved Posts")}
+                </.link>
+              </li>
+            <% end %>
+            <%= if platform_module_enabled?(:chat) do %>
+              <li>
+                <.link
+                  navigate={~p"/friends"}
+                  class="gap-3 hover:bg-success/20 hover:text-success hover:border-l-4 hover:border-success transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-user-group" class="w-4 h-4" /> {gettext("Friends")}
+                </.link>
+              </li>
+            <% end %>
+            <%= if platform_module_enabled?(:social) do %>
+              <li>
+                <.link
+                  navigate={~p"/lists"}
+                  class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Lists")}
+                </.link>
+              </li>
+            <% end %>
             <li>
               <.link
                 navigate={~p"/account/profile/edit"}
@@ -383,38 +389,46 @@
             <li class="menu-title">
               <span class="text-xs opacity-75">{gettext("Apps")}</span>
             </li>
-            <li>
-              <.link
-                navigate={~p"/email"}
-                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-inbox" class="w-4 h-4" /> {gettext("Email")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/timeline"}
-                class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Timeline")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/account/password-manager"}
-                class="gap-3 hover:bg-accent/20 hover:text-accent hover:border-l-4 hover:border-accent transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-key" class="w-4 h-4" /> {gettext("Vault")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate={~p"/vpn"}
-                class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
-              >
-                <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("VPN")}
-              </.link>
-            </li>
+            <%= if platform_module_enabled?(:email) do %>
+              <li>
+                <.link
+                  navigate={~p"/email"}
+                  class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-inbox" class="w-4 h-4" /> {gettext("Email")}
+                </.link>
+              </li>
+            <% end %>
+            <%= if platform_module_enabled?(:social) do %>
+              <li>
+                <.link
+                  navigate={~p"/timeline"}
+                  class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Timeline")}
+                </.link>
+              </li>
+            <% end %>
+            <%= if platform_module_enabled?(:vault) do %>
+              <li>
+                <.link
+                  navigate={~p"/account/password-manager"}
+                  class="gap-3 hover:bg-accent/20 hover:text-accent hover:border-l-4 hover:border-accent transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-key" class="w-4 h-4" /> {gettext("Vault")}
+                </.link>
+              </li>
+            <% end %>
+            <%= if platform_module_enabled?(:vpn) do %>
+              <li>
+                <.link
+                  navigate={~p"/vpn"}
+                  class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("VPN")}
+                </.link>
+              </li>
+            <% end %>
 
             <%= if @current_user.is_admin do %>
               <div class="divider my-1"></div>
@@ -505,9 +519,9 @@
   {@inner_content}
 </main>
 
-<footer class="relative mt-auto min-h-[360px] flex items-center overflow-x-clip">
+<footer class="relative mt-auto flex min-h-[22rem] items-start overflow-x-clip sm:min-h-[360px] sm:items-center">
   <!-- Footer background image with 3D tilt effect -->
-  <div class="absolute bottom-4 right-4 h-[340px]">
+  <div class="absolute bottom-4 right-4 hidden h-[340px] sm:block">
     <img
       id="footer-art"
       src="/images/e1.png"
@@ -517,9 +531,9 @@
     />
   </div>
 
-  <div class="container mx-auto px-4 py-8 max-w-6xl relative z-10">
+  <div class="container relative z-10 mx-auto max-w-6xl px-4 py-10 sm:py-8">
     <!-- Main Footer Content -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8 text-center md:text-left">
+    <div class="mb-8 grid grid-cols-1 gap-6 text-center sm:grid-cols-2 md:grid-cols-5 md:gap-8 md:text-left">
       <!-- Company -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Company</h3>
@@ -565,7 +579,7 @@
       </div>
       
 <!-- Email Settings -->
-      <div class="col-span-2 md:col-span-1">
+      <div class="sm:col-span-2 md:col-span-1">
         <h3 class="font-semibold mb-3 text-sm">Email Settings</h3>
         <div class="text-xs opacity-70 space-y-1">
           <p>
@@ -662,7 +676,7 @@
     
 <!-- Bottom Bar -->
     <div class="border-t border-base-300 pt-4">
-      <div class="flex flex-wrap justify-center items-center gap-4 text-xs opacity-60">
+      <div class="flex flex-col items-center justify-center gap-2 text-xs opacity-60 sm:flex-row sm:flex-wrap sm:gap-4">
         <span class="font-serif-accent">© 2026 Elektrine. All rights reserved.</span>
         <span class="hidden sm:inline">•</span>
         <span data-live-clock>

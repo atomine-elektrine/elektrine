@@ -78,6 +78,7 @@ import {
 // Timeline/Feed hooks
 import {
   PostClick,
+  RemoteFollowButton,
   InfiniteScroll,
   UserHoverCard,
   ImageModal,
@@ -195,6 +196,7 @@ export const Hooks = {
 
   // Timeline/Feed
   PostClick,
+  RemoteFollowButton,
   InfiniteScroll,
   UserHoverCard,
   ImageModal,

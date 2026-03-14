@@ -345,117 +345,123 @@
               </div>
             </div>
           </div>
-          
-<!-- Email Sending Status Section -->
-          <%= if @loading_security do %>
+
+          <%= if tab_enabled?("email") do %>
+            <!-- Email Sending Status Section -->
+            <%= if @loading_security do %>
+              <div class="card glass-card shadow-lg">
+                <div class="card-body p-4 sm:p-6">
+                  <div class="animate-pulse space-y-4">
+                    <div class="h-4 bg-base-300 rounded w-1/3"></div>
+                    <div class="h-3 bg-base-300 rounded w-2/3"></div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+            <%= if !@loading_security && @email_restriction_status.restricted do %>
+              <div class="card glass-card shadow-lg border-2 border-warning">
+                <div class="card-body p-4 sm:p-6">
+                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                    <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
+                    Email Sending Restricted
+                  </h3>
+
+                  <div class="alert alert-warning mb-4">
+                    <.icon name="hero-shield-exclamation" class="w-5 h-5" />
+                    <div>
+                      <div class="font-semibold">
+                        Your email sending has been temporarily restricted
+                      </div>
+                      <div class="text-sm opacity-80">{@email_restriction_status.reason}</div>
+                    </div>
+                  </div>
+
+                  <div class="bg-base-200 rounded-lg p-4 mb-4">
+                    <h4 class="font-semibold mb-2 text-sm">To restore email sending:</h4>
+                    <ol class="list-decimal list-inside space-y-1 text-sm opacity-80">
+                      <li>Make sure you have a recovery email set in your profile</li>
+                      <li>Click the button below to receive a verification email</li>
+                      <li>Click the verification link in that email</li>
+                    </ol>
+                  </div>
+
+                  <%= if @email_restriction_status.recovery_email do %>
+                    <div class="mb-4">
+                      <div class="text-sm opacity-70 mb-1">Recovery Email</div>
+                      <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
+                        <span>{@email_restriction_status.recovery_email}</span>
+                        <%= if @email_restriction_status.recovery_email_verified do %>
+                          <span class="badge badge-success badge-sm">Verified</span>
+                        <% else %>
+                          <span class="badge badge-warning badge-sm">Not Verified</span>
+                        <% end %>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      phx-click="send_recovery_verification"
+                      class="btn btn-warning w-full"
+                    >
+                      <.icon name="hero-envelope" class="w-5 h-5 mr-2" /> Send Verification Email
+                    </button>
+                  <% else %>
+                    <div class="alert alert-info">
+                      <.icon name="hero-information-circle" class="w-5 h-5" />
+                      <span class="text-sm">
+                        Please add a recovery email address in the Profile tab first.
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+
+          <%= if tab_enabled?("email") do %>
+            <!-- App Passwords Section -->
             <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
-                <div class="animate-pulse space-y-4">
-                  <div class="h-4 bg-base-300 rounded w-1/3"></div>
-                  <div class="h-3 bg-base-300 rounded w-2/3"></div>
+                <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                  <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
+                </h3>
+                <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                  {gettext("Access your email from POP3/IMAP clients without 2FA.")}
+                </p>
+                <div class="card-actions">
+                  <.link
+                    href={~p"/account/app-passwords"}
+                    class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                  >
+                    {gettext("Manage App Passwords")}
+                  </.link>
                 </div>
               </div>
             </div>
           <% end %>
-          <%= if !@loading_security && @email_restriction_status.restricted do %>
-            <div class="card glass-card shadow-lg border-2 border-warning">
+
+          <%= if tab_enabled?("password-manager") do %>
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                  <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
-                  Email Sending Restricted
+                  <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Password Manager")}
                 </h3>
-
-                <div class="alert alert-warning mb-4">
-                  <.icon name="hero-shield-exclamation" class="w-5 h-5" />
-                  <div>
-                    <div class="font-semibold">
-                      Your email sending has been temporarily restricted
-                    </div>
-                    <div class="text-sm opacity-80">{@email_restriction_status.reason}</div>
-                  </div>
-                </div>
-
-                <div class="bg-base-200 rounded-lg p-4 mb-4">
-                  <h4 class="font-semibold mb-2 text-sm">To restore email sending:</h4>
-                  <ol class="list-decimal list-inside space-y-1 text-sm opacity-80">
-                    <li>Make sure you have a recovery email set in your profile</li>
-                    <li>Click the button below to receive a verification email</li>
-                    <li>Click the verification link in that email</li>
-                  </ol>
-                </div>
-
-                <%= if @email_restriction_status.recovery_email do %>
-                  <div class="mb-4">
-                    <div class="text-sm opacity-70 mb-1">Recovery Email</div>
-                    <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
-                      <span>{@email_restriction_status.recovery_email}</span>
-                      <%= if @email_restriction_status.recovery_email_verified do %>
-                        <span class="badge badge-success badge-sm">Verified</span>
-                      <% else %>
-                        <span class="badge badge-warning badge-sm">Not Verified</span>
-                      <% end %>
-                    </div>
-                  </div>
-
+                <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                  {gettext("Store and reveal credentials from an encrypted vault.")}
+                </p>
+                <div class="card-actions">
                   <button
                     type="button"
-                    phx-click="send_recovery_verification"
-                    class="btn btn-warning w-full"
+                    phx-click="change_tab"
+                    phx-value-tab="password-manager"
+                    class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
                   >
-                    <.icon name="hero-envelope" class="w-5 h-5 mr-2" /> Send Verification Email
+                    {gettext("Open Password Manager Tab")}
                   </button>
-                <% else %>
-                  <div class="alert alert-info">
-                    <.icon name="hero-information-circle" class="w-5 h-5" />
-                    <span class="text-sm">
-                      Please add a recovery email address in the Profile tab first.
-                    </span>
-                  </div>
-                <% end %>
+                </div>
               </div>
             </div>
           <% end %>
-          
-<!-- App Passwords Section -->
-          <div class="card glass-card shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
-              </h3>
-              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
-                {gettext("Access your email from POP3/IMAP clients without 2FA.")}
-              </p>
-              <div class="card-actions">
-                <.link
-                  href={~p"/account/app-passwords"}
-                  class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
-                >
-                  {gettext("Manage App Passwords")}
-                </.link>
-              </div>
-            </div>
-          </div>
-
-          <div class="card glass-card shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Password Manager")}
-              </h3>
-              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
-                {gettext("Store and reveal credentials from an encrypted vault.")}
-              </p>
-              <div class="card-actions">
-                <button
-                  type="button"
-                  phx-click="change_tab"
-                  phx-value-tab="password-manager"
-                  class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
-                >
-                  {gettext("Open Password Manager Tab")}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       <% end %>
       
@@ -2031,647 +2037,7 @@
 <!-- Email Tab -->
       <%= if @selected_tab == "email" do %>
         <div class="space-y-4 sm:space-y-6">
-          <!-- Email Settings Card -->
-          <div class="card glass-card shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-envelope" class="w-5 h-5" /> {gettext("Email Settings")}
-              </h3>
-
-              <.form
-                for={@changeset}
-                id="email-form"
-                phx-submit="save"
-                phx-change="validate"
-                class="space-y-4"
-              >
-                <!-- Account Identity Info -->
-                <div class="bg-base-200 rounded-lg p-4 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium">{gettext("Username")}</span>
-                    <span class="text-sm font-medium">{@user.username}</span>
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium">{gettext("Unique ID")}</span>
-                    <span class="text-sm font-medium text-base-content/70">
-                      {@user.unique_id}
-                    </span>
-                  </div>
-                  <div class="text-xs text-base-content/60 mt-2">
-                    {gettext(
-                      "Username is for login only. Your handle (%{handle}) is your public identity.",
-                      handle: @user.handle
-                    )}
-                  </div>
-                </div>
-                
-<!-- Email Addresses -->
-                <div class="bg-base-200 rounded-lg p-4 space-y-2">
-                  <%= if @mailboxes && @mailboxes != [] do %>
-                    <%= for mailbox <- @mailboxes do %>
-                      <div class="flex items-center justify-between">
-                        <span class="text-sm font-medium">{gettext("Primary Email")}</span>
-                        <span class="text-sm font-medium">{mailbox.email}</span>
-                      </div>
-                    <% end %>
-                  <% end %>
-
-                  <%= if @aliases && @aliases != [] do %>
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-medium">{gettext("Email Aliases")}</span>
-                      <span class="text-sm">
-                        {gettext("%{count} configured", count: length(@aliases))}
-                      </span>
-                    </div>
-                  <% else %>
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-medium">{gettext("Email Aliases")}</span>
-                      <span class="text-sm text-base-content/70">
-                        {gettext("None configured")}
-                      </span>
-                    </div>
-                  <% end %>
-
-                  <div class="text-xs text-base-content/60 mt-2">
-                    {gettext("Manage email addresses and aliases in the")}
-                    <.link href={~p"/email"} class="link link-primary">
-                      {gettext("Email section")}
-                    </.link>
-                  </div>
-                </div>
-
-                <div class="divider text-sm my-4">{gettext("Default Email Domain")}</div>
-                
-<!-- Preferred Email Domain -->
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-medium">{gettext("Compose From")}</span>
-                  </label>
-                  <select
-                    name="user[preferred_email_domain]"
-                    class="select select-bordered w-full"
-                  >
-                    <%= for domain <- Elektrine.Domains.available_email_domains_for_user(@user) do %>
-                      <option
-                        value={domain}
-                        selected={
-                          (@user.preferred_email_domain ||
-                             Elektrine.Domains.default_user_handle_domain()) ==
-                            domain
-                        }
-                      >
-                        {@user.username}@{domain}
-                      </option>
-                    <% end %>
-                  </select>
-                  <label class="label">
-                    <span class="label-text-alt">
-                      {gettext("Default 'From' address when composing new emails")}
-                    </span>
-                  </label>
-                </div>
-
-                <div class="divider text-sm my-4">{gettext("Email Signature")}</div>
-                
-<!-- Email Signature Section -->
-                <div>
-                  <label class="label">
-                    <span class="label-text font-medium">{gettext("Signature")}</span>
-                    <span class="label-text-alt text-xs">{gettext("Max 500 characters")}</span>
-                  </label>
-                  <textarea
-                    name="user[email_signature]"
-                    rows="4"
-                    class="textarea textarea-bordered w-full text-sm"
-                    maxlength="500"
-                    placeholder={
-                      gettext(
-                        "Your signature will be automatically appended to outgoing emails.\n\nExample:\nBest regards,\nYour Name\nYour Title"
-                      )
-                    }
-                  ><%= Ecto.Changeset.get_field(@changeset, :email_signature) %></textarea>
-                  <div class="label">
-                    <span class="text-xs text-base-content/60">
-                      {gettext(
-                        "Automatically appended to all outgoing emails with '-- ' separator"
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="card-actions justify-end">
-                  <.button class="btn-primary btn-sm w-full sm:w-auto text-xs sm:text-sm">
-                    {gettext("Save Settings")}
-                  </.button>
-                </div>
-              </.form>
-            </div>
-          </div>
-
-          <div
-            id="private-mailbox-settings"
-            phx-hook="MailboxPrivateStorage"
-            class="card glass-card shadow-lg"
-            data-private-mailbox-configured={to_string(@private_mailbox_configured)}
-            data-private-mailbox-enabled={to_string(@private_mailbox_enabled)}
-            data-private-mailbox-unlock-mode={@private_mailbox_unlock_mode}
-            data-private-mailbox-id={@primary_mailbox && @primary_mailbox.id}
-            data-private-mailbox-wrapped-key={
-              encode_payload(@private_mailbox_wrapped_private_key)
-            }
-            data-private-mailbox-verifier={encode_payload(@private_mailbox_verifier)}
-          >
-            <div class="card-body p-4 sm:p-6">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                    <.icon name="hero-shield-check" class="w-5 h-5" />
-                    {gettext("Private Mailbox Storage")}
-                  </h3>
-                  <p class="text-xs sm:text-sm text-base-content/70 mt-1">
-                    {gettext(
-                      "Store protected email with a browser-generated mailbox key. By default, the key is wrapped with your account password so the mailbox can unlock after password login."
-                    )}
-                  </p>
-                </div>
-
-                <div class={[
-                  "badge",
-                  if(@private_mailbox_enabled, do: "badge-success", else: "badge-outline")
-                ]}>
-                  <%= if @private_mailbox_enabled do %>
-                    {gettext("Active")}
-                  <% else %>
-                    {gettext("Inactive")}
-                  <% end %>
-                </div>
-              </div>
-
-              <%= if @primary_mailbox do %>
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mt-4">
-                  <div class="rounded-xl border border-base-300 bg-base-200/40 p-4 space-y-4">
-                    <%= if @private_mailbox_configured do %>
-                      <div>
-                        <h4 class="font-semibold text-sm">{gettext("Unlock Mailbox")}</h4>
-                        <p
-                          class="text-xs text-base-content/70 mt-1"
-                          data-private-mailbox-locked-content
-                        >
-                          <%= if @private_mailbox_unlock_mode == "account_password" do %>
-                            {gettext(
-                              "This mailbox uses your account password by default. Password logins can unlock it automatically in this tab, and passkey or remembered sessions can unlock it with your account password."
-                            )}
-                          <% else %>
-                            {gettext(
-                              "Unlock once per browser tab with your separate mailbox passphrase to view protected message content."
-                            )}
-                          <% end %>
-                        </p>
-                      </div>
-
-                      <div class="space-y-3" data-private-mailbox-locked-content>
-                        <input
-                          type="password"
-                          class="input input-bordered w-full"
-                          placeholder={
-                            if @private_mailbox_unlock_mode == "account_password",
-                              do: gettext("Enter account password"),
-                              else: gettext("Enter mailbox passphrase")
-                          }
-                          autocomplete="current-password"
-                          data-private-mailbox-passphrase
-                        />
-
-                        <div class="flex flex-col sm:flex-row gap-2">
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm flex-1"
-                            data-private-mailbox-unlock
-                          >
-                            {gettext("Unlock")}
-                          </button>
-                        </div>
-
-                        <p class="text-xs text-base-content/70" data-private-mailbox-status>
-                          {gettext("Mailbox locked.")}
-                        </p>
-                      </div>
-
-                      <div
-                        class="hidden rounded-xl border border-success/30 bg-success/10 p-3"
-                        data-private-mailbox-unlocked-content
-                      >
-                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <p class="text-sm text-base-content/80" data-private-mailbox-status>
-                            {gettext("Mailbox unlocked in this tab.")}
-                          </p>
-                          <button
-                            type="button"
-                            class="btn btn-outline btn-sm"
-                            data-private-mailbox-lock
-                          >
-                            {gettext("Lock")}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div class="divider my-2"></div>
-
-                      <div class="flex flex-col sm:flex-row gap-2">
-                        <%= if @private_mailbox_enabled do %>
-                          <button
-                            type="button"
-                            phx-click="disable_private_mailbox"
-                            class="btn btn-outline btn-sm flex-1"
-                          >
-                            {gettext("Pause Protection")}
-                          </button>
-                        <% else %>
-                          <button
-                            type="button"
-                            phx-click="enable_private_mailbox"
-                            class="btn btn-primary btn-sm flex-1"
-                          >
-                            {gettext("Resume Protection")}
-                          </button>
-                        <% end %>
-                      </div>
-                    <% else %>
-                      <div>
-                        <h4 class="font-semibold text-sm">{gettext("Set Up Private Mailbox")}</h4>
-                        <p class="text-xs text-base-content/70 mt-1">
-                          {gettext(
-                            "Generate a mailbox keypair in this browser, then choose whether to wrap it with your account password or a separate mailbox passphrase."
-                          )}
-                        </p>
-                      </div>
-
-                      <.form
-                        for={%{}}
-                        phx-submit="private_mailbox_setup"
-                        data-private-mailbox-setup-form
-                      >
-                        <div class="space-y-3">
-                          <div class="space-y-2">
-                            <label class="label py-0">
-                              <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
-                                {gettext("Unlock method")}
-                              </span>
-                            </label>
-                            <select
-                              name="private_mailbox[unlock_mode]"
-                              class="select select-bordered w-full"
-                              data-private-mailbox-setup-mode
-                            >
-                              <option value="account_password" selected>
-                                {gettext("Use account password")}
-                              </option>
-                              <option value="separate_passphrase">
-                                {gettext("Use separate mailbox passphrase")}
-                              </option>
-                            </select>
-                          </div>
-
-                          <div
-                            class="space-y-3"
-                            data-private-mailbox-account-password-fields
-                          >
-                            <input
-                              type="password"
-                              name="private_mailbox[current_account_password]"
-                              class="input input-bordered w-full"
-                              placeholder={gettext("Current account password")}
-                              autocomplete="current-password"
-                              data-private-mailbox-account-password
-                            />
-                            <p class="text-xs text-base-content/60">
-                              {gettext(
-                                "Recommended. This makes password login the default unlock path. Passkey and remembered sessions can still unlock manually with your account password."
-                              )}
-                            </p>
-                          </div>
-
-                          <div
-                            class="space-y-3 hidden"
-                            data-private-mailbox-custom-passphrase-fields
-                          >
-                            <input
-                              type="password"
-                              name="_private_mailbox_passphrase"
-                              class="input input-bordered w-full"
-                              placeholder={gettext("New mailbox passphrase")}
-                              autocomplete="new-password"
-                              data-private-mailbox-setup-passphrase
-                            />
-                            <input
-                              type="password"
-                              name="_private_mailbox_passphrase_confirm"
-                              class="input input-bordered w-full"
-                              placeholder={gettext("Confirm passphrase")}
-                              autocomplete="new-password"
-                              data-private-mailbox-setup-passphrase-confirm
-                            />
-                            <p class="text-xs text-base-content/60">
-                              {gettext(
-                                "Choose this only if you want mailbox unlock to stay separate from account login."
-                              )}
-                            </p>
-                          </div>
-
-                          <input
-                            type="hidden"
-                            name="private_mailbox[wrapped_private_key]"
-                            data-private-mailbox-wrapped-key-input
-                          />
-                          <input
-                            type="hidden"
-                            name="private_mailbox[public_key]"
-                            data-private-mailbox-public-key-input
-                          />
-                          <input
-                            type="hidden"
-                            name="private_mailbox[verifier]"
-                            data-private-mailbox-verifier-input
-                          />
-
-                          <button
-                            type="button"
-                            class="btn btn-primary btn-sm w-full"
-                            data-private-mailbox-setup-submit
-                          >
-                            {gettext("Enable Private Storage")}
-                          </button>
-                        </div>
-                      </.form>
-                    <% end %>
-                  </div>
-
-                  <div class="rounded-xl border border-base-300 bg-base-200/40 p-4">
-                    <h4 class="font-semibold text-sm mb-3">{gettext("What is protected")}</h4>
-                    <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm text-base-content/70">
-                      <li>
-                        {gettext(
-                          "Stored message subjects, bodies, and attachments are encrypted at rest."
-                        )}
-                      </li>
-                      <li>
-                        {gettext(
-                          "The browser unlocks content locally after password login or after you enter the mailbox unlock secret in this tab."
-                        )}
-                      </li>
-                      <li>
-                        {gettext(
-                          "Search previews stay generic until you unlock the mailbox in this tab."
-                        )}
-                      </li>
-                      <li>
-                        {gettext(
-                          "Normal SMTP headers like From, To, CC, and BCC are still stored as standard metadata."
-                        )}
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              <% else %>
-                <div class="alert alert-info mt-4">
-                  <.icon name="hero-information-circle" class="w-5 h-5" />
-                  <span class="text-sm">
-                    {gettext("Create a mailbox first before enabling private storage.")}
-                  </span>
-                </div>
-              <% end %>
-            </div>
-          </div>
-          
-<!-- PGP Encryption -->
-          <div class="card glass-card shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("PGP Encryption")}
-              </h3>
-              <p class="text-xs sm:text-sm text-base-content/70 mb-4">
-                {gettext(
-                  "Upload your PGP public key to enable encrypted email. Recipients can discover your key via WKD."
-                )}
-              </p>
-
-              <%= if @user.pgp_public_key do %>
-                <!-- Current Key Info -->
-                <div class="bg-base-200 rounded-lg p-4 space-y-3 mb-4">
-                  <div class="flex items-center gap-2">
-                    <.icon name="hero-key" class="w-5 h-5 text-success" />
-                    <span class="font-medium text-success text-sm">
-                      {gettext("PGP Key Active")}
-                    </span>
-                  </div>
-
-                  <%= if @user.pgp_fingerprint do %>
-                    <div>
-                      <div class="text-xs text-base-content/60 mb-1">
-                        {gettext("Fingerprint")}
-                      </div>
-                      <code class="text-xs font-mono bg-base-300 px-2 py-1 rounded block break-all">
-                        {format_fingerprint(@user.pgp_fingerprint)}
-                      </code>
-                    </div>
-                  <% end %>
-
-                  <%= if @user.pgp_key_id do %>
-                    <div>
-                      <div class="text-xs text-base-content/60 mb-1">{gettext("Key ID")}</div>
-                      <code class="text-xs font-mono bg-base-300 px-2 py-1 rounded">
-                        {@user.pgp_key_id}
-                      </code>
-                    </div>
-                  <% end %>
-
-                  <%= if @user.pgp_key_uploaded_at do %>
-                    <div>
-                      <div class="text-xs text-base-content/60 mb-1">{gettext("Uploaded")}</div>
-                      <span class="text-xs">
-                        {Calendar.strftime(@user.pgp_key_uploaded_at, "%Y-%m-%d %H:%M UTC")}
-                      </span>
-                    </div>
-                  <% end %>
-                </div>
-                
-<!-- WKD Discovery URL -->
-                <div class="bg-base-200 rounded-lg p-4 mb-4">
-                  <div class="text-xs text-base-content/60 mb-1">
-                    {gettext("WKD Discovery URL")}
-                  </div>
-                  <code class="text-xs font-mono break-all">
-                    https://{Elektrine.Domains.default_user_handle_domain()}/.well-known/openpgpkey/hu/{wkd_hash(
-                      @user.username
-                    )}
-                  </code>
-                  <div class="text-xs text-base-content/50 mt-2">
-                    {gettext("Email clients can automatically discover your key at this URL.")}
-                  </div>
-                </div>
-                
-<!-- Delete Key -->
-                <div class="card-actions">
-                  <button
-                    type="button"
-                    phx-click="delete_pgp_key"
-                    data-confirm={
-                      gettext(
-                        "Are you sure you want to remove your PGP key? This will disable encrypted email."
-                      )
-                    }
-                    class="btn btn-error btn-sm w-full"
-                  >
-                    <.icon name="hero-trash" class="w-4 h-4" />
-                    {gettext("Remove PGP Key")}
-                  </button>
-                </div>
-              <% else %>
-                <!-- Upload Form -->
-                <.form
-                  for={%{}}
-                  id="pgp-key-form"
-                  phx-submit="upload_pgp_key"
-                  class="space-y-4"
-                >
-                  <div>
-                    <label class="label">
-                      <span class="label-text font-medium">{gettext("Public Key")}</span>
-                    </label>
-                    <textarea
-                      name="pgp_public_key"
-                      rows="8"
-                      class="textarea textarea-bordered w-full font-mono text-xs"
-                      placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----\n\n...\n\n-----END PGP PUBLIC KEY BLOCK-----"
-                      required
-                    ></textarea>
-                    <div class="label">
-                      <span class="text-xs text-base-content/60">
-                        {gettext("Paste your ASCII-armored PGP public key.")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="card-actions">
-                    <.button class="btn-primary btn-sm w-full">
-                      <.icon name="hero-arrow-up-tray" class="w-4 h-4" />
-                      {gettext("Upload Public Key")}
-                    </.button>
-                  </div>
-                </.form>
-                
-<!-- Info about PGP -->
-                <div class="alert alert-info mt-4">
-                  <.icon name="hero-information-circle" class="w-5 h-5" />
-                  <div class="text-xs">
-                    <div class="font-medium mb-1">{gettext("How it works")}</div>
-                    <ul class="list-disc list-inside space-y-1">
-                      <li>
-                        {gettext(
-                          "When you send an email, we check if the recipient has a PGP key"
-                        )}
-                      </li>
-                      <li>
-                        {gettext(
-                          "Keys are discovered via WKD (Web Key Directory) or your contacts"
-                        )}
-                      </li>
-                      <li>
-                        {gettext("If a key is found, the email body is encrypted automatically")}
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          </div>
-          
-<!-- Email Subscription Preferences -->
-          <%= if @loading_email do %>
-            <div class="card glass-card shadow-lg">
-              <div class="card-body p-4 sm:p-6">
-                <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
-                  <.icon name="hero-bell" class="w-5 h-5" /> {gettext(
-                    "Email Subscription Preferences"
-                  )}
-                </h3>
-                <div class="animate-pulse space-y-3">
-                  <div class="h-4 bg-base-300 rounded w-2/3"></div>
-                  <div class="h-12 bg-base-300 rounded"></div>
-                  <div class="h-12 bg-base-300 rounded"></div>
-                  <div class="h-12 bg-base-300 rounded"></div>
-                </div>
-              </div>
-            </div>
-          <% else %>
-            <%= if !Enum.empty?(@user_emails) do %>
-              <div class="card glass-card shadow-lg">
-                <div class="card-body p-4 sm:p-6">
-                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
-                    <.icon name="hero-bell" class="w-5 h-5" /> {gettext(
-                      "Email Subscription Preferences"
-                    )}
-                  </h3>
-
-                  <p class="text-xs sm:text-sm text-base-content/70 mb-4">
-                    {gettext(
-                      "Manage subscription preferences for all your email addresses. Transactional emails cannot be unsubscribed."
-                    )}
-                  </p>
-
-                  <div class="space-y-2">
-                    <%= for list <- @lists do %>
-                      <div class="bg-base-200 rounded-lg p-3">
-                        <div class="flex items-center justify-between gap-3">
-                          <div class="flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                              <span class="font-medium text-sm">{list.name}</span>
-                              <div class={"badge badge-xs #{type_badge_class(list.type)}"}>
-                                {format_type(list.type)}
-                              </div>
-                            </div>
-                            <p class="text-xs text-base-content/60">{list.description}</p>
-                          </div>
-                          <%= if list.can_unsubscribe do %>
-                            <% any_subscribed =
-                              Enum.any?(@user_emails, fn email ->
-                                !get_in(@unsubscribe_status, [email, list.id])
-                              end) %>
-                            <button
-                              phx-click="toggle_subscription"
-                              phx-value-list_id={list.id}
-                              class={"btn btn-sm #{if any_subscribed, do: "btn-primary", else: "btn-ghost"}"}
-                            >
-                              <%= if any_subscribed do %>
-                                <.icon name="hero-bell" class="w-4 h-4" />
-                                <span class="ml-1">{gettext("Subscribed")}</span>
-                              <% else %>
-                                <.icon name="hero-bell-slash" class="w-4 h-4" />
-                                <span class="ml-1">{gettext("Unsubscribed")}</span>
-                              <% end %>
-                            </button>
-                          <% else %>
-                            <span class="badge badge-ghost">{gettext("Required")}</span>
-                          <% end %>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-              </div>
-            <% else %>
-              <div class="card glass-card shadow-lg">
-                <div class="card-body p-4 sm:p-6">
-                  <div class="alert alert-warning">
-                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-                    <span class="text-sm">
-                      {gettext("No email addresses found for your account.")}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            <% end %>
-          <% end %>
+          <.email_tab_content {assigns} />
         </div>
       <% end %>
       

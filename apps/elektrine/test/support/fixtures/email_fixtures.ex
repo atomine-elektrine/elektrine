@@ -4,9 +4,10 @@ defmodule Elektrine.EmailFixtures do
   entities via the `Elektrine.Email` context.
   """
 
-  alias Elektrine.Email
-  alias Elektrine.Email.Mailbox
   alias Elektrine.Repo
+
+  @mailbox_module :"Elixir.Elektrine.Email.Mailbox"
+  @mailbox_adapter_module :"Elixir.Elektrine.Email.MailboxAdapter"
 
   def unique_email, do: "user#{System.unique_integer([:positive])}@elektrine.com"
 
@@ -23,12 +24,10 @@ defmodule Elektrine.EmailFixtures do
 
   def mailbox_fixture(attrs \\ %{}) do
     attrs = valid_mailbox_attributes(attrs)
-    mailbox_struct = :erlang.apply(Mailbox, :__struct__, [])
+    mailbox_struct = :erlang.apply(@mailbox_module, :__struct__, [])
+    changeset = :erlang.apply(@mailbox_module, :changeset, [mailbox_struct, attrs])
 
-    {:ok, mailbox} =
-      mailbox_struct
-      |> Mailbox.changeset(attrs)
-      |> Repo.insert()
+    {:ok, mailbox} = Repo.insert(changeset)
 
     mailbox
   end
@@ -50,7 +49,7 @@ defmodule Elektrine.EmailFixtures do
 
     attrs = Map.merge(defaults, attrs)
 
-    {:ok, message} = Email.MailboxAdapter.create_message(attrs)
+    {:ok, message} = :erlang.apply(@mailbox_adapter_module, :create_message, [attrs])
     message
   end
 end

@@ -9,6 +9,7 @@ defmodule Elektrine.SecurityAlerts do
 
   alias Elektrine.Accounts
   alias Elektrine.Email.MailboxAdapter
+  alias Elektrine.Platform.Modules
 
   # Rate limit: 1 alert per type per user per hour
   @rate_limit_seconds 3600
@@ -17,26 +18,34 @@ defmodule Elektrine.SecurityAlerts do
   Send a spoofing alert when someone tries to send email from a user's address.
   """
   def send_spoofing_alert(spoofed_address, recipient_address, subject) do
-    # Find the user who owns the spoofed address
-    case find_owner(spoofed_address) do
-      {:ok, user} ->
-        # Check rate limit
-        cache_key = "security_alert:spoofing:#{user.id}:#{spoofed_address}"
+    if email_module_compiled?() do
+      # Find the user who owns the spoofed address
+      case find_owner(spoofed_address) do
+        {:ok, user} ->
+          # Check rate limit
+          cache_key = "security_alert:spoofing:#{user.id}:#{spoofed_address}"
 
-        if rate_limited?(cache_key) do
-          Logger.debug("Rate limited spoofing alert for #{spoofed_address}")
-          {:ok, :rate_limited}
-        else
-          # Send alerts
-          send_spoofing_alert_to_user(user, spoofed_address, recipient_address, subject)
-          set_rate_limit(cache_key)
-          {:ok, :sent}
-        end
+          if rate_limited?(cache_key) do
+            Logger.debug("Rate limited spoofing alert for #{spoofed_address}")
+            {:ok, :rate_limited}
+          else
+            # Send alerts
+            send_spoofing_alert_to_user(user, spoofed_address, recipient_address, subject)
+            set_rate_limit(cache_key)
+            {:ok, :sent}
+          end
 
-      {:error, :not_found} ->
-        Logger.debug("No owner found for spoofed address: #{spoofed_address}")
-        {:error, :no_owner}
+        {:error, :not_found} ->
+          Logger.debug("No owner found for spoofed address: #{spoofed_address}")
+          {:error, :no_owner}
+      end
+    else
+      {:error, :email_module_unavailable}
     end
+  end
+
+  defp email_module_compiled? do
+    Modules.compiled?(:email)
   end
 
   defp send_spoofing_alert_to_user(user, spoofed_address, recipient_address, subject) do

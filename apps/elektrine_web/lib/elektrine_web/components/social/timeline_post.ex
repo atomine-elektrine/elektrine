@@ -22,6 +22,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.Social.PostActions
   import ElektrineWeb.Components.Social.EmbeddedPost, only: [embedded_post: 1]
+  import ElektrineWeb.Components.Social.FollowButton, only: [local_follow_button: 1]
   import ElektrineWeb.Components.Social.PostReactions, only: [post_reactions: 1]
   import ElektrineWeb.Components.Social.ContentJourney, only: [content_journey: 1]
   import ElektrineWeb.Components.User.Avatar
@@ -31,8 +32,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
-  alias Elektrine.Social.LinkPreview
   alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineWeb.Platform.Integrations
 
   @doc """
   Renders a complete timeline post card.
@@ -77,6 +78,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :user_follows, :map, default: %{}
   attr :user_saves, :map, default: %{}
   attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
   attr :user_statuses, :map, default: %{}
   attr :lemmy_counts, :map, default: %{}
   attr :post_replies, :map, default: %{}
@@ -247,6 +249,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             user_saves={@user_saves}
             user_follows={@user_follows}
             pending_follows={@pending_follows}
+            remote_follow_overrides={@remote_follow_overrides}
             display_like_count={@display_like_count}
             display_comment_count={@display_comment_count}
             show_follow_button={@show_follow_button}
@@ -441,7 +444,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         <%= if @post.edited_at do %>
           <span
             class="badge badge-xs badge-ghost"
-            title={"Edited #{Elektrine.Social.time_ago_in_words(@post.edited_at)}"}
+            title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
           >
             <.icon name="hero-pencil" class="w-2.5 h-2.5" />
           </span>
@@ -494,7 +497,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         <%= if @post.edited_at do %>
           <span
             class="badge badge-xs badge-ghost flex-shrink-0"
-            title={"Edited #{Elektrine.Social.time_ago_in_words(@post.edited_at)}"}
+            title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
           >
             <.icon name="hero-pencil" class="w-2.5 h-2.5" />
           </span>
@@ -1799,7 +1802,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
               <% end %>
             </div>
           <% end %>
-          <%= if Ecto.assoc_loaded?(@post.quoted_message.link_preview) && match?(%LinkPreview{}, @post.quoted_message.link_preview) && @post.quoted_message.link_preview.status == "success" do %>
+          <%= if Ecto.assoc_loaded?(@post.quoted_message.link_preview) && link_preview_success?(@post.quoted_message.link_preview) do %>
             <div class="mt-2 border border-base-300 rounded overflow-hidden">
               <a
                 href={@post.quoted_message.link_preview.url}
@@ -1849,7 +1852,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           <%= if @post.post_type == "poll" && Ecto.assoc_loaded?(@post.poll) && @post.poll do %>
             <% user_votes =
               if @current_user,
-                do: Elektrine.Social.get_user_poll_votes(@post.poll.id, @current_user.id),
+                do: Integrations.social_user_poll_votes(@post.poll.id, @current_user.id),
                 else: [] %>
             <div class="mt-3" phx-click="stop_propagation">
               <ElektrineWeb.Components.Social.PollDisplay.poll_card
@@ -1917,9 +1920,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :post, :map, required: true
 
   defp youtube_embed(assigns) do
-    has_link_preview =
-      match?(%LinkPreview{}, assigns.post.link_preview) &&
-        assigns.post.link_preview.status == "success"
+    has_link_preview = link_preview_success?(assigns.post.link_preview)
 
     youtube_url =
       if !has_link_preview && assigns.post.content,
@@ -2050,7 +2051,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
   defp link_preview(assigns) do
     ~H"""
-    <%= if match?(%LinkPreview{}, @post.link_preview) && @post.link_preview.status == "success" do %>
+    <%= if link_preview_success?(@post.link_preview) do %>
       <div
         class="mt-3 border border-base-300 rounded-lg overflow-hidden hover:border-base-300 transition-colors max-w-full"
         phx-click="stop_propagation"
@@ -2110,6 +2111,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :user_saves, :map, default: %{}
   attr :user_follows, :map, default: %{}
   attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
   attr :display_like_count, :integer, default: 0
   attr :display_comment_count, :integer, default: 0
   attr :show_follow_button, :boolean, default: true
@@ -2175,6 +2177,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           current_user={@current_user}
           user_follows={@user_follows}
           pending_follows={@pending_follows}
+          remote_follow_overrides={@remote_follow_overrides}
         />
       <% end %>
     </div>
@@ -2186,75 +2189,122 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :current_user, :map, required: true
   attr :user_follows, :map, default: %{}
   attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
 
   defp follow_actions(assigns) do
     ~H"""
     <%= if @post.federated && @post.remote_actor do %>
-      <% is_following = Map.get(@user_follows, {:remote, @post.remote_actor.id}, false)
-      is_pending = Map.get(@pending_follows, {:remote, @post.remote_actor.id}, false) %>
+      <% follow_state =
+        remote_follow_button_state(
+          @remote_follow_overrides,
+          @user_follows,
+          @pending_follows,
+          @post.remote_actor.id
+        )
+
+      is_following = follow_state == "following"
+      is_pending = follow_state == "pending" %>
       <div class="flex items-center gap-1">
         <button
+          id={"timeline-remote-follow-#{@post.id}-#{@post.remote_actor.id}"}
           phx-click="toggle_follow_remote"
           phx-value-remote_actor_id={@post.remote_actor.id}
+          phx-hook="RemoteFollowButton"
+          data-remote-actor-id={@post.remote_actor.id}
+          data-follow-state={follow_state}
+          data-follow-variant="timeline"
           class={[
-            "btn btn-xs px-1.5 h-7 min-h-0 sm:px-2 sm:btn-sm",
+            "btn btn-xs px-1.5 h-7 min-h-0 sm:px-2 sm:btn-sm phx-click-loading:pointer-events-none phx-click-loading:cursor-wait phx-click-loading:opacity-70",
             cond do
-              is_following -> "btn-ghost"
-              is_pending -> "btn-ghost"
-              true -> "btn-secondary"
+              is_following ->
+                "btn-ghost"
+
+              is_pending ->
+                "btn-ghost"
+
+              true ->
+                "btn-secondary phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
             end
           ]}
           type="button"
         >
-          <%= cond do %>
-            <% is_following -> %>
+          <span class="inline-flex items-center">
+            <span
+              data-follow-display="following"
+              class={["inline-flex items-center", if(follow_state != "following", do: "hidden")]}
+            >
               <.icon name="hero-user-minus" class="w-3 h-3 sm:w-4 sm:h-4" />
               <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
                 Unfollow
               </span>
-            <% is_pending -> %>
+            </span>
+            <span
+              data-follow-display="pending"
+              class={["inline-flex items-center", if(follow_state != "pending", do: "hidden")]}
+            >
               <.icon name="hero-clock" class="w-3 h-3 sm:w-4 sm:h-4" />
               <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
                 Requested
               </span>
-            <% true -> %>
+            </span>
+            <span
+              data-follow-display="none"
+              class={["inline-flex items-center", if(follow_state != "none", do: "hidden")]}
+            >
               <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
               <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
                 Follow
               </span>
-          <% end %>
+            </span>
+          </span>
         </button>
       </div>
     <% end %>
 
     <%= if !@post.federated && @post.sender && @post.sender.id != @current_user.id do %>
-      <% is_following = Map.get(@user_follows, {:local, @post.sender.id}, false) %>
       <div class="flex items-center gap-1">
-        <button
-          phx-click="toggle_follow"
-          phx-value-user_id={@post.sender.id}
-          class={[
-            "btn btn-xs px-1.5 h-7 min-h-0 sm:px-2 sm:btn-sm",
-            if(is_following, do: "btn-ghost", else: "btn-secondary")
-          ]}
-          type="button"
-        >
-          <%= if is_following do %>
-            <.icon name="hero-user-minus" class="w-3 h-3 sm:w-4 sm:h-4" />
-            <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
-              Unfollow
-            </span>
-          <% else %>
-            <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
-            <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
-              Follow
-            </span>
-          <% end %>
-        </button>
+        <.local_follow_button user_id={@post.sender.id} user_follows={@user_follows} />
       </div>
     <% end %>
     """
   end
+
+  defp remote_follow_button_state(
+         remote_follow_overrides,
+         user_follows,
+         pending_follows,
+         remote_actor_id
+       ) do
+    case remote_follow_override_state(remote_follow_overrides, remote_actor_id) do
+      state when state in ["following", "pending", "none"] ->
+        state
+
+      _ ->
+        cond do
+          Map.get(user_follows, {:remote, remote_actor_id}, false) ||
+              Map.get(user_follows, remote_actor_id, false) ->
+            "following"
+
+          Map.get(pending_follows, {:remote, remote_actor_id}, false) ||
+              Map.get(pending_follows, remote_actor_id, false) ->
+            "pending"
+
+          true ->
+            "none"
+        end
+    end
+  end
+
+  defp remote_follow_override_state(remote_follow_overrides, remote_actor_id)
+       when is_map(remote_follow_overrides) do
+    case Map.get(remote_follow_overrides, remote_actor_id) ||
+           Map.get(remote_follow_overrides, {:remote, remote_actor_id}) do
+      state when is_atom(state) -> Atom.to_string(state)
+      state -> state
+    end
+  end
+
+  defp remote_follow_override_state(_, _), do: nil
 
   # Lemmy/Reddit style layout with vote column
   defp render_lemmy_layout(assigns) do
@@ -2278,8 +2328,6 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         :error -> Map.get(post_state, :downvoted, false)
       end
 
-    # Calculate like count
-    like_delta = Map.get(post_state, :like_delta, 0)
     lemmy_counts = Map.get(assigns.lemmy_counts, post.activitypub_id)
 
     base_count =
@@ -2289,7 +2337,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         post.like_count || 0
       end
 
-    like_count = base_count + like_delta
+    like_count = max(base_count || 0, 0)
 
     # Filter to actual image URLs
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
@@ -2367,11 +2415,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
               phx-click={if @is_liked, do: @on_unlike, else: @on_like}
               phx-value-post_id={@post.id}
               class={[
-                "btn btn-ghost btn-sm btn-square min-h-[2.5rem] min-w-[2.5rem]",
+                "btn btn-ghost btn-sm btn-square min-h-[2.5rem] min-w-[2.5rem] phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                 if(@is_liked, do: "text-secondary", else: "text-base-content/50 hover:text-secondary")
               ]}
               aria-label={if @is_liked, do: "Remove upvote", else: "Upvote"}
               aria-pressed={@is_liked}
+              type="button"
             >
               <.icon
                 name={if @is_liked, do: "hero-arrow-up-solid", else: "hero-arrow-up"}
@@ -2397,11 +2446,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
               phx-click={if @is_downvoted, do: @on_undownvote, else: @on_downvote}
               phx-value-post_id={@post.id}
               class={[
-                "btn btn-ghost btn-sm btn-square min-h-[2.5rem] min-w-[2.5rem]",
+                "btn btn-ghost btn-sm btn-square min-h-[2.5rem] min-w-[2.5rem] phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
                 if(@is_downvoted, do: "text-error", else: "text-base-content/50 hover:text-error")
               ]}
               aria-label={if @is_downvoted, do: "Remove downvote", else: "Downvote"}
               aria-pressed={@is_downvoted}
+              type="button"
             >
               <.icon
                 name={if @is_downvoted, do: "hero-arrow-down-solid", else: "hero-arrow-down"}
@@ -2977,4 +3027,11 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   end
 
   defp trim_reply_identifier(_), do: nil
+
+  defp link_preview_success?(preview) do
+    social_link_preview?(preview) and Map.get(preview, :status) == "success"
+  end
+
+  defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
+  defp social_link_preview?(_), do: false
 end

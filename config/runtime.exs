@@ -143,6 +143,18 @@ config :elektrine, :runtime_components,
   jobs: parse_bool_env.("ELEKTRINE_ENABLE_JOBS", true),
   mail: parse_bool_env.("ELEKTRINE_ENABLE_MAIL", true)
 
+enabled_platform_modules =
+  case System.get_env("ELEKTRINE_ENABLED_MODULES") do
+    nil ->
+      Application.get_env(:elektrine, :platform_modules, [])
+      |> Keyword.get(:enabled, [:chat, :social, :email, :vault, :vpn])
+
+    value ->
+      value
+  end
+
+config :elektrine, :platform_modules, enabled: enabled_platform_modules
+
 messaging_federation_delivery_concurrency =
   parse_int_env.("MESSAGING_FEDERATION_DELIVERY_CONCURRENCY", 6)
 
@@ -352,6 +364,12 @@ if config_env() == :prod do
   config :elektrine, :environment, :prod
   config :elektrine, :enforce_https, true
   config :elektrine, :allow_insecure_dav_jmap_auth, false
+
+  Elektrine.Platform.RuntimeConfigValidator.validate!(
+    env: System.get_env(),
+    compiled_modules: Application.get_env(:elektrine, :compiled_platform_modules, []),
+    enabled_modules: enabled_platform_modules
+  )
 
   trusted_proxy_cidrs =
     System.get_env("TRUSTED_PROXY_CIDRS", "")

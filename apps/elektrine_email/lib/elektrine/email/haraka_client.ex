@@ -207,8 +207,8 @@ defmodule Elektrine.Email.HarakaClient do
       # Base64 encode raw email to safely transmit binary data in JSON
       body = %{
         "raw_base64" => Base.encode64(params[:raw_email]),
-        "from" => params[:from],
-        "to" => normalize_recipients_for_api(params[:to])
+        "from" => ensure_field_utf8_safe(params[:from]),
+        "to" => normalize_recipients_for_api(params[:to]) |> ensure_json_utf8_safe()
       }
 
       Jason.encode!(body)
@@ -308,14 +308,14 @@ defmodule Elektrine.Email.HarakaClient do
       # Add In-Reply-To header if present
       headers =
         if params[:in_reply_to] do
-          Map.put(headers, "In-Reply-To", params[:in_reply_to])
+          Map.put(headers, "In-Reply-To", ensure_field_utf8_safe(params[:in_reply_to]))
         else
           headers
         end
 
       headers =
         if params[:references] do
-          Map.put(headers, "References", params[:references])
+          Map.put(headers, "References", ensure_field_utf8_safe(params[:references]))
         else
           headers
         end
@@ -326,7 +326,7 @@ defmodule Elektrine.Email.HarakaClient do
           # Sanitize all header values
           sanitized_custom_headers =
             params[:headers]
-            |> Enum.map(fn {k, v} -> {k, ensure_field_utf8_safe(v)} end)
+            |> Enum.map(fn {k, v} -> {ensure_json_key_utf8_safe(k), ensure_json_utf8_safe(v)} end)
             |> Map.new()
 
           Map.merge(headers, sanitized_custom_headers)
@@ -347,26 +347,18 @@ defmodule Elektrine.Email.HarakaClient do
 
       # Add attachments if present
       body =
-        if params[:attachments] && is_map(params[:attachments]) &&
-             map_size(params[:attachments]) > 0 do
-          # Convert attachments map to list format for API
-          attachments_list =
-            params[:attachments]
-            |> Map.values()
-            |> Enum.map(fn attachment ->
-              %{
-                "filename" => attachment["filename"],
-                "content_type" => attachment["content_type"],
-                "encoding" => "base64",
-                # Already Base64 encoded
-                "data" => attachment["data"]
-              }
-            end)
+        case params[:attachments] do
+          attachments when is_map(attachments) and map_size(attachments) > 0 ->
+            Map.put(body, "attachments", normalize_attachments_for_api(attachments))
 
-          Map.put(body, "attachments", attachments_list)
-        else
-          body
+          attachments when is_list(attachments) and attachments != [] ->
+            Map.put(body, "attachments", normalize_attachments_for_api(attachments))
+
+          _ ->
+            body
         end
+
+      body = ensure_json_utf8_safe(body)
 
       # CRITICAL: Validate all string fields before JSON encoding
       # Log any fields that might cause JSON encoding to fail
@@ -438,6 +430,120 @@ defmodule Elektrine.Email.HarakaClient do
   end
 
   defp ensure_field_utf8_safe(value), do: value
+
+  defp ensure_json_utf8_safe(value) when is_binary(value), do: ensure_field_utf8_safe(value)
+
+  defp ensure_json_utf8_safe(values) when is_list(values) do
+    Enum.map(values, &ensure_json_utf8_safe/1)
+  end
+
+  defp ensure_json_utf8_safe(values) when is_map(values) do
+    Enum.reduce(values, %{}, fn {key, value}, acc ->
+      Map.put(acc, ensure_json_key_utf8_safe(key), ensure_json_utf8_safe(value))
+    end)
+  end
+
+  defp ensure_json_utf8_safe(value), do: value
+
+  defp ensure_json_key_utf8_safe(key) when is_binary(key), do: ensure_field_utf8_safe(key)
+
+  defp ensure_json_key_utf8_safe(key) when is_atom(key) do
+    key
+    |> Atom.to_string()
+    |> ensure_field_utf8_safe()
+  end
+
+  defp ensure_json_key_utf8_safe(key) do
+    key
+    |> to_string()
+    |> ensure_field_utf8_safe()
+  end
+
+  defp normalize_attachments_for_api(attachments) when is_map(attachments) do
+    attachments
+    |> Map.values()
+    |> Enum.map(&normalize_attachment_for_api/1)
+  end
+
+  defp normalize_attachments_for_api(attachments) when is_list(attachments) do
+    Enum.map(attachments, &normalize_attachment_for_api/1)
+  end
+
+  defp normalize_attachments_for_api(_), do: []
+
+  defp normalize_attachment_for_api(attachment) when is_map(attachment) do
+    normalized = %{
+      "filename" =>
+        ensure_field_utf8_safe(
+          attachment_field(attachment, "filename") || attachment_field(attachment, :filename) ||
+            "attachment"
+        ),
+      "content_type" =>
+        ensure_field_utf8_safe(
+          attachment_field(attachment, "content_type") ||
+            attachment_field(attachment, :content_type) || "application/octet-stream"
+        ),
+      "encoding" => "base64",
+      "data" =>
+        normalize_attachment_data_for_api(
+          attachment_field(attachment, "data") || attachment_field(attachment, :data),
+          attachment_field(attachment, "encoding") || attachment_field(attachment, :encoding)
+        )
+    }
+
+    case attachment_field(attachment, "content_id") || attachment_field(attachment, :content_id) do
+      nil -> normalized
+      "" -> normalized
+      content_id -> Map.put(normalized, "content_id", ensure_field_utf8_safe(content_id))
+    end
+  end
+
+  defp normalize_attachment_for_api(_attachment) do
+    %{
+      "filename" => "attachment",
+      "content_type" => "application/octet-stream",
+      "encoding" => "base64",
+      "data" => ""
+    }
+  end
+
+  defp normalize_attachment_data_for_api(nil, _encoding), do: ""
+  defp normalize_attachment_data_for_api("", _encoding), do: ""
+
+  defp normalize_attachment_data_for_api(data, encoding) when is_binary(data) do
+    case normalize_attachment_encoding(encoding) do
+      "base64" ->
+        if String.valid?(data) do
+          normalized = String.replace(data, ~r/\s+/, "")
+
+          case Base.decode64(normalized) do
+            {:ok, _decoded} -> normalized
+            :error -> Base.encode64(data)
+          end
+        else
+          Base.encode64(data)
+        end
+
+      _ ->
+        Base.encode64(data)
+    end
+  end
+
+  defp normalize_attachment_data_for_api(data, _encoding) do
+    data
+    |> to_string()
+    |> Base.encode64()
+  end
+
+  defp normalize_attachment_encoding(encoding) when is_binary(encoding) do
+    encoding
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp normalize_attachment_encoding(_encoding), do: nil
+
+  defp attachment_field(attachment, key) when is_map(attachment), do: Map.get(attachment, key)
 
   defp add_internal_origin_headers(params) do
     case System.get_env("HARAKA_INTERNAL_SIGNING_SECRET") do

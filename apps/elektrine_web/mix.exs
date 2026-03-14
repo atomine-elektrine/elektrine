@@ -27,21 +27,93 @@ defmodule ElektrineWeb.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   defp elixirc_options do
+    opts = [no_warn_undefined: no_warn_undefined()]
+
     if Mix.env() == :test do
-      [ignore_module_conflict: true]
+      Keyword.put(opts, :ignore_module_conflict, true)
     else
-      []
+      opts
     end
+  end
+
+  defp no_warn_undefined do
+    [
+      ElektrinePasswordManagerWeb.API.VaultController,
+      ElektrinePasswordManagerWeb.VaultLive,
+      ElektrineWeb.ActivityPubController,
+      ElektrineWeb.Admin.AliasesController,
+      ElektrineWeb.Admin.ChatMessagesController,
+      ElektrineWeb.Admin.CustomDomainsController,
+      ElektrineWeb.Admin.MailboxesController,
+      ElektrineWeb.Admin.MessagesController,
+      ElektrineWeb.Admin.VPNController,
+      ElektrineWeb.API.AliasController,
+      ElektrineWeb.API.ConversationController,
+      ElektrineWeb.API.EmailController,
+      ElektrineWeb.API.ExtChatController,
+      ElektrineWeb.API.ExtContactsController,
+      ElektrineWeb.API.ExtEmailController,
+      ElektrineWeb.API.ExtSocialController,
+      ElektrineWeb.API.MailboxController,
+      ElektrineWeb.API.MessageController,
+      ElektrineWeb.API.ServerController,
+      ElektrineWeb.API.SocialController,
+      ElektrineWeb.API.VPNController,
+      ElektrineWeb.AttachmentController,
+      ElektrineWeb.ChatLive.Index,
+      ElektrineWeb.ContactsLive.Index,
+      ElektrineWeb.DAV.AddressBookController,
+      ElektrineWeb.DiscussionsLive.Community,
+      ElektrineWeb.DiscussionsLive.Index,
+      ElektrineWeb.DiscussionsLive.Post,
+      ElektrineWeb.DiscussionsLive.Settings,
+      ElektrineWeb.EmailController,
+      ElektrineWeb.EmailLive.Compose,
+      ElektrineWeb.EmailLive.Index,
+      ElektrineWeb.EmailLive.Raw,
+      ElektrineWeb.EmailLive.Search,
+      ElektrineWeb.EmailLive.Settings,
+      ElektrineWeb.EmailLive.Show,
+      ElektrineWeb.ExternalInteractionController,
+      ElektrineWeb.GalleryLive.Index,
+      ElektrineWeb.HarakaWebhookController,
+      ElektrineWeb.HashtagLive.Show,
+      ElektrineWeb.JMAP.APIController,
+      ElektrineWeb.JMAP.BlobController,
+      ElektrineWeb.JMAP.SessionController,
+      ElektrineWeb.ListLive.Index,
+      ElektrineWeb.ListLive.Show,
+      ElektrineWeb.MastodonAPI.AccountController,
+      ElektrineWeb.MastodonAPI.AppController,
+      ElektrineWeb.MastodonAPI.InstanceController,
+      ElektrineWeb.MastodonAPI.OAuthController,
+      ElektrineWeb.MediaProxyController,
+      ElektrineWeb.NodeinfoController,
+      ElektrineWeb.PageLive.VPNPolicy,
+      ElektrineWeb.RemotePostLive.Show,
+      ElektrineWeb.RemoteUserLive.Show,
+      ElektrineWeb.TimelineLive.Index,
+      ElektrineWeb.TimelineLive.Post,
+      ElektrineWeb.UnsubscribeController,
+      ElektrineWeb.UnsubscribeLive.Show,
+      ElektrineWeb.VPNAPIController,
+      ElektrineWeb.VPNLive.Index,
+      ElektrineWeb.WebFingerController,
+      ElektrineWeb.WKDController
+    ]
   end
 
   defp deps do
     [
-      {:elektrine, in_umbrella: true},
-      {:elektrine_chat, in_umbrella: true},
-      {:elektrine_password_manager, in_umbrella: true},
-      {:elektrine_email, in_umbrella: true},
-      {:elektrine_social, in_umbrella: true},
-      {:elektrine_vpn, in_umbrella: true}
+      internal_dep(:elektrine)
     ]
+  end
+
+  defp internal_dep(app) do
+    if Mix.Project.umbrella?() do
+      {app, in_umbrella: true}
+    else
+      {app, path: "../#{app}"}
+    end
   end
 end

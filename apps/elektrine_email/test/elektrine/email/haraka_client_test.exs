@@ -126,6 +126,38 @@ defmodule Elektrine.Email.HarakaClientTest do
     assert request.url == "https://mail.elektrine.com/api/v1/send"
   end
 
+  test "base64-encodes raw attachment binaries before JSON encoding" do
+    attachment_data = <<255, 241, 80, 64, 12, 127, 252, 1, 64, 34, 128, 163>>
+
+    Application.put_env(:elektrine, Elektrine.Mailer,
+      api_key: "mailer-api-key",
+      base_url: "https://mail.elektrine.test"
+    )
+
+    assert {:ok, %{message_id: "queued-message"}} =
+             HarakaClient.send_email(%{
+               from: "sender@elektrine.com",
+               to: "dest@example.net",
+               subject: "Attachment test",
+               text_body: "Hello",
+               attachments: %{
+                 "0" => %{
+                   "filename" => "voice-note.m4a",
+                   "content_type" => "audio/mp4",
+                   "data" => attachment_data
+                 }
+               }
+             })
+
+    [request] = MockHarakaHTTPClient.requests()
+    decoded_request = Jason.decode!(request.body)
+    [attachment] = decoded_request["attachments"]
+
+    assert attachment["encoding"] == "base64"
+    assert attachment["filename"] == "voice-note.m4a"
+    assert Base.decode64!(attachment["data"]) == attachment_data
+  end
+
   defp restore_env(key, nil), do: System.delete_env(key)
   defp restore_env(key, value), do: System.put_env(key, value)
 end

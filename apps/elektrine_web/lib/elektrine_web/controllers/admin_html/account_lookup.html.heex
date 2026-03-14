@@ -38,7 +38,11 @@
             />
             <div class="label">
               <span class="label-text-alt">
-                Search by email, username, or IP • Use "quotes" for exact match
+                <%= if @email_available do %>
+                  Search by email, username, or IP • Use "quotes" for exact match
+                <% else %>
+                  Search by username or IP • Use "quotes" for exact match
+                <% end %>
               </span>
             </div>
           </div>
@@ -48,9 +52,11 @@
               <span class="label-text font-semibold">Search Type</span>
             </label>
             <select name="search[type]" class="select select-bordered w-full">
-              <option value="email" selected={(@search_type || "email") == "email"}>
-                Email Address
-              </option>
+              <%= if @email_available do %>
+                <option value="email" selected={(@search_type || "email") == "email"}>
+                  Email Address
+                </option>
+              <% end %>
               <option value="username" selected={@search_type == "username"}>
                 Username
               </option>

@@ -6,6 +6,7 @@ defmodule ElektrineWeb.API.MetaController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Developer.ApiToken
+  alias Elektrine.Platform.Modules
   alias Elektrine.Developer.Webhook
   alias ElektrineWeb.API.Response
 
@@ -52,6 +53,10 @@ defmodule ElektrineWeb.API.MetaController do
         expires_at: token.expires_at
       },
       capabilities: %{
+        modules: %{
+          enabled: Modules.enabled(),
+          available: Enum.map(Modules.specs(), &Map.take(&1, [:id, :label, :description]))
+        },
         available_scopes: ApiToken.valid_scopes(),
         token_presets: Enum.map(ApiToken.token_presets(), &format_token_preset/1),
         webhook_events: Webhook.valid_events(),
@@ -69,6 +74,7 @@ defmodule ElektrineWeb.API.MetaController do
     normalized_scopes = MapSet.new(scopes || [])
 
     endpoint_catalog()
+    |> Enum.filter(&endpoint_module_enabled?/1)
     |> Enum.filter(&endpoint_allowed?(&1, normalized_scopes))
     |> Enum.map(fn endpoint ->
       Map.take(endpoint, [:method, :path, :summary, :required_scopes])
@@ -94,19 +100,25 @@ defmodule ElektrineWeb.API.MetaController do
     }
   end
 
+  defp endpoint_module_enabled?(%{platform_module: nil}), do: true
+  defp endpoint_module_enabled?(%{platform_module: module}), do: Modules.enabled?(module)
+  defp endpoint_module_enabled?(_endpoint), do: true
+
   defp endpoint_catalog do
     [
       %{
         method: "GET",
         path: "/api/ext/v1/capabilities",
         summary: "Inspect available scopes, presets, and allowed endpoints",
-        required_scopes: []
+        required_scopes: [],
+        platform_module: nil
       },
       %{
         method: "GET",
         path: "/api/ext/v1/me",
         summary: "Inspect the authenticated user and token metadata",
-        required_scopes: ["read:account", "write:account"]
+        required_scopes: ["read:account", "write:account"],
+        platform_module: nil
       },
       %{
         method: "GET",
@@ -119,7 +131,8 @@ defmodule ElektrineWeb.API.MetaController do
           "read:social",
           "read:contacts",
           "read:calendar"
-        ]
+        ],
+        platform_module: nil
       },
       %{
         method: "GET",
@@ -132,7 +145,8 @@ defmodule ElektrineWeb.API.MetaController do
           "read:social",
           "read:contacts",
           "read:calendar"
-        ]
+        ],
+        platform_module: nil
       },
       %{
         method: "POST",
@@ -145,97 +159,113 @@ defmodule ElektrineWeb.API.MetaController do
           "read:social",
           "read:contacts",
           "read:calendar"
-        ]
+        ],
+        platform_module: nil
       },
       %{
         method: "GET",
         path: "/api/ext/v1/email/messages",
         summary: "List email messages across the user's mailboxes",
-        required_scopes: ["read:email", "write:email"]
+        required_scopes: ["read:email", "write:email"],
+        platform_module: :email
       },
       %{
         method: "GET",
         path: "/api/ext/v1/email/messages/:id",
         summary: "Get a single email message",
-        required_scopes: ["read:email", "write:email"]
+        required_scopes: ["read:email", "write:email"],
+        platform_module: :email
       },
       %{
         method: "GET",
         path: "/api/ext/v1/chat/conversations",
         summary: "List chat conversations",
-        required_scopes: ["read:chat", "write:chat"]
+        required_scopes: ["read:chat", "write:chat"],
+        platform_module: :chat
       },
       %{
         method: "GET",
         path: "/api/ext/v1/chat/conversations/:id",
         summary: "Get a chat conversation with recent messages",
-        required_scopes: ["read:chat", "write:chat"]
+        required_scopes: ["read:chat", "write:chat"],
+        platform_module: :chat
       },
       %{
         method: "GET",
         path: "/api/ext/v1/chat/conversations/:id/messages",
         summary: "List messages for a chat conversation",
-        required_scopes: ["read:chat", "write:chat"]
+        required_scopes: ["read:chat", "write:chat"],
+        platform_module: :chat
       },
       %{
         method: "GET",
         path: "/api/ext/v1/social/feed",
         summary: "List home or public social feed posts",
-        required_scopes: ["read:social", "write:social"]
+        required_scopes: ["read:social", "write:social"],
+        platform_module: :social
       },
       %{
         method: "GET",
         path: "/api/ext/v1/social/posts/:id",
         summary: "Get a single visible social post",
-        required_scopes: ["read:social", "write:social"]
+        required_scopes: ["read:social", "write:social"],
+        platform_module: :social
       },
       %{
         method: "GET",
         path: "/api/ext/v1/social/users/:user_id/posts",
         summary: "List visible posts for a specific user",
-        required_scopes: ["read:social", "write:social"]
+        required_scopes: ["read:social", "write:social"],
+        platform_module: :social
       },
       %{
         method: "GET",
         path: "/api/ext/v1/contacts",
         summary: "List address book contacts",
-        required_scopes: ["read:contacts", "write:contacts"]
+        required_scopes: ["read:contacts", "write:contacts"],
+        platform_module: nil
       },
       %{
         method: "GET",
         path: "/api/ext/v1/contacts/:id",
         summary: "Get a single address book contact",
-        required_scopes: ["read:contacts", "write:contacts"]
+        required_scopes: ["read:contacts", "write:contacts"],
+        platform_module: nil
       },
       %{
         method: "GET",
         path: "/api/ext/v1/calendars",
         summary: "List calendars",
-        required_scopes: ["read:calendar", "write:calendar"]
+        required_scopes: ["read:calendar", "write:calendar"],
+        platform_module: :email
       },
       %{
         method: "POST",
         path: "/api/ext/v1/calendars/:id/events",
         summary: "Create calendar events",
-        required_scopes: ["write:calendar"]
+        required_scopes: ["write:calendar"],
+        platform_module: :email
       },
       %{
         method: "GET",
         path: "/api/ext/v1/password-manager/entries",
         summary: "List encrypted vault entries",
-        required_scopes: ["read:vault", "write:vault", "read:account", "write:account"]
+        required_scopes: ["read:vault", "write:vault", "read:account", "write:account"],
+        platform_module: :vault
       },
       %{
         method: "POST",
         path: "/api/ext/v1/password-manager/entries",
         summary: "Create encrypted vault entries",
-        required_scopes: ["write:vault", "write:account"]
+        required_scopes: ["write:vault", "write:account"],
+        platform_module: :vault
       },
       %{
         method: "POST",
         path: "/api/ext/v1/exports",
         summary: "Trigger data exports",
-        required_scopes: ["export"]
+        required_scopes: ["export"],
+        platform_module: nil
       },
       %{
         method: "GET",

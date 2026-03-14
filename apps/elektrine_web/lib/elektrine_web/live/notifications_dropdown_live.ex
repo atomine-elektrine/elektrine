@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.NotificationsDropdownLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
+  alias ElektrineWeb.Platform.Integrations
   use Gettext, backend: ElektrineWeb.Gettext
 
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
@@ -357,6 +358,6 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
   end
 
   defp time_ago(datetime) do
-    Elektrine.Social.time_ago_in_words(datetime)
+    Integrations.social_time_ago(datetime)
   end
 end

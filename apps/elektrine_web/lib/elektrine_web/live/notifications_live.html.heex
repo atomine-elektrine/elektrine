@@ -203,7 +203,9 @@
                     {group.title}
                   </button>
 
-                  <p class="mt-1 text-sm opacity-75">{group.detail}</p>
+                  <%= if group.detail do %>
+                    <p class="mt-1 text-sm opacity-75">{group.detail}</p>
+                  <% end %>
 
                   <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-65">
                     <%= if group.count > 1 do %>

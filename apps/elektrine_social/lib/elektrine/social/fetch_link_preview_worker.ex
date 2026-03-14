@@ -71,7 +71,7 @@ defmodule Elektrine.Social.FetchLinkPreviewWorker do
 
         args
         |> new()
-        |> Oban.insert()
+        |> Elektrine.JobQueue.insert()
     end
   end
 

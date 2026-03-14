@@ -196,11 +196,7 @@ defmodule Elektrine.Push do
   Used to decide whether to send push or rely on WebSocket.
   """
   def user_has_active_connection?(user_id) do
-    case ElektrineWeb.Presence.get_by_key("mobile:users", to_string(user_id)) do
-      [] -> false
-      nil -> false
-      _ -> true
-    end
+    user_has_active_connection?(user_id, [])
   end
 
   @doc """
@@ -209,6 +205,27 @@ defmodule Elektrine.Push do
   """
   def should_send_push?(user_id) do
     not user_has_active_connection?(user_id)
+  end
+
+  @doc false
+  def user_has_active_connection?(user_id, opts) when is_list(opts) do
+    presence_module = Keyword.get(opts, :presence_module, ElektrineWeb.Presence)
+    web_enabled? = Keyword.get_lazy(opts, :web_enabled?, fn -> component_enabled?(:web) end)
+
+    presence_running? =
+      Keyword.get_lazy(opts, :presence_running?, fn ->
+        not is_nil(Process.whereis(presence_module))
+      end)
+
+    if web_enabled? and presence_running? do
+      case safe_presence_get_by_key(presence_module, "mobile:users", to_string(user_id)) do
+        [] -> false
+        nil -> false
+        _ -> true
+      end
+    else
+      false
+    end
   end
 
   # APNs and FCM implementation
@@ -310,6 +327,23 @@ defmodule Elektrine.Push do
 
   defp apns_topic do
     Application.get_env(:elektrine, :push, [])[:apns_topic] || "com.elektrine.app"
+  end
+
+  defp safe_presence_get_by_key(presence_module, topic, key) do
+    presence_module.get_by_key(topic, key)
+  rescue
+    error in ArgumentError ->
+      Logger.warning(
+        "Presence tracker unavailable while checking push eligibility: #{Exception.message(error)}"
+      )
+
+      []
+  end
+
+  defp component_enabled?(component) do
+    :elektrine
+    |> Application.get_env(:runtime_components, [])
+    |> Keyword.get(component, true)
   end
 
   defp normalize_attrs(attrs) when is_map(attrs) do

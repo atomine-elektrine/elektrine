@@ -6,10 +6,11 @@ defmodule ElektrineWeb.MobileChannel do
   use ElektrineWeb, :channel
   require Logger
 
-  alias Elektrine.{Accounts, Email, Notifications, Profiles, Social, VPN}
+  alias Elektrine.{Accounts, Notifications, Profiles}
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.Federation
   alias Elektrine.PubSubTopics
+  alias ElektrineWeb.Platform.Integrations
 
   @impl true
   def join("mobile:user", _params, socket) do
@@ -23,7 +24,7 @@ defmodule ElektrineWeb.MobileChannel do
     PubSubTopics.subscribe(PubSubTopics.user_vpn(user_id))
 
     # Subscribe to mailbox updates if user has a mailbox
-    if mailbox = Email.get_user_mailbox(user_id) do
+    if mailbox = Integrations.email_mailbox(user_id) do
       PubSubTopics.subscribe("mailbox:#{mailbox.id}")
     end
 
@@ -69,11 +70,11 @@ defmodule ElektrineWeb.MobileChannel do
     user_id = socket.assigns.user_id
 
     # Push initial state
-    mailbox = Email.get_user_mailbox(user_id)
+    mailbox = Integrations.email_mailbox(user_id)
 
     if mailbox do
       # Push unread counts
-      counts = Email.Messages.get_all_unread_counts(mailbox.id)
+      counts = Integrations.email_unread_counts(mailbox.id)
       push(socket, "email:counts", %{counts: counts})
     end
 
@@ -87,10 +88,10 @@ defmodule ElektrineWeb.MobileChannel do
       following_count: Profiles.get_following_count(user_id)
     })
 
-    push(socket, "vpn:counts", %{config_count: user_id |> VPN.list_user_configs() |> length()})
+    push(socket, "vpn:counts", %{config_count: Integrations.vpn_user_config_count(user_id)})
 
     push(socket, "event:stream_ready", %{
-      sources: ["email", "notification", "chat", "social", "vpn", "calendar", "password_manager"],
+      sources: event_sources(),
       connected_at: DateTime.utc_now()
     })
 
@@ -122,8 +123,8 @@ defmodule ElektrineWeb.MobileChannel do
     # Also update counts
     user_id = socket.assigns.user_id
 
-    if mailbox = Email.get_user_mailbox(user_id) do
-      counts = Email.Messages.get_all_unread_counts(mailbox.id)
+    if mailbox = Integrations.email_mailbox(user_id) do
+      counts = Integrations.email_unread_counts(mailbox.id)
       push(socket, "email:counts", %{counts: counts})
     end
 
@@ -564,7 +565,7 @@ defmodule ElektrineWeb.MobileChannel do
   @impl true
   def handle_info({:vpn_config_created, config}, socket) do
     formatted = format_vpn_config(config)
-    count = socket.assigns.user_id |> VPN.list_user_configs() |> length()
+    count = Integrations.vpn_user_config_count(socket.assigns.user_id)
 
     socket =
       socket
@@ -583,7 +584,7 @@ defmodule ElektrineWeb.MobileChannel do
   @impl true
   def handle_info({:vpn_config_updated, config}, socket) do
     formatted = format_vpn_config(config)
-    count = socket.assigns.user_id |> VPN.list_user_configs() |> length()
+    count = Integrations.vpn_user_config_count(socket.assigns.user_id)
 
     socket =
       socket
@@ -601,7 +602,7 @@ defmodule ElektrineWeb.MobileChannel do
 
   @impl true
   def handle_info({:vpn_config_deleted, config_id}, socket) do
-    count = socket.assigns.user_id |> VPN.list_user_configs() |> length()
+    count = Integrations.vpn_user_config_count(socket.assigns.user_id)
 
     socket =
       socket
@@ -634,9 +635,9 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("mark_email_read", %{"id" => id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Email.get_user_message(id, user_id) do
+    case Integrations.email_user_message(id, user_id) do
       {:ok, message} ->
-        Email.mark_as_read(message)
+        Integrations.email_mark_as_read(message)
         {:reply, :ok, socket}
 
       _ ->
@@ -657,11 +658,11 @@ defmodule ElektrineWeb.MobileChannel do
   @impl true
   def handle_in("get_counts", _payload, socket) do
     user_id = socket.assigns.user_id
-    mailbox = Email.get_user_mailbox(user_id)
+    mailbox = Integrations.email_mailbox(user_id)
 
     counts =
       if mailbox do
-        Email.Messages.get_all_unread_counts(mailbox.id)
+        Integrations.email_unread_counts(mailbox.id)
       else
         %{}
       end
@@ -755,7 +756,7 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("like_post", %{"post_id" => post_id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Social.like_post(user_id, post_id) do
+    case Integrations.social_like_post(user_id, post_id) do
       {:ok, _} -> {:reply, {:ok, %{message: "Post liked"}}, socket}
       {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
     end
@@ -765,7 +766,7 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("unlike_post", %{"post_id" => post_id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Social.unlike_post(user_id, post_id) do
+    case Integrations.social_unlike_post(user_id, post_id) do
       {:ok, _} -> {:reply, {:ok, %{message: "Post unliked"}}, socket}
       {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
     end
@@ -775,7 +776,7 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("repost", %{"post_id" => post_id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Social.boost_post(user_id, post_id) do
+    case Integrations.social_boost_post(user_id, post_id) do
       {:ok, boost} -> {:reply, {:ok, %{post: format_post(boost)}}, socket}
       {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
     end
@@ -785,7 +786,7 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("unrepost", %{"post_id" => post_id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Social.unboost_post(user_id, post_id) do
+    case Integrations.social_unboost_post(user_id, post_id) do
       {:ok, _} -> {:reply, {:ok, %{message: "Repost removed"}}, socket}
       {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
     end
@@ -869,6 +870,19 @@ defmodule ElektrineWeb.MobileChannel do
 
   defp event_id do
     "evt_" <> Integer.to_string(System.unique_integer([:positive]))
+  end
+
+  defp event_sources do
+    [
+      if(Integrations.email_available?(), do: "email"),
+      "notification",
+      if(Elektrine.Platform.Modules.enabled?(:chat), do: "chat"),
+      if(Integrations.social_available?(), do: "social"),
+      if(Integrations.vpn_available?(), do: "vpn"),
+      if(Integrations.email_available?(), do: "calendar"),
+      if(Integrations.vault_available?(), do: "password_manager")
+    ]
+    |> Enum.reject(&is_nil/1)
   end
 
   defp format_vpn_config(config) do

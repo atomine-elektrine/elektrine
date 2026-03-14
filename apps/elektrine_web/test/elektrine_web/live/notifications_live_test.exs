@@ -130,4 +130,54 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     refute rendered =~ "Review access policy"
     assert rendered =~ "No unread system notifications."
   end
+
+  test "single notifications without a body do not render duplicate detail text", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    notification_fixture(viewer, %{
+      type: "follow",
+      title: "@liaizon@social.wake.st accepted your follow request",
+      body: nil,
+      source_type: "activitypub_actor",
+      source_id: 123,
+      url: "/remote/@liaizon@social.wake.st"
+    })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications?source=requests")
+
+    rendered = render(view)
+
+    assert Regex.scan(~r/@liaizon@social\.wake\.st accepted your follow request/, rendered)
+           |> length() == 1
+  end
+
+  test "legacy fediverse follow acceptance notifications render the actor line once", %{
+    conn: conn
+  } do
+    viewer = AccountsFixtures.user_fixture()
+
+    notification_fixture(viewer, %{
+      type: "follow",
+      title: "Follow request accepted",
+      body: "@liaizon@social.wake.st accepted your follow request",
+      source_type: "activitypub_actor",
+      source_id: 123,
+      url: "/remote/@liaizon@social.wake.st"
+    })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications?source=requests")
+
+    rendered = render(view)
+
+    assert Regex.scan(~r/@liaizon@social\.wake\.st accepted your follow request/, rendered)
+           |> length() == 1
+
+    refute rendered =~ ">Follow request accepted<"
+  end
 end

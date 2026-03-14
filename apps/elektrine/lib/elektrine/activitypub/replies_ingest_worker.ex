@@ -19,7 +19,7 @@ defmodule Elektrine.ActivityPub.RepliesIngestWorker do
   def enqueue(message_id) when is_integer(message_id) and message_id > 0 do
     %{"message_id" => message_id}
     |> new()
-    |> Oban.insert()
+    |> Elektrine.JobQueue.insert()
   end
 
   def enqueue(_message_id), do: {:error, :invalid_message_id}

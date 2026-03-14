@@ -38,7 +38,41 @@ defmodule ElektrineSocial.MixProject do
 
   defp no_warn_undefined do
     [
+      ElektrineWeb,
       ElektrineWeb.Endpoint,
+      ElektrineWeb.Gettext,
+      ElektrineWeb.Layouts,
+      ElektrineWeb.Router,
+      ElektrineWeb.API.Response,
+      ElektrineWeb.ClientIP,
+      ElektrineWeb.Components.Loaders.Skeleton,
+      ElektrineWeb.Components.Platform.ZNav,
+      ElektrineWeb.Components.ReportModal,
+      ElektrineWeb.Components.Social.ContentJourney,
+      ElektrineWeb.Components.Social.EmbeddedPost,
+      ElektrineWeb.Components.Social.FediverseFollow,
+      ElektrineWeb.Components.Social.FollowButton,
+      ElektrineWeb.Components.Social.LemmyPost,
+      ElektrineWeb.Components.Social.Poll,
+      ElektrineWeb.Components.Social.PollDisplay,
+      ElektrineWeb.Components.Social.PostActions,
+      ElektrineWeb.Components.Social.PostReactions,
+      ElektrineWeb.Components.Social.PostUtilities,
+      ElektrineWeb.Components.Social.RemotePostShared,
+      ElektrineWeb.Components.Social.ReplyItem,
+      ElektrineWeb.Components.Social.RSSItem,
+      ElektrineWeb.Components.Social.TimelinePost,
+      ElektrineWeb.Components.UI.ImageModal,
+      ElektrineWeb.Components.User.Avatar,
+      ElektrineWeb.Components.User.UsernameEffects,
+      ElektrineWeb.CoreComponents,
+      ElektrineWeb.FallbackController,
+      ElektrineWeb.HtmlHelpers,
+      ElektrineWeb.Live.AnnouncementCache,
+      ElektrineWeb.Live.Helpers.PostStateHelpers,
+      ElektrineWeb.Live.Hooks.PresenceEvents,
+      ElektrineWeb.Live.NotificationHelpers,
+      ElektrineWeb.Live.PostInteractions,
       Elektrine.Email.Mailbox,
       Elektrine.Email.MailboxAdapter
     ]
@@ -46,7 +80,20 @@ defmodule ElektrineSocial.MixProject do
 
   defp deps do
     [
-      {:elektrine, in_umbrella: true}
+      internal_dep(:elektrine),
+      internal_dep(:elektrine_web),
+      {:phoenix, "== 1.8.3"},
+      {:phoenix_html, "== 4.3.0"},
+      {:phoenix_live_view, "== 1.1.23"},
+      {:jason, "== 1.4.4"}
     ]
+  end
+
+  defp internal_dep(app) do
+    if Mix.Project.umbrella?() do
+      {app, in_umbrella: true}
+    else
+      {app, path: "../#{app}"}
+    end
   end
 end

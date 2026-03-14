@@ -111,8 +111,11 @@ cat > .env.production <<EOF
 # Auto-generated configuration
 DB_PASSWORD=$DB_PASSWORD
 PHX_HOST=$DOMAIN
+PRIMARY_DOMAIN=$DOMAIN
 SECRET_KEY_BASE=$SECRET_KEY_BASE
 LETS_ENCRYPT_ENABLED=$ENABLE_SSL
+ELEKTRINE_RELEASE_MODULES=all
+ELEKTRINE_ENABLED_MODULES=all
 
 # Email Configuration
 EMAIL_SERVICE=haraka
@@ -125,6 +128,9 @@ HARAKA_BASE_URL=https://mail.$DOMAIN
 HARAKA_INTERNAL_SIGNING_SECRET=
 POSTAL_API_KEY=
 POSTAL_API_KEY_ZORG=
+
+# VPN Configuration
+VPN_FLEET_REGISTRATION_KEY=
 
 # Storage (Cloudflare R2)
 R2_ACCESS_KEY_ID=
@@ -148,6 +154,8 @@ GIPHY_API_KEY=
 SENTRY_DSN=
 EOF
 chmod 600 .env.production
+cp .env.production .env
+chmod 600 .env
 
 # Build and start services
 echo "🏗️ Building application..."
