@@ -135,6 +135,24 @@ That wrapper renders a module-aware Fly config first. If `email` is not in the
 module set, it removes the POP3, IMAP, and SMTP service blocks so you do not
 accidentally publish mail ports for a non-mail deployment.
 
+## Email is a two-repo deployment
+
+The `email` module in this repo is not the whole mail stack by itself.
+Elektrine's mail transport lives in
+[`atomine-elektrine/elektrine-haraka`](https://github.com/atomine-elektrine/elektrine-haraka),
+and you should treat that repo as part of any real email deployment.
+
+In practice, this repo owns the mailbox product: UI, aliases, contacts, JMAP,
+WKD, message storage, and the Phoenix endpoints that receive mail webhooks.
+`elektrine-haraka` owns the SMTP edge and delivery pipeline: inbound SMTP,
+authenticated submission, outbound send API, Redis-backed mail queueing, and
+the worker that posts cleaned inbound message data back into Phoenix.
+
+That is why production email config here is Haraka-specific. If you enable the
+`email` module, plan to deploy `elektrine-haraka` alongside it and wire the two
+systems together with `HARAKA_BASE_URL`, the outbound Haraka API key, and the
+inbound webhook key.
+
 ## Configuration that matters in production
 
 The usual production basics still apply: `DATABASE_URL`, `SECRET_KEY_BASE`,
