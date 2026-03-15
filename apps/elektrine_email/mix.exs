@@ -46,9 +46,9 @@ defmodule ElektrineEmail.MixProject do
     [
       internal_dep(:elektrine),
       internal_dep(:elektrine_web),
-      {:phoenix, "== 1.8.3"},
+      {:phoenix, "== 1.8.5"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.26"},
+      {:phoenix_live_view, "== 1.1.27"},
       {:jason, "== 1.4.4"}
     ]
   end
