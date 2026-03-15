@@ -157,10 +157,10 @@
 <!-- Action buttons -->
             <div class="grid grid-cols-2 gap-2 pt-4 mt-4 border-t border-base-300 sm:flex sm:flex-wrap sm:gap-3">
               <.link
-                navigate={get_return_url(assigns)}
+                navigate={email_return_url(assigns)}
                 class="btn btn-ghost btn-sm col-span-2 justify-start sm:col-span-1"
               >
-                <.icon name="hero-arrow-left" class="h-4 w-4 mr-1" /> {get_back_button_text(
+                <.icon name="hero-arrow-left" class="h-4 w-4 mr-1" /> {email_back_button_text(
                   assigns
                 )}
               </.link>
@@ -357,7 +357,7 @@
                   <% else %>
                     <.link
                       navigate={
-                        ~p"/email/view/#{thread_identifier}?return_to=#{@return_to}&filter=#{@return_filter}"
+                        ~p"/email/view/#{thread_identifier}?#{email_return_params(assigns)}"
                       }
                       class={row_classes}
                       data-private-message={to_string(private_message?(thread_message))}

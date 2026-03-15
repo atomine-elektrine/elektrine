@@ -6,11 +6,6 @@ Elektrine is an Elixir umbrella app.
 shared Phoenix shell, and the major product areas live in their own umbrella
 apps.
 
-The repo supports both full-platform development and subset releases for
-hosters, so the app boundaries matter.
-
-Start here, then jump to the app README for the area you need to change.
-
 ## The shape of the repo
 
 Most of the real work lives in a few top-level directories:

@@ -69,4 +69,38 @@ defmodule ElektrineWeb.EmailLive.IndexTest do
     assert html =~ "#{user.username}@#{verified_domain}"
     refute html =~ "#{user.username}@#{pending_domain}"
   end
+
+  test "folder message links preserve the folder context", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+    {:ok, folder} = Email.create_custom_folder(%{user_id: user.id, name: "Receipts"})
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Folder link context",
+        text_body: "Folder message body",
+        html_body: "<p>Folder message body</p>",
+        folder_id: folder.id,
+        message_id: "<folder-link-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email?tab=folder&folder_id=#{folder.id}")
+
+    assert html =~
+             "/email/view/#{message.hash}?return_to=folder&amp;folder_id=#{folder.id}"
+  end
+
+  defp ensure_mailbox(user) do
+    Email.get_user_mailbox(user.id) ||
+      case Email.ensure_user_has_mailbox(user) do
+        {:ok, mailbox} -> mailbox
+        mailbox -> mailbox
+      end
+  end
 end

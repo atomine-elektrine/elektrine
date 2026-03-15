@@ -919,7 +919,7 @@
                         if message.status == "draft" do
                           ~p"/email/compose?#{[mode: "draft", draft_id: message.id, return_to: "drafts"]}"
                         else
-                          ~p"/email/view/#{message.hash || message.id}?#{[return_to: @current_tab, filter: @current_filter]}"
+                          ~p"/email/view/#{message.hash || message.id}?#{email_return_params(%{return_to: @current_tab, return_filter: @current_filter, return_folder_id: assigns[:current_folder_id], return_query: @search_query})}"
                         end
                       }
                       class="message-open-link absolute inset-0 z-10 rounded-lg"
@@ -1083,7 +1083,7 @@
                           <%= if @current_tab != "sent" do %>
                             <.link
                               navigate={
-                                ~p"/email/compose?#{[mode: "reply", message_id: message.id, return_to: @current_tab, filter: @current_filter]}"
+                                ~p"/email/compose?#{[mode: "reply", message_id: message.id] ++ email_return_params(%{return_to: @current_tab, return_filter: @current_filter, return_folder_id: assigns[:current_folder_id], return_query: @search_query})}"
                               }
                               class="btn btn-xs btn-ghost min-h-[2rem] sm:flex"
                             >
@@ -1104,7 +1104,7 @@
                               <li>
                                 <.link
                                   navigate={
-                                    ~p"/email/compose?#{[mode: "forward", message_id: message.id, return_to: @current_tab, filter: @current_filter]}"
+                                    ~p"/email/compose?#{[mode: "forward", message_id: message.id] ++ email_return_params(%{return_to: @current_tab, return_filter: @current_filter, return_folder_id: assigns[:current_folder_id], return_query: @search_query})}"
                                   }
                                   class="flex items-center gap-2"
                                 >
@@ -1358,7 +1358,7 @@
                 <%= if @current_tab == "inbox" do %>
                   <.link
                     navigate={
-                      ~p"/email/compose?#{[return_to: @current_tab, filter: @current_filter]}"
+                      ~p"/email/compose?#{email_return_params(%{return_to: @current_tab, return_filter: @current_filter, return_folder_id: assigns[:current_folder_id], return_query: @search_query})}"
                     }
                     class="btn btn-secondary mt-4"
                   >

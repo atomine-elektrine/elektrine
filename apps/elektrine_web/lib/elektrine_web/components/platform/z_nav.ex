@@ -27,6 +27,7 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
   """
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-4"
+  attr :current_user, :any, default: nil
 
   def z_nav(assigns) do
     assigns = assign(assigns, :items, nav_items())

@@ -1,5 +1,5 @@
 <div class="mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
-  <.z_nav active_tab="lists" />
+  <.z_nav active_tab="lists" current_user={@current_user} />
 
   <% my_search_active? = String.trim(@my_lists_query || "") != ""
   discover_search_active? = String.trim(@discover_query || "") != "" %>

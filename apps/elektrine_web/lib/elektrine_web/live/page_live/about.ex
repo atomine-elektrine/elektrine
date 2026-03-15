@@ -11,7 +11,7 @@ defmodule ElektrineWeb.PageLive.About do
     ~H"""
     <div>
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-        <.z_nav active_tab="" class="mb-6" />
+        <.z_nav active_tab="" class="mb-6" current_user={@current_user} />
 
         <div id="about-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
           <div class="card-body">
@@ -39,8 +39,15 @@ defmodule ElektrineWeb.PageLive.About do
               </section>
 
               <section class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Who is behind the project</h2>
+                <p class="mb-4">
+                  Elektrine is built and run by one person.
+                </p>
+                <p>Based in Detroit, Michigan.</p>
+              </section>
+
+              <section class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4">How it is deployed</h2>
-                <p class="mb-4">Based in Detroit, Michigan.</p>
                 <p class="mb-4">
                   Not every Elektrine deployment exposes the same modules. Features can be enabled, disabled, or limited by local policy.
                 </p>

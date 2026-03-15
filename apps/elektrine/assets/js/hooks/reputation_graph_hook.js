@@ -280,32 +280,25 @@ function createNodePaints(defs, node, palette) {
   const fillId = `rep-node-fill-${safeId}`
   const washId = `rep-node-wash-${safeId}`
   const glazeId = `rep-node-glaze-${safeId}`
+  let avatarClipId = null
+  let avatarRadius = null
 
   if (node.avatar_url) {
-    const avatarId = `rep-node-avatar-${safeId}`
-    const avatarPattern = svg("pattern")
-    const avatarImage = svg("image")
+    avatarClipId = `rep-node-avatar-clip-${safeId}`
+    avatarRadius = Math.max(node.radius - (node.kind === "subject" ? 6 : 4), 0)
+    const avatarClip = svg("clipPath")
+    const avatarClipCircle = svg("circle")
 
-    setAttributes(avatarPattern, {
-      id: avatarId,
-      patternUnits: "userSpaceOnUse",
-      width: node.radius * 2,
-      height: node.radius * 2,
-      x: -node.radius,
-      y: -node.radius
+    setAttributes(avatarClip, {
+      id: avatarClipId
     })
 
-    setAttributes(avatarImage, {
-      x: -node.radius,
-      y: -node.radius,
-      width: node.radius * 2,
-      height: node.radius * 2,
-      preserveAspectRatio: "xMidYMid slice"
+    setAttributes(avatarClipCircle, {
+      r: avatarRadius
     })
 
-    setImageHref(avatarImage, node.avatar_url)
-    avatarPattern.appendChild(avatarImage)
-    defs.appendChild(avatarPattern)
+    avatarClip.appendChild(avatarClipCircle)
+    defs.appendChild(avatarClip)
   }
 
   defs.appendChild(
@@ -332,9 +325,11 @@ function createNodePaints(defs, node, palette) {
   )
 
   return {
-    fill: node.avatar_url ? `url(#rep-node-avatar-${safeId})` : `url(#${fillId})`,
+    fill: `url(#${fillId})`,
     wash: `url(#${washId})`,
-    glaze: `url(#${glazeId})`
+    glaze: `url(#${glazeId})`,
+    avatarClipId,
+    avatarRadius
   }
 }
 
@@ -521,11 +516,12 @@ function createNodeElements(node) {
   const group = svg("g")
   const halo = svg("circle")
   const body = svg("circle")
+  const avatar = node.avatar_url ? svg("image") : null
   const wash = svg("circle")
   const glaze = svg("circle")
   const ring = svg("circle")
-  const label = svg("text")
-  const subtitle = svg("text")
+  const labelText = svg("text")
+  const subtitleText = svg("text")
   const style = NODE_STYLES[node.kind] || NODE_STYLES.signal
   const layout = layoutForNode(node)
   const palette = paletteForNode(node)
@@ -536,7 +532,8 @@ function createNodeElements(node) {
   setAttributes(halo, {
     r: node.radius + 16,
     fill: palette.glow,
-    opacity: style.haloOpacity ?? (node.kind === "subject" ? 0.3 : 0.08)
+    opacity: style.haloOpacity ?? (node.kind === "subject" ? 0.3 : 0.08),
+    "pointer-events": "none"
   })
 
   setAttributes(body, {
@@ -544,19 +541,36 @@ function createNodeElements(node) {
     fill: paints.fill,
     stroke: palette.stroke,
     "stroke-width": node.kind === "subject" ? 2.8 : 2.2,
-    filter: "drop-shadow(0 16px 28px var(--rep-shadow))"
+    filter: "drop-shadow(0 16px 28px var(--rep-shadow))",
+    "pointer-events": "none"
   })
+
+  if (avatar && paints.avatarRadius && paints.avatarClipId) {
+    setAttributes(avatar, {
+      x: -paints.avatarRadius,
+      y: -paints.avatarRadius,
+      width: paints.avatarRadius * 2,
+      height: paints.avatarRadius * 2,
+      preserveAspectRatio: "xMidYMid slice",
+      "clip-path": `url(#${paints.avatarClipId})`,
+      "pointer-events": "none"
+    })
+
+    setImageHref(avatar, node.avatar_url)
+  }
 
   setAttributes(wash, {
     r: Math.max(node.radius - 1.5, 0),
     fill: paints.wash,
-    opacity: node.avatar_url ? 0.96 : style.washOpacity ?? 0.84
+    opacity: node.avatar_url ? 0.82 : style.washOpacity ?? 0.84,
+    "pointer-events": "none"
   })
 
   setAttributes(glaze, {
     r: Math.max(node.radius - 4, 0),
     fill: paints.glaze,
-    opacity: node.avatar_url ? 0.88 : style.glazeOpacity ?? 0.3
+    opacity: node.avatar_url ? 0.72 : style.glazeOpacity ?? 0.3,
+    "pointer-events": "none"
   })
 
   setAttributes(ring, {
@@ -564,49 +578,64 @@ function createNodeElements(node) {
     fill: "none",
     stroke: palette.ring,
     "stroke-width": node.kind === "subject" ? 1.4 : 1.15,
-    opacity: node.kind === "subject" ? 0.9 : 0.72
+    opacity: node.kind === "subject" ? 0.9 : 0.72,
+    "pointer-events": "none"
   })
 
-  label.textContent = trimText(node.label, labelMaxLength(node))
-  setAttributes(label, {
+  labelText.textContent = trimText(node.label, labelMaxLength(node))
+  setAttributes(labelText, {
     "text-anchor": "middle",
     y: layout.labelY,
     "font-size": layout.labelFontSize,
     "font-weight": node.kind === "subject" ? "800" : "700",
-    fill: palette.text
+    fill: palette.text,
+    "pointer-events": "none"
   })
-  label.style.filter = "drop-shadow(0 2px 8px rgba(2, 6, 23, 0.9))"
+  labelText.style.filter = "drop-shadow(0 2px 8px rgba(2, 6, 23, 0.9))"
 
-  subtitle.textContent = layout.showSubtitle ? trimText(node.subtitle, subtitleMaxLength(node)) : ""
-  setAttributes(subtitle, {
+  subtitleText.textContent = layout.showSubtitle ? trimText(node.subtitle, subtitleMaxLength(node)) : ""
+  setAttributes(subtitleText, {
     "text-anchor": "middle",
     y: layout.subtitleY,
     "font-size": layout.subtitleFontSize,
     "font-weight": "600",
     "letter-spacing": "0.08em",
     fill: palette.subtitle,
-    opacity: layout.showSubtitle ? 0.98 : 0
+    opacity: layout.showSubtitle ? 0.98 : 0,
+    "pointer-events": "none"
   })
-  subtitle.style.filter = "drop-shadow(0 2px 6px rgba(2, 6, 23, 0.8))"
+  subtitleText.style.filter = "drop-shadow(0 2px 6px rgba(2, 6, 23, 0.8))"
 
   group.appendChild(halo)
   group.appendChild(body)
+  if (avatar) group.appendChild(avatar)
   group.appendChild(wash)
   group.appendChild(glaze)
   group.appendChild(ring)
-  group.appendChild(label)
-  group.appendChild(subtitle)
+  group.appendChild(labelText)
+  group.appendChild(subtitleText)
 
-  return { group, halo, body, wash, glaze, ring, label, subtitle }
+  return { group, halo, body, avatar, wash, glaze, ring, labelText, subtitleText }
 }
 
 function showTooltip(tooltip, event, node) {
   if (!tooltip) return
 
-  tooltip.innerHTML = `
-    <div class="font-semibold text-slate-950">${node.label}</div>
-    <div class="mt-1 text-slate-600">${node.subtitle || ""}</div>
-  `
+  const title = document.createElement("div")
+  title.className = "font-semibold text-slate-950"
+  title.textContent = node.label || ""
+
+  const children = [title]
+  const subtitleText = node.subtitle || ""
+
+  if (subtitleText) {
+    const subtitle = document.createElement("div")
+    subtitle.className = "mt-1 text-slate-600"
+    subtitle.textContent = subtitleText
+    children.push(subtitle)
+  }
+
+  tooltip.replaceChildren(...children)
   tooltip.style.left = `${event.offsetX + 18}px`
   tooltip.style.top = `${event.offsetY + 18}px`
   tooltip.classList.remove("hidden")
@@ -769,11 +798,12 @@ export const ReputationGraph = {
         node.group = previous.group
         node.halo = previous.halo
         node.body = previous.body
+        node.avatar = previous.avatar
         node.wash = previous.wash
         node.glaze = previous.glaze
         node.ring = previous.ring
-        node.label = previous.label
-        node.subtitle = previous.subtitle
+        node.labelText = previous.labelText
+        node.subtitleText = previous.subtitleText
         node.x = previous.x
         node.y = previous.y
         node.vx = previous.vx

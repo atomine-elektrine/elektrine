@@ -196,7 +196,7 @@ defmodule ElektrineWeb.SearchLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.z_nav active_tab="search" />
+      <.z_nav active_tab="search" current_user={@current_user} />
 
       <div class="space-y-4">
         <div class="card bg-base-100 shadow-sm border border-base-300">

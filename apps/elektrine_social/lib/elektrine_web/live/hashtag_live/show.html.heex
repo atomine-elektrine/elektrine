@@ -1,6 +1,6 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
   <!-- Z Platform Navigation -->
-  <.z_nav active_tab="timeline" />
+  <.z_nav active_tab="timeline" current_user={@current_user} />
   
 <!-- Trending Hashtags Marquee -->
   <%= if @trending_hashtags && length(@trending_hashtags) > 0 do %>

@@ -44,8 +44,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
     from_address = determine_from_address(original_message, mailbox)
     rate_limit_status = RateLimiter.get_rate_limit_status(user.id)
     storage_info = Elektrine.Accounts.Storage.get_storage_info(user.id)
-    return_to = Map.get(params, "return_to", "inbox")
-    return_filter = Map.get(params, "filter", "inbox")
+    return_context = email_return_context(params)
     to_tags = parse_email_tags(form_data["to"] || "")
     cc_tags = parse_email_tags(form_data["cc"] || "")
     bcc_tags = parse_email_tags(form_data["bcc"] || "")
@@ -74,8 +73,10 @@ defmodule ElektrineWeb.EmailLive.Compose do
       |> assign(:original_message_id, Map.get(params, "message_id"))
       |> assign(:original_message, original_message)
       |> assign(:rate_limit_status, rate_limit_status)
-      |> assign(:return_to, return_to)
-      |> assign(:return_filter, return_filter)
+      |> assign(:return_to, return_context.return_to)
+      |> assign(:return_filter, return_context.return_filter)
+      |> assign(:return_folder_id, return_context.return_folder_id)
+      |> assign(:return_query, return_context.return_query)
       |> assign(:to_tags, to_tags)
       |> assign(:cc_tags, cc_tags)
       |> assign(:bcc_tags, bcc_tags)
@@ -130,8 +131,14 @@ defmodule ElektrineWeb.EmailLive.Compose do
       end
 
     from_address = determine_from_address(original_message, socket.assigns.mailbox)
-    return_to = Map.get(params, "return_to", socket.assigns.return_to)
-    return_filter = Map.get(params, "filter", socket.assigns.return_filter)
+
+    return_context =
+      email_return_context(%{
+        return_to: Map.get(params, "return_to", socket.assigns.return_to),
+        return_filter: Map.get(params, "filter", socket.assigns.return_filter),
+        return_folder_id: Map.get(params, "folder_id", socket.assigns[:return_folder_id]),
+        return_query: Map.get(params, "q", socket.assigns[:return_query])
+      })
 
     socket =
       if !socket.assigns[:form] || Map.get(params, "mode") != socket.assigns[:mode] do
@@ -164,8 +171,10 @@ defmodule ElektrineWeb.EmailLive.Compose do
      |> assign(:mode, Map.get(params, "mode", "compose"))
      |> assign(:original_message_id, Map.get(params, "message_id"))
      |> assign(:original_message, original_message)
-     |> assign(:return_to, return_to)
-     |> assign(:return_filter, return_filter)}
+     |> assign(:return_to, return_context.return_to)
+     |> assign(:return_filter, return_context.return_filter)
+     |> assign(:return_folder_id, return_context.return_folder_id)
+     |> assign(:return_query, return_context.return_query)}
   end
 
   @impl true
@@ -774,7 +783,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
         end
 
         updated_status = RateLimiter.get_rate_limit_status(user.id)
-        return_url = get_return_url(socket.assigns)
+        return_url = email_return_url(socket.assigns)
 
         {:noreply,
          socket
@@ -1489,54 +1498,6 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp mailbox_address_for_domain(_, _, _), do: nil
-
-  defp get_return_url(assigns) do
-    return_to = assigns[:return_to] || "inbox"
-    return_filter = assigns[:return_filter] || "inbox"
-
-    case return_to do
-      "sent" -> ~p"/email?tab=sent"
-      "spam" -> ~p"/email?tab=spam"
-      "archive" -> ~p"/email?tab=archive"
-      "search" -> ~p"/email?tab=search"
-      "inbox" when return_filter != "inbox" -> ~p"/email?tab=inbox&filter=#{return_filter}"
-      _ -> ~p"/email?tab=inbox"
-    end
-  end
-
-  defp get_back_button_text(assigns) do
-    return_to = assigns[:return_to] || "inbox"
-    return_filter = assigns[:return_filter] || "inbox"
-
-    case return_to do
-      "sent" ->
-        gettext("Back to Sent")
-
-      "spam" ->
-        gettext("Back to Spam")
-
-      "archive" ->
-        gettext("Back to Archive")
-
-      "search" ->
-        gettext("Back to Search")
-
-      "inbox" ->
-        case return_filter do
-          "bulk_mail" -> gettext("Back to Bulk Mail")
-          "paper_trail" -> gettext("Back to Paper Trail")
-          "the_pile" -> gettext("Back to The Pile")
-          "boomerang" -> gettext("Back to Boomerang")
-          "aliases" -> gettext("Back to Aliases")
-          "unread" -> gettext("Back to Unread")
-          "read" -> gettext("Back to Read")
-          _ -> gettext("Back to Inbox")
-        end
-
-      _ ->
-        gettext("Back to Inbox")
-    end
-  end
 
   defp validate_attachments(socket) do
     user = socket.assigns.current_user

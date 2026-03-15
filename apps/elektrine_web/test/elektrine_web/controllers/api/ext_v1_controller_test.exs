@@ -5,6 +5,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   import Elektrine.EmailFixtures
   import Elektrine.SocialFixtures
 
+  alias Elektrine.Calendar, as: CalendarContext
   alias Elektrine.Developer
   alias Elektrine.Email
   alias Elektrine.Email.Contacts
@@ -48,6 +49,18 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       assert %{"data" => %{"results" => email_results}} = json_response(email_conn, 200)
       refute Enum.any?(email_results, &(&1["type"] == "settings"))
+    end
+
+    test "search action execution returns a scoped navigation result", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["read:account"])
+
+      conn = post(conn, "/api/ext/v1/search/actions/execute", %{"command" => "open overview"})
+
+      assert %{"data" => %{"result" => result}} = json_response(conn, 200)
+      assert result["action_id"] == "action_open_overview"
+      assert result["mode"] == "navigate"
+      assert result["url"] == "/overview"
     end
 
     test "capabilities endpoint exposes token presets and allowed endpoints", %{conn: conn} do
@@ -167,9 +180,27 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert shown_conversation["id"] == conversation.id
       assert Enum.any?(messages, &(&1["content"] == "hello from pat chat"))
 
+      message_conn = get(conn, "/api/ext/v1/chat/conversations/#{conversation.id}/messages")
+      assert %{"data" => %{"messages" => listed_messages}} = json_response(message_conn, 200)
+      assert Enum.any?(listed_messages, &(&1["content"] == "hello from pat chat"))
+
       hidden_conn = get(conn, "/api/ext/v1/chat/conversations/#{other_conversation.id}/messages")
       assert %{"error" => error} = json_response(hidden_conn, 404)
       assert error["code"] == "not_found"
+    end
+
+    test "social feed endpoint returns public timeline posts", %{conn: conn} do
+      viewer = user_fixture()
+      author = user_fixture()
+
+      public_post =
+        post_fixture(user: author, content: "Public feed PAT post", visibility: "public")
+
+      conn = with_pat(conn, viewer.id, ["read:social"])
+      conn = get(conn, "/api/ext/v1/social/feed", %{"scope" => "public", "limit" => "5"})
+
+      assert %{"data" => %{"scope" => "public", "posts" => posts}} = json_response(conn, 200)
+      assert Enum.any?(posts, &(&1["id"] == public_post.id))
     end
 
     test "social endpoints respect post visibility", %{conn: conn} do
@@ -236,6 +267,43 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert error["code"] == "not_found"
     end
 
+    test "calendar endpoints list owned calendars and create events", %{conn: conn} do
+      user = user_fixture()
+      other_user = user_fixture()
+
+      {:ok, calendar} =
+        CalendarContext.create_calendar(%{
+          user_id: user.id,
+          name: "PAT Calendar"
+        })
+
+      {:ok, other_calendar} =
+        CalendarContext.create_calendar(%{
+          user_id: other_user.id,
+          name: "Hidden Calendar"
+        })
+
+      read_conn = with_pat(conn, user.id, ["read:calendar"])
+      list_conn = get(read_conn, "/api/ext/v1/calendars")
+
+      assert %{"data" => %{"calendars" => calendars}} = json_response(list_conn, 200)
+      assert Enum.any?(calendars, &(&1["id"] == calendar.id))
+      refute Enum.any?(calendars, &(&1["id"] == other_calendar.id))
+
+      write_conn = with_pat(conn, user.id, ["write:calendar"])
+
+      event_conn =
+        post(write_conn, "/api/ext/v1/calendars/#{calendar.id}/events", %{
+          "summary" => "PAT Event",
+          "dtstart" => "2026-03-20T10:00:00Z",
+          "dtend" => "2026-03-20T11:00:00Z"
+        })
+
+      assert %{"data" => %{"event" => event}} = json_response(event_conn, 201)
+      assert event["summary"] == "PAT Event"
+      assert Enum.any?(CalendarContext.list_events(calendar.id), &(&1.summary == "PAT Event"))
+    end
+
     test "export endpoints require export scope", %{conn: conn} do
       user = user_fixture()
       conn = with_pat(conn, user.id, ["read:account"])
@@ -244,6 +312,18 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       assert %{"error" => error} = json_response(conn, 403)
       assert error["code"] == "insufficient_scope"
+    end
+
+    test "export endpoint queues a new export with export scope", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["export"])
+
+      conn = post(conn, "/api/ext/v1/exports", %{"type" => "account", "format" => "json"})
+
+      assert %{"data" => %{"message" => message, "export" => export}} = json_response(conn, 202)
+      assert message == "Export queued successfully"
+      assert export["type"] == "account"
+      assert export["format"] == "json"
     end
 
     test "password manager endpoints accept dedicated vault scopes", %{conn: conn} do
@@ -273,6 +353,10 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert %{"id" => webhook_id, "name" => "API Hook"} = created_data["webhook"]
       assert is_binary(created_data["secret"])
 
+      index_conn = get(conn, "/api/ext/v1/webhooks")
+      assert %{"data" => %{"webhooks" => webhooks}} = json_response(index_conn, 200)
+      assert Enum.any?(webhooks, &(&1["id"] == webhook_id))
+
       show_conn = get(conn, "/api/ext/v1/webhooks/#{webhook_id}")
       assert %{"data" => show_data} = json_response(show_conn, 200)
       assert show_data["webhook"]["id"] == webhook_id
@@ -283,6 +367,54 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       delete_conn = delete(conn, "/api/ext/v1/webhooks/#{webhook_id}")
       assert %{"data" => %{"message" => "Webhook deleted"}} = json_response(delete_conn, 200)
+    end
+
+    test "webhook replay endpoint requeues an existing delivery", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["webhook"])
+
+      {:ok, listener} =
+        :gen_tcp.listen(0, [:binary, packet: :raw, active: false, reuseaddr: true])
+
+      {:ok, port} = :inet.port(listener)
+      parent = self()
+
+      Task.start(fn ->
+        for _attempt <- 1..2 do
+          {:ok, socket} = :gen_tcp.accept(listener)
+          {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
+          send(parent, {:replay_request, request})
+          :ok = :gen_tcp.send(socket, "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok")
+          :gen_tcp.close(socket)
+        end
+
+        :gen_tcp.close(listener)
+      end)
+
+      {:ok, webhook} =
+        Developer.create_webhook(user.id, %{
+          name: "Replay Hook",
+          url: "http://127.0.0.1:#{port}/webhook",
+          events: ["post.created"]
+        })
+
+      assert [{_webhook_id, {:ok, :queued}}] =
+               Developer.deliver_event(user.id, "post.created", %{post_id: 123})
+
+      assert_receive {:replay_request, first_request}, 5_000
+      assert first_request =~ "POST /webhook HTTP/1.1"
+
+      [delivery | _] =
+        Developer.list_webhook_deliveries(user.id, webhook_id: webhook.id, limit: 5)
+
+      replay_conn =
+        post(conn, "/api/ext/v1/webhooks/#{webhook.id}/deliveries/#{delivery.id}/replay")
+
+      assert %{"data" => %{"message" => "Webhook delivery replay queued"}} =
+               json_response(replay_conn, 202)
+
+      assert_receive {:replay_request, replay_request}, 5_000
+      assert replay_request =~ "POST /webhook HTTP/1.1"
     end
   end
 
