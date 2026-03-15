@@ -99,6 +99,7 @@
           <%= if search_active or conversation_type_filter != "all" or protocol_filter != "all" do %>
             <.link
               href={~p"/pripyat/arblarg/messages?#{base_params_without_search}"}
+              data-search-clear="true"
               class="btn btn-ghost"
             >
               Reset Search

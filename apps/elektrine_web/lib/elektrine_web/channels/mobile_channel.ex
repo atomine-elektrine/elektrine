@@ -807,8 +807,8 @@ defmodule ElektrineWeb.MobileChannel do
     user_id = socket.assigns.user_id
 
     case Profiles.unfollow_user(user_id, target_id) do
-      {:ok, _} -> {:reply, {:ok, %{message: "Unfollowed user"}}, socket}
-      {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
+      {:ok, :unfollowed} -> {:reply, {:ok, %{message: "Unfollowed user"}}, socket}
+      {:ok, :not_following} -> {:reply, {:ok, %{message: "Not following this user"}}, socket}
     end
   end
 

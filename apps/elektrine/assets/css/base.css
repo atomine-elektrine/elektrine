@@ -56,6 +56,26 @@ a[href],
   cursor: pointer;
 }
 
+.search-clear-input {
+  padding-right: 2.5rem;
+}
+
+.search-clear-auto[hidden] {
+  display: none !important;
+}
+
+.search-clear-auto {
+  line-height: 1;
+}
+
+.search-clear-overlay {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
 /* ==========================================================================
    FONT SYSTEM - Self-hosted Inter
    ========================================================================== */
@@ -218,13 +238,6 @@ body.bg-base-100 {
       var(--grid-x-color) 50%,
       transparent calc(50% + 0.6px)
     );
-}
-
-@media (max-width: 640px) {
-  body.bg-base-100 {
-    background-attachment: scroll;
-    background-size: 32px 32px;
-  }
 }
 
 /* Grid color variants */
@@ -483,4 +496,21 @@ body.has-blinkenlights #cursor-glow-overlay {
     drop-shadow(0 0 20px rgba(168, 85, 247, 0.5))
     drop-shadow(0 0 40px rgba(168, 85, 247, 0.3))
     drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
+}
+
+.hover-glow {
+  transition: filter 0.3s ease, opacity 0.3s ease;
+  will-change: filter, opacity;
+  filter:
+    drop-shadow(0 0 18px rgba(168, 85, 247, 0.25))
+    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18));
+}
+
+.hover-glow:hover {
+  opacity: 0.28 !important;
+  filter:
+    brightness(1.35)
+    drop-shadow(0 0 20px rgba(168, 85, 247, 0.45))
+    drop-shadow(0 0 36px rgba(168, 85, 247, 0.22))
+    drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
 }

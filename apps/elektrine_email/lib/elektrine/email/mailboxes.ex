@@ -88,12 +88,14 @@ defmodule Elektrine.Email.Mailboxes do
   def create_mailbox(user) when is_struct(user) do
     Mailbox.create_for_user(user)
     |> Repo.insert()
+    |> initialize_jmap_state()
   end
 
   def create_mailbox(mailbox_params) when is_map(mailbox_params) do
     %Mailbox{}
     |> Mailbox.changeset(mailbox_params)
     |> Repo.insert()
+    |> initialize_jmap_state()
   end
 
   @doc """
@@ -177,6 +179,13 @@ defmodule Elektrine.Email.Mailboxes do
     |> Mailbox.changeset(attrs)
     |> Repo.update()
   end
+
+  defp initialize_jmap_state({:ok, mailbox}) do
+    Elektrine.JMAP.State.initialize_for_mailbox(mailbox.id)
+    {:ok, mailbox}
+  end
+
+  defp initialize_jmap_state(result), do: result
 
   @doc """
   Updates a mailbox email address (used when username changes).

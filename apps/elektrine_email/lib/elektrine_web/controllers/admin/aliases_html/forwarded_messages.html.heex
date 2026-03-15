@@ -71,7 +71,13 @@
           </div>
         </div>
         <%= if search_active do %>
-          <.link href={~p"/pripyat/forwarded-messages"} class="btn btn-ghost">Clear</.link>
+          <.link
+            href={~p"/pripyat/forwarded-messages"}
+            data-search-clear="true"
+            class="btn btn-ghost"
+          >
+            Clear
+          </.link>
         <% end %>
       </form>
 

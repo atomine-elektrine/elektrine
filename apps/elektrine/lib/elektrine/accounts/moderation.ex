@@ -5,7 +5,7 @@ defmodule Elektrine.Accounts.Moderation do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Accounts.{AccountDeletionRequest, User}
+  alias Elektrine.Accounts.{AccountDeletionRequest, TrustLevel, User}
   alias Elektrine.Platform.Modules
   alias Elektrine.Repo
 
@@ -33,6 +33,7 @@ defmodule Elektrine.Accounts.Moderation do
       user
       |> User.ban_changeset(attrs)
       |> Repo.update()
+      |> maybe_reconcile_trust_level()
     end
   end
 
@@ -49,6 +50,7 @@ defmodule Elektrine.Accounts.Moderation do
     user
     |> User.unban_changeset()
     |> Repo.update()
+    |> maybe_reconcile_trust_level()
   end
 
   @doc """
@@ -71,6 +73,7 @@ defmodule Elektrine.Accounts.Moderation do
       user
       |> User.suspend_changeset(attrs)
       |> Repo.update()
+      |> maybe_record_suspension(user)
     end
   end
 
@@ -87,6 +90,7 @@ defmodule Elektrine.Accounts.Moderation do
     user
     |> User.unsuspend_changeset()
     |> Repo.update()
+    |> maybe_reconcile_trust_level()
   end
 
   @doc """
@@ -388,6 +392,25 @@ defmodule Elektrine.Accounts.Moderation do
         {:error, "Failed to delete user account"}
     end
   end
+
+  defp maybe_record_suspension({:ok, %User{} = updated_user}, %User{} = original_user) do
+    if !original_user.suspended && updated_user.suspended do
+      case TrustLevel.increment_stat(updated_user.id, :suspensions_count) do
+        {:ok, _stats} -> {:ok, Repo.get!(User, updated_user.id)}
+        error -> error
+      end
+    else
+      maybe_reconcile_trust_level({:ok, updated_user})
+    end
+  end
+
+  defp maybe_record_suspension(error, _original_user), do: error
+
+  defp maybe_reconcile_trust_level({:ok, %User{} = updated_user}) do
+    TrustLevel.maybe_auto_promote_user(updated_user.id)
+  end
+
+  defp maybe_reconcile_trust_level(error), do: error
 
   # Updates the user's mailbox email address to match their new username.
   # This prevents duplicate mailboxes when usernames change.

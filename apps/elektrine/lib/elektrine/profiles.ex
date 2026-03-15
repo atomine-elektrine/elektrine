@@ -429,10 +429,10 @@ defmodule Elektrine.Profiles do
           _ = Elektrine.Bluesky.OutboundWorker.enqueue_unfollow(follower_id, followed_id)
         end)
 
-        result
+        {:ok, :unfollowed}
 
-      _ ->
-        result
+      {0, _} ->
+        {:ok, :not_following}
     end
   end
 

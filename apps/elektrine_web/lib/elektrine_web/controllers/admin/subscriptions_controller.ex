@@ -93,6 +93,14 @@ defmodule ElektrineWeb.Admin.SubscriptionsController do
           |> put_flash(:info, "Product deleted successfully.")
           |> redirect(to: ~p"/pripyat/subscriptions")
 
+        {:error, :has_subscriptions} ->
+          conn
+          |> put_flash(
+            :error,
+            "This product already has subscription history. Deactivate it instead of deleting it."
+          )
+          |> redirect(to: ~p"/pripyat/subscriptions")
+
         {:error, _} ->
           conn
           |> put_flash(:error, "Unable to delete product.")

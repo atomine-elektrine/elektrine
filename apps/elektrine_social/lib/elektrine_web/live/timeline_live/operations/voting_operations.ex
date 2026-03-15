@@ -33,7 +33,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
           case Social.unlike_post(user_id, message_id) do
             {:ok, _} ->
-              {:noreply, Helpers.refresh_interaction_posts(updated_socket, message_id)}
+              {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
 
             {:error, _} ->
               {:noreply,
@@ -42,7 +42,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                |> update_post_count(message_id, :like_count, 1)
                |> update_post_interaction(message_id, :liked, true, 1)
                |> update_lemmy_score(message_id, 1)
-               |> Helpers.refresh_interaction_posts(message_id)
+               |> Helpers.touch_interaction_posts(message_id)
                |> put_flash(:error, "Failed to unlike post")}
           end
         else
@@ -96,7 +96,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                 end
               end)
 
-              {:noreply, Helpers.refresh_interaction_posts(updated_socket, message_id)}
+              {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
 
             {:error, _} ->
               error_socket =
@@ -125,7 +125,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
 
               {:noreply,
                error_socket
-               |> Helpers.refresh_interaction_posts(message_id)
+               |> Helpers.touch_interaction_posts(message_id)
                |> put_flash(:error, "Failed to like post")}
           end
         end
@@ -171,7 +171,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             Social.unlike_post(socket.assigns.current_user.id, message_id)
           end)
 
-          {:noreply, Helpers.refresh_interaction_posts(updated_socket, message_id)}
+          {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
         else
           score_adjustment =
             if currently_liked do
@@ -216,7 +216,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             Social.vote_on_message(socket.assigns.current_user.id, message_id, "down")
           end)
 
-          {:noreply, Helpers.refresh_interaction_posts(updated_socket, message_id)}
+          {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
         end
       end
     else
@@ -248,7 +248,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
           Social.unlike_post(socket.assigns.current_user.id, message_id)
         end)
 
-        {:noreply, Helpers.refresh_interaction_posts(updated_socket, message_id)}
+        {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
       end
     else
       {:noreply, socket}
@@ -416,14 +416,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             {:noreply,
              socket
              |> update_user_save_status(message_id, true)
-             |> Helpers.refresh_interaction_posts(message_id)
+             |> Helpers.touch_interaction_posts(message_id)
              |> put_flash(:info, "Saved")}
 
           {:error, _changeset} ->
             {:noreply,
              socket
              |> update_user_save_status(message_id, true)
-             |> Helpers.refresh_interaction_posts(message_id)
+             |> Helpers.touch_interaction_posts(message_id)
              |> put_flash(:info, "Already saved")}
         end
       end
@@ -449,7 +449,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
             {:noreply,
              socket
              |> update_user_save_status(message_id, false)
-             |> Helpers.refresh_interaction_posts(message_id)
+             |> Helpers.touch_interaction_posts(message_id)
              |> put_flash(:info, "Removed from saved")}
 
           {:error, _} ->
@@ -700,7 +700,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                   {:noreply,
                    socket
                    |> assign(:post_reactions, updated_reactions)
-                   |> Helpers.refresh_interaction_posts(message.id)}
+                   |> Helpers.touch_interaction_posts(message.id)}
 
                 {:error, _} ->
                   {:noreply, socket}
@@ -714,7 +714,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
                   {:noreply,
                    socket
                    |> assign(:post_reactions, updated_reactions)
-                   |> Helpers.refresh_interaction_posts(message.id)}
+                   |> Helpers.touch_interaction_posts(message.id)}
 
                 {:error, :rate_limited} ->
                   {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}

@@ -55,201 +55,425 @@
     <div class="lg:col-span-3">
       <!-- Profile Tab -->
       <%= if @selected_tab == "profile" do %>
-        <div class="card glass-card shadow-lg">
-          <div class="card-body p-4 sm:p-6">
-            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
-              <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
-            </h2>
+        <div class="space-y-4 sm:space-y-6">
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
+                <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
+              </h2>
 
-            <.form
-              for={@changeset}
-              id="profile-form"
-              phx-submit="save"
-              phx-change="validate"
-              class="space-y-4 sm:space-y-6"
-            >
-              <%= if @changeset.action && !@changeset.valid? do %>
-                <div class="alert alert-error">
-                  <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
-                  <div>
-                    <div class="font-semibold">
-                      {gettext("Please fix the following errors:")}
-                    </div>
-                    <ul class="list-disc list-inside mt-2 text-sm">
-                      <%= for {field, {message, opts}} <- @changeset.errors do %>
-                        <li>
-                          <strong>{String.capitalize(to_string(field))}:</strong>
-                          <%= if String.contains?(message, "%{count}") do %>
-                            {String.replace(
-                              message,
-                              "%{count}",
-                              to_string(opts[:count] || opts[:max] || "?")
-                            )}
-                          <% else %>
-                            {message}
-                          <% end %>
-                        </li>
-                      <% end %>
-                    </ul>
-                  </div>
-                </div>
-              <% end %>
-              
-<!-- Avatar Section -->
-              <div>
-                <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-                  <div class="avatar flex-shrink-0">
-                    <div class="w-16 sm:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                      <.user_avatar
-                        user={@user}
-                        size="xl"
-                        class="w-16 sm:w-20 h-16 sm:h-20 rounded-full"
-                      />
-                    </div>
-                  </div>
-                  <div class="flex-1 w-full">
-                    <.live_file_input
-                      upload={@uploads.avatar}
-                      class="file-input file-input-primary w-full text-sm"
-                    />
-                    <div class="text-xs sm:text-sm text-base-content/60 mt-2">
-                      {gettext(
-                        "Upload a new avatar image (max 5MB) - Will be automatically cropped to square"
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="divider text-sm">{gettext("Public Profile")}</div>
-              
-<!-- Username Section (read-only) -->
-              <div>
-                <label class="label">
-                  <span class="label-text font-medium">{gettext("Username")}</span>
-                  <span class="label-text-alt text-xs text-base-content/50">
-                    {gettext("Cannot be changed")}
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  value={@user.username}
-                  class="input input-bordered w-full bg-base-200 text-base-content/70 cursor-not-allowed"
-                  disabled
-                />
-                <div class="label">
-                  <span class="text-xs text-base-content/60 block">
-                    {gettext("Your permanent account identifier. Used for login.")}
-                  </span>
-                </div>
-              </div>
-              
-<!-- Handle Section -->
-              <div>
-                <label class="label">
-                  <span class="label-text font-medium">{gettext("Handle")}</span>
-                  <%= if @user.handle_changed_at do %>
-                    <span class="label-text-alt text-xs text-warning">
-                      {gettext("Can change in %{days} days",
-                        days: days_until_can_change_handle(@user)
-                      )}
-                    </span>
-                  <% end %>
-                </label>
-                <input
-                  type="text"
-                  name="user[handle]"
-                  value={@user.handle}
-                  placeholder="yourhandle"
-                  class="input input-bordered w-full"
-                  disabled={@user.handle_changed_at && days_until_can_change_handle(@user) > 0}
-                  pattern="[a-zA-Z0-9_]{1,20}"
-                  maxlength="20"
-                />
-                <div class="label">
-                  <span class="text-xs text-base-content/60 block">
-                    {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br />
-                    {gettext("Mentions:")} @{@user.handle}<br />
-                    {gettext("1-20 chars, alphanumeric + underscore")}
-                  </span>
-                </div>
-              </div>
-              
-<!-- Display Name Section -->
-              <div>
-                <.input
-                  field={{@changeset, :display_name}}
-                  name="user[display_name]"
-                  value={Ecto.Changeset.get_field(@changeset, :display_name)}
-                  type="text"
-                  label={gettext("Display Name")}
-                  placeholder="John Doe"
-                  maxlength="100"
-                />
-                <div class="label">
-                  <span class="text-xs text-base-content/60 break-words">
-                    {gettext("Your public display name. Can be changed anytime.")}
-                  </span>
-                </div>
-              </div>
-
-              <div class="divider text-sm">{gettext("Account Recovery")}</div>
-              
-<!-- Recovery Email Section -->
-              <div>
-                <div class="flex items-end gap-2">
-                  <div class="flex-1">
-                    <.input
-                      field={{@changeset, :recovery_email}}
-                      name="user[recovery_email]"
-                      value={Ecto.Changeset.get_field(@changeset, :recovery_email)}
-                      type="email"
-                      label={gettext("Recovery Email")}
-                      placeholder="your-external-email@example.com"
-                    />
-                  </div>
-                  <%= if @user.recovery_email && @user.recovery_email != "" do %>
-                    <%= if @user.recovery_email_verified do %>
-                      <div class="badge badge-success gap-1 mb-3">
-                        <.icon name="hero-check-circle-mini" class="w-3 h-3" />
-                        {gettext("Verified")}
+              <.form
+                for={@changeset}
+                id="profile-form"
+                phx-submit="save"
+                phx-change="validate"
+                class="space-y-4 sm:space-y-6"
+              >
+                <%= if @changeset.action && !@changeset.valid? do %>
+                  <div class="alert alert-error">
+                    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                    <div>
+                      <div class="font-semibold">
+                        {gettext("Please fix the following errors:")}
                       </div>
-                    <% else %>
-                      <div class="badge badge-warning gap-1 mb-3">
-                        <.icon name="hero-exclamation-circle-mini" class="w-3 h-3" />
-                        {gettext("Unverified")}
-                      </div>
-                    <% end %>
-                  <% end %>
-                </div>
-                <div class="label">
-                  <span class="text-xs text-base-content/60 break-words">
-                    {gettext("Used for password reset. Must be an external email address.")}
-                  </span>
-                </div>
-                <%= if @user.recovery_email && @user.recovery_email != "" && !@user.recovery_email_verified do %>
-                  <div class="mt-2">
-                    <button
-                      type="button"
-                      phx-click="send_recovery_verification"
-                      class="btn btn-sm btn-outline btn-primary"
-                    >
-                      <.icon name="hero-envelope" class="w-4 h-4" />
-                      {gettext("Send Verification Email")}
-                    </button>
-                    <p class="text-xs text-base-content/60 mt-1">
-                      {gettext(
-                        "You must verify your recovery email before it can be used for password resets."
-                      )}
-                    </p>
+                      <ul class="list-disc list-inside mt-2 text-sm">
+                        <%= for {field, {message, opts}} <- @changeset.errors do %>
+                          <li>
+                            <strong>{String.capitalize(to_string(field))}:</strong>
+                            <%= if String.contains?(message, "%{count}") do %>
+                              {String.replace(
+                                message,
+                                "%{count}",
+                                to_string(opts[:count] || opts[:max] || "?")
+                              )}
+                            <% else %>
+                              {message}
+                            <% end %>
+                          </li>
+                        <% end %>
+                      </ul>
+                    </div>
                   </div>
                 <% end %>
+                
+<!-- Avatar Section -->
+                <div>
+                  <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                    <div class="avatar flex-shrink-0">
+                      <div class="w-16 sm:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                        <.user_avatar
+                          user={@user}
+                          size="xl"
+                          class="w-16 sm:w-20 h-16 sm:h-20 rounded-full"
+                        />
+                      </div>
+                    </div>
+                    <div class="flex-1 w-full">
+                      <.live_file_input
+                        upload={@uploads.avatar}
+                        class="file-input file-input-primary w-full text-sm"
+                      />
+                      <div class="text-xs sm:text-sm text-base-content/60 mt-2">
+                        {gettext(
+                          "Upload a new avatar image (max 5MB) - Will be automatically cropped to square"
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="divider text-sm">{gettext("Public Profile")}</div>
+                
+<!-- Username Section (read-only) -->
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">{gettext("Username")}</span>
+                    <span class="label-text-alt text-xs text-base-content/50">
+                      {gettext("Cannot be changed")}
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={@user.username}
+                    class="input input-bordered w-full bg-base-200 text-base-content/70 cursor-not-allowed"
+                    disabled
+                  />
+                  <div class="label">
+                    <span class="text-xs text-base-content/60 block">
+                      {gettext("Your permanent account identifier. Used for login.")}
+                    </span>
+                  </div>
+                </div>
+                
+<!-- Handle Section -->
+                <div>
+                  <label class="label">
+                    <span class="label-text font-medium">{gettext("Handle")}</span>
+                    <%= if @user.handle_changed_at do %>
+                      <span class="label-text-alt text-xs text-warning">
+                        {gettext("Can change in %{days} days",
+                          days: days_until_can_change_handle(@user)
+                        )}
+                      </span>
+                    <% end %>
+                  </label>
+                  <input
+                    type="text"
+                    name="user[handle]"
+                    value={@user.handle}
+                    placeholder="yourhandle"
+                    class="input input-bordered w-full"
+                    disabled={@user.handle_changed_at && days_until_can_change_handle(@user) > 0}
+                    pattern="[a-zA-Z0-9_]{1,20}"
+                    maxlength="20"
+                  />
+                  <div class="label">
+                    <span class="text-xs text-base-content/60 block">
+                      {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br />
+                      {gettext("Mentions:")} @{@user.handle}<br />
+                      {gettext("1-20 chars, alphanumeric + underscore")}
+                    </span>
+                  </div>
+                </div>
+                
+<!-- Display Name Section -->
+                <div>
+                  <.input
+                    field={{@changeset, :display_name}}
+                    name="user[display_name]"
+                    value={Ecto.Changeset.get_field(@changeset, :display_name)}
+                    type="text"
+                    label={gettext("Display Name")}
+                    placeholder="John Doe"
+                    maxlength="100"
+                  />
+                  <div class="label">
+                    <span class="text-xs text-base-content/60 break-words">
+                      {gettext("Your public display name. Can be changed anytime.")}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="divider text-sm">{gettext("Account Recovery")}</div>
+                
+<!-- Recovery Email Section -->
+                <div>
+                  <div class="flex items-end gap-2">
+                    <div class="flex-1">
+                      <.input
+                        field={{@changeset, :recovery_email}}
+                        name="user[recovery_email]"
+                        value={Ecto.Changeset.get_field(@changeset, :recovery_email)}
+                        type="email"
+                        label={gettext("Recovery Email")}
+                        placeholder="your-external-email@example.com"
+                      />
+                    </div>
+                    <%= if @user.recovery_email && @user.recovery_email != "" do %>
+                      <%= if @user.recovery_email_verified do %>
+                        <div class="badge badge-success gap-1 mb-3">
+                          <.icon name="hero-check-circle-mini" class="w-3 h-3" />
+                          {gettext("Verified")}
+                        </div>
+                      <% else %>
+                        <div class="badge badge-warning gap-1 mb-3">
+                          <.icon name="hero-exclamation-circle-mini" class="w-3 h-3" />
+                          {gettext("Unverified")}
+                        </div>
+                      <% end %>
+                    <% end %>
+                  </div>
+                  <div class="label">
+                    <span class="text-xs text-base-content/60 break-words">
+                      {gettext("Used for password reset. Must be an external email address.")}
+                    </span>
+                  </div>
+                  <%= if @user.recovery_email && @user.recovery_email != "" && !@user.recovery_email_verified do %>
+                    <div class="mt-2">
+                      <button
+                        type="button"
+                        phx-click="send_recovery_verification"
+                        class="btn btn-sm btn-outline btn-primary"
+                      >
+                        <.icon name="hero-envelope" class="w-4 h-4" />
+                        {gettext("Send Verification Email")}
+                      </button>
+                      <p class="text-xs text-base-content/60 mt-1">
+                        {gettext(
+                          "You must verify your recovery email before it can be used for password resets."
+                        )}
+                      </p>
+                    </div>
+                  <% end %>
+                </div>
+
+                <div class="card-actions justify-end mt-4 sm:mt-6">
+                  <.button class="btn-primary w-full sm:w-auto">
+                    {gettext("Save Changes")}
+                  </.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6 space-y-4">
+              <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                    <.icon name="hero-ticket" class="w-5 h-5" /> {gettext("My Invite Codes")}
+                  </h3>
+                  <p class="text-xs sm:text-sm text-base-content/70">
+                    {gettext(
+                      "Create single-use signup codes from your account. Codes expire after %{days} days and you can keep up to %{count} active at once.",
+                      days: @invite_code_policy.expires_in_days,
+                      count: @invite_code_policy.max_active_codes
+                    )}
+                  </p>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <span class={[
+                    "badge",
+                    if(@invite_codes_enabled, do: "badge-success", else: "badge-warning")
+                  ]}>
+                    {if @invite_codes_enabled, do: "Invite-only", else: "Open signup"}
+                  </span>
+                  <span class="badge badge-outline">
+                    TL{@invite_code_policy.min_trust_level}+
+                  </span>
+                </div>
               </div>
 
-              <div class="card-actions justify-end mt-4 sm:mt-6">
-                <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
+              <div class="grid grid-cols-3 gap-3">
+                <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Total
+                  </div>
+                  <div class="mt-2 text-xl font-semibold text-base-content">
+                    {length(@user_invite_codes)}
+                  </div>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Active
+                  </div>
+                  <div class="mt-2 text-xl font-semibold text-success">
+                    {Enum.count(@user_invite_codes, &(invite_code_status(&1) == :active))}
+                  </div>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Used
+                  </div>
+                  <div class="mt-2 text-xl font-semibold text-base-content">
+                    {Enum.count(@user_invite_codes, &(&1.uses_count > 0))}
+                  </div>
+                </div>
               </div>
-            </.form>
+
+              <%= cond do %>
+                <% !@invite_codes_enabled -> %>
+                  <div class="alert alert-info">
+                    <.icon name="hero-information-circle" class="w-5 h-5" />
+                    <span>
+                      Registration is currently open, so invite codes are not required right now.
+                    </span>
+                  </div>
+                <% !@can_create_invite_codes -> %>
+                  <div class="alert alert-warning">
+                    <.icon name="hero-lock-closed" class="w-5 h-5" />
+                    <span>
+                      Invite creation unlocks at TL{@invite_code_policy.min_trust_level}. Your
+                      account is currently TL{@user.trust_level}.
+                    </span>
+                  </div>
+                <% true -> %>
+                  <.form
+                    for={%{}}
+                    id="invite-code-form"
+                    as={:invite}
+                    phx-submit="create_invite_code"
+                    class="rounded-box border border-base-300 bg-base-200/40 p-4"
+                  >
+                    <div class="space-y-3">
+                      <div>
+                        <label class="label">
+                          <span class="label-text font-medium">Internal Note</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="invite[note]"
+                          class="input input-bordered w-full"
+                          maxlength="120"
+                          placeholder="Optional label for who this code is for"
+                        />
+                      </div>
+
+                      <div class="flex flex-col gap-3 border-t border-base-300/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                        <span class="text-xs text-base-content/60">
+                          Single-use code. Expires automatically after {@invite_code_policy.expires_in_days} days.
+                        </span>
+                        <button
+                          type="submit"
+                          class="btn btn-primary w-full sm:w-auto sm:flex-none"
+                        >
+                          <.icon name="hero-plus" class="w-4 h-4" /> Create Invite Code
+                        </button>
+                      </div>
+                    </div>
+                  </.form>
+              <% end %>
+
+              <%= if @user_invite_codes == [] do %>
+                <div class="rounded-box border border-dashed border-base-300 px-4 py-10 text-center">
+                  <.icon name="hero-ticket" class="mx-auto h-10 w-10 opacity-30" />
+                  <p class="mt-3 text-sm font-medium text-base-content/70">No invite codes yet</p>
+                  <p class="mt-1 text-xs text-base-content/55">
+                    New codes you create here will appear in this list.
+                  </p>
+                </div>
+              <% else %>
+                <div class="space-y-3">
+                  <%= for invite_code <- @user_invite_codes do %>
+                    <div class="rounded-box border border-base-300 bg-base-200/40 p-4">
+                      <div class="space-y-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <code class="font-mono text-sm font-semibold tracking-[0.18em] text-primary">
+                                {invite_code.code}
+                              </code>
+                              <span class={[
+                                "badge badge-sm",
+                                invite_code_status_badge_class(invite_code)
+                              ]}>
+                                {invite_code_status_label(invite_code)}
+                              </span>
+                              <button
+                                type="button"
+                                class="btn btn-ghost btn-xs"
+                                data-copy-to-clipboard={invite_code.code}
+                                title="Copy code"
+                              >
+                                <.icon name="hero-document-duplicate" class="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            <%= if note = String.trim(invite_code.note || "") do %>
+                              <p class="mt-2 text-sm text-base-content/70 break-words">{note}</p>
+                            <% end %>
+                          </div>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                              Usage
+                            </div>
+                            <div class="mt-1 flex items-center justify-between text-sm text-base-content/70">
+                              <span>{invite_code.uses_count} / {invite_code.max_uses}</span>
+                              <span>{invite_code_usage_percent(invite_code)}%</span>
+                            </div>
+                            <progress
+                              class="progress progress-success h-2 w-full mt-2"
+                              value={invite_code.uses_count}
+                              max={max(invite_code.max_uses, 1)}
+                            >
+                            </progress>
+                          </div>
+
+                          <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                              Expires
+                            </div>
+                            <div class="mt-1 text-sm text-base-content/70">
+                              <%= if invite_code.expires_at do %>
+                                <.local_time
+                                  datetime={invite_code.expires_at}
+                                  format="datetime"
+                                  timezone={@user.timezone || "Etc/UTC"}
+                                  time_format={@user.time_format || "12"}
+                                />
+                              <% else %>
+                                Never
+                              <% end %>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                              Created
+                            </div>
+                            <div class="mt-1 text-sm text-base-content/70">
+                              <.local_time
+                                datetime={invite_code.inserted_at}
+                                format="datetime"
+                                timezone={@user.timezone || "Etc/UTC"}
+                                time_format={@user.time_format || "12"}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <%= if invite_code_status(invite_code) == :active do %>
+                          <div class="flex justify-end border-t border-base-300/70 pt-3">
+                            <button
+                              type="button"
+                              phx-click="deactivate_invite_code"
+                              phx-value-id={invite_code.id}
+                              class="btn btn-ghost btn-sm text-warning"
+                            >
+                              <.icon name="hero-pause-circle" class="w-4 h-4" /> Deactivate
+                            </button>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
           </div>
         </div>
       <% end %>

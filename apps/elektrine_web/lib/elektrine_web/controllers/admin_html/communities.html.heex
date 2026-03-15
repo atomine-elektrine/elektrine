@@ -60,7 +60,11 @@
               <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
             </button>
             <%= if @search_query != "" do %>
-              <a href={~p"/pripyat/communities"} class="btn btn-ghost join-item">
+              <a
+                href={~p"/pripyat/communities"}
+                data-search-clear="true"
+                class="btn btn-ghost join-item"
+              >
                 <.icon name="hero-x-mark" class="w-4 h-4" />
               </a>
             <% end %>

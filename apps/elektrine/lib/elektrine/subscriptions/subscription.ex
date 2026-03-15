@@ -78,6 +78,7 @@ defmodule Elektrine.Subscriptions.Subscription do
   def webhook_changeset(subscription, attrs) do
     subscription
     |> cast(attrs, [
+      :stripe_customer_id,
       :stripe_subscription_id,
       :stripe_price_id,
       :status,

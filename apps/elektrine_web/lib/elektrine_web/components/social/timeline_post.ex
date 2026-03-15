@@ -2231,29 +2231,35 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           <span class="inline-flex items-center">
             <span
               data-follow-display="following"
-              class={["inline-flex items-center", if(follow_state != "following", do: "hidden")]}
+              class={if(follow_state != "following", do: "hidden")}
             >
-              <.icon name="hero-user-minus" class="w-3 h-3 sm:w-4 sm:h-4" />
-              <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
-                Unfollow
+              <span class="inline-flex items-center">
+                <.icon name="hero-user-minus" class="w-3 h-3 sm:w-4 sm:h-4" />
+                <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
+                  Unfollow
+                </span>
               </span>
             </span>
             <span
               data-follow-display="pending"
-              class={["inline-flex items-center", if(follow_state != "pending", do: "hidden")]}
+              class={if(follow_state != "pending", do: "hidden")}
             >
-              <.icon name="hero-clock" class="w-3 h-3 sm:w-4 sm:h-4" />
-              <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
-                Requested
+              <span class="inline-flex items-center">
+                <.icon name="hero-clock" class="w-3 h-3 sm:w-4 sm:h-4" />
+                <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
+                  Requested
+                </span>
               </span>
             </span>
             <span
               data-follow-display="none"
-              class={["inline-flex items-center", if(follow_state != "none", do: "hidden")]}
+              class={if(follow_state != "none", do: "hidden")}
             >
-              <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
-              <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
-                Follow
+              <span class="inline-flex items-center">
+                <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
+                <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
+                  Follow
+                </span>
               </span>
             </span>
           </span>

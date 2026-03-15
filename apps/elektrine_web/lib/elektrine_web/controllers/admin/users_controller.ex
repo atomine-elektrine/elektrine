@@ -194,12 +194,12 @@ defmodule ElektrineWeb.Admin.UsersController do
       {:ok, updated_user} ->
         # Log trust level change if it occurred
         if trust_level_changed do
-          Elektrine.Accounts.TrustLevel.promote_user(
+          Elektrine.Accounts.TrustLevel.record_level_change(
             updated_user,
-            new_level,
-            "manual",
-            conn.assigns.current_user.id,
-            "Manually set by admin"
+            old_level,
+            reason: "manual",
+            changed_by_user_id: conn.assigns.current_user.id,
+            notes: "Manually set by admin"
           )
         end
 

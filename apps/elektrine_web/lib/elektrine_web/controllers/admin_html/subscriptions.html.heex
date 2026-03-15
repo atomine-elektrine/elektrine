@@ -37,8 +37,10 @@
             <tr>
               <th class="text-xs sm:text-sm">Product</th>
               <th class="text-xs sm:text-sm">Slug</th>
+              <th class="text-xs sm:text-sm">Type</th>
               <th class="text-xs sm:text-sm">Monthly</th>
               <th class="text-xs sm:text-sm">Yearly</th>
+              <th class="text-xs sm:text-sm">One-time</th>
               <th class="text-xs sm:text-sm">Status</th>
               <th class="text-xs sm:text-sm">Actions</th>
             </tr>
@@ -60,7 +62,20 @@
                   <code class="text-xs bg-base-200 px-2 py-1 rounded">{product.slug}</code>
                 </td>
                 <td>
-                  <%= if product.monthly_price_cents do %>
+                  <span class={[
+                    "badge badge-sm",
+                    if(Elektrine.Subscriptions.Product.one_time?(product),
+                      do: "badge-primary",
+                      else: "badge-secondary"
+                    )
+                  ]}>
+                    {if Elektrine.Subscriptions.Product.one_time?(product),
+                      do: "One-time",
+                      else: "Recurring"}
+                  </span>
+                </td>
+                <td>
+                  <%= if Elektrine.Subscriptions.Product.recurring?(product) and product.monthly_price_cents do %>
                     <span class="font-medium">
                       {Elektrine.Subscriptions.Product.format_price(
                         product.monthly_price_cents,
@@ -85,7 +100,7 @@
                   <% end %>
                 </td>
                 <td>
-                  <%= if product.yearly_price_cents do %>
+                  <%= if Elektrine.Subscriptions.Product.recurring?(product) and product.yearly_price_cents do %>
                     <span class="font-medium">
                       {Elektrine.Subscriptions.Product.format_price(
                         product.yearly_price_cents,
@@ -93,6 +108,31 @@
                       )}
                     </span>
                     <%= if product.stripe_yearly_price_id do %>
+                      <.icon
+                        name="hero-check-circle"
+                        class="w-4 h-4 text-success ml-1"
+                        title="Stripe configured"
+                      />
+                    <% else %>
+                      <.icon
+                        name="hero-exclamation-triangle"
+                        class="w-4 h-4 text-warning ml-1"
+                        title="No Stripe price ID"
+                      />
+                    <% end %>
+                  <% else %>
+                    <span class="opacity-50">-</span>
+                  <% end %>
+                </td>
+                <td>
+                  <%= if Elektrine.Subscriptions.Product.one_time?(product) and product.one_time_price_cents do %>
+                    <span class="font-medium">
+                      {Elektrine.Subscriptions.Product.format_price(
+                        product.one_time_price_cents,
+                        product.currency
+                      )}
+                    </span>
+                    <%= if product.stripe_one_time_price_id do %>
                       <.icon
                         name="hero-check-circle"
                         class="w-4 h-4 text-success ml-1"
@@ -195,7 +235,8 @@
             Stripe Dashboard
           </a>
         </li>
-        <li>Add monthly and/or yearly prices to the product</li>
+        <li>Choose whether the product should be recurring or one-time</li>
+        <li>Add the matching Stripe price for that billing type</li>
         <li>
           Copy the price IDs (e.g., <code class="bg-base-200 px-1">price_xxx</code>) from Stripe
         </li>

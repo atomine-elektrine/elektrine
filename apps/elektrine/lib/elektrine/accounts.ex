@@ -33,6 +33,11 @@ defmodule Elektrine.Accounts do
 
   require Logger
 
+  @self_service_invite_active_limit 5
+  @self_service_invite_max_uses 1
+  @self_service_invite_expiry_days 14
+  @seconds_per_day 86_400
+
   ## Core User Management
 
   @doc """
@@ -405,13 +410,22 @@ defmodule Elektrine.Accounts do
   def get_invite_code(id), do: Repo.get(InviteCode, id) |> Repo.preload(:created_by)
 
   @doc """
+  Gets a single invite code.
+
+  Raises if the InviteCode does not exist.
+  """
+  def get_invite_code!(id), do: Repo.get!(InviteCode, id) |> Repo.preload(:created_by)
+
+  @doc """
   Gets an invite code by its code string.
 
   Returns nil if the InviteCode does not exist.
   """
   def get_invite_code_by_code(code) do
+    normalized_code = InviteCode.normalize_code(code)
+
     InviteCode
-    |> where([i], i.code == ^code)
+    |> where([i], fragment("upper(?)", i.code) == ^normalized_code)
     |> preload(:created_by)
     |> Repo.one()
   end
@@ -420,23 +434,18 @@ defmodule Elektrine.Accounts do
   Creates an invite code.
   """
   def create_invite_code(attrs \\ %{}) do
-    # Convert atom keys to string keys
     attrs =
       attrs
       |> Enum.map(fn {k, v} -> {to_string(k), v} end)
       |> Enum.into(%{})
 
-    # Only generate code if not provided
-    attrs =
-      if attrs["code"] == nil || attrs["code"] == "" do
-        Map.put(attrs, "code", InviteCode.generate_code())
-      else
-        attrs
-      end
-
-    %InviteCode{}
-    |> InviteCode.changeset(attrs)
-    |> Repo.insert()
+    if blank_invite_code?(attrs["code"]) do
+      create_generated_invite_code(attrs, 3)
+    else
+      %InviteCode{}
+      |> InviteCode.create_changeset(attrs)
+      |> Repo.insert()
+    end
   end
 
   @doc """
@@ -444,7 +453,7 @@ defmodule Elektrine.Accounts do
   """
   def update_invite_code(%InviteCode{} = invite_code, attrs) do
     invite_code
-    |> InviteCode.changeset(attrs)
+    |> InviteCode.update_changeset(attrs)
     |> Repo.update()
   end
 
@@ -463,25 +472,43 @@ defmodule Elektrine.Accounts do
   end
 
   @doc """
+  Registers a new user and claims an invite code atomically.
+  """
+  def register_user_with_invite(attrs) do
+    invite_code = extract_invite_code(attrs)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:user, User.registration_changeset(%User{}, attrs))
+    |> Ecto.Multi.run(:invite_use, fn repo, %{user: user} ->
+      claim_invite_code(repo, invite_code, user.id)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: user}} ->
+        maybe_create_user_mailbox(user)
+        {:ok, Repo.get!(User, user.id)}
+
+      {:error, :user, changeset, _changes_so_far} ->
+        {:error, changeset}
+
+      {:error, :invite_use, reason, _changes_so_far} ->
+        {:error, invite_registration_changeset(attrs, reason)}
+    end
+  end
+
+  @doc """
   Validates and uses an invite code for a user registration.
   """
   def use_invite_code(code, user_id) do
-    with %InviteCode{} = invite_code <- get_invite_code_by_code(code),
-         true <- InviteCode.valid_for_use?(invite_code) do
-      Repo.transaction(fn ->
-        # Create the usage record
-        %InviteCodeUse{}
-        |> InviteCodeUse.changeset(%{invite_code_id: invite_code.id, user_id: user_id})
-        |> Repo.insert!()
-
-        # Increment the uses count
-        invite_code
-        |> Ecto.Changeset.change(uses_count: invite_code.uses_count + 1)
-        |> Repo.update!()
-      end)
-    else
-      nil -> {:error, :invalid_code}
-      false -> {:error, :code_not_valid}
+    Repo.transaction(fn ->
+      case claim_invite_code(Repo, code, user_id) do
+        {:ok, invite_code} -> invite_code
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, invite_code} -> {:ok, invite_code}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -511,18 +538,96 @@ defmodule Elektrine.Accounts do
   Gets statistics for invite codes.
   """
   def get_invite_code_stats do
+    now = DateTime.utc_now()
+
     %{
       total: Repo.aggregate(InviteCode, :count),
-      active: Repo.aggregate(from(i in InviteCode, where: i.is_active == true), :count),
+      active:
+        Repo.aggregate(
+          from(i in InviteCode,
+            where:
+              i.is_active == true and
+                (is_nil(i.expires_at) or i.expires_at >= ^now) and
+                i.uses_count < i.max_uses
+          ),
+          :count
+        ),
       expired:
         Repo.aggregate(
           from(i in InviteCode,
-            where: not is_nil(i.expires_at) and i.expires_at < ^DateTime.utc_now()
+            where: not is_nil(i.expires_at) and i.expires_at < ^now
           ),
           :count
         ),
       exhausted: Repo.aggregate(from(i in InviteCode, where: i.uses_count >= i.max_uses), :count)
     }
+  end
+
+  @doc """
+  Returns the invite-code policy used by self-service invite creation.
+  """
+  def self_service_invite_policy do
+    %{
+      min_trust_level: Elektrine.System.self_service_invite_min_trust_level(),
+      max_active_codes: @self_service_invite_active_limit,
+      max_uses: @self_service_invite_max_uses,
+      expires_in_days: @self_service_invite_expiry_days
+    }
+  end
+
+  @doc """
+  Returns whether a user can create invite codes from account settings.
+  """
+  def user_can_create_invite_codes?(%User{} = user) do
+    user.is_admin || user.trust_level >= self_service_invite_policy().min_trust_level
+  end
+
+  def user_can_create_invite_codes?(_), do: false
+
+  @doc """
+  Returns invite codes created by a specific user.
+  """
+  def list_user_invite_codes(user_id) do
+    InviteCode
+    |> where([i], i.created_by_id == ^user_id)
+    |> order_by([i], desc: i.inserted_at)
+    |> preload(:created_by)
+    |> Repo.all()
+  end
+
+  @doc """
+  Creates a constrained self-service invite code for a user.
+  """
+  def create_self_service_invite_code(%User{} = user, attrs \\ %{}) do
+    attrs =
+      attrs
+      |> Enum.map(fn {k, v} -> {to_string(k), v} end)
+      |> Enum.into(%{})
+
+    with :ok <- ensure_self_service_invites_enabled(),
+         :ok <- authorize_self_service_invite_creation(user),
+         :ok <- ensure_self_service_invite_capacity(user.id) do
+      create_invite_code(%{
+        "created_by_id" => user.id,
+        "max_uses" => @self_service_invite_max_uses,
+        "expires_at" => self_service_invite_expiration(),
+        "note" => normalize_optional_string(attrs["note"])
+      })
+    end
+  end
+
+  @doc """
+  Deactivates a self-service invite code owned by the user.
+  """
+  def deactivate_self_service_invite_code(%User{} = user, invite_code_id)
+      when is_integer(invite_code_id) do
+    case get_user_invite_code(user.id, invite_code_id) do
+      nil ->
+        {:error, :not_found}
+
+      invite_code ->
+        update_invite_code(invite_code, %{is_active: false})
+    end
   end
 
   ## Handle Management
@@ -905,6 +1010,193 @@ defmodule Elektrine.Accounts do
       Elektrine.Email.create_mailbox(user)
     else
       :ok
+    end
+  end
+
+  defp create_generated_invite_code(attrs, attempts_remaining) when attempts_remaining > 0 do
+    generated_attrs = Map.put(attrs, "code", InviteCode.generate_code())
+
+    case %InviteCode{} |> InviteCode.create_changeset(generated_attrs) |> Repo.insert() do
+      {:error, %Ecto.Changeset{} = changeset} = error ->
+        if autogenerated_code_collision?(changeset) and attempts_remaining > 1 do
+          create_generated_invite_code(attrs, attempts_remaining - 1)
+        else
+          error
+        end
+
+      success ->
+        success
+    end
+  end
+
+  defp create_generated_invite_code(attrs, _attempts_remaining) do
+    %InviteCode{}
+    |> InviteCode.create_changeset(Map.put(attrs, "code", InviteCode.generate_code()))
+    |> Repo.insert()
+  end
+
+  defp autogenerated_code_collision?(%Ecto.Changeset{} = changeset) do
+    Enum.any?(changeset.errors, fn
+      {:code, {_message, opts}} -> Keyword.get(opts, :constraint) == :unique
+      _other -> false
+    end)
+  end
+
+  defp claim_invite_code(repo, code, user_id) do
+    case get_invite_code_for_update(repo, code) do
+      nil ->
+        {:error, :invalid_code}
+
+      %InviteCode{} = invite_code ->
+        case invite_code_validation_error(invite_code) do
+          nil ->
+            with {:ok, _use} <- insert_invite_code_use(repo, invite_code.id, user_id),
+                 {1, _} <- increment_invite_code_usage(repo, invite_code.id) do
+              {:ok, %{invite_code | uses_count: invite_code.uses_count + 1}}
+            else
+              {:error, %Ecto.Changeset{} = changeset} ->
+                {:error, invite_code_use_error(changeset)}
+
+              {0, _} ->
+                {:error, :code_exhausted}
+            end
+
+          reason ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp get_invite_code_for_update(repo, code) do
+    normalized_code = InviteCode.normalize_code(code)
+
+    InviteCode
+    |> where([i], fragment("upper(?)", i.code) == ^normalized_code)
+    |> lock("FOR UPDATE")
+    |> repo.one()
+  end
+
+  defp invite_code_validation_error(%InviteCode{} = invite_code) do
+    cond do
+      !invite_code.is_active -> :code_inactive
+      InviteCode.expired?(invite_code) -> :code_expired
+      InviteCode.exhausted?(invite_code) -> :code_exhausted
+      true -> nil
+    end
+  end
+
+  defp insert_invite_code_use(repo, invite_code_id, user_id) do
+    %InviteCodeUse{}
+    |> InviteCodeUse.changeset(%{invite_code_id: invite_code_id, user_id: user_id})
+    |> repo.insert()
+  end
+
+  defp increment_invite_code_usage(repo, invite_code_id) do
+    from(i in InviteCode,
+      where: i.id == ^invite_code_id and i.uses_count < i.max_uses
+    )
+    |> repo.update_all(inc: [uses_count: 1])
+  end
+
+  defp invite_code_use_error(%Ecto.Changeset{} = changeset) do
+    case Enum.find(changeset.errors, fn {field, _error} -> field == :user_id end) do
+      {:user_id, {_message, opts}} ->
+        if Keyword.get(opts, :constraint) == :unique do
+          :already_used
+        else
+          :code_not_valid
+        end
+
+      _other ->
+        :code_not_valid
+    end
+  end
+
+  defp invite_registration_changeset(attrs, reason) do
+    %User{}
+    |> User.registration_changeset(attrs)
+    |> Ecto.Changeset.add_error(:invite_code, invite_code_error_message(reason))
+  end
+
+  defp invite_code_error_message(:invalid_code), do: "Invalid invite code"
+  defp invite_code_error_message(:code_expired), do: "This invite code has expired"
+
+  defp invite_code_error_message(:code_exhausted),
+    do: "This invite code has reached its usage limit"
+
+  defp invite_code_error_message(:code_inactive), do: "This invite code is no longer active"
+
+  defp invite_code_error_message(:already_used),
+    do: "This account has already used an invite code"
+
+  defp invite_code_error_message(_reason), do: "Invalid invite code"
+
+  defp extract_invite_code(attrs) when is_map(attrs) do
+    Map.get(attrs, "invite_code") || Map.get(attrs, :invite_code)
+  end
+
+  defp blank_invite_code?(code) do
+    is_nil(code) or String.trim(to_string(code)) == ""
+  end
+
+  defp ensure_self_service_invites_enabled do
+    if Elektrine.System.invite_codes_enabled?() do
+      :ok
+    else
+      {:error, :invite_codes_disabled}
+    end
+  end
+
+  defp authorize_self_service_invite_creation(%User{} = user) do
+    if user_can_create_invite_codes?(user) do
+      :ok
+    else
+      {:error, :insufficient_trust_level}
+    end
+  end
+
+  defp ensure_self_service_invite_capacity(user_id) do
+    now = DateTime.utc_now()
+
+    active_count =
+      from(i in InviteCode,
+        where:
+          i.created_by_id == ^user_id and
+            i.is_active == true and
+            (is_nil(i.expires_at) or i.expires_at >= ^now) and
+            i.uses_count < i.max_uses
+      )
+      |> Repo.aggregate(:count)
+
+    if active_count < @self_service_invite_active_limit do
+      :ok
+    else
+      {:error, :invite_code_limit_reached}
+    end
+  end
+
+  defp get_user_invite_code(user_id, invite_code_id) do
+    InviteCode
+    |> where([i], i.id == ^invite_code_id and i.created_by_id == ^user_id)
+    |> preload(:created_by)
+    |> Repo.one()
+  end
+
+  defp self_service_invite_expiration do
+    DateTime.utc_now()
+    |> DateTime.add(@self_service_invite_expiry_days * @seconds_per_day, :second)
+    |> DateTime.truncate(:second)
+  end
+
+  defp normalize_optional_string(nil), do: nil
+
+  defp normalize_optional_string(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> nil
+      trimmed -> trimmed
     end
   end
 

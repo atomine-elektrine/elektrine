@@ -495,6 +495,36 @@ defmodule ElektrineWeb.Platform.Integrations do
     )
   end
 
+  def social_save_post(user_id, message_id) do
+    call_optional(
+      :social,
+      @social_module,
+      :save_post,
+      [user_id, message_id],
+      {:error, :unavailable}
+    )
+  end
+
+  def social_unsave_post(user_id, message_id) do
+    call_optional(
+      :social,
+      @social_module,
+      :unsave_post,
+      [user_id, message_id],
+      {:error, :unavailable}
+    )
+  end
+
+  def social_create_quote_post(user_id, message_id, content) do
+    call_optional(
+      :social,
+      @social_module,
+      :create_quote_post,
+      [user_id, message_id, content],
+      {:error, :unavailable}
+    )
+  end
+
   def social_follow_user(follower_id, followed_id) do
     call_optional(
       :social,

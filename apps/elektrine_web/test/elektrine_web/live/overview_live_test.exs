@@ -3,7 +3,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.{AccountsFixtures, Friends}
+  alias Elektrine.{AccountsFixtures, Friends, Profiles, Social}
 
   defp log_in_user(conn, user) do
     token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
@@ -105,5 +105,55 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
     render_hook(view, "like_post", %{"message_id" => "abc"})
     assert render(view) =~ "Invalid post id"
+  end
+
+  test "unfollowing from overview does not crash when the follow exists", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, _post} =
+      Social.create_timeline_post(author.id, "Overview follow regression target",
+        visibility: "public"
+      )
+
+    assert {:ok, _follow} = Profiles.follow_user(viewer.id, author.id)
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/overview")
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        send(view.pid, :load_feed_data)
+        rendered = render(view)
+
+        if rendered =~ "Overview follow regression target" and
+             has_element?(
+               view,
+               ~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
+               "Unfollow"
+             ) do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Overview follow regression target"
+    assert Profiles.following?(viewer.id, author.id)
+
+    view
+    |> element(~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]))
+    |> render_click()
+
+    refute Profiles.following?(viewer.id, author.id)
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
+             "Follow"
+           )
   end
 end

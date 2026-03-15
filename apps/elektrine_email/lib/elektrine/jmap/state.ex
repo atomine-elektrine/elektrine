@@ -74,12 +74,13 @@ defmodule Elektrine.JMAP.State do
   def validate_state(mailbox_id, entity_type, since_state) do
     current = get_state(mailbox_id, entity_type)
     current_int = String.to_integer(current)
-    since_int = String.to_integer(since_state)
 
-    if since_int <= current_int do
-      {:ok, current}
-    else
-      {:error, :invalid_state}
+    case Integer.parse(to_string(since_state)) do
+      {since_int, ""} when since_int <= current_int ->
+        {:ok, current}
+
+      _ ->
+        {:error, :invalid_state}
     end
   end
 

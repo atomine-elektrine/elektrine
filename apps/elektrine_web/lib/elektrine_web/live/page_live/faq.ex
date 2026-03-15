@@ -9,23 +9,37 @@ defmodule ElektrineWeb.PageLive.FAQ do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen">
-      <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div>
+      <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <.z_nav active_tab="" class="mb-6" />
+
         <div id="faq-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
           <div class="card-body">
             <h1 class="card-title text-3xl mb-6">FAQ</h1>
 
-            <div class="space-y-4" id="faq-items" phx-update="ignore">
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Platform</h2>
+            <div class="space-y-4" id="faq-items">
+              <h2 class="text-2xl font-semibold mt-6 mb-4">General</h2>
 
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What is Elektrine today?
+                  What is Elektrine?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Elektrine is a unified communication platform. One account can access Overview, Search, Chat, Timeline, Communities, Gallery, Lists, Friends, Email, Password Manager (Vault), VPN, Contacts, and Calendar.
+                    Elektrine is a modular platform for running internet services from one account.
+                  </p>
+                </div>
+              </div>
+
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  Are the same features available on every deployment?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    No. Deployments can compile in different modules and apply different local policies.
                   </p>
                 </div>
               </div>
@@ -37,7 +51,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    No. A single account works across the platform.
+                    No. One account works across the modules enabled on the same deployment.
                   </p>
                 </div>
               </div>
@@ -45,11 +59,25 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Is registration open to everyone?
+                  Can registration be invite-only?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    It depends on server configuration. Some deployments allow open registration, while others require invite codes.
+                    Yes. Registration policy depends on the deployment.
+                  </p>
+                </div>
+              </div>
+
+              <h2 class="text-2xl font-semibold mt-6 mb-4">Vision and Federation</h2>
+
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  What is the vision for Elektrine?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    Elektrine is meant to give operators one modular platform for running multiple internet services, while giving users something that feels native and unified rather than a stack of unrelated products.
                   </p>
                 </div>
               </div>
@@ -57,28 +85,11 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Are all features available for every account?
+                  What does federation mean in Elektrine?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Not always. Some capabilities vary by trust level, subscription/product status, or instance policy (for example: sending limits and available VPN servers).
-                  </p>
-                </div>
-              </div>
-
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Account and Security</h2>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Username vs handle vs preferred email domain - what is the difference?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    <strong>Username</strong>
-                    is your login identity and mailbox base name. <strong>Handle</strong>
-                    is your public @name on profiles/posts. <strong>Preferred email domain</strong>
-                    controls which domain is used by default when sending mail.
+                    Federation means an Elektrine deployment can exchange activity with other servers instead of acting as a closed silo. The exact behavior depends on which modules are enabled.
                   </p>
                 </div>
               </div>
@@ -86,11 +97,25 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I change my handle?
+                  Which federated protocols are supported?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Yes. Handles can be changed in account settings, with a 30-day cooldown between changes.
+                    ActivityPub powers the federated social web surface. Arblarg is the messaging federation protocol between domains. Optional Bluesky integration can connect public social posting to ATProto services.
+                  </p>
+                </div>
+              </div>
+
+              <h2 class="text-2xl font-semibold mt-6 mb-4">Modes</h2>
+
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  What is Overview?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    Overview is the dashboard for your account. It brings together activity from the modules enabled on the deployment.
                   </p>
                 </div>
               </div>
@@ -98,11 +123,11 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What security options are available?
+                  What is Chat?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    You can enable recovery email verification, TOTP two-factor authentication, and passkeys.
+                    Chat is the messaging area for direct conversations and group conversations.
                   </p>
                 </div>
               </div>
@@ -110,11 +135,11 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  How many passkeys can I add?
+                  What is Timeline?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Up to 10 passkeys per account.
+                    Timeline is the social feed for posts and updates.
                   </p>
                 </div>
               </div>
@@ -122,11 +147,11 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What are app passwords for?
+                  What are Communities?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    App passwords are for IMAP/POP3/SMTP clients and other non-browser integrations. They are especially useful when 2FA is enabled.
+                    Communities are topic-based spaces for longer discussion and shared moderation.
                   </p>
                 </div>
               </div>
@@ -134,25 +159,61 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  How do I delete my account?
+                  What is Gallery?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Submit a deletion request in Account Settings. Requests are reviewed, and approved deletions permanently remove account data.
+                    Gallery is the media-focused view of the social side of Elektrine.
                   </p>
                 </div>
               </div>
 
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Email</h2>
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  What are Friends?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    Friends is the area for managing person-to-person connections on the platform.
+                  </p>
+                </div>
+              </div>
 
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What email addresses do I get?
+                  What is Vault?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Your mailbox works on all local domains: {Enum.map_join(
+                    Vault is the password-manager module. When enabled, it stores encrypted entries tied to your account.
+                  </p>
+                </div>
+              </div>
+
+              <h2 class="text-2xl font-semibold mt-6 mb-4">Email and Integrations</h2>
+
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  Which client and integration protocols are supported?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    When the relevant modules are enabled, Elektrine supports IMAP, POP3, SMTP, JMAP, CardDAV, CalDAV, and API tokens for integrations.
+                  </p>
+                </div>
+              </div>
+
+              <div class="collapse collapse-arrow bg-base-200">
+                <input type="checkbox" class="peer" />
+                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
+                  What email addresses are available?
+                </div>
+                <div class="collapse-content">
+                  <p class="pt-2">
+                    If email is enabled, local mailboxes use the domains configured for this deployment: {Enum.map_join(
                       Elektrine.Domains.supported_email_domains(),
                       ", ",
                       fn domain ->
@@ -163,305 +224,16 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
               </div>
 
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I create additional addresses (aliases)?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Regular accounts can create up to 15 aliases. Aliases can deliver locally or forward to another address.
-                  </p>
-                </div>
-              </div>
+              <h2 class="text-2xl font-semibold mt-6 mb-4">Support</h2>
 
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What are Inbox, Digest, Ledger, and Stack?
+                  How do I get help?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    These are mailbox categories used to organize incoming mail:
-                    <strong>Inbox</strong>
-                    for direct correspondence, <strong>Digest</strong>
-                    for newsletters/updates, <strong>Ledger</strong>
-                    for receipts and transactional records, and <strong>Stack</strong>
-                    for manually saved items.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What is Reply Later?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Reply Later temporarily removes an email and returns it to your inbox at a chosen time.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What limits should I know about?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Web compose supports up to 5 attachments per message. Standard per-file limit is 25MB (admin accounts can have higher limits). Total message size is capped at 50MB, and SMTP recipient count is capped at 20 recipients per message.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  How does email rate limiting work?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Sending limits are tiered by trust level and account age. New accounts start with strict warmup limits; higher-trust accounts can send up to 1000 emails/day and up to 200 unique recipients/day.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I use Outlook, Thunderbird, Apple Mail, or mobile clients?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. IMAP, POP3, SMTP, and JMAP are supported. Auto-configuration is available for common clients.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Do Contacts and Calendar sync with other apps?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Contacts and Calendar are available in the web app and can sync through CardDAV and CalDAV.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I export my email?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Email Settings includes export tools for MBOX and ZIP (.eml bundle) downloads.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Is email end-to-end encrypted by default?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    No. Email is encrypted in transit (TLS) and stored server-side. Optional PGP support is available when sender/recipient keys are configured.
-                  </p>
-                </div>
-              </div>
-
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Chat</h2>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What does chat support now?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Chat supports direct messages, group chats, server channels, media attachments, emoji reactions, GIFs, typing indicators, and read state indicators.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Is chat end-to-end encrypted?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    No. Chat traffic uses transport encryption, but messages are not end-to-end encrypted.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I control who can message me?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Message and invite flows respect account privacy settings.
-                  </p>
-                </div>
-              </div>
-
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Social and Communities</h2>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What is the difference between Timeline, Communities, Gallery, and Lists?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Timeline is for fast social posts. Communities are topic spaces for threaded discussions. Gallery focuses on media posts. Lists let you curate who appears in your feeds.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Does federation still work?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Elektrine uses ActivityPub, so you can interact with users and communities on other federated platforms.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I restrict who follows me?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. You can enable manual follower approval in account/profile settings.
-                  </p>
-                </div>
-              </div>
-
-              <h2 class="text-2xl font-semibold mt-6 mb-4">VPN</h2>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  How does the VPN feature work?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Elektrine VPN uses WireGuard. You can create configs, download them, and generate QR codes for mobile setup.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Why do available VPN servers differ between accounts?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Server availability can depend on account trust level, subscription/product access, and current server status.
-                  </p>
-                </div>
-              </div>
-
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Developer and Integrations</h2>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Is there an API?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Personal API tokens support scoped access for account, email, social, chat, contacts, and calendar endpoints.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Are webhooks supported?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. You can configure webhooks for supported events, and payloads are signed for verification.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can I export account data?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Yes. Developer settings include account export tools in addition to mailbox export tools.
-                  </p>
-                </div>
-              </div>
-
-              <h2 class="text-2xl font-semibold mt-6 mb-4">Privacy and Support</h2>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Do you sell my data?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    No.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Where is data hosted?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Infrastructure is hosted in the United States.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  Can staff access stored content?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Account and message data is server-stored. Access is restricted, but may occur for security, abuse handling, support operations, or legal obligations.
-                  </p>
-                </div>
-              </div>
-
-              <div class="collapse collapse-arrow bg-base-200">
-                <input type="checkbox" class="peer" />
-                <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  How do I contact support?
-                </div>
-                <div class="collapse-content">
-                  <p class="pt-2">
-                    Email support@elektrine.com. Security issues can be sent to security@elektrine.com. Privacy requests can be sent to privacy@elektrine.com.
+                    Support: support@elektrine.com. Security: security@elektrine.com. Privacy: privacy@elektrine.com.
                   </p>
                 </div>
               </div>

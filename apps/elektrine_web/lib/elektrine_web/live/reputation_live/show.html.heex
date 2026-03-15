@@ -1,0 +1,262 @@
+<%= cond do %>
+  <% @search_mode -> %>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
+      <div class="space-y-4">
+        <div class="card bg-base-100 shadow-sm border border-base-300">
+          <div class="card-body gap-4">
+            <div>
+              <div class="badge badge-ghost mb-2">Public Reputation</div>
+              <h1 class="text-2xl font-bold">Find a public account</h1>
+              <p class="text-sm opacity-70">Search by handle, username, or display name.</p>
+            </div>
+
+            <form phx-submit="search" class="w-full">
+              <div class="join w-full">
+                <label class="input input-bordered join-item flex-1 flex items-center gap-2">
+                  <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
+                  <input
+                    type="text"
+                    name="query"
+                    value={@search_query}
+                    placeholder="search public accounts"
+                    class="grow"
+                    autocomplete="off"
+                  />
+                </label>
+                <button type="submit" class="btn btn-neutral join-item">Search</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <%= cond do %>
+          <% @search_query == "" -> %>
+            <div class="rounded-lg border border-base-300 bg-base-100 p-8 text-center">
+              <.icon name="hero-magnifying-glass" class="h-10 w-10 mx-auto opacity-30 mb-3" />
+              <p class="font-medium">Search public accounts</p>
+              <p class="text-sm opacity-70">Enter at least 2 characters.</p>
+            </div>
+          <% @search_results == [] -> %>
+            <div class="rounded-lg border border-base-300 bg-base-100 p-8 text-center">
+              <.icon name="hero-magnifying-glass" class="h-10 w-10 mx-auto opacity-30 mb-3" />
+              <p class="font-medium">No matches</p>
+              <p class="text-sm opacity-70">Nothing public matched "{@search_query}".</p>
+            </div>
+          <% true -> %>
+            <div class="card bg-base-100 shadow-sm border border-base-300">
+              <div class="card-body gap-3">
+                <div class="flex items-center justify-between gap-3">
+                  <h2 class="card-title text-lg">Results</h2>
+                  <span class="badge badge-ghost">{length(@search_results)} shown</span>
+                </div>
+
+                <div class="rounded-lg border border-base-300 bg-base-100 divide-y divide-base-200">
+                  <%= for result <- @search_results do %>
+                    <% handle = result.handle || result.username
+                    display_name = result.display_name || handle
+                    avatar_initial = String.first(display_name) || "?" %>
+                    <.link
+                      navigate={~p"/reputation/#{handle}"}
+                      class="flex items-center justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
+                    >
+                      <div class="flex items-center gap-4 min-w-0">
+                        <%= if result.avatar_url do %>
+                          <img
+                            src={result.avatar_url}
+                            alt={display_name}
+                            class="h-12 w-12 rounded-lg object-cover"
+                          />
+                        <% else %>
+                          <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-base-300 text-sm font-bold">
+                            {String.upcase(avatar_initial)}
+                          </div>
+                        <% end %>
+                        <div class="min-w-0">
+                          <p class="font-medium truncate">{display_name}</p>
+                          <p class="text-sm opacity-70 truncate">@{handle}</p>
+                        </div>
+                      </div>
+                      <div class="shrink-0 text-right">
+                        <div class="badge badge-outline">TL{result.trust_level}</div>
+                      </div>
+                    </.link>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+        <% end %>
+      </div>
+    </div>
+  <% @not_found -> %>
+    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+      <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body text-center gap-4">
+          <div class="mx-auto badge badge-ghost">Public Reputation</div>
+          <h1 class="text-2xl font-bold">Graph unavailable</h1>
+          <p class="text-sm opacity-70">That account could not be found.</p>
+          <div class="flex items-center justify-center gap-3">
+            <.link href={~p"/reputation"} class="btn btn-neutral">Search</.link>
+            <.link href={~p"/"} class="btn btn-ghost">Home</.link>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% @private_graph -> %>
+    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+      <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body text-center gap-4">
+          <div class="mx-auto badge badge-ghost">Public Reputation</div>
+          <h1 class="text-2xl font-bold">This account is not public</h1>
+          <p class="text-sm opacity-70">Reputation follows profile visibility.</p>
+          <div class="flex items-center justify-center gap-3">
+            <.link href={~p"/reputation"} class="btn btn-neutral">Search</.link>
+            <.link href={~p"/"} class="btn btn-ghost">Home</.link>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% true -> %>
+    <% subject = @reputation_graph.subject
+    avatar_url = subject.avatar_url
+    avatar_initial = String.first(subject.display_name || subject.handle || "?") || "?" %>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
+      <div class="space-y-4">
+        <div class="card bg-base-100 shadow-sm border border-base-300">
+          <div class="card-body gap-4">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <div class="badge badge-ghost">Public Reputation</div>
+                  <div class="badge badge-outline">TL{subject.trust_level}</div>
+                </div>
+                <h1 class="text-2xl font-bold mt-2">Reputation for @{subject.handle}</h1>
+                <p class="text-sm opacity-70 mt-1">
+                  Public trust, invite, and local follow signals.
+                </p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 bg-base-200/60 p-4 min-w-[240px]">
+                <div class="flex items-center gap-4">
+                  <%= if avatar_url do %>
+                    <img
+                      src={avatar_url}
+                      alt={subject.display_name}
+                      class="h-14 w-14 rounded-lg object-cover"
+                    />
+                  <% else %>
+                    <div class="flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-content text-lg font-bold">
+                      {String.upcase(avatar_initial)}
+                    </div>
+                  <% end %>
+                  <div class="min-w-0">
+                    <p class="text-xs uppercase tracking-wide opacity-60">Subject</p>
+                    <p class="font-semibold truncate">{subject.display_name}</p>
+                    <p class="text-sm opacity-70 truncate">
+                      @{subject.handle} / {subject.trust_name}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+              <.link href={~p"/reputation"} class="btn btn-sm btn-ghost">Search Another</.link>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_320px]">
+          <div
+            id="reputation-page"
+            style={
+              "--rep-accent: oklch(var(--p)); " <>
+                "--rep-accent-bright: oklch(var(--p) / 0.88); " <>
+                "--rep-accent-strong: oklch(var(--p) / 0.7); " <>
+                "--rep-accent-soft: oklch(var(--p) / 0.22); " <>
+                "--rep-accent-text: oklch(var(--pc) / 0.98); " <>
+                "--rep-accent-subtle: oklch(var(--pc) / 0.78); " <>
+                "--rep-node-surface-top: oklch(var(--b1) / 0.98); " <>
+                "--rep-node-surface-bottom: oklch(var(--b2) / 0.92); " <>
+                "--rep-node-border-strong: oklch(var(--bc) / 0.24); " <>
+                "--rep-node-border-soft: rgba(148, 163, 184, 0.22); " <>
+                "--rep-node-ring: oklch(var(--bc) / 0.12); " <>
+                "--rep-node-text: oklch(var(--bc) / 0.96); " <>
+                "--rep-node-subtle: oklch(var(--bc) / 0.74); " <>
+                "--rep-node-text-inverse: rgba(248, 250, 252, 0.98); " <>
+                "--rep-node-subtle-inverse: rgba(226, 232, 240, 0.78); " <>
+                "--rep-neutral-tint: rgba(148, 163, 184, 0.12); " <>
+                "--rep-ink-wash: rgba(15, 23, 42, 0.05); " <>
+                "--rep-glow: oklch(var(--p) / 0.18); " <>
+                "--rep-glow-soft: oklch(var(--p) / 0.1); " <>
+                "--rep-edge-strong: oklch(var(--p) / 0.44); " <>
+                "--rep-edge-accent: oklch(var(--p) / 0.3); " <>
+                "--rep-edge-muted: oklch(var(--bc) / 0.24); " <>
+                "--rep-edge-soft: oklch(var(--bc) / 0.14); " <>
+                "--rep-shadow: rgba(15, 23, 42, 0.16);"
+            }
+          >
+            <div class="card bg-base-100 shadow-sm border border-base-300">
+              <div class="card-body gap-4">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h2 class="card-title text-lg">Graph</h2>
+                    <p class="text-sm opacity-70">Drag nodes and open linked accounts.</p>
+                  </div>
+                  <div class="badge badge-ghost">Interactive</div>
+                </div>
+
+                <div
+                  id="reputation-graph-shell"
+                  phx-hook="ReputationGraph"
+                  data-graph={Jason.encode!(@reputation_graph)}
+                  style="
+                    background:
+                      radial-gradient(circle at 18% 20%, rgba(56, 189, 248, 0.16), transparent 26%),
+                      radial-gradient(circle at 78% 18%, rgba(244, 114, 182, 0.14), transparent 24%),
+                      radial-gradient(circle at 54% 78%, rgba(251, 191, 36, 0.12), transparent 28%),
+                      linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+                  "
+                  class="relative h-[540px] rounded-lg border border-base-300 bg-base-100 overflow-hidden sm:h-[620px]"
+                >
+                  <div
+                    id="reputation-graph-canvas"
+                    data-role="graph-canvas"
+                    phx-update="ignore"
+                    class="absolute inset-0"
+                  >
+                  </div>
+                  <div
+                    data-role="graph-tooltip"
+                    class="pointer-events-none absolute z-20 hidden max-w-[220px] rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs shadow-lg"
+                  >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="card bg-base-100 shadow-sm border border-base-300">
+              <div class="card-body gap-3">
+                <div class="flex items-center justify-between gap-3">
+                  <h2 class="card-title text-lg">Summary</h2>
+                  <span class="text-xs font-mono opacity-60">/reputation/{subject.handle}</span>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <%= for stat <- @reputation_graph.stats do %>
+                    <div class="rounded-lg border border-base-300 bg-base-200/40 px-4 py-3">
+                      <p class="text-xs uppercase tracking-wide opacity-60">{stat.label}</p>
+                      <p class="text-2xl font-bold">{stat.value}</p>
+                      <%= if stat.note do %>
+                        <p class="text-sm opacity-70">{stat.note}</p>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+<% end %>

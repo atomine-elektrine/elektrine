@@ -37,8 +37,8 @@ defmodule ElektrineWeb.Components.UI.Table do
       end
 
     ~H"""
-    <div class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <table class="mt-11 min-w-[40rem] w-full">
+    <div class="overflow-y-auto px-4 sm:overflow-visible sm:px-0">
+      <table class="w-[40rem] mt-11 sm:w-full">
         <thead class="text-sm text-left leading-6 text-zinc-500">
           <tr>
             <th :for={col <- @col} class="p-0 pb-4 pr-6 font-normal">{col[:label]}</th>
@@ -101,12 +101,9 @@ defmodule ElektrineWeb.Components.UI.Table do
     ~H"""
     <div class="mt-14">
       <dl class="-my-4 divide-y divide-zinc-100">
-        <div
-          :for={item <- @item}
-          class="flex flex-col gap-1 py-4 text-sm leading-6 sm:flex-row sm:gap-8"
-        >
-          <dt class="w-full flex-none text-zinc-500 sm:w-1/4">{item.title}</dt>
-          <dd class="text-zinc-700 sm:min-w-0">{render_slot(item)}</dd>
+        <div :for={item <- @item} class="flex gap-4 py-4 text-sm leading-6 sm:gap-8">
+          <dt class="w-1/4 flex-none text-zinc-500">{item.title}</dt>
+          <dd class="text-zinc-700">{render_slot(item)}</dd>
         </div>
       </dl>
     </div>

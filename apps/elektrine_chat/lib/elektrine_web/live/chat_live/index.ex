@@ -1815,7 +1815,7 @@ defmodule ElektrineWeb.ChatLive.Index do
           phx-value-conversation_id={@context_menu.conversation.id}
           class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
         >
-          <.icon name="hero-envelope-open" class="w-4 h-4" /> Mark as Read
+          <.icon name="hero-check-circle" class="w-4 h-4" /> Mark as Read
         </button>
 
         <div class="divider my-1"></div>

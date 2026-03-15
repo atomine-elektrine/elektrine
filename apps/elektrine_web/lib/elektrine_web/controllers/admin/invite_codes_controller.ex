@@ -24,11 +24,13 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
     invite_codes = Accounts.list_invite_codes()
     stats = Accounts.get_invite_code_stats()
     invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
+    self_service_invite_min_trust_level = Elektrine.System.self_service_invite_min_trust_level()
 
     render(conn, :invite_codes,
       invite_codes: invite_codes,
       stats: stats,
-      invite_codes_enabled: invite_codes_enabled
+      invite_codes_enabled: invite_codes_enabled,
+      self_service_invite_min_trust_level: self_service_invite_min_trust_level
     )
   end
 
@@ -53,13 +55,13 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
   end
 
   def edit(conn, %{"id" => id}) do
-    invite_code = Accounts.get_invite_code(id)
+    invite_code = Accounts.get_invite_code!(id)
     changeset = Accounts.change_invite_code(invite_code)
     render(conn, :edit_invite_code, invite_code: invite_code, changeset: changeset)
   end
 
   def update(conn, %{"id" => id, "invite_code" => invite_code_params}) do
-    invite_code = Accounts.get_invite_code(id)
+    invite_code = Accounts.get_invite_code!(id)
 
     case Accounts.update_invite_code(invite_code, invite_code_params) do
       {:ok, _invite_code} ->
@@ -73,7 +75,7 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
   end
 
   def delete(conn, %{"id" => id}) do
-    invite_code = Accounts.get_invite_code(id)
+    invite_code = Accounts.get_invite_code!(id)
     {:ok, _invite_code} = Accounts.delete_invite_code(invite_code)
 
     conn
@@ -100,6 +102,20 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
       {:error, _changeset} ->
         conn
         |> put_flash(:error, "Failed to update invite code system setting.")
+        |> redirect(to: ~p"/pripyat/invite-codes")
+    end
+  end
+
+  def update_self_service_trust_level(conn, %{"min_trust_level" => min_trust_level}) do
+    with {level, ""} <- Integer.parse(to_string(min_trust_level)),
+         {:ok, _config} <- Elektrine.System.set_self_service_invite_min_trust_level(level) do
+      conn
+      |> put_flash(:info, "Self-service invite access updated to TL#{level}+.")
+      |> redirect(to: ~p"/pripyat/invite-codes")
+    else
+      _ ->
+        conn
+        |> put_flash(:error, "Failed to update self-service invite trust level.")
         |> redirect(to: ~p"/pripyat/invite-codes")
     end
   end

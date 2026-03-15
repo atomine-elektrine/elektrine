@@ -80,6 +80,7 @@ defmodule ElektrineWeb.MixProject do
       ElektrineWeb.HashtagLive.Show,
       ElektrineWeb.JMAP.APIController,
       ElektrineWeb.JMAP.BlobController,
+      ElektrineWeb.JMAP.EventSourceController,
       ElektrineWeb.JMAP.SessionController,
       ElektrineWeb.ListLive.Index,
       ElektrineWeb.ListLive.Show,

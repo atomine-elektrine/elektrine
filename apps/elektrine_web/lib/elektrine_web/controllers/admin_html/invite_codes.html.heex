@@ -1,193 +1,266 @@
-<div class="admin-page">
-  <div class="mb-6">
-    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-      <div class="flex-1">
-        <h1 class="text-xl sm:text-2xl font-bold">Invite Codes</h1>
-        <p class="opacity-70 mt-1 text-sm">
-          Manage registration invite codes and system settings.
-        </p>
-        
-<!-- Statistics -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mt-3 text-xs sm:text-sm">
-          <div class="flex items-center gap-1 p-2 bg-base-200 rounded">
-            <.icon name="hero-ticket" class="w-3 h-3 sm:w-4 sm:h-4 text-info" />
-            <span class="font-medium">{@stats.total}</span>
-            <span class="opacity-60 hidden sm:inline">total codes</span>
-            <span class="opacity-60 sm:hidden">codes</span>
-          </div>
-          <div class="flex items-center gap-1 p-2 bg-base-200 rounded">
-            <.icon name="hero-check-circle" class="w-3 h-3 sm:w-4 sm:h-4 text-success" />
-            <span class="font-medium">{@stats.active}</span>
-            <span class="opacity-60 hidden sm:inline">active codes</span>
-            <span class="opacity-60 sm:hidden">active</span>
-          </div>
-          <%= if @invite_codes_enabled do %>
-            <div class="flex items-center gap-1 p-2 bg-base-200 rounded">
-              <.icon name="hero-shield-check" class="w-3 h-3 sm:w-4 sm:h-4 text-success" />
-              <span class="font-medium text-success">Required</span>
-              <span class="opacity-60 hidden sm:inline">for registration</span>
-              <span class="opacity-60 sm:hidden">reg</span>
-            </div>
-          <% else %>
-            <div class="flex items-center gap-1 p-2 bg-base-200 rounded">
-              <.icon name="hero-globe-alt" class="w-3 h-3 sm:w-4 sm:h-4 text-warning" />
-              <span class="font-medium text-warning">Open</span>
-              <span class="opacity-60 hidden sm:inline">registration</span>
-              <span class="opacity-60 sm:hidden">reg</span>
-            </div>
-          <% end %>
-        </div>
+<div class="admin-page max-w-6xl mx-auto space-y-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-xl font-bold sm:text-2xl">Invite Codes</h1>
+      <p class="mt-1 text-sm text-base-content/70">
+        Manage signup mode and the codes available for registration.
+      </p>
+    </div>
+
+    <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm">
+      <.icon name="hero-plus" class="h-4 w-4" />
+      <span>Create Invite Code</span>
+    </.link>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Total
       </div>
-      <div class="flex flex-col sm:flex-row gap-2">
-        <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm">
-          <.icon name="hero-plus" class="w-4 h-4" />
-          <span class="hidden sm:inline ml-2">Create Invite Code</span>
-          <span class="sm:hidden ml-2">New Code</span>
-        </.link>
+      <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.total}</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Usable
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-success">{@stats.active}</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Expired
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-warning">{@stats.expired}</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Exhausted
+      </div>
+      <div class="mt-2 text-2xl font-semibold text-error">{@stats.exhausted}</div>
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        Mode
+      </div>
+      <div class="mt-2">
+        <span class={[
+          "badge badge-sm",
+          if(@invite_codes_enabled, do: "badge-success", else: "badge-warning")
+        ]}>
+          {if @invite_codes_enabled, do: "Invite-only", else: "Open signup"}
+        </span>
       </div>
     </div>
   </div>
-  
-<!-- System Toggle Card -->
-  <div class="card glass-card shadow-xl mb-6">
-    <div class="card-body">
-      <div class={"alert #{if @invite_codes_enabled, do: "alert-success", else: "alert-warning"}"}>
-        <div class="flex justify-between items-center w-full">
-          <div>
-            <h3 class="font-bold">Invite Code System</h3>
-            <div class="text-sm">
-              <%= if @invite_codes_enabled do %>
-                New users must provide a valid invite code to register.
-              <% else %>
-                Users can register without invite codes (open registration).
-              <% end %>
-            </div>
-          </div>
-          <div>
-            <form method="post" action={~p"/pripyat/invite-codes/toggle-system"} id="toggle-form">
-              <input
-                type="hidden"
-                name="_csrf_token"
-                value={Plug.CSRFProtection.get_csrf_token()}
-              />
-              <input type="hidden" name="enabled" value="" id="enabled-value" />
-              <label class="label cursor-pointer">
-                <span class="mr-3">
-                  {if @invite_codes_enabled, do: "Enabled", else: "Disabled"}
-                </span>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-success"
-                  checked={@invite_codes_enabled}
-                  data-auto-submit="enabled-value"
-                />
-              </label>
-            </form>
-          </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body p-4 sm:p-5">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 class="font-semibold">Registration Mode</h2>
+          <p class="mt-1 text-sm text-base-content/70">
+            When enabled, new accounts must provide a valid invite code.
+          </p>
         </div>
+
+        <form
+          method="post"
+          action={~p"/pripyat/invite-codes/toggle-system"}
+          class="flex items-center gap-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-3"
+        >
+          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+          <input type="hidden" name="enabled" value="" id="enabled-value" />
+
+          <span class="text-sm font-medium text-base-content">
+            {if @invite_codes_enabled, do: "Invite-only", else: "Open signup"}
+          </span>
+          <input
+            type="checkbox"
+            class="toggle toggle-success"
+            checked={@invite_codes_enabled}
+            data-auto-submit="enabled-value"
+          />
+        </form>
+      </div>
+
+      <%= if @invite_codes_enabled and @stats.active == 0 do %>
+        <div class="alert alert-warning mt-4 text-sm">
+          <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
+          <span>Invite-only mode is enabled, but there are no usable codes right now.</span>
+        </div>
+      <% end %>
+
+      <div class="divider my-5"></div>
+
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 class="font-semibold">Self-Service Invite Access</h2>
+          <p class="mt-1 text-sm text-base-content/70">
+            Choose which trust level can create invite codes from account settings.
+          </p>
+        </div>
+
+        <form
+          method="post"
+          action={~p"/pripyat/invite-codes/self-service-trust-level"}
+          class="flex flex-col gap-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-3 sm:flex-row sm:items-end"
+        >
+          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+
+          <label class="form-control min-w-[12rem]">
+            <span class="label pb-1">
+              <span class="label-text text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+                Minimum Trust Level
+              </span>
+            </span>
+            <select name="min_trust_level" class="select select-bordered select-sm">
+              <%= for level <- 0..4 do %>
+                <option value={level} selected={@self_service_invite_min_trust_level == level}>
+                  TL{level}+
+                </option>
+              <% end %>
+            </select>
+          </label>
+
+          <button type="submit" class="btn btn-primary btn-sm">
+            <.icon name="hero-check" class="h-4 w-4" />
+            <span>Save Access Rule</span>
+          </button>
+        </form>
       </div>
     </div>
-    
-<!-- Main Content Card -->
-    <div class="card glass-card shadow-xl">
-      <div class="card-body p-3 sm:p-6">
+  </div>
+
+  <div class="card glass-card shadow-xl">
+    <div class="card-body p-0">
+      <div class="flex items-center justify-between border-b border-base-content/10 px-4 py-4 sm:px-5">
+        <h2 class="font-semibold">Codes</h2>
+        <span class="text-sm text-base-content/60">{length(@invite_codes)} total</span>
+      </div>
+
+      <%= if @invite_codes == [] do %>
+        <div class="py-12 text-center">
+          <.icon name="hero-ticket" class="mx-auto h-12 w-12 opacity-30" />
+          <p class="mt-4 text-lg font-medium opacity-70">No invite codes found</p>
+          <p class="mt-2 text-sm opacity-55">Create one when you need to hand out access.</p>
+          <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm mt-6">
+            <.icon name="hero-plus" class="h-4 w-4" />
+            <span>Create Invite Code</span>
+          </.link>
+        </div>
+      <% else %>
         <div class="overflow-x-auto">
           <table class="table table-zebra w-full">
             <thead>
               <tr>
-                <th class="text-xs sm:text-sm">Code</th>
-                <th class="text-xs sm:text-sm">Uses</th>
-                <th class="text-xs sm:text-sm">Status</th>
-                <th class="text-xs sm:text-sm hidden md:table-cell">Expires</th>
-                <th class="text-xs sm:text-sm hidden lg:table-cell">Created By</th>
-                <th class="text-xs sm:text-sm hidden xl:table-cell">Note</th>
-                <th class="text-xs sm:text-sm hidden md:table-cell">Created</th>
-                <th class="text-xs sm:text-sm">Actions</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th class="min-w-[12rem]">Usage</th>
+                <th class="hidden md:table-cell">Expires</th>
+                <th class="hidden lg:table-cell">Created</th>
+                <th class="w-1">Actions</th>
               </tr>
             </thead>
             <tbody>
               <%= for invite_code <- @invite_codes do %>
                 <tr>
-                  <td>
-                    <span class="font-medium text-primary">{invite_code.code}</span>
+                  <td class="align-top">
+                    <div class="flex items-start gap-2">
+                      <div class="min-w-0">
+                        <code class="font-mono text-sm font-semibold tracking-[0.18em] text-primary">
+                          {invite_code.code}
+                        </code>
+                        <%= if note = String.trim(invite_code.note || "") do %>
+                          <div
+                            class="mt-1 max-w-sm truncate text-xs text-base-content/60"
+                            title={note}
+                          >
+                            {note}
+                          </div>
+                        <% end %>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        data-copy-to-clipboard={invite_code.code}
+                        title="Copy code"
+                      >
+                        <.icon name="hero-document-duplicate" class="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
-                  <td>
-                    <span class={"badge #{if invite_code.uses_count >= invite_code.max_uses, do: "badge-error", else: "badge-info"}"}>
-                      {invite_code.uses_count} / {invite_code.max_uses}
+
+                  <td class="align-top">
+                    <span class={["badge badge-sm", invite_code_status_badge_class(invite_code)]}>
+                      {invite_code_status_label(invite_code)}
                     </span>
                   </td>
-                  <td>
-                    <%= cond do %>
-                      <% !invite_code.is_active -> %>
-                        <span class="badge badge-ghost">Inactive</span>
-                      <% Elektrine.Accounts.InviteCode.expired?(invite_code) -> %>
-                        <span class="badge badge-warning">Expired</span>
-                      <% Elektrine.Accounts.InviteCode.exhausted?(invite_code) -> %>
-                        <span class="badge badge-error">Exhausted</span>
-                      <% true -> %>
-                        <span class="badge badge-success">Active</span>
-                    <% end %>
-                  </td>
-                  <td class="hidden md:table-cell">
-                    <%= if invite_code.expires_at do %>
-                      <span class="text-xs">
-                        <.local_time
-                          datetime={invite_code.expires_at}
-                          format="datetime"
-                          timezone={@timezone}
-                          time_format={@time_format}
-                        />
-                      </span>
-                    <% else %>
-                      <span class="text-xs opacity-50">Never</span>
-                    <% end %>
-                  </td>
-                  <td class="hidden lg:table-cell">
-                    <%= if invite_code.created_by do %>
-                      <span class="text-xs">{invite_code.created_by.username}</span>
-                    <% else %>
-                      <span class="text-xs opacity-50">System</span>
-                    <% end %>
-                  </td>
-                  <td class="hidden xl:table-cell">
-                    <%= if invite_code.note do %>
-                      <div class="max-w-xs truncate text-xs" title={invite_code.note}>
-                        {invite_code.note}
+
+                  <td class="align-top">
+                    <div class="space-y-2">
+                      <div class="flex items-center justify-between text-xs text-base-content/65">
+                        <span>{invite_code.uses_count} / {invite_code.max_uses}</span>
+                        <span>{invite_code_usage_percent(invite_code)}%</span>
                       </div>
+                      <progress
+                        class={["progress h-2 w-full", invite_code_progress_class(invite_code)]}
+                        value={invite_code.uses_count}
+                        max={max(invite_code.max_uses, 1)}
+                      >
+                      </progress>
+                    </div>
+                  </td>
+
+                  <td class="hidden md:table-cell align-top text-sm text-base-content/70">
+                    <%= if invite_code.expires_at do %>
+                      <.local_time
+                        datetime={invite_code.expires_at}
+                        format="datetime"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
                     <% else %>
-                      <span class="text-xs opacity-50">-</span>
+                      Never
                     <% end %>
                   </td>
-                  <td class="text-xs sm:text-sm opacity-70 hidden md:table-cell">
-                    <.local_time
-                      datetime={invite_code.inserted_at}
-                      format="date"
-                      timezone={@timezone}
-                      time_format={@time_format}
-                    />
+
+                  <td class="hidden lg:table-cell align-top text-sm text-base-content/70">
+                    <div>
+                      {if invite_code.created_by,
+                        do: invite_code.created_by.username,
+                        else: "System"}
+                    </div>
+                    <div class="mt-1 text-xs text-base-content/50">
+                      {time_ago_in_words(invite_code.inserted_at)} ago
+                    </div>
                   </td>
-                  <td>
-                    <div class="flex flex-col sm:flex-row gap-1">
+
+                  <td class="align-top">
+                    <div class="flex gap-1">
                       <.link
                         href={~p"/pripyat/invite-codes/#{invite_code.id}/edit"}
-                        class="btn btn-xs sm:btn-sm btn-ghost"
-                        title="Edit Code"
+                        class="btn btn-ghost btn-xs"
+                        title="Edit"
                       >
-                        <.icon name="hero-pencil" class="w-3 h-3 sm:w-4 sm:h-4" />
+                        <.icon name="hero-pencil" class="h-4 w-4" />
                       </.link>
+
                       <.form
                         for={%{}}
                         action={~p"/pripyat/invite-codes/#{invite_code.id}"}
                         method="delete"
-                        class="inline"
                       >
                         <button
                           type="submit"
                           data-confirm="Delete this invite code? This action cannot be undone."
-                          class="btn btn-xs sm:btn-sm btn-secondary btn-ghost"
-                          title="Delete Code"
+                          class="btn btn-ghost btn-xs text-error"
+                          title="Delete"
                         >
-                          <.icon name="hero-trash" class="w-3 h-3 sm:w-4 sm:h-4" />
+                          <.icon name="hero-trash" class="h-4 w-4" />
                         </button>
                       </.form>
                     </div>
@@ -196,19 +269,8 @@
               <% end %>
             </tbody>
           </table>
-
-          <%= if @invite_codes == [] do %>
-            <div class="text-center py-12">
-              <.icon name="hero-ticket" class="w-12 h-12 mx-auto opacity-30 mb-4" />
-              <p class="text-lg font-medium opacity-70 mb-2">No invite codes found</p>
-              <p class="text-sm opacity-50 mb-6">Create your first invite code to get started</p>
-              <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm">
-                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create First Code
-              </.link>
-            </div>
-          <% end %>
         </div>
-      </div>
+      <% end %>
     </div>
   </div>
 </div>

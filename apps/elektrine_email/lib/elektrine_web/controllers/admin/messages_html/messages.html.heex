@@ -108,7 +108,11 @@
           <input type="hidden" name="show_domains" value="1" />
         <% end %>
         <%= if search_active do %>
-          <.link href={~p"/pripyat/messages?#{base_params_without_search}"} class="btn btn-ghost">
+          <.link
+            href={~p"/pripyat/messages?#{base_params_without_search}"}
+            data-search-clear="true"
+            class="btn btn-ghost"
+          >
             Clear
           </.link>
         <% end %>

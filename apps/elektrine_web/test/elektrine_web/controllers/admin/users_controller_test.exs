@@ -2,7 +2,9 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.TrustLevelLog
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Repo
   alias ElektrineWeb.AdminSecurity
 
   describe "POST /pripyat/users/:id/unban" do
@@ -31,6 +33,40 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
 
       assert redirected_to(conn) == "/pripyat/users/#{user.id}/edit"
       refute Accounts.get_user!(banned_user.id).banned
+    end
+  end
+
+  describe "PUT /pripyat/users/:id" do
+    test "persists and audits a manual trust-level change", %{conn: conn} do
+      admin = admin_user_fixture()
+      user = AccountsFixtures.user_fixture()
+      request_path = "/pripyat/users/#{user.id}"
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> AdminSecurity.initialize_admin_session(admin, auth_method: :passkey)
+
+      action_grant = AdminSecurity.issue_action_grant(conn, admin, "PUT", request_path)
+
+      conn =
+        put(conn, request_path, %{
+          "_admin_action_grant" => action_grant,
+          "user" => %{
+            "username" => user.username,
+            "trust_level" => "2"
+          }
+        })
+
+      assert redirected_to(conn) == "/pripyat/users"
+      assert Accounts.get_user!(user.id).trust_level == 2
+
+      log = Repo.get_by!(TrustLevelLog, user_id: user.id)
+
+      assert log.old_level == 0
+      assert log.new_level == 2
+      assert log.reason == "manual"
     end
   end
 

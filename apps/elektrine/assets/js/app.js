@@ -94,6 +94,7 @@ window.addEventListener("phx:page-loading-stop", () => {
   initBackupCodesPrinters()
   initPrivateMailboxAuthForms()
   syncCursorGlowForRoute()
+  initAutoSearchClearButtons()
   initAdminSecurity()
 })
 
@@ -198,6 +199,253 @@ function syncCursorGlowForRoute() {
   }
 }
 
+const SEARCH_CLEAR_SELECTOR = '[data-search-clear]'
+const SEARCH_INPUT_SELECTOR = [
+  '[data-search-input]',
+  'input[type="search"]',
+  'input[name="q"]',
+  'input[name="query"]',
+  'input[name$="[query]"]',
+  'input[name="search"]'
+].join(', ')
+
+let searchClearButtonsInitialized = false
+let searchClearInputIdCounter = 0
+let searchClearObserverInitialized = false
+
+function isClearableSearchInput(candidate) {
+  if (!(candidate instanceof HTMLInputElement)) return false
+  if (candidate.disabled || candidate.readOnly) return false
+
+  const inputType = (candidate.getAttribute('type') || 'text').toLowerCase()
+  return inputType === 'text' || inputType === 'search'
+}
+
+function ensureSearchInputId(input) {
+  if (!input.id) {
+    searchClearInputIdCounter += 1
+    input.id = `search-clear-input-${searchClearInputIdCounter}`
+  }
+
+  return input.id
+}
+
+function getSearchInputScopes(input) {
+  return [
+    input.closest('label.input'),
+    input.parentElement
+  ].filter(Boolean)
+}
+
+function hasLocalSearchClearControl(input) {
+  const inputId = ensureSearchInputId(input)
+
+  return getSearchInputScopes(input).some((scope) => {
+    const controls = scope.querySelectorAll(`${SEARCH_CLEAR_SELECTOR}, .search-clear-auto`)
+
+    return Array.from(controls).some((control) => {
+      if (control === input) return false
+
+      const target = control.getAttribute('data-search-clear-target')
+      return !target || target === `#${inputId}`
+    })
+  })
+}
+
+function getSearchClearPlacement(input) {
+  const labelContainer = input.closest('label.input')
+  if (labelContainer && labelContainer.contains(input)) {
+    return { mode: 'label', container: labelContainer }
+  }
+
+  const parent = input.parentElement
+  if (!parent) return null
+
+  if (parent.classList.contains('join')) {
+    return { mode: 'join', container: parent }
+  }
+
+  if (parent.classList.contains('relative')) {
+    return { mode: 'overlay', container: parent }
+  }
+
+  if (parent.classList.contains('flex') || parent.tagName === 'FORM') {
+    return { mode: 'inline', container: parent }
+  }
+
+  return { mode: 'overlay', container: parent }
+}
+
+function updateAutoSearchClearButton(input, button) {
+  button.hidden = !isClearableSearchInput(input) || input.value === ''
+}
+
+function getSearchClearTrailingWidth(input) {
+  const parent = input.parentElement
+  if (!parent) return 0
+
+  let trailingWidth = 0
+  let sibling = input.nextElementSibling
+
+  while (sibling) {
+    if (!sibling.hidden) {
+      trailingWidth += sibling.getBoundingClientRect().width
+    }
+
+    sibling = sibling.nextElementSibling
+  }
+
+  return trailingWidth
+}
+
+function searchClearButtonSizeClass(input) {
+  if (input.classList.contains('input-xs')) return 'btn-xs'
+  if (input.classList.contains('input-sm')) return 'btn-sm'
+  if (input.classList.contains('input-lg')) return 'btn-lg'
+  return 'btn-sm'
+}
+
+function clearSearchInput(clearTrigger) {
+  const input = resolveSearchInput(clearTrigger)
+
+  if (!isClearableSearchInput(input) || input.value === '') return input
+
+  input.value = ''
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  return input
+}
+
+function createAutoSearchClearButton(input) {
+  const placement = getSearchClearPlacement(input)
+  if (!placement) return null
+
+  const inputId = ensureSearchInputId(input)
+  const sizeClass = searchClearButtonSizeClass(input)
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.textContent = 'x'
+  button.setAttribute('aria-label', 'Clear search')
+  button.setAttribute('title', 'Clear search')
+  button.setAttribute('data-search-clear', 'true')
+  button.setAttribute('data-search-clear-target', `#${inputId}`)
+  button.setAttribute('data-search-clear-mode', 'auto')
+
+  if (placement.mode === 'label') {
+    button.className =
+      `btn btn-ghost btn-square ${sizeClass} text-xs font-normal search-clear-auto`
+    placement.container.appendChild(button)
+  } else if (placement.mode === 'join') {
+    placement.container.classList.add('relative')
+    input.classList.add('search-clear-input')
+    button.className =
+      `btn btn-ghost btn-circle ${sizeClass} text-xs font-normal search-clear-auto search-clear-overlay`
+    button.style.right = `${getSearchClearTrailingWidth(input) + 8}px`
+    placement.container.appendChild(button)
+  } else if (placement.mode === 'inline') {
+    button.className =
+      `btn btn-ghost btn-square ${sizeClass} text-xs font-normal search-clear-auto`
+    input.insertAdjacentElement('afterend', button)
+  } else {
+    placement.container.classList.add('relative')
+    input.classList.add('search-clear-input')
+    button.className =
+      `btn btn-ghost btn-circle ${sizeClass} text-xs font-normal search-clear-auto search-clear-overlay`
+    placement.container.appendChild(button)
+  }
+
+  const syncButton = () => updateAutoSearchClearButton(input, button)
+  input.addEventListener('input', syncButton)
+  input.addEventListener('change', syncButton)
+
+  updateAutoSearchClearButton(input, button)
+
+  return button
+}
+
+function initAutoSearchClearButtons(rootCandidate = document) {
+  const root =
+    rootCandidate && typeof rootCandidate.querySelectorAll === 'function' ? rootCandidate : document
+
+  root.querySelectorAll(SEARCH_INPUT_SELECTOR).forEach((input) => {
+    if (!isClearableSearchInput(input)) return
+    if (input.dataset.searchClearEnhanced === 'true') return
+    if (hasLocalSearchClearControl(input)) return
+
+    const button = createAutoSearchClearButton(input)
+    if (!button) return
+
+    input.dataset.searchClearEnhanced = 'true'
+  })
+}
+
+function initSearchClearObserver() {
+  if (searchClearObserverInitialized) return
+  if (!document.body) return
+
+  searchClearObserverInitialized = true
+
+  const observer = new MutationObserver(() => initAutoSearchClearButtons(document))
+  observer.observe(document.body, { childList: true, subtree: true })
+}
+
+function resolveSearchInput(clearTrigger) {
+  const explicitSelector = clearTrigger.getAttribute('data-search-clear-target')
+  if (explicitSelector) return document.querySelector(explicitSelector)
+
+  const activeElement = document.activeElement
+  if (isClearableSearchInput(activeElement)) return activeElement
+
+  const scopes = [
+    clearTrigger.closest('label'),
+    clearTrigger.parentElement,
+    clearTrigger.closest('form')
+  ].filter(Boolean)
+
+  for (const scope of scopes) {
+    const input = scope.querySelector(SEARCH_INPUT_SELECTOR)
+    if (isClearableSearchInput(input)) return input
+  }
+
+  return null
+}
+
+function initSearchClearButtons() {
+  if (searchClearButtonsInitialized) return
+  searchClearButtonsInitialized = true
+
+  document.addEventListener('pointerdown', (event) => {
+    const clearTrigger = event.target.closest(SEARCH_CLEAR_SELECTOR)
+    if (!clearTrigger) return
+
+    clearSearchInput(clearTrigger)
+  })
+
+  document.addEventListener('click', (event) => {
+    const clearTrigger =
+      event.target.closest(`${SEARCH_CLEAR_SELECTOR}[data-search-clear-mode="auto"]`)
+
+    if (!clearTrigger) return
+
+    event.preventDefault()
+
+    const input = clearSearchInput(clearTrigger) || resolveSearchInput(clearTrigger)
+    if (!isClearableSearchInput(input)) return
+
+    const form = input.form || clearTrigger.closest('form')
+
+    if (form && !form.hasAttribute('phx-change') && !input.hasAttribute('phx-change')) {
+      if (typeof form.requestSubmit === 'function') form.requestSubmit()
+      else form.submit()
+    }
+
+    input.focus()
+  })
+}
+
+initSearchClearButtons()
+initAutoSearchClearButtons()
+initSearchClearObserver()
+
 // ============================================================================
 // DOM Ready Initialization
 // ============================================================================
@@ -213,6 +461,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initBackupCodesPrinters()
   initPrivateMailboxAuthForms()
   syncCursorGlowForRoute()
+  initAutoSearchClearButtons()
+  initSearchClearObserver()
 
   // Initialize UI modules
   initBlinkenlights()

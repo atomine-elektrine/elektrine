@@ -91,6 +91,7 @@ defmodule Elektrine.Accounts.User do
     # Email Settings
     field :email_signature, :string
     field :preferred_email_domain, :string
+    field :stripe_customer_id, :string
 
     # Email Sending Restrictions (anti-spam)
     field :email_sending_restricted, :boolean, default: false
@@ -416,6 +417,15 @@ defmodule Elektrine.Accounts.User do
       _ ->
         changeset
     end
+  end
+
+  @doc """
+  A changeset for trust-level updates managed by the trust system.
+  """
+  def trust_level_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:trust_level, :promoted_at])
+    |> validate_number(:trust_level, greater_than_or_equal_to: 0, less_than_or_equal_to: 4)
   end
 
   @doc """

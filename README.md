@@ -1,16 +1,15 @@
 # Elektrine
 
-Elektrine is an Elixir umbrella app. The shortest accurate description is:
-`elektrine` is the shared product core, `elektrine_web` is the Phoenix shell,
-and the major product areas now live in their own apps.
+Elektrine is an Elixir umbrella app.
 
-That split matters because this repo supports two different ways of working:
+`apps/elektrine` holds the shared product core, `apps/elektrine_web` is the
+shared Phoenix shell, and the major product areas live in their own umbrella
+apps.
 
-- everyday development, where you usually treat the umbrella as one system
-- hoster builds, where you compile only the modules you actually want
+The repo supports both full-platform development and subset releases for
+hosters, so the app boundaries matter.
 
-If you are new here, read this file once, then jump into the app README that
-matches the area you need to change.
+Start here, then jump to the app README for the area you need to change.
 
 ## The shape of the repo
 
@@ -48,11 +47,6 @@ plugs and module guards, and then lands in a controller or LiveView owned by
 the relevant feature app. Domain work usually drops into contexts in
 `elektrine`, `elektrine_email`, `elektrine_social`, `elektrine_vpn`, or the
 other feature apps. Persistence is still shared through `Elektrine.Repo`.
-
-If you notice modules inside feature apps still using the `ElektrineWeb.*`
-namespace, that is deliberate. We kept those names stable while moving code
-ownership out of `apps/elektrine_web`, so routes and call sites did not need a
-second cleanup pass at the same time.
 
 ## Composable builds and runtime modules
 
@@ -153,6 +147,24 @@ That is why production email config here is Haraka-specific. If you enable the
 systems together with `HARAKA_BASE_URL`, the outbound Haraka API key, and the
 inbound webhook key.
 
+## Bluesky integration
+
+The Bluesky integration is part of the social stack, not a separate product
+module.
+
+- Outbound sync mirrors local public posts to Bluesky and keeps linked post
+  state in sync for create, edit, delete, like, repost, and follow events.
+  These jobs run through Oban, so a failed outbound call does not block the
+  local action.
+- Inbound sync, when `BLUESKY_INBOUND_ENABLED=true`, polls notifications for
+  connected accounts and turns replies, mentions, quotes, likes, and reposts on
+  mirrored posts into local notifications. It can also store timeline items
+  locally.
+- Managed mode, when `BLUESKY_MANAGED_ENABLED=true`, talks to a
+  Bluesky-compatible PDS admin API to create per-user accounts, issue app
+  passwords, and store the linkage. Without managed mode, users connect their
+  own Bluesky identifier and app password.
+
 ## Configuration that matters in production
 
 The usual production basics still apply: `DATABASE_URL`, `SECRET_KEY_BASE`,
@@ -171,6 +183,15 @@ On top of that, module-specific validation now fails fast on boot:
 
 If a hoster enables one of those modules without the required env, boot should
 fail immediately instead of half-working.
+
+Bluesky is optional. Main settings:
+
+- `BLUESKY_ENABLED` for outbound mirroring
+- `BLUESKY_INBOUND_ENABLED` for notification/feed polling
+- `BLUESKY_SERVICE_URL` for the ATProto service or PDS target
+- `BLUESKY_MANAGED_ENABLED`, `BLUESKY_MANAGED_SERVICE_URL`,
+  `BLUESKY_MANAGED_DOMAIN`, and `BLUESKY_MANAGED_ADMIN_PASSWORD` for managed
+  account provisioning
 
 ## Where to start reading
 

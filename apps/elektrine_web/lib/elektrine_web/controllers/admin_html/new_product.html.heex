@@ -16,6 +16,8 @@
           Oops, something went wrong! Please check the errors below.
         </.error>
 
+        <% features_value = Phoenix.HTML.Form.input_value(f, :features) || [] %>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <.input field={f[:name]} type="text" label="Name" placeholder="e.g., VPN" required />
@@ -34,6 +36,30 @@
                 Lowercase letters, numbers, and hyphens only. Used in URLs.
               </span>
             </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <.input
+              field={f[:billing_type]}
+              type="select"
+              label="Billing Type"
+              options={[{"Recurring subscription", "recurring"}, {"One-time payment", "one_time"}]}
+            />
+            <div class="label">
+              <span class="text-xs opacity-70">
+                One-time products grant access after a single paid checkout and do not renew.
+              </span>
+            </div>
+          </div>
+          <div>
+            <.input
+              field={f[:sort_order]}
+              type="number"
+              label="Sort Order"
+              value="0"
+            />
           </div>
         </div>
 
@@ -56,49 +82,81 @@
             name="product[features]"
             placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
             class="textarea textarea-bordered w-full h-32 font-mono text-sm"
-          ></textarea>
+          >{Enum.join(features_value, "\n")}</textarea>
         </div>
 
         <div class="divider">Pricing</div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <.input
-              field={f[:monthly_price_cents]}
-              type="number"
-              label="Monthly Price (cents)"
-              placeholder="1900"
-              min="0"
-            />
-            <div class="label">
-              <span class="text-xs opacity-70">e.g., 1900 = $19.00</span>
+        <div class="alert alert-info mb-4">
+          <.icon name="hero-information-circle" class="w-5 h-5" />
+          <span>
+            Stripe price IDs sync the amount and currency when you save. Use either recurring prices
+            or a one-time price, depending on the billing type.
+          </span>
+        </div>
+
+        <div class="rounded-box border border-base-300 p-4 mb-4">
+          <div class="font-medium mb-3">Recurring Pricing</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <.input
+                field={f[:monthly_price_cents]}
+                type="number"
+                label="Monthly Price (cents)"
+                placeholder="1900"
+                min="0"
+              />
+              <div class="label">
+                <span class="text-xs opacity-70">e.g., 1900 = $19.00</span>
+              </div>
             </div>
-          </div>
-          <div>
-            <.input
-              field={f[:yearly_price_cents]}
-              type="number"
-              label="Yearly Price (cents)"
-              placeholder="19000"
-              min="0"
-            />
-            <div class="label">
-              <span class="text-xs opacity-70">e.g., 19000 = $190.00</span>
+            <div>
+              <.input
+                field={f[:yearly_price_cents]}
+                type="number"
+                label="Yearly Price (cents)"
+                placeholder="19000"
+                min="0"
+              />
+              <div class="label">
+                <span class="text-xs opacity-70">e.g., 19000 = $190.00</span>
+              </div>
             </div>
-          </div>
-          <div>
-            <.input
-              field={f[:currency]}
-              type="select"
-              label="Currency"
-              options={[{"USD ($)", "usd"}, {"EUR", "eur"}, {"GBP", "gbp"}]}
-            />
+            <div>
+              <.input
+                field={f[:currency]}
+                type="select"
+                label="Currency"
+                options={[{"USD ($)", "usd"}, {"EUR", "eur"}, {"GBP", "gbp"}]}
+              />
+            </div>
           </div>
         </div>
 
-        <div class="divider">Stripe Configuration</div>
+        <div class="rounded-box border border-base-300 p-4 mb-4">
+          <div class="font-medium mb-3">One-time Pricing</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <.input
+                field={f[:one_time_price_cents]}
+                type="number"
+                label="One-time Price (cents)"
+                placeholder="500"
+                min="0"
+              />
+              <div class="label">
+                <span class="text-xs opacity-70">e.g., 500 = $5.00</span>
+              </div>
+            </div>
+            <div class="flex items-end">
+              <div class="text-sm opacity-70">
+                Use this for pay-once access such as registration fees or lifetime unlocks.
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <.input
               field={f[:stripe_monthly_price_id]}
@@ -107,7 +165,9 @@
               placeholder="price_xxx"
             />
             <div class="label">
-              <span class="text-xs opacity-70">From Stripe Dashboard</span>
+              <span class="text-xs opacity-70">
+                Must be a recurring monthly Stripe price.
+              </span>
             </div>
           </div>
           <div>
@@ -117,31 +177,44 @@
               label="Stripe Yearly Price ID"
               placeholder="price_xxx"
             />
+            <div class="label">
+              <span class="text-xs opacity-70">Must be a recurring yearly Stripe price.</span>
+            </div>
+          </div>
+          <div>
+            <.input
+              field={f[:stripe_one_time_price_id]}
+              type="text"
+              label="Stripe One-time Price ID"
+              placeholder="price_xxx"
+            />
+            <div class="label">
+              <span class="text-xs opacity-70">
+                Must be a non-recurring Stripe price.
+              </span>
+            </div>
           </div>
         </div>
 
         <div class="divider">Settings</div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4">
           <div>
             <label class="cursor-pointer label justify-start">
               <input
                 type="checkbox"
                 name="product[active]"
                 value="true"
-                checked
+                checked={
+                  Phoenix.HTML.Form.normalize_value(
+                    "checkbox",
+                    Phoenix.HTML.Form.input_value(f, :active)
+                  )
+                }
                 class="checkbox checkbox-primary"
               />
               <span class="ml-3">Active (visible to users)</span>
             </label>
-          </div>
-          <div>
-            <.input
-              field={f[:sort_order]}
-              type="number"
-              label="Sort Order"
-              value="0"
-            />
           </div>
         </div>
 

@@ -32,7 +32,11 @@
             <.icon name="hero-magnifying-glass" class="w-4 h-4" />
           </button>
           <%= if (assigns[:search_query] || "") != "" do %>
-            <a href={~p"/pripyat/vpn/users"} class="btn btn-ghost join-item">
+            <a
+              href={~p"/pripyat/vpn/users"}
+              data-search-clear="true"
+              class="btn btn-ghost join-item"
+            >
               <.icon name="hero-x-mark" class="w-4 h-4" />
             </a>
           <% end %>

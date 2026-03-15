@@ -673,7 +673,12 @@ defmodule ElektrineWeb.AdminLive.Federation do
             </button>
           </div>
           <%= if @search_query != "" && @active_tab not in ["domains", "activity"] do %>
-            <button type="button" phx-click="clear_search" class="btn btn-ghost">
+            <button
+              type="button"
+              phx-click="clear_search"
+              data-search-clear="true"
+              class="btn btn-ghost"
+            >
               <.icon name="hero-x-mark" class="w-4 h-4" />
             </button>
           <% end %>

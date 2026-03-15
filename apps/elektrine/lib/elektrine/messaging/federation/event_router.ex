@@ -43,21 +43,27 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
   end
 
   def apply_event(event_type, data, remote_domain) when is_binary(event_type) do
-    event_type = ArblargSDK.canonical_event_type(event_type)
+    canonical_event_type = ArblargSDK.canonical_event_type(event_type)
+    handler_event_type = Map.get(ArblargSDK.schema_bindings(), canonical_event_type, canonical_event_type)
 
-    case DirectMessages.apply_event(event_type, data, remote_domain, direct_message_context()) do
+    case DirectMessages.apply_event(handler_event_type, data, remote_domain, direct_message_context()) do
       {:error, :unhandled_event_type} ->
-        case MirrorEvents.apply_event(event_type, data, remote_domain, mirror_event_context()) do
+        case MirrorEvents.apply_event(
+               handler_event_type,
+               data,
+               remote_domain,
+               mirror_event_context()
+             ) do
           {:error, :unhandled_event_type} ->
             case ExtensionEvents.apply_event(
-                   event_type,
+                   handler_event_type,
                    data,
                    remote_domain,
                    extension_event_context()
                  ) do
               {:error, :unhandled_event_type} ->
-                if event_type in @community_extension_event_types do
-                  case ArblargSDK.validate_event_payload(event_type, data) do
+                if canonical_event_type in @community_extension_event_types do
+                  case ArblargSDK.validate_event_payload(canonical_event_type, data) do
                     :ok -> :ok
                     _ -> {:error, :invalid_event_payload}
                   end

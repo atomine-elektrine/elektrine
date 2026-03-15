@@ -5,6 +5,7 @@ defmodule ElektrineWeb.AdminHTML do
 
   use ElektrineWeb, :html
 
+  alias Elektrine.Accounts.InviteCode
   alias Elektrine.Platform.Modules
 
   embed_templates "admin_html/*"
@@ -34,6 +35,69 @@ defmodule ElektrineWeb.AdminHTML do
   end
 
   def time_ago_in_words(datetime), do: Elektrine.TextHelpers.time_ago_in_words(datetime)
+
+  def invite_code_status(%InviteCode{} = invite_code) do
+    cond do
+      !invite_code.is_active -> :inactive
+      InviteCode.expired?(invite_code) -> :expired
+      InviteCode.exhausted?(invite_code) -> :exhausted
+      true -> :active
+    end
+  end
+
+  def invite_code_status_label(%InviteCode{} = invite_code),
+    do: invite_code |> invite_code_status() |> invite_code_status_label()
+
+  def invite_code_status_label(:active), do: "Active"
+  def invite_code_status_label(:inactive), do: "Inactive"
+  def invite_code_status_label(:expired), do: "Expired"
+  def invite_code_status_label(:exhausted), do: "Exhausted"
+
+  def invite_code_status_badge_class(%InviteCode{} = invite_code),
+    do: invite_code |> invite_code_status() |> invite_code_status_badge_class()
+
+  def invite_code_status_badge_class(:active), do: "badge-success"
+  def invite_code_status_badge_class(:inactive), do: "badge-ghost"
+  def invite_code_status_badge_class(:expired), do: "badge-warning"
+  def invite_code_status_badge_class(:exhausted), do: "badge-error"
+
+  def invite_code_card_class(%InviteCode{} = invite_code) do
+    case invite_code_status(invite_code) do
+      :active -> "border-success/20 bg-success/5"
+      :inactive -> "border-base-300 bg-base-200/50"
+      :expired -> "border-warning/25 bg-warning/10"
+      :exhausted -> "border-error/25 bg-error/10"
+    end
+  end
+
+  def invite_code_progress_class(%InviteCode{} = invite_code) do
+    case invite_code_status(invite_code) do
+      :active -> "progress-success"
+      :inactive -> "progress"
+      :expired -> "progress-warning"
+      :exhausted -> "progress-error"
+    end
+  end
+
+  def invite_code_status_blurb(%InviteCode{} = invite_code) do
+    case invite_code_status(invite_code) do
+      :active -> "Ready to unlock a new registration."
+      :inactive -> "Disabled manually and unavailable for signup."
+      :expired -> "Past its expiration time and no longer accepted."
+      :exhausted -> "Usage limit reached and no longer accepted."
+    end
+  end
+
+  def invite_code_usage_percent(%InviteCode{max_uses: max_uses, uses_count: uses_count})
+      when is_integer(max_uses) and max_uses > 0 do
+    uses_count
+    |> Kernel./(max_uses)
+    |> Kernel.*(100)
+    |> min(100.0)
+    |> round()
+  end
+
+  def invite_code_usage_percent(_), do: 0
 
   def activity_source_label(:web), do: "Web"
   def activity_source_label(:imap), do: "IMAP"

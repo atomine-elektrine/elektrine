@@ -3,6 +3,8 @@ defmodule Elektrine.System do
   The System context for managing system-wide configuration.
   """
 
+  @self_service_invite_min_trust_level_default 1
+
   import Ecto.Query, warn: false
   alias Elektrine.Repo
   alias Elektrine.System.Config
@@ -53,6 +55,33 @@ defmodule Elektrine.System do
       "Enable or disable the invite code system for user registration"
     )
   end
+
+  @doc """
+  Returns the minimum trust level required for user-created invite codes.
+  """
+  def self_service_invite_min_trust_level do
+    case get_config(
+           "self_service_invite_min_trust_level",
+           @self_service_invite_min_trust_level_default
+         ) do
+      level when is_integer(level) and level in 0..4 -> level
+      _other -> @self_service_invite_min_trust_level_default
+    end
+  end
+
+  @doc """
+  Sets the minimum trust level required for user-created invite codes.
+  """
+  def set_self_service_invite_min_trust_level(level) when is_integer(level) and level in 0..4 do
+    set_config(
+      "self_service_invite_min_trust_level",
+      level,
+      "integer",
+      "Minimum trust level required for self-service invite code creation"
+    )
+  end
+
+  def set_self_service_invite_min_trust_level(_level), do: {:error, :invalid_level}
 
   @doc """
   Gets all configuration entries.

@@ -33,7 +33,7 @@
           </div>
         </div>
         <%= if @search_query != "" do %>
-          <.link href={~p"/pripyat/multi-accounts"} class="btn btn-ghost">
+          <.link href={~p"/pripyat/multi-accounts"} data-search-clear="true" class="btn btn-ghost">
             <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
           </.link>
         <% end %>

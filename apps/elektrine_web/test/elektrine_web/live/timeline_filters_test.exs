@@ -87,6 +87,30 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert render(view) =~ "10/3 min"
   end
 
+  test "clearing the sidebar search removes the query from the URL", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, _post} =
+      Social.create_timeline_post(author.id, "Clear search target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all&q=target")
+
+    assert has_element?(
+             view,
+             "#timeline-left-sidebar-search button[phx-click=\"clear_search\"]"
+           )
+
+    view
+    |> element("#timeline-left-sidebar-search button[phx-click=\"clear_search\"]")
+    |> render_click()
+
+    assert_patch(view, ~p"/timeline?filter=explore&view=all")
+  end
+
   test "quick reply character counter updates immediately while typing", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
@@ -257,10 +281,13 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
     assert render(view) =~ "Remote follow target #{unique}"
     assert has_element?(view, selector, "Follow")
+    assert_remote_follow_markup(render(view), selector)
 
     view
     |> element(selector)
     |> render_click()
+
+    assert_remote_follow_markup(render(view), selector)
 
     assert_push_event(view, "remote_follow_state_changed", %{
       remote_actor_id: ^actor_id,
@@ -276,6 +303,31 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       remote_actor_id: ^actor_id,
       state: "following"
     })
+  end
+
+  defp assert_remote_follow_markup(html, selector) do
+    document = Floki.parse_document!(html)
+    buttons = Floki.find(document, selector)
+
+    assert buttons != []
+
+    Enum.each(buttons, fn button ->
+      button
+      |> Floki.find("[data-follow-display]")
+      |> Enum.each(fn state_node ->
+        classes = state_node |> Floki.attribute("class") |> List.first() |> to_class_tokens()
+
+        refute "inline-flex" in classes
+      end)
+    end)
+  end
+
+  defp to_class_tokens(nil), do: []
+
+  defp to_class_tokens(classes) do
+    classes
+    |> String.split()
+    |> Enum.reject(&(&1 == ""))
   end
 
   test "note composer route opens a private note template", %{conn: conn} do

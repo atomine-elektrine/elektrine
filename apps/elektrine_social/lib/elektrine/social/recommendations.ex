@@ -3,7 +3,7 @@ defmodule Elektrine.Social.Recommendations do
   import Ecto.Query
   alias Elektrine.{Messaging.Message, Social}
   alias Elektrine.Repo
-  alias Elektrine.Social.{CreatorSatisfaction, PostDismissal, PostView}
+  alias Elektrine.Social.{CreatorSatisfaction, PostDismissal, PostView, Views}
   @min_score_threshold 10
   @exploration_ratio 0.15
   @interest_decay_rate 0.1
@@ -881,31 +881,7 @@ defmodule Elektrine.Social.Recommendations do
 
   @doc "Updates or creates a post view with dwell time data.\n"
   def record_view_with_dwell(user_id, message_id, attrs \\ %{}) do
-    existing =
-      PostView
-      |> where([pv], pv.user_id == ^user_id and pv.message_id == ^message_id)
-      |> limit(1)
-      |> Repo.one()
-
-    case existing do
-      nil ->
-        %PostView{}
-        |> PostView.changeset(Map.merge(%{user_id: user_id, message_id: message_id}, attrs))
-        |> Repo.insert(on_conflict: :nothing)
-
-      existing ->
-        new_dwell = (existing.dwell_time_ms || 0) + (attrs[:dwell_time_ms] || 0)
-        new_scroll = max(existing.scroll_depth || 0, attrs[:scroll_depth] || 0)
-        new_expanded = existing.expanded || attrs[:expanded] || false
-
-        existing
-        |> PostView.update_dwell_changeset(%{
-          dwell_time_ms: new_dwell,
-          scroll_depth: new_scroll,
-          expanded: new_expanded
-        })
-        |> Repo.update()
-    end
+    Views.track_post_view(user_id, message_id, attrs)
   end
 
   defp decimal_to_int(%Decimal{} = d) do

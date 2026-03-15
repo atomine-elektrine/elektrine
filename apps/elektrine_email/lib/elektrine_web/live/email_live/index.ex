@@ -665,7 +665,7 @@ defmodule ElektrineWeb.EmailLive.Index do
   defp get_tab_icon(tab) do
     case tab do
       "inbox" -> "hero-inbox"
-      "digest" -> "hero-inbox-stack"
+      "digest" -> "hero-queue-list"
       "ledger" -> "hero-document-text"
       "stack" -> "hero-archive-box"
       "boomerang" -> "hero-arrow-uturn-left"

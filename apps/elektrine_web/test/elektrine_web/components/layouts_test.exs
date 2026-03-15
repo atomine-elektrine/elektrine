@@ -31,6 +31,21 @@ defmodule ElektrineWeb.LayoutsTest do
     end
   end
 
+  describe "full_width_main?/1" do
+    test "returns true for app surfaces that manage their own page width" do
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/timeline"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/gallery"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/email"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/communities"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/d/elixir"})
+    end
+
+    test "returns false for standard account pages" do
+      refute Layouts.full_width_main?(%{current_url: "https://example.com/account"})
+      refute Layouts.full_width_main?(%{current_url: "https://example.com/login"})
+    end
+  end
+
   test "root layout uses a dead-page timezone detector" do
     html =
       render_component(&Layouts.root/1,

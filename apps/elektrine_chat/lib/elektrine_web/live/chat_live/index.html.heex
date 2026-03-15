@@ -26,89 +26,9 @@
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
   <div id="call-receiver" phx-hook="CallReceiver" class="hidden"></div>
 
-  <div class="mb-3 md:hidden">
-    <div class="card glass-card border border-base-300 shadow-lg">
-      <div class="p-3 space-y-3">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/50">
-              Servers
-            </p>
-            <p class="mt-1 truncate text-sm font-medium text-base-content">
-              {if active_server, do: active_server.name, else: "All chats"}
-            </p>
-          </div>
-          <span class="badge badge-ghost badge-sm whitespace-nowrap">
-            {length(@joined_servers)} joined
-          </span>
-        </div>
-
-        <div class="overflow-x-auto pb-1">
-          <div class="flex min-w-max items-center gap-2">
-            <button
-              type="button"
-              phx-click="clear_server_scope"
-              class={[
-                "btn btn-sm rounded-full whitespace-nowrap gap-2",
-                if(is_nil(active_server_id), do: "btn-secondary", else: "btn-ghost")
-              ]}
-            >
-              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> All chats
-            </button>
-
-            <%= for server <- @joined_servers do %>
-              <% server_selected = active_server_id == server.id %>
-              <button
-                type="button"
-                phx-click="filter_server"
-                phx-value-server_id={server.id}
-                class={[
-                  "btn btn-sm rounded-full whitespace-nowrap gap-2",
-                  if(server_selected, do: "btn-secondary", else: "btn-ghost")
-                ]}
-                title={server.name}
-              >
-                <%= if is_binary(server.icon_url) and String.trim(server.icon_url) != "" do %>
-                  <img src={server.icon_url} alt="" class="h-5 w-5 rounded-full object-cover" />
-                <% else %>
-                  <span class="flex h-5 w-5 items-center justify-center rounded-full bg-base-300 text-[10px] font-semibold">
-                    <%= case String.trim(server.name || "") do %>
-                      <% "" -> %>
-                        ?
-                      <% name -> %>
-                        {name |> String.first() |> String.upcase()}
-                    <% end %>
-                  </span>
-                <% end %>
-                <span class="max-w-[8rem] truncate">{server.name}</span>
-              </button>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            phx-click="show_browse_modal"
-            class="btn btn-ghost btn-sm flex-1 gap-2"
-          >
-            <.icon name="hero-globe-alt-solid" class="w-4 h-4" /> Browse
-          </button>
-          <button
-            type="button"
-            phx-click="show_create_server"
-            class="btn btn-secondary btn-sm gap-2"
-          >
-            <.icon name="hero-plus" class="w-4 h-4" /> New
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="flex flex-row gap-0 sm:gap-2 xl:gap-6 h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-12rem)]">
     <!-- Server Rail -->
-    <div class="hidden md:flex w-16 lg:w-20 card glass-card shadow-lg border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
+    <div class="hidden md:flex w-16 lg:w-20 flex-shrink-0 card glass-card shadow-lg border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
       <div class="flex flex-col items-center gap-1">
         <button
           phx-click="show_browse_modal"
@@ -168,59 +88,57 @@
 <!-- Left Sidebar - Conversations List -->
     <div class={[
       if(@conversation.selected, do: "hidden sm:flex", else: "flex"),
-      "w-full sm:w-[320px] lg:w-[360px] 2xl:w-[420px] card glass-card shadow-lg border border-base-300 flex-col h-full max-h-full"
+      "w-full sm:w-[320px] sm:min-w-[320px] lg:w-[360px] lg:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-3 h-full max-h-full"
     ]}>
-      <!-- Header with Search -->
-      <div class="flex-shrink-0 p-3 border-b border-base-300">
-        <div class="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Search chats, people, servers, or channels"
-            value={@search.conversation_query}
-            phx-keyup="search_conversations"
-            phx-debounce="300"
-            class="hidden sm:block w-full h-10 rounded-md border border-base-300 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-1 focus:ring-secondary"
-            name="query"
-          />
-          <!-- Mobile Search Toggle -->
-          <button
-            class="btn btn-ghost btn-xs sm:hidden text-base-content"
-            phx-click="toggle_mobile_search"
-          >
-            <.icon name="hero-magnifying-glass" class="w-4 h-4" />
-          </button>
-        </div>
-        
+      <div class="card glass-card shadow-lg border border-base-300 flex flex-col overflow-hidden">
+        <!-- Header with Search -->
+        <div class="flex-shrink-0 p-3 border-b border-base-300">
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search chats, people, servers, or channels"
+              value={@search.conversation_query}
+              phx-keyup="search_conversations"
+              phx-debounce="300"
+              class="hidden sm:block w-full h-10 rounded-md border border-base-300 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-1 focus:ring-secondary"
+              name="query"
+            />
+            <!-- Mobile Search Toggle -->
+            <button
+              class="btn btn-ghost btn-xs sm:hidden text-base-content"
+              phx-click="toggle_mobile_search"
+            >
+              <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+            </button>
+          </div>
+          
 <!-- Mobile Search Input -->
-        <div :if={@show_mobile_search} class="sm:hidden px-2 pb-2">
-          <input
-            type="text"
-            placeholder="Search chats..."
-            value={@search.conversation_query}
-            phx-keyup="search_conversations"
-            phx-debounce="300"
-            class="w-full h-9 rounded-md border border-base-300 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-1 focus:ring-secondary"
-            name="query"
-          />
-        </div>
+          <div :if={@show_mobile_search} class="sm:hidden px-2 pb-2">
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={@search.conversation_query}
+              phx-keyup="search_conversations"
+              phx-debounce="300"
+              class="w-full h-9 rounded-md border border-base-300 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-1 focus:ring-secondary"
+              name="query"
+            />
+          </div>
 
-        <div class="mt-2 flex flex-wrap items-center gap-1.5">
-          <span class="badge badge-ghost badge-sm">Servers: {@joined_servers |> length}</span>
-          <%= if active_server do %>
-            <span class="badge badge-secondary badge-sm">
-              Viewing: {active_server.name}
-            </span>
-          <% else %>
-            <span class="badge badge-ghost badge-sm">Viewing: all</span>
-          <% end %>
+          <div class="mt-2 flex flex-wrap items-center gap-1.5">
+            <span class="badge badge-ghost badge-sm">Servers: {@joined_servers |> length}</span>
+            <%= if active_server do %>
+              <span class="badge badge-secondary badge-sm">
+                Viewing: {active_server.name}
+              </span>
+            <% else %>
+              <span class="badge badge-ghost badge-sm">Viewing: all</span>
+            <% end %>
+          </div>
         </div>
-      </div>
-      
-<!-- Conversations List -->
-      <div class="flex-1 min-h-0 overflow-y-auto overflow-x-visible">
         
-<!-- Create New Options (integrated into list) -->
-        <div class="border-b border-base-300">
+<!-- Create New Options (integrated into sidebar) -->
+        <div class="flex-shrink-0">
           <!-- New DM -->
           <button
             phx-click="toggle_new_chat"
@@ -300,7 +218,7 @@
 <!-- Browse Network Index -->
           <button
             phx-click="show_browse_modal"
-            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left border-b border-base-300 transition-colors"
+            class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left border-t border-base-300 transition-colors"
           >
             <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 bg-base-300">
               <.icon
@@ -316,367 +234,376 @@
             </div>
           </button>
         </div>
-        
-<!-- User Search Results (when searching) -->
-        <%= if @search.conversation_query != "" and @search.user_results != [] do %>
-          <div class="border-b border-base-300">
-            <div class="px-3 py-2 bg-base-200">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/70 hidden lg:block">
-                Direct Messages
-              </p>
-            </div>
-            <%= for user <- @search.user_results do %>
-              <% is_remote_user =
-                is_binary(Map.get(user, :remote_handle)) and Map.get(user, :remote_handle) != "" %>
-              <button
-                phx-click="start_dm"
-                phx-value-user_id={Map.get(user, :id)}
-                phx-value-remote_handle={Map.get(user, :remote_handle)}
-                class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
-              >
-                <div class="avatar">
-                  <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full">
-                    <.user_avatar user={user} size="responsive" />
-                  </div>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="font-medium text-sm text-base-content">
-                    <.username_with_effects user={user} display_name={true} verified_size="xs" />
-                  </p>
-                  <p class="text-xs text-base-content/70 truncate hidden sm:block">
-                    {user_at_handle(user)}
-                  </p>
-                </div>
-                <div class="hidden sm:flex items-center gap-2">
-                  <%= if is_remote_user do %>
-                    <span class="badge badge-secondary badge-xs">From another server</span>
-                  <% end %>
-                  <.icon name="hero-plus-circle" class="w-4 h-4 text-secondary" />
-                </div>
-              </button>
-            <% end %>
-          </div>
-        <% end %>
-        
-<!-- Public Servers Search Results (when searching) -->
-        <%= if @search.conversation_query != "" and @public_server_search_results != [] do %>
-          <div class="border-b border-base-300">
-            <div class="px-3 py-2 bg-base-200">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/70 hidden lg:block">
-                Servers
-              </p>
-            </div>
-            <%= for server <- @public_server_search_results do %>
-              <% server_is_remote = is_binary(server.origin_domain) and server.origin_domain != "" %>
-              <button
-                phx-click="join_server"
-                phx-value-server_id={server.id}
-                class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
-              >
-                <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 bg-base-300 rounded-lg flex items-center justify-center shrink-0">
-                  <.icon name="hero-globe-alt" class="w-5 h-5 text-base-content/80" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="font-medium text-sm text-base-content truncate">
-                    {server.name}
-                  </p>
-                  <p class="text-xs text-base-content/70 truncate hidden sm:block">
-                    {server.member_count} {if server.member_count == 1,
-                      do: "member",
-                      else: "members"}
-                    <%= if server.origin_domain do %>
-                      • {server.origin_domain}
-                    <% end %>
-                    <%= if server.description do %>
-                      • {String.slice(server.description, 0..50)}
-                    <% end %>
-                  </p>
-                </div>
-                <div class="hidden sm:flex items-center gap-2">
-                  <%= if server_is_remote do %>
-                    <span class="badge badge-secondary badge-xs">From another server</span>
-                  <% end %>
-                  <.icon name="hero-arrow-right-circle" class="w-4 h-4 text-secondary" />
-                </div>
-              </button>
-            <% end %>
-          </div>
-        <% end %>
-        
-<!-- Public Groups Search Results (when searching) -->
-        <%= if @search.conversation_query != "" and @public_group_search_results != [] do %>
-          <div class="border-b border-base-300">
-            <div class="px-3 py-2 bg-base-200">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/70 hidden lg:block">
-                Public Groups
-              </p>
-            </div>
-            <%= for group <- @public_group_search_results do %>
-              <button
-                phx-click="join_conversation"
-                phx-value-conversation_id={group.id}
-                class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
-              >
-                <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 bg-base-300 rounded-lg flex items-center justify-center shrink-0">
-                  <.icon name="hero-users" class="w-5 h-5 text-base-content/80" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <p class="font-medium text-sm text-base-content truncate">{group.name}</p>
-                  <p class="text-xs text-base-content/70 truncate hidden sm:block">
-                    <%= if group.member_count do %>
-                      {group.member_count} {if group.member_count == 1,
-                        do: "member",
-                        else: "members"}
-                    <% end %>
-                    <%= if group.description do %>
-                      • {String.slice(group.description, 0..50)}
-                    <% end %>
-                  </p>
-                </div>
-                <div class="hidden sm:flex items-center gap-2">
-                  <span class="badge badge-ghost badge-xs">Group</span>
-                  <.icon name="hero-arrow-right-circle" class="w-4 h-4 text-secondary" />
-                </div>
-              </button>
-            <% end %>
-          </div>
-        <% end %>
-        
-<!-- Loading Skeleton -->
-        <%= if @loading_conversations do %>
-          <div class="space-y-0 animate-pulse">
-            <%= for _i <- 1..5 do %>
-              <div class="flex items-center gap-3 p-4 border-b border-base-300">
-                <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full bg-base-300">
-                </div>
-                <div class="flex-1 space-y-2">
-                  <div class="h-4 bg-base-300 rounded w-3/4"></div>
-                  <div class="h-3 bg-base-300 rounded w-1/2"></div>
-                </div>
-              </div>
-            <% end %>
-          </div>
-        <% else %>
-          <%= for conversation <- @conversation.filtered do %>
-            <% is_selected =
-              @conversation.selected && @conversation.selected.id == conversation.id %>
-            <% remote_conversation = remote_conversation?(conversation) %>
-            <div
-              phx-hook="ContextMenu"
-              id={"conversation-#{conversation.id}"}
-              data-conversation-id={conversation.id}
-            >
-              <.link
-                patch={~p"/chat/#{conversation.hash || conversation.id}"}
-                class={[
-                  "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all relative outline-none focus:outline-none focus-visible:outline-none active:opacity-90 select-none [&:active]:!outline-none [&:focus]:!outline-none border-b overflow-visible",
-                  if(is_selected,
-                    do: "bg-secondary/10 text-base-content border-secondary/30",
-                    else: "hover:bg-base-200 border-base-300 text-base-content"
-                  )
-                ]}
-              >
-                <button
-                  class="outline-none focus:outline-none overflow-visible"
-                  phx-click="show_conversation_info"
-                  phx-value-conversation_id={conversation.id}
-                  phx-value-conversation_type={conversation.type}
-                  title="View details"
-                >
-                  <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full overflow-visible">
-                    <.conversation_avatar
-                      conversation={conversation}
-                      current_user_id={@current_user.id}
-                      size="responsive"
-                      online_users={@online_users}
-                      user_statuses={@user_statuses}
-                    />
-                  </div>
-                </button>
+      </div>
 
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <p class={
-                      if(is_selected,
-                        do: "font-semibold text-sm truncate",
-                        else: "font-medium text-sm truncate text-base-content"
-                      )
-                    }>
-                      {route_label(conversation, @current_user.id)}
-                    </p>
-                    <!-- Mobile timestamp and unread (always visible) -->
-                    <div class="flex items-center gap-1 lg:hidden">
-                      <%= if Map.get(@conversation.unread_counts, conversation.id, 0) > 0 do %>
-                        <div class="badge badge-secondary badge-sm">
-                          {Map.get(@conversation.unread_counts, conversation.id)}
-                        </div>
-                      <% end %>
-                      <%= if conversation.last_message_at do %>
-                        <span class={
-                          if(is_selected,
-                            do: "text-xs text-base-content/80",
-                            else: "text-xs text-base-content/70"
-                          )
-                        }>
-                          <.local_time
-                            datetime={conversation.last_message_at}
-                            format="datetime"
-                            timezone={@timezone}
-                            time_format={@time_format}
-                          />
-                        </span>
-                      <% end %>
+      <div class="card glass-card shadow-lg border border-base-300 flex flex-1 min-h-0 flex-col overflow-hidden">
+        <!-- Conversations List -->
+        <div class="flex-1 min-h-0 overflow-y-auto overflow-x-visible">
+          
+<!-- User Search Results (when searching) -->
+          <%= if @search.conversation_query != "" and @search.user_results != [] do %>
+            <div class="border-b border-base-300">
+              <div class="px-3 py-2 bg-base-200">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/70 hidden lg:block">
+                  Direct Messages
+                </p>
+              </div>
+              <%= for user <- @search.user_results do %>
+                <% is_remote_user =
+                  is_binary(Map.get(user, :remote_handle)) and Map.get(user, :remote_handle) != "" %>
+                <button
+                  phx-click="start_dm"
+                  phx-value-user_id={Map.get(user, :id)}
+                  phx-value-remote_handle={Map.get(user, :remote_handle)}
+                  class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
+                >
+                  <div class="avatar">
+                    <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full">
+                      <.user_avatar user={user} size="responsive" />
                     </div>
                   </div>
-
-                  <div class="flex items-center gap-1 py-0.5">
-                    <span class="badge badge-ghost badge-xs">
-                      {protocol_conversation_type(conversation.type)}
-                    </span>
-                    <%= if remote_conversation do %>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-sm text-base-content">
+                      <.username_with_effects user={user} display_name={true} verified_size="xs" />
+                    </p>
+                    <p class="text-xs text-base-content/70 truncate hidden sm:block">
+                      {user_at_handle(user)}
+                    </p>
+                  </div>
+                  <div class="hidden sm:flex items-center gap-2">
+                    <%= if is_remote_user do %>
                       <span class="badge badge-secondary badge-xs">From another server</span>
                     <% end %>
+                    <.icon name="hero-plus-circle" class="w-4 h-4 text-secondary" />
                   </div>
+                </button>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Public Servers Search Results (when searching) -->
+          <%= if @search.conversation_query != "" and @public_server_search_results != [] do %>
+            <div class="border-b border-base-300">
+              <div class="px-3 py-2 bg-base-200">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/70 hidden lg:block">
+                  Servers
+                </p>
+              </div>
+              <%= for server <- @public_server_search_results do %>
+                <% server_is_remote =
+                  is_binary(server.origin_domain) and server.origin_domain != "" %>
+                <button
+                  phx-click="join_server"
+                  phx-value-server_id={server.id}
+                  class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
+                >
+                  <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 bg-base-300 rounded-lg flex items-center justify-center shrink-0">
+                    <.icon name="hero-globe-alt" class="w-5 h-5 text-base-content/80" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-sm text-base-content truncate">
+                      {server.name}
+                    </p>
+                    <p class="text-xs text-base-content/70 truncate hidden sm:block">
+                      {server.member_count} {if server.member_count == 1,
+                        do: "member",
+                        else: "members"}
+                      <%= if server.origin_domain do %>
+                        • {server.origin_domain}
+                      <% end %>
+                      <%= if server.description do %>
+                        • {String.slice(server.description, 0..50)}
+                      <% end %>
+                    </p>
+                  </div>
+                  <div class="hidden sm:flex items-center gap-2">
+                    <%= if server_is_remote do %>
+                      <span class="badge badge-secondary badge-xs">From another server</span>
+                    <% end %>
+                    <.icon name="hero-arrow-right-circle" class="w-4 h-4 text-secondary" />
+                  </div>
+                </button>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Public Groups Search Results (when searching) -->
+          <%= if @search.conversation_query != "" and @public_group_search_results != [] do %>
+            <div class="border-b border-base-300">
+              <div class="px-3 py-2 bg-base-200">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/70 hidden lg:block">
+                  Public Groups
+                </p>
+              </div>
+              <%= for group <- @public_group_search_results do %>
+                <button
+                  phx-click="join_conversation"
+                  phx-value-conversation_id={group.id}
+                  class="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-base-200 text-left transition-colors"
+                >
+                  <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 bg-base-300 rounded-lg flex items-center justify-center shrink-0">
+                    <.icon name="hero-users" class="w-5 h-5 text-base-content/80" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-sm text-base-content truncate">{group.name}</p>
+                    <p class="text-xs text-base-content/70 truncate hidden sm:block">
+                      <%= if group.member_count do %>
+                        {group.member_count} {if group.member_count == 1,
+                          do: "member",
+                          else: "members"}
+                      <% end %>
+                      <%= if group.description do %>
+                        • {String.slice(group.description, 0..50)}
+                      <% end %>
+                    </p>
+                  </div>
+                  <div class="hidden sm:flex items-center gap-2">
+                    <span class="badge badge-ghost badge-xs">Group</span>
+                    <.icon name="hero-arrow-right-circle" class="w-4 h-4 text-secondary" />
+                  </div>
+                </button>
+              <% end %>
+            </div>
+          <% end %>
+          
+<!-- Loading Skeleton -->
+          <%= if @loading_conversations do %>
+            <div class="space-y-0 animate-pulse">
+              <%= for _i <- 1..5 do %>
+                <div class="flex items-center gap-3 p-4 border-b border-base-300">
+                  <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full bg-base-300">
+                  </div>
+                  <div class="flex-1 space-y-2">
+                    <div class="h-4 bg-base-300 rounded w-3/4"></div>
+                    <div class="h-3 bg-base-300 rounded w-1/2"></div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <%= for conversation <- @conversation.filtered do %>
+              <% is_selected =
+                @conversation.selected && @conversation.selected.id == conversation.id %>
+              <% remote_conversation = remote_conversation?(conversation) %>
+              <div
+                phx-hook="ContextMenu"
+                id={"conversation-#{conversation.id}"}
+                data-conversation-id={conversation.id}
+              >
+                <.link
+                  patch={~p"/chat/#{conversation.hash || conversation.id}"}
+                  class={[
+                    "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all relative outline-none focus:outline-none focus-visible:outline-none active:opacity-90 select-none [&:active]:!outline-none [&:focus]:!outline-none border-b overflow-visible",
+                    if(is_selected,
+                      do: "bg-secondary/10 text-base-content border-secondary/30",
+                      else: "hover:bg-base-200 border-base-300 text-base-content"
+                    )
+                  ]}
+                >
+                  <button
+                    class="outline-none focus:outline-none overflow-visible"
+                    phx-click="show_conversation_info"
+                    phx-value-conversation_id={conversation.id}
+                    phx-value-conversation_type={conversation.type}
+                    title="View details"
+                  >
+                    <div class="w-10 sm:w-10 md:w-11 lg:w-12 h-10 sm:h-10 md:h-11 lg:h-12 rounded-full overflow-visible">
+                      <.conversation_avatar
+                        conversation={conversation}
+                        current_user_id={@current_user.id}
+                        size="responsive"
+                        online_users={@online_users}
+                        user_statuses={@user_statuses}
+                      />
+                    </div>
+                  </button>
 
-                  <%= if conversation.messages != [] do %>
-                    <% last_message = List.first(conversation.messages) %>
-                    <%= if last_message.sender_id == @current_user.id do %>
-                      <% read_status =
-                        Map.get(@conversation.last_message_read_status || %{}, conversation.id) %>
-                      <div class={
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between">
+                      <p class={
                         if(is_selected,
-                          do:
-                            "text-xs sm:text-sm text-base-content/80 flex items-center gap-1 min-w-0",
-                          else:
-                            "text-xs sm:text-sm text-base-content/70 flex items-center gap-1 min-w-0"
+                          do: "font-semibold text-sm truncate",
+                          else: "font-medium text-sm truncate text-base-content"
                         )
                       }>
-                        <%= if read_status && read_status.is_read do %>
-                          <span class="text-[10px] sm:text-xs text-green-500 font-bold flex-shrink-0">
-                            ✓✓
-                          </span>
-                        <% else %>
-                          <span class="text-[11px] sm:text-sm text-gray-400 font-medium flex-shrink-0">
-                            ✓
+                        {route_label(conversation, @current_user.id)}
+                      </p>
+                      <!-- Mobile timestamp and unread (always visible) -->
+                      <div class="flex items-center gap-1 lg:hidden">
+                        <%= if Map.get(@conversation.unread_counts, conversation.id, 0) > 0 do %>
+                          <div class="badge badge-secondary badge-sm">
+                            {Map.get(@conversation.unread_counts, conversation.id)}
+                          </div>
+                        <% end %>
+                        <%= if conversation.last_message_at do %>
+                          <span class={
+                            if(is_selected,
+                              do: "text-xs text-base-content/80",
+                              else: "text-xs text-base-content/70"
+                            )
+                          }>
+                            <.local_time
+                              datetime={conversation.last_message_at}
+                              format="datetime"
+                              timezone={@timezone}
+                              time_format={@time_format}
+                            />
                           </span>
                         <% end %>
-                        <span class="truncate">You: {message_display_content(last_message)}</span>
                       </div>
+                    </div>
+
+                    <div class="flex items-center gap-1 py-0.5">
+                      <span class="badge badge-ghost badge-xs">
+                        {protocol_conversation_type(conversation.type)}
+                      </span>
+                      <%= if remote_conversation do %>
+                        <span class="badge badge-secondary badge-xs">From another server</span>
+                      <% end %>
+                    </div>
+
+                    <%= if conversation.messages != [] do %>
+                      <% last_message = List.first(conversation.messages) %>
+                      <%= if last_message.sender_id == @current_user.id do %>
+                        <% read_status =
+                          Map.get(@conversation.last_message_read_status || %{}, conversation.id) %>
+                        <div class={
+                          if(is_selected,
+                            do:
+                              "text-xs sm:text-sm text-base-content/80 flex items-center gap-1 min-w-0",
+                            else:
+                              "text-xs sm:text-sm text-base-content/70 flex items-center gap-1 min-w-0"
+                          )
+                        }>
+                          <%= if read_status && read_status.is_read do %>
+                            <span class="text-[10px] sm:text-xs text-green-500 font-bold flex-shrink-0">
+                              ✓✓
+                            </span>
+                          <% else %>
+                            <span class="text-[11px] sm:text-sm text-gray-400 font-medium flex-shrink-0">
+                              ✓
+                            </span>
+                          <% end %>
+                          <span class="truncate">
+                            You: {message_display_content(last_message)}
+                          </span>
+                        </div>
+                      <% else %>
+                        <p class={
+                          if(is_selected,
+                            do: "text-xs sm:text-sm text-base-content/80 truncate",
+                            else: "text-xs sm:text-sm text-base-content/70 truncate"
+                          )
+                        }>
+                          {message_display_content(last_message)}
+                        </p>
+                      <% end %>
                     <% else %>
                       <p class={
                         if(is_selected,
-                          do: "text-xs sm:text-sm text-base-content/80 truncate",
-                          else: "text-xs sm:text-sm text-base-content/70 truncate"
+                          do: "text-xs sm:text-sm text-base-content/80",
+                          else: "text-xs sm:text-sm text-base-content/70"
                         )
                       }>
-                        {message_display_content(last_message)}
+                        No messages yet
                       </p>
                     <% end %>
-                  <% else %>
-                    <p class={
-                      if(is_selected,
-                        do: "text-xs sm:text-sm text-base-content/80",
-                        else: "text-xs sm:text-sm text-base-content/70"
-                      )
-                    }>
-                      No messages yet
-                    </p>
-                  <% end %>
-                </div>
+                  </div>
 
-                <div class="flex items-center gap-2 hidden lg:flex">
-                  <%= if conversation.type != "dm" do %>
-                    <div class={
-                      if(is_selected,
-                        do: "text-xs text-base-content/80",
-                        else: "text-xs text-base-content/70"
-                      )
-                    }>
-                      {conversation.member_count} members
-                    </div>
-                  <% end %>
-                  
+                  <div class="flex items-center gap-2 hidden lg:flex">
+                    <%= if conversation.type != "dm" do %>
+                      <div class={
+                        if(is_selected,
+                          do: "text-xs text-base-content/80",
+                          else: "text-xs text-base-content/70"
+                        )
+                      }>
+                        {conversation.member_count} members
+                      </div>
+                    <% end %>
+                    
 <!-- Desktop timestamp and unread -->
-                  <%= if Map.get(@conversation.unread_counts, conversation.id, 0) > 0 do %>
-                    <div class="badge badge-secondary badge-sm">
-                      {Map.get(@conversation.unread_counts, conversation.id)}
-                    </div>
-                  <% end %>
-                  <%= if conversation.last_message_at do %>
-                    <span class={
-                      if(is_selected,
-                        do: "text-xs text-base-content/80",
-                        else: "text-xs text-base-content/70"
-                      )
-                    }>
-                      <.local_time
-                        datetime={conversation.last_message_at}
-                        format="datetime"
-                        timezone={@timezone}
-                        time_format={@time_format}
-                      />
-                    </span>
-                  <% end %>
-                  
+                    <%= if Map.get(@conversation.unread_counts, conversation.id, 0) > 0 do %>
+                      <div class="badge badge-secondary badge-sm">
+                        {Map.get(@conversation.unread_counts, conversation.id)}
+                      </div>
+                    <% end %>
+                    <%= if conversation.last_message_at do %>
+                      <span class={
+                        if(is_selected,
+                          do: "text-xs text-base-content/80",
+                          else: "text-xs text-base-content/70"
+                        )
+                      }>
+                        <.local_time
+                          datetime={conversation.last_message_at}
+                          format="datetime"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </span>
+                    <% end %>
+                    
 <!-- Pinned Indicator -->
+                    <% member =
+                      Enum.find(
+                        conversation.members,
+                        &(&1.user_id == @current_user.id and is_nil(&1.left_at))
+                      ) %>
+                    <%= if member && member.pinned do %>
+                      <.icon
+                        name="hero-bookmark-solid"
+                        class={
+                          if(is_selected, do: "w-3 h-3 text-accent", else: "w-3 h-3 text-error")
+                        }
+                      />
+                    <% end %>
+                  </div>
+                  
+<!-- Mobile Pinned Indicator (always visible) -->
                   <% member =
                     Enum.find(
                       conversation.members,
                       &(&1.user_id == @current_user.id and is_nil(&1.left_at))
                     ) %>
                   <%= if member && member.pinned do %>
-                    <.icon
-                      name="hero-bookmark-solid"
-                      class={
-                        if(is_selected, do: "w-3 h-3 text-accent", else: "w-3 h-3 text-error")
-                      }
-                    />
+                    <div class="absolute -top-1 -right-1 lg:hidden">
+                      <.icon
+                        name="hero-bookmark-solid"
+                        class={
+                          if(is_selected, do: "w-3 h-3 text-accent", else: "w-3 h-3 text-error")
+                        }
+                      />
+                    </div>
                   <% end %>
-                </div>
-                
-<!-- Mobile Pinned Indicator (always visible) -->
-                <% member =
-                  Enum.find(
-                    conversation.members,
-                    &(&1.user_id == @current_user.id and is_nil(&1.left_at))
-                  ) %>
-                <%= if member && member.pinned do %>
-                  <div class="absolute -top-1 -right-1 lg:hidden">
-                    <.icon
-                      name="hero-bookmark-solid"
-                      class={
-                        if(is_selected, do: "w-3 h-3 text-accent", else: "w-3 h-3 text-error")
-                      }
-                    />
-                  </div>
-                <% end %>
-              </.link>
+                </.link>
+              </div>
+            <% end %>
+          <% end %>
+          <!-- End of loading_conversations else -->
+
+          <%= if !@loading_conversations && @conversation.filtered == [] do %>
+            <div class="text-center p-8">
+              <%= if @search.conversation_query != "" do %>
+                <.icon
+                  name="hero-magnifying-glass"
+                  class="w-12 h-12 mx-auto text-base-content/70 mb-4"
+                />
+                <p class="text-base-content/80">No chats found</p>
+                <p class="text-sm text-base-content/70">Try a different search term</p>
+              <% else %>
+                <.icon
+                  name="hero-chat-bubble-left-right"
+                  class="w-12 h-12 mx-auto text-base-content/70 mb-4"
+                />
+                <p class="text-base-content/80">No chats yet</p>
+                <p class="text-sm text-base-content/70">
+                  Start a direct message, create a group, or make a channel
+                </p>
+              <% end %>
             </div>
           <% end %>
-        <% end %>
-        <!-- End of loading_conversations else -->
-
-        <%= if !@loading_conversations && @conversation.filtered == [] do %>
-          <div class="text-center p-8">
-            <%= if @search.conversation_query != "" do %>
-              <.icon
-                name="hero-magnifying-glass"
-                class="w-12 h-12 mx-auto text-base-content/70 mb-4"
-              />
-              <p class="text-base-content/80">No chats found</p>
-              <p class="text-sm text-base-content/70">Try a different search term</p>
-            <% else %>
-              <.icon
-                name="hero-chat-bubble-left-right"
-                class="w-12 h-12 mx-auto text-base-content/70 mb-4"
-              />
-              <p class="text-base-content/80">No chats yet</p>
-              <p class="text-sm text-base-content/70">
-                Start a direct message, create a group, or make a channel
-              </p>
-            <% end %>
-          </div>
-        <% end %>
+        </div>
       </div>
     </div>
     
@@ -1485,7 +1412,7 @@
             <% end %>
             
 <!-- Emoji Grid -->
-            <div class="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto sm:grid-cols-8 lg:grid-cols-10">
+            <div class="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-40 overflow-y-auto">
               <%= if @search.emoji_query != "" do %>
                 <!-- Search Results: Show matching custom emojis -->
                 <%= for emoji <- filter_custom_emojis(@custom_emojis, @search.emoji_query) do %>

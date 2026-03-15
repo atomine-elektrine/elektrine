@@ -6,7 +6,9 @@ defmodule Elektrine.Email.Messages do
 
   import Ecto.Query, warn: false
   require Logger
+  alias Ecto.Multi
   alias Elektrine.Email.{CacheHooks, Mailbox, MailboxEncryption, Message}
+  alias Elektrine.JMAP
   alias Elektrine.Repo
 
   # Private helper to decrypt email messages
@@ -364,6 +366,8 @@ defmodule Elektrine.Email.Messages do
                %Message{}
                |> Message.changeset(stored_attrs)
                |> Repo.insert() do
+          bump_message_creation_states(mailbox_id, message.id)
+
           if mailbox_id do
             # Broadcast to any LiveViews monitoring this mailbox
             Phoenix.PubSub.broadcast!(
@@ -454,6 +458,10 @@ defmodule Elektrine.Email.Messages do
       end
     end
 
+    if match?({:ok, _}, result) do
+      bump_states_for_update(mailbox_id, message.id, attrs)
+    end
+
     result
   end
 
@@ -490,10 +498,17 @@ defmodule Elektrine.Email.Messages do
 
             case prepare_storage_attrs(attrs, mailbox, mailbox_user_id) do
               {:ok, stored_attrs} ->
-                draft
-                |> Message.changeset(stored_attrs)
-                |> Repo.update()
-                |> CacheHooks.with_cache_invalidation()
+                result =
+                  draft
+                  |> Message.changeset(stored_attrs)
+                  |> Repo.update()
+                  |> CacheHooks.with_cache_invalidation()
+
+                if match?({:ok, _}, result) do
+                  bump_states_for_update(draft.mailbox_id, draft.id, stored_attrs)
+                end
+
+                result
 
               {:error, reason} ->
                 {:error, reason}
@@ -522,8 +537,26 @@ defmodule Elektrine.Email.Messages do
   """
   def delete_draft(draft_id, mailbox_id) do
     case get_draft(draft_id, mailbox_id) do
-      nil -> {:error, :not_found}
-      draft -> Repo.delete(draft)
+      nil ->
+        {:error, :not_found}
+
+      draft ->
+        result =
+          Multi.new()
+          |> Multi.delete(:draft, draft)
+          |> Multi.run(:tombstone, fn _repo, _changes ->
+            case JMAP.record_email_destroyed(mailbox_id, draft.id, ["Mailbox", "Thread"]) do
+              :ok -> {:ok, :recorded}
+              other -> other
+            end
+          end)
+          |> Repo.transaction()
+          |> case do
+            {:ok, %{draft: deleted_draft}} -> {:ok, deleted_draft}
+            {:error, _step, reason, _changes} -> {:error, reason}
+          end
+
+        result
     end
   end
 
@@ -597,6 +630,7 @@ defmodule Elektrine.Email.Messages do
         CacheHooks.with_cache_invalidation({:ok, updated_message},
           user_id: mailbox && mailbox.user_id
         )
+        |> maybe_bump_mailbox_email_states(updated_message.mailbox_id)
 
       error ->
         error
@@ -632,6 +666,7 @@ defmodule Elektrine.Email.Messages do
         CacheHooks.with_cache_invalidation({:ok, updated_message},
           user_id: mailbox && mailbox.user_id
         )
+        |> maybe_bump_mailbox_email_states(updated_message.mailbox_id)
 
       error ->
         error
@@ -642,20 +677,26 @@ defmodule Elektrine.Email.Messages do
   Marks a message as spam.
   """
   def mark_as_spam(%Message{} = message) do
-    message
-    |> Message.spam_changeset()
-    |> Repo.update()
-    |> CacheHooks.with_cache_invalidation()
+    result =
+      message
+      |> Message.spam_changeset()
+      |> Repo.update()
+      |> CacheHooks.with_cache_invalidation()
+
+    maybe_bump_mailbox_email_states(result, message.mailbox_id)
   end
 
   @doc """
   Marks a message as not spam.
   """
   def mark_as_not_spam(%Message{} = message) do
-    message
-    |> Message.unspam_changeset()
-    |> Repo.update()
-    |> CacheHooks.with_cache_invalidation()
+    result =
+      message
+      |> Message.unspam_changeset()
+      |> Repo.update()
+      |> CacheHooks.with_cache_invalidation()
+
+    maybe_bump_mailbox_email_states(result, message.mailbox_id)
   end
 
   @doc """
@@ -675,6 +716,8 @@ defmodule Elektrine.Email.Messages do
     if was_unread and match?({:ok, _}, result) do
       broadcast_unread_count_update(mailbox_id)
     end
+
+    maybe_bump_mailbox_email_states(result, mailbox_id)
 
     result
   end
@@ -697,6 +740,8 @@ defmodule Elektrine.Email.Messages do
       broadcast_unread_count_update(mailbox_id)
     end
 
+    maybe_bump_mailbox_email_states(result, mailbox_id)
+
     result
   end
 
@@ -717,6 +762,8 @@ defmodule Elektrine.Email.Messages do
     if was_unread and match?({:ok, _}, result) do
       broadcast_unread_count_update(mailbox_id)
     end
+
+    maybe_bump_mailbox_email_states(result, mailbox_id)
 
     result
   end
@@ -739,6 +786,8 @@ defmodule Elektrine.Email.Messages do
       broadcast_unread_count_update(mailbox_id)
     end
 
+    maybe_bump_mailbox_email_states(result, mailbox_id)
+
     result
   end
 
@@ -751,7 +800,20 @@ defmodule Elektrine.Email.Messages do
     was_unread = !message.read
     mailbox_id = message.mailbox_id
 
-    result = Repo.delete(message)
+    result =
+      Multi.new()
+      |> Multi.delete(:message, message)
+      |> Multi.run(:tombstone, fn _repo, _changes ->
+        case JMAP.record_email_destroyed(mailbox_id, message.id, ["Mailbox", "Thread"]) do
+          :ok -> {:ok, :recorded}
+          other -> other
+        end
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{message: deleted_message}} -> {:ok, deleted_message}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
 
     case result do
       {:ok, deleted_message} ->
@@ -781,7 +843,11 @@ defmodule Elektrine.Email.Messages do
 
         # Invalidate caches after deletion
         user_id = if mailbox, do: mailbox.user_id
-        CacheHooks.with_cache_invalidation(result, user_id: user_id, mailbox_id: mailbox_id)
+
+        result =
+          CacheHooks.with_cache_invalidation(result, user_id: user_id, mailbox_id: mailbox_id)
+
+        result
 
       error ->
         error
@@ -970,10 +1036,14 @@ defmodule Elektrine.Email.Messages do
 
         case Repo.update(changeset) do
           {:ok, updated_message} ->
-            CacheHooks.with_cache_invalidation({:ok, updated_message},
-              user_id: user_id,
-              mailbox_id: mailbox_id
-            )
+            result =
+              CacheHooks.with_cache_invalidation({:ok, updated_message},
+                user_id: user_id,
+                mailbox_id: mailbox_id
+              )
+
+            bump_states_for_update(mailbox_id, updated_message.id, updates)
+            result
 
           {:error, changeset} ->
             {:error, changeset}
@@ -1045,6 +1115,7 @@ defmodule Elektrine.Email.Messages do
                 user_id: user_id,
                 mailbox_id: mailbox_id
               )
+              |> tap(fn _ -> bump_states_for_update(mailbox_id, updated_message.id, updates) end)
 
             {:error, changeset} ->
               {:error, changeset}
@@ -1311,4 +1382,67 @@ defmodule Elektrine.Email.Messages do
   defp get_field_value(attrs, string_key, atom_key) do
     Map.get(attrs, string_key) || Map.get(attrs, atom_key)
   end
+
+  defp maybe_bump_mailbox_email_states({:ok, %Message{id: message_id} = result}, mailbox_id)
+       when is_integer(mailbox_id) do
+    bump_mailbox_email_states(mailbox_id, message_id)
+    {:ok, result}
+  end
+
+  defp maybe_bump_mailbox_email_states(result, _mailbox_id), do: result
+
+  defp bump_states_for_update(mailbox_id, message_id, attrs)
+       when is_integer(mailbox_id) and is_integer(message_id) and is_map(attrs) do
+    entity_types =
+      []
+      |> maybe_add_mailbox_state(attrs)
+      |> maybe_add_thread_state(attrs)
+      |> Enum.uniq()
+
+    JMAP.record_email_updated(mailbox_id, message_id, entity_types)
+  end
+
+  defp bump_states_for_update(_mailbox_id, _message_id, _attrs), do: :ok
+
+  defp maybe_add_mailbox_state(entity_types, attrs) do
+    if Enum.any?(
+         ~w(read spam archived deleted category status folder_id),
+         &attrs_has_key?(attrs, &1)
+       ) do
+      ["Mailbox" | entity_types]
+    else
+      entity_types
+    end
+  end
+
+  defp maybe_add_thread_state(entity_types, attrs) do
+    if attrs_has_key?(attrs, "thread_id") do
+      ["Thread" | entity_types]
+    else
+      entity_types
+    end
+  end
+
+  defp attrs_has_key?(attrs, key) when is_binary(key) do
+    Map.has_key?(attrs, key) or
+      try do
+        Map.has_key?(attrs, String.to_existing_atom(key))
+      rescue
+        ArgumentError -> false
+      end
+  end
+
+  defp bump_message_creation_states(mailbox_id, message_id)
+       when is_integer(mailbox_id) and is_integer(message_id) do
+    JMAP.record_email_created(mailbox_id, message_id, ["Mailbox", "Thread"])
+  end
+
+  defp bump_message_creation_states(_mailbox_id, _message_id), do: :ok
+
+  defp bump_mailbox_email_states(mailbox_id, message_id)
+       when is_integer(mailbox_id) and is_integer(message_id) do
+    JMAP.record_email_updated(mailbox_id, message_id, ["Mailbox"])
+  end
+
+  defp bump_mailbox_email_states(_mailbox_id, _message_id), do: :ok
 end

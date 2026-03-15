@@ -26,6 +26,14 @@ defmodule Elektrine.Accounts.Tracking do
       login_count: login_count
     })
     |> Repo.update()
+    |> case do
+      {:ok, updated_user} ->
+        Elektrine.Accounts.TrustLevel.maybe_auto_promote_user(updated_user.id)
+        {:ok, updated_user}
+
+      error ->
+        error
+    end
   end
 
   @doc """

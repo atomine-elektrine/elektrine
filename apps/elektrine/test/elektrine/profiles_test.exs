@@ -140,7 +140,7 @@ defmodule Elektrine.ProfilesTest do
       {:ok, _} = Profiles.follow_user(user1.id, user2.id)
       assert Profiles.following?(user1.id, user2.id)
 
-      Profiles.unfollow_user(user1.id, user2.id)
+      assert {:ok, :unfollowed} = Profiles.unfollow_user(user1.id, user2.id)
       refute Profiles.following?(user1.id, user2.id)
     end
 
@@ -148,8 +148,7 @@ defmodule Elektrine.ProfilesTest do
       user1 = AccountsFixtures.user_fixture()
       user2 = AccountsFixtures.user_fixture()
 
-      # Should not raise
-      Profiles.unfollow_user(user1.id, user2.id)
+      assert {:ok, :not_following} = Profiles.unfollow_user(user1.id, user2.id)
       refute Profiles.following?(user1.id, user2.id)
     end
   end

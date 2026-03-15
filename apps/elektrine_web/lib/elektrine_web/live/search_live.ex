@@ -198,7 +198,7 @@ defmodule ElektrineWeb.SearchLive do
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
       <.z_nav active_tab="search" />
 
-      <div class="mx-auto max-w-4xl space-y-4">
+      <div class="space-y-4">
         <div class="card bg-base-100 shadow-sm border border-base-300">
           <div class="card-body gap-4">
             <div class="flex items-start justify-between gap-3">

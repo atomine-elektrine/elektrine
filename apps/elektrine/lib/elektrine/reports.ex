@@ -4,6 +4,8 @@ defmodule Elektrine.Reports do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.TrustLevel
+  alias Elektrine.Messaging.{Conversation, Message}
   alias Elektrine.Repo
   alias Elektrine.Reports.Report
 
@@ -14,6 +16,7 @@ defmodule Elektrine.Reports do
     with :ok <- validate_report_rate_limit(attrs[:reporter_id]),
          :ok <- validate_not_spam_reporting(attrs[:reporter_id]),
          {:ok, report} <- do_create_report(attrs) do
+      maybe_record_report_creation(report)
       {:ok, report}
     else
       {:error, :rate_limited} ->
@@ -145,6 +148,14 @@ defmodule Elektrine.Reports do
     report
     |> Report.review_changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_report} = result ->
+        maybe_record_report_resolution(report, updated_report)
+        result
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -158,9 +169,7 @@ defmodule Elektrine.Reports do
       resolution_notes: resolution_notes
     }
 
-    report
-    |> Report.review_changeset(attrs)
-    |> Repo.update()
+    review_report(report, attrs)
   end
 
   @doc """
@@ -288,6 +297,57 @@ defmodule Elektrine.Reports do
   end
 
   def build_metadata(_, _), do: %{}
+
+  defp maybe_record_report_creation(%Report{} = report) do
+    if local_reporter?(report) do
+      TrustLevel.increment_stat(report.reporter_id, :flags_given)
+    end
+
+    report
+    |> reported_user_ids()
+    |> Enum.each(&TrustLevel.increment_stat(&1, :flags_received))
+  end
+
+  defp maybe_record_report_resolution(%Report{} = report, %Report{} = updated_report) do
+    if local_reporter?(report) && actionable_transition?(report, updated_report) do
+      TrustLevel.increment_stat(report.reporter_id, :flags_agreed)
+    end
+  end
+
+  defp local_reporter?(%Report{metadata: metadata}) when is_map(metadata) do
+    not Map.has_key?(metadata, "remote_reporter")
+  end
+
+  defp local_reporter?(_), do: true
+
+  defp actionable_transition?(%Report{} = report, %Report{} = updated_report) do
+    not actionable_action?(report.action_taken) and
+      actionable_action?(updated_report.action_taken)
+  end
+
+  defp actionable_action?(action),
+    do: action in ["warned", "suspended", "banned", "content_removed"]
+
+  defp reported_user_ids(%Report{reportable_type: "user", reportable_id: user_id})
+       when is_integer(user_id),
+       do: [user_id]
+
+  defp reported_user_ids(%Report{reportable_type: reportable_type, reportable_id: reportable_id})
+       when reportable_type in ["message", "post"] do
+    case Repo.get(Message, reportable_id) do
+      %Message{sender_id: sender_id} when is_integer(sender_id) -> [sender_id]
+      _ -> []
+    end
+  end
+
+  defp reported_user_ids(%Report{reportable_type: "conversation", reportable_id: conversation_id}) do
+    case Repo.get(Conversation, conversation_id) do
+      %Conversation{creator_id: creator_id} when is_integer(creator_id) -> [creator_id]
+      _ -> []
+    end
+  end
+
+  defp reported_user_ids(_report), do: []
 
   # Spam Prevention Functions
 

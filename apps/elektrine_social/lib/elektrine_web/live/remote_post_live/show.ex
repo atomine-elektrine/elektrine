@@ -1117,6 +1117,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       |> assign(:post_id, decoded_post_id)
       |> assign(:is_local_post, is_local_post)
       |> assign(:is_community_post, is_community_post)
+      |> assign(:trust_topic_tracked, false)
       |> assign(:local_message, nil)
       |> assign(:post, nil)
       |> assign(:remote_actor, nil)
@@ -1198,6 +1199,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
               msg,
               msg.remote_actor && msg.remote_actor.domain
             )
+            |> maybe_track_trust_detail_view(msg, "remote_post_detail")
 
           nil ->
             socket
@@ -2553,6 +2555,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         |> assign(:post_reactions, post_reactions)
         |> assign_reply_parent_fallback(post_object, message)
         |> ensure_submitted_link_preview(post_object, message, nil)
+        |> maybe_track_trust_detail_view(message, "post_detail")
 
       send(self(), {:load_reply_parent, post_object})
 
@@ -2698,6 +2701,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           |> assign(:local_message, local_message)
           |> assign_reply_parent_fallback(post_object, local_message)
           |> ensure_submitted_link_preview(post_object, local_message, remote_actor.domain)
+          |> maybe_track_trust_detail_view(local_message, "remote_post_detail")
 
         # Load main post interactions immediately
         socket =
@@ -4152,6 +4156,19 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           reply_count: message.reply_count,
           quote_count: message.quote_count
       })
+    else
+      socket
+    end
+  end
+
+  defp maybe_track_trust_detail_view(socket, nil, _source), do: socket
+
+  defp maybe_track_trust_detail_view(socket, message, source) do
+    current_user = socket.assigns[:current_user]
+
+    if connected?(socket) && current_user && message && !socket.assigns[:trust_topic_tracked] do
+      Social.track_post_view(current_user.id, message.id, completed: true, source: source)
+      assign(socket, :trust_topic_tracked, true)
     else
       socket
     end

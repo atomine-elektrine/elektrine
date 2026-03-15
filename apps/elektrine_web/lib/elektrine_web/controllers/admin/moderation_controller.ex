@@ -2,6 +2,7 @@ defmodule ElektrineWeb.Admin.ModerationController do
   use ElektrineWeb, :controller
 
   alias Elektrine.{Accounts, Repo}
+  alias Elektrine.Messaging.Messages
   alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
@@ -121,12 +122,6 @@ defmodule ElektrineWeb.Admin.ModerationController do
   end
 
   def delete_content(conn, %{"content_id" => content_id, "type" => content_type}) do
-    message = Repo.get!(Elektrine.Messaging.Message, content_id)
-
-    message
-    |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)})
-    |> Repo.update!()
-
     content_name =
       case content_type do
         "timeline" -> "Timeline post"
@@ -135,9 +130,27 @@ defmodule ElektrineWeb.Admin.ModerationController do
         _ -> "Content"
       end
 
-    conn
-    |> put_flash(:info, "#{content_name} deleted successfully.")
-    |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+    case Messages.admin_delete_message(String.to_integer(content_id), conn.assigns.current_user) do
+      {:ok, _message} ->
+        conn
+        |> put_flash(:info, "#{content_name} deleted successfully.")
+        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+
+      {:error, :already_deleted} ->
+        conn
+        |> put_flash(:error, "#{content_name} was already deleted.")
+        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+
+      {:error, :not_found} ->
+        conn
+        |> put_flash(:error, "#{content_name} not found.")
+        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+
+      {:error, _reason} ->
+        conn
+        |> put_flash(:error, "Could not delete #{String.downcase(content_name)}.")
+        |> redirect(to: ~p"/pripyat/content-moderation?type=#{content_type}")
+    end
   end
 
   def unsubscribe_stats(conn, params) do
