@@ -298,11 +298,34 @@ function getSearchClearTrailingWidth(input) {
   return trailingWidth
 }
 
-function searchClearButtonSizeClass(input) {
-  if (input.classList.contains('input-xs')) return 'btn-xs'
-  if (input.classList.contains('input-sm')) return 'btn-sm'
-  if (input.classList.contains('input-lg')) return 'btn-lg'
-  return 'btn-sm'
+function searchClearIconSize(input) {
+  if (input.classList.contains('input-xs')) return '12'
+  if (input.classList.contains('input-sm')) return '12'
+  if (input.classList.contains('input-lg')) return '20'
+  return '16'
+}
+
+function createSearchClearIcon(input) {
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  const size = searchClearIconSize(input)
+
+  icon.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  icon.setAttribute('viewBox', '0 0 24 24')
+  icon.setAttribute('fill', 'none')
+  icon.setAttribute('stroke', 'currentColor')
+  icon.setAttribute('stroke-width', '1.8')
+  icon.setAttribute('width', size)
+  icon.setAttribute('height', size)
+  icon.setAttribute('aria-hidden', 'true')
+
+  path.setAttribute('stroke-linecap', 'round')
+  path.setAttribute('stroke-linejoin', 'round')
+  path.setAttribute('d', 'M6 18 18 6M6 6l12 12')
+
+  icon.appendChild(path)
+
+  return icon
 }
 
 function clearSearchInput(clearTrigger) {
@@ -320,36 +343,34 @@ function createAutoSearchClearButton(input) {
   if (!placement) return null
 
   const inputId = ensureSearchInputId(input)
-  const sizeClass = searchClearButtonSizeClass(input)
   const button = document.createElement('button')
   button.type = 'button'
-  button.textContent = 'x'
   button.setAttribute('aria-label', 'Clear search')
   button.setAttribute('title', 'Clear search')
   button.setAttribute('data-search-clear', 'true')
   button.setAttribute('data-search-clear-target', `#${inputId}`)
   button.setAttribute('data-search-clear-mode', 'auto')
+  button.appendChild(createSearchClearIcon(input))
 
   if (placement.mode === 'label') {
-    button.className =
-      `btn btn-ghost btn-square ${sizeClass} text-xs font-normal search-clear-auto`
+    button.className = 'search-clear-auto text-base-content/60 hover:text-base-content shrink-0'
     placement.container.appendChild(button)
   } else if (placement.mode === 'join') {
     placement.container.classList.add('relative')
     input.classList.add('search-clear-input')
     button.className =
-      `btn btn-ghost btn-circle ${sizeClass} text-xs font-normal search-clear-auto search-clear-overlay`
+      'search-clear-auto search-clear-overlay text-base-content/60 hover:text-base-content'
     button.style.right = `${getSearchClearTrailingWidth(input) + 8}px`
     placement.container.appendChild(button)
   } else if (placement.mode === 'inline') {
     button.className =
-      `btn btn-ghost btn-square ${sizeClass} text-xs font-normal search-clear-auto`
+      'search-clear-auto search-clear-inline text-base-content/60 hover:text-base-content'
     input.insertAdjacentElement('afterend', button)
   } else {
     placement.container.classList.add('relative')
     input.classList.add('search-clear-input')
     button.className =
-      `btn btn-ghost btn-circle ${sizeClass} text-xs font-normal search-clear-auto search-clear-overlay`
+      'search-clear-auto search-clear-overlay text-base-content/60 hover:text-base-content'
     placement.container.appendChild(button)
   }
 

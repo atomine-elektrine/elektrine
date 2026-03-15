@@ -34,6 +34,163 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     end
   end
 
+  def email_return_context(source) when is_map(source) do
+    %{
+      return_to: Map.get(source, :return_to) || Map.get(source, "return_to") || "inbox",
+      return_filter:
+        Map.get(source, :return_filter) ||
+          Map.get(source, :filter) ||
+          Map.get(source, "return_filter") ||
+          Map.get(source, "filter") ||
+          "inbox",
+      return_folder_id:
+        normalize_email_return_value(
+          Map.get(source, :return_folder_id) ||
+            Map.get(source, :folder_id) ||
+            Map.get(source, "return_folder_id") ||
+            Map.get(source, "folder_id")
+        ),
+      return_query:
+        normalize_email_return_value(
+          Map.get(source, :return_query) ||
+            Map.get(source, :q) ||
+            Map.get(source, "return_query") ||
+            Map.get(source, "q")
+        )
+    }
+  end
+
+  def email_return_params(source) do
+    context = email_return_context(source)
+
+    [{:return_to, context.return_to}]
+    |> maybe_put_email_return_param(
+      :filter,
+      context.return_to == "inbox" && context.return_filter not in [nil, "", "inbox"],
+      context.return_filter
+    )
+    |> maybe_put_email_return_param(
+      :folder_id,
+      context.return_to == "folder" && is_binary(context.return_folder_id),
+      context.return_folder_id
+    )
+    |> maybe_put_email_return_param(
+      :q,
+      context.return_to == "search" && is_binary(context.return_query),
+      context.return_query
+    )
+    |> Enum.reverse()
+  end
+
+  def email_return_url(source) do
+    context = email_return_context(source)
+
+    case context.return_to do
+      "sent" ->
+        ~p"/email?tab=sent"
+
+      "drafts" ->
+        ~p"/email?tab=drafts"
+
+      "spam" ->
+        ~p"/email?tab=spam"
+
+      "trash" ->
+        ~p"/email?tab=trash"
+
+      "archive" ->
+        ~p"/email?tab=archive"
+
+      "contacts" ->
+        ~p"/email?tab=contacts"
+
+      "calendar" ->
+        ~p"/calendar"
+
+      "folder" when is_binary(context.return_folder_id) ->
+        ~p"/email?tab=folder&folder_id=#{context.return_folder_id}"
+
+      "search" when is_binary(context.return_query) ->
+        ~p"/email?tab=search&q=#{context.return_query}"
+
+      "search" ->
+        ~p"/email?tab=search"
+
+      "inbox" when context.return_filter not in [nil, "", "inbox"] ->
+        ~p"/email?tab=inbox&filter=#{context.return_filter}"
+
+      filter
+      when filter in ["digest", "ledger", "stack", "boomerang", "aliases", "unread", "read"] ->
+        ~p"/email?tab=inbox&filter=#{filter}"
+
+      _ ->
+        ~p"/email?tab=inbox"
+    end
+  end
+
+  def email_back_button_text(source) do
+    context = email_return_context(source)
+
+    case context.return_to do
+      "sent" ->
+        gettext("Back to Sent")
+
+      "drafts" ->
+        gettext("Back to Drafts")
+
+      "spam" ->
+        gettext("Back to Spam")
+
+      "trash" ->
+        gettext("Back to Trash")
+
+      "archive" ->
+        gettext("Back to Archive")
+
+      "search" ->
+        gettext("Back to Search")
+
+      "folder" ->
+        gettext("Back to Folder")
+
+      "contacts" ->
+        gettext("Back to Contacts")
+
+      "calendar" ->
+        gettext("Back to Calendar")
+
+      "digest" ->
+        gettext("Back to Digest")
+
+      "ledger" ->
+        gettext("Back to Ledger")
+
+      "stack" ->
+        gettext("Back to Stack")
+
+      "boomerang" ->
+        gettext("Back to Boomerang")
+
+      "inbox" ->
+        case context.return_filter do
+          "bulk_mail" -> gettext("Back to Bulk Mail")
+          "paper_trail" -> gettext("Back to Paper Trail")
+          "the_pile" -> gettext("Back to The Pile")
+          "digest" -> gettext("Back to Digest")
+          "ledger" -> gettext("Back to Ledger")
+          "stack" -> gettext("Back to Stack")
+          "boomerang" -> gettext("Back to Boomerang")
+          "aliases" -> gettext("Back to Aliases")
+          "unread" -> gettext("Back to Unread")
+          "read" -> gettext("Back to Read")
+          _ -> gettext("Back to Inbox")
+        end
+
+      _ ->
+        gettext("Back to Inbox")
+    end
+  end
+
   @doc """
   Formats reply_later_at as relative time (e.g., "in 2 days", "tomorrow", "overdue")
   """
@@ -1142,4 +1299,13 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
       text
     end
   end
+
+  defp maybe_put_email_return_param(params, _key, false, _value), do: params
+  defp maybe_put_email_return_param(params, _key, _include?, nil), do: params
+  defp maybe_put_email_return_param(params, key, _include?, value), do: [{key, value} | params]
+
+  defp normalize_email_return_value(nil), do: nil
+  defp normalize_email_return_value(""), do: nil
+  defp normalize_email_return_value(value) when is_binary(value), do: value
+  defp normalize_email_return_value(value), do: to_string(value)
 end

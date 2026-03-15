@@ -120,7 +120,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.z_nav active_tab="password_manager" />
+      <.z_nav active_tab="password_manager" current_user={@current_user} />
 
       <div
         id="password-vault-live"
@@ -466,9 +466,13 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   # a compile-time dependency on elektrine_web.
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-4"
+  attr :current_user, :any, default: nil
 
   def z_nav(assigns) do
-    assigns = assign(assigns, :items, nav_items())
+    assigns =
+      assigns
+      |> assign(:items, nav_items())
+      |> assign(:section_label, if(assigns.current_user, do: "Modes", else: "Browse"))
 
     ~H"""
     <nav aria-label="Primary modes" class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
@@ -477,7 +481,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
           <div class="overflow-x-auto px-2 py-2 sm:px-3">
             <div class="flex min-w-max items-center gap-1 sm:gap-2">
               <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                Modes
+                {@section_label}
               </div>
 
               <%= for item <- @items do %>

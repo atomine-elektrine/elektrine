@@ -38,14 +38,10 @@ defmodule ElektrineWeb.EmailLive.Show do
       {:ok, verified_message} ->
         # If accessed by ID instead of hash, redirect to hash URL
         if message_identifier != verified_message.hash && verified_message.hash do
-          return_to = Map.get(params, "return_to", "inbox")
-          return_filter = Map.get(params, "filter", "inbox")
-
           {:ok,
            socket
            |> push_navigate(
-             to:
-               ~p"/email/view/#{verified_message.hash}?return_to=#{return_to}&filter=#{return_filter}"
+             to: ~p"/email/view/#{verified_message.hash}?#{email_return_params(params)}"
            )}
         else
           load_message(verified_message, params, socket, user, mailbox)
@@ -55,7 +51,7 @@ defmodule ElektrineWeb.EmailLive.Show do
         {:ok,
          socket
          |> notify_error("Message not found or access denied")
-         |> push_navigate(to: ~p"/email")}
+         |> push_navigate(to: email_return_url(params))}
     end
   end
 
@@ -76,9 +72,7 @@ defmodule ElektrineWeb.EmailLive.Show do
     # Get storage info
     storage_info = Elektrine.Accounts.Storage.get_storage_info(user.id)
 
-    # Store return navigation info
-    return_to = Map.get(params, "return_to", "inbox")
-    return_filter = Map.get(params, "filter", "inbox")
+    return_context = email_return_context(params)
 
     {:ok,
      socket
@@ -89,8 +83,10 @@ defmodule ElektrineWeb.EmailLive.Show do
      |> assign(:thread_messages, thread_messages)
      |> assign(:unread_count, unread_count)
      |> assign(:storage_info, storage_info)
-     |> assign(:return_to, return_to)
-     |> assign(:return_filter, return_filter)
+     |> assign(:return_to, return_context.return_to)
+     |> assign(:return_filter, return_context.return_filter)
+     |> assign(:return_folder_id, return_context.return_folder_id)
+     |> assign(:return_query, return_context.return_query)
      |> assign(:show_reply_later_modal, false)}
   end
 
@@ -108,14 +104,14 @@ defmodule ElektrineWeb.EmailLive.Show do
           {:noreply,
            socket
            |> notify_info("Message permanently deleted")
-           |> push_navigate(to: ~p"/email?tab=trash")}
+           |> push_navigate(to: email_return_url(socket.assigns))}
         else
           {:ok, _} = Email.update_message(message, %{deleted: true})
 
           {:noreply,
            socket
            |> notify_info("Message moved to trash")
-           |> push_navigate(to: ~p"/email")}
+           |> push_navigate(to: email_return_url(socket.assigns))}
         end
 
       {:error, :access_denied} ->
@@ -125,13 +121,13 @@ defmodule ElektrineWeb.EmailLive.Show do
         {:noreply,
          socket
          |> notify_error("You don't have permission to delete this message")
-         |> push_navigate(to: ~p"/email")}
+         |> push_navigate(to: email_return_url(socket.assigns))}
 
       {:error, _reason} ->
         {:noreply,
          socket
          |> notify_error("Message not found")
-         |> push_navigate(to: ~p"/email")}
+         |> push_navigate(to: email_return_url(socket.assigns))}
     end
   end
 
@@ -146,61 +142,55 @@ defmodule ElektrineWeb.EmailLive.Show do
         {:noreply,
          socket
          |> notify_info("Message recovered from trash")
-         |> push_navigate(to: ~p"/email")}
+         |> push_navigate(to: email_return_url(socket.assigns))}
 
       {:error, :access_denied} ->
         {:noreply,
          socket
          |> notify_error("You don't have permission to recover this message")
-         |> push_navigate(to: ~p"/email?tab=trash")}
+         |> push_navigate(to: email_return_url(socket.assigns))}
 
       {:error, _reason} ->
         {:noreply,
          socket
          |> notify_error("Message not found")
-         |> push_navigate(to: ~p"/email?tab=trash")}
+         |> push_navigate(to: email_return_url(socket.assigns))}
     end
   end
 
   def handle_event("reply", _params, socket) do
     message = socket.assigns.message
-    return_to = socket.assigns.return_to
-    return_filter = socket.assigns.return_filter
 
     # Navigate to compose in reply mode (sender only)
     {:noreply,
      socket
      |> push_navigate(
        to:
-         ~p"/email/compose?mode=reply&message_id=#{message.id}&return_to=#{return_to}&filter=#{return_filter}"
+         ~p"/email/compose?#{[mode: "reply", message_id: message.id] ++ email_return_params(socket.assigns)}"
      )}
   end
 
   def handle_event("reply_all", _params, socket) do
     message = socket.assigns.message
-    return_to = socket.assigns.return_to
-    return_filter = socket.assigns.return_filter
 
     # Navigate to compose in reply_all mode (all recipients)
     {:noreply,
      socket
      |> push_navigate(
        to:
-         ~p"/email/compose?mode=reply_all&message_id=#{message.id}&return_to=#{return_to}&filter=#{return_filter}"
+         ~p"/email/compose?#{[mode: "reply_all", message_id: message.id] ++ email_return_params(socket.assigns)}"
      )}
   end
 
   def handle_event("forward", _params, socket) do
     message = socket.assigns.message
-    return_to = socket.assigns.return_to
-    return_filter = socket.assigns.return_filter
 
     # Navigate to compose in forward mode
     {:noreply,
      socket
      |> push_navigate(
        to:
-         ~p"/email/compose?mode=forward&message_id=#{message.id}&return_to=#{return_to}&filter=#{return_filter}"
+         ~p"/email/compose?#{[mode: "forward", message_id: message.id] ++ email_return_params(socket.assigns)}"
      )}
   end
 
@@ -403,12 +393,12 @@ defmodule ElektrineWeb.EmailLive.Show do
   end
 
   def handle_info({:message_deleted, message_id}, socket) do
-    # Message was deleted via IMAP, redirect to inbox if viewing this message
+    # Message was deleted via IMAP, return to the originating mailbox view if viewing this message
     if socket.assigns.message.id == message_id do
       {:noreply,
        socket
        |> put_flash(:info, "This message was deleted")
-       |> push_navigate(to: ~p"/email")}
+       |> push_navigate(to: email_return_url(socket.assigns))}
     else
       {:noreply, socket}
     end
@@ -482,55 +472,6 @@ defmodule ElektrineWeb.EmailLive.Show do
             String.slice(text, 0, 140) <> "..."
           end
       end
-    end
-  end
-
-  # Helper functions for return navigation
-  defp get_return_url(assigns) do
-    return_to = assigns[:return_to] || "inbox"
-    return_filter = assigns[:return_filter] || "inbox"
-
-    case return_to do
-      "sent" -> ~p"/email?tab=sent"
-      "spam" -> ~p"/email?tab=spam"
-      "archive" -> ~p"/email?tab=archive"
-      "search" -> ~p"/email?tab=search"
-      "inbox" when return_filter != "inbox" -> ~p"/email?tab=inbox&filter=#{return_filter}"
-      _ -> ~p"/email?tab=inbox"
-    end
-  end
-
-  defp get_back_button_text(assigns) do
-    return_to = assigns[:return_to] || "inbox"
-    return_filter = assigns[:return_filter] || "inbox"
-
-    case return_to do
-      "sent" ->
-        gettext("Back to Sent")
-
-      "spam" ->
-        gettext("Back to Spam")
-
-      "archive" ->
-        gettext("Back to Archive")
-
-      "search" ->
-        gettext("Back to Search")
-
-      "inbox" ->
-        case return_filter do
-          "bulk_mail" -> gettext("Back to Bulk Mail")
-          "paper_trail" -> gettext("Back to Paper Trail")
-          "the_pile" -> gettext("Back to The Pile")
-          "boomerang" -> gettext("Back to Boomerang")
-          "aliases" -> gettext("Back to Aliases")
-          "unread" -> gettext("Back to Unread")
-          "read" -> gettext("Back to Read")
-          _ -> gettext("Back to Inbox")
-        end
-
-      _ ->
-        gettext("Back to Inbox")
     end
   end
 end

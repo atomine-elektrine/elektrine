@@ -57,7 +57,7 @@ a[href],
 }
 
 .search-clear-input {
-  padding-right: 2.5rem;
+  padding-right: 2rem;
 }
 
 .search-clear-auto[hidden] {
@@ -65,7 +65,24 @@ a[href],
 }
 
 .search-clear-auto {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  display: inline-flex;
+  justify-content: center;
   line-height: 1;
+  margin: 0;
+  padding: 0;
+}
+
+.search-clear-inline {
+  margin-left: 0.5rem;
+}
+
+.search-clear-auto:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .search-clear-overlay {
@@ -513,4 +530,15 @@ body.has-blinkenlights #cursor-glow-overlay {
     drop-shadow(0 0 20px rgba(168, 85, 247, 0.45))
     drop-shadow(0 0 36px rgba(168, 85, 247, 0.22))
     drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
+}
+
+.footer-wordmark-glow {
+  transition: none;
+  will-change: filter, opacity;
+  filter: none;
+}
+
+.footer-wordmark-glow:hover {
+  opacity: 0.46 !important;
+  filter: brightness(1.85) saturate(2.1) contrast(1.08);
 }

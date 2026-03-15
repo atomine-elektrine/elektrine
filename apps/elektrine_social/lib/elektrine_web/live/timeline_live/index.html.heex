@@ -4,7 +4,7 @@
   id="timeline-container"
 >
   <!-- Z Platform Navigation -->
-  <.z_nav active_tab="timeline" class="mb-3 sm:mb-4" />
+  <.z_nav active_tab="timeline" class="mb-3 sm:mb-4" current_user={@current_user} />
   
 <!-- Trending Hashtags Marquee -->
   <%= if @trending_hashtags && length(@trending_hashtags) > 0 do %>

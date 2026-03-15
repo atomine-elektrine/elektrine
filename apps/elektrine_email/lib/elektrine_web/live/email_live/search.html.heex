@@ -156,7 +156,9 @@
                                   <% end %>
                                 </div>
                                 <.link
-                                  navigate={~p"/email/view/#{message.hash || message.id}"}
+                                  navigate={
+                                    ~p"/email/view/#{message.hash || message.id}?#{email_return_params(%{return_to: "search", return_query: @search_results.query})}"
+                                  }
                                   class="block hover:underline"
                                 >
                                   <div class={"text-sm #{if message.read, do: "text-base-content/80", else: "text-secondary font-medium"}"}>
