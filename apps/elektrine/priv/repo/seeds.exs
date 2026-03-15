@@ -184,6 +184,23 @@ if Mix.env() == :dev do
   hours_from_now = fn hours -> DateTime.add(now, hours * 3_600, :second) end
   seed_message_id = fn seed_key -> "seed-#{seed_key}@elektrine.dev" end
 
+  seed_message_decryption_failed? = fn
+    %Email.Message{status: "draft"} ->
+      false
+
+    %Email.Message{mailbox_id: mailbox_id} = message ->
+      case Email.Mailboxes.get_mailbox(mailbox_id) do
+        %{user_id: user_id} when is_integer(user_id) ->
+          decrypted = Email.Message.decrypt_content(message, user_id)
+
+          decrypted.text_body == "[Decryption failed]" or
+            decrypted.html_body == "[Decryption failed]"
+
+        _ ->
+          false
+      end
+  end
+
   {legacy_feed_updates, _} =
     from(m in Email.Message,
       where: m.mailbox_id == ^test_mailbox.id and m.category == "paper_pile"
@@ -208,28 +225,43 @@ if Mix.env() == :dev do
     mailbox_id = Map.fetch!(attrs, :mailbox_id)
     message_id = Map.fetch!(attrs, :message_id)
 
+    insert_seed_message = fn ->
+      case Map.get(attrs, :status) do
+        "draft" ->
+          attrs
+          |> then(&Email.Message.changeset(%Email.Message{}, &1))
+          |> Repo.insert!()
+
+        _ ->
+          case Email.create_message(attrs) do
+            {:ok, _message} ->
+              :ok
+
+            {:error, reason} ->
+              raise "Failed to create seed email #{message_id}: #{inspect(reason)}"
+          end
+      end
+    end
+
     case Repo.get_by(Email.Message, mailbox_id: mailbox_id, message_id: message_id) do
       nil ->
-        case Map.get(attrs, :status) do
-          "draft" ->
-            attrs
-            |> then(&Email.Message.changeset(%Email.Message{}, &1))
-            |> Repo.insert!()
-
-          _ ->
-            case Email.create_message(attrs) do
-              {:ok, _message} ->
-                :ok
-
-              {:error, reason} ->
-                raise "Failed to create seed email #{message_id}: #{inspect(reason)}"
-            end
-        end
+        insert_seed_message.()
 
         :created
 
-      _existing ->
-        :existing
+      %Email.Message{} = existing ->
+        if seed_message_decryption_failed?.(existing) do
+          case Email.delete_message(existing) do
+            {:ok, _message} ->
+              insert_seed_message.()
+              :repaired
+
+            {:error, reason} ->
+              raise "Failed to replace undecryptable seed email #{message_id}: #{inspect(reason)}"
+          end
+        else
+          :existing
+        end
     end
   end
 
@@ -987,9 +1019,10 @@ if Mix.env() == :dev do
   seed_results =
     seed_groups
     |> Enum.flat_map(fn {_group, emails} -> emails end)
-    |> Enum.reduce(%{created: 0, existing: 0}, fn email_attrs, acc ->
+    |> Enum.reduce(%{created: 0, existing: 0, repaired: 0}, fn email_attrs, acc ->
       case create_seed_message.(email_attrs) do
         :created -> %{acc | created: acc.created + 1}
+        :repaired -> %{acc | repaired: acc.repaired + 1}
         :existing -> %{acc | existing: acc.existing + 1}
       end
     end)
@@ -1000,7 +1033,7 @@ if Mix.env() == :dev do
     |> Enum.sum()
 
   IO.puts(
-    "✓ Seed email coverage configured for #{configured_count} scenarios (#{seed_results.created} created, #{seed_results.existing} already present)"
+    "✓ Seed email coverage configured for #{configured_count} scenarios (#{seed_results.created} created, #{seed_results.repaired} repaired, #{seed_results.existing} already present)"
   )
 
   Enum.each(seed_groups, fn {group, emails} ->

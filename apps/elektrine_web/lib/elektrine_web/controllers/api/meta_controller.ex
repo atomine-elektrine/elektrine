@@ -6,8 +6,8 @@ defmodule ElektrineWeb.API.MetaController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Developer.ApiToken
-  alias Elektrine.Platform.Modules
   alias Elektrine.Developer.Webhook
+  alias Elektrine.Platform.Modules
   alias ElektrineWeb.API.Response
 
   @doc """
@@ -74,11 +74,14 @@ defmodule ElektrineWeb.API.MetaController do
     normalized_scopes = MapSet.new(scopes || [])
 
     endpoint_catalog()
-    |> Enum.filter(&endpoint_module_enabled?/1)
-    |> Enum.filter(&endpoint_allowed?(&1, normalized_scopes))
+    |> Enum.filter(&allowed_endpoint?(&1, normalized_scopes))
     |> Enum.map(fn endpoint ->
       Map.take(endpoint, [:method, :path, :summary, :required_scopes])
     end)
+  end
+
+  defp allowed_endpoint?(endpoint, scopes) do
+    endpoint_module_enabled?(endpoint) and endpoint_allowed?(endpoint, scopes)
   end
 
   defp endpoint_allowed?(%{required_scopes: []}, _scopes), do: true
@@ -177,6 +180,13 @@ defmodule ElektrineWeb.API.MetaController do
         platform_module: :email
       },
       %{
+        method: "POST",
+        path: "/api/ext/v1/email/messages",
+        summary: "Send a new email message",
+        required_scopes: ["write:email"],
+        platform_module: :email
+      },
+      %{
         method: "GET",
         path: "/api/ext/v1/chat/conversations",
         summary: "List chat conversations",
@@ -198,6 +208,13 @@ defmodule ElektrineWeb.API.MetaController do
         platform_module: :chat
       },
       %{
+        method: "POST",
+        path: "/api/ext/v1/chat/conversations/:id/messages",
+        summary: "Send a message to a chat conversation",
+        required_scopes: ["write:chat"],
+        platform_module: :chat
+      },
+      %{
         method: "GET",
         path: "/api/ext/v1/social/feed",
         summary: "List home or public social feed posts",
@@ -216,6 +233,13 @@ defmodule ElektrineWeb.API.MetaController do
         path: "/api/ext/v1/social/users/:user_id/posts",
         summary: "List visible posts for a specific user",
         required_scopes: ["read:social", "write:social"],
+        platform_module: :social
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/social/posts",
+        summary: "Create a timeline post",
+        required_scopes: ["write:social"],
         platform_module: :social
       },
       %{

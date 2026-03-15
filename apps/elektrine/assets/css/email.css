@@ -265,7 +265,7 @@
 
 .message-card:hover,
 .message-card:focus-within {
-  border-color: oklch(var(--bc) / 0.22);
+  border-color: oklch(var(--p) / 0.45);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.05);
 }
 
@@ -328,7 +328,7 @@
 .email-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: rgba(168, 85, 247, 0.2);
+  border-color: oklch(var(--p) / 0.35);
 }
 
 .email-avatar {

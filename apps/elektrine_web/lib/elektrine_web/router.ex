@@ -117,12 +117,24 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:email", "write:email"], any: true)
   end
 
+  pipeline :api_pat_email_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:email"])
+  end
+
   pipeline :api_pat_chat_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:chat", "write:chat"], any: true)
   end
 
+  pipeline :api_pat_chat_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:chat"])
+  end
+
   pipeline :api_pat_social_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:social", "write:social"], any: true)
+  end
+
+  pipeline :api_pat_social_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:social"])
   end
 
   pipeline :api_pat_contacts_read_scope do
@@ -1095,6 +1107,12 @@ defmodule ElektrineWeb.Router do
     get("/messages/:id", ExtEmailController, :show)
   end
 
+  scope "/api/ext/v1/email", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_email_write_scope])
+
+    post("/messages", ExtEmailController, :create)
+  end
+
   scope "/api/ext/v1/chat", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_chat_read_scope])
 
@@ -1103,12 +1121,24 @@ defmodule ElektrineWeb.Router do
     get("/conversations/:id/messages", ExtChatController, :messages)
   end
 
+  scope "/api/ext/v1/chat", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_chat_write_scope])
+
+    post("/conversations/:id/messages", ExtChatController, :create)
+  end
+
   scope "/api/ext/v1/social", ElektrineWeb.API do
     pipe_through([:api_pat_authenticated, :api_pat_social_read_scope])
 
     get("/feed", ExtSocialController, :feed)
     get("/posts/:id", ExtSocialController, :show)
     get("/users/:user_id/posts", ExtSocialController, :user_posts)
+  end
+
+  scope "/api/ext/v1/social", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_social_write_scope])
+
+    post("/posts", ExtSocialController, :create)
   end
 
   scope "/api/ext/v1/contacts", ElektrineWeb.API do

@@ -4,8 +4,8 @@ defmodule Elektrine.Social.RecommendationsTest do
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Accounts.UserActivityStats
+  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.Social.Recommendations

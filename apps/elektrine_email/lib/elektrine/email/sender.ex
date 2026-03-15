@@ -293,7 +293,7 @@ defmodule Elektrine.Email.Sender do
   defp split_recipient_string(email) when is_binary(email) do
     email
     |> String.split(",", trim: true)
-    |> Enum.map(&(String.downcase(String.trim(&1))))
+    |> Enum.map(&String.downcase(String.trim(&1)))
     |> Enum.reject(&(&1 == ""))
   end
 
@@ -681,7 +681,7 @@ defmodule Elektrine.Email.Sender do
           {:ok, result} ->
             # Generate a message ID for tracking
             message_id = "swoosh-#{:rand.uniform(1_000_000)}-#{System.system_time(:millisecond)}"
-            {:ok, %{id: result.id || message_id, message_id: message_id}}
+            {:ok, %{id: Map.get(result, :id) || message_id, message_id: message_id}}
 
           {:error, reason} ->
             Logger.error("Failed to send email via Swoosh: #{inspect(reason)}")

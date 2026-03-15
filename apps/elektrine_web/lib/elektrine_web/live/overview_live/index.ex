@@ -1,12 +1,16 @@
 defmodule ElektrineWeb.OverviewLive.Index do
   use ElektrineWeb, :live_view
   require Logger
+  alias Elektrine.Friends
+  alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.Reactions
-  alias Elektrine.{Friends, Messaging, Notifications, Profiles, Repo}
+  alias Elektrine.Notifications
+  alias Elektrine.Platform.Modules
+  alias Elektrine.Profiles
+  alias Elektrine.Repo
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
-  alias Elektrine.Platform.Modules
   alias ElektrineWeb.Platform.Integrations
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.TimelinePost

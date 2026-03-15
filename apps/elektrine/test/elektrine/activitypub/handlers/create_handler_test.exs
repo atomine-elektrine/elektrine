@@ -1,6 +1,7 @@
-  defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
+defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.CreateHandler
@@ -200,6 +201,51 @@
 
       assert {:ok, :unauthorized} = CreateHandler.handle(activity, signer.uri, nil)
       assert is_nil(Messaging.get_message_by_activitypub_id(object["id"]))
+    end
+  end
+
+  describe "create_note/2 mention normalization" do
+    test "expands tagged short plain-text mentions into full handles" do
+      _local_user = AccountsFixtures.user_fixture(%{username: "maxfield"})
+      author = remote_actor_fixture("mentioner")
+      local_actor_href = "#{ActivityPub.instance_url()}/users/maxfield"
+
+      object =
+        note_object(author.uri, %{
+          "content" => "<p>Hello @maxfield</p>",
+          "tag" => [
+            %{
+              "type" => "Mention",
+              "href" => local_actor_href,
+              "name" => "@maxfield"
+            }
+          ]
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert message.content == "Hello @maxfield@#{ActivityPub.instance_domain()}"
+    end
+
+    test "expands tagged short mention anchors into full handles" do
+      _local_user = AccountsFixtures.user_fixture(%{username: "maxfield"})
+      author = remote_actor_fixture("anchoredmention")
+      local_actor_href = "#{ActivityPub.instance_url()}/users/maxfield"
+
+      object =
+        note_object(author.uri, %{
+          "content" =>
+            ~s(<p>Hello <span class="h-card"><a href="#{local_actor_href}" class="u-url mention">@<span>maxfield</span></a></span></p>),
+          "tag" => [
+            %{
+              "type" => "Mention",
+              "href" => local_actor_href,
+              "name" => "@maxfield"
+            }
+          ]
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert message.content == "Hello @maxfield@#{ActivityPub.instance_domain()}"
     end
   end
 

@@ -110,13 +110,11 @@ defmodule ElektrineWeb.Components.Profile.Modals do
   end
 
   defp build_qr_code(profile_url) do
-    try do
-      profile_url
-      |> EQRCode.encode()
-      |> EQRCode.svg(width: 200, height: 200, background_color: "#ffffff", color: "#000000")
-    rescue
-      _ -> nil
-    end
+    profile_url
+    |> EQRCode.encode()
+    |> EQRCode.svg(width: 200, height: 200, background_color: "#ffffff", color: "#000000")
+  rescue
+    _ -> nil
   end
 
   defp copy_button_attrs(true), do: [{"data-action", "copy-profile-url"}]

@@ -109,7 +109,7 @@
                   <%= for message <- @search_results.messages do %>
                     <div
                       id={"message-#{message.id}"}
-                      class={"card glass-card border hover:shadow-md transition-shadow #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
+                      class={"card glass-card border hover:border-primary/40 hover:shadow-md transition-[border-color,box-shadow] #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
                     >
                       <div class="card-body p-4">
                         <div class="flex items-center justify-between">

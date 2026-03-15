@@ -96,6 +96,40 @@ defmodule ElektrineWeb.EmailLive.IndexTest do
              "/email/view/#{message.hash}?return_to=folder&amp;folder_id=#{folder.id}"
   end
 
+  test "bulk delete keeps the digest filter active", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "newsletter@example.com",
+        to: mailbox.email,
+        subject: "Digest message",
+        text_body: "Digest content",
+        html_body: "<p>Digest content</p>",
+        category: "feed",
+        message_id: "<bulk-digest-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email?tab=inbox&filter=digest")
+
+    view
+    |> element("#message-checkbox-#{message.id}")
+    |> render_click()
+
+    view
+    |> element("button[phx-click='bulk_action'][phx-value-action='delete']")
+    |> render_click()
+
+    assert has_element?(view, "a[href='/email?tab=inbox&filter=digest'].btn-secondary")
+    assert render(view) =~ "Messages moved to trash"
+    refute render(view) =~ "Digest message"
+  end
+
   defp ensure_mailbox(user) do
     Email.get_user_mailbox(user.id) ||
       case Email.ensure_user_has_mailbox(user) do

@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.API.ExtChatController do
   @moduledoc """
-  External API controller for read-only chat access.
+  External API controller for chat access.
   """
 
   use ElektrineChatWeb, :controller
@@ -89,6 +89,118 @@ defmodule ElektrineWeb.API.ExtChatController do
         %{messages: Enum.map(page.messages, &format_message/1)},
         %{pagination: pagination_meta(page, limit)}
       )
+    else
+      {:error, :invalid_id} ->
+        Response.error(conn, :bad_request, "invalid_id", "Invalid conversation or message id")
+
+      {:error, :not_found} ->
+        Response.error(conn, :not_found, "not_found", "Conversation not found")
+    end
+  end
+
+  @doc """
+  POST /api/ext/v1/chat/conversations/:id/messages
+  """
+  def create(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+    source = Map.get(params, "message", params)
+    message_type = source["message_type"] || "text"
+
+    with {:ok, conversation_id} <- parse_id(id),
+         {:ok, conversation} <- fetch_chat_conversation(conversation_id, user.id),
+         {:ok, reply_to_id} <- parse_optional_id(source["reply_to_id"]) do
+      result =
+        case message_type do
+          "text" ->
+            opts = if is_nil(reply_to_id), do: [], else: [reply_to_id: reply_to_id]
+
+            Messaging.create_chat_text_message(
+              conversation.id,
+              user.id,
+              source["content"] || "",
+              opts
+            )
+
+          "image" ->
+            Messaging.create_chat_media_message(
+              conversation.id,
+              user.id,
+              normalize_media_urls(source["media_urls"]),
+              source["content"],
+              source["media_metadata"] || %{}
+            )
+
+          "file" ->
+            Messaging.create_chat_media_message(
+              conversation.id,
+              user.id,
+              normalize_media_urls(source["media_urls"]),
+              source["content"],
+              source["media_metadata"] || %{}
+            )
+
+          "voice" ->
+            Messaging.create_chat_voice_message(
+              conversation.id,
+              user.id,
+              List.first(normalize_media_urls(source["media_urls"])),
+              source["duration"] || 0,
+              source["mime_type"] || "audio/webm"
+            )
+
+          _ ->
+            {:error, :invalid_message_type}
+        end
+
+      case result do
+        {:ok, message} ->
+          Response.created(conn, %{message: format_message(message)})
+
+        {:error, :empty_message} ->
+          Response.error(
+            conn,
+            :unprocessable_entity,
+            "empty_message",
+            "Message content cannot be empty"
+          )
+
+        {:error, :rate_limited} ->
+          Response.error(conn, :too_many_requests, "rate_limited", "Message rate limit exceeded")
+
+        {:error, :timed_out} ->
+          Response.error(
+            conn,
+            :forbidden,
+            "timed_out",
+            "User is timed out from this conversation"
+          )
+
+        {:error, :invalid_message_type} ->
+          Response.error(
+            conn,
+            :bad_request,
+            "invalid_message_type",
+            "Invalid message type. Use: text, image, file, or voice"
+          )
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          Response.error(
+            conn,
+            :unprocessable_entity,
+            "validation_failed",
+            "Message failed validation",
+            errors_on(changeset)
+          )
+
+        {:error, reason} ->
+          Response.error(
+            conn,
+            :unprocessable_entity,
+            "message_send_failed",
+            "Failed to send message",
+            inspect(reason)
+          )
+      end
     else
       {:error, :invalid_id} ->
         Response.error(conn, :bad_request, "invalid_id", "Invalid conversation or message id")
@@ -208,6 +320,7 @@ defmodule ElektrineWeb.API.ExtChatController do
       message_type: message.message_type,
       media_urls: message.media_urls || [],
       media_metadata: message.media_metadata || %{},
+      conversation_id: message.conversation_id,
       sender_id: message.sender_id,
       sender: format_user(message.sender),
       reply_to_id: message.reply_to_id,
@@ -280,4 +393,15 @@ defmodule ElektrineWeb.API.ExtChatController do
   end
 
   defp parse_positive_int(_value, default), do: default
+
+  defp normalize_media_urls(urls) when is_list(urls), do: urls
+  defp normalize_media_urls(_urls), do: []
+
+  defp errors_on(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+  end
 end

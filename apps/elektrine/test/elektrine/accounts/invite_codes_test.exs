@@ -1,7 +1,10 @@
 defmodule Elektrine.Accounts.InviteCodesTest do
   use Elektrine.DataCase
 
+  import Ecto.Query
+
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.InviteCode
   alias Elektrine.Accounts.InviteCodeUse
   alias Elektrine.AccountsFixtures
   alias Elektrine.Repo
@@ -242,6 +245,63 @@ defmodule Elektrine.Accounts.InviteCodesTest do
                Accounts.create_self_service_invite_code(trusted_user, %{})
     end
 
+    test "enforces a monthly self-service invite generation limit even after deactivation" do
+      user = AccountsFixtures.user_fixture()
+      {:ok, trusted_user} = Accounts.admin_update_user(user, %{trust_level: 1})
+
+      invite_codes =
+        for _ <- 1..5 do
+          assert {:ok, invite_code} =
+                   Accounts.create_self_service_invite_code(trusted_user, %{})
+
+          invite_code
+        end
+
+      for invite_code <- invite_codes do
+        assert {:ok, _invite_code} =
+                 Accounts.deactivate_self_service_invite_code(trusted_user, invite_code.id)
+      end
+
+      assert {:error, :monthly_invite_code_limit_reached} =
+               Accounts.create_self_service_invite_code(trusted_user, %{})
+    end
+
+    test "blocks registrations after a creator reaches the monthly invite redemption limit" do
+      user = AccountsFixtures.user_fixture()
+      {:ok, trusted_user} = Accounts.admin_update_user(user, %{trust_level: 1})
+
+      invite_codes =
+        for _ <- 1..5 do
+          assert {:ok, invite_code} =
+                   Accounts.create_self_service_invite_code(trusted_user, %{})
+
+          backdate_invite_code_to_previous_month(invite_code)
+        end
+
+      for invite_code <- invite_codes do
+        assert {:ok, _user} =
+                 Accounts.register_user_with_invite(%{
+                   username: "monthlyused#{System.unique_integer([:positive])}",
+                   password: "validpassword123",
+                   password_confirmation: "validpassword123",
+                   invite_code: invite_code.code
+                 })
+      end
+
+      assert {:ok, current_month_invite} =
+               Accounts.create_self_service_invite_code(trusted_user, %{})
+
+      assert {:error, changeset} =
+               Accounts.register_user_with_invite(%{
+                 username: "monthlyblocked#{System.unique_integer([:positive])}",
+                 password: "validpassword123",
+                 password_confirmation: "validpassword123",
+                 invite_code: current_month_invite.code
+               })
+
+      assert "This invite code is temporarily unavailable right now" in errors_on(changeset).invite_code
+    end
+
     test "uses the configured minimum trust level" do
       user = AccountsFixtures.user_fixture()
       {:ok, semi_trusted_user} = Accounts.admin_update_user(user, %{trust_level: 1})
@@ -250,5 +310,20 @@ defmodule Elektrine.Accounts.InviteCodesTest do
       assert {:error, :insufficient_trust_level} =
                Accounts.create_self_service_invite_code(semi_trusted_user, %{})
     end
+  end
+
+  defp backdate_invite_code_to_previous_month(%InviteCode{} = invite_code) do
+    previous_month_start =
+      Date.utc_today()
+      |> Date.beginning_of_month()
+      |> Date.add(-1)
+      |> Date.beginning_of_month()
+
+    previous_month_timestamp = NaiveDateTime.new!(previous_month_start, ~T[00:00:00])
+
+    from(i in InviteCode, where: i.id == ^invite_code.id)
+    |> Repo.update_all(set: [inserted_at: previous_month_timestamp])
+
+    %{invite_code | inserted_at: previous_month_timestamp}
   end
 end

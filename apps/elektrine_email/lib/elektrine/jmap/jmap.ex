@@ -71,9 +71,9 @@ defmodule Elektrine.JMAP do
   """
   def get_session_state(mailbox_id) do
     payload =
-      @supported_state_types
-      |> Enum.map(fn type -> "#{type}=#{get_state(mailbox_id, type)}" end)
-      |> Enum.join("|")
+      Enum.map_join(@supported_state_types, "|", fn type ->
+        "#{type}=#{get_state(mailbox_id, type)}"
+      end)
 
     payload
     |> then(&:crypto.hash(:sha256, &1))
@@ -867,18 +867,10 @@ defmodule Elektrine.JMAP do
   defp parse_email_state_counter(value) when is_binary(value) do
     case String.split(value, ":", parts: 2) do
       [counter, _marker] ->
-        with {counter_int, ""} <- Integer.parse(counter) do
-          {:ok, counter_int}
-        else
-          _ -> :error
-        end
+        parse_integer_state_counter(counter)
 
       [counter] ->
-        with {counter_int, ""} <- Integer.parse(counter) do
-          {:ok, counter_int}
-        else
-          _ -> :error
-        end
+        parse_integer_state_counter(counter)
 
       _ ->
         :error
@@ -888,6 +880,13 @@ defmodule Elektrine.JMAP do
   defp parse_email_state_counter(value) when is_integer(value), do: {:ok, value}
 
   defp parse_email_state_counter(_value), do: :error
+
+  defp parse_integer_state_counter(counter) do
+    case Integer.parse(counter) do
+      {counter_int, ""} -> {:ok, counter_int}
+      _ -> :error
+    end
+  end
 
   defp record_email_change(mailbox_id, email_id, change_type, extra_entity_types)
        when is_integer(mailbox_id) and is_integer(email_id) and is_list(extra_entity_types) do

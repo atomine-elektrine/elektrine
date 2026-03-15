@@ -138,6 +138,27 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert error["code"] == "not_found"
     end
 
+    test "email write endpoint sends a message with write scope", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["write:email"])
+
+      conn =
+        post(conn, "/api/ext/v1/email/messages", %{
+          "to" => "friend@example.com",
+          "subject" => "PAT outbound email",
+          "text_body" => "Hello from the external API"
+        })
+
+      assert %{"data" => %{"message" => message, "email" => email, "delivery" => delivery}} =
+               json_response(conn, 201)
+
+      assert message == "Email sent successfully"
+      assert email["subject"] == "PAT outbound email"
+      assert email["to"] == "friend@example.com"
+      assert delivery["status"] == "sent"
+      assert is_binary(delivery["message_id"])
+    end
+
     test "chat endpoints only expose member conversations", %{conn: conn} do
       user = user_fixture()
       friend = user_fixture()
@@ -189,6 +210,23 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert error["code"] == "not_found"
     end
 
+    test "chat write endpoint sends a message with write scope", %{conn: conn} do
+      user = user_fixture()
+      friend = user_fixture()
+      {:ok, conversation} = Messaging.create_dm_conversation(user.id, friend.id)
+
+      conn = with_pat(conn, user.id, ["write:chat"])
+
+      conn =
+        post(conn, "/api/ext/v1/chat/conversations/#{conversation.id}/messages", %{
+          "content" => "PAT chat send"
+        })
+
+      assert %{"data" => %{"message" => message}} = json_response(conn, 201)
+      assert message["content"] == "PAT chat send"
+      assert message["conversation_id"] == conversation.id
+    end
+
     test "social feed endpoint returns public timeline posts", %{conn: conn} do
       viewer = user_fixture()
       author = user_fixture()
@@ -230,6 +268,22 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       user_posts_conn = get(conn, "/api/ext/v1/social/users/#{author.id}/posts")
       assert %{"data" => %{"posts" => posts}} = json_response(user_posts_conn, 200)
       assert Enum.any?(posts, &(&1["id"] == followers_post.id))
+    end
+
+    test "social write endpoint creates a timeline post with write scope", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["write:social"])
+
+      conn =
+        post(conn, "/api/ext/v1/social/posts", %{
+          "content" => "PAT timeline post",
+          "visibility" => "public"
+        })
+
+      assert %{"data" => %{"post" => post}} = json_response(conn, 201)
+      assert post["content"] == "PAT timeline post"
+      assert post["visibility"] == "public"
+      assert post["author_id"] == user.id
     end
 
     test "contacts endpoints return address book contacts", %{conn: conn} do

@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.API.ExtEmailController do
   @moduledoc """
-  External API controller for read-only email access.
+  External API controller for email access.
   """
 
   use ElektrineEmailWeb, :controller
@@ -81,6 +81,65 @@ defmodule ElektrineWeb.API.ExtEmailController do
 
       {:error, :access_denied} ->
         Response.error(conn, :not_found, "not_found", "Message not found")
+    end
+  end
+
+  @doc """
+  POST /api/ext/v1/email/messages
+  """
+  def create(conn, params) do
+    user = conn.assigns.current_user
+    source = Map.get(params, "email", params)
+
+    with {:ok, mailbox} <- ensure_primary_mailbox(user),
+         {:ok, outbound} <- build_outbound_email(mailbox, source),
+         {:ok, send_result} <- send_email(user.id, outbound) do
+      sent_message = resolve_sent_message(user.id, mailbox.id, send_result)
+
+      Response.created(conn, %{
+        message: "Email sent successfully",
+        email: maybe_format_sent_message(sent_message),
+        delivery: format_delivery(send_result)
+      })
+    else
+      {:error, :missing_to} ->
+        Response.error(
+          conn,
+          :bad_request,
+          "missing_parameter",
+          "Missing required parameter: to"
+        )
+
+      {:error, :no_mailbox} ->
+        Response.error(conn, :not_found, "not_found", "Mailbox not found")
+
+      {:error, :rate_limit_exceeded} ->
+        Response.error(conn, :too_many_requests, "rate_limited", "Email rate limit exceeded")
+
+      {:error, :recipient_limit_exceeded} ->
+        Response.error(
+          conn,
+          :too_many_requests,
+          "recipient_limit_exceeded",
+          "Recipient limit exceeded"
+        )
+
+      {:error, :storage_limit_exceeded} ->
+        Response.error(
+          conn,
+          :unprocessable_entity,
+          "storage_limit_exceeded",
+          "Storage limit exceeded"
+        )
+
+      {:error, reason} ->
+        Response.error(
+          conn,
+          :unprocessable_entity,
+          "email_send_failed",
+          "Failed to send email",
+          inspect(reason)
+        )
     end
   end
 
@@ -245,6 +304,78 @@ defmodule ElektrineWeb.API.ExtEmailController do
   defp mailbox_filter_meta({:mailbox_id, mailbox_id}, folder) do
     %{folder: folder, mailbox_id: mailbox_id}
   end
+
+  defp ensure_primary_mailbox(user) do
+    case Email.ensure_user_has_mailbox(user) do
+      {:ok, mailbox} -> {:ok, mailbox}
+      {:error, _reason} -> {:error, :no_mailbox}
+    end
+  end
+
+  defp build_outbound_email(mailbox, params) do
+    to = Map.get(params, "to")
+
+    if is_nil(to) || String.trim(to) == "" do
+      {:error, :missing_to}
+    else
+      {:ok,
+       %{
+         from: mailbox.email,
+         reply_to: Map.get(params, "reply_to"),
+         to: to,
+         cc: Map.get(params, "cc"),
+         bcc: Map.get(params, "bcc"),
+         subject: Map.get(params, "subject", ""),
+         text_body: Map.get(params, "text_body") || Map.get(params, "body", ""),
+         html_body: Map.get(params, "html_body"),
+         encryption_mode: Map.get(params, "encryption_mode")
+       }
+       |> Enum.reject(fn {_key, value} -> is_nil(value) || value == "" end)
+       |> Map.new()}
+    end
+  end
+
+  defp send_email(user_id, outbound) do
+    Elektrine.Email.Sender.send_email(user_id, outbound)
+  end
+
+  defp resolve_sent_message(user_id, _mailbox_id, %Message{id: id}) do
+    case Email.get_user_message(id, user_id) do
+      {:ok, message} -> Repo.preload(message, :mailbox)
+      _ -> nil
+    end
+  end
+
+  defp resolve_sent_message(user_id, mailbox_id, send_result) when is_map(send_result) do
+    with message_id when is_binary(message_id) <- Map.get(send_result, :message_id),
+         %Message{} = message <- Email.get_message_by_id(message_id, mailbox_id),
+         {:ok, loaded_message} <- Email.get_user_message(message.id, user_id) do
+      Repo.preload(loaded_message, :mailbox)
+    else
+      _ -> nil
+    end
+  end
+
+  defp resolve_sent_message(_user_id, _mailbox_id, _send_result), do: nil
+
+  defp maybe_format_sent_message(nil), do: nil
+  defp maybe_format_sent_message(message), do: format_message_detail(message)
+
+  defp format_delivery(%Message{} = message) do
+    %{
+      message_id: message.message_id,
+      status: message.status || "sent"
+    }
+  end
+
+  defp format_delivery(send_result) when is_map(send_result) do
+    %{
+      message_id: Map.get(send_result, :message_id),
+      status: Map.get(send_result, :status, "sent")
+    }
+  end
+
+  defp format_delivery(_send_result), do: %{message_id: nil, status: "sent"}
 
   defp format_message_summary(message) do
     %{

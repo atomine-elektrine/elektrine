@@ -338,6 +338,20 @@ encryption_master_secret = System.get_env("ENCRYPTION_MASTER_SECRET")
 encryption_key_salt = System.get_env("ENCRYPTION_KEY_SALT")
 encryption_search_salt = System.get_env("ENCRYPTION_SEARCH_SALT")
 
+non_prod_encryption_master_secret =
+  :crypto.hash(:sha256, "elektrine:nonprod:encryption_master_secret")
+  |> Base.encode64()
+
+non_prod_encryption_key_salt =
+  :crypto.hash(:sha256, "elektrine:nonprod:encryption_key_salt")
+  |> binary_part(0, 16)
+  |> Base.encode64()
+
+non_prod_encryption_search_salt =
+  :crypto.hash(:sha256, "elektrine:nonprod:encryption_search_salt")
+  |> binary_part(0, 16)
+  |> Base.encode64()
+
 encryption_configured =
   Enum.all?(
     [encryption_master_secret, encryption_key_salt, encryption_search_salt],
@@ -351,13 +365,14 @@ if config_env() == :prod do
     encryption_key_salt: encryption_key_salt,
     encryption_search_salt: encryption_search_salt
 else
-  # Keep encryption on by default outside prod to avoid changing development/test behavior.
+  # Keep encryption on by default outside prod, but use stable fallback secrets so
+  # separate BEAM processes (for example a running dev server plus `mix run` seeds)
+  # can still decrypt each other's rows.
   config :elektrine,
     encryption_enabled: true,
-    encryption_master_secret:
-      encryption_master_secret || Base.encode64(:crypto.strong_rand_bytes(32)),
-    encryption_key_salt: encryption_key_salt || Base.encode64(:crypto.strong_rand_bytes(16)),
-    encryption_search_salt: encryption_search_salt || Base.encode64(:crypto.strong_rand_bytes(16))
+    encryption_master_secret: encryption_master_secret || non_prod_encryption_master_secret,
+    encryption_key_salt: encryption_key_salt || non_prod_encryption_key_salt,
+    encryption_search_salt: encryption_search_salt || non_prod_encryption_search_salt
 end
 
 if config_env() == :prod do

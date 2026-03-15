@@ -98,26 +98,98 @@
                 
 <!-- Avatar Section -->
                 <div>
-                  <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-                    <div class="avatar flex-shrink-0">
-                      <div class="w-16 sm:w-20 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-                        <.user_avatar
-                          user={@user}
-                          size="xl"
-                          class="w-16 sm:w-20 h-16 sm:h-20 rounded-full"
-                        />
-                      </div>
-                    </div>
-                    <div class="flex-1 w-full">
+                  <% avatar_entry = List.first(@uploads.avatar.entries) %>
+                  <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                    <div class="flex-shrink-0">
                       <.live_file_input
                         upload={@uploads.avatar}
-                        class="file-input file-input-primary w-full text-sm"
+                        class="sr-only"
                       />
-                      <div class="text-xs sm:text-sm text-base-content/60 mt-2">
+                      <label for={@uploads.avatar.ref} class="group block cursor-pointer">
+                        <div class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring ring-primary ring-offset-base-100 ring-offset-2 bg-base-200">
+                          <%= if avatar_entry do %>
+                            <.live_img_preview
+                              entry={avatar_entry}
+                              class="w-full h-full rounded-full object-cover"
+                            />
+                          <% else %>
+                            <.user_avatar
+                              user={@user}
+                              size="xl"
+                              class="w-full h-full rounded-full"
+                            />
+                          <% end %>
+                          <div class="absolute inset-0 bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center text-xs font-medium">
+                            {gettext("Change")}
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    <div class="flex-1 w-full space-y-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <label for={@uploads.avatar.ref} class="btn btn-primary btn-sm">
+                          <%= if avatar_entry do %>
+                            {gettext("Replace Avatar")}
+                          <% else %>
+                            {gettext("Choose Avatar")}
+                          <% end %>
+                        </label>
+                        <%= if avatar_entry do %>
+                          <button
+                            type="button"
+                            phx-click="cancel_avatar_upload"
+                            phx-value-ref={avatar_entry.ref}
+                            class="btn btn-ghost btn-sm"
+                          >
+                            {gettext("Remove Selection")}
+                          </button>
+                        <% end %>
+                      </div>
+                      <div class="text-xs sm:text-sm text-base-content/60">
                         {gettext(
-                          "Upload a new avatar image (max 5MB) - Will be automatically cropped to square"
+                          "Upload a new avatar image (max %{max_size}) - Will be automatically cropped to square",
+                          max_size: @avatar_upload_limit_text
                         )}
                       </div>
+                      <%= if avatar_entry do %>
+                        <div
+                          id="avatar-upload-status"
+                          class="rounded-xl border border-base-300 bg-base-200/80 p-3 space-y-2"
+                        >
+                          <div class="flex items-start gap-3">
+                            <div class="min-w-0 flex-1">
+                              <p class="text-sm font-medium truncate">
+                                {avatar_entry.client_name}
+                              </p>
+                              <p class="text-xs text-base-content/60">
+                                {gettext("Ready to save with your profile changes")}
+                              </p>
+                            </div>
+                            <span class="text-xs font-semibold text-base-content/70">
+                              {avatar_entry.progress}%
+                            </span>
+                          </div>
+                          <progress
+                            class="progress progress-primary w-full h-2"
+                            value={avatar_entry.progress}
+                            max="100"
+                          >
+                          </progress>
+                          <%= for err <- upload_errors(@uploads.avatar, avatar_entry) do %>
+                            <p class="text-xs text-error">
+                              {humanize_avatar_upload_error(err, @avatar_upload_limit_text)}
+                            </p>
+                          <% end %>
+                        </div>
+                      <% end %>
+                      <%= for err <- upload_errors(@uploads.avatar) do %>
+                        <div class="alert alert-error py-2">
+                          <.icon name="hero-exclamation-circle" class="w-5 h-5" />
+                          <span class="text-sm">
+                            {humanize_avatar_upload_error(err, @avatar_upload_limit_text)}
+                          </span>
+                        </div>
+                      <% end %>
                     </div>
                   </div>
                 </div>
@@ -265,9 +337,11 @@
                   </h3>
                   <p class="text-xs sm:text-sm text-base-content/70">
                     {gettext(
-                      "Create single-use signup codes from your account. Codes expire after %{days} days and you can keep up to %{count} active at once.",
+                      "Create single-use signup codes from your account. Codes expire after %{days} days, you can keep up to %{count} active at once, create up to %{monthly_codes} per month, and up to %{monthly_uses} can be redeemed per month.",
                       days: @invite_code_policy.expires_in_days,
-                      count: @invite_code_policy.max_active_codes
+                      count: @invite_code_policy.max_active_codes,
+                      monthly_codes: @invite_code_policy.max_codes_per_month,
+                      monthly_uses: @invite_code_policy.max_uses_per_month
                     )}
                   </p>
                 </div>
@@ -352,7 +426,7 @@
 
                       <div class="flex flex-col gap-3 border-t border-base-300/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
                         <span class="text-xs text-base-content/60">
-                          Single-use code. Expires automatically after {@invite_code_policy.expires_in_days} days.
+                          Single-use code. Expires automatically after {@invite_code_policy.expires_in_days} days and follows your monthly invite limits.
                         </span>
                         <button
                           type="submit"

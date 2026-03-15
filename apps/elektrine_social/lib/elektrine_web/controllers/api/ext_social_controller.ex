@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.API.ExtSocialController do
   @moduledoc """
-  External API controller for read-only social access.
+  External API controller for social access.
   """
 
   use ElektrineSocialWeb, :controller
@@ -68,26 +68,124 @@ defmodule ElektrineWeb.API.ExtSocialController do
     user = conn.assigns.current_user
     limit = parse_positive_int(params["limit"], @default_limit) |> min(@max_limit)
 
-    with {:ok, author_id} <- parse_id(user_id) do
-      posts =
-        Social.get_user_timeline_posts(author_id,
-          viewer_id: user.id,
-          limit: limit
+    case parse_id(user_id) do
+      {:ok, author_id} ->
+        posts =
+          Social.get_user_timeline_posts(author_id,
+            viewer_id: user.id,
+            limit: limit
+          )
+
+        Response.ok(
+          conn,
+          %{user_id: author_id, posts: Enum.map(posts, &format_post(&1, user.id))},
+          %{pagination: %{limit: limit}}
         )
 
-      Response.ok(
-        conn,
-        %{user_id: author_id, posts: Enum.map(posts, &format_post(&1, user.id))},
-        %{pagination: %{limit: limit}}
-      )
-    else
       {:error, :invalid_id} ->
         Response.error(conn, :bad_request, "invalid_id", "Invalid user id")
     end
   end
 
+  @doc """
+  POST /api/ext/v1/social/posts
+  """
+  def create(conn, params) do
+    user = conn.assigns.current_user
+    source = Map.get(params, "post", params)
+    content = Map.get(source, "content", "")
+
+    opts =
+      []
+      |> maybe_put_option(:visibility, source["visibility"] || "public")
+      |> maybe_put_option(:media_urls, normalize_media_urls(source["media_urls"]))
+      |> maybe_put_option(:title, blank_to_nil(source["title"]))
+      |> maybe_put_option(:post_type, blank_to_nil(source["post_type"]))
+      |> maybe_put_option(:category, blank_to_nil(source["category"]))
+      |> maybe_put_option(:alt_texts, normalize_alt_texts(source["alt_texts"]))
+
+    case Social.create_timeline_post(user.id, content, opts) do
+      {:ok, post} ->
+        Response.created(conn, %{post: format_post(post, user.id)})
+
+      {:error, reason} ->
+        create_error_response(conn, reason)
+    end
+  end
+
   defp social_post?(post) do
     Map.get(post, :post_type) not in ["message", nil]
+  end
+
+  defp create_error_response(conn, :user_banned) do
+    Response.error(conn, :forbidden, "user_banned", "User is banned")
+  end
+
+  defp create_error_response(conn, :user_suspended) do
+    Response.error(conn, :forbidden, "user_suspended", "User is suspended")
+  end
+
+  defp create_error_response(conn, :malicious_content) do
+    Response.error(conn, :unprocessable_entity, "malicious_content", "Content failed validation")
+  end
+
+  defp create_error_response(conn, :spam_detected) do
+    Response.error(conn, :unprocessable_entity, "spam_detected", "Content failed validation")
+  end
+
+  defp create_error_response(conn, :too_many_hashtags) do
+    Response.error(conn, :unprocessable_entity, "too_many_hashtags", "Content failed validation")
+  end
+
+  defp create_error_response(conn, :too_many_mentions) do
+    Response.error(conn, :unprocessable_entity, "too_many_mentions", "Content failed validation")
+  end
+
+  defp create_error_response(conn, :title_too_long) do
+    Response.error(conn, :unprocessable_entity, "title_too_long", "Title failed validation")
+  end
+
+  defp create_error_response(conn, :title_empty) do
+    Response.error(conn, :unprocessable_entity, "title_empty", "Title failed validation")
+  end
+
+  defp create_error_response(conn, :title_invalid_chars) do
+    Response.error(
+      conn,
+      :unprocessable_entity,
+      "title_invalid_chars",
+      "Title failed validation"
+    )
+  end
+
+  defp create_error_response(conn, {:content_too_long, details}) do
+    Response.error(
+      conn,
+      :unprocessable_entity,
+      "content_too_long",
+      "Content failed validation",
+      details
+    )
+  end
+
+  defp create_error_response(conn, %Ecto.Changeset{} = changeset) do
+    Response.error(
+      conn,
+      :unprocessable_entity,
+      "validation_failed",
+      "Post failed validation",
+      errors_on(changeset)
+    )
+  end
+
+  defp create_error_response(conn, reason) do
+    Response.error(
+      conn,
+      :unprocessable_entity,
+      "post_create_failed",
+      "Failed to create post",
+      inspect(reason)
+    )
   end
 
   defp can_view_post?(post, viewer_id) do
@@ -196,4 +294,30 @@ defmodule ElektrineWeb.API.ExtSocialController do
   end
 
   defp parse_positive_int(_value, default), do: default
+
+  defp maybe_put_option(opts, _key, nil), do: opts
+  defp maybe_put_option(opts, key, value), do: Keyword.put(opts, key, value)
+
+  defp blank_to_nil(nil), do: nil
+
+  defp blank_to_nil(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp blank_to_nil(value), do: value
+
+  defp normalize_media_urls(urls) when is_list(urls), do: urls
+  defp normalize_media_urls(_urls), do: []
+
+  defp normalize_alt_texts(alt_texts) when is_map(alt_texts), do: alt_texts
+  defp normalize_alt_texts(_alt_texts), do: nil
+
+  defp errors_on(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+  end
 end

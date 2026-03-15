@@ -4,8 +4,8 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
   alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
   alias Elektrine.Repo
-  alias Elektrine.System, as: SystemSettings
   alias Elektrine.Subscriptions.Product
+  alias Elektrine.System, as: SystemSettings
   import Elektrine.DataCase, only: [errors_on: 1]
 
   setup do
