@@ -84,7 +84,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   """
   def create_question(object, actor_uri, opts \\ []) do
     with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-      content = strip_html(object["content"] || object["question"] || "")
+      content = strip_html(object["content"] || object["question"] || "", object["tag"])
       hashtags = extract_hashtags(object, content)
 
       %URI{host: instance_domain} = URI.parse(actor_uri)
@@ -162,7 +162,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     has_name = is_binary(object["name"]) && String.trim(object["name"]) != ""
     has_reply_to = object["inReplyTo"] != nil
     content = object["content"] || ""
-    has_minimal_content = String.length(strip_html(content)) < 5
+    has_minimal_content = String.length(strip_html(content, object["tag"])) < 5
 
     has_name && has_reply_to && has_minimal_content
   end
@@ -305,7 +305,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     object = maybe_enrich_sparse_object(object)
 
     with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-      content = strip_html(object["content"] || "")
+      content = strip_html(object["content"] || "", object["tag"])
       title = normalize_object_title(object["name"])
       hashtags = extract_hashtags(object, content)
       mentioned_local_users = extract_local_mentions(object)
@@ -940,6 +940,13 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp sanitize_identifier(_), do: nil
 
   # Extract a short content preview from the parent post if available
+  defp extract_reply_content_preview(%{"content" => content, "tag" => tags})
+       when is_binary(content) do
+    content
+    |> strip_html(tags)
+    |> String.slice(0, 200)
+  end
+
   defp extract_reply_content_preview(%{"content" => content}) when is_binary(content) do
     content
     |> strip_html()
@@ -995,7 +1002,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
     poll_attrs = %{
       message_id: message_id,
-      question: strip_html(object["content"] || ""),
+      question: strip_html(object["content"] || "", object["tag"]),
       total_votes: voters_count,
       voters_count: voters_count,
       closes_at: end_time,
@@ -1049,7 +1056,11 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     Enum.reduce(options, 0, fn opt, acc -> acc + (opt[:votes] || 0) end)
   end
 
-  defp strip_html(html) do
+  defp strip_html(html, tags \\ [])
+
+  defp strip_html(nil, _tags), do: ""
+
+  defp strip_html(html, tags) when is_binary(html) do
     html
     |> extract_mentions_from_at_pattern()
     |> extract_mentions_from_users_pattern()
@@ -1059,8 +1070,11 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     |> String.replace(~r/<\/p>/, "\n")
     |> String.replace(~r/<[^>]*>/, "")
     |> HtmlEntities.decode()
+    |> expand_short_tag_mentions(tags)
     |> String.trim()
   end
+
+  defp strip_html(_, _tags), do: ""
 
   defp normalize_object_title(title) when is_binary(title) do
     title
@@ -1145,6 +1159,57 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       fn _, domain, username -> "@#{username}@#{domain}" end
     )
   end
+
+  defp expand_short_tag_mentions(text, tags) when is_binary(text) and is_list(tags) do
+    tags
+    |> short_mention_replacements()
+    |> Enum.reduce(text, fn {short, full}, acc ->
+      Regex.replace(
+        ~r/(^|[^A-Za-z0-9_@\/])#{Regex.escape(short)}(?![A-Za-z0-9_@])/u,
+        acc,
+        fn _, prefix -> "#{prefix}#{full}" end
+      )
+    end)
+  end
+
+  defp expand_short_tag_mentions(text, _tags), do: text
+
+  defp short_mention_replacements(tags) when is_list(tags) do
+    tags
+    |> Enum.filter(fn tag -> is_map(tag) && tag["type"] == "Mention" end)
+    |> Enum.reduce(%{}, fn tag, acc ->
+      short = short_mention_name(tag["name"])
+      full = mention_tag_to_handle(tag)
+
+      if is_binary(short) and mention_handle?(full) and short != full do
+        Map.update(acc, short, MapSet.new([full]), &MapSet.put(&1, full))
+      else
+        acc
+      end
+    end)
+    |> Enum.reduce(%{}, fn {short, handles}, acc ->
+      case MapSet.to_list(handles) do
+        [full] -> Map.put(acc, short, full)
+        _ -> acc
+      end
+    end)
+  end
+
+  defp short_mention_replacements(_), do: %{}
+
+  defp short_mention_name(name) when is_binary(name) do
+    cleaned = String.trim(name)
+
+    if Regex.match?(~r/^@[^@\s]+$/, cleaned), do: cleaned, else: nil
+  end
+
+  defp short_mention_name(_), do: nil
+
+  defp mention_handle?(handle) when is_binary(handle) do
+    Regex.match?(~r/^@[^@\s]+@[^@\s]+$/, handle)
+  end
+
+  defp mention_handle?(_), do: false
 
   defp determine_visibility(object) do
     to = object["to"] || []

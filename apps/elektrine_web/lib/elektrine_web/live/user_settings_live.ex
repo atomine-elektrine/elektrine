@@ -35,10 +35,18 @@ defmodule ElektrineWeb.UserSettingsLive do
         5 * 1024 * 1024
       end
 
+    avatar_upload_limit_text =
+      if user.is_admin do
+        "50MB"
+      else
+        "5MB"
+      end
+
     {:ok,
      socket
      |> assign(:page_title, "Account Settings")
      |> assign(:user, user)
+     |> assign(:avatar_upload_limit_text, avatar_upload_limit_text)
      |> assign(:invite_codes_enabled, Elektrine.System.invite_codes_enabled?())
      |> assign(:invite_code_policy, invite_code_policy)
      |> assign(:can_create_invite_codes, Accounts.user_can_create_invite_codes?(user))
@@ -333,6 +341,11 @@ defmodule ElektrineWeb.UserSettingsLive do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Could not delete entry")}
     end
+  end
+
+  @impl true
+  def handle_event("cancel_avatar_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :avatar, ref)}
   end
 
   @impl true
@@ -1383,6 +1396,18 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp token_preview_scopes(_), do: []
 
+  defp humanize_avatar_upload_error(:too_large, limit_text),
+    do: "File is too large (max #{limit_text})"
+
+  defp humanize_avatar_upload_error(:not_accepted, _limit_text),
+    do: "Unsupported file type. Use JPG, PNG, GIF, or WebP."
+
+  defp humanize_avatar_upload_error(:too_many_files, _limit_text),
+    do: "Only one avatar can be uploaded at a time."
+
+  defp humanize_avatar_upload_error(error, _limit_text),
+    do: "Upload error: #{inspect(error)}"
+
   defp normalize_scope_values(scopes) when is_list(scopes) do
     scopes
     |> Enum.map(&to_string/1)
@@ -1875,6 +1900,11 @@ defmodule ElektrineWeb.UserSettingsLive do
     "You already have #{max_active_codes} active invite codes."
   end
 
+  defp invite_code_error_message(:monthly_invite_code_limit_reached, socket) do
+    max_codes_per_month = socket.assigns.invite_code_policy.max_codes_per_month
+    "You already created #{max_codes_per_month} invite codes this month."
+  end
+
   defp invite_code_error_message(:not_found, _socket), do: "Invite code not found"
   defp invite_code_error_message(_reason, _socket), do: "Could not update invite code"
 
@@ -1973,7 +2003,7 @@ defmodule ElektrineWeb.UserSettingsLive do
         """
 
       module ->
-        apply(module, :email_tab, [assigns])
+        module.email_tab(assigns)
     end
   end
 

@@ -51,6 +51,35 @@ defmodule ElektrineWeb.UserInviteCodesLiveTest do
     assert has_element?(view, "span", "Inactive")
   end
 
+  test "shows a monthly generation limit error after a user churns through invite codes", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+    {:ok, trusted_user} = Accounts.admin_update_user(user, %{trust_level: 1})
+
+    invite_codes =
+      for _ <- 1..5 do
+        assert {:ok, invite_code} = Accounts.create_self_service_invite_code(trusted_user, %{})
+        invite_code
+      end
+
+    for invite_code <- invite_codes do
+      assert {:ok, _invite_code} =
+               Accounts.deactivate_self_service_invite_code(trusted_user, invite_code.id)
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(trusted_user)
+      |> live(~p"/account?tab=profile")
+
+    view
+    |> form("#invite-code-form", %{invite: %{note: "One more try"}})
+    |> render_submit()
+
+    assert render(view) =~ "You already created 5 invite codes this month."
+  end
+
   test "low-trust user sees the invite gate instead of the creation form", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 

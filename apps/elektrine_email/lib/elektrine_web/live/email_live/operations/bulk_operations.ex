@@ -74,7 +74,7 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
       load_tab_content(
         socket,
         socket.assigns.current_tab,
-        %{"filter" => socket.assigns.current_filter},
+        current_tab_params(socket),
         socket.assigns.pagination.page
       )
 
@@ -113,7 +113,7 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
       load_tab_content(
         socket,
         socket.assigns.current_tab,
-        %{"filter" => socket.assigns.current_filter},
+        current_tab_params(socket),
         socket.assigns.pagination.page
       )
 
@@ -149,7 +149,12 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
 
     # Reload current tab
     socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{}, socket.assigns.pagination.page)
+      load_tab_content(
+        socket,
+        socket.assigns.current_tab,
+        current_tab_params(socket),
+        socket.assigns.pagination.page
+      )
 
     {:noreply,
      socket
@@ -189,7 +194,12 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
 
     # Reload current tab
     socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{}, socket.assigns.pagination.page)
+      load_tab_content(
+        socket,
+        socket.assigns.current_tab,
+        current_tab_params(socket),
+        socket.assigns.pagination.page
+      )
 
     {:noreply,
      socket
@@ -225,7 +235,12 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
     Cached.invalidate_message_caches(mailbox_id, socket.assigns.current_user.id)
 
     socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{}, socket.assigns.pagination.page)
+      load_tab_content(
+        socket,
+        socket.assigns.current_tab,
+        current_tab_params(socket),
+        socket.assigns.pagination.page
+      )
 
     {:noreply,
      socket
@@ -257,7 +272,12 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
     Cached.invalidate_message_caches(mailbox_id, socket.assigns.current_user.id)
 
     socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{}, socket.assigns.pagination.page)
+      load_tab_content(
+        socket,
+        socket.assigns.current_tab,
+        current_tab_params(socket),
+        socket.assigns.pagination.page
+      )
 
     {:noreply,
      socket
@@ -291,7 +311,12 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
 
     # Reload current tab
     socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{}, socket.assigns.pagination.page)
+      load_tab_content(
+        socket,
+        socket.assigns.current_tab,
+        current_tab_params(socket),
+        socket.assigns.pagination.page
+      )
 
     {:noreply,
      socket
@@ -325,7 +350,12 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
 
     # Reload current tab
     socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{}, socket.assigns.pagination.page)
+      load_tab_content(
+        socket,
+        socket.assigns.current_tab,
+        current_tab_params(socket),
+        socket.assigns.pagination.page
+      )
 
     {:noreply,
      socket
@@ -355,10 +385,7 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
     end)
 
     # Reload current tab
-    socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{
-        "filter" => socket.assigns.current_filter
-      })
+    socket = load_tab_content(socket, socket.assigns.current_tab, current_tab_params(socket))
 
     {:noreply,
      socket
@@ -388,10 +415,7 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
     end)
 
     # Reload current tab
-    socket =
-      load_tab_content(socket, socket.assigns.current_tab, %{
-        "filter" => socket.assigns.current_filter
-      })
+    socket = load_tab_content(socket, socket.assigns.current_tab, current_tab_params(socket))
 
     {:noreply,
      socket
@@ -454,6 +478,13 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
         |> assign(:messages, pagination.messages)
         |> assign(:pagination, pagination)
 
+      "drafts" ->
+        pagination = Email.list_drafts_messages_paginated(mailbox.id, page, per_page)
+
+        socket
+        |> assign(:messages, pagination.messages)
+        |> assign(:pagination, pagination)
+
       "spam" ->
         pagination = Email.list_spam_messages_paginated(mailbox.id, page, per_page)
 
@@ -474,6 +505,42 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
         socket
         |> assign(:messages, pagination.messages)
         |> assign(:pagination, pagination)
+
+      "folder" ->
+        folder_id = params["folder_id"] || socket.assigns[:current_folder_id]
+
+        result =
+          if folder_id do
+            Email.list_folder_messages(
+              String.to_integer(to_string(folder_id)),
+              user.id,
+              page,
+              per_page
+            )
+          else
+            %{
+              messages: [],
+              total: 0,
+              page: page,
+              per_page: per_page,
+              has_next: false,
+              has_prev: false
+            }
+          end
+
+        total_pages = if result.total > 0, do: ceil(result.total / per_page), else: 0
+
+        socket
+        |> assign(:messages, result.messages)
+        |> assign(:current_folder_id, to_string(folder_id))
+        |> assign(:pagination, %{
+          page: page,
+          per_page: per_page,
+          total_count: result.total,
+          total_pages: total_pages,
+          has_next: result.has_next,
+          has_prev: result.has_prev
+        })
 
       "search" ->
         query = params["q"] || ""
@@ -560,4 +627,15 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
         Email.list_inbox_messages_paginated(mailbox_id, page, per_page)
     end
   end
+
+  defp current_tab_params(socket) do
+    %{}
+    |> maybe_put_param("filter", socket.assigns[:current_filter])
+    |> maybe_put_param("folder_id", socket.assigns[:current_folder_id])
+    |> maybe_put_param("q", socket.assigns[:search_query])
+  end
+
+  defp maybe_put_param(params, _key, nil), do: params
+  defp maybe_put_param(params, _key, ""), do: params
+  defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
 end

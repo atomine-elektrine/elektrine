@@ -85,6 +85,30 @@ paths:
       responses:
         "200":
           description: Message list
+    post:
+      summary: Send an email message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                text_body:
+                  type: string
+                html_body:
+                  type: string
+                cc:
+                  type: string
+                bcc:
+                  type: string
+      responses:
+        "201":
+          description: Email sent
   /api/ext/v1/email/messages/{id}:
     get:
       summary: Get a single email message
@@ -148,6 +172,35 @@ paths:
       responses:
         "200":
           description: Conversation message list
+    post:
+      summary: Send a message to a chat conversation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                message_type:
+                  type: string
+                  enum: [text, image, file, voice]
+                media_urls:
+                  type: array
+                  items:
+                    type: string
+                reply_to_id:
+                  type: integer
+      responses:
+        "201":
+          description: Conversation message created
   /api/ext/v1/social/feed:
     get:
       summary: List home or public social feed posts
@@ -178,6 +231,30 @@ paths:
       responses:
         "200":
           description: Social post
+  /api/ext/v1/social/posts:
+    post:
+      summary: Create a timeline post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [public, unlisted, followers, friends, private]
+                title:
+                  type: string
+                media_urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Timeline post created
   /api/ext/v1/social/users/{user_id}/posts:
     get:
       summary: List visible posts for a specific user

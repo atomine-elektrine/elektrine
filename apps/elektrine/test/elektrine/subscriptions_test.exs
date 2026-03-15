@@ -2,8 +2,10 @@ defmodule Elektrine.SubscriptionsTest do
   use Elektrine.DataCase, async: false
 
   alias Ecto.Changeset
-  alias Elektrine.{AccountsFixtures, Repo, Subscriptions}
   alias Elektrine.Accounts.User
+  alias Elektrine.AccountsFixtures
+  alias Elektrine.Repo
+  alias Elektrine.Subscriptions
   alias Elektrine.Subscriptions.{Product, RegistrationCheckout, Subscription}
 
   defmodule FakeStripeClient do

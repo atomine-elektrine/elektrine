@@ -478,27 +478,25 @@ defmodule ElektrineWeb.JMAP.APIController do
     Enum.reduce(update, {%{}, %{}}, fn {email_id, changes}, {updated_acc, failed_acc} ->
       int_id = parse_email_id(email_id)
 
-      cond do
-        is_nil(int_id) ->
-          failure = %{"type" => "notFound"}
-          {updated_acc, Map.put(failed_acc, email_id, failure)}
+      if is_nil(int_id) do
+        failure = %{"type" => "notFound"}
+        {updated_acc, Map.put(failed_acc, email_id, failure)}
+      else
+        case Email.get_message(int_id, mailbox.id) do
+          nil ->
+            failure = %{"type" => "notFound"}
+            {updated_acc, Map.put(failed_acc, email_id, failure)}
 
-        true ->
-          case Email.get_message(int_id, mailbox.id) do
-            nil ->
-              failure = %{"type" => "notFound"}
-              {updated_acc, Map.put(failed_acc, email_id, failure)}
+          message ->
+            case apply_jmap_changes(message, changes) do
+              :ok ->
+                {Map.put(updated_acc, email_id, nil), failed_acc}
 
-            message ->
-              case apply_jmap_changes(message, changes) do
-                :ok ->
-                  {Map.put(updated_acc, email_id, nil), failed_acc}
-
-                {:error, reason} ->
-                  failure = %{"type" => "invalidProperties", "description" => inspect(reason)}
-                  {updated_acc, Map.put(failed_acc, email_id, failure)}
-              end
-          end
+              {:error, reason} ->
+                failure = %{"type" => "invalidProperties", "description" => inspect(reason)}
+                {updated_acc, Map.put(failed_acc, email_id, failure)}
+            end
+        end
       end
     end)
   end
@@ -507,25 +505,23 @@ defmodule ElektrineWeb.JMAP.APIController do
     Enum.reduce(destroy, {[], %{}}, fn email_id, {destroyed_acc, failed_acc} ->
       int_id = parse_email_id(email_id)
 
-      cond do
-        is_nil(int_id) ->
-          {destroyed_acc, Map.put(failed_acc, email_id, %{"type" => "notFound"})}
+      if is_nil(int_id) do
+        {destroyed_acc, Map.put(failed_acc, email_id, %{"type" => "notFound"})}
+      else
+        case Email.get_message(int_id, mailbox.id) do
+          nil ->
+            {destroyed_acc, Map.put(failed_acc, email_id, %{"type" => "notFound"})}
 
-        true ->
-          case Email.get_message(int_id, mailbox.id) do
-            nil ->
-              {destroyed_acc, Map.put(failed_acc, email_id, %{"type" => "notFound"})}
+          message ->
+            case Email.delete_message(message) do
+              {:ok, _deleted} ->
+                {destroyed_acc ++ [email_id], failed_acc}
 
-            message ->
-              case Email.delete_message(message) do
-                {:ok, _deleted} ->
-                  {destroyed_acc ++ [email_id], failed_acc}
-
-                {:error, reason} ->
-                  failure = %{"type" => "serverFail", "description" => inspect(reason)}
-                  {destroyed_acc, Map.put(failed_acc, email_id, failure)}
-              end
-          end
+              {:error, reason} ->
+                failure = %{"type" => "serverFail", "description" => inspect(reason)}
+                {destroyed_acc, Map.put(failed_acc, email_id, failure)}
+            end
+        end
       end
     end)
   end
@@ -802,29 +798,27 @@ defmodule ElektrineWeb.JMAP.APIController do
     Enum.reduce(update, {%{}, %{}}, fn {submission_id, changes}, {updated_acc, failed_acc} ->
       int_id = parse_email_id(submission_id)
 
-      cond do
-        is_nil(int_id) ->
-          {updated_acc, Map.put(failed_acc, submission_id, %{"type" => "notFound"})}
+      if is_nil(int_id) do
+        {updated_acc, Map.put(failed_acc, submission_id, %{"type" => "notFound"})}
+      else
+        case JMAP.get_submission(int_id, mailbox.id) do
+          nil ->
+            {updated_acc, Map.put(failed_acc, submission_id, %{"type" => "notFound"})}
 
-        true ->
-          case JMAP.get_submission(int_id, mailbox.id) do
-            nil ->
-              {updated_acc, Map.put(failed_acc, submission_id, %{"type" => "notFound"})}
+          submission ->
+            case apply_submission_changes(submission, changes) do
+              {:ok, _updated_submission} ->
+                {Map.put(updated_acc, submission_id, nil), failed_acc}
 
-            submission ->
-              case apply_submission_changes(submission, changes) do
-                {:ok, _updated_submission} ->
-                  {Map.put(updated_acc, submission_id, nil), failed_acc}
+              {:error, reason} ->
+                failure = %{
+                  "type" => "invalidProperties",
+                  "description" => submission_error(reason)
+                }
 
-                {:error, reason} ->
-                  failure = %{
-                    "type" => "invalidProperties",
-                    "description" => submission_error(reason)
-                  }
-
-                  {updated_acc, Map.put(failed_acc, submission_id, failure)}
-              end
-          end
+                {updated_acc, Map.put(failed_acc, submission_id, failure)}
+            end
+        end
       end
     end)
   end

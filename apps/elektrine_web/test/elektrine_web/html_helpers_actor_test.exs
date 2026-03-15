@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.HtmlHelpersActorTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.ActivityPub
   alias Elektrine.Emojis.CustomEmoji
   alias ElektrineWeb.HtmlHelpers
 
@@ -36,5 +37,16 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
     assert HtmlHelpers.actor_display_name_text(actor) == "zero"
     assert HtmlHelpers.render_actor_display_name(actor) == "zero"
+  end
+
+  test "render_remote_post_content linkifies full fediverse handles" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "Hello @maxfield@#{ActivityPub.instance_domain()}",
+        "remote.example"
+      )
+
+    assert html =~ ~s(href="/remote/maxfield@#{ActivityPub.instance_domain()}")
+    assert html =~ "@maxfield@#{ActivityPub.instance_domain()}"
   end
 end

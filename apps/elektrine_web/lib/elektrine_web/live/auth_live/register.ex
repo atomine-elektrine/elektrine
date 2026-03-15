@@ -5,9 +5,9 @@ defmodule ElektrineWeb.AuthLive.Register do
 
   import Ecto.Changeset, only: [add_error: 3, cast: 3]
 
+  alias Elektrine.Accounts.User
   alias Elektrine.Subscriptions
   alias Elektrine.Subscriptions.Product
-  alias Elektrine.Accounts.User
 
   def mount(params, session, socket) do
     changeset = registration_changeset(session, params)

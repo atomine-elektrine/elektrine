@@ -34,6 +34,8 @@ defmodule Elektrine.Accounts do
   require Logger
 
   @self_service_invite_active_limit 5
+  @self_service_invite_monthly_generation_limit 5
+  @self_service_invite_monthly_use_limit 5
   @self_service_invite_max_uses 1
   @self_service_invite_expiry_days 14
   @seconds_per_day 86_400
@@ -570,6 +572,8 @@ defmodule Elektrine.Accounts do
     %{
       min_trust_level: Elektrine.System.self_service_invite_min_trust_level(),
       max_active_codes: @self_service_invite_active_limit,
+      max_codes_per_month: @self_service_invite_monthly_generation_limit,
+      max_uses_per_month: @self_service_invite_monthly_use_limit,
       max_uses: @self_service_invite_max_uses,
       expires_in_days: @self_service_invite_expiry_days
     }
@@ -605,14 +609,25 @@ defmodule Elektrine.Accounts do
       |> Enum.into(%{})
 
     with :ok <- ensure_self_service_invites_enabled(),
-         :ok <- authorize_self_service_invite_creation(user),
-         :ok <- ensure_self_service_invite_capacity(user.id) do
-      create_invite_code(%{
-        "created_by_id" => user.id,
-        "max_uses" => @self_service_invite_max_uses,
-        "expires_at" => self_service_invite_expiration(),
-        "note" => normalize_optional_string(attrs["note"])
-      })
+         :ok <- authorize_self_service_invite_creation(user) do
+      Repo.transaction(fn ->
+        with :ok <- ensure_self_service_invite_creation_capacity(Repo, user),
+             {:ok, invite_code} <-
+               create_invite_code(%{
+                 "created_by_id" => user.id,
+                 "max_uses" => @self_service_invite_max_uses,
+                 "expires_at" => self_service_invite_expiration(),
+                 "note" => normalize_optional_string(attrs["note"])
+               }) do
+          invite_code
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+      |> case do
+        {:ok, invite_code} -> {:ok, invite_code}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -1050,10 +1065,14 @@ defmodule Elektrine.Accounts do
       %InviteCode{} = invite_code ->
         case invite_code_validation_error(invite_code) do
           nil ->
-            with {:ok, _use} <- insert_invite_code_use(repo, invite_code.id, user_id),
+            with :ok <- ensure_self_service_invite_use_capacity(repo, invite_code),
+                 {:ok, _use} <- insert_invite_code_use(repo, invite_code.id, user_id),
                  {1, _} <- increment_invite_code_usage(repo, invite_code.id) do
               {:ok, %{invite_code | uses_count: invite_code.uses_count + 1}}
             else
+              {:error, :monthly_invite_use_limit_reached} ->
+                {:error, :monthly_invite_use_limit_reached}
+
               {:error, %Ecto.Changeset{} = changeset} ->
                 {:error, invite_code_use_error(changeset)}
 
@@ -1126,6 +1145,9 @@ defmodule Elektrine.Accounts do
 
   defp invite_code_error_message(:code_inactive), do: "This invite code is no longer active"
 
+  defp invite_code_error_message(:monthly_invite_use_limit_reached),
+    do: "This invite code is temporarily unavailable right now"
+
   defp invite_code_error_message(:already_used),
     do: "This account has already used an invite code"
 
@@ -1155,7 +1177,20 @@ defmodule Elektrine.Accounts do
     end
   end
 
-  defp ensure_self_service_invite_capacity(user_id) do
+  defp ensure_self_service_invite_creation_capacity(repo, %User{} = user) do
+    user =
+      case lock_user_for_update(repo, user.id) do
+        %User{} = locked_user -> locked_user
+        nil -> user
+      end
+
+    with :ok <- ensure_self_service_invite_capacity(repo, user.id),
+         :ok <- ensure_self_service_monthly_generation_capacity(repo, user) do
+      :ok
+    end
+  end
+
+  defp ensure_self_service_invite_capacity(repo, user_id) do
     now = DateTime.utc_now()
 
     active_count =
@@ -1166,13 +1201,74 @@ defmodule Elektrine.Accounts do
             (is_nil(i.expires_at) or i.expires_at >= ^now) and
             i.uses_count < i.max_uses
       )
-      |> Repo.aggregate(:count)
+      |> repo.aggregate(:count)
 
     if active_count < @self_service_invite_active_limit do
       :ok
     else
       {:error, :invite_code_limit_reached}
     end
+  end
+
+  defp ensure_self_service_monthly_generation_capacity(_repo, %User{is_admin: true}), do: :ok
+
+  defp ensure_self_service_monthly_generation_capacity(repo, %User{id: user_id}) do
+    {month_start, next_month_start} = current_month_naive_window()
+
+    generated_count =
+      from(i in InviteCode,
+        where:
+          i.created_by_id == ^user_id and
+            i.inserted_at >= ^month_start and
+            i.inserted_at < ^next_month_start
+      )
+      |> repo.aggregate(:count)
+
+    if generated_count < @self_service_invite_monthly_generation_limit do
+      :ok
+    else
+      {:error, :monthly_invite_code_limit_reached}
+    end
+  end
+
+  defp ensure_self_service_invite_use_capacity(_repo, %InviteCode{created_by_id: nil}), do: :ok
+
+  defp ensure_self_service_invite_use_capacity(repo, %InviteCode{created_by_id: created_by_id}) do
+    case lock_user_for_update(repo, created_by_id) do
+      %User{} = creator -> ensure_self_service_monthly_use_capacity(repo, creator)
+      nil -> :ok
+    end
+  end
+
+  defp ensure_self_service_monthly_use_capacity(_repo, %User{is_admin: true}), do: :ok
+
+  defp ensure_self_service_monthly_use_capacity(repo, %User{id: user_id}) do
+    {month_start, next_month_start} = current_month_datetime_window()
+
+    used_count =
+      from(invite_use in InviteCodeUse,
+        join: invite_code in InviteCode,
+        on: invite_code.id == invite_use.invite_code_id,
+        where:
+          invite_code.created_by_id == ^user_id and
+            invite_use.used_at >= ^month_start and
+            invite_use.used_at < ^next_month_start
+      )
+      |> repo.aggregate(:count)
+
+    if used_count < @self_service_invite_monthly_use_limit do
+      :ok
+    else
+      {:error, :monthly_invite_use_limit_reached}
+    end
+  end
+
+  defp lock_user_for_update(repo, user_id) do
+    from(u in User,
+      where: u.id == ^user_id,
+      lock: "FOR UPDATE"
+    )
+    |> repo.one()
   end
 
   defp get_user_invite_code(user_id, invite_code_id) do
@@ -1186,6 +1282,30 @@ defmodule Elektrine.Accounts do
     DateTime.utc_now()
     |> DateTime.add(@self_service_invite_expiry_days * @seconds_per_day, :second)
     |> DateTime.truncate(:second)
+  end
+
+  defp current_month_naive_window do
+    {month_start, next_month_start} = current_month_date_window()
+
+    {
+      NaiveDateTime.new!(month_start, ~T[00:00:00]),
+      NaiveDateTime.new!(next_month_start, ~T[00:00:00])
+    }
+  end
+
+  defp current_month_datetime_window do
+    {month_start, next_month_start} = current_month_date_window()
+
+    {
+      DateTime.new!(month_start, ~T[00:00:00], "Etc/UTC"),
+      DateTime.new!(next_month_start, ~T[00:00:00], "Etc/UTC")
+    }
+  end
+
+  defp current_month_date_window do
+    month_start = Date.utc_today() |> Date.beginning_of_month()
+    next_month_start = month_start |> Date.end_of_month() |> Date.add(1)
+    {month_start, next_month_start}
   end
 
   defp normalize_optional_string(nil), do: nil
