@@ -12,8 +12,6 @@ defmodule ElektrineWeb.TimelineLive.Index do
   alias ElektrineWeb.TimelineLive.ReplyContextPreviews
   import ElektrineWeb.Components.Social.RSSItem
   import ElektrineWeb.Components.Platform.ZNav
-  import ElektrineWeb.Components.Social.TimelinePost
-  import ElektrineWeb.Components.Social.ReplyItem
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   alias ElektrineWeb.TimelineLive.Operations.Helpers, as: TimelineHelpers

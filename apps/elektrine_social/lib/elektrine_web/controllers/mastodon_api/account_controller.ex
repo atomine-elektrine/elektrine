@@ -139,7 +139,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         {:error, :unprocessable_entity, "Cannot follow yourself"}
 
       target ->
-        case Social.follow_user(user, target) do
+        case Social.follow_user(user.id, target.id) do
           {:ok, _} -> json(conn, render_relationship(user, target))
           {:error, reason} -> {:error, :unprocessable_entity, to_string(reason)}
         end
@@ -157,7 +157,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         {:error, :not_found}
 
       target ->
-        case Social.unfollow_user(user, target) do
+        case Social.unfollow_user(user.id, target.id) do
           {:ok, _} -> json(conn, render_relationship(user, target))
           {:error, reason} -> {:error, :unprocessable_entity, to_string(reason)}
         end

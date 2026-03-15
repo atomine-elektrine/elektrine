@@ -1068,9 +1068,9 @@
         |> Enum.uniq_by(& &1.url)
         |> Enum.take(12) %>
 
-      <div class="flex flex-col lg:flex-row gap-6 max-w-5xl mx-auto">
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-start xl:gap-8">
         <!-- Main Profile Column -->
-        <div class="flex-1 min-w-0 max-w-3xl">
+        <div class="flex-1 min-w-0">
           <!-- Mastodon-style Header -->
           <div class="social-page-card bg-base-200 border border-base-300 rounded-lg overflow-hidden mb-6">
             <!-- Cover Photo -->
@@ -1697,7 +1697,7 @@
 
       <!-- Right Sidebar - Media Gallery -->
         <%= if !Enum.empty?(all_media) do %>
-          <div class="hidden lg:block w-72 flex-shrink-0 space-y-4">
+          <div class="hidden flex-shrink-0 space-y-4 lg:block lg:w-80 xl:w-96">
             <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden sticky top-36 self-start">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold flex items-center gap-2">

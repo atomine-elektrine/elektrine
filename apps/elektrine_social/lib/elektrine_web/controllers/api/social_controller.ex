@@ -458,27 +458,16 @@ defmodule ElektrineWeb.API.SocialController do
   def unfollow_user(conn, %{"user_id" => user_id}) do
     user = conn.assigns[:current_user]
 
-    # Repo.delete_all returns {count, nil}
     case Profiles.unfollow_user(user.id, parse_int(user_id, 0)) do
-      {count, _} when count > 0 ->
+      {:ok, :unfollowed} ->
         conn
         |> put_status(:ok)
         |> json(%{message: "Unfollowed user"})
 
-      {0, _} ->
+      {:ok, :not_following} ->
         conn
         |> put_status(:ok)
         |> json(%{message: "Not following this user"})
-
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Unfollowed user"})
-
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to unfollow: #{inspect(reason)}"})
     end
   end
 

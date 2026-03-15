@@ -6,6 +6,8 @@ defmodule ElektrineWeb.JMAP.SessionController do
   use ElektrineEmailWeb, :controller
 
   alias Elektrine.Email
+  alias Elektrine.JMAP
+  import Plug.Conn, only: [get_req_header: 2]
 
   @doc """
   GET /.well-known/jmap
@@ -24,20 +26,19 @@ defmodule ElektrineWeb.JMAP.SessionController do
         account_id => account_capabilities(user, mailbox)
       },
       "primaryAccounts" => %{
-        "urn:ietf:params:jmap:mail" => account_id
+        "urn:ietf:params:jmap:mail" => account_id,
+        "urn:ietf:params:jmap:submission" => account_id
       },
       "username" => user.username,
       "apiUrl" => "#{host}/jmap/",
-      "downloadUrl" => "#{host}/jmap/download/{accountId}/{blobId}/{name}",
+      "downloadUrl" => "#{host}/jmap/download/{accountId}/{blobId}/{name}?type={type}",
       "uploadUrl" => "#{host}/jmap/upload/{accountId}",
       "eventSourceUrl" =>
         "#{host}/jmap/eventsource?types={types}&closeafter={closeafter}&ping={ping}",
-      "state" => Elektrine.JMAP.get_state(mailbox.id, "Email")
+      "state" => JMAP.get_session_state(mailbox.id)
     }
 
-    conn
-    |> put_resp_content_type("application/json")
-    |> json(session)
+    json(conn, session)
   end
 
   defp capabilities do
@@ -73,6 +74,7 @@ defmodule ElektrineWeb.JMAP.SessionController do
       "isPersonal" => true,
       "isReadOnly" => false,
       "accountCapabilities" => %{
+        "urn:ietf:params:jmap:core" => %{},
         "urn:ietf:params:jmap:mail" => %{},
         "urn:ietf:params:jmap:submission" => %{}
       }
@@ -80,7 +82,13 @@ defmodule ElektrineWeb.JMAP.SessionController do
   end
 
   defp get_host(conn) do
-    scheme = if conn.scheme == :https, do: "https", else: "http"
+    scheme =
+      cond do
+        conn.scheme == :https -> "https"
+        forwarded_as_https?(conn) -> "https"
+        true -> "http"
+      end
+
     host = conn.host
     port = conn.port
 
@@ -88,6 +96,20 @@ defmodule ElektrineWeb.JMAP.SessionController do
       "#{scheme}://#{host}"
     else
       "#{scheme}://#{host}:#{port}"
+    end
+  end
+
+  defp forwarded_as_https?(conn) do
+    case get_req_header(conn, "x-forwarded-proto") do
+      [value | _] ->
+        value
+        |> String.split(",")
+        |> List.first()
+        |> String.trim()
+        |> String.downcase() == "https"
+
+      _ ->
+        false
     end
   end
 end

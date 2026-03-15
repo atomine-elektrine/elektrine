@@ -4,9 +4,9 @@ defmodule Elektrine.Accounts.TrustLevel do
 
   Trust Levels:
   - TL0 (New): Default for all new users
-  - TL1 (Basic): Read and spent some time on the platform
+  - TL1 (Basic): Established account with repeat logins and visits
   - TL2 (Member): Active participant
-  - TL3 (Regular): Trusted community member with moderation powers
+  - TL3 (Regular): Trusted community member with sustained engagement
   - TL4 (Leader): Manually granted, full moderation access
   """
 
@@ -27,42 +27,85 @@ defmodule Elektrine.Accounts.TrustLevel do
     4 => %{name: "Leader", color: "red", description: "Community leader."}
   }
 
-  # Trust level requirements (based on Discourse)
+  # Trust levels only depend on signals that are currently tracked in production.
   @requirements %{
     1 => %{
-      topics_entered: 5,
-      posts_read: 30,
-      # 10 minutes
-      time_read_seconds: 600
+      minimums: %{
+        account_age_days: 1,
+        login_count: 2,
+        days_visited: 2,
+        topics_entered: 5,
+        posts_read: 30,
+        time_read_seconds: 600
+      },
+      maximums: %{
+        banned: 0,
+        suspended: 0
+      }
     },
     2 => %{
-      days_visited: 15,
-      topics_created: 1,
-      posts_created: 3,
-      # 1 hour
-      time_read_seconds: 3600,
-      likes_given: 1,
-      likes_received: 1,
-      replies_received: 1
+      minimums: %{
+        account_age_days: 14,
+        login_count: 5,
+        days_visited: 15,
+        topics_entered: 15,
+        posts_read: 100,
+        topics_created: 1,
+        posts_created: 3,
+        replies_created: 3,
+        time_read_seconds: 3600,
+        likes_given: 3,
+        likes_received: 1,
+        replies_received: 1
+      },
+      maximums: %{
+        banned: 0,
+        suspended: 0,
+        posts_deleted: 0,
+        suspensions_count: 0
+      }
     },
     3 => %{
-      days_visited: 50,
-      posts_created: 10,
-      topics_created: 2,
-      likes_given: 30,
-      likes_received: 20,
-      replies_received: 5,
-      # Must not abuse flagging
-      flags_given: 0,
-      # Must not be flagged
-      flags_received: 0,
-      # Must not have deleted posts
-      posts_deleted: 0,
-      # Must not be suspended
-      suspensions_count: 0
+      minimums: %{
+        account_age_days: 50,
+        login_count: 10,
+        days_visited: 50,
+        topics_entered: 25,
+        posts_read: 250,
+        posts_created: 10,
+        topics_created: 2,
+        replies_created: 10,
+        likes_given: 15,
+        likes_received: 10,
+        replies_received: 5
+      },
+      maximums: %{
+        banned: 0,
+        suspended: 0,
+        flags_received: 3,
+        posts_deleted: 1,
+        suspensions_count: 0
+      }
     }
     # TL4 is manual only
   }
+
+  @incrementable_stats [
+    :posts_created,
+    :topics_created,
+    :replies_created,
+    :likes_given,
+    :likes_received,
+    :replies_received,
+    :posts_read,
+    :topics_entered,
+    :time_read_seconds,
+    :flags_given,
+    :flags_received,
+    :flags_agreed,
+    :posts_deleted,
+    :suspensions_count
+  ]
 
   def levels, do: @levels
   def requirements, do: @requirements
@@ -79,19 +122,15 @@ defmodule Elektrine.Accounts.TrustLevel do
   @doc """
   Check if user qualifies for a specific trust level.
   """
-  def qualifies_for_level?(_user, stats, target_level) when target_level in 1..3 do
-    requirements = @requirements[target_level]
+  def qualifies_for_level?(user, stats, target_level) when target_level in 1..3 do
+    %{minimums: minimums, maximums: maximums} = @requirements[target_level]
 
-    Enum.all?(requirements, fn {metric, required_value} ->
-      actual_value = Map.get(stats, metric, 0)
-
-      # For penalties, must be less than or equal (usually 0)
-      if metric in [:flags_received, :posts_deleted, :suspensions_count] do
-        actual_value <= required_value
-      else
-        actual_value >= required_value
-      end
-    end)
+    Enum.all?(minimums, fn {metric, required_value} ->
+      metric_value(user, stats, metric) >= required_value
+    end) and
+      Enum.all?(maximums, fn {metric, allowed_value} ->
+        metric_value(user, stats, metric) <= allowed_value
+      end)
   end
 
   # TL0 is default
@@ -104,11 +143,9 @@ defmodule Elektrine.Accounts.TrustLevel do
   Calculate the maximum trust level a user qualifies for.
   """
   def calculate_trust_level(user, stats) do
-    # Skip if trust level is locked (manually set by admin)
     if user.trust_level_locked do
       user.trust_level
     else
-      # Check from highest to lowest
       cond do
         qualifies_for_level?(user, stats, 3) -> 3
         qualifies_for_level?(user, stats, 2) -> 2
@@ -119,7 +156,21 @@ defmodule Elektrine.Accounts.TrustLevel do
   end
 
   @doc """
-  Promote user to a new trust level.
+  Change a user's trust level and persist an audit log.
+  """
+  def change_user_level(user, new_level, opts \\ []) when new_level in 0..4 do
+    persist_level_change(user, user.trust_level, new_level, opts, persist_user?: true)
+  end
+
+  @doc """
+  Record a trust-level change after the caller has already updated `user.trust_level`.
+  """
+  def record_level_change(user, old_level, opts \\ []) when old_level in 0..4 do
+    persist_level_change(user, old_level, user.trust_level, opts, persist_user?: false)
+  end
+
+  @doc """
+  Backwards-compatible wrapper for older call sites.
   """
   def promote_user(
         user,
@@ -128,17 +179,156 @@ defmodule Elektrine.Accounts.TrustLevel do
         changed_by_user_id \\ nil,
         notes \\ nil
       ) do
-    old_level = user.trust_level
+    change_user_level(user, new_level,
+      reason: reason,
+      changed_by_user_id: changed_by_user_id,
+      notes: notes
+    )
+  end
 
+  @doc """
+  Automatically reconcile user trust levels based on their activity stats.
+  Returns {:ok, changed_count} or {:error, reason}.
+  """
+  def auto_promote_eligible_users do
+    users_with_stats =
+      from(u in User,
+        where: u.trust_level_locked == false,
+        left_join: s in UserActivityStats,
+        on: s.user_id == u.id,
+        preload: [activity_stats: s]
+      )
+      |> Repo.all()
+
+    changed_count =
+      users_with_stats
+      |> Enum.reduce(0, fn user, count ->
+        stats = user.activity_stats || %UserActivityStats{}
+        new_level = calculate_trust_level(user, stats)
+
+        if new_level != user.trust_level do
+          case change_user_level(user, new_level, reason: "automatic") do
+            {:ok, _} -> count + 1
+            {:error, _} -> count
+          end
+        else
+          count
+        end
+      end)
+
+    Logger.info("Auto-reconciled trust levels for #{changed_count} users")
+    {:ok, changed_count}
+  end
+
+  @doc """
+  Recalculate a single user's trust level and apply any automatic change immediately.
+  """
+  def maybe_auto_promote_user(user_id) do
+    case get_user_with_stats(user_id) do
+      nil ->
+        {:error, :not_found}
+
+      user ->
+        stats = user.activity_stats || %UserActivityStats{}
+        new_level = calculate_trust_level(user, stats)
+
+        if new_level != user.trust_level do
+          change_user_level(user, new_level, reason: "automatic")
+        else
+          {:ok, user}
+        end
+    end
+  end
+
+  @doc """
+  Initialize activity stats for a user if they don't exist.
+  """
+  def ensure_activity_stats(user_id) do
+    case Repo.get_by(UserActivityStats, user_id: user_id) do
+      nil ->
+        %UserActivityStats{user_id: user_id}
+        |> UserActivityStats.changeset(%{})
+        |> Repo.insert(
+          on_conflict: :nothing,
+          conflict_target: :user_id
+        )
+        |> case do
+          {:ok, %{id: nil}} ->
+            {:ok, Repo.get_by!(UserActivityStats, user_id: user_id)}
+
+          result ->
+            result
+        end
+
+      stats ->
+        {:ok, stats}
+    end
+  end
+
+  @doc """
+  Track a visit (daily).
+  """
+  def track_visit(user_id) do
+    {:ok, _stats} = ensure_activity_stats(user_id)
+    today = Date.utc_today()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {updated_count, _} =
+      from(s in UserActivityStats,
+        where:
+          s.user_id == ^user_id and (is_nil(s.last_visit_date) or s.last_visit_date != ^today)
+      )
+      |> Repo.update_all(
+        inc: [days_visited: 1],
+        set: [last_visit_date: today, updated_at: now]
+      )
+
+    stats = Repo.get_by!(UserActivityStats, user_id: user_id)
+
+    if updated_count > 0 do
+      maybe_auto_promote_user(user_id)
+    end
+
+    {:ok, stats}
+  end
+
+  @doc """
+  Increment a stat for a user.
+  """
+  def increment_stat(user_id, stat_name, amount \\ 1)
+
+  def increment_stat(user_id, stat_name, amount)
+      when stat_name in @incrementable_stats and is_integer(amount) do
+    {:ok, _stats} = ensure_activity_stats(user_id)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(s in UserActivityStats, where: s.user_id == ^user_id)
+    |> Repo.update_all(inc: [{stat_name, amount}], set: [updated_at: now])
+
+    stats = Repo.get_by!(UserActivityStats, user_id: user_id)
+    maybe_auto_promote_user(user_id)
+    {:ok, stats}
+  end
+
+  def increment_stat(_user_id, stat_name, _amount), do: {:error, {:unknown_stat, stat_name}}
+
+  defp persist_level_change(user, old_level, new_level, opts, persist_opts) do
     if new_level != old_level do
-      # Update user
-      user_changeset =
-        User.changeset(user, %{
-          trust_level: new_level,
-          promoted_at: DateTime.utc_now()
-        })
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      reason = Keyword.get(opts, :reason, "automatic")
+      changed_by_user_id = Keyword.get(opts, :changed_by_user_id)
+      notes = Keyword.get(opts, :notes)
+      persist_user? = Keyword.get(persist_opts, :persist_user?, true)
 
-      # Create log entry
+      user_changes =
+        if persist_user? do
+          %{trust_level: new_level, promoted_at: now}
+        else
+          %{promoted_at: now}
+        end
+
+      user_changeset = User.trust_level_changeset(user, user_changes)
+
       log_changeset =
         TrustLevelLog.changeset(%TrustLevelLog{}, %{
           user_id: user.id,
@@ -156,28 +346,12 @@ defmodule Elektrine.Accounts.TrustLevel do
       |> case do
         {:ok, %{user: updated_user}} ->
           Logger.info(
-            "User #{user.id} promoted from TL#{old_level} to TL#{new_level} (#{reason})"
+            "User #{user.id} trust level changed from TL#{old_level} to TL#{new_level} (#{reason})"
           )
 
-          # Send notification to user about promotion
-          Task.start(fn ->
-            level_info = get_level_info(new_level)
-
-            # Create in-app notification
-            Elektrine.Notifications.create_notification(%{
-              user_id: user.id,
-              type: "trust_level_promoted",
-              title: "Promoted to #{level_info.name}!",
-              body:
-                "Congratulations! You've been promoted to Trust Level #{new_level}: #{level_info.description}",
-              metadata: %{
-                "old_level" => old_level,
-                "new_level" => new_level,
-                "reason" => reason
-              },
-              priority: "high"
-            })
-          end)
+          if new_level > old_level do
+            notify_promotion(user.id, old_level, new_level, reason)
+          end
 
           {:ok, updated_user}
 
@@ -189,97 +363,48 @@ defmodule Elektrine.Accounts.TrustLevel do
     end
   end
 
-  @doc """
-  Automatically promote users based on their activity stats.
-  Returns {:ok, promoted_count} or {:error, reason}.
-  """
-  def auto_promote_eligible_users do
-    # Get all users with their activity stats who aren't locked
-    users_with_stats =
-      from(u in User,
-        where: u.trust_level_locked == false,
-        left_join: s in UserActivityStats,
-        on: s.user_id == u.id,
-        preload: [activity_stats: s]
-      )
-      |> Repo.all()
+  defp notify_promotion(user_id, old_level, new_level, reason) do
+    Elektrine.Async.start(fn ->
+      level_info = get_level_info(new_level)
 
-    promoted_count =
-      users_with_stats
-      |> Enum.reduce(0, fn user, count ->
-        stats = user.activity_stats || %UserActivityStats{}
-        new_level = calculate_trust_level(user, stats)
-
-        if new_level > user.trust_level do
-          case promote_user(user, new_level, "automatic") do
-            {:ok, _} -> count + 1
-            {:error, _} -> count
-          end
-        else
-          count
-        end
-      end)
-
-    Logger.info("Auto-promoted #{promoted_count} users")
-    {:ok, promoted_count}
-  end
-
-  @doc """
-  Initialize activity stats for a user if they don't exist.
-  """
-  def ensure_activity_stats(user_id) do
-    case Repo.get_by(UserActivityStats, user_id: user_id) do
-      nil ->
-        %UserActivityStats{user_id: user_id}
-        |> UserActivityStats.changeset(%{})
-        |> Repo.insert(
-          on_conflict: :nothing,
-          conflict_target: :user_id
-        )
-        |> case do
-          {:ok, %{id: nil}} ->
-            # Insert was skipped due to conflict, fetch the existing record
-            {:ok, Repo.get_by!(UserActivityStats, user_id: user_id)}
-
-          result ->
-            result
-        end
-
-      stats ->
-        {:ok, stats}
-    end
-  end
-
-  @doc """
-  Track a visit (daily).
-  """
-  def track_visit(user_id) do
-    {:ok, stats} = ensure_activity_stats(user_id)
-    today = Date.utc_today()
-
-    # Only increment if this is a new day
-    if stats.last_visit_date != today do
-      stats
-      |> UserActivityStats.changeset(%{
-        days_visited: stats.days_visited + 1,
-        last_visit_date: today
+      Elektrine.Notifications.create_notification(%{
+        user_id: user_id,
+        type: "trust_level_promoted",
+        title: "Promoted to #{level_info.name}!",
+        body:
+          "Congratulations! You've been promoted to Trust Level #{new_level}: #{level_info.description}",
+        metadata: %{
+          "old_level" => old_level,
+          "new_level" => new_level,
+          "reason" => reason
+        },
+        priority: "high"
       })
-      |> Repo.update()
-    else
-      {:ok, stats}
+    end)
+  end
+
+  defp get_user_with_stats(user_id) do
+    from(u in User,
+      where: u.id == ^user_id,
+      left_join: s in UserActivityStats,
+      on: s.user_id == u.id,
+      preload: [activity_stats: s]
+    )
+    |> Repo.one()
+  end
+
+  defp metric_value(user, _stats, :account_age_days) do
+    case user.inserted_at do
+      %DateTime{} = inserted_at -> Date.diff(Date.utc_today(), DateTime.to_date(inserted_at))
+      _ -> 0
     end
   end
 
-  @doc """
-  Increment a stat for a user.
-  """
-  def increment_stat(user_id, stat_name, amount \\ 1) do
-    {:ok, stats} = ensure_activity_stats(user_id)
+  defp metric_value(user, _stats, :login_count), do: user.login_count || 0
+  defp metric_value(user, _stats, :banned), do: if(user.banned, do: 1, else: 0)
+  defp metric_value(user, _stats, :suspended), do: if(user.suspended, do: 1, else: 0)
 
-    current_value = Map.get(stats, stat_name, 0)
-
-    stats
-    |> UserActivityStats.changeset(%{stat_name => current_value + amount})
-    |> Repo.update()
+  defp metric_value(_user, stats, metric) do
+    Map.get(stats, metric, 0) || 0
   end
 end

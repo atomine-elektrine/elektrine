@@ -1,6 +1,8 @@
 defmodule Elektrine.Social.ViewsTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.Accounts.UserActivityStats
+  alias Elektrine.Repo
   alias Elektrine.Social.Views
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
@@ -29,15 +31,16 @@ defmodule Elektrine.Social.ViewsTest do
       assert view.completed == true
     end
 
-    test "can track multiple views of the same post" do
-      # The system allows multiple view records for analytics purposes
-      # (e.g., user views post multiple times over different sessions)
+    test "reuses the canonical view row for repeated reads" do
       user = user_fixture()
       post = post_fixture()
 
       assert {:ok, view1} = Views.track_post_view(user.id, post.id)
       assert {:ok, view2} = Views.track_post_view(user.id, post.id)
-      assert view1.id != view2.id
+      assert view1.id == view2.id
+
+      assert Repo.aggregate(Elektrine.Social.PostView, :count, :id) == 1
+      assert Repo.get_by!(UserActivityStats, user_id: user.id).posts_read == 1
     end
 
     test "different users can view the same post" do
@@ -138,6 +141,29 @@ defmodule Elektrine.Social.ViewsTest do
       {:ok, _} = Views.track_post_view(user1.id, post.id)
 
       refute Views.user_viewed_post?(user2.id, post.id)
+    end
+  end
+
+  describe "trust stats integration" do
+    test "increments topics_entered only once for completed detail views" do
+      user = user_fixture()
+      post = discussion_post_fixture()
+
+      assert {:ok, _view} =
+               Views.track_post_view(user.id, post.id,
+                 completed: true,
+                 source: "discussion_detail"
+               )
+
+      assert {:ok, _view} =
+               Views.track_post_view(user.id, post.id,
+                 completed: true,
+                 source: "discussion_detail"
+               )
+
+      stats = Repo.get_by!(UserActivityStats, user_id: user.id)
+      assert stats.posts_read == 1
+      assert stats.topics_entered == 1
     end
   end
 end

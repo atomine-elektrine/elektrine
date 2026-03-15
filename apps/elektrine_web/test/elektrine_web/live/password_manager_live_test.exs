@@ -35,7 +35,15 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
       |> live(~p"/account/password-manager")
 
     assert has_element?(view, "nav a[href=\"/overview\"]")
+    assert has_element?(view, "nav a[href=\"/search\"]")
+    assert has_element?(view, "nav a[href=\"/email\"]")
+    assert has_element?(view, "nav a[href=\"/vpn\"]")
     assert has_element?(view, "nav a[href=\"/account/password-manager\"]")
+
+    assert has_element?(
+             view,
+             "nav a[href=\"/account/password-manager\"][aria-current=\"page\"]"
+           )
 
     render_submit(view, "create", %{
       "entry" => %{

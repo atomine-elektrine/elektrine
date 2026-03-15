@@ -13,6 +13,44 @@ const BATCH_INTERVAL_MS = 5000
 let dwellTimeBuffer = new Map()
 let batchTimeout = null
 
+function buildDwellPayload(state, dwellTimeMs) {
+  if (!state.postId || dwellTimeMs < MIN_DWELL_TIME_MS) return null
+
+  return {
+    post_id: state.postId,
+    dwell_time_ms: dwellTimeMs,
+    scroll_depth: state.maxScrollDepth,
+    expanded: state.wasExpanded,
+    source: state.source
+  }
+}
+
+function mergeDwellPayloads(existing, incoming) {
+  if (!existing) return incoming
+  if (!incoming) return existing
+
+  return {
+    post_id: incoming.post_id || existing.post_id,
+    dwell_time_ms: (existing.dwell_time_ms || 0) + (incoming.dwell_time_ms || 0),
+    scroll_depth: Math.max(existing.scroll_depth || 0, incoming.scroll_depth || 0),
+    expanded: Boolean(existing.expanded || incoming.expanded),
+    source: incoming.source || existing.source
+  }
+}
+
+function queueDwellPayload(postId, payload) {
+  if (!postId || !payload) return
+  dwellTimeBuffer.set(postId, mergeDwellPayloads(dwellTimeBuffer.get(postId), payload))
+}
+
+function takeQueuedDwellPayload(postId) {
+  if (!postId) return null
+
+  const payload = dwellTimeBuffer.get(postId) || null
+  if (payload) dwellTimeBuffer.delete(postId)
+  return payload
+}
+
 const REMOTE_FOLLOW_BUTTON_CLASSES = [
   'btn-ghost',
   'btn-secondary',
@@ -86,6 +124,7 @@ export const PostClick = {
     this.source = this.el.dataset.source || 'timeline'
     this.startTime = null
     this.totalDwellTime = 0
+    this.lastReportedDwellTime = 0
     this.maxScrollDepth = 0
     this.isVisible = false
     this.wasExpanded = false
@@ -147,16 +186,14 @@ export const PostClick = {
   },
 
   bufferDwellData() {
-    if (this.totalDwellTime >= MIN_DWELL_TIME_MS && this.postId) {
-      dwellTimeBuffer.set(this.postId, {
-        post_id: this.postId,
-        dwell_time_ms: this.totalDwellTime,
-        scroll_depth: this.maxScrollDepth,
-        expanded: this.wasExpanded,
-        source: this.source
-      })
-      this.scheduleBatchSend()
-    }
+    const pendingDwellTime = this.totalDwellTime - this.lastReportedDwellTime
+    const payload = buildDwellPayload(this, pendingDwellTime)
+
+    if (!payload) return
+
+    queueDwellPayload(this.postId, payload)
+    this.lastReportedDwellTime = this.totalDwellTime
+    this.scheduleBatchSend()
   },
 
   scheduleBatchSend() {
@@ -176,17 +213,16 @@ export const PostClick = {
   },
 
   sendDwellData() {
-    if (this.totalDwellTime >= MIN_DWELL_TIME_MS && this.postId) {
-      try {
-        this.pushEvent('record_dwell_time', {
-          post_id: this.postId,
-          dwell_time_ms: this.totalDwellTime,
-          scroll_depth: this.maxScrollDepth,
-          expanded: this.wasExpanded,
-          source: this.source
-        })
-      } catch (e) {}
-    }
+    const queuedPayload = takeQueuedDwellPayload(this.postId)
+    const pendingDwellTime = this.totalDwellTime - this.lastReportedDwellTime
+    const directPayload = buildDwellPayload(this, pendingDwellTime)
+    const payload = mergeDwellPayloads(queuedPayload, directPayload)
+
+    if (!payload) return
+
+    if (directPayload) this.lastReportedDwellTime = this.totalDwellTime
+
+    try { this.pushEvent('record_dwell_time', payload) } catch (e) {}
   },
 
   recordScrollPast() {
@@ -531,6 +567,7 @@ export const DwellTimeTracker = {
     this.source = this.el.dataset.source || 'feed'
     this.startTime = null
     this.totalDwellTime = 0
+    this.lastReportedDwellTime = 0
     this.maxScrollDepth = 0
     this.isVisible = false
     this.wasExpanded = false
@@ -600,16 +637,14 @@ export const DwellTimeTracker = {
   },
 
   bufferDwellData() {
-    if (this.totalDwellTime >= MIN_DWELL_TIME_MS) {
-      dwellTimeBuffer.set(this.postId, {
-        post_id: this.postId,
-        dwell_time_ms: this.totalDwellTime,
-        scroll_depth: this.maxScrollDepth,
-        expanded: this.wasExpanded,
-        source: this.source
-      })
-      this.scheduleBatchSend()
-    }
+    const pendingDwellTime = this.totalDwellTime - this.lastReportedDwellTime
+    const payload = buildDwellPayload(this, pendingDwellTime)
+
+    if (!payload) return
+
+    queueDwellPayload(this.postId, payload)
+    this.lastReportedDwellTime = this.totalDwellTime
+    this.scheduleBatchSend()
   },
 
   scheduleBatchSend() {
@@ -629,17 +664,16 @@ export const DwellTimeTracker = {
   },
 
   sendDwellData() {
-    if (this.totalDwellTime >= MIN_DWELL_TIME_MS) {
-      try {
-        this.pushEvent('record_dwell_time', {
-          post_id: this.postId,
-          dwell_time_ms: this.totalDwellTime,
-          scroll_depth: this.maxScrollDepth,
-          expanded: this.wasExpanded,
-          source: this.source
-        })
-      } catch (e) {}
-    }
+    const queuedPayload = takeQueuedDwellPayload(this.postId)
+    const pendingDwellTime = this.totalDwellTime - this.lastReportedDwellTime
+    const directPayload = buildDwellPayload(this, pendingDwellTime)
+    const payload = mergeDwellPayloads(queuedPayload, directPayload)
+
+    if (!payload) return
+
+    if (directPayload) this.lastReportedDwellTime = this.totalDwellTime
+
+    try { this.pushEvent('record_dwell_time', payload) } catch (e) {}
   },
 
   recordScrollPast() {

@@ -48,7 +48,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
             |> assign(:reply_to_post, reply_to_post)
             |> assign(:reply_to_post_recent_replies, recent_replies)
             |> maybe_fetch_remote_replies_preview(message_id, reply_to_post, recent_replies)
-            |> Helpers.refresh_filtered_posts(
+            |> Helpers.touch_filtered_posts(
               Enum.reject(
                 [current_reply && current_reply.id, message_id],
                 &is_nil/1
@@ -69,15 +69,15 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
 
   # Cancels the reply form and clears reply state.
   def handle_event("cancel_reply", _params, socket) do
-    active_post_id = socket.assigns.reply_to_post && socket.assigns.reply_to_post.id
-
     {:noreply,
      socket
      |> assign(:reply_to_post, nil)
      |> assign(:reply_to_post_recent_replies, [])
      |> assign(:reply_to_reply_id, nil)
      |> assign(:reply_content, "")
-     |> Helpers.refresh_filtered_post(active_post_id)}
+     |> Helpers.touch_filtered_posts(
+       socket.assigns.reply_to_post && socket.assigns.reply_to_post.id
+     )}
   end
 
   # Shows the reply form for replying to a reply.
@@ -100,7 +100,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
            recent_replies_for_post(socket, post_id, reply_to_post)
          )
          |> assign(:reply_content, "")
-         |> Helpers.refresh_filtered_post(post_id)}
+         |> Helpers.touch_filtered_posts(post_id)}
 
       {:error, :invalid_id} ->
         {:noreply, socket}
@@ -212,7 +212,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
              :manual_loading_remote_replies,
              MapSet.put(manual_loading_set, normalized_post_id)
            )
-           |> Helpers.refresh_filtered_post(normalized_post_id)}
+           |> Helpers.touch_filtered_posts(normalized_post_id)}
         end
 
       {:error, :invalid_id} ->
@@ -270,11 +270,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
   end
 
   defp update_reply_content(socket, content) do
-    active_post_id = socket.assigns.reply_to_post && socket.assigns.reply_to_post.id
-
     socket
     |> assign(:reply_content, content)
-    |> Helpers.refresh_filtered_post(active_post_id)
+    |> Helpers.touch_filtered_posts(
+      socket.assigns.reply_to_post && socket.assigns.reply_to_post.id
+    )
   end
 
   defp query_recent_replies(message_id) do

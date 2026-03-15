@@ -9,8 +9,10 @@ defmodule ElektrineWeb.PageLive.Privacy do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen">
-      <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div>
+      <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <.z_nav active_tab="" class="mb-6" />
+
         <div id="privacy-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
           <div class="card-body">
             <h1 class="card-title text-3xl mb-6">Privacy Policy</h1>
@@ -31,7 +33,9 @@ defmodule ElektrineWeb.PageLive.Privacy do
                   <li>Files and attachments you upload</li>
                 </ul>
 
-                <h3 class="text-xl font-semibold mb-2 mt-4">Information We Collect Automatically</h3>
+                <h3 class="text-xl font-semibold mb-2 mt-4">
+                  Information We Collect Automatically
+                </h3>
                 <ul class="list-disc pl-6 space-y-2">
                   <li>IP addresses and browser information</li>
                   <li>Device information and operating system</li>

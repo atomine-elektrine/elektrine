@@ -109,7 +109,11 @@
             <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search
           </button>
           <%= if search_active do %>
-            <a href={~p"/pripyat/content-moderation?type=#{@content_type}"} class="btn btn-ghost">
+            <a
+              href={~p"/pripyat/content-moderation?type=#{@content_type}"}
+              data-search-clear="true"
+              class="btn btn-ghost"
+            >
               Reset
             </a>
           <% end %>

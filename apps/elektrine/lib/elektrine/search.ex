@@ -40,6 +40,7 @@ defmodule Elektrine.Search do
       %{results: [], total_count: 0}
     else
       search_term = "%#{trimmed_query}%"
+      search_patterns = wildcard_search_patterns(trimmed_query)
 
       results = []
 
@@ -49,7 +50,7 @@ defmodule Elektrine.Search do
         else
           results
           |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_people(user, search_term, limit)
+            search_people(user, search_patterns, limit)
           end)
           |> maybe_append_search_results(scopes, strict_scopes?, ["read:chat"], fn ->
             search_chat_messages(user, search_term, limit)
@@ -64,7 +65,7 @@ defmodule Elektrine.Search do
             search_communities(user, search_term, limit)
           end)
           |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_federated_posts(search_term, limit)
+            search_federated_posts(search_patterns, limit)
           end)
           |> maybe_append_search_results(scopes, strict_scopes?, ["read:email"], fn ->
             search_emails(user, search_term, limit)
@@ -90,12 +91,12 @@ defmodule Elektrine.Search do
     end
   end
 
-  defp search_people(user, search_term, limit) do
+  defp search_people(user, search_patterns, limit) do
+    people_filter = person_match_dynamic(search_patterns)
+
     from(u in Elektrine.Accounts.User,
-      where:
-        u.id != ^user.id and
-          (ilike(u.username, ^search_term) or ilike(u.display_name, ^search_term) or
-             ilike(u.handle, ^search_term)),
+      where: u.id != ^user.id,
+      where: ^people_filter,
       select: %{
         id: u.id,
         type: "person",
@@ -311,18 +312,17 @@ defmodule Elektrine.Search do
 
   # Search federated posts from remote instances
   # These are public posts received via ActivityPub, not encrypted
-  defp search_federated_posts(search_term, limit) do
+  defp search_federated_posts(search_patterns, limit) do
+    federated_filter = federated_post_match_dynamic(search_patterns)
+
     from(m in Elektrine.Messaging.Message,
       left_join: a in Elektrine.ActivityPub.Actor,
       on: a.id == m.remote_actor_id,
       where:
         m.federated == true and
           m.visibility in ["public", "unlisted"] and
-          is_nil(m.deleted_at) and
-          (ilike(m.content, ^search_term) or
-             (not is_nil(m.title) and ilike(m.title, ^search_term)) or
-             (not is_nil(a.display_name) and ilike(a.display_name, ^search_term)) or
-             (not is_nil(a.username) and ilike(a.username, ^search_term))),
+          is_nil(m.deleted_at),
+      where: ^federated_filter,
       select: %{
         id: m.id,
         type: "federated",
@@ -492,6 +492,7 @@ defmodule Elektrine.Search do
       safe_query = sanitize_search_term(partial_query)
       trimmed_query = String.trim(safe_query)
       search_term = "#{trimmed_query}%"
+      search_patterns = prefix_search_patterns(trimmed_query)
 
       if String.starts_with?(trimmed_query, ">") do
         action_entries()
@@ -516,13 +517,16 @@ defmodule Elektrine.Search do
           |> Repo.all()
           |> Enum.filter(&(&1.text != ""))
 
+        people_filter = person_match_dynamic(search_patterns)
+
         people =
           from(u in Elektrine.Accounts.User,
-            where:
-              u.id != ^user.id and
-                (ilike(u.username, ^search_term) or ilike(u.display_name, ^search_term) or
-                   ilike(u.handle, ^search_term)),
-            select: %{text: fragment("CONCAT('@', ?)", u.username), type: "person"},
+            where: u.id != ^user.id,
+            where: ^people_filter,
+            select: %{
+              text: fragment("CONCAT('@', COALESCE(?, ?))", u.handle, u.username),
+              type: "person"
+            },
             limit: ^max(div(limit, 2), 2)
           )
           |> Repo.all()
@@ -903,6 +907,64 @@ defmodule Elektrine.Search do
   end
 
   defp first_attachment_name(_), do: nil
+
+  defp wildcard_search_patterns(query), do: build_search_patterns(query, &"%#{&1}%")
+
+  defp prefix_search_patterns(query), do: build_search_patterns(query, &"#{&1}%")
+
+  defp build_search_patterns(query, formatter) when is_function(formatter, 1) do
+    query
+    |> search_aliases()
+    |> Enum.map(formatter)
+  end
+
+  defp search_aliases(query) when is_binary(query) do
+    trimmed_query = String.trim(query)
+
+    mention_alias =
+      case trimmed_query do
+        "@" <> rest -> String.trim(rest)
+        _ -> nil
+      end
+
+    [trimmed_query, mention_alias]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp search_aliases(_), do: []
+
+  defp person_match_dynamic(search_patterns) do
+    Enum.reduce(search_patterns, dynamic(false), fn search_pattern, dynamic ->
+      dynamic(
+        [u],
+        ^dynamic or ilike(u.username, ^search_pattern) or ilike(u.display_name, ^search_pattern) or
+          ilike(u.handle, ^search_pattern)
+      )
+    end)
+  end
+
+  defp federated_post_match_dynamic(search_patterns) do
+    Enum.reduce(search_patterns, dynamic(false), fn search_pattern, dynamic ->
+      dynamic(
+        [m, a],
+        ^dynamic or
+          ilike(m.content, ^search_pattern) or
+          (not is_nil(m.title) and ilike(m.title, ^search_pattern)) or
+          (not is_nil(a.display_name) and ilike(a.display_name, ^search_pattern)) or
+          (not is_nil(a.username) and ilike(a.username, ^search_pattern)) or
+          (not is_nil(a.domain) and ilike(a.domain, ^search_pattern)) or
+          (not is_nil(a.username) and not is_nil(a.domain) and
+             ilike(fragment("CONCAT(?, '@', ?)", a.username, a.domain), ^search_pattern)) or
+          (not is_nil(a.username) and not is_nil(a.domain) and
+             ilike(
+               fragment("CONCAT('@', ?, '@', ?)", a.username, a.domain),
+               ^search_pattern
+             ))
+      )
+    end)
+  end
 
   # Sanitize search terms to prevent LIKE pattern injection
   defp sanitize_search_term(term), do: Elektrine.TextHelpers.sanitize_search_term(term)

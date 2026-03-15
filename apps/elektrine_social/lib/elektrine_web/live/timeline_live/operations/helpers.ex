@@ -5,6 +5,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
 
   import Phoenix.Component
   import Phoenix.LiveView
+  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias ElektrineWeb.Components.Social.PostUtilities
 
   # Apply timeline filter to socket
@@ -96,6 +97,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
         Map.get(previous_posts_by_id, post.id) != post
       end)
 
+    changed_existing_posts =
+      Enum.filter(changed_posts, fn post ->
+        Map.has_key?(previous_posts_by_id, post.id)
+      end)
+
     socket =
       socket
       |> assign(:filtered_posts, filtered_posts)
@@ -110,7 +116,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
 
         socket
         |> append_filtered_posts(appended_posts)
-        |> refresh_changed_filtered_posts(Enum.filter(changed_posts, &(&1.id in previous_ids)))
+        |> refresh_changed_filtered_posts(changed_existing_posts)
 
       ids_suffixed?(previous_ids, current_ids) ->
         prepended_count = length(current_ids) - length(previous_ids)
@@ -118,14 +124,14 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
 
         socket
         |> prepend_filtered_posts(prepended_posts)
-        |> refresh_changed_filtered_posts(Enum.filter(changed_posts, &(&1.id in previous_ids)))
+        |> refresh_changed_filtered_posts(changed_existing_posts)
 
       ids_subsequence?(current_ids, previous_ids) ->
         removed_ids = previous_ids -- current_ids
 
         socket
         |> remove_filtered_posts(previous_posts_by_id, removed_ids)
-        |> refresh_changed_filtered_posts(Enum.filter(changed_posts, &(&1.id in previous_ids)))
+        |> refresh_changed_filtered_posts(changed_existing_posts)
 
       true ->
         stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
@@ -139,32 +145,44 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
   end
 
   def refresh_filtered_posts(socket, post_ids) when is_list(post_ids) do
-    post_ids
-    |> Enum.uniq()
-    |> Enum.reduce(socket, fn post_id, acc -> refresh_filtered_post(acc, post_id) end)
+    touch_filtered_posts(socket, post_ids)
   end
 
   def refresh_filtered_posts(socket, _), do: socket
 
   def refresh_interaction_posts(socket, message_id) do
     case interaction_refresh_post_ids(socket, message_id) do
-      [] -> refresh_filtered_posts_stream(socket)
-      post_ids -> refresh_filtered_posts(socket, post_ids)
+      [] -> socket
+      post_ids -> touch_filtered_posts(socket, post_ids)
+    end
+  end
+
+  def touch_filtered_posts(socket, post_ids) when is_list(post_ids) do
+    normalized_ids =
+      post_ids
+      |> Enum.map(&normalize_post_id/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    posts =
+      socket.assigns[:filtered_posts]
+      |> Kernel.||([])
+      |> Enum.filter(fn post -> MapSet.member?(normalized_ids, normalize_post_id(post.id)) end)
+
+    refresh_changed_filtered_posts(socket, posts)
+  end
+
+  def touch_filtered_posts(socket, post_id), do: touch_filtered_posts(socket, [post_id])
+
+  def touch_interaction_posts(socket, message_id) do
+    case interaction_refresh_post_ids(socket, message_id) do
+      [] -> socket
+      post_ids -> touch_filtered_posts(socket, post_ids)
     end
   end
 
   def refresh_filtered_post(socket, post_id) do
-    normalized_post_id = normalize_post_id(post_id)
-
-    case Enum.find(socket.assigns[:filtered_posts] || [], fn post ->
-           post.id == normalized_post_id
-         end) do
-      nil ->
-        socket
-
-      post ->
-        stream_insert(socket, :timeline_filtered_posts, post)
-    end
+    touch_filtered_posts(socket, post_id)
   end
 
   def refresh_posts_for_remote_actor(socket, remote_actor_id) do
@@ -210,10 +228,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
 
   def interaction_refresh_post_ids(socket, message_id) do
     normalized_message_id = normalize_post_id(message_id)
+    filtered_posts = socket.assigns[:filtered_posts] || []
+    message_lookup = build_interaction_message_lookup(socket)
 
     direct_post_ids =
-      socket.assigns[:filtered_posts]
-      |> Kernel.||([])
+      filtered_posts
       |> Enum.filter(fn post ->
         post.id == normalized_message_id ||
           post.shared_message_id == normalized_message_id ||
@@ -233,7 +252,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
         end
       end)
 
-    (direct_post_ids ++ reply_parent_ids)
+    ancestor_container_ids =
+      filtered_posts
+      |> Enum.filter(&post_references_message?(&1, normalized_message_id, message_lookup))
+      |> Enum.map(& &1.id)
+
+    (direct_post_ids ++ reply_parent_ids ++ ancestor_container_ids)
     |> Enum.uniq()
   end
 
@@ -514,12 +538,6 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
     do_ids_subsequence?(candidate_ids, remaining_ids)
   end
 
-  defp refresh_changed_filtered_posts(socket, posts) do
-    Enum.reduce(posts, socket, fn post, acc ->
-      stream_insert(acc, :timeline_filtered_posts, post)
-    end)
-  end
-
   defp append_filtered_posts(socket, posts) do
     Enum.reduce(posts, socket, fn post, acc ->
       stream_insert(acc, :timeline_filtered_posts, post, at: -1)
@@ -543,6 +561,12 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
     end)
   end
 
+  defp refresh_changed_filtered_posts(socket, posts) do
+    Enum.reduce(posts, socket, fn post, acc ->
+      stream_insert(acc, :timeline_filtered_posts, post, update_only: true)
+    end)
+  end
+
   defp reply_matches_message?(reply, message_id) when is_map(reply) do
     Enum.any?(
       [
@@ -558,6 +582,75 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
   end
 
   defp reply_matches_message?(_, _), do: false
+
+  defp build_interaction_message_lookup(socket) do
+    timeline_posts = socket.assigns[:timeline_posts] || []
+
+    reply_posts =
+      socket.assigns[:post_replies]
+      |> Kernel.||(%{})
+      |> Map.values()
+      |> List.flatten()
+
+    (timeline_posts ++ reply_posts)
+    |> Enum.reduce(%{}, fn
+      %{id: id} = post, acc when is_integer(id) -> Map.put(acc, id, post)
+      _, acc -> acc
+    end)
+  end
+
+  defp post_references_message?(%{id: id}, message_id, _message_lookup) when id == message_id,
+    do: true
+
+  defp post_references_message?(post, message_id, message_lookup) when is_map(post) do
+    post
+    |> Map.get(:reply_to_id)
+    |> normalize_post_id()
+    |> ancestor_chain_contains_message?(message_id, message_lookup, MapSet.new())
+  end
+
+  defp post_references_message?(_, _, _), do: false
+
+  defp ancestor_chain_contains_message?(nil, _message_id, _message_lookup, _seen), do: false
+
+  defp ancestor_chain_contains_message?(current_id, message_id, _message_lookup, _seen)
+       when current_id == message_id,
+       do: true
+
+  defp ancestor_chain_contains_message?(current_id, message_id, message_lookup, seen) do
+    normalized_current_id = normalize_post_id(current_id)
+
+    cond do
+      is_nil(normalized_current_id) ->
+        false
+
+      MapSet.member?(seen, normalized_current_id) ->
+        false
+
+      true ->
+        next_seen = MapSet.put(seen, normalized_current_id)
+
+        case fetch_interaction_message(message_lookup, normalized_current_id) do
+          %{reply_to_id: reply_to_id} ->
+            ancestor_chain_contains_message?(
+              normalize_post_id(reply_to_id),
+              message_id,
+              message_lookup,
+              next_seen
+            )
+
+          _ ->
+            false
+        end
+    end
+  end
+
+  defp fetch_interaction_message(message_lookup, message_id) do
+    case Map.get(message_lookup, message_id) do
+      nil -> MessagingMessages.get_message(message_id)
+      message -> message
+    end
+  end
 
   defp normalize_post_id(post_id) when is_integer(post_id), do: post_id
 

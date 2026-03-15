@@ -363,6 +363,7 @@
         <button
           type="button"
           phx-click="clear_search"
+          data-search-clear="true"
           class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
           aria-label={gettext("Clear search")}
         >
@@ -372,18 +373,13 @@
     </form>
   </div>
 
-  <div class="flex flex-col sm:flex-row gap-0 sm:gap-4 lg:gap-6">
+  <div class="flex flex-col sm:flex-row gap-4 lg:gap-6">
     <!-- Left Sidebar - Post composer and search (Hidden on mobile) -->
-    <div class="hidden sm:block w-48 lg:w-56 xl:w-64 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
-      <div
-        id="timeline-left-sidebar"
-        phx-hook="GlassCard"
-        class="card social-page-card glass-card shadow-lg flex flex-col overflow-y-auto h-full"
-      >
-        <div class="p-4">
-          <!-- Post Composer Toggle -->
+    <div class="hidden sm:block w-64 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
+      <div id="timeline-left-sidebar" class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body p-4 space-y-4">
           <%= if @current_user do %>
-            <div class="flex gap-2 mb-4">
+            <div class="flex gap-2">
               <button
                 phx-click="toggle_post_composer"
                 class="btn btn-secondary flex-1"
@@ -413,8 +409,7 @@
               </button>
             </div>
           <% end %>
-          
-<!-- Search -->
+
           <form
             id="timeline-left-sidebar-search"
             phx-change="search_timeline"
@@ -438,6 +433,7 @@
               <button
                 type="button"
                 phx-click="clear_search"
+                data-search-clear="true"
                 class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-xs"
                 aria-label={gettext("Clear search")}
               >
@@ -448,1188 +444,917 @@
         </div>
       </div>
     </div>
-    
-<!-- Main Timeline -->
-    <div
-      class="flex-1 min-w-0 max-w-full sm:max-w-full card social-page-card shadow-lg"
-      phx-hook="InfiniteScroll"
-      id="timeline-infinite-scroll"
-      data-offset="500"
-      data-no-more={@no_more_posts}
-      data-loading-more={@loading_more}
-    >
-      <!-- Unified Timeline Header with Filters -->
-      <div class="p-4 border-b border-base-300 bg-base-50 space-y-3">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="text-base font-semibold">Timeline</h2>
-          <.link navigate={~p"/communities"} class="btn btn-ghost btn-xs">
-            Communities
-          </.link>
-        </div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Feed</p>
-        
-<!-- Filter Pills Row -->
-        <div
-          class="hidden sm:flex items-center gap-2 flex-wrap"
-          role="tablist"
-          aria-label="Timeline filters"
-        >
-          <%= if @current_user do %>
-            <button
-              phx-click="set_filter"
-              phx-value-filter="home"
-              role="tab"
-              aria-selected={@current_filter == "home"}
-              aria-label="Show your home feed"
-              class={[
-                "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@current_filter == "home",
-                  do: "btn-secondary",
-                  else: "btn-ghost bg-base-100 hover:bg-base-200"
-                )
-              ]}
-            >
-              <.icon name="hero-squares-2x2" class="w-4 h-4" />
-              <span>Home</span>
-            </button>
-            <button
-              phx-click="set_filter"
-              phx-value-filter="for_you"
-              role="tab"
-              aria-selected={@current_filter == "for_you"}
-              aria-label="Show personalized recommended posts"
-              class={[
-                "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@current_filter == "for_you",
-                  do: "btn-secondary",
-                  else: "btn-ghost bg-base-100 hover:bg-base-200"
-                )
-              ]}
-            >
-              <.icon name="hero-sparkles" class="w-4 h-4" />
-              <span>For You</span>
-            </button>
-          <% end %>
-          <button
-            phx-click="set_filter"
-            phx-value-filter="explore"
-            role="tab"
-            aria-selected={@current_filter == "explore"}
-            aria-label="Show public discovery posts"
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@current_filter == "explore",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-globe-alt" class="w-4 h-4" />
-            <span>Explore</span>
-          </button>
-          <button
-            phx-click="set_filter"
-            phx-value-filter="local"
-            role="tab"
-            aria-selected={@current_filter == "local"}
-            aria-label="Show local posts"
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@current_filter == "local",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-home" class="w-4 h-4" />
-            <span>Local</span>
-          </button>
-          <button
-            phx-click="set_filter"
-            phx-value-filter="federated"
-            role="tab"
-            aria-selected={@current_filter == "federated"}
-            aria-label="Show federated posts"
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@current_filter == "federated",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-globe-americas" class="w-4 h-4" />
-            <span>Fediverse</span>
-          </button>
-          <%= if @current_user do %>
-            <button
-              phx-click="set_filter"
-              phx-value-filter="saved"
-              role="tab"
-              aria-selected={@current_filter == "saved"}
-              aria-label="Show saved posts"
-              class={[
-                "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@current_filter == "saved",
-                  do: "btn-secondary",
-                  else: "btn-ghost bg-base-100 hover:bg-base-200"
-                )
-              ]}
-            >
-              <.icon name="hero-bookmark" class="w-4 h-4" />
-              <span>Saved</span>
-            </button>
-            <button
-              phx-click="set_filter"
-              phx-value-filter="rss"
-              role="tab"
-              aria-selected={@current_filter == "rss"}
-              aria-label="Show RSS feed items"
-              class={[
-                "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@current_filter == "rss",
-                  do: "btn-secondary",
-                  else: "btn-ghost bg-base-100 hover:bg-base-200"
-                )
-              ]}
-            >
-              <.icon name="hero-rss" class="w-4 h-4" />
-              <span>RSS</span>
-            </button>
-          <% end %>
-          
-<!-- Separator + Platform filter (only when federated) -->
-          <%= if @current_filter == "federated" do %>
-            <div class="h-6 w-px bg-base-300 mx-1"></div>
-            <div class="dropdown dropdown-end">
-              <label tabindex="0" class="btn btn-ghost btn-sm gap-1 px-3" aria-haspopup="true">
-                <.icon name="hero-funnel" class="w-4 h-4" />
-                <span class="hidden lg:inline">
-                  <%= case @software_filter do %>
-                    <% "all" -> %>
-                      All Platforms
-                    <% "mastodon" -> %>
-                      Mastodon
-                    <% "pixelfed" -> %>
-                      Pixelfed
-                    <% "pleroma" -> %>
-                      Pleroma
-                    <% "misskey" -> %>
-                      Misskey
-                    <% "lemmy" -> %>
-                      Lemmy
-                    <% _ -> %>
-                      All Platforms
-                  <% end %>
-                </span>
-                <.icon name="hero-chevron-down" class="w-3 h-3" />
-              </label>
-              <ul
-                tabindex="0"
-                class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-44 border border-base-300"
-                role="menu"
-              >
-                <%= for {value, label} <- [{"all", "All Platforms"}, {"mastodon", "Mastodon"}, {"pixelfed", "Pixelfed"}, {"pleroma", "Pleroma"}, {"misskey", "Misskey"}, {"lemmy", "Lemmy"}] do %>
-                  <li role="menuitem">
-                    <button
-                      phx-click="set_software_filter"
-                      phx-value-software={value}
-                      class={if @software_filter == value, do: "active", else: ""}
-                      aria-current={if @software_filter == value, do: "true", else: "false"}
-                    >
-                      {label}
-                    </button>
-                  </li>
-                <% end %>
-              </ul>
-            </div>
-          <% end %>
-        </div>
-      </div>
-      <!-- Post Composer Modal -->
-      <%= if @show_post_composer do %>
-        <div class="p-4 border-b border-base-300 bg-base-50" id="post-composer-container">
-          <.form
-            for={%{}}
-            phx-submit="create_post"
-            phx-change="autosave_draft"
-            class="space-y-4"
-            id="post-composer-form"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-medium">
-                  <%= if @composer_intent == "note" do %>
-                    New note
-                  <% else %>
-                    New post
-                  <% end %>
-                </p>
-                <p class="text-xs opacity-70">
-                  <%= if @composer_intent == "note" do %>
-                    Private by default. Use this for quick personal capture.
-                  <% else %>
-                    Share something with your timeline.
-                  <% end %>
-                </p>
-              </div>
-              <span class="badge badge-ghost badge-sm">
-                <%= if @composer_intent == "note" do %>
-                  Note
-                <% else %>
-                  Post
-                <% end %>
-              </span>
-            </div>
 
-            <input
-              type="text"
-              name="title"
-              placeholder={gettext("Title (optional)")}
-              class="input input-bordered w-full"
-              id="post-composer-title"
-              value={@new_post_title || ""}
-              phx-debounce="2000"
-            />
-
-            <%= if @show_cw_input do %>
-              <input
-                type="text"
-                name="cw"
-                placeholder={gettext("Content warning (e.g., 'spoilers', 'politics', etc.)")}
-                class="input input-bordered input-warning w-full"
-                id="post-composer-cw"
-                value={@new_post_content_warning || ""}
-                phx-debounce="2000"
-              />
-            <% end %>
-
-            <textarea
-              name="content"
-              placeholder={
-                if @composer_intent == "note" do
-                  gettext("Capture a private note")
-                else
-                  gettext("What's on your mind?")
-                end
-              }
-              class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
-              style="min-height: 4rem; max-height: 20rem;"
-              rows="3"
-              phx-hook="AutoExpandTextarea"
-              data-submit-on-enter="false"
-              data-live-update-event="update_post_content_live"
-              id="timeline-post-textarea"
-              phx-debounce="2000"
-            ><%= @new_post_content %></textarea>
-            
-<!-- Pending Media Preview -->
-            <%= if !Enum.empty?(@pending_media_urls) do %>
-              <div class="flex items-center gap-2 p-2 bg-base-50 rounded-lg">
-                <.icon name="hero-photo" class="w-4 h-4 text-secondary" />
-                <span class="text-sm">{length(@pending_media_urls)} file(s) attached</span>
-                <button
-                  type="button"
-                  phx-click="clear_pending_images"
-                  class="btn btn-ghost btn-xs ml-auto"
-                >
-                  <.icon name="hero-x-mark" class="w-3 h-3" />
-                </button>
-              </div>
-            <% end %>
-
-            <div class="flex justify-between items-center">
-              <div class="flex items-center gap-2">
-                <select
-                  name="visibility"
-                  value={@new_post_visibility}
-                  class="select select-bordered select-sm"
-                  phx-update="ignore"
-                  id="timeline-visibility-select"
-                >
-                  <option value="public">Public</option>
-                  <option value="followers">Followers</option>
-                  <option value="friends">Friends Only</option>
-                  <option value="private">Private</option>
-                </select>
-
-                <button
-                  type="button"
-                  phx-click="open_image_upload"
-                  class="btn btn-ghost btn-sm btn-circle"
-                  title="Add media"
-                >
-                  <.icon name="hero-photo" class="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  phx-click="toggle_content_warning"
-                  class={[
-                    "btn btn-ghost btn-sm btn-circle",
-                    @show_cw_input && "bg-warning/20 text-warning"
-                  ]}
-                  title="Add content warning"
-                >
-                  <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
-                </button>
-              </div>
-
-              <div class="flex gap-2 items-center">
-                <span class={[
-                  "text-xs",
-                  String.length(@new_post_content || "") < 3 && "text-error",
-                  String.length(@new_post_content || "") >= 3 && "text-success"
-                ]}>
-                  {String.length(@new_post_content || "")}/3 min
-                </span>
-                <button
-                  type="button"
-                  phx-click="toggle_post_composer"
-                  class="btn btn-ghost btn-sm"
-                >
-                  {gettext("Cancel")}
-                </button>
-                <button
-                  type="button"
-                  phx-click="save_draft"
-                  class="btn btn-outline btn-sm"
-                  title={gettext("Save as draft")}
-                  disabled={@draft_saving}
-                >
-                  <%= if @draft_saving do %>
-                    <.spinner size="xs" />
-                    <span class="hidden sm:inline ml-1">{gettext("Saving...")}</span>
-                  <% else %>
-                    <.icon name="hero-bookmark" class="w-4 h-4" />
-                    <span class="hidden sm:inline ml-1">{gettext("Save Draft")}</span>
-                  <% end %>
-                </button>
-                <button
-                  type="submit"
-                  class="btn btn-secondary btn-sm"
-                  phx-disable-with="Posting..."
-                  disabled={String.length(@new_post_content || "") < 3}
-                >
-                  <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" />
-                  {gettext("Post")}
-                </button>
-              </div>
-            </div>
-          </.form>
-        </div>
-      <% end %>
-      
-<!-- Drafts Panel -->
-      <%= if @show_drafts_panel do %>
-        <div class="p-4 border-b border-base-300 bg-base-50" id="drafts-panel">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="font-semibold flex items-center gap-2">
-              <.icon name="hero-document-duplicate" class="w-5 h-5" />
-              {gettext("Your Drafts")}
-            </h3>
-            <button
-              type="button"
-              phx-click="hide_drafts"
-              class="btn btn-ghost btn-sm btn-circle"
-            >
-              <.icon name="hero-x-mark" class="w-4 h-4" />
-            </button>
+    <div class="flex-1 min-w-0 max-w-full">
+      <!-- Main Timeline -->
+      <div
+        class="card border border-base-300 bg-base-100 shadow-sm overflow-hidden"
+        phx-hook="InfiniteScroll"
+        id="timeline-infinite-scroll"
+        data-offset="500"
+        data-no-more={@no_more_posts}
+        data-loading-more={@loading_more}
+      >
+        <!-- Unified Timeline Header with Filters -->
+        <div class="p-4 border-b border-base-300 bg-base-100 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-base font-semibold">Timeline</h2>
+            <.link navigate={~p"/communities"} class="btn btn-ghost btn-xs">
+              Communities
+            </.link>
           </div>
-
-          <%= if Enum.empty?(@user_drafts || []) do %>
-            <p class="text-sm text-base-content/60 py-4 text-center">
-              {gettext("No drafts yet. Start writing and save for later!")}
-            </p>
-          <% else %>
-            <div class="space-y-3 max-h-64 overflow-y-auto">
-              <%= for draft <- @user_drafts do %>
-                <div class="p-3 bg-base-100 rounded-lg border border-base-300">
-                  <div class="flex justify-between items-start gap-2">
-                    <div class="flex-1 min-w-0">
-                      <%= if draft.title do %>
-                        <p class="font-medium text-sm truncate">{draft.title}</p>
-                      <% end %>
-                      <p class="text-sm text-base-content/70 line-clamp-2">
-                        {draft.content || gettext("(empty)")}
-                      </p>
-                      <p class="text-xs text-base-content/50 mt-1">
-                        {Elektrine.TextHelpers.time_ago_short(draft.updated_at)}
-                        <span class="mx-1">-</span>
-                        {draft.visibility}
-                      </p>
-                    </div>
-                    <div class="flex gap-1 flex-shrink-0">
-                      <button
-                        type="button"
-                        phx-click="edit_draft"
-                        phx-value-draft_id={draft.id}
-                        class="btn btn-ghost btn-xs"
-                        title={gettext("Edit")}
-                      >
-                        <.icon name="hero-pencil" class="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="publish_draft"
-                        phx-value-draft_id={draft.id}
-                        class="btn btn-secondary btn-xs"
-                        title={gettext("Publish")}
-                      >
-                        <.icon name="hero-paper-airplane" class="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="delete_draft"
-                        phx-value-draft_id={draft.id}
-                        class="btn btn-ghost btn-xs text-error"
-                        title={gettext("Delete")}
-                        data-confirm={gettext("Delete this draft?")}
-                      >
-                        <.icon name="hero-trash" class="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          <% end %>
-        </div>
-      <% end %>
-      
-<!-- Feed View Chips -->
-      <div class="mx-4 mb-4 pt-4">
-        <div class="flex items-center justify-between gap-2 mb-2">
-          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            View Mode
-          </p>
-          <p class="text-xs text-base-content/60">
-            {length(@filtered_posts)} shown
-          </p>
-        </div>
-        <div
-          class="flex flex-wrap items-center gap-2"
-          role="tablist"
-          aria-label="Timeline view filters"
-        >
-          <button
-            type="button"
-            phx-click="filter_timeline"
-            phx-value-filter="all"
-            role="tab"
-            aria-selected={@timeline_filter == "all"}
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@timeline_filter == "all",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
+          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Feed</p>
+          
+<!-- Filter Pills Row -->
+          <div
+            class="hidden sm:flex items-center gap-2 flex-wrap"
+            role="tablist"
+            aria-label="Timeline filters"
           >
-            <.icon name="hero-squares-2x2" class="w-4 h-4 mr-1" /> All
-          </button>
-
-          <button
-            type="button"
-            phx-click="filter_timeline"
-            phx-value-filter="posts"
-            role="tab"
-            aria-selected={@timeline_filter == "posts"}
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@timeline_filter == "posts",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Posts
-          </button>
-
-          <button
-            type="button"
-            phx-click="filter_timeline"
-            phx-value-filter="replies"
-            role="tab"
-            aria-selected={@timeline_filter == "replies"}
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@timeline_filter == "replies",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" /> Replies
-          </button>
-
-          <button
-            type="button"
-            phx-click="filter_timeline"
-            phx-value-filter="media"
-            role="tab"
-            aria-selected={@timeline_filter == "media"}
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@timeline_filter == "media",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
-          </button>
-
-          <button
-            type="button"
-            phx-click="filter_timeline"
-            phx-value-filter="communities"
-            role="tab"
-            aria-selected={@timeline_filter == "communities"}
-            class={[
-              "btn btn-sm min-h-10 px-3 rounded-full",
-              if(@timeline_filter == "communities",
-                do: "btn-secondary",
-                else: "btn-ghost bg-base-100 hover:bg-base-200"
-              )
-            ]}
-          >
-            <.icon name="hero-users" class="w-4 h-4 mr-1" /> Communities
-          </button>
-
-          <%= if @current_filter != "federated" && @current_user do %>
-            <div class="h-6 w-px bg-base-300 mx-1"></div>
-
-            <%= if length(@friends) > 0 do %>
+            <%= if @current_user do %>
               <button
-                type="button"
-                phx-click="filter_timeline"
-                phx-value-filter="friends"
+                phx-click="set_filter"
+                phx-value-filter="home"
                 role="tab"
-                aria-selected={@timeline_filter == "friends"}
+                aria-selected={@current_filter == "home"}
+                aria-label="Show your home feed"
                 class={[
                   "btn btn-sm min-h-10 px-3 rounded-full",
-                  if(@timeline_filter == "friends",
+                  if(@current_filter == "home",
                     do: "btn-secondary",
                     else: "btn-ghost bg-base-100 hover:bg-base-200"
                   )
                 ]}
               >
-                <.icon name="hero-user-group" class="w-4 h-4 mr-1" /> Friends
+                <.icon name="hero-squares-2x2" class="w-4 h-4" />
+                <span>Home</span>
+              </button>
+              <button
+                phx-click="set_filter"
+                phx-value-filter="for_you"
+                role="tab"
+                aria-selected={@current_filter == "for_you"}
+                aria-label="Show personalized recommended posts"
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full",
+                  if(@current_filter == "for_you",
+                    do: "btn-secondary",
+                    else: "btn-ghost bg-base-100 hover:bg-base-200"
+                  )
+                ]}
+              >
+                <.icon name="hero-sparkles" class="w-4 h-4" />
+                <span>For You</span>
               </button>
             <% end %>
-
             <button
-              type="button"
-              phx-click="filter_timeline"
-              phx-value-filter="my_posts"
+              phx-click="set_filter"
+              phx-value-filter="explore"
               role="tab"
-              aria-selected={@timeline_filter == "my_posts"}
+              aria-selected={@current_filter == "explore"}
+              aria-label="Show public discovery posts"
               class={[
                 "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@timeline_filter == "my_posts",
+                if(@current_filter == "explore",
                   do: "btn-secondary",
                   else: "btn-ghost bg-base-100 hover:bg-base-200"
                 )
               ]}
             >
-              <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
+              <.icon name="hero-globe-alt" class="w-4 h-4" />
+              <span>Explore</span>
             </button>
-
             <button
-              type="button"
-              phx-click="filter_timeline"
-              phx-value-filter="trusted"
+              phx-click="set_filter"
+              phx-value-filter="local"
               role="tab"
-              aria-selected={@timeline_filter == "trusted"}
+              aria-selected={@current_filter == "local"}
+              aria-label="Show local posts"
               class={[
                 "btn btn-sm min-h-10 px-3 rounded-full",
-                if(@timeline_filter == "trusted",
+                if(@current_filter == "local",
                   do: "btn-secondary",
                   else: "btn-ghost bg-base-100 hover:bg-base-200"
                 )
               ]}
             >
-              <.icon name="hero-shield-check" class="w-4 h-4 mr-1" /> Trusted
+              <.icon name="hero-home" class="w-4 h-4" />
+              <span>Local</span>
             </button>
-          <% end %>
-        </div>
-      </div>
-      
-<!-- New Posts Button -->
-      <%= if length(@queued_posts) > 0 do %>
-        <div class="mx-4 mb-2 flex justify-center">
-          <button
-            phx-click="load_queued_posts"
-            data-load-queued-posts
-            class="btn btn-secondary btn-sm sm:btn-md gap-2 shadow-sm animate-bounce-subtle"
-          >
-            <.icon name="hero-arrow-up" class="w-4 h-4" />
-            <span>
-              Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
-                do: "post",
-                else: "posts"}
-            </span>
-          </button>
-        </div>
-      <% end %>
-      
-<!-- Timeline Feed -->
-      <div
-        class="p-4 space-y-4 isolate timeline-feed-region"
-        data-timeline-container
-        id="timeline-posts-container"
-      >
-        <!-- Loading Skeleton -->
-        <%= if @loading_timeline do %>
-          <div class="space-y-4 animate-pulse" data-timeline-loading-skeleton>
-            <div class="rounded-xl border border-base-300 bg-base-100 p-3 text-sm text-base-content/70">
-              Loading timeline updates...
-            </div>
-            <%= for _i <- 1..3 do %>
-              <div class="card bg-base-100 shadow-sm">
-                <div class="card-body p-4">
-                  <div class="flex items-start gap-3">
-                    <div class="w-10 h-10 rounded-full bg-base-300"></div>
-                    <div class="flex-1 space-y-2">
-                      <div class="h-4 bg-base-300 rounded w-1/4"></div>
-                      <div class="h-3 bg-base-300 rounded w-1/6"></div>
-                    </div>
-                  </div>
-                  <div class="mt-3 space-y-2">
-                    <div class="h-4 bg-base-300 rounded w-full"></div>
-                    <div class="h-4 bg-base-300 rounded w-5/6"></div>
-                    <div class="h-4 bg-base-300 rounded w-4/6"></div>
-                  </div>
-                  <div class="mt-4 flex gap-4">
-                    <div class="h-6 bg-base-300 rounded w-16"></div>
-                    <div class="h-6 bg-base-300 rounded w-16"></div>
-                    <div class="h-6 bg-base-300 rounded w-16"></div>
-                  </div>
-                </div>
+            <button
+              phx-click="set_filter"
+              phx-value-filter="federated"
+              role="tab"
+              aria-selected={@current_filter == "federated"}
+              aria-label="Show federated posts"
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full",
+                if(@current_filter == "federated",
+                  do: "btn-secondary",
+                  else: "btn-ghost bg-base-100 hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-globe-americas" class="w-4 h-4" />
+              <span>Fediverse</span>
+            </button>
+            <%= if @current_user do %>
+              <button
+                phx-click="set_filter"
+                phx-value-filter="saved"
+                role="tab"
+                aria-selected={@current_filter == "saved"}
+                aria-label="Show saved posts"
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full",
+                  if(@current_filter == "saved",
+                    do: "btn-secondary",
+                    else: "btn-ghost bg-base-100 hover:bg-base-200"
+                  )
+                ]}
+              >
+                <.icon name="hero-bookmark" class="w-4 h-4" />
+                <span>Saved</span>
+              </button>
+              <button
+                phx-click="set_filter"
+                phx-value-filter="rss"
+                role="tab"
+                aria-selected={@current_filter == "rss"}
+                aria-label="Show RSS feed items"
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full",
+                  if(@current_filter == "rss",
+                    do: "btn-secondary",
+                    else: "btn-ghost bg-base-100 hover:bg-base-200"
+                  )
+                ]}
+              >
+                <.icon name="hero-rss" class="w-4 h-4" />
+                <span>RSS</span>
+              </button>
+            <% end %>
+            
+<!-- Separator + Platform filter (only when federated) -->
+            <%= if @current_filter == "federated" do %>
+              <div class="h-6 w-px bg-base-300 mx-1"></div>
+              <div class="dropdown dropdown-end">
+                <label tabindex="0" class="btn btn-ghost btn-sm gap-1 px-3" aria-haspopup="true">
+                  <.icon name="hero-funnel" class="w-4 h-4" />
+                  <span class="hidden lg:inline">
+                    <%= case @software_filter do %>
+                      <% "all" -> %>
+                        All Platforms
+                      <% "mastodon" -> %>
+                        Mastodon
+                      <% "pixelfed" -> %>
+                        Pixelfed
+                      <% "pleroma" -> %>
+                        Pleroma
+                      <% "misskey" -> %>
+                        Misskey
+                      <% "lemmy" -> %>
+                        Lemmy
+                      <% _ -> %>
+                        All Platforms
+                    <% end %>
+                  </span>
+                  <.icon name="hero-chevron-down" class="w-3 h-3" />
+                </label>
+                <ul
+                  tabindex="0"
+                  class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-44 border border-base-300"
+                  role="menu"
+                >
+                  <%= for {value, label} <- [{"all", "All Platforms"}, {"mastodon", "Mastodon"}, {"pixelfed", "Pixelfed"}, {"pleroma", "Pleroma"}, {"misskey", "Misskey"}, {"lemmy", "Lemmy"}] do %>
+                    <li role="menuitem">
+                      <button
+                        phx-click="set_software_filter"
+                        phx-value-software={value}
+                        class={if @software_filter == value, do: "active", else: ""}
+                        aria-current={if @software_filter == value, do: "true", else: "false"}
+                      >
+                        {label}
+                      </button>
+                    </li>
+                  <% end %>
+                </ul>
               </div>
             <% end %>
           </div>
-        <% else %>
-          <!-- RSS Items (when RSS or Saved filter is active) -->
-          <%= if @current_filter == "rss" do %>
-            <%= if Enum.empty?(@rss_items) do %>
-              <div class="text-center py-12 text-base-content/60">
-                <.icon name="hero-rss" class="w-12 h-12 mx-auto mb-4 opacity-40" />
-                <p class="font-medium">No RSS items yet</p>
-                <p class="text-sm mt-1">
-                  Subscribe to RSS feeds in Settings to see articles here
-                </p>
-                <a href="/account?tab=timeline" class="btn btn-secondary btn-sm mt-4">
-                  Manage RSS Feeds
-                </a>
+        </div>
+        <!-- Post Composer Modal -->
+        <%= if @show_post_composer do %>
+          <div class="p-4 border-b border-base-300 bg-base-100" id="post-composer-container">
+            <.form
+              for={%{}}
+              phx-submit="create_post"
+              phx-change="autosave_draft"
+              class="space-y-4"
+              id="post-composer-form"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium">
+                    <%= if @composer_intent == "note" do %>
+                      New note
+                    <% else %>
+                      New post
+                    <% end %>
+                  </p>
+                  <p class="text-xs opacity-70">
+                    <%= if @composer_intent == "note" do %>
+                      Private by default. Use this for quick personal capture.
+                    <% else %>
+                      Share something with your timeline.
+                    <% end %>
+                  </p>
+                </div>
+                <span class="badge badge-ghost badge-sm">
+                  <%= if @composer_intent == "note" do %>
+                    Note
+                  <% else %>
+                    Post
+                  <% end %>
+                </span>
               </div>
-            <% else %>
-              <%= for item <- @rss_items do %>
-                <.rss_item
-                  item={item}
-                  current_user={@current_user}
-                  timezone={@timezone}
-                  is_saved={Map.get(@rss_saves, item.id, false)}
+
+              <input
+                type="text"
+                name="title"
+                placeholder={gettext("Title (optional)")}
+                class="input input-bordered w-full"
+                id="post-composer-title"
+                value={@new_post_title || ""}
+                phx-debounce="2000"
+              />
+
+              <%= if @show_cw_input do %>
+                <input
+                  type="text"
+                  name="cw"
+                  placeholder={gettext("Content warning (e.g., 'spoilers', 'politics', etc.)")}
+                  class="input input-bordered input-warning w-full"
+                  id="post-composer-cw"
+                  value={@new_post_content_warning || ""}
+                  phx-debounce="2000"
                 />
               <% end %>
-            <% end %>
-          <% else %>
-            
-<!-- Saved RSS Items (when Saved filter is active) -->
-            <%= if @current_filter == "saved" && !Enum.empty?(@rss_items) do %>
-              <div class="mb-4">
-                <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-2">
-                  <.icon name="hero-rss" class="w-4 h-4 text-warning" /> Saved RSS Items
-                </h3>
-                <%= for item <- @rss_items do %>
-                  <.rss_item
-                    item={item}
-                    current_user={@current_user}
-                    timezone={@timezone}
-                    is_saved={Map.get(@rss_saves, item.id, false)}
-                  />
-                <% end %>
-              </div>
-              <%= if !Enum.empty?(@filtered_posts) do %>
-                <div class="divider text-xs text-base-content/50">Saved Posts</div>
-              <% end %>
-            <% end %>
-            
-<!-- Empty state for saved filter -->
-            <%= if @current_filter == "saved" && Enum.empty?(@filtered_posts) && Enum.empty?(@rss_items) do %>
-              <div class="text-center py-12 text-base-content/60">
-                <.icon name="hero-bookmark" class="w-12 h-12 mx-auto mb-4 opacity-40" />
-                <p class="font-medium">No saved items yet</p>
-                <p class="text-sm mt-1">Save posts or RSS articles to see them here</p>
-              </div>
-            <% end %>
-            
-<!-- RSS Items for All/Following filters -->
-            <%= if @current_filter in ["explore", "home"] && !Enum.empty?(@rss_items) do %>
-              <div class="mb-4">
-                <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-2">
-                  <.icon name="hero-rss" class="w-4 h-4 text-warning" /> From Your RSS Feeds
-                </h3>
-                <%= for item <- @rss_items do %>
-                  <.rss_item
-                    item={item}
-                    current_user={@current_user}
-                    timezone={@timezone}
-                    is_saved={Map.get(@rss_saves, item.id, false)}
-                  />
-                <% end %>
-              </div>
-              <%= if !Enum.empty?(@filtered_posts) do %>
-                <div class="divider text-xs text-base-content/50">Posts</div>
-              <% end %>
-            <% end %>
 
-            <% recent_post_ids = MapSet.new(@recently_loaded_post_ids || []) %>
-            <% first_recent_post =
-              Enum.find(@filtered_posts, fn post -> MapSet.member?(recent_post_ids, post.id) end) %>
-            <% first_recent_post_id = if first_recent_post, do: first_recent_post.id, else: nil %>
-
-            <div id="timeline-posts-stream" phx-update="stream" class="space-y-4">
-              <%= for {stream_id, post} <- @streams.timeline_filtered_posts do %>
-                <div id={stream_id} class="timeline-stream-entry">
-                  <%= if first_recent_post_id && post.id == first_recent_post_id do %>
-                    <div class="divider text-xs font-semibold text-secondary/80">
-                      {if @recently_loaded_count > 0,
-                        do: "#{@recently_loaded_count} new posts",
-                        else: "New posts"}
-                    </div>
-                  <% end %>
-                  <% # Community posts include URI-tagged posts and mirror-linked federated posts.
-                  is_lemmy_post =
-                    PostUtilities.community_post?(post) %>
-                  <%= if is_lemmy_post do %>
-                    <!-- Lemmy-style compact post -->
-                    <.timeline_post
-                      post={post}
-                      layout={:lemmy}
-                      current_user={@current_user}
-                      timezone={@timezone}
-                      time_format={@time_format}
-                      user_likes={@user_likes}
-                      user_downvotes={@user_downvotes}
-                      user_boosts={@user_boosts}
-                      user_saves={@user_saves}
-                      user_follows={@user_follows}
-                      pending_follows={@pending_follows}
-                      remote_follow_overrides={@remote_follow_overrides}
-                      user_statuses={@user_statuses}
-                      lemmy_counts={@lemmy_counts}
-                      post_interactions={@post_interactions}
-                      post_reactions_map={@post_reactions}
-                      reactions={Map.get(@post_reactions, post.id, [])}
-                      replies={Map.get(@post_replies, post.id, [])}
-                      resolve_reply_refs={true}
-                      show_ancestor_actions={true}
-                      on_image_click="open_image_modal"
-                      source="timeline"
-                    />
-                  <% else %>
-                    <!-- Timeline-style post using consolidated component -->
-                    <.timeline_post
-                      post={post}
-                      layout={:timeline}
-                      current_user={@current_user}
-                      timezone={@timezone}
-                      time_format={@time_format}
-                      user_likes={@user_likes}
-                      user_boosts={@user_boosts}
-                      user_saves={@user_saves}
-                      user_downvotes={@user_downvotes}
-                      user_follows={@user_follows}
-                      pending_follows={@pending_follows}
-                      remote_follow_overrides={@remote_follow_overrides}
-                      user_statuses={@user_statuses}
-                      lemmy_counts={@lemmy_counts}
-                      post_interactions={@post_interactions}
-                      post_reactions_map={@post_reactions}
-                      post_replies={@post_replies}
-                      reactions={Map.get(@post_reactions, post.id, [])}
-                      resolve_reply_refs={true}
-                      show_ancestor_actions={true}
-                      on_image_click="open_image_modal"
-                      source="timeline"
-                    />
-                    
-<!-- Reply Form -->
-                    <%= if @current_user && @reply_to_post && @reply_to_post.id == post.id do %>
-                      <div
-                        id={"reply-form-#{post.id}"}
-                        class="mt-3 p-4 bg-base-50 rounded-lg border border-base-200"
-                      >
-                        <div class="flex items-start gap-3">
-                          <div class="w-8 h-8 flex-shrink-0 overflow-visible">
-                            <.user_avatar
-                              user={@current_user}
-                              size="sm"
-                              user_statuses={@user_statuses}
-                            />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="text-sm opacity-70 mb-3">
-                              {gettext("Replying to")}
-                              <span class="font-medium text-error">
-                                <%= if @reply_to_post.sender do %>
-                                  @{@reply_to_post.sender.handle || @reply_to_post.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
-                                <% else %>
-                                  <%= if Ecto.assoc_loaded?(@reply_to_post.remote_actor) && @reply_to_post.remote_actor do %>
-                                    @{@reply_to_post.remote_actor.username}@{@reply_to_post.remote_actor.domain}
-                                  <% else %>
-                                    a remote user
-                                  <% end %>
-                                <% end %>
-                              </span>
-                            </div>
-                            
-<!-- Recent Replies Preview -->
-                            <%= if length(@reply_to_post_recent_replies) > 0 &&
-                                Map.get(@post_replies, post.id, []) == [] do %>
-                              <div class="mb-3 border-l-2 border-cyan-500/60 pl-3 space-y-2">
-                                <div class="text-xs font-semibold opacity-60 mb-2">
-                                  Recent Replies:
-                                </div>
-                                <%= for reply <- @reply_to_post_recent_replies do %>
-                                  <% has_sender = Map.get(reply, :sender) != nil
-
-                                  has_remote_actor =
-                                    case Map.get(reply, :remote_actor) do
-                                      nil -> false
-                                      %Ecto.Association.NotLoaded{} -> false
-                                      _actor -> true
-                                    end
-
-                                  has_author = Map.get(reply, :author) != nil
-                                  reply_content = Map.get(reply, :content) || ""
-
-                                  reply_preview =
-                                    PostUtilities.plain_text_content(reply_content)
-
-                                  reply_preview =
-                                    if String.length(reply_preview) > 150 do
-                                      String.slice(reply_preview, 0, 150) <> "..."
-                                    else
-                                      reply_preview
-                                    end %>
-                                  <div class="text-sm">
-                                    <div class="flex items-center gap-2 mb-1">
-                                      <%= if has_sender do %>
-                                        <.username_with_effects
-                                          user={reply.sender}
-                                          display_name={false}
-                                          verified_size="xs"
-                                        />
-                                      <% else %>
-                                        <%= if has_remote_actor do %>
-                                          <span class="font-medium">
-                                            @{reply.remote_actor.username}@{reply.remote_actor.domain}
-                                          </span>
-                                        <% else %>
-                                          <%= if has_author do %>
-                                            <span class="font-medium">
-                                              @{reply.author}{if reply.author_domain,
-                                                do: "@#{reply.author_domain}"}
-                                            </span>
-                                          <% else %>
-                                            <span class="font-medium opacity-50">
-                                              Remote user
-                                            </span>
-                                          <% end %>
-                                        <% end %>
-                                      <% end %>
-                                      <span class="text-xs opacity-50">
-                                        ·
-                                        <.local_time
-                                          datetime={reply.inserted_at}
-                                          format="relative"
-                                          timezone={@timezone}
-                                          time_format={@time_format}
-                                        />
-                                      </span>
-                                    </div>
-                                    <div class="text-xs opacity-70 line-clamp-2">
-                                      {reply_preview}
-                                    </div>
-                                  </div>
-                                <% end %>
-                              </div>
-                            <% end %>
-
-                            <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
-                              wrapper_class=""
-                              content={@reply_content}
-                              hidden_fields={[{"reply_to_id", @reply_to_post.id}]}
-                              textarea_id={"reply-textarea-#{@reply_to_post.id}"}
-                              placeholder={gettext("Post your reply...")}
-                              textarea_class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
-                              textarea_style="min-height: 3rem; max-height: 15rem;"
-                              rows={3}
-                              on_submit="create_timeline_reply"
-                              on_change="update_reply_content"
-                              on_cancel="cancel_reply"
-                              cancel_class="btn btn-ghost btn-sm"
-                              submit_class="btn btn-secondary btn-sm"
-                              submit_label={gettext("Reply")}
-                              submit_icon="hero-paper-airplane"
-                              submit_disable_with="Posting..."
-                              form_class="space-y-3"
-                              textarea_hook="AutoExpandTextarea"
-                              textarea_mounted={JS.focus()}
-                              textarea_update="ignore"
-                              content_min={3}
-                              counter_suffix={gettext(" required chars")}
-                              show_counter={true}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    <% end %>
-                    
-<!-- Direct Replies (Threaded) -->
-                    <% replies = Map.get(@post_replies, post.id, []) %>
-                    <%= if length(replies) > 0 do %>
-                      <div class="mt-3 pl-4 border-l-2 border-purple-500/60 space-y-3">
-                        <%= for reply <- replies do %>
-                          <% normalized =
-                            ElektrineWeb.Components.Social.ReplyItem.normalize_reply(reply)
-
-                          reply_target_id =
-                            Map.get(reply, :id) ||
-                              Map.get(reply, :activitypub_id) ||
-                              Map.get(reply, :ap_id) ||
-                              normalized.ap_id %>
-                          <.reply_item
-                            reply={reply}
-                            post={post}
-                            current_user={@current_user}
-                            user_statuses={@user_statuses}
-                            user_follows={@user_follows}
-                            pending_follows={@pending_follows}
-                            remote_follow_overrides={@remote_follow_overrides}
-                            user_likes={@user_likes}
-                            user_boosts={@user_boosts}
-                            timezone={@timezone}
-                            time_format={@time_format}
-                          />
-                          
-<!-- Quick Reply Form (for replying to this reply) -->
-                          <%= if @current_user && @reply_to_reply_id == reply_target_id do %>
-                            <div class="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
-                              <div class="flex items-start gap-2">
-                                <div class="w-8 h-8 flex-shrink-0">
-                                  <.user_avatar user={@current_user} size="xs" />
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                  <div class="text-xs opacity-70 mb-2">
-                                    Replying to
-                                    <span class="font-medium text-error">
-                                      @{normalized.handle}{if normalized.domain,
-                                        do: "@#{normalized.domain}"}
-                                    </span>
-                                  </div>
-
-                                  <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
-                                    wrapper_class=""
-                                    content={@reply_content}
-                                    hidden_fields={[{"reply_to_id", reply_target_id}]}
-                                    placeholder="Post your reply..."
-                                    textarea_class="textarea textarea-bordered textarea-sm w-full"
-                                    rows={2}
-                                    on_submit="create_timeline_reply"
-                                    on_change="update_reply_content"
-                                    on_cancel="cancel_reply"
-                                    cancel_class="btn btn-ghost btn-xs"
-                                    submit_class="btn btn-secondary btn-xs"
-                                    submit_label="Reply"
-                                    submit_icon="hero-paper-airplane"
-                                    submit_icon_class="w-3 h-3 mr-1"
-                                    submit_disable_with="Posting..."
-                                    form_class="space-y-2"
-                                    textarea_mounted={JS.focus()}
-                                    content_min={3}
-                                    counter_suffix={gettext(" required chars")}
-                                    show_counter={true}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          <% end %>
-                        <% end %>
-                        
-<!-- View All Replies Link -->
-                        <%= if post.reply_count > length(replies) do %>
-                          <button
-                            phx-click="navigate_to_post"
-                            phx-value-id={post.id}
-                            class="text-sm text-primary hover:underline font-medium"
-                            type="button"
-                          >
-                            View all {post.reply_count} replies →
-                          </button>
-                        <% end %>
-                      </div>
-                    <% else %>
-                      <%= if (post.reply_count || 0) > 0 do %>
-                        <div class="mt-3 pl-4 border-l-2 border-base-300">
-                          <%= if MapSet.member?(@loading_remote_replies, post.id) do %>
-                            <div class="flex items-center gap-2 text-sm text-base-content/70">
-                              <.spinner size="xs" />
-                              <span>Loading replies...</span>
-                            </div>
-                          <% else %>
-                            <button
-                              phx-click="load_remote_replies"
-                              phx-value-post_id={post.id}
-                              phx-value-activitypub_id={post.activitypub_id || ""}
-                              class="text-sm text-primary hover:underline font-medium"
-                              type="button"
-                            >
-                              Load replies
-                            </button>
-                          <% end %>
-                        </div>
-                      <% end %>
-                    <% end %>
-                  <% end %>
-                  <!-- Close else block for is_lemmy_post -->
+              <textarea
+                name="content"
+                placeholder={
+                  if @composer_intent == "note" do
+                    gettext("Capture a private note")
+                  else
+                    gettext("What's on your mind?")
+                  end
+                }
+                class="textarea textarea-bordered w-full resize-y overflow-y-auto leading-tight"
+                style="min-height: 4rem; max-height: 20rem;"
+                rows="3"
+                phx-hook="AutoExpandTextarea"
+                data-submit-on-enter="false"
+                data-live-update-event="update_post_content_live"
+                id="timeline-post-textarea"
+                phx-debounce="2000"
+              ><%= @new_post_content %></textarea>
+              
+<!-- Pending Media Preview -->
+              <%= if !Enum.empty?(@pending_media_urls) do %>
+                <div class="flex items-center gap-2 p-2 bg-base-50 rounded-lg">
+                  <.icon name="hero-photo" class="w-4 h-4 text-secondary" />
+                  <span class="text-sm">{length(@pending_media_urls)} file(s) attached</span>
+                  <button
+                    type="button"
+                    phx-click="clear_pending_images"
+                    class="btn btn-ghost btn-xs ml-auto"
+                  >
+                    <.icon name="hero-x-mark" class="w-3 h-3" />
+                  </button>
                 </div>
               <% end %>
-            </div>
-          <% end %>
-          <!-- Close else for non-RSS filter -->
 
-          <%= if Enum.empty?(@filtered_posts) && Enum.empty?(@rss_items) &&
-                @current_filter not in ["saved", "rss"] do %>
-            <div class="text-center py-12 text-base-content/70">
-              <.icon name="hero-newspaper" class="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <h3 class="text-base font-semibold mb-2">
-                <%= if @search_query != "" do %>
-                  No matching posts
-                <% else %>
-                  No posts yet
-                <% end %>
-              </h3>
-              <p class="text-sm mb-4">
-                <%= if @search_query != "" do %>
-                  Try a different keyword or clear search.
-                <% else %>
-                  Try another filter, or publish a post to start the conversation.
-                <% end %>
-              </p>
-              <%= if @search_query != "" do %>
-                <button phx-click="clear_search" class="btn btn-ghost btn-sm">
-                  Clear Search
-                </button>
-              <% else %>
-                <%= if @current_user do %>
-                  <button phx-click="toggle_post_composer" class="btn btn-secondary btn-sm">
-                    <.icon name="hero-plus" class="w-4 h-4 mr-1" /> New Post
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                  <select
+                    name="visibility"
+                    value={@new_post_visibility}
+                    class="select select-bordered select-sm"
+                    phx-update="ignore"
+                    id="timeline-visibility-select"
+                  >
+                    <option value="public">Public</option>
+                    <option value="followers">Followers</option>
+                    <option value="friends">Friends Only</option>
+                    <option value="private">Private</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    phx-click="open_image_upload"
+                    class="btn btn-ghost btn-sm btn-circle"
+                    title="Add media"
+                  >
+                    <.icon name="hero-photo" class="w-4 h-4" />
                   </button>
-                <% else %>
-                  <.link href={~p"/login"} class="btn btn-secondary btn-sm">
-                    Sign In to Post
-                  </.link>
-                <% end %>
-              <% end %>
+
+                  <button
+                    type="button"
+                    phx-click="toggle_content_warning"
+                    class={[
+                      "btn btn-ghost btn-sm btn-circle",
+                      @show_cw_input && "bg-warning/20 text-warning"
+                    ]}
+                    title="Add content warning"
+                  >
+                    <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div class="flex gap-2 items-center">
+                  <span class={[
+                    "text-xs",
+                    String.length(@new_post_content || "") < 3 && "text-error",
+                    String.length(@new_post_content || "") >= 3 && "text-success"
+                  ]}>
+                    {String.length(@new_post_content || "")}/3 min
+                  </span>
+                  <button
+                    type="button"
+                    phx-click="toggle_post_composer"
+                    class="btn btn-ghost btn-sm"
+                  >
+                    {gettext("Cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="save_draft"
+                    class="btn btn-outline btn-sm"
+                    title={gettext("Save as draft")}
+                    disabled={@draft_saving}
+                  >
+                    <%= if @draft_saving do %>
+                      <.spinner size="xs" />
+                      <span class="hidden sm:inline ml-1">{gettext("Saving...")}</span>
+                    <% else %>
+                      <.icon name="hero-bookmark" class="w-4 h-4" />
+                      <span class="hidden sm:inline ml-1">{gettext("Save Draft")}</span>
+                    <% end %>
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-secondary btn-sm"
+                    phx-disable-with="Posting..."
+                    disabled={String.length(@new_post_content || "") < 3}
+                  >
+                    <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" />
+                    {gettext("Post")}
+                  </button>
+                </div>
+              </div>
+            </.form>
+          </div>
+        <% end %>
+        
+<!-- Drafts Panel -->
+        <%= if @show_drafts_panel do %>
+          <div class="p-4 border-b border-base-300 bg-base-100" id="drafts-panel">
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="font-semibold flex items-center gap-2">
+                <.icon name="hero-document-duplicate" class="w-5 h-5" />
+                {gettext("Your Drafts")}
+              </h3>
+              <button
+                type="button"
+                phx-click="hide_drafts"
+                class="btn btn-ghost btn-sm btn-circle"
+              >
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+              </button>
             </div>
-          <% end %>
-          
-<!-- Load More Button -->
-          <%= if length(@timeline_posts) >= 20 do %>
-            <div class="py-4 timeline-load-more-zone">
-              <%= if @loading_more do %>
-                <div class="h-16 rounded-xl border border-base-300 bg-base-100/70 flex items-center justify-center">
-                  <div class="flex items-center gap-2 text-sm text-base-content/70">
-                    <.spinner size="sm" />
-                    <span>Loading more posts...</span>
+
+            <%= if Enum.empty?(@user_drafts || []) do %>
+              <p class="text-sm text-base-content/60 py-4 text-center">
+                {gettext("No drafts yet. Start writing and save for later!")}
+              </p>
+            <% else %>
+              <div class="space-y-3 max-h-64 overflow-y-auto">
+                <%= for draft <- @user_drafts do %>
+                  <div class="p-3 bg-base-100 rounded-lg border border-base-300">
+                    <div class="flex justify-between items-start gap-2">
+                      <div class="flex-1 min-w-0">
+                        <%= if draft.title do %>
+                          <p class="font-medium text-sm truncate">{draft.title}</p>
+                        <% end %>
+                        <p class="text-sm text-base-content/70 line-clamp-2">
+                          {draft.content || gettext("(empty)")}
+                        </p>
+                        <p class="text-xs text-base-content/50 mt-1">
+                          {Elektrine.TextHelpers.time_ago_short(draft.updated_at)}
+                          <span class="mx-1">-</span>
+                          {draft.visibility}
+                        </p>
+                      </div>
+                      <div class="flex gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          phx-click="edit_draft"
+                          phx-value-draft_id={draft.id}
+                          class="btn btn-ghost btn-xs"
+                          title={gettext("Edit")}
+                        >
+                          <.icon name="hero-pencil" class="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          phx-click="publish_draft"
+                          phx-value-draft_id={draft.id}
+                          class="btn btn-secondary btn-xs"
+                          title={gettext("Publish")}
+                        >
+                          <.icon name="hero-paper-airplane" class="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          phx-click="delete_draft"
+                          phx-value-draft_id={draft.id}
+                          class="btn btn-ghost btn-xs text-error"
+                          title={gettext("Delete")}
+                          data-confirm={gettext("Delete this draft?")}
+                        >
+                          <.icon name="hero-trash" class="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+        
+<!-- Feed View Chips -->
+        <div class="mx-4 mb-4 pt-4">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+              View Mode
+            </p>
+            <p class="text-xs text-base-content/60">
+              {length(@filtered_posts)} shown
+            </p>
+          </div>
+          <div
+            class="flex flex-wrap items-center gap-2"
+            role="tablist"
+            aria-label="Timeline view filters"
+          >
+            <button
+              type="button"
+              phx-click="filter_timeline"
+              phx-value-filter="all"
+              role="tab"
+              aria-selected={@timeline_filter == "all"}
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full",
+                if(@timeline_filter == "all",
+                  do: "btn-secondary",
+                  else: "btn-ghost bg-base-100 hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-squares-2x2" class="w-4 h-4 mr-1" /> All
+            </button>
+
+            <button
+              type="button"
+              phx-click="filter_timeline"
+              phx-value-filter="posts"
+              role="tab"
+              aria-selected={@timeline_filter == "posts"}
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full",
+                if(@timeline_filter == "posts",
+                  do: "btn-secondary",
+                  else: "btn-ghost bg-base-100 hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Posts
+            </button>
+
+            <button
+              type="button"
+              phx-click="filter_timeline"
+              phx-value-filter="replies"
+              role="tab"
+              aria-selected={@timeline_filter == "replies"}
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full",
+                if(@timeline_filter == "replies",
+                  do: "btn-secondary",
+                  else: "btn-ghost bg-base-100 hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" /> Replies
+            </button>
+
+            <button
+              type="button"
+              phx-click="filter_timeline"
+              phx-value-filter="media"
+              role="tab"
+              aria-selected={@timeline_filter == "media"}
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full",
+                if(@timeline_filter == "media",
+                  do: "btn-secondary",
+                  else: "btn-ghost bg-base-100 hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
+            </button>
+
+            <button
+              type="button"
+              phx-click="filter_timeline"
+              phx-value-filter="communities"
+              role="tab"
+              aria-selected={@timeline_filter == "communities"}
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full",
+                if(@timeline_filter == "communities",
+                  do: "btn-secondary",
+                  else: "btn-ghost bg-base-100 hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-users" class="w-4 h-4 mr-1" /> Communities
+            </button>
+
+            <%= if @current_filter != "federated" && @current_user do %>
+              <div class="h-6 w-px bg-base-300 mx-1"></div>
+
+              <%= if length(@friends) > 0 do %>
+                <button
+                  type="button"
+                  phx-click="filter_timeline"
+                  phx-value-filter="friends"
+                  role="tab"
+                  aria-selected={@timeline_filter == "friends"}
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full",
+                    if(@timeline_filter == "friends",
+                      do: "btn-secondary",
+                      else: "btn-ghost bg-base-100 hover:bg-base-200"
+                    )
+                  ]}
+                >
+                  <.icon name="hero-user-group" class="w-4 h-4 mr-1" /> Friends
+                </button>
+              <% end %>
+
+              <button
+                type="button"
+                phx-click="filter_timeline"
+                phx-value-filter="my_posts"
+                role="tab"
+                aria-selected={@timeline_filter == "my_posts"}
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full",
+                  if(@timeline_filter == "my_posts",
+                    do: "btn-secondary",
+                    else: "btn-ghost bg-base-100 hover:bg-base-200"
+                  )
+                ]}
+              >
+                <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
+              </button>
+
+              <button
+                type="button"
+                phx-click="filter_timeline"
+                phx-value-filter="trusted"
+                role="tab"
+                aria-selected={@timeline_filter == "trusted"}
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full",
+                  if(@timeline_filter == "trusted",
+                    do: "btn-secondary",
+                    else: "btn-ghost bg-base-100 hover:bg-base-200"
+                  )
+                ]}
+              >
+                <.icon name="hero-shield-check" class="w-4 h-4 mr-1" /> Trusted
+              </button>
+            <% end %>
+          </div>
+        </div>
+        
+<!-- New Posts Button -->
+        <%= if length(@queued_posts) > 0 do %>
+          <div class="mx-4 mb-2 flex justify-center">
+            <button
+              phx-click="load_queued_posts"
+              data-load-queued-posts
+              class="btn btn-secondary btn-sm sm:btn-md gap-2 shadow-sm animate-bounce-subtle"
+            >
+              <.icon name="hero-arrow-up" class="w-4 h-4" />
+              <span>
+                Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
+                  do: "post",
+                  else: "posts"}
+              </span>
+            </button>
+          </div>
+        <% end %>
+        
+<!-- Timeline Feed -->
+        <div
+          class="p-4 space-y-4 isolate timeline-feed-region"
+          data-timeline-container
+          id="timeline-posts-container"
+        >
+          <!-- Loading Skeleton -->
+          <%= if @loading_timeline do %>
+            <div class="space-y-4 animate-pulse" data-timeline-loading-skeleton>
+              <div class="rounded-xl border border-base-300 bg-base-100 p-3 text-sm text-base-content/70">
+                Loading timeline updates...
+              </div>
+              <%= for _i <- 1..3 do %>
+                <div class="card bg-base-100 shadow-sm">
+                  <div class="card-body p-4">
+                    <div class="flex items-start gap-3">
+                      <div class="w-10 h-10 rounded-full bg-base-300"></div>
+                      <div class="flex-1 space-y-2">
+                        <div class="h-4 bg-base-300 rounded w-1/4"></div>
+                        <div class="h-3 bg-base-300 rounded w-1/6"></div>
+                      </div>
+                    </div>
+                    <div class="mt-3 space-y-2">
+                      <div class="h-4 bg-base-300 rounded w-full"></div>
+                      <div class="h-4 bg-base-300 rounded w-5/6"></div>
+                      <div class="h-4 bg-base-300 rounded w-4/6"></div>
+                    </div>
+                    <div class="mt-4 flex gap-4">
+                      <div class="h-6 bg-base-300 rounded w-16"></div>
+                      <div class="h-6 bg-base-300 rounded w-16"></div>
+                      <div class="h-6 bg-base-300 rounded w-16"></div>
+                    </div>
                   </div>
                 </div>
-              <% else %>
-                <div class="text-center mb-4">
-                  <button phx-click="load_more_posts" class="btn btn-ghost">
-                    Load More
-                  </button>
-                </div>
               <% end %>
             </div>
-          <% end %>
+          <% else %>
+            <!-- RSS Items (when RSS or Saved filter is active) -->
+            <%= if @current_filter == "rss" do %>
+              <%= if Enum.empty?(@rss_items) do %>
+                <div class="text-center py-12 text-base-content/60">
+                  <.icon name="hero-rss" class="w-12 h-12 mx-auto mb-4 opacity-40" />
+                  <p class="font-medium">No RSS items yet</p>
+                  <p class="text-sm mt-1">
+                    Subscribe to RSS feeds in Settings to see articles here
+                  </p>
+                  <a href="/account?tab=timeline" class="btn btn-secondary btn-sm mt-4">
+                    Manage RSS Feeds
+                  </a>
+                </div>
+              <% else %>
+                <%= for item <- @rss_items do %>
+                  <.rss_item
+                    item={item}
+                    current_user={@current_user}
+                    timezone={@timezone}
+                    is_saved={Map.get(@rss_saves, item.id, false)}
+                  />
+                <% end %>
+              <% end %>
+            <% else %>
+              
+<!-- Saved RSS Items (when Saved filter is active) -->
+              <%= if @current_filter == "saved" && !Enum.empty?(@rss_items) do %>
+                <div class="mb-4">
+                  <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-2">
+                    <.icon name="hero-rss" class="w-4 h-4 text-warning" /> Saved RSS Items
+                  </h3>
+                  <%= for item <- @rss_items do %>
+                    <.rss_item
+                      item={item}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      is_saved={Map.get(@rss_saves, item.id, false)}
+                    />
+                  <% end %>
+                </div>
+                <%= if !Enum.empty?(@filtered_posts) do %>
+                  <div class="divider text-xs text-base-content/50">Saved Posts</div>
+                <% end %>
+              <% end %>
+              
+<!-- Empty state for saved filter -->
+              <%= if @current_filter == "saved" && Enum.empty?(@filtered_posts) && Enum.empty?(@rss_items) do %>
+                <div class="text-center py-12 text-base-content/60">
+                  <.icon name="hero-bookmark" class="w-12 h-12 mx-auto mb-4 opacity-40" />
+                  <p class="font-medium">No saved items yet</p>
+                  <p class="text-sm mt-1">Save posts or RSS articles to see them here</p>
+                </div>
+              <% end %>
+              
+<!-- RSS Items for All/Following filters -->
+              <%= if @current_filter in ["explore", "home"] && !Enum.empty?(@rss_items) do %>
+                <div class="mb-4">
+                  <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-2">
+                    <.icon name="hero-rss" class="w-4 h-4 text-warning" /> From Your RSS Feeds
+                  </h3>
+                  <%= for item <- @rss_items do %>
+                    <.rss_item
+                      item={item}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      is_saved={Map.get(@rss_saves, item.id, false)}
+                    />
+                  <% end %>
+                </div>
+                <%= if !Enum.empty?(@filtered_posts) do %>
+                  <div class="divider text-xs text-base-content/50">Posts</div>
+                <% end %>
+              <% end %>
 
-          <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true"></div>
-        <% end %>
-        <!-- End of loading_timeline check -->
+              <% recent_post_ids = MapSet.new(@recently_loaded_post_ids || []) %>
+              <% first_recent_post =
+                Enum.find(@filtered_posts, fn post -> MapSet.member?(recent_post_ids, post.id) end) %>
+              <% first_recent_post_id = if first_recent_post, do: first_recent_post.id, else: nil %>
+
+              <div id="timeline-posts-stream" phx-update="stream" class="space-y-4">
+                <%= for {stream_id, post} <- @streams.timeline_filtered_posts do %>
+                  <div id={stream_id} class="timeline-stream-entry">
+                    <.live_component
+                      module={ElektrineWeb.Components.Social.TimelineStreamPost}
+                      id={"timeline-stream-post-#{post.id}"}
+                      post={post}
+                      first_recent_post_id={first_recent_post_id}
+                      recently_loaded_count={@recently_loaded_count}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      time_format={@time_format}
+                      user_likes={@user_likes}
+                      user_downvotes={@user_downvotes}
+                      user_boosts={@user_boosts}
+                      user_saves={@user_saves}
+                      user_follows={@user_follows}
+                      pending_follows={@pending_follows}
+                      remote_follow_overrides={@remote_follow_overrides}
+                      user_statuses={@user_statuses}
+                      lemmy_counts={@lemmy_counts}
+                      post_interactions={@post_interactions}
+                      post_reactions={@post_reactions}
+                      post_replies={@post_replies}
+                      reply_to_post={@reply_to_post}
+                      reply_to_post_recent_replies={@reply_to_post_recent_replies}
+                      reply_content={@reply_content}
+                      reply_to_reply_id={@reply_to_reply_id}
+                      loading_remote_replies={@loading_remote_replies}
+                    />
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+            <!-- Close else for non-RSS filter -->
+
+            <%= if Enum.empty?(@filtered_posts) && Enum.empty?(@rss_items) &&
+                @current_filter not in ["saved", "rss"] do %>
+              <div class="text-center py-12 text-base-content/70">
+                <.icon name="hero-newspaper" class="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <h3 class="text-base font-semibold mb-2">
+                  <%= if @search_query != "" do %>
+                    No matching posts
+                  <% else %>
+                    No posts yet
+                  <% end %>
+                </h3>
+                <p class="text-sm mb-4">
+                  <%= if @search_query != "" do %>
+                    Try a different keyword or clear search.
+                  <% else %>
+                    Try another filter, or publish a post to start the conversation.
+                  <% end %>
+                </p>
+                <%= if @search_query != "" do %>
+                  <button
+                    phx-click="clear_search"
+                    data-search-clear="true"
+                    class="btn btn-ghost btn-sm"
+                  >
+                    Clear Search
+                  </button>
+                <% else %>
+                  <%= if @current_user do %>
+                    <button phx-click="toggle_post_composer" class="btn btn-secondary btn-sm">
+                      <.icon name="hero-plus" class="w-4 h-4 mr-1" /> New Post
+                    </button>
+                  <% else %>
+                    <.link href={~p"/login"} class="btn btn-secondary btn-sm">
+                      Sign In to Post
+                    </.link>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
+            
+<!-- Load More Button -->
+            <%= if length(@timeline_posts) >= 20 do %>
+              <div class="py-4 timeline-load-more-zone">
+                <%= if @loading_more do %>
+                  <div class="h-16 rounded-xl border border-base-300 bg-base-100/70 flex items-center justify-center">
+                    <div class="flex items-center gap-2 text-sm text-base-content/70">
+                      <.spinner size="sm" />
+                      <span>Loading more posts...</span>
+                    </div>
+                  </div>
+                <% else %>
+                  <div class="text-center mb-4">
+                    <button phx-click="load_more_posts" class="btn btn-ghost">
+                      Load More
+                    </button>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+
+            <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true"></div>
+          <% end %>
+          <!-- End of loading_timeline check -->
+        </div>
       </div>
     </div>
     
 <!-- Right Sidebar - Suggestions (Hidden on mobile and for unauthenticated users) -->
     <%= if @current_user do %>
-      <div class="hidden lg:block w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)]">
-        <div
-          id="timeline-right-sidebar"
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg p-2 lg:p-4 flex flex-col overflow-y-auto h-full"
-        >
-          
-<!-- Follow Remote User/Community Section -->
-          <div class="mb-6">
-            <.fediverse_follow
-              loading={@remote_user_loading}
-              preview={@remote_user_preview}
-              show_card={false}
-            />
-          </div>
+      <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
+        <div id="timeline-right-sidebar" class="space-y-4">
+          <!-- Follow Remote User/Community Section -->
+          <.fediverse_follow
+            loading={@remote_user_loading}
+            preview={@remote_user_preview}
+          />
 
-          <h3 class="font-semibold mb-4">Suggested Follows</h3>
-          <div class="space-y-3">
-            <%= if @suggested_follows && length(@suggested_follows) > 0 do %>
-              <%= for suggestion <- @suggested_follows do %>
-                <div class="flex items-center gap-3 p-3 bg-base-50 rounded-lg hover:bg-base-200 transition-colors">
-                  <.link
-                    href={~p"/#{suggestion.handle || suggestion.username}"}
-                    class="w-10 h-10 flex-shrink-0 overflow-visible block"
-                  >
-                    <.user_avatar
-                      user={
-                        %{
-                          username: suggestion.handle || suggestion.username,
-                          avatar: suggestion.avatar,
-                          id: suggestion.id
-                        }
-                      }
-                      size="sm"
-                      user_statuses={@user_statuses}
-                    />
-                  </.link>
-                  <div class="flex-1 min-w-0">
-                    <.link
-                      href={~p"/#{suggestion.handle || suggestion.username}"}
-                      class="font-medium text-sm hover:underline block truncate"
-                    >
-                      {suggestion.display_name || suggestion.handle || suggestion.username}
-                    </.link>
-                    <p class="text-xs opacity-70 truncate">
-                      @{suggestion.handle || suggestion.username}
-                    </p>
-                    <p class="text-xs text-error mt-1">{suggestion.reason}</p>
+          <div class="card border border-base-300 bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+              <h3 class="font-semibold mb-4">Suggested Follows</h3>
+              <div
+                class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
+                style="scrollbar-gutter: stable"
+              >
+                <%= if @suggested_follows && length(@suggested_follows) > 0 do %>
+                  <%= for suggestion <- @suggested_follows do %>
+                    <div class="flex items-center gap-3 rounded-lg border border-base-300 bg-base-50/80 p-3 transition-colors hover:bg-base-200/80">
+                      <.link
+                        href={~p"/#{suggestion.handle || suggestion.username}"}
+                        class="w-10 h-10 flex-shrink-0 overflow-visible block"
+                      >
+                        <.user_avatar
+                          user={
+                            %{
+                              username: suggestion.handle || suggestion.username,
+                              avatar: suggestion.avatar,
+                              id: suggestion.id
+                            }
+                          }
+                          size="sm"
+                          user_statuses={@user_statuses}
+                        />
+                      </.link>
+                      <div class="flex-1 min-w-0">
+                        <.link
+                          href={~p"/#{suggestion.handle || suggestion.username}"}
+                          class="font-medium text-sm hover:underline block truncate"
+                        >
+                          {suggestion.display_name || suggestion.handle || suggestion.username}
+                        </.link>
+                        <p class="text-xs opacity-70 truncate">
+                          @{suggestion.handle || suggestion.username}
+                        </p>
+                        <p class="text-xs text-error mt-1">{suggestion.reason}</p>
+                      </div>
+                      <ElektrineWeb.Components.Social.FollowButton.local_follow_button
+                        id={"suggested-follow-#{suggestion.id}"}
+                        user_id={suggestion.id}
+                        user_follows={@user_follows}
+                        class="flex-shrink-0"
+                      />
+                    </div>
+                  <% end %>
+                <% else %>
+                  <div class="text-center text-sm opacity-70 py-8">
+                    <.icon name="hero-users" class="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p>No suggestions available</p>
+                    <p class="text-xs mt-1">Follow some users to get better suggestions</p>
                   </div>
-                  <ElektrineWeb.Components.Social.FollowButton.local_follow_button
-                    id={"suggested-follow-#{suggestion.id}"}
-                    user_id={suggestion.id}
-                    user_follows={@user_follows}
-                    class="flex-shrink-0"
-                  />
-                </div>
-              <% end %>
-            <% else %>
-              <div class="text-center text-sm opacity-70 py-8">
-                <.icon name="hero-users" class="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p>No suggestions available</p>
-                <p class="text-xs mt-1">Follow some users to get better suggestions</p>
+                <% end %>
               </div>
-            <% end %>
+            </div>
           </div>
         </div>
       </div>

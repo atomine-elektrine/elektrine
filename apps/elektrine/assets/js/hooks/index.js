@@ -74,6 +74,7 @@ import {
   VideoBackground,
   StatusSelector
 } from './profile_hooks'
+import { ReputationGraph } from './reputation_graph_hook'
 
 // Timeline/Feed hooks
 import {
@@ -193,6 +194,7 @@ export const Hooks = {
   TabTitleTypewriter,
   VideoBackground,
   StatusSelector,
+  ReputationGraph,
 
   // Timeline/Feed
   PostClick,

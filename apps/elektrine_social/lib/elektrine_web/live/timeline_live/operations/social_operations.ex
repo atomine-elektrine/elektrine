@@ -30,7 +30,18 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
 
     if currently_following do
       case Profiles.unfollow_user(current_user_id, user_id) do
-        {1, _} ->
+        {:ok, :unfollowed} ->
+          updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.sender_id == user_id))
+          updated_follows = Map.delete(socket.assigns.user_follows, {:local, user_id})
+
+          {:noreply,
+           socket
+           |> assign(:user_follows, updated_follows)
+           |> assign(:timeline_posts, updated_posts)
+           |> Helpers.apply_timeline_filter()
+           |> put_flash(:info, "Unfollowed user.")}
+
+        {:ok, :not_following} ->
           updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.sender_id == user_id))
           updated_follows = Map.delete(socket.assigns.user_follows, {:local, user_id})
 

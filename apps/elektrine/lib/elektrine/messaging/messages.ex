@@ -460,6 +460,7 @@ defmodule Elektrine.Messaging.Messages do
           |> Repo.update()
           |> case do
             {:ok, deleted_message} ->
+              maybe_record_moderated_delete(deleted_message, user_id, is_admin, is_mod)
               broadcast_message_delete(deleted_message)
 
               # Side-effect (federation): skip in tests.
@@ -485,7 +486,7 @@ defmodule Elektrine.Messaging.Messages do
   """
   def admin_delete_message(message_id, admin_user) do
     if admin_user.is_admin do
-      case Repo.get(Message, message_id) do
+      case Repo.get(Message, message_id) |> Repo.preload(:conversation) do
         nil ->
           {:error, :not_found}
 
@@ -498,6 +499,7 @@ defmodule Elektrine.Messaging.Messages do
             |> Repo.update()
             |> case do
               {:ok, deleted_message} ->
+                maybe_record_moderated_delete(deleted_message, admin_user.id, true, true)
                 broadcast_message_delete(deleted_message)
                 {:ok, deleted_message}
 
@@ -533,6 +535,31 @@ defmodule Elektrine.Messaging.Messages do
         fetch_conversation_messages(conversation_id, user_id, opts)
     end
   end
+
+  defp maybe_record_moderated_delete(%Message{} = message, actor_user_id, is_admin, is_mod) do
+    if counts_as_moderated_delete?(message, actor_user_id, is_admin, is_mod) do
+      Accounts.TrustLevel.increment_stat(message.sender_id, :posts_deleted)
+    end
+
+    :ok
+  end
+
+  defp counts_as_moderated_delete?(
+         %Message{sender_id: sender_id, conversation: conversation},
+         actor_user_id,
+         is_admin,
+         is_mod
+       ) do
+    sender_id != actor_user_id &&
+      is_integer(sender_id) &&
+      (is_admin || is_mod) &&
+      conversation_type_counts_for_delete?(conversation)
+  end
+
+  defp conversation_type_counts_for_delete?(%Conversation{type: type}),
+    do: type in ["timeline", "community"]
+
+  defp conversation_type_counts_for_delete?(_), do: false
 
   defp fetch_conversation_messages(conversation_id, user_id, opts) do
     limit = Keyword.get(opts, :limit, 50)

@@ -72,7 +72,7 @@
                     >
                       <li>
                         <button phx-click="bulk_action" phx-value-action="mark_read">
-                          <.icon name="hero-envelope-open" class="h-4 w-4" />
+                          <.icon name="hero-check-circle" class="h-4 w-4" />
                           {gettext("Mark as Read")}
                         </button>
                       </li>
@@ -326,7 +326,7 @@
                       )
                     ]}
                   >
-                    <.icon name="hero-envelope-open" class="h-4 w-4" />
+                    <.icon name="hero-check-circle" class="h-4 w-4" />
                     {gettext("Read")}
                   </.link>
                   <.link
@@ -339,7 +339,7 @@
                       )
                     ]}
                   >
-                    <.icon name="hero-inbox-stack" class="h-4 w-4" />
+                    <.icon name="hero-queue-list" class="h-4 w-4" />
                     {gettext("Digest")}
                     <%= if assigns[:digest_count] && @digest_count > 0 do %>
                       <div class="badge badge-secondary badge-xs ml-1">{@digest_count}</div>

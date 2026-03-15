@@ -5,6 +5,7 @@ defmodule Elektrine.Social.RecommendationsTest do
   import Elektrine.SocialFixtures
 
   alias Elektrine.Messaging.Message
+  alias Elektrine.Accounts.UserActivityStats
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.Social.Recommendations
@@ -106,6 +107,31 @@ defmodule Elektrine.Social.RecommendationsTest do
 
       assert public_post.id in feed_ids
       refute followers_only_post.id in feed_ids
+    end
+  end
+
+  describe "record_view_with_dwell/3" do
+    test "increments trust reading stats with dwell deltas" do
+      viewer = user_fixture()
+      post = post_fixture()
+
+      assert {:ok, _view} =
+               Recommendations.record_view_with_dwell(viewer.id, post.id, %{
+                 dwell_time_ms: 1_200,
+                 scroll_depth: 0.5,
+                 source: "timeline"
+               })
+
+      assert {:ok, _view} =
+               Recommendations.record_view_with_dwell(viewer.id, post.id, %{
+                 dwell_time_ms: 1_800,
+                 scroll_depth: 0.9,
+                 source: "timeline"
+               })
+
+      stats = Repo.get_by!(UserActivityStats, user_id: viewer.id)
+      assert stats.posts_read == 1
+      assert stats.time_read_seconds == 3
     end
   end
 

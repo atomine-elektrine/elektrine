@@ -123,7 +123,11 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 text-sm opacity-70">
                   <div>{length(@filtered_lists)} of {@list_stats.my_lists} lists</div>
                   <%= if my_search_active? do %>
-                    <button phx-click="clear_my_lists_search" class="btn btn-ghost btn-xs">
+                    <button
+                      phx-click="clear_my_lists_search"
+                      data-search-clear="true"
+                      class="btn btn-ghost btn-xs"
+                    >
                       Clear search
                     </button>
                   <% end %>
@@ -165,7 +169,11 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 text-sm opacity-70">
                   <div>{length(@filtered_public_lists)} results</div>
                   <%= if discover_search_active? do %>
-                    <button phx-click="clear_discover_search" class="btn btn-ghost btn-xs">
+                    <button
+                      phx-click="clear_discover_search"
+                      data-search-clear="true"
+                      class="btn btn-ghost btn-xs"
+                    >
                       Clear search
                     </button>
                   <% end %>

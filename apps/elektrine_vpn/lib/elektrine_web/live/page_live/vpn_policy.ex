@@ -9,8 +9,10 @@ defmodule ElektrineWeb.PageLive.VPNPolicy do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen">
-      <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div>
+      <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <.z_nav active_tab="" class="mb-6" />
+
         <div id="vpn-policy-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
           <div class="card-body">
             <h1 class="card-title text-3xl mb-6">VPN Service Policy</h1>
@@ -72,7 +74,9 @@ defmodule ElektrineWeb.PageLive.VPNPolicy do
 
                 <p class="mt-4"><strong>Illegal Activities:</strong></p>
                 <ul class="list-disc pl-6 space-y-2">
-                  <li>Any activity that violates U.S. federal or state law, or international law</li>
+                  <li>
+                    Any activity that violates U.S. federal or state law, or international law
+                  </li>
                   <li>Any activity that violates the laws of your local jurisdiction</li>
                   <li>Accessing, distributing, or storing illegal content</li>
                   <li>Copyright infringement or piracy for commercial purposes</li>

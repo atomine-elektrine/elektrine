@@ -23,17 +23,12 @@ defmodule ElektrineWeb.Components.TrustLevelBadge do
 
     color =
       case assigns.level do
-        # Red
-        0 -> "#dc2626"
-        # Red
-        1 -> "#dc2626"
-        # Red
-        2 -> "#dc2626"
-        # Red
-        3 -> "#dc2626"
-        # Red
+        0 -> "#6b7280"
+        1 -> "#2563eb"
+        2 -> "#16a34a"
+        3 -> "#9333ea"
         4 -> "#dc2626"
-        _ -> "#dc2626"
+        _ -> "#6b7280"
       end
 
     # Generate a unique ID for this badge instance
@@ -95,6 +90,9 @@ defmodule ElektrineWeb.Components.TrustLevelBadge do
           />
         </g>
       </svg>
+      <%= if @show_name do %>
+        <span class="ml-1 text-xs font-medium text-base-content/80">{@level_info.name}</span>
+      <% end %>
     </span>
     """
   end

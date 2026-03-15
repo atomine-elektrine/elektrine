@@ -125,7 +125,10 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
 
                   # Track view for recommendation algorithm
                   if user do
-                    Social.track_post_view(user.id, post.id)
+                    Social.track_post_view(user.id, post.id,
+                      completed: true,
+                      source: "discussion_detail"
+                    )
                   end
 
                   # Load reactions for the post

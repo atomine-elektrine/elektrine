@@ -44,7 +44,7 @@ defmodule ElektrineWeb.Components.Profile.Modals do
 
     <div>
       <label class="block text-sm font-medium mb-3">Share to</label>
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="grid grid-cols-4 gap-3">
         <.share_platform_link
           href={"https://twitter.com/intent/tweet?url=#{URI.encode(@profile_url)}&text=Check%20out%20#{@user.username}'s%20profile"}
           platform="twitter"

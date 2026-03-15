@@ -405,6 +405,7 @@ defmodule ElektrineWeb.Router do
     pipe_through(:jmap)
 
     post("/", APIController, :api)
+    get("/eventsource", EventSourceController, :eventsource)
     get("/download/:account_id/:blob_id/:name", BlobController, :download)
     post("/upload/:account_id", BlobController, :upload)
   end
@@ -465,10 +466,17 @@ defmodule ElektrineWeb.Router do
 
     # Controller routes for form submissions
     post("/register", UserRegistrationController, :create)
+    post("/register/purchase", RegistrationPaymentController, :create)
     get("/captcha", CaptchaController, :show)
     post("/login", UserSessionController, :create)
     post("/password/reset", PasswordResetController, :create)
     put("/password/reset/:token", PasswordResetController, :update)
+  end
+
+  scope "/", ElektrineWeb do
+    pipe_through(:browser)
+
+    get("/register/purchase/success", RegistrationPaymentController, :show)
   end
 
   # Passkey authentication route (must be before authentication redirect)
@@ -703,6 +711,12 @@ defmodule ElektrineWeb.Router do
     put("/invite-codes/:id", Admin.InviteCodesController, :update)
     delete("/invite-codes/:id", Admin.InviteCodesController, :delete)
     post("/invite-codes/toggle-system", Admin.InviteCodesController, :toggle_system)
+
+    post(
+      "/invite-codes/self-service-trust-level",
+      Admin.InviteCodesController,
+      :update_self_service_trust_level
+    )
 
     # Platform updates management
     get("/updates", AdminUpdatesController, :index)
@@ -1324,6 +1338,8 @@ defmodule ElektrineWeb.Router do
 
       # Overview
       live("/overview", OverviewLive.Index, :index)
+      live("/reputation", ReputationLive.Show, :index)
+      live("/reputation/:handle", ReputationLive.Show, :show)
 
       # Communities (formerly Discussions)
       live("/communities", DiscussionsLive.Index, :index)

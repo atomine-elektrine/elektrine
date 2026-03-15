@@ -4,6 +4,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboardTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.UserActivityStats
   alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
@@ -70,11 +71,17 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboardTest do
 
     updated_report = Reports.get_report!(report.id)
     deleted_post = Repo.get!(Message, post.id)
+    reporter_stats = Repo.get_by!(UserActivityStats, user_id: reporter.id)
+    offender_stats = Repo.get_by!(UserActivityStats, user_id: offender.id)
 
     assert updated_report.status == "resolved"
     assert updated_report.action_taken == "content_removed"
     assert updated_report.reviewed_by_id == admin.id
     assert deleted_post.deleted_at
+    assert reporter_stats.flags_given == 1
+    assert reporter_stats.flags_agreed == 1
+    assert offender_stats.flags_received == 1
+    assert offender_stats.posts_deleted == 1
     assert render(view) =~ "Message deleted"
   end
 

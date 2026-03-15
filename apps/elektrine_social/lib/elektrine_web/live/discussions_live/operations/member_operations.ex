@@ -107,7 +107,13 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.MemberOperations do
       if currently_following do
         # Unfollow
         case Profiles.unfollow_user(current_user_id, target_user_id) do
-          {1, _} ->
+          {:ok, :unfollowed} ->
+            {:noreply,
+             socket
+             |> update_user_follow_status(target_user_id, false)
+             |> put_flash(:info, "Unfollowed user.")}
+
+          {:ok, :not_following} ->
             {:noreply,
              socket
              |> update_user_follow_status(target_user_id, false)

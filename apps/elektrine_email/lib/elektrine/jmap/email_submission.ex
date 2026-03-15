@@ -6,7 +6,7 @@ defmodule Elektrine.JMAP.EmailSubmission do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias Elektrine.JMAP.State
+  alias Elektrine.JMAP
   alias Elektrine.Repo
 
   @undo_statuses ~w(pending final canceled)
@@ -56,7 +56,7 @@ defmodule Elektrine.JMAP.EmailSubmission do
 
     case result do
       {:ok, submission} ->
-        State.increment_state(submission.mailbox_id, "EmailSubmission")
+        JMAP.bump_states(submission.mailbox_id, ["EmailSubmission"])
         {:ok, submission}
 
       error ->
@@ -71,6 +71,25 @@ defmodule Elektrine.JMAP.EmailSubmission do
     Repo.one(
       from s in __MODULE__,
         where: s.id == ^id and s.mailbox_id == ^mailbox_id
+    )
+  end
+
+  @doc """
+  Gets an email submission by ID without mailbox scoping for internal jobs.
+  """
+  def get(id) do
+    Repo.get(__MODULE__, id)
+  end
+
+  @doc """
+  Gets the most recent submission for a specific email in a mailbox.
+  """
+  def get_by_email(mailbox_id, email_id) do
+    Repo.one(
+      from s in __MODULE__,
+        where: s.mailbox_id == ^mailbox_id and s.email_id == ^email_id,
+        order_by: [desc: s.inserted_at],
+        limit: 1
     )
   end
 
@@ -96,9 +115,14 @@ defmodule Elektrine.JMAP.EmailSubmission do
   def update_delivery_status(submission, recipient, status) do
     new_status = Map.put(submission.delivery_status, recipient, status)
 
-    submission
-    |> cast(%{delivery_status: new_status}, [:delivery_status])
-    |> Repo.update()
+    update_submission(submission, %{delivery_status: new_status})
+  end
+
+  @doc """
+  Updates a submission with the provided attributes.
+  """
+  def update(submission, attrs) when is_map(attrs) do
+    update_submission(submission, attrs)
   end
 
   @doc """
@@ -110,9 +134,12 @@ defmodule Elektrine.JMAP.EmailSubmission do
       now = DateTime.utc_now()
 
       if is_nil(submission.send_at) or DateTime.compare(now, submission.send_at) == :lt do
-        submission
-        |> cast(%{undo_status: "canceled"}, [:undo_status])
-        |> Repo.update()
+        delivery_status =
+          submission.delivery_status
+          |> normalize_delivery_status()
+          |> Map.put("status", "canceled")
+
+        update_submission(submission, %{undo_status: "canceled", delivery_status: delivery_status})
       else
         {:error, :too_late}
       end
@@ -125,20 +152,72 @@ defmodule Elektrine.JMAP.EmailSubmission do
   Marks a submission as final (sent).
   """
   def finalize(submission) do
-    submission
-    |> cast(%{undo_status: "final"}, [:undo_status])
-    |> Repo.update()
+    update_submission(submission, %{undo_status: "final"})
+  end
+
+  @doc """
+  Marks a submission as sent and records delivery metadata.
+  """
+  def finalize(submission, delivery_status) when is_map(delivery_status) do
+    update_submission(submission, %{
+      undo_status: "final",
+      delivery_status: delivery_status
+    })
+  end
+
+  @doc """
+  Marks a submission as failed and records the failure reason.
+  """
+  def fail(submission, reason) do
+    delivery_status =
+      submission.delivery_status
+      |> normalize_delivery_status()
+      |> Map.merge(%{
+        "status" => "failed",
+        "error" => format_reason(reason)
+      })
+
+    update_submission(submission, %{
+      undo_status: "final",
+      delivery_status: delivery_status
+    })
   end
 
   @doc """
   Gets submissions changed since a state.
   """
   def get_changes_since(mailbox_id, since_state) do
-    _since_int = String.to_integer(since_state)
+    _since_int =
+      case Integer.parse(since_state) do
+        {int, ""} -> int
+        _ -> 0
+      end
 
     # Get all submissions that were created or updated after the since_state
     # In a real implementation, we'd track which records changed
     # Return all submissions for now because change tracking is not implemented.
     list(mailbox_id)
   end
+
+  defp update_submission(submission, attrs) do
+    result =
+      submission
+      |> cast(attrs, [:send_at, :undo_status, :delivery_status])
+      |> Repo.update()
+
+    case result do
+      {:ok, updated_submission} ->
+        JMAP.bump_states(updated_submission.mailbox_id, ["EmailSubmission"])
+        {:ok, updated_submission}
+
+      error ->
+        error
+    end
+  end
+
+  defp normalize_delivery_status(status) when is_map(status), do: status
+  defp normalize_delivery_status(_), do: %{}
+
+  defp format_reason(reason) when is_binary(reason), do: reason
+  defp format_reason(reason), do: inspect(reason)
 end

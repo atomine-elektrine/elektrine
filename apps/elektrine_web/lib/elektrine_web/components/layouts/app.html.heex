@@ -79,6 +79,7 @@
             <input
               type="text"
               name="q"
+              data-search-input="true"
               placeholder={gettext("Search...")}
               class="input input-bordered input-sm join-item w-64"
               id="global-search"
@@ -510,8 +511,8 @@
 <main
   class={
     if full_width_main?(assigns),
-      do: "w-full max-w-none px-0 pt-6 flex-1",
-      else: "container mx-auto px-4 pt-6 flex-1"
+      do: "w-full max-w-none px-0 pt-6",
+      else: "container mx-auto px-4 pt-6"
   }
   id="app-notification-handler"
   phx-hook="NotificationHandler"
@@ -519,21 +520,18 @@
   {@inner_content}
 </main>
 
-<footer class="relative mt-auto flex min-h-[22rem] items-start overflow-x-clip sm:min-h-[360px] sm:items-center">
-  <!-- Footer background image with 3D tilt effect -->
-  <div class="absolute bottom-4 right-4 hidden h-[340px] sm:block">
-    <img
-      id="footer-art"
-      src="/images/e1.png"
-      alt=""
-      class="h-full w-auto object-contain opacity-20 tilt-3d mix-blend-screen"
-      phx-hook="Tilt3D"
-    />
+<footer class="relative min-h-[360px] flex items-center overflow-x-clip">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
+    <div class="absolute right-8 top-1/2 -translate-y-1/2 rotate-[-16deg]">
+      <span class="hover-glow pointer-events-auto inline-block whitespace-nowrap select-none text-[clamp(2.15rem,6.5vw,4.75rem)] font-black uppercase tracking-[0.16em] text-base-content opacity-15 mix-blend-screen">
+        313k7r1n3
+      </span>
+    </div>
   </div>
 
-  <div class="container relative z-10 mx-auto max-w-6xl px-4 py-10 sm:py-8">
+  <div class="container mx-auto px-4 py-8 max-w-6xl relative z-10">
     <!-- Main Footer Content -->
-    <div class="mb-8 grid grid-cols-1 gap-6 text-center sm:grid-cols-2 md:grid-cols-5 md:gap-8 md:text-left">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8 text-center md:text-left">
       <!-- Company -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Company</h3>
@@ -579,7 +577,7 @@
       </div>
       
 <!-- Email Settings -->
-      <div class="sm:col-span-2 md:col-span-1">
+      <div class="col-span-2 md:col-span-1">
         <h3 class="font-semibold mb-3 text-sm">Email Settings</h3>
         <div class="text-xs opacity-70 space-y-1">
           <p>
@@ -676,7 +674,7 @@
     
 <!-- Bottom Bar -->
     <div class="border-t border-base-300 pt-4">
-      <div class="flex flex-col items-center justify-center gap-2 text-xs opacity-60 sm:flex-row sm:flex-wrap sm:gap-4">
+      <div class="flex flex-wrap justify-center items-center gap-4 text-xs opacity-60">
         <span class="font-serif-accent">© 2026 Elektrine. All rights reserved.</span>
         <span class="hidden sm:inline">•</span>
         <span data-live-clock>

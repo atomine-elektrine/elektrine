@@ -246,8 +246,35 @@ defmodule Elektrine.JMAP.Thread do
 
   @doc """
   Gets all message IDs in a thread.
+
+  When `mailbox_id` is provided, the lookup is scoped to that mailbox and will
+  fall back to a singleton thread for legacy messages without `thread_id`.
   """
-  def get_thread_message_ids(thread_id) do
+  def get_thread_message_ids(thread_id, mailbox_id \\ nil)
+
+  def get_thread_message_ids(thread_id, mailbox_id)
+      when is_integer(thread_id) and is_integer(mailbox_id) do
+    thread_ids =
+      Repo.all(
+        from m in Message,
+          where: m.mailbox_id == ^mailbox_id and m.thread_id == ^thread_id,
+          select: m.id,
+          order_by: m.inserted_at
+      )
+
+    if thread_ids == [] do
+      Repo.all(
+        from m in Message,
+          where: m.mailbox_id == ^mailbox_id and m.id == ^thread_id and is_nil(m.thread_id),
+          select: m.id,
+          order_by: m.inserted_at
+      )
+    else
+      thread_ids
+    end
+  end
+
+  def get_thread_message_ids(thread_id, _mailbox_id) when is_integer(thread_id) do
     Repo.all(
       from m in Message,
         where: m.thread_id == ^thread_id,
@@ -255,4 +282,6 @@ defmodule Elektrine.JMAP.Thread do
         order_by: m.inserted_at
     )
   end
+
+  def get_thread_message_ids(_thread_id, _mailbox_id), do: []
 end

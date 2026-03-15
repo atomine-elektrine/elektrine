@@ -289,7 +289,12 @@
               Search
             </button>
             <%= if @gallery_search != "" do %>
-              <button type="button" phx-click="clear_gallery_search" class="btn btn-ghost">
+              <button
+                type="button"
+                phx-click="clear_gallery_search"
+                data-search-clear="true"
+                class="btn btn-ghost"
+              >
                 Clear
               </button>
             <% end %>

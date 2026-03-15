@@ -300,7 +300,12 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                 <.icon name="hero-magnifying-glass" class="w-4 h-4" />
               </button>
               <%= if @search_query != "" do %>
-                <button type="button" phx-click="clear_search" class="btn btn-sm btn-ghost">
+                <button
+                  type="button"
+                  phx-click="clear_search"
+                  data-search-clear="true"
+                  class="btn btn-sm btn-ghost"
+                >
                   <.icon name="hero-x-mark" class="w-4 h-4" />
                 </button>
               <% end %>

@@ -261,30 +261,27 @@ defmodule ElektrineWeb.Components.User.HoverCard do
           <span class="inline-flex items-center justify-center">
             <span
               data-follow-display="following"
-              class={[
-                "inline-flex items-center justify-center",
-                if(@follow_state != "following", do: "hidden")
-              ]}
+              class={if(@follow_state != "following", do: "hidden")}
             >
-              <.icon name="hero-user-minus" class="w-4 h-4 mr-1" /> Unfollow
+              <span class="inline-flex items-center justify-center">
+                <.icon name="hero-user-minus" class="w-4 h-4 mr-1" /> Unfollow
+              </span>
             </span>
             <span
               data-follow-display="pending"
-              class={[
-                "inline-flex items-center justify-center",
-                if(@follow_state != "pending", do: "hidden")
-              ]}
+              class={if(@follow_state != "pending", do: "hidden")}
             >
-              <.icon name="hero-clock" class="w-4 h-4 mr-1" /> Requested
+              <span class="inline-flex items-center justify-center">
+                <.icon name="hero-clock" class="w-4 h-4 mr-1" /> Requested
+              </span>
             </span>
             <span
               data-follow-display="none"
-              class={[
-                "inline-flex items-center justify-center",
-                if(@follow_state != "none", do: "hidden")
-              ]}
+              class={if(@follow_state != "none", do: "hidden")}
             >
-              <.icon name="hero-user-plus" class="w-4 h-4 mr-1" /> Follow
+              <span class="inline-flex items-center justify-center">
+                <.icon name="hero-user-plus" class="w-4 h-4 mr-1" /> Follow
+              </span>
             </span>
           </span>
         </button>

@@ -106,9 +106,12 @@
                   time_format={assigns[:time_format] || "12h"}
                   user_likes={@user_likes}
                   user_boosts={@user_boosts}
+                  user_saves={@user_saves}
                   user_follows={assigns[:user_follows] || %{}}
                   pending_follows={assigns[:pending_follows] || %{}}
                   user_statuses={assigns[:user_statuses] || %{}}
+                  post_reactions_map={@post_reactions}
+                  reactions={Map.get(@post_reactions, post.id, [])}
                   id_prefix="hashtag-post"
                   show_follow_button={false}
                   show_admin_actions={@current_user && @current_user.is_admin}
@@ -148,6 +151,79 @@
                 Sign In to Post
               </.link>
             <% end %>
+          </div>
+        <% end %>
+
+        <%= if @show_quote_modal && @quote_target_post do %>
+          <div class="modal modal-open p-4" phx-click="close_quote_modal">
+            <div
+              class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
+              phx-click="stop_propagation"
+              phx-window-keydown="close_quote_modal"
+              phx-key="Escape"
+            >
+              <div class="p-4 border-b border-base-300 flex items-center justify-between">
+                <h3 class="text-lg font-semibold">Quote Post</h3>
+                <button phx-click="close_quote_modal" class="btn btn-ghost btn-sm btn-circle">
+                  <.icon name="hero-x-mark" class="w-5 h-5" />
+                </button>
+              </div>
+
+              <div class="p-4">
+                <.form for={%{}} phx-submit="submit_quote" class="space-y-4">
+                  <div>
+                    <textarea
+                      name="content"
+                      placeholder="Add your thoughts..."
+                      class="textarea textarea-bordered w-full min-h-[100px] resize-y"
+                      phx-change="update_quote_content"
+                      phx-debounce="200"
+                    ><%= @quote_content %></textarea>
+                    <div class="text-xs text-right mt-1 opacity-60">
+                      {String.length(@quote_content)} characters
+                    </div>
+                  </div>
+
+                  <div class="border border-base-300 rounded-lg p-3 bg-base-200/50 space-y-2">
+                    <div class="text-sm font-medium">
+                      <%= cond do %>
+                        <% @quote_target_post.sender -> %>
+                          {@quote_target_post.sender.display_name ||
+                            @quote_target_post.sender.username}
+                          <span class="opacity-60">
+                            @{@quote_target_post.sender.username}
+                          </span>
+                        <% Ecto.assoc_loaded?(@quote_target_post.remote_actor) && @quote_target_post.remote_actor -> %>
+                          {@quote_target_post.remote_actor.display_name ||
+                            @quote_target_post.remote_actor.username}
+                          <span class="opacity-60">
+                            @{@quote_target_post.remote_actor.username}@{@quote_target_post.remote_actor.domain}
+                          </span>
+                        <% true -> %>
+                          Quoted post
+                      <% end %>
+                    </div>
+                    <div class="text-sm opacity-80">
+                      {PostUtilities.plain_text_preview(@quote_target_post.content || "", 200)}
+                    </div>
+                  </div>
+
+                  <div class="flex justify-end gap-2">
+                    <button type="button" phx-click="close_quote_modal" class="btn btn-ghost">
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      class="btn btn-secondary"
+                      disabled={String.trim(@quote_content) == ""}
+                    >
+                      <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" />
+                      Quote
+                    </button>
+                  </div>
+                </.form>
+              </div>
+            </div>
           </div>
         <% end %>
       </div>

@@ -1,7 +1,11 @@
 defmodule ElektrineWeb.OverviewLive.Index do
   use ElektrineWeb, :live_view
   require Logger
-  alias Elektrine.{Friends, Messaging, Notifications, Profiles}
+  alias Elektrine.Messaging.Messages, as: MessagingMessages
+  alias Elektrine.Messaging.Reactions
+  alias Elektrine.{Friends, Messaging, Notifications, Profiles, Repo}
+  alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineWeb.Live.PostInteractions
   alias Elektrine.Platform.Modules
   alias ElektrineWeb.Platform.Integrations
   import ElektrineWeb.Components.Platform.ZNav
@@ -42,8 +46,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:filtered_all_posts, [])
        |> assign(:user_likes, %{})
        |> assign(:user_boosts, %{})
+       |> assign(:user_saves, %{})
        |> assign(:user_follows, %{})
        |> assign(:pending_follows, %{})
+       |> assign(:post_reactions, %{})
        |> assign(:filter, @default_filter)
        |> assign(:attention_filter, @default_attention_filter)
        |> assign(:online_users, [])
@@ -62,7 +68,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:modal_image_url, nil)
        |> assign(:modal_images, [])
        |> assign(:modal_image_index, 0)
-       |> assign(:modal_post, nil)}
+       |> assign(:modal_post, nil)
+       |> assign(:show_quote_modal, false)
+       |> assign(:quote_target_post, nil)
+       |> assign(:quote_content, "")}
     else
       {:ok,
        socket
@@ -168,6 +177,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
     handle_event("like_post", %{"message_id" => post_id}, socket)
   end
 
+  def handle_event("unlike_post", params, socket) do
+    handle_event("like_post", params, socket)
+  end
+
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       case parse_positive_int(message_id) do
@@ -220,6 +233,195 @@ defmodule ElektrineWeb.OverviewLive.Index do
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
+    end
+  end
+
+  def handle_event("unboost_post", params, socket) do
+    handle_event("boost_post", params, socket)
+  end
+
+  def handle_event("save_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case Integrations.social_save_post(socket.assigns.current_user.id, message_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update(:user_saves, &Map.put(&1, message_id, true))
+               |> put_flash(:info, "Saved")}
+
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> update(:user_saves, &Map.put(&1, message_id, true))
+               |> put_flash(:info, "Already saved")}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
+    end
+  end
+
+  def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case Integrations.social_unsave_post(socket.assigns.current_user.id, message_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update(:user_saves, &Map.put(&1, message_id, false))
+               |> put_flash(:info, "Removed from saved")}
+
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to unsave")}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("react_to_post", %{"post_id" => post_id, "emoji" => emoji}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(post_id) do
+        {:ok, message_id} ->
+          user_id = socket.assigns.current_user.id
+
+          existing_reaction =
+            Repo.get_by(Elektrine.Messaging.MessageReaction,
+              message_id: message_id,
+              user_id: user_id,
+              emoji: emoji
+            )
+
+          if existing_reaction do
+            case Reactions.remove_reaction(message_id, user_id, emoji) do
+              {:ok, _} ->
+                updated_reactions =
+                  PostInteractions.update_post_reactions(
+                    socket.assigns.post_reactions,
+                    message_id,
+                    %{emoji: emoji, user_id: user_id},
+                    :remove
+                  )
+
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          else
+            case Reactions.add_reaction(message_id, user_id, emoji) do
+              {:ok, reaction} ->
+                reaction = Repo.preload(reaction, [:user, :remote_actor])
+
+                updated_reactions =
+                  PostInteractions.update_post_reactions(
+                    socket.assigns.post_reactions,
+                    message_id,
+                    reaction,
+                    :add
+                  )
+
+                {:noreply, assign(socket, :post_reactions, updated_reactions)}
+
+              {:error, :rate_limited} ->
+                {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
+
+              {:error, _} ->
+                {:noreply, socket}
+            end
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to react")}
+    end
+  end
+
+  def handle_event("react_to_post", %{"message_id" => message_id, "emoji" => emoji}, socket) do
+    handle_event("react_to_post", %{"post_id" => message_id, "emoji" => emoji}, socket)
+  end
+
+  def handle_event("quote_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case Enum.find(socket.assigns.all_posts, &(&1.id == message_id)) do
+            nil ->
+              {:noreply, put_flash(socket, :error, "Post not found")}
+
+            post ->
+              {:noreply,
+               socket
+               |> assign(:show_quote_modal, true)
+               |> assign(:quote_target_post, post)
+               |> assign(:quote_content, "")}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
+    end
+  end
+
+  def handle_event("close_quote_modal", _params, socket) do
+    {:noreply, close_quote_modal(socket)}
+  end
+
+  def handle_event("update_quote_content", params, socket) do
+    {:noreply, assign(socket, :quote_content, params["content"] || params["value"] || "")}
+  end
+
+  def handle_event("submit_quote", params, socket) do
+    content = params["content"] || params["value"] || socket.assigns.quote_content || ""
+
+    cond do
+      is_nil(socket.assigns[:current_user]) ->
+        {:noreply, put_flash(socket, :error, "You must be signed in to quote posts")}
+
+      is_nil(socket.assigns.quote_target_post) ->
+        {:noreply, put_flash(socket, :error, "Quote target not found")}
+
+      String.trim(content) == "" ->
+        {:noreply, put_flash(socket, :error, "Please add some content to your quote")}
+
+      true ->
+        quote_target = socket.assigns.quote_target_post
+
+        case Integrations.social_create_quote_post(
+               socket.assigns.current_user.id,
+               quote_target.id,
+               content
+             ) do
+          {:ok, quote_post} ->
+            reloaded_quote = reload_overview_post(quote_post.id) || quote_post
+
+            {:noreply,
+             socket
+             |> increment_overview_quote_count(quote_target.id)
+             |> prepend_new_post(reloaded_quote)
+             |> close_quote_modal()
+             |> put_flash(:info, "Quote posted!")}
+
+          {:error, :empty_quote} ->
+            {:noreply, put_flash(socket, :error, "Quote content cannot be empty")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to create quote")}
+        end
     end
   end
 
@@ -523,7 +725,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
         if is_following do
           case Integrations.social_unfollow_user(current_user.id, user_id) do
-            {:ok, _} ->
+            {:ok, :unfollowed} ->
+              {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))}
+
+            {:ok, :not_following} ->
               {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))}
 
             {:error, _} ->
@@ -839,8 +1044,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
              |> assign(:filtered_all_posts, [])
              |> assign(:user_likes, %{})
              |> assign(:user_boosts, %{})
+             |> assign(:user_saves, %{})
              |> assign(:user_follows, %{})
              |> assign(:pending_follows, %{})
+             |> assign(:post_reactions, %{})
              |> assign(:loading_feed, false)
              |> assign(:data_loaded, true)
              |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")}
@@ -1726,18 +1933,21 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp prepend_new_post(socket, post) do
-    socket = update(socket, :all_posts, fn posts -> [post | posts] end)
+    socket =
+      socket
+      |> register_post_state(post)
+      |> update(:all_posts, fn posts ->
+        [post | Enum.reject(posts, &(&1.id == post.id))]
+      end)
 
-    case socket.assigns.filter do
-      "my_posts" ->
-        if post.sender_id == socket.assigns.current_user.id do
-          update(socket, :filtered_all_posts, fn posts -> [post | posts] end)
-        else
-          socket
-        end
+    case filtered_posts([post], socket.assigns.filter, socket.assigns) do
+      [] ->
+        socket
 
-      _ ->
-        update(socket, :filtered_all_posts, fn posts -> [post | posts] end)
+      [_ | _] = visible_posts ->
+        update(socket, :filtered_all_posts, fn posts ->
+          visible_posts ++ Enum.reject(posts, &(&1.id == post.id))
+        end)
     end
   end
 
@@ -1800,8 +2010,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
     |> assign(:filtered_all_posts, posts)
     |> assign(:user_likes, feed_data.user_likes)
     |> assign(:user_boosts, feed_data.user_boosts)
+    |> assign(:user_saves, feed_data.user_saves)
     |> assign(:user_follows, feed_data.user_follows)
     |> assign(:pending_follows, feed_data.pending_follows)
+    |> assign(:post_reactions, feed_data.post_reactions)
     |> assign(:loading_feed, false)
     |> assign(:data_loaded, true)
   end
@@ -1809,17 +2021,79 @@ defmodule ElektrineWeb.OverviewLive.Index do
   defp build_feed_state(all_posts, user_id) do
     user_likes = get_user_likes_map(user_id, all_posts)
     user_boosts = get_user_boosts_map(user_id, all_posts)
+    user_saves = get_user_saves(user_id, all_posts)
     user_follows = get_user_follows(user_id, all_posts)
     pending_follows = get_pending_follows(user_id, all_posts)
+    post_reactions = get_post_reactions(all_posts)
 
     %{
       all_posts: all_posts,
       user_likes: user_likes,
       user_boosts: user_boosts,
+      user_saves: user_saves,
       user_follows: user_follows,
-      pending_follows: pending_follows
+      pending_follows: pending_follows,
+      post_reactions: post_reactions
     }
   end
+
+  defp register_post_state(socket, %{id: message_id}) when is_integer(message_id) do
+    socket
+    |> update(:user_likes, &Map.put_new(&1, message_id, false))
+    |> update(:user_boosts, &Map.put_new(&1, message_id, false))
+    |> update(:user_saves, &Map.put_new(&1, message_id, false))
+    |> update(:post_reactions, &Map.put_new(&1, message_id, []))
+  end
+
+  defp register_post_state(socket, _post), do: socket
+
+  defp close_quote_modal(socket) do
+    socket
+    |> assign(:show_quote_modal, false)
+    |> assign(:quote_target_post, nil)
+    |> assign(:quote_content, "")
+  end
+
+  defp increment_overview_quote_count(socket, message_id) do
+    update_overview_post(socket, message_id, fn post ->
+      Map.put(post, :quote_count, (post.quote_count || 0) + 1)
+    end)
+  end
+
+  defp update_overview_post(socket, message_id, updater) when is_function(updater, 1) do
+    update_fn = fn posts ->
+      Enum.map(posts, fn post ->
+        if post.id == message_id, do: updater.(post), else: post
+      end)
+    end
+
+    updated_modal_post =
+      case socket.assigns[:modal_post] do
+        %{id: ^message_id} = post -> updater.(post)
+        post -> post
+      end
+
+    socket
+    |> update(:all_posts, update_fn)
+    |> update(:filtered_all_posts, update_fn)
+    |> assign(:modal_post, updated_modal_post)
+  end
+
+  defp reload_overview_post(message_id) when is_integer(message_id) do
+    import Ecto.Query
+
+    from(m in Elektrine.Messaging.Message,
+      where: m.id == ^message_id,
+      preload: ^MessagingMessages.timeline_post_preloads()
+    )
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      message -> Elektrine.Messaging.Message.decrypt_content(message)
+    end
+  end
+
+  defp reload_overview_post(_), do: nil
 
   defp default_platform_stats do
     %{posts_today: 0, posts_this_week: 0, active_users: 0, top_post_today: nil, top_creators: []}

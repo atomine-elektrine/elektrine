@@ -6,11 +6,7 @@ defmodule ElektrineWeb.UserRegistrationController do
   alias Elektrine.Turnstile
   alias ElektrineWeb.UserAuth
 
-  def new(conn, _params) do
-    changeset = Accounts.change_user_registration(%User{})
-    invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
-    render_registration(conn, changeset: changeset, invite_codes_enabled: invite_codes_enabled)
-  end
+  def new(conn, _params), do: redirect(conn, to: ~p"/register")
 
   def create(conn, %{"user" => user_params} = params) do
     remote_ip = get_remote_ip(conn)
@@ -65,43 +61,15 @@ defmodule ElektrineWeb.UserRegistrationController do
     # Verify captcha
     case captcha_result do
       {:ok, :verified} ->
-        # Check if invite codes are enabled
         if Elektrine.System.invite_codes_enabled?() do
-          # Validate invite code
-          invite_code = Map.get(user_params, "invite_code", "")
+          user_params_with_ip =
+            registration_user_params(user_params, registration_ip, via_tor)
 
-          case Accounts.validate_invite_code(invite_code) do
-            {:ok, _invite_code} ->
-              # Add IP address and Tor registration status to user params
-              user_params_with_ip =
-                user_params
-                |> Map.put("registration_ip", registration_ip)
-                |> Map.put("registered_via_onion", via_tor)
+          case Accounts.register_user_with_invite(user_params_with_ip) do
+            {:ok, user} ->
+              UserAuth.log_in_user(conn, user, %{}, flash: {:info, "User created successfully."})
 
-              case Accounts.create_user(user_params_with_ip) do
-                {:ok, user} ->
-                  # Use the invite code
-                  Accounts.use_invite_code(invite_code, user.id)
-
-                  UserAuth.log_in_user(conn, user, %{},
-                    flash: {:info, "User created successfully."}
-                  )
-
-                {:error, %Ecto.Changeset{} = changeset} ->
-                  invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
-
-                  render_registration(conn,
-                    changeset: changeset,
-                    invite_codes_enabled: invite_codes_enabled
-                  )
-              end
-
-            {:error, reason} ->
-              changeset =
-                %User{}
-                |> Accounts.change_user_registration(user_params)
-                |> Ecto.Changeset.add_error(:invite_code, invite_code_error_message(reason))
-
+            {:error, %Ecto.Changeset{} = changeset} ->
               invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
 
               render_registration(conn,
@@ -110,12 +78,7 @@ defmodule ElektrineWeb.UserRegistrationController do
               )
           end
         else
-          # Invite codes disabled, proceed with normal registration
-          # Add IP address and Tor registration status to user params
-          user_params_with_ip =
-            user_params
-            |> Map.put("registration_ip", registration_ip)
-            |> Map.put("registered_via_onion", via_tor)
+          user_params_with_ip = registration_user_params(user_params, registration_ip, via_tor)
 
           case Accounts.create_user(user_params_with_ip) do
             {:ok, user} ->
@@ -161,34 +124,56 @@ defmodule ElektrineWeb.UserRegistrationController do
   end
 
   defp render_registration(conn, assigns) do
-    # Extract error message from changeset if present
     case Keyword.get(assigns, :changeset) do
       %Ecto.Changeset{} = changeset ->
-        error_message = format_changeset_errors(changeset)
-
         conn
-        |> put_flash(:error, error_message)
-        |> redirect(to: ~p"/register")
+        |> put_status(:unprocessable_entity)
+        |> Phoenix.LiveView.Controller.live_render(ElektrineWeb.AuthLive.Register,
+          session: registration_live_session(conn, changeset)
+        )
 
       _ ->
         redirect(conn, to: ~p"/register")
     end
   end
 
-  defp format_changeset_errors(changeset) do
-    changeset.errors
-    |> Enum.map(fn {field, {message, _opts}} ->
-      "#{Phoenix.Naming.humanize(field)} #{message}"
+  defp registration_live_session(conn, changeset) do
+    %{
+      "via_tor" => conn.assigns[:via_tor] || false,
+      "registration_form" => registration_form_data(changeset),
+      "registration_errors" => registration_error_data(changeset)
+    }
+  end
+
+  defp registration_form_data(%Ecto.Changeset{} = changeset) do
+    changeset
+    |> Map.get(:params, %{})
+    |> Enum.into(%{}, fn {key, value} -> {to_string(key), value} end)
+    |> Map.drop(["password", "password_confirmation"])
+  end
+
+  defp registration_error_data(%Ecto.Changeset{} = changeset) do
+    Enum.reduce(changeset.errors, %{}, fn {field, error}, acc ->
+      message = interpolate_error_message(error)
+      Map.update(acc, Atom.to_string(field), [message], &[message | &1])
     end)
-    |> Enum.map_join(". ", & &1)
-    |> case do
-      "" -> "Registration failed. Please check your input."
-      msg -> msg
-    end
+    |> Enum.into(%{}, fn {field, messages} -> {field, Enum.reverse(messages)} end)
+  end
+
+  defp interpolate_error_message({message, opts}) do
+    Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+      opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+    end)
   end
 
   defp get_remote_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)
+  end
+
+  defp registration_user_params(user_params, registration_ip, via_tor) do
+    user_params
+    |> Map.put("registration_ip", registration_ip)
+    |> Map.put("registered_via_onion", via_tor)
   end
 
   # Normalizes IPv6 addresses to /64 subnet (first 4 hextets)
@@ -224,13 +209,4 @@ defmodule ElektrineWeb.UserRegistrationController do
       ip_string
     end
   end
-
-  defp invite_code_error_message(:invalid_code), do: "Invalid invite code"
-  defp invite_code_error_message(:code_expired), do: "This invite code has expired"
-
-  defp invite_code_error_message(:code_exhausted),
-    do: "This invite code has reached its usage limit"
-
-  defp invite_code_error_message(:code_inactive), do: "This invite code is no longer active"
-  defp invite_code_error_message(_), do: "Invalid invite code"
 end

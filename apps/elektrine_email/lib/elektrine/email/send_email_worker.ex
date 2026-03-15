@@ -14,20 +14,28 @@ defmodule Elektrine.Email.SendEmailWorker do
   require Logger
 
   alias Elektrine.Email.Sender
+  alias Elektrine.JMAP
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     user_id = args["user_id"]
     email_attrs = atomize_keys(args["email_attrs"])
     attachments = if args["attachments"], do: atomize_keys(args["attachments"]), else: nil
+    submission = load_submission(args["submission_id"])
 
     Logger.info("SendEmailWorker processing email for user #{user_id}")
 
-    case Sender.send_email(user_id, email_attrs, attachments) do
-      {:ok, _result} ->
+    case maybe_send_email(submission, user_id, email_attrs, attachments) do
+      {:ok, result} ->
         Logger.info("Email sent successfully for user #{user_id}")
+        reconcile_submission_success(submission, result)
+
         # Update user storage after successful send
         Elektrine.Accounts.Storage.update_user_storage(user_id)
+        :ok
+
+      {:skip, reason} ->
+        Logger.info("SendEmailWorker skipped email for user #{user_id}: #{reason}")
         :ok
 
       {:error, :rate_limit_exceeded} ->
@@ -36,6 +44,7 @@ defmodule Elektrine.Email.SendEmailWorker do
 
       {:error, reason} ->
         Logger.error("Email send failed for user #{user_id}: #{inspect(reason)}")
+        reconcile_submission_failure(submission, reason)
         {:error, reason}
     end
   end
@@ -48,13 +57,16 @@ defmodule Elektrine.Email.SendEmailWorker do
   """
   def enqueue(user_id, email_attrs, attachments \\ nil, opts \\ []) do
     scheduled_for = Keyword.get(opts, :scheduled_for)
+    submission_id = Keyword.get(opts, :submission_id)
 
-    args = %{
-      "user_id" => user_id,
-      "email_attrs" => stringify_keys(email_attrs),
-      "attachments" => if(attachments, do: stringify_keys(attachments), else: nil),
-      "email_id" => Ecto.UUID.generate()
-    }
+    args =
+      %{
+        "user_id" => user_id,
+        "email_attrs" => stringify_keys(email_attrs),
+        "attachments" => if(attachments, do: stringify_keys(attachments), else: nil),
+        "email_id" => enqueue_dedup_key(submission_id)
+      }
+      |> maybe_put_submission_id(submission_id)
 
     job_opts =
       if scheduled_for do
@@ -108,4 +120,105 @@ defmodule Elektrine.Email.SendEmailWorker do
 
   defp atomize_keys(list) when is_list(list), do: Enum.map(list, &atomize_keys/1)
   defp atomize_keys(value), do: value
+
+  defp maybe_send_email(%{undo_status: "canceled"}, _user_id, _email_attrs, _attachments),
+    do: {:skip, "submission canceled"}
+
+  defp maybe_send_email(%{undo_status: "final"}, _user_id, _email_attrs, _attachments),
+    do: {:skip, "submission already finalized"}
+
+  defp maybe_send_email(:none, user_id, email_attrs, attachments) do
+    Sender.send_email(user_id, email_attrs, attachments)
+  end
+
+  defp maybe_send_email(nil, _user_id, _email_attrs, _attachments),
+    do: {:skip, "submission missing"}
+
+  defp maybe_send_email(_submission, user_id, email_attrs, attachments) do
+    Sender.send_email(user_id, email_attrs, attachments)
+  end
+
+  defp load_submission(nil), do: :none
+
+  defp load_submission(submission_id) when is_integer(submission_id) do
+    JMAP.get_submission(submission_id)
+  end
+
+  defp load_submission(submission_id) when is_binary(submission_id) do
+    case Integer.parse(submission_id) do
+      {int_id, ""} -> JMAP.get_submission(int_id)
+      _ -> :none
+    end
+  end
+
+  defp load_submission(_submission_id), do: :none
+
+  defp reconcile_submission_success(:none, _result), do: :ok
+  defp reconcile_submission_success(nil, _result), do: :ok
+
+  defp reconcile_submission_success(submission, result) when is_map(result) do
+    delivery_status =
+      %{
+        "status" => result_field(result, :status) || "sent",
+        "messageId" => result_field(result, :message_id)
+      }
+      |> maybe_put_sent_email_id(result_field(result, :id))
+
+    JMAP.finalize_submission(submission, delivery_status)
+
+    :ok
+  end
+
+  defp reconcile_submission_success(submission, _result) do
+    JMAP.finalize_submission(submission)
+    :ok
+  end
+
+  defp reconcile_submission_failure(:none, _reason), do: :ok
+  defp reconcile_submission_failure(nil, _reason), do: :ok
+
+  defp reconcile_submission_failure(submission, reason) do
+    JMAP.fail_submission(submission, reason)
+    :ok
+  end
+
+  defp maybe_put_submission_id(args, submission_id) when is_integer(submission_id) do
+    Map.put(args, "submission_id", submission_id)
+  end
+
+  defp maybe_put_submission_id(args, submission_id) when is_binary(submission_id) do
+    Map.put(args, "submission_id", submission_id)
+  end
+
+  defp maybe_put_submission_id(args, _submission_id), do: args
+
+  defp enqueue_dedup_key(submission_id) when is_integer(submission_id),
+    do: "submission:#{submission_id}"
+
+  defp enqueue_dedup_key(submission_id) when is_binary(submission_id),
+    do: "submission:#{submission_id}"
+
+  defp enqueue_dedup_key(_submission_id), do: Ecto.UUID.generate()
+
+  defp maybe_put_sent_email_id(delivery_status, nil), do: delivery_status
+
+  defp maybe_put_sent_email_id(delivery_status, sent_email_id) do
+    Map.put(delivery_status, "sentEmailId", to_string(sent_email_id))
+  end
+
+  defp result_field(result, key) when is_atom(key) do
+    cond do
+      is_map(result) and Map.has_key?(result, key) ->
+        Map.get(result, key)
+
+      is_map(result) and Map.has_key?(result, Atom.to_string(key)) ->
+        Map.get(result, Atom.to_string(key))
+
+      match?(%_{}, result) ->
+        Map.get(result, key)
+
+      true ->
+        nil
+    end
+  end
 end

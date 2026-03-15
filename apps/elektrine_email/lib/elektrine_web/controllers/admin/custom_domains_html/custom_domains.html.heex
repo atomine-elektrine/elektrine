@@ -100,7 +100,11 @@
             </div>
 
             <%= if @search_query != "" or @status_filter != "all" do %>
-              <.link href={~p"/pripyat/custom-domains"} class="btn btn-ghost">
+              <.link
+                href={~p"/pripyat/custom-domains"}
+                data-search-clear="true"
+                class="btn btn-ghost"
+              >
                 <.icon name="hero-x-mark" class="h-4 w-4" /> Clear
               </.link>
             <% end %>

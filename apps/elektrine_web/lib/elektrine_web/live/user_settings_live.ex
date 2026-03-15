@@ -26,6 +26,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
+    invite_code_policy = Accounts.self_service_invite_policy()
 
     avatar_limit =
       if user.is_admin do
@@ -38,6 +39,10 @@ defmodule ElektrineWeb.UserSettingsLive do
      socket
      |> assign(:page_title, "Account Settings")
      |> assign(:user, user)
+     |> assign(:invite_codes_enabled, Elektrine.System.invite_codes_enabled?())
+     |> assign(:invite_code_policy, invite_code_policy)
+     |> assign(:can_create_invite_codes, Accounts.user_can_create_invite_codes?(user))
+     |> assign(:user_invite_codes, [])
      |> assign(
        :bluesky_managed_enabled,
        Application.get_env(:elektrine, :bluesky, []) |> Keyword.get(:managed_enabled, false)
@@ -118,9 +123,11 @@ defmodule ElektrineWeb.UserSettingsLive do
     if socket.assigns.loading_profile do
       user = socket.assigns.user
       pending_deletion = Accounts.get_pending_deletion_request(user)
+      user_invite_codes = Accounts.list_user_invite_codes(user.id)
 
       socket
       |> assign(:pending_deletion, pending_deletion)
+      |> assign(:user_invite_codes, user_invite_codes)
       |> assign(:loading_profile, false)
     else
       socket
@@ -563,6 +570,61 @@ defmodule ElektrineWeb.UserSettingsLive do
 
       {:error, _reason} ->
         {:noreply, socket |> notify_error("Failed to send verification email. Please try again.")}
+    end
+  end
+
+  @impl true
+  def handle_event("create_invite_code", %{"invite" => invite_params}, socket) do
+    user = socket.assigns.current_user
+
+    case Accounts.create_self_service_invite_code(user, invite_params) do
+      {:ok, _invite_code} ->
+        {:noreply,
+         socket
+         |> refresh_user_invite_codes()
+         |> notify_success("Invite code created")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         notify_error(
+           socket,
+           "Could not create invite code: #{format_changeset_errors(changeset)}"
+         )}
+
+      {:error, reason} ->
+        {:noreply, notify_error(socket, invite_code_error_message(reason, socket))}
+    end
+  end
+
+  @impl true
+  def handle_event("deactivate_invite_code", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    case Integer.parse(id) do
+      {invite_code_id, ""} ->
+        case Accounts.deactivate_self_service_invite_code(user, invite_code_id) do
+          {:ok, _invite_code} ->
+            {:noreply,
+             socket
+             |> refresh_user_invite_codes()
+             |> notify_info("Invite code deactivated")}
+
+          {:error, :not_found} ->
+            {:noreply, notify_error(socket, "Invite code not found")}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply,
+             notify_error(
+               socket,
+               "Could not deactivate invite code: #{format_changeset_errors(changeset)}"
+             )}
+
+          {:error, reason} ->
+            {:noreply, notify_error(socket, invite_code_error_message(reason, socket))}
+        end
+
+      _ ->
+        {:noreply, notify_error(socket, "Invalid invite code")}
     end
   end
 
@@ -1794,6 +1856,65 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   defp parse_token_expiration(_), do: :error
+
+  defp refresh_user_invite_codes(socket) do
+    assign(socket, :user_invite_codes, Accounts.list_user_invite_codes(socket.assigns.user.id))
+  end
+
+  defp invite_code_error_message(:invite_codes_disabled, _socket) do
+    "Invite codes are only available while registration is invite-only."
+  end
+
+  defp invite_code_error_message(:insufficient_trust_level, socket) do
+    min_trust_level = socket.assigns.invite_code_policy.min_trust_level
+    "Invite creation unlocks at TL#{min_trust_level}."
+  end
+
+  defp invite_code_error_message(:invite_code_limit_reached, socket) do
+    max_active_codes = socket.assigns.invite_code_policy.max_active_codes
+    "You already have #{max_active_codes} active invite codes."
+  end
+
+  defp invite_code_error_message(:not_found, _socket), do: "Invite code not found"
+  defp invite_code_error_message(_reason, _socket), do: "Could not update invite code"
+
+  defp invite_code_status(invite_code) do
+    cond do
+      !invite_code.is_active -> :inactive
+      Accounts.InviteCode.expired?(invite_code) -> :expired
+      Accounts.InviteCode.exhausted?(invite_code) -> :exhausted
+      true -> :active
+    end
+  end
+
+  defp invite_code_status_label(invite_code) do
+    case invite_code_status(invite_code) do
+      :active -> "Active"
+      :inactive -> "Inactive"
+      :expired -> "Expired"
+      :exhausted -> "Used"
+    end
+  end
+
+  defp invite_code_status_badge_class(invite_code) do
+    case invite_code_status(invite_code) do
+      :active -> "badge-success"
+      :inactive -> "badge-ghost"
+      :expired -> "badge-warning"
+      :exhausted -> "badge-error"
+    end
+  end
+
+  defp invite_code_usage_percent(invite_code)
+       when is_integer(invite_code.max_uses) and invite_code.max_uses > 0 do
+    invite_code.uses_count
+    |> Kernel./(invite_code.max_uses)
+    |> Kernel.*(100)
+    |> min(100.0)
+    |> round()
+  end
+
+  defp invite_code_usage_percent(_invite_code), do: 0
 
   defp decode_setup_params(params) when is_map(params) do
     decode_payload_field(params, "encrypted_verifier", required: true)
