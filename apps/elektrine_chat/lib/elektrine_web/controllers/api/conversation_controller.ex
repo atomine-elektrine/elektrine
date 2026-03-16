@@ -291,6 +291,11 @@ defmodule ElektrineWeb.API.ConversationController do
     conversation_id = String.to_integer(id)
 
     case Messaging.join_conversation(conversation_id, user.id) do
+      {:ok, :pending} ->
+        conn
+        |> put_status(:accepted)
+        |> json(%{message: "Join request sent"})
+
       {:ok, _member} ->
         {:ok, conversation} = Messaging.get_conversation!(conversation_id, user.id)
 
@@ -410,6 +415,51 @@ defmodule ElektrineWeb.API.ConversationController do
   end
 
   @doc """
+  GET /api/conversations/:id/remote-join-requests
+  Lists pending remote join requests for a locally authoritative channel.
+  """
+  def pending_remote_join_requests(conn, %{"conversation_id" => id}) do
+    user = conn.assigns[:current_user]
+    conversation_id = String.to_integer(id)
+
+    case manage_conversation_membership_permission(conversation_id, user.id) do
+      :ok ->
+        requests = Messaging.list_pending_remote_join_requests(conversation_id)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{requests: Enum.map(requests, &format_remote_join_request/1)})
+
+      {:error, status, error} ->
+        conn
+        |> put_status(status)
+        |> json(%{error: error})
+    end
+  end
+
+  @doc """
+  POST /api/conversations/:id/remote-join-requests/approve
+  Approves a pending remote join request.
+  """
+  def approve_remote_join_request(
+        conn,
+        %{"conversation_id" => id, "remote_actor_id" => remote_actor_id}
+      ) do
+    review_remote_join_request(conn, id, remote_actor_id, :approve)
+  end
+
+  @doc """
+  POST /api/conversations/:id/remote-join-requests/decline
+  Declines a pending remote join request.
+  """
+  def decline_remote_join_request(
+        conn,
+        %{"conversation_id" => id, "remote_actor_id" => remote_actor_id}
+      ) do
+    review_remote_join_request(conn, id, remote_actor_id, :decline)
+  end
+
+  @doc """
   POST /api/conversations/:id/members
   Adds a member to a conversation.
   """
@@ -523,6 +573,91 @@ defmodule ElektrineWeb.API.ConversationController do
 
   # Private helpers
 
+  defp review_remote_join_request(conn, conversation_id, remote_actor_id, decision)
+       when decision in [:approve, :decline] do
+    user = conn.assigns[:current_user]
+    parsed_conversation_id = String.to_integer(conversation_id)
+
+    with {:ok, parsed_remote_actor_id} <- parse_remote_actor_id(remote_actor_id),
+         :ok <- manage_conversation_membership_permission(parsed_conversation_id, user.id) do
+      review_result =
+        case decision do
+          :approve ->
+            Messaging.approve_remote_join_request(
+              parsed_conversation_id,
+              parsed_remote_actor_id,
+              user.id
+            )
+
+          :decline ->
+            Messaging.decline_remote_join_request(
+              parsed_conversation_id,
+              parsed_remote_actor_id,
+              user.id
+            )
+        end
+
+      case review_result do
+        {:ok, request} ->
+          message =
+            if decision == :approve do
+              "Remote join request approved"
+            else
+              "Remote join request declined"
+            end
+
+          conn
+          |> put_status(:ok)
+          |> json(%{message: message, request: format_remote_join_request(request)})
+
+        {:error, :not_found} ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Remote join request not found"})
+
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "Failed to review remote join request: #{inspect(reason)}"})
+      end
+    else
+      {:error, :invalid_remote_actor_id} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Missing or invalid remote_actor_id"})
+
+      {:error, status, error} ->
+        conn
+        |> put_status(status)
+        |> json(%{error: error})
+    end
+  end
+
+  defp parse_remote_actor_id(remote_actor_id) when is_integer(remote_actor_id),
+    do: {:ok, remote_actor_id}
+
+  defp parse_remote_actor_id(remote_actor_id) when is_binary(remote_actor_id) do
+    case Integer.parse(remote_actor_id) do
+      {parsed_remote_actor_id, ""} -> {:ok, parsed_remote_actor_id}
+      _ -> {:error, :invalid_remote_actor_id}
+    end
+  end
+
+  defp parse_remote_actor_id(_remote_actor_id), do: {:error, :invalid_remote_actor_id}
+
+  defp manage_conversation_membership_permission(conversation_id, user_id) do
+    case Messaging.get_conversation_member(conversation_id, user_id) do
+      nil ->
+        {:error, :not_found, "Conversation not found"}
+
+      member when member.role not in ["owner", "admin", "moderator"] ->
+        {:error, :forbidden, "You don't have permission to manage members"}
+
+      _member ->
+        :ok
+    end
+  end
+
   defp format_conversation(conversation, current_user_id) do
     # Get unread count if not already loaded
     unread_count =
@@ -593,6 +728,28 @@ defmodule ElektrineWeb.API.ConversationController do
       created_at: message.inserted_at
     }
   end
+
+  defp format_remote_join_request(request) when is_map(request) do
+    %{
+      remote_actor_id: request[:remote_actor_id] || request["remote_actor_id"],
+      actor_uri: request[:actor_uri] || request["actor_uri"],
+      origin_domain: request[:origin_domain] || request["origin_domain"],
+      role: request[:role] || request["role"],
+      state: request[:state] || request["state"],
+      handle: request[:handle] || request["handle"],
+      display_name: request[:display_name] || request["display_name"],
+      display_label: request[:display_label] || request["display_label"],
+      avatar_url: request[:avatar_url] || request["avatar_url"],
+      requested_at: maybe_iso8601(request[:requested_at] || request["requested_at"]),
+      updated_at: maybe_iso8601(request[:updated_at] || request["updated_at"]),
+      metadata: request[:metadata] || request["metadata"] || %{}
+    }
+  end
+
+  defp format_remote_join_request(_request), do: %{}
+
+  defp maybe_iso8601(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
+  defp maybe_iso8601(value), do: value
 
   @doc """
   POST /api/conversations/:conversation_id/upload

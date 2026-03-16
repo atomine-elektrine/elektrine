@@ -98,7 +98,7 @@ defmodule Elektrine.Email.AutoReplies do
   Checks if we've already sent an auto-reply to this sender.
   """
   def has_replied_to?(user_id, sender_email) do
-    sender_email = String.downcase(String.trim(sender_email))
+    sender_email = normalize_sender_email(sender_email)
 
     query =
       from l in "email_auto_reply_log",
@@ -112,7 +112,7 @@ defmodule Elektrine.Email.AutoReplies do
   Records that we sent an auto-reply to a sender.
   """
   def record_auto_reply(user_id, sender_email) do
-    sender_email = String.downcase(String.trim(sender_email))
+    sender_email = normalize_sender_email(sender_email)
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     Repo.insert_all(
@@ -165,7 +165,7 @@ defmodule Elektrine.Email.AutoReplies do
       case Elektrine.Email.Sender.send_email(user_id, email_attrs) do
         {:ok, _sent} ->
           # Record that we replied to this sender
-          record_auto_reply(user_id, message.from)
+          record_auto_reply(user_id, extract_email(message.from))
           Logger.info("Sent auto-reply to #{message.from} for user #{user_id}")
           :sent
 
@@ -187,4 +187,11 @@ defmodule Elektrine.Email.AutoReplies do
   end
 
   defp extract_email(_), do: ""
+
+  defp normalize_sender_email(sender_email) do
+    sender_email
+    |> extract_email()
+    |> String.downcase()
+    |> String.trim()
+  end
 end

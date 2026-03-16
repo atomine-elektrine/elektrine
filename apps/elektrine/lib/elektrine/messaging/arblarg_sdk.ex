@@ -38,6 +38,13 @@ defmodule Elektrine.Messaging.ArblargSDK do
   @dm_extension_urn "urn:arblarg:ext:dm:1"
   @dm_message_create_event_type "urn:arblarg:ext:dm:1#message.create"
 
+  @voice_extension_urn "urn:arblarg:ext:voice:1"
+  @voice_dm_call_invite_event_type "urn:arblarg:ext:voice:1#dm.call.invite"
+  @voice_dm_call_accept_event_type "urn:arblarg:ext:voice:1#dm.call.accept"
+  @voice_dm_call_reject_event_type "urn:arblarg:ext:voice:1#dm.call.reject"
+  @voice_dm_call_end_event_type "urn:arblarg:ext:voice:1#dm.call.end"
+  @voice_dm_call_signal_event_type "urn:arblarg:ext:voice:1#dm.call.signal"
+
   @core_event_types [
     "message.create",
     "message.update",
@@ -78,13 +85,32 @@ defmodule Elektrine.Messaging.ArblargSDK do
     @dm_message_create_event_type
   ]
 
-  @extension_event_types @roles_event_types ++
-                           @permissions_event_types ++
-                           @threads_event_types ++
-                           @presence_event_types ++ @moderation_event_types ++ @dm_event_types
+  @voice_event_types [
+    @voice_dm_call_invite_event_type,
+    @voice_dm_call_accept_event_type,
+    @voice_dm_call_reject_event_type,
+    @voice_dm_call_end_event_type,
+    @voice_dm_call_signal_event_type
+  ]
 
-  @event_types [@bootstrap_server_upsert_event_type] ++
-                 @core_event_types ++ @extension_event_types
+  @durable_extension_event_types @roles_event_types ++
+                                   @permissions_event_types ++
+                                   @threads_event_types ++
+                                   @moderation_event_types ++ @dm_event_types ++
+                                   Enum.take(@voice_event_types, 4)
+
+  @extension_event_types @durable_extension_event_types ++ @presence_event_types ++
+                           [@voice_dm_call_signal_event_type]
+
+  @durable_event_types [@bootstrap_server_upsert_event_type] ++
+                         @core_event_types ++ @durable_extension_event_types
+
+  @supported_event_types @durable_event_types ++ @presence_event_types
+
+  @channel_scoped_durable_event_types @core_event_types ++
+                                        @roles_event_types ++
+                                        @permissions_event_types ++
+                                        @threads_event_types ++ @moderation_event_types
 
   @extension_event_aliases %{
     "server.upsert" => @bootstrap_server_upsert_event_type,
@@ -97,7 +123,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
     "typing.start" => @typing_start_event_type,
     "typing.stop" => @typing_stop_event_type,
     "moderation.action.recorded" => @moderation_action_recorded_event_type,
-    "dm.message.create" => @dm_message_create_event_type
+    "dm.message.create" => @dm_message_create_event_type,
+    "dm.call.invite" => @voice_dm_call_invite_event_type,
+    "dm.call.accept" => @voice_dm_call_accept_event_type,
+    "dm.call.reject" => @voice_dm_call_reject_event_type,
+    "dm.call.end" => @voice_dm_call_end_event_type,
+    "dm.call.signal" => @voice_dm_call_signal_event_type
   }
 
   @schema_name_aliases %{
@@ -111,7 +142,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
     @typing_start_event_type => "typing.start",
     @typing_stop_event_type => "typing.stop",
     @moderation_action_recorded_event_type => "moderation.action.recorded",
-    @dm_message_create_event_type => "dm.message.create"
+    @dm_message_create_event_type => "dm.message.create",
+    @voice_dm_call_invite_event_type => "dm.call.invite",
+    @voice_dm_call_accept_event_type => "dm.call.accept",
+    @voice_dm_call_reject_event_type => "dm.call.reject",
+    @voice_dm_call_end_event_type => "dm.call.end",
+    @voice_dm_call_signal_event_type => "dm.call.signal"
   }
 
   @schema_bindings %{
@@ -146,11 +182,24 @@ defmodule Elektrine.Messaging.ArblargSDK do
     @moderation_action_recorded_event_type => "moderation.action.recorded",
     "moderation.action.recorded" => "moderation.action.recorded",
     @dm_message_create_event_type => "dm.message.create",
-    "dm.message.create" => "dm.message.create"
+    "dm.message.create" => "dm.message.create",
+    @voice_dm_call_invite_event_type => "dm.call.invite",
+    "dm.call.invite" => "dm.call.invite",
+    @voice_dm_call_accept_event_type => "dm.call.accept",
+    "dm.call.accept" => "dm.call.accept",
+    @voice_dm_call_reject_event_type => "dm.call.reject",
+    "dm.call.reject" => "dm.call.reject",
+    @voice_dm_call_end_event_type => "dm.call.end",
+    "dm.call.end" => "dm.call.end",
+    @voice_dm_call_signal_event_type => "dm.call.signal",
+    "dm.call.signal" => "dm.call.signal"
   }
 
   @presence_statuses ["online", "idle", "dnd", "offline", "invisible"]
-  @moderation_action_kinds ["timeout", "kick", "ban", "unban", "message_delete", "role_update"]
+  @moderation_action_kinds ["warn", "timeout", "kick", "ban", "unban", "delete_message"]
+  @call_types ["audio", "video"]
+  @call_signal_kinds ["offer", "answer", "ice"]
+  @call_end_reasons ["ended", "failed", "disconnected", "timeout", "cancelled"]
   @actor_schema %{
     "type" => "object",
     "required" => ["uri", "username", "domain", "handle"],
@@ -225,7 +274,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
           "protocol" => %{"type" => "string", "const" => @protocol_name},
           "protocol_id" => %{"type" => "string", "const" => @protocol_id},
           "protocol_version" => %{"type" => "string", "const" => "1.0"},
-          "event_type" => %{"type" => "string", "enum" => @event_types},
+          "event_type" => %{"type" => "string", "enum" => @durable_event_types},
           "event_id" => %{"type" => "string", "minLength" => 1},
           "origin_domain" => %{"type" => "string", "minLength" => 1},
           "stream_id" => %{"type" => "string", "minLength" => 1},
@@ -568,10 +617,11 @@ defmodule Elektrine.Messaging.ArblargSDK do
         "$id" => "arblarg://schemas/1.0/role.upsert",
         "title" => "Arblarg role.upsert payload",
         "type" => "object",
-        "required" => ["server", "channel", "role"],
+        "required" => ["server", "channel", "role", "actor"],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "actor" => @actor_schema,
           "role" => %{
             "type" => "object",
             "required" => ["id", "name", "permissions", "position"],
@@ -592,10 +642,11 @@ defmodule Elektrine.Messaging.ArblargSDK do
         "$id" => "arblarg://schemas/1.0/role.assignment.upsert",
         "title" => "Arblarg role.assignment.upsert payload",
         "type" => "object",
-        "required" => ["server", "channel", "assignment"],
+        "required" => ["server", "channel", "assignment", "actor"],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "actor" => @actor_schema,
           "assignment" => %{
             "type" => "object",
             "required" => ["role_id", "target", "state"],
@@ -619,10 +670,11 @@ defmodule Elektrine.Messaging.ArblargSDK do
         "$id" => "arblarg://schemas/1.0/permission.overwrite.upsert",
         "title" => "Arblarg permission.overwrite.upsert payload",
         "type" => "object",
-        "required" => ["server", "channel", "overwrite"],
+        "required" => ["server", "channel", "overwrite", "actor"],
         "properties" => %{
           "server" => %{"type" => "object"},
           "channel" => %{"type" => "object"},
+          "actor" => @actor_schema,
           "overwrite" => %{
             "type" => "object",
             "required" => ["id", "target", "allow", "deny"],
@@ -687,17 +739,14 @@ defmodule Elektrine.Messaging.ArblargSDK do
         "title" => "Arblarg presence.update payload",
         "type" => "object",
         "required" => ["presence"],
-        "anyOf" => [
-          %{"required" => ["server"]},
-          %{"required" => ["refs"]}
-        ],
         "properties" => %{
           "server" => %{"type" => "object"},
+          "channel" => %{"type" => "object"},
           "refs" => %{
             "type" => "object",
-            "required" => ["server_id"],
             "properties" => %{
-              "server_id" => %{"type" => "string", "minLength" => 1}
+              "server_id" => %{"type" => "string", "minLength" => 1},
+              "channel_id" => %{"type" => "string", "minLength" => 1}
             }
           },
           "presence" => %{
@@ -797,7 +846,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
         "properties" => %{
           "dm" => %{
             "type" => "object",
-            "required" => ["sender", "recipient"],
+            "required" => ["id", "sender", "recipient"],
             "properties" => %{
               "id" => %{"type" => "string", "minLength" => 1},
               "sender" => @actor_schema,
@@ -816,6 +865,134 @@ defmodule Elektrine.Messaging.ArblargSDK do
               "created_at" => %{"type" => "string", "format" => "date-time"},
               "edited_at" => %{"type" => "string", "format" => "date-time"},
               "sender" => @actor_schema
+            }
+          }
+        }
+      },
+      "dm.call.invite" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/dm.call.invite",
+        "title" => "Arblarg dm.call.invite payload",
+        "type" => "object",
+        "required" => ["dm", "call"],
+        "properties" => %{
+          "dm" => %{
+            "type" => "object",
+            "required" => ["id", "sender", "recipient"],
+            "properties" => %{
+              "id" => %{"type" => "string", "minLength" => 1},
+              "sender" => @actor_schema,
+              "recipient" => @actor_schema
+            }
+          },
+          "call" => %{
+            "type" => "object",
+            "required" => ["id", "dm_id", "call_type", "actor", "initiated_at"],
+            "properties" => %{
+              "id" => %{"type" => "string", "minLength" => 1},
+              "dm_id" => %{"type" => "string", "minLength" => 1},
+              "call_type" => %{"type" => "string", "enum" => @call_types},
+              "actor" => @actor_schema,
+              "initiated_at" => %{"type" => "string", "format" => "date-time"},
+              "metadata" => %{"type" => "object"}
+            }
+          }
+        }
+      },
+      "dm.call.accept" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/dm.call.accept",
+        "title" => "Arblarg dm.call.accept payload",
+        "type" => "object",
+        "required" => ["dm", "call_id", "actor", "accepted_at"],
+        "properties" => %{
+          "dm" => %{
+            "type" => "object",
+            "required" => ["id", "sender", "recipient"],
+            "properties" => %{
+              "id" => %{"type" => "string", "minLength" => 1},
+              "sender" => @actor_schema,
+              "recipient" => @actor_schema
+            }
+          },
+          "call_id" => %{"type" => "string", "minLength" => 1},
+          "actor" => @actor_schema,
+          "accepted_at" => %{"type" => "string", "format" => "date-time"},
+          "metadata" => %{"type" => "object"}
+        }
+      },
+      "dm.call.reject" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/dm.call.reject",
+        "title" => "Arblarg dm.call.reject payload",
+        "type" => "object",
+        "required" => ["dm", "call_id", "actor", "rejected_at"],
+        "properties" => %{
+          "dm" => %{
+            "type" => "object",
+            "required" => ["id", "sender", "recipient"],
+            "properties" => %{
+              "id" => %{"type" => "string", "minLength" => 1},
+              "sender" => @actor_schema,
+              "recipient" => @actor_schema
+            }
+          },
+          "call_id" => %{"type" => "string", "minLength" => 1},
+          "actor" => @actor_schema,
+          "rejected_at" => %{"type" => "string", "format" => "date-time"},
+          "reason" => %{"type" => "string"},
+          "metadata" => %{"type" => "object"}
+        }
+      },
+      "dm.call.end" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/dm.call.end",
+        "title" => "Arblarg dm.call.end payload",
+        "type" => "object",
+        "required" => ["dm", "call_id", "actor", "ended_at"],
+        "properties" => %{
+          "dm" => %{
+            "type" => "object",
+            "required" => ["id", "sender", "recipient"],
+            "properties" => %{
+              "id" => %{"type" => "string", "minLength" => 1},
+              "sender" => @actor_schema,
+              "recipient" => @actor_schema
+            }
+          },
+          "call_id" => %{"type" => "string", "minLength" => 1},
+          "actor" => @actor_schema,
+          "ended_at" => %{"type" => "string", "format" => "date-time"},
+          "reason" => %{"type" => "string", "enum" => @call_end_reasons},
+          "metadata" => %{"type" => "object"}
+        }
+      },
+      "dm.call.signal" => %{
+        "$schema" => "https://json-schema.org/draft/2020-12/schema",
+        "$id" => "arblarg://schemas/1.0/dm.call.signal",
+        "title" => "Arblarg dm.call.signal payload",
+        "type" => "object",
+        "required" => ["dm", "call_id", "actor", "signal", "sent_at"],
+        "properties" => %{
+          "dm" => %{
+            "type" => "object",
+            "required" => ["id", "sender", "recipient"],
+            "properties" => %{
+              "id" => %{"type" => "string", "minLength" => 1},
+              "sender" => @actor_schema,
+              "recipient" => @actor_schema
+            }
+          },
+          "call_id" => %{"type" => "string", "minLength" => 1},
+          "actor" => @actor_schema,
+          "sent_at" => %{"type" => "string", "format" => "date-time"},
+          "signal" => %{
+            "type" => "object",
+            "required" => ["kind", "payload"],
+            "properties" => %{
+              "kind" => %{"type" => "string", "enum" => @call_signal_kinds},
+              "payload" => %{"type" => "object"},
+              "sequence" => %{"type" => "integer", "minimum" => 0}
             }
           }
         }
@@ -839,14 +1016,23 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def presence_extension_urn, do: @presence_extension_urn
   def moderation_extension_urn, do: @moderation_extension_urn
   def dm_extension_urn, do: @dm_extension_urn
+  def voice_extension_urn, do: @voice_extension_urn
   def roles_event_types, do: @roles_event_types
   def permissions_event_types, do: @permissions_event_types
   def threads_event_types, do: @threads_event_types
   def presence_event_types, do: @presence_event_types
   def moderation_event_types, do: @moderation_event_types
   def dm_event_types, do: @dm_event_types
+  def voice_event_types, do: @voice_event_types
   def dm_message_create_event_type, do: @dm_message_create_event_type
+  def dm_call_invite_event_type, do: @voice_dm_call_invite_event_type
+  def dm_call_accept_event_type, do: @voice_dm_call_accept_event_type
+  def dm_call_reject_event_type, do: @voice_dm_call_reject_event_type
+  def dm_call_end_event_type, do: @voice_dm_call_end_event_type
+  def dm_call_signal_event_type, do: @voice_dm_call_signal_event_type
   def schema_bindings, do: @schema_bindings
+  def durable_event_types, do: @durable_event_types
+  def ephemeral_event_types, do: @presence_event_types ++ [@voice_dm_call_signal_event_type]
 
   def canonical_event_type(event_type) when is_binary(event_type) do
     Map.get(@extension_event_aliases, event_type, event_type)
@@ -854,7 +1040,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def canonical_event_type(event_type), do: event_type
 
-  def supported_event_types, do: @event_types
+  def supported_event_types, do: @supported_event_types
 
   def schema(version \\ @protocol_version, name)
 
@@ -926,6 +1112,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def verify_payload_signature(_payload, _public_key_material, _signature), do: false
 
+  def verification_public_key(material) do
+    normalize_verification_public_key(material)
+  end
+
   def valid_timestamp?(timestamp, skew_seconds \\ @clock_skew_seconds)
 
   def valid_timestamp?(timestamp, skew_seconds) when is_binary(timestamp) do
@@ -941,6 +1131,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def valid_timestamp?(_timestamp, _skew_seconds), do: false
 
   def sign_event_envelope(envelope, key_id, private_key_material) when is_map(envelope) do
+    envelope = normalize_envelope_for_signing(envelope)
+
     signature_value =
       envelope
       |> canonical_event_signature_payload()
@@ -980,6 +1172,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def canonical_event_payload_for_signing(envelope) when is_map(envelope) do
     envelope
+    |> normalize_envelope_for_signing()
     |> Map.delete("signature")
     |> canonical_event_signature_payload()
   end
@@ -990,9 +1183,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
     protocol_id = envelope["protocol_id"]
     protocol_name = envelope["protocol"]
     protocol_version = envelope["protocol_version"]
-    event_type = canonical_event_type(envelope["event_type"])
+    raw_event_type = envelope["event_type"]
+    event_type = canonical_event_type(raw_event_type)
     payload = envelope["payload"]
-    idempotency_key = envelope["idempotency_key"] || envelope["event_id"]
+    idempotency_key = envelope["idempotency_key"]
 
     cond do
       protocol_id != @protocol_id ->
@@ -1004,7 +1198,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       protocol_version != @protocol_version ->
         {:error, :unsupported_version}
 
-      event_type not in @event_types ->
+      raw_event_type not in @durable_event_types ->
         {:error, :unsupported_event_type}
 
       !non_empty_binary?(envelope["event_id"]) ->
@@ -1032,7 +1226,9 @@ defmodule Elektrine.Messaging.ArblargSDK do
         {:error, :invalid_signature}
 
       true ->
-        validate_event_payload(event_type, payload)
+        with :ok <- validate_event_payload(event_type, payload) do
+          validate_stream_binding(event_type, envelope["stream_id"], payload)
+        end
     end
   end
 
@@ -1046,10 +1242,17 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def validate_event_payload(@bootstrap_server_upsert_event_type, payload) do
     cond do
-      !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_list(payload["channels"] || []) -> {:error, :invalid_event_payload}
-      true -> :ok
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_server_object?(payload["server"], require_name?: true) ->
+        {:error, :invalid_event_payload}
+
+      !valid_server_channels?(payload["channels"]) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
     end
   end
 
@@ -1058,10 +1261,26 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def validate_event_payload("message.delete", payload) do
     cond do
-      !is_map(payload) -> {:error, :invalid_event_payload}
-      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
-      !non_empty_binary?(payload["message_id"]) -> {:error, :invalid_event_payload}
-      true -> :ok
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["server"]) and !valid_server_object?(payload["server"]) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["channel"]) and !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(payload["message_id"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_optional_iso8601?(payload["deleted_at"]) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
     end
   end
 
@@ -1070,12 +1289,32 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def validate_event_payload("read.cursor", payload) do
     cond do
-      !is_map(payload) -> {:error, :invalid_event_payload}
-      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
-      !non_empty_binary?(payload["read_through_message_id"]) -> {:error, :invalid_event_payload}
-      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
-      !valid_iso8601?(payload["read_at"]) -> {:error, :invalid_event_payload}
-      true -> :ok
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["server"]) and !valid_server_object?(payload["server"]) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["channel"]) and !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(payload["read_through_message_id"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(payload["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_positive_integer_or_nil?(payload["read_through_sequence"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(payload["read_at"]) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
     end
   end
 
@@ -1087,6 +1326,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
         {:error, :invalid_event_payload}
 
       !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["server"]) and !valid_server_object?(payload["server"]) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["channel"]) and !valid_channel_object?(payload["channel"]) ->
         {:error, :invalid_event_payload}
 
       !is_map(membership) ->
@@ -1125,6 +1370,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !valid_channel_event_context?(payload) ->
         {:error, :invalid_event_payload}
 
+      is_map(payload["server"]) and !valid_server_object?(payload["server"]) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["channel"]) and !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
       !is_map(invite) ->
         {:error, :invalid_event_payload}
 
@@ -1158,17 +1409,44 @@ defmodule Elektrine.Messaging.ArblargSDK do
     ban = if is_map(payload), do: payload["ban"], else: nil
 
     cond do
-      !is_map(payload) -> {:error, :invalid_event_payload}
-      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
-      !is_map(ban) -> {:error, :invalid_event_payload}
-      !valid_actor_payload?(ban["actor"]) -> {:error, :invalid_event_payload}
-      !valid_actor_payload?(ban["target"]) -> {:error, :invalid_event_payload}
-      ban["state"] not in ["active", "lifted"] -> {:error, :invalid_event_payload}
-      !valid_iso8601?(ban["banned_at"]) -> {:error, :invalid_event_payload}
-      !valid_iso8601?(ban["updated_at"]) -> {:error, :invalid_event_payload}
-      !valid_optional_iso8601?(ban["expires_at"]) -> {:error, :invalid_event_payload}
-      !is_map(ban["metadata"] || %{}) -> {:error, :invalid_event_payload}
-      true -> :ok
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["server"]) and !valid_server_object?(payload["server"]) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["channel"]) and !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(ban) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(ban["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(ban["target"]) ->
+        {:error, :invalid_event_payload}
+
+      ban["state"] not in ["active", "lifted"] ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(ban["banned_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(ban["updated_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_optional_iso8601?(ban["expires_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(ban["metadata"] || %{}) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
     end
   end
 
@@ -1231,6 +1509,36 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   def validate_event_payload("dm.message.create", payload),
     do: validate_event_payload(@dm_message_create_event_type, payload)
+
+  def validate_event_payload(@voice_dm_call_invite_event_type, payload),
+    do: validate_dm_call_invite_payload(payload)
+
+  def validate_event_payload("dm.call.invite", payload),
+    do: validate_event_payload(@voice_dm_call_invite_event_type, payload)
+
+  def validate_event_payload(@voice_dm_call_accept_event_type, payload),
+    do: validate_dm_call_accept_payload(payload)
+
+  def validate_event_payload("dm.call.accept", payload),
+    do: validate_event_payload(@voice_dm_call_accept_event_type, payload)
+
+  def validate_event_payload(@voice_dm_call_reject_event_type, payload),
+    do: validate_dm_call_reject_payload(payload)
+
+  def validate_event_payload("dm.call.reject", payload),
+    do: validate_event_payload(@voice_dm_call_reject_event_type, payload)
+
+  def validate_event_payload(@voice_dm_call_end_event_type, payload),
+    do: validate_dm_call_end_payload(payload)
+
+  def validate_event_payload("dm.call.end", payload),
+    do: validate_event_payload(@voice_dm_call_end_event_type, payload)
+
+  def validate_event_payload(@voice_dm_call_signal_event_type, payload),
+    do: validate_dm_call_signal_payload(payload)
+
+  def validate_event_payload("dm.call.signal", payload),
+    do: validate_event_payload(@voice_dm_call_signal_event_type, payload)
 
   def validate_event_payload(_event_type, _payload), do: {:error, :unsupported_event_type}
 
@@ -1305,7 +1613,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
     do: {:ok, key}
 
   defp normalize_public_key(%{public_key: key}), do: normalize_public_key(key)
-  defp normalize_public_key(%{secret: secret}), do: normalize_public_key(secret)
+  defp normalize_public_key(%{"public_key" => key}), do: normalize_public_key(key)
 
   defp normalize_public_key(key) when is_binary(key) do
     trimmed = String.trim(key)
@@ -1318,13 +1626,46 @@ defmodule Elektrine.Messaging.ArblargSDK do
           {:ok, decoded}
 
         :error ->
-          {public_key, _private_key} = derive_keypair_from_secret(trimmed)
-          {:ok, public_key}
+          {:error, :invalid_public_key}
       end
     end
   end
 
   defp normalize_public_key(_), do: {:error, :invalid_public_key}
+
+  defp normalize_verification_public_key(%{public_key: key}), do: normalize_public_key(key)
+  defp normalize_verification_public_key(%{"public_key" => key}), do: normalize_public_key(key)
+
+  defp normalize_verification_public_key(%{secret: secret})
+       when is_binary(secret) and secret != "" do
+    {public_key, _private_key} = derive_keypair_from_secret(secret)
+    {:ok, public_key}
+  end
+
+  defp normalize_verification_public_key(%{"secret" => secret})
+       when is_binary(secret) and secret != "" do
+    {public_key, _private_key} = derive_keypair_from_secret(secret)
+    {:ok, public_key}
+  end
+
+  defp normalize_verification_public_key(key) when is_binary(key) do
+    case normalize_public_key(key) do
+      {:ok, public_key} ->
+        {:ok, public_key}
+
+      {:error, :invalid_public_key} ->
+        trimmed = String.trim(key)
+
+        if trimmed == "" do
+          {:error, :invalid_public_key}
+        else
+          {public_key, _private_key} = derive_keypair_from_secret(trimmed)
+          {:ok, public_key}
+        end
+    end
+  end
+
+  defp normalize_verification_public_key(_), do: {:error, :invalid_public_key}
 
   defp decode_32_byte_key(encoded) when is_binary(encoded) do
     case Base.url_decode64(encoded, padding: false) do
@@ -1348,9 +1689,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
       !is_map(message) -> {:error, :invalid_event_payload}
       !non_empty_binary?(message["id"]) -> {:error, :invalid_event_payload}
-      !is_binary(message["content"] || "") -> {:error, :invalid_event_payload}
-      !valid_attachment_list?(message["attachments"]) -> {:error, :invalid_event_payload}
+      !valid_message_content?(message) -> {:error, :invalid_event_payload}
+      !valid_message_metadata?(message) -> {:error, :invalid_event_payload}
       !valid_actor_payload?(message["sender"]) -> {:error, :invalid_event_payload}
+      !valid_message_channel_match?(payload, message) -> {:error, :invalid_event_payload}
       true -> :ok
     end
   end
@@ -1359,13 +1701,32 @@ defmodule Elektrine.Messaging.ArblargSDK do
     reaction = if is_map(payload), do: payload["reaction"], else: nil
 
     cond do
-      !is_map(payload) -> {:error, :invalid_event_payload}
-      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
-      !non_empty_binary?(payload["message_id"]) -> {:error, :invalid_event_payload}
-      !is_map(reaction) -> {:error, :invalid_event_payload}
-      !non_empty_binary?(reaction["emoji"]) -> {:error, :invalid_event_payload}
-      !valid_actor_payload?(reaction["actor"]) -> {:error, :invalid_event_payload}
-      true -> :ok
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["server"]) and !valid_server_object?(payload["server"]) ->
+        {:error, :invalid_event_payload}
+
+      is_map(payload["channel"]) and !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(payload["message_id"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(reaction) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(reaction["emoji"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(reaction["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
     end
   end
 
@@ -1374,13 +1735,18 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_server_object?(payload["server"]) -> {:error, :invalid_event_payload}
+      !valid_channel_object?(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       !is_map(role) -> {:error, :invalid_event_payload}
       !non_empty_binary?(role["id"]) -> {:error, :invalid_event_payload}
       !non_empty_binary?(role["name"]) -> {:error, :invalid_event_payload}
       !is_integer(role["position"]) or role["position"] < 0 -> {:error, :invalid_event_payload}
       !valid_string_list?(role["permissions"]) -> {:error, :invalid_event_payload}
+      !valid_optional_binary?(role["color"]) -> {:error, :invalid_event_payload}
+      !valid_boolean_or_nil?(role["hoist"]) -> {:error, :invalid_event_payload}
+      !valid_boolean_or_nil?(role["mentionable"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end
   end
@@ -1390,8 +1756,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_server_object?(payload["server"]) -> {:error, :invalid_event_payload}
+      !valid_channel_object?(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       !is_map(assignment) -> {:error, :invalid_event_payload}
       !non_empty_binary?(assignment["role_id"]) -> {:error, :invalid_event_payload}
       !valid_target?(assignment["target"], ["user", "member"]) -> {:error, :invalid_event_payload}
@@ -1405,8 +1773,10 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_server_object?(payload["server"]) -> {:error, :invalid_event_payload}
+      !valid_channel_object?(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
+      !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       !is_map(overwrite) -> {:error, :invalid_event_payload}
       !non_empty_binary?(overwrite["id"]) -> {:error, :invalid_event_payload}
       !valid_target?(overwrite["target"], ["role", "member"]) -> {:error, :invalid_event_payload}
@@ -1423,10 +1793,13 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(payload) ->
         {:error, :invalid_event_payload}
 
-      !valid_server_context?(payload, payload["refs"] || %{}) ->
+      !valid_server_object?(payload["server"]) ->
         {:error, :invalid_event_payload}
 
-      !is_map(payload["channel"]) ->
+      !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
         {:error, :invalid_event_payload}
 
       !is_map(thread) ->
@@ -1451,6 +1824,9 @@ defmodule Elektrine.Messaging.ArblargSDK do
         {:error, :invalid_event_payload}
 
       !valid_non_negative_integer_or_nil?(thread["member_count"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_thread_channel_match?(payload, thread) ->
         {:error, :invalid_event_payload}
 
       true ->
@@ -1486,10 +1862,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp validate_thread_archive_payload(payload) do
     cond do
       !is_map(payload) -> {:error, :invalid_event_payload}
-      !is_map(payload["server"]) -> {:error, :invalid_event_payload}
-      !is_map(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_server_object?(payload["server"]) -> {:error, :invalid_event_payload}
+      !valid_channel_object?(payload["channel"]) -> {:error, :invalid_event_payload}
+      !valid_channel_event_context?(payload) -> {:error, :invalid_event_payload}
       !non_empty_binary?(payload["thread_id"]) -> {:error, :invalid_event_payload}
       !valid_iso8601?(payload["archived_at"]) -> {:error, :invalid_event_payload}
+      !valid_optional_binary?(payload["reason"]) -> {:error, :invalid_event_payload}
       !valid_actor_payload?(payload["actor"]) -> {:error, :invalid_event_payload}
       true -> :ok
     end
@@ -1504,7 +1882,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(payload) ->
         {:error, :invalid_event_payload}
 
-      !valid_server_context?(payload, payload["refs"] || %{}) ->
+      !valid_optional_presence_context?(payload) ->
         {:error, :invalid_event_payload}
 
       !is_map(presence) ->
@@ -1537,10 +1915,13 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(payload) ->
         {:error, :invalid_event_payload}
 
-      !is_map(payload["server"]) ->
+      !valid_server_object?(payload["server"]) ->
         {:error, :invalid_event_payload}
 
-      !is_map(payload["channel"]) ->
+      !valid_channel_object?(payload["channel"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_channel_event_context?(payload) ->
         {:error, :invalid_event_payload}
 
       !is_map(action) ->
@@ -1552,7 +1933,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
       action["kind"] not in @moderation_action_kinds ->
         {:error, :invalid_event_payload}
 
-      !is_map(action["target"]) ->
+      !valid_opaque_target?(action["target"]) ->
         {:error, :invalid_event_payload}
 
       !valid_actor_payload?(action["actor"]) ->
@@ -1583,6 +1964,9 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !is_map(message) ->
         {:error, :invalid_event_payload}
 
+      !non_empty_binary?(dm["id"]) ->
+        {:error, :invalid_event_payload}
+
       !valid_actor_payload?(dm["sender"]) ->
         {:error, :invalid_event_payload}
 
@@ -1595,13 +1979,19 @@ defmodule Elektrine.Messaging.ArblargSDK do
       !non_empty_binary?(message["dm_id"]) ->
         {:error, :invalid_event_payload}
 
-      !is_binary(message["content"] || "") ->
+      message["dm_id"] != dm["id"] ->
         {:error, :invalid_event_payload}
 
-      !valid_attachment_list?(message["attachments"]) ->
+      !valid_message_content?(message) ->
+        {:error, :invalid_event_payload}
+
+      !valid_message_metadata?(message) ->
         {:error, :invalid_event_payload}
 
       !valid_actor_payload?(message["sender"]) ->
+        {:error, :invalid_event_payload}
+
+      !same_actor_identity?(dm["sender"], message["sender"]) ->
         {:error, :invalid_event_payload}
 
       true ->
@@ -1609,23 +1999,440 @@ defmodule Elektrine.Messaging.ArblargSDK do
     end
   end
 
-  defp valid_channel_event_context?(payload) when is_map(payload) do
-    refs = payload["refs"] || %{}
+  defp validate_dm_call_invite_payload(payload) do
+    dm = if is_map(payload), do: payload["dm"], else: nil
+    call = if is_map(payload), do: payload["call"], else: nil
 
-    valid_server_context?(payload, refs) and valid_channel_context?(payload, refs)
+    cond do
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_dm_event_context?(dm) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(call) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(call["id"]) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(call["dm_id"]) ->
+        {:error, :invalid_event_payload}
+
+      call["dm_id"] != dm["id"] ->
+        {:error, :invalid_event_payload}
+
+      call["call_type"] not in @call_types ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(call["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      !same_actor_identity?(dm["sender"], call["actor"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(call["initiated_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(call["metadata"] || %{}) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_dm_call_accept_payload(payload),
+    do: validate_dm_call_state_payload(payload, "accepted_at", nil)
+
+  defp validate_dm_call_reject_payload(payload),
+    do: validate_dm_call_state_payload(payload, "rejected_at", :reject)
+
+  defp validate_dm_call_end_payload(payload),
+    do: validate_dm_call_state_payload(payload, "ended_at", :end_call)
+
+  defp validate_dm_call_state_payload(payload, timestamp_field, mode) do
+    dm = if is_map(payload), do: payload["dm"], else: nil
+    actor = if is_map(payload), do: payload["actor"], else: nil
+
+    cond do
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_dm_event_context?(dm) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(payload["call_id"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(actor) ->
+        {:error, :invalid_event_payload}
+
+      !same_actor_identity?(dm["recipient"], actor) and !same_actor_identity?(dm["sender"], actor) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(payload[timestamp_field]) ->
+        {:error, :invalid_event_payload}
+
+      mode == :reject and !valid_optional_binary?(payload["reason"]) ->
+        {:error, :invalid_event_payload}
+
+      mode == :end_call and payload["reason"] not in [nil | @call_end_reasons] ->
+        {:error, :invalid_event_payload}
+
+      !is_map(payload["metadata"] || %{}) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_dm_call_signal_payload(payload) do
+    dm = if is_map(payload), do: payload["dm"], else: nil
+    actor = if is_map(payload), do: payload["actor"], else: nil
+    signal = if is_map(payload), do: payload["signal"], else: nil
+    signal_payload = if is_map(signal), do: signal["payload"], else: nil
+
+    cond do
+      !is_map(payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_dm_event_context?(dm) ->
+        {:error, :invalid_event_payload}
+
+      !non_empty_binary?(payload["call_id"]) ->
+        {:error, :invalid_event_payload}
+
+      !valid_actor_payload?(actor) ->
+        {:error, :invalid_event_payload}
+
+      !same_actor_identity?(dm["recipient"], actor) and !same_actor_identity?(dm["sender"], actor) ->
+        {:error, :invalid_event_payload}
+
+      !valid_iso8601?(payload["sent_at"]) ->
+        {:error, :invalid_event_payload}
+
+      !is_map(signal) ->
+        {:error, :invalid_event_payload}
+
+      signal["kind"] not in @call_signal_kinds ->
+        {:error, :invalid_event_payload}
+
+      !is_map(signal_payload) ->
+        {:error, :invalid_event_payload}
+
+      !valid_dm_call_signal_payload?(signal["kind"], signal_payload) ->
+        {:error, :invalid_event_payload}
+
+      !is_nil(signal["sequence"]) and
+          (!is_integer(signal["sequence"]) or signal["sequence"] < 0) ->
+        {:error, :invalid_event_payload}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp valid_dm_event_context?(dm) when is_map(dm) do
+    non_empty_binary?(dm["id"]) and valid_actor_payload?(dm["sender"]) and
+      valid_actor_payload?(dm["recipient"])
+  end
+
+  defp valid_dm_event_context?(_dm), do: false
+
+  defp valid_dm_call_signal_payload?("offer", payload) when is_map(payload) do
+    valid_sdp_signal_payload?(payload, "offer")
+  end
+
+  defp valid_dm_call_signal_payload?("answer", payload) when is_map(payload) do
+    valid_sdp_signal_payload?(payload, "answer")
+  end
+
+  defp valid_dm_call_signal_payload?("ice", payload) when is_map(payload) do
+    candidate = payload["candidate"]
+
+    is_map(candidate) and non_empty_binary?(candidate["candidate"]) and
+      byte_size(candidate["candidate"]) <= 4096 and
+      (is_nil(candidate["sdpMid"]) or
+         (is_binary(candidate["sdpMid"]) and byte_size(candidate["sdpMid"]) <= 128)) and
+      (is_nil(candidate["sdpMLineIndex"]) or
+         (is_integer(candidate["sdpMLineIndex"]) and candidate["sdpMLineIndex"] >= 0 and
+            candidate["sdpMLineIndex"] <= 1024)) and
+      (is_nil(candidate["usernameFragment"]) or
+         (is_binary(candidate["usernameFragment"]) and byte_size(candidate["usernameFragment"]) <= 256))
+  end
+
+  defp valid_dm_call_signal_payload?(_kind, _payload), do: false
+
+  defp valid_sdp_signal_payload?(payload, expected_type) when is_map(payload) do
+    sdp = payload["sdp"]
+
+    is_map(sdp) and sdp["type"] == expected_type and is_binary(sdp["sdp"]) and
+      byte_size(sdp["sdp"]) > 0 and byte_size(sdp["sdp"]) <= 100_000 and
+      String.starts_with?(sdp["sdp"], "v=0")
+  end
+
+  defp valid_sdp_signal_payload?(_payload, _expected_type), do: false
+
+  defp validate_stream_binding(@bootstrap_server_upsert_event_type, stream_id, payload)
+       when is_map(payload) do
+    validate_exact_stream_binding(stream_id, "server", get_in(payload, ["server", "id"]))
+  end
+
+  defp validate_stream_binding(event_type, stream_id, payload)
+       when event_type in @channel_scoped_durable_event_types and is_map(payload) do
+    with {:ok, channel_id} <- context_identifier(payload, "channel") do
+      validate_exact_stream_binding(stream_id, "channel", channel_id)
+    else
+      :error -> {:error, :invalid_event_payload}
+    end
+  end
+
+  defp validate_stream_binding(@dm_message_create_event_type, "dm:" <> dm_id, payload)
+       when is_map(payload) do
+    if get_in(payload, ["dm", "id"]) == dm_id do
+      :ok
+    else
+      {:error, :invalid_event_payload}
+    end
+  end
+
+  defp validate_stream_binding(@dm_message_create_event_type, _stream_id, _payload),
+    do: {:error, :invalid_event_payload}
+
+  defp validate_stream_binding(event_type, "dm:" <> dm_id, payload)
+       when event_type in [
+              @voice_dm_call_invite_event_type,
+              @voice_dm_call_accept_event_type,
+              @voice_dm_call_reject_event_type,
+              @voice_dm_call_end_event_type
+            ] and is_map(payload) do
+    if get_in(payload, ["dm", "id"]) == dm_id do
+      :ok
+    else
+      {:error, :invalid_event_payload}
+    end
+  end
+
+  defp validate_stream_binding(event_type, _stream_id, _payload)
+       when event_type in [
+              @voice_dm_call_invite_event_type,
+              @voice_dm_call_accept_event_type,
+              @voice_dm_call_reject_event_type,
+              @voice_dm_call_end_event_type
+            ],
+       do: {:error, :invalid_event_payload}
+
+  defp validate_stream_binding(_event_type, _stream_id, _payload), do: :ok
+
+  defp validate_exact_stream_binding(stream_id, scope, identifier)
+       when is_binary(stream_id) and is_binary(scope) and is_binary(identifier) do
+    if stream_id == "#{scope}:#{identifier}" do
+      :ok
+    else
+      {:error, :invalid_event_payload}
+    end
+  end
+
+  defp validate_exact_stream_binding(_stream_id, _scope, _identifier),
+    do: {:error, :invalid_event_payload}
+
+  defp valid_channel_event_context?(payload) when is_map(payload) do
+    valid_server_context?(payload) and valid_channel_context?(payload)
   end
 
   defp valid_channel_event_context?(_), do: false
 
-  defp valid_server_context?(payload, refs) do
-    is_map(payload["server"]) or
-      non_empty_binary?(refs["server_id"])
+  defp valid_server_context?(payload) when is_map(payload) do
+    case context_identifier(payload, "server") do
+      {:ok, server_id} -> valid_absolute_http_uri?(server_id)
+      :error -> false
+    end
   end
 
-  defp valid_channel_context?(payload, refs) do
-    is_map(payload["channel"]) or
-      non_empty_binary?(refs["channel_id"])
+  defp valid_server_context?(_payload), do: false
+
+  defp valid_optional_presence_context?(payload) when is_map(payload) do
+    refs = normalized_refs(payload)
+
+    cond do
+      is_map(payload["channel"]) or is_binary(refs["channel_id"]) ->
+        valid_channel_event_context?(payload)
+
+      is_map(payload["server"]) or is_binary(refs["server_id"]) ->
+        valid_server_context?(payload)
+
+      true ->
+        true
+    end
   end
+
+  defp valid_optional_presence_context?(_payload), do: false
+
+  defp valid_channel_context?(payload) when is_map(payload) do
+    case context_identifier(payload, "channel") do
+      {:ok, channel_id} -> valid_absolute_http_uri?(channel_id)
+      :error -> false
+    end
+  end
+
+  defp valid_channel_context?(_payload), do: false
+
+  defp context_identifier(payload, field)
+       when is_map(payload) and field in ["server", "channel"] do
+    refs = normalized_refs(payload)
+    object_id = get_in(payload, [field, "id"])
+    ref_id = refs["#{field}_id"]
+
+    cond do
+      is_binary(object_id) and is_binary(ref_id) and object_id != ref_id ->
+        :error
+
+      is_binary(object_id) ->
+        {:ok, object_id}
+
+      is_binary(ref_id) ->
+        {:ok, ref_id}
+
+      true ->
+        :error
+    end
+  end
+
+  defp context_identifier(_payload, _field), do: :error
+
+  defp normalized_refs(%{"refs" => refs}) when is_map(refs), do: refs
+  defp normalized_refs(%{refs: refs}) when is_map(refs), do: refs
+  defp normalized_refs(_payload), do: %{}
+
+  defp valid_server_object?(server, opts \\ [])
+
+  defp valid_server_object?(server, opts) when is_map(server) do
+    require_name? = Keyword.get(opts, :require_name?, false)
+    require_id? = Keyword.get(opts, :require_id?, true)
+
+    cond do
+      require_id? and !valid_absolute_http_uri?(server["id"]) ->
+        false
+
+      !valid_optional_binary?(server["name"], allow_empty?: false, required?: require_name?) ->
+        false
+
+      !valid_optional_binary?(server["description"]) ->
+        false
+
+      !valid_optional_binary?(server["icon_url"]) ->
+        false
+
+      !valid_boolean_or_nil?(server["is_public"]) ->
+        false
+
+      !valid_non_negative_integer_or_nil?(server["member_count"]) ->
+        false
+
+      true ->
+        true
+    end
+  end
+
+  defp valid_server_object?(_server, _opts), do: false
+
+  defp valid_channel_object?(channel, opts \\ [])
+
+  defp valid_channel_object?(channel, opts) when is_map(channel) do
+    require_name? = Keyword.get(opts, :require_name?, false)
+    require_id? = Keyword.get(opts, :require_id?, true)
+
+    cond do
+      require_id? and !valid_absolute_http_uri?(channel["id"]) ->
+        false
+
+      !valid_optional_binary?(channel["name"], allow_empty?: false, required?: require_name?) ->
+        false
+
+      !valid_optional_binary?(channel["description"]) ->
+        false
+
+      !valid_optional_binary?(channel["topic"]) ->
+        false
+
+      !valid_non_negative_integer_or_nil?(channel["position"]) ->
+        false
+
+      !valid_boolean_or_nil?(channel["is_public"]) ->
+        false
+
+      !valid_boolean_or_nil?(channel["approval_mode_enabled"]) ->
+        false
+
+      true ->
+        true
+    end
+  end
+
+  defp valid_channel_object?(_channel, _opts), do: false
+
+  defp valid_server_channels?(channels) when is_list(channels) do
+    Enum.all?(channels, &valid_channel_object?(&1, require_name?: true))
+  end
+
+  defp valid_server_channels?(_channels), do: false
+
+  defp valid_message_content?(message) when is_map(message) do
+    Map.has_key?(message, "content") and is_binary(message["content"])
+  end
+
+  defp valid_message_content?(_message), do: false
+
+  defp valid_message_metadata?(message) when is_map(message) do
+    valid_optional_binary?(message["message_type"]) and
+      valid_attachment_list?(message["attachments"]) and
+      valid_optional_iso8601?(message["created_at"]) and
+      valid_optional_iso8601?(message["edited_at"])
+  end
+
+  defp valid_message_metadata?(_message), do: false
+
+  defp valid_message_channel_match?(payload, message) when is_map(payload) and is_map(message) do
+    case message["channel_id"] do
+      nil ->
+        true
+
+      channel_id when is_binary(channel_id) ->
+        match?({:ok, ^channel_id}, context_identifier(payload, "channel"))
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_message_channel_match?(_payload, _message), do: false
+
+  defp valid_thread_channel_match?(payload, thread) when is_map(payload) and is_map(thread) do
+    case thread["channel_id"] do
+      channel_id when is_binary(channel_id) ->
+        match?({:ok, ^channel_id}, context_identifier(payload, "channel"))
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_thread_channel_match?(_payload, _thread), do: false
+
+  defp same_actor_identity?(left, right) when is_map(left) and is_map(right) do
+    valid_actor_payload?(left) and valid_actor_payload?(right) and
+      normalize_actor_identity_field(left, "uri") == normalize_actor_identity_field(right, "uri")
+  end
+
+  defp same_actor_identity?(_left, _right), do: false
+
+  defp valid_opaque_target?(target) when is_map(target) do
+    non_empty_binary?(target["type"]) and non_empty_binary?(target["id"])
+  end
+
+  defp valid_opaque_target?(_target), do: false
 
   defp valid_target?(target, allowed_types) when is_map(target) and is_list(allowed_types) do
     non_empty_binary?(target["id"]) and target["type"] in allowed_types
@@ -1668,6 +2475,37 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp valid_non_negative_integer_or_nil?(nil), do: true
   defp valid_non_negative_integer_or_nil?(value) when is_integer(value) and value >= 0, do: true
   defp valid_non_negative_integer_or_nil?(_), do: false
+
+  defp valid_positive_integer_or_nil?(nil), do: true
+  defp valid_positive_integer_or_nil?(value) when is_integer(value) and value > 0, do: true
+  defp valid_positive_integer_or_nil?(_), do: false
+
+  defp valid_boolean_or_nil?(nil), do: true
+  defp valid_boolean_or_nil?(value) when is_boolean(value), do: true
+  defp valid_boolean_or_nil?(_), do: false
+
+  defp valid_optional_binary?(value, opts \\ [])
+
+  defp valid_optional_binary?(nil, opts), do: Keyword.get(opts, :required?, false) != true
+
+  defp valid_optional_binary?(value, opts) when is_binary(value) do
+    allow_empty? = Keyword.get(opts, :allow_empty?, true)
+    required? = Keyword.get(opts, :required?, false)
+    trimmed = String.trim(value)
+
+    cond do
+      trimmed == "" and required? ->
+        false
+
+      trimmed == "" and !allow_empty? ->
+        false
+
+      true ->
+        true
+    end
+  end
+
+  defp valid_optional_binary?(_value, _opts), do: false
 
   defp valid_optional_iso8601?(nil), do: true
   defp valid_optional_iso8601?(value), do: valid_iso8601?(value)
@@ -1768,13 +2606,25 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   defp non_empty_binary?(_), do: false
 
+  defp normalize_envelope_for_signing(envelope) when is_map(envelope) do
+    case Map.get(envelope, "event_type") do
+      event_type when is_binary(event_type) ->
+        Map.put(envelope, "event_type", canonical_event_type(event_type))
+
+      _ ->
+        envelope
+    end
+  end
+
+  defp normalize_envelope_for_signing(envelope), do: envelope
+
   defp canonical_event_signature_payload(envelope) when is_map(envelope) do
     canonical_event_signature_payload(envelope, @protocol_id)
   end
 
   defp canonical_event_signature_payload(envelope, protocol_identifier) when is_map(envelope) do
     payload = envelope["payload"] || %{}
-    idempotency_key = envelope["idempotency_key"] || envelope["event_id"]
+    idempotency_key = envelope["idempotency_key"]
 
     [
       protocol_identifier,

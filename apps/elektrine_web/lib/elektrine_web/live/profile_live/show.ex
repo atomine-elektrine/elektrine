@@ -140,9 +140,11 @@ defmodule ElektrineWeb.ProfileLive.Show do
          |> assign(:report_modal_type, nil)
          |> assign(:report_modal_id, nil)
          |> assign(:show_share_modal, false)
+         |> assign(:profile_host_domain, Domains.primary_profile_domain())
+         |> assign(:profile_navigation_domain, Domains.primary_profile_domain())
          |> assign(
            :profile_url,
-           "https://#{user.handle || user.username}.#{Domains.primary_profile_domain()}"
+           Domains.profile_url_for_handle(user.handle || user.username)
          )
          |> assign(:base_url, "")
          |> assign(:show_timeline_drawer, false)

@@ -9,6 +9,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
   import ElektrineWeb.Live.NotificationHelpers
 
   alias Elektrine.Email
+  alias ElektrineWeb.UserErrorHelpers
 
   def handle_event("create_alias", %{"alias" => alias_params}, socket) do
     user = socket.assigns.current_user
@@ -45,25 +46,11 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
           Logger.error("Failed to create alias for user #{user.id}: #{inspect(changeset.errors)}")
           Logger.error("Alias creation failed for #{username}@#{domain}")
 
-          # Handle single-domain creation error
-          error_msgs =
-            Enum.map(changeset.errors, fn {field, {msg, _}} ->
-              case field do
-                # Use just the message for alias_email errors
-                :alias_email -> msg
-                _ -> "#{field}: #{msg}"
-              end
-            end)
-            |> Enum.uniq()
-            |> Enum.join(", ")
-
           error_message =
-            if error_msgs != "" do
-              # Ensure error message is plain text, not HTML
-              Phoenix.HTML.html_escape(error_msgs) |> Phoenix.HTML.safe_to_string()
-            else
-              "Failed to create alias"
-            end
+            changeset
+            |> UserErrorHelpers.join_changeset_errors(fallback: "Could not create that alias.")
+            |> Phoenix.HTML.html_escape()
+            |> Phoenix.HTML.safe_to_string()
 
           {:noreply,
            socket
@@ -99,14 +86,9 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
             )
 
             error_msg =
-              case changeset.errors do
-                [] ->
-                  "Failed to update alias status"
-
-                errors ->
-                  errors
-                  |> Enum.map_join(", ", fn {field, {msg, _}} -> "#{field}: #{msg}" end)
-              end
+              UserErrorHelpers.join_changeset_errors(changeset,
+                fallback: "Could not update the alias status."
+              )
 
             {:noreply, notify_error(socket, error_msg)}
         end
@@ -178,24 +160,10 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
          |> notify_info("Alias updated successfully")}
 
       {:error, changeset} ->
-        # Extract specific error messages from the changeset
-        error_messages =
-          Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-            Enum.reduce(opts, msg, fn {key, value}, acc ->
-              String.replace(acc, "%{#{key}}", to_string(value))
-            end)
-          end)
-          |> Enum.map(fn {field, errors} ->
-            "#{field}: #{Enum.join(errors, ", ")}"
-          end)
-          |> Enum.map_join("; ", & &1)
-
         error_msg =
-          if error_messages != "" do
-            "Failed to update alias: #{error_messages}"
-          else
-            "Failed to update alias: Invalid data provided"
-          end
+          UserErrorHelpers.join_changeset_errors(changeset,
+            fallback: "Could not update that alias."
+          )
 
         # Log the error for debugging
         Logger.error(

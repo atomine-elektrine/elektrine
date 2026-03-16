@@ -469,7 +469,9 @@
             </li>
             <li>
               <a
-                href="mailto:maxfield@elektrine.com?subject=Issue Report - Elektrine Beta"
+                href={
+                  Elektrine.EmailAddresses.mailto("support") <> "?subject=Issue Report - Elektrine Beta"
+                }
                 class="gap-3 text-warning hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
               >
                 <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
@@ -524,8 +526,8 @@
   <div aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
     <div class="absolute right-8 top-1/2 -translate-y-1/2 rotate-[-16deg]">
       <span
-        class="footer-wordmark-glow pointer-events-auto inline-block whitespace-nowrap select-none bg-clip-text text-[clamp(2.15rem,6.5vw,4.75rem)] font-black uppercase tracking-[0.16em] text-transparent opacity-35 mix-blend-screen"
-        style="background-image: linear-gradient(116deg, #ffff00 0 25%, #00ffff 25% 50%, #ff4d00 50% 75%, #ff00ff 75% 100%);"
+        class="footer-wordmark-glow pointer-events-auto inline-block whitespace-nowrap select-none bg-clip-text text-[clamp(2.15rem,6.5vw,4.75rem)] font-black uppercase tracking-[0.16em] text-transparent"
+        style={footer_wordmark_style()}
       >
         313k7r1n3
       </span>
@@ -585,15 +587,15 @@
         <div class="text-xs opacity-70 space-y-1">
           <p>
             <span class="font-semibold">IMAP:</span>
-            <span class="font-mono">imap.elektrine.com:993</span>
+            <span class="font-mono">{Elektrine.EmailAddresses.imap_host()}:993</span>
           </p>
           <p>
             <span class="font-semibold">POP3:</span>
-            <span class="font-mono">pop.elektrine.com:995</span>
+            <span class="font-mono">{Elektrine.EmailAddresses.pop_host()}:995</span>
           </p>
           <p>
             <span class="font-semibold">SMTP:</span>
-            <span class="font-mono">smtp.elektrine.com:465</span>
+            <span class="font-mono">{Elektrine.EmailAddresses.smtp_host()}:465</span>
           </p>
         </div>
         <p class="text-xs opacity-50 mt-2">SSL/TLS required</p>
@@ -605,15 +607,15 @@
         <ul class="space-y-2 text-xs">
           <li>
             <a
-              href="mailto:support@elektrine.com"
+              href={Elektrine.EmailAddresses.mailto("support")}
               class="link link-hover opacity-70 hover:opacity-100"
             >
-              support@elektrine.com
+              {Elektrine.EmailAddresses.local("support")}
             </a>
           </li>
           <li>
             <a
-              href="mailto:security@elektrine.com"
+              href={Elektrine.EmailAddresses.mailto("security")}
               class="link link-hover opacity-70 hover:opacity-100"
             >
               Report Security Issue

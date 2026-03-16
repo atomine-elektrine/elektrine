@@ -7,9 +7,11 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
 
   import Plug.Conn
 
+  alias ElektrineWeb.ClientIP
+
   @behaviour Plug
 
-  @http_allowed_paths ["/health"]
+  @http_allowed_paths ["/health", "/_edge/tls/v1/allow"]
 
   @impl Plug
   def init(opts), do: opts
@@ -33,21 +35,7 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   end
 
   defp insecure_request?(conn) do
-    conn.scheme != :https and not forwarded_as_https?(conn)
-  end
-
-  defp forwarded_as_https?(conn) do
-    case get_req_header(conn, "x-forwarded-proto") do
-      [value | _] ->
-        value
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-        |> String.downcase() == "https"
-
-      _ ->
-        false
-    end
+    conn.scheme != :https and not ClientIP.forwarded_as_https?(conn)
   end
 
   defp http_allowed_path?(path) when path in @http_allowed_paths, do: true

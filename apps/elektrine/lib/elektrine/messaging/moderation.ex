@@ -237,14 +237,31 @@ defmodule Elektrine.Messaging.Moderation do
           conversation_id: community_id,
           user_id: user_id,
           banned_by_id: banned_by_id,
+          origin_domain: nil,
+          actor_payload: %{},
+          metadata: %{},
           reason: reason,
-          expires_at: expires_at
+          expires_at: expires_at,
+          banned_at_remote: nil,
+          updated_at_remote: nil
         }
 
         %CommunityBan{}
         |> CommunityBan.changeset(attrs)
         |> Repo.insert(
-          on_conflict: {:replace, [:banned_by_id, :reason, :expires_at, :updated_at]},
+          on_conflict:
+            {:replace,
+             [
+               :banned_by_id,
+               :origin_domain,
+               :actor_payload,
+               :metadata,
+               :reason,
+               :expires_at,
+               :banned_at_remote,
+               :updated_at_remote,
+               :updated_at
+             ]},
           conflict_target: [:conversation_id, :user_id]
         )
         |> case do

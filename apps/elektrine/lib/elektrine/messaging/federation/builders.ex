@@ -5,32 +5,35 @@ defmodule Elektrine.Messaging.Federation.Builders do
   import Elektrine.Messaging.Federation.Utils
 
   alias Elektrine.Accounts.User
+
   alias Elektrine.Messaging.{
     ArblargSDK,
     ChatMessage,
     ChatMessageReaction,
     Conversation,
     ConversationMember,
+    FederationCallSession,
     FederationOutboxEvent,
     Server,
     ServerMember
   }
 
-  alias Elektrine.Messaging.Federation.{DirectMessageState, State}
+  alias Elektrine.Messaging.Federation.{DirectMessageState, State, Visibility, VoiceCalls}
   alias Elektrine.Repo
 
   @dm_message_create_event_type ArblargSDK.dm_message_create_event_type()
+  @dm_call_invite_event_type ArblargSDK.dm_call_invite_event_type()
+  @dm_call_accept_event_type ArblargSDK.dm_call_accept_event_type()
+  @dm_call_reject_event_type ArblargSDK.dm_call_reject_event_type()
+  @dm_call_end_event_type ArblargSDK.dm_call_end_event_type()
+  @dm_call_signal_event_type ArblargSDK.dm_call_signal_event_type()
 
-  def build_server_upsert_event(server_id, context) when is_integer(server_id) and is_map(context) do
+  def build_server_upsert_event(server_id, context)
+      when is_integer(server_id) and is_map(context) do
     with %Server{} = server <- Repo.get(Server, server_id),
-         false <- server.is_federated_mirror do
-      channels =
-        from(c in Conversation,
-          where:
-            c.server_id == ^server.id and c.type == "channel" and c.is_federated_mirror != true,
-          order_by: [asc: c.channel_position, asc: c.inserted_at]
-        )
-        |> Repo.all()
+         false <- server.is_federated_mirror,
+         true <- server.is_public == true do
+      channels = Visibility.public_bootstrap_channels(server)
 
       stream_id = server_stream_id(server.id)
       sequence = next_outbound_sequence(stream_id)
@@ -49,12 +52,11 @@ defmodule Elektrine.Messaging.Federation.Builders do
     else
       nil -> {:error, :not_found}
       true -> {:error, :federated_mirror}
+      false -> {:error, :not_public}
     end
   end
 
-  def build_message_created_event(%ChatMessage{} = message, opts, context)
-      when is_list(opts) and is_map(context) do
-    allow_mirror? = Keyword.get(opts, :allow_mirror, false)
+  def build_message_created_event(%ChatMessage{} = message, context) when is_map(context) do
     message = Repo.preload(message, [:sender, conversation: [:server]])
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
@@ -66,11 +68,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
       conversation.type != "channel" ->
         {:error, :unsupported_conversation_type}
 
-      server.is_federated_mirror and not allow_mirror? ->
-        {:error, :federated_mirror}
-
       true ->
-        stream_id = channel_stream_id(conversation.id)
+        stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
 
@@ -134,9 +133,87 @@ defmodule Elektrine.Messaging.Federation.Builders do
     end
   end
 
-  def build_message_updated_event(%ChatMessage{} = message, opts, context)
-      when is_list(opts) and is_map(context) do
-    allow_mirror? = Keyword.get(opts, :allow_mirror, false)
+  def build_dm_call_invite_event(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
+         %Conversation{} = conversation <- session.conversation,
+         %User{} = local_user <- session.local_user do
+      stream_id = dm_stream_id(conversation.id)
+      sequence = next_outbound_sequence(stream_id)
+      dm_payload = dm_call_context_payload(session, local_user)
+
+      payload = %{
+        "dm" => dm_payload,
+        "call" => %{
+          "id" => session.federated_call_id,
+          "dm_id" => dm_payload["id"],
+          "call_type" => session.call_type,
+          "actor" => sender_payload(local_user),
+          "initiated_at" => format_created_at(session.inserted_at),
+          "metadata" => session.metadata || %{}
+        }
+      }
+
+      with :ok <- ArblargSDK.validate_event_payload(@dm_call_invite_event_type, payload) do
+        {:ok, event_envelope(@dm_call_invite_event_type, stream_id, sequence, payload, context),
+         [session.remote_domain]}
+      end
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def build_dm_call_accept_event(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    build_dm_call_terminal_event(session_id, @dm_call_accept_event_type, %{
+      "accepted_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    }, context)
+  end
+
+  def build_dm_call_reject_event(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    build_dm_call_terminal_event(session_id, @dm_call_reject_event_type, %{
+      "rejected_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+      "reason" => get_in(VoiceCalls.get_session(session_id) || %{}, [:metadata, "reason"])
+    }, context)
+  end
+
+  def build_dm_call_end_event(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    build_dm_call_terminal_event(session_id, @dm_call_end_event_type, %{
+      "ended_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+      "reason" => get_in(VoiceCalls.get_session(session_id) || %{}, [:metadata, "reason"])
+    }, context)
+  end
+
+  def build_dm_call_signal_ephemeral_item(session_id, actor_user_id, kind, signal_payload, context)
+      when is_integer(session_id) and is_integer(actor_user_id) and is_binary(kind) and
+             is_map(signal_payload) and is_map(context) do
+    with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
+         %Conversation{} = _conversation <- session.conversation,
+         %User{} = local_user <- session.local_user,
+         true <- local_user.id == actor_user_id do
+      payload = %{
+        "dm" => dm_call_context_payload(session, local_user),
+        "call_id" => session.federated_call_id,
+        "actor" => sender_payload(local_user),
+        "sent_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "signal" => %{
+          "kind" => kind,
+          "payload" => signal_payload
+        }
+      }
+
+      with :ok <- ArblargSDK.validate_event_payload(@dm_call_signal_event_type, payload) do
+        {:ok, ephemeral_item(@dm_call_signal_event_type, payload, context), [session.remote_domain]}
+      end
+    else
+      false -> {:error, :unauthorized}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def build_message_updated_event(%ChatMessage{} = message, context) when is_map(context) do
     message = Repo.preload(message, [:sender, conversation: [:server]])
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
@@ -148,11 +225,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
       conversation.type != "channel" ->
         {:error, :unsupported_conversation_type}
 
-      server.is_federated_mirror and not allow_mirror? ->
-        {:error, :federated_mirror}
-
       true ->
-        stream_id = channel_stream_id(conversation.id)
+        stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
 
@@ -167,9 +241,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
     end
   end
 
-  def build_message_deleted_event(%ChatMessage{} = message, opts, context)
-      when is_list(opts) and is_map(context) do
-    allow_mirror? = Keyword.get(opts, :allow_mirror, false)
+  def build_message_deleted_event(%ChatMessage{} = message, context) when is_map(context) do
     message = Repo.preload(message, conversation: [:server])
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
@@ -181,11 +253,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
       conversation.type != "channel" ->
         {:error, :unsupported_conversation_type}
 
-      server.is_federated_mirror and not allow_mirror? ->
-        {:error, :federated_mirror}
-
       true ->
-        stream_id = channel_stream_id(conversation.id)
+        stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
 
@@ -204,9 +273,12 @@ defmodule Elektrine.Messaging.Federation.Builders do
     end
   end
 
-  def build_reaction_added_event(%ChatMessage{} = message, %ChatMessageReaction{} = reaction, opts, context)
-      when is_list(opts) and is_map(context) do
-    allow_mirror? = Keyword.get(opts, :allow_mirror, false)
+  def build_reaction_added_event(
+        %ChatMessage{} = message,
+        %ChatMessageReaction{} = reaction,
+        context
+      )
+      when is_map(context) do
     message = Repo.preload(message, conversation: [:server])
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
@@ -221,16 +293,13 @@ defmodule Elektrine.Messaging.Federation.Builders do
       is_nil(reaction.user_id) ->
         {:error, :unsupported_reaction_actor}
 
-      server.is_federated_mirror and not allow_mirror? ->
-        {:error, :federated_mirror}
-
       true ->
         user = Repo.get(User, reaction.user_id)
 
         if is_nil(user) do
           {:error, :not_found}
         else
-          stream_id = channel_stream_id(conversation.id)
+          stream_id = outbound_channel_stream_id(conversation)
           sequence = next_outbound_sequence(stream_id)
           refs = event_refs_payload(server, conversation)
 
@@ -250,9 +319,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
     end
   end
 
-  def build_reaction_removed_event(%ChatMessage{} = message, user_id, emoji, opts, context)
-      when is_integer(user_id) and is_list(opts) and is_map(context) do
-    allow_mirror? = Keyword.get(opts, :allow_mirror, false)
+  def build_reaction_removed_event(%ChatMessage{} = message, user_id, emoji, context)
+      when is_integer(user_id) and is_map(context) do
     message = Repo.preload(message, conversation: [:server])
     conversation = message.conversation
     server = if conversation, do: conversation.server, else: nil
@@ -264,16 +332,13 @@ defmodule Elektrine.Messaging.Federation.Builders do
       conversation.type != "channel" ->
         {:error, :unsupported_conversation_type}
 
-      server.is_federated_mirror and not allow_mirror? ->
-        {:error, :federated_mirror}
-
       true ->
         user = Repo.get(User, user_id)
 
         if is_nil(user) do
           {:error, :not_found}
         else
-          stream_id = channel_stream_id(conversation.id)
+          stream_id = outbound_channel_stream_id(conversation)
           sequence = next_outbound_sequence(stream_id)
           refs = event_refs_payload(server, conversation)
 
@@ -315,7 +380,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
         stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
-        target_domains = target_domains_for_server(server, context)
+        target_domains = target_domains_for_conversation(conversation, context)
 
         {:ok,
          event_envelope(
@@ -349,14 +414,11 @@ defmodule Elektrine.Messaging.Federation.Builders do
       conversation.type != "channel" ->
         {:error, :unsupported_conversation_type}
 
-      server.is_federated_mirror ->
-        {:error, :federated_mirror}
-
       true ->
         stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
-        target_domains = target_domains_for_server(server, context)
+        target_domains = target_domains_for_conversation(conversation, context)
         joined_at = active_membership_joined_at(conversation.id, user.id)
 
         {:ok,
@@ -412,10 +474,52 @@ defmodule Elektrine.Messaging.Federation.Builders do
         {:error, :invalid_event_payload}
 
       true ->
+        build_invite_upsert_event_for_target_payload(
+          conversation_id,
+          sender_payload(target_user),
+          actor_user_id,
+          state,
+          role,
+          metadata,
+          context
+        )
+    end
+  end
+
+  def build_invite_upsert_event_for_target_payload(
+        conversation_id,
+        target_payload,
+        actor_user_id,
+        state,
+        role,
+        metadata,
+        context
+      )
+      when is_integer(conversation_id) and is_map(target_payload) and
+             is_integer(actor_user_id) and is_binary(state) and is_binary(role) and
+             is_map(metadata) and is_map(context) do
+    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    actor_user = Repo.get(User, actor_user_id)
+    server = if conversation, do: conversation.server, else: nil
+
+    cond do
+      is_nil(conversation) or is_nil(server) or is_nil(actor_user) ->
+        {:error, :not_found}
+
+      conversation.type != "channel" ->
+        {:error, :unsupported_conversation_type}
+
+      server.is_federated_mirror ->
+        {:error, :federated_mirror}
+
+      state not in ["pending", "accepted", "declined", "revoked"] ->
+        {:error, :invalid_event_payload}
+
+      true ->
         stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
-        target_domains = target_domains_for_server(server, context)
+        target_domains = target_domains_for_invite_target(conversation, target_payload, context)
         timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
 
         {:ok,
@@ -427,7 +531,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
              "refs" => refs,
              "invite" => %{
                "actor" => sender_payload(actor_user),
-               "target" => sender_payload(target_user),
+               "target" => target_payload,
                "role" => role,
                "state" => state,
                "invited_at" => DateTime.to_iso8601(timestamp),
@@ -475,7 +579,10 @@ defmodule Elektrine.Messaging.Federation.Builders do
         stream_id = outbound_channel_stream_id(conversation)
         sequence = next_outbound_sequence(stream_id)
         refs = event_refs_payload(server, conversation)
-        target_domains = target_domains_for_server(server, context)
+
+        target_domains =
+          target_domains_for_invite_target(conversation, sender_payload(target_user), context)
+
         timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
 
         {:ok,
@@ -536,22 +643,21 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
         event_type = if mode == :start, do: "typing.start", else: "typing.stop"
 
-        {:ok, ephemeral_item(event_type, payload, context), target_domains_for_server(server, context)}
+        {:ok, ephemeral_item(event_type, payload, context),
+         target_domains_for_conversation(conversation, context)}
     end
   end
 
-  def build_presence_ephemeral_item(server_id, user_id, status, activities, context)
-      when is_integer(server_id) and is_integer(user_id) and is_binary(status) and is_map(context) do
-    server = Repo.get(Server, server_id)
+  def build_presence_ephemeral_item(user_id, status, activities, context)
+      when is_integer(user_id) and is_binary(status) and is_map(context) do
     user = Repo.get(User, user_id)
 
-    if is_nil(server) or is_nil(user) do
+    if is_nil(user) do
       {:error, :not_found}
     else
       ttl_ms = call(context, :presence_ttl_seconds, []) * 1_000
 
       payload = %{
-        "refs" => %{"server_id" => server.federation_id || server_federation_id(server.id)},
         "presence" => %{
           "actor" => sender_payload(user),
           "status" => status,
@@ -562,7 +668,91 @@ defmodule Elektrine.Messaging.Federation.Builders do
         }
       }
 
-      {:ok, ephemeral_item("presence.update", payload, context), target_domains_for_server(server, context)}
+      {:ok, ephemeral_item("presence.update", payload, context)}
+    end
+  end
+
+  def build_room_presence_ephemeral_item(conversation_id, user_id, status, activities, context)
+      when is_integer(conversation_id) and is_integer(user_id) and is_binary(status) and
+             is_map(context) do
+    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    user = Repo.get(User, user_id)
+    server = if conversation, do: conversation.server, else: nil
+
+    cond do
+      is_nil(conversation) or is_nil(server) or is_nil(user) ->
+        {:error, :not_found}
+
+      conversation.type != "channel" ->
+        {:error, :unsupported_conversation_type}
+
+      true ->
+        ttl_ms = call(context, :presence_ttl_seconds, []) * 1_000
+
+        payload = %{
+          "refs" => event_refs_payload(server, conversation),
+          "presence" => %{
+            "actor" => sender_payload(user),
+            "status" => status,
+            "updated_at" =>
+              DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+            "activities" => State.normalize_presence_activities(activities),
+            "ttl_ms" => ttl_ms
+          }
+        }
+
+        {:ok, ephemeral_item("presence.update", payload, context),
+         target_domains_for_conversation(conversation, context)}
+    end
+  end
+
+  def build_extension_event(conversation_id, actor_user_id, event_type, payload, context)
+      when is_integer(conversation_id) and is_integer(actor_user_id) and is_binary(event_type) and
+             is_map(payload) and is_map(context) do
+    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    actor_user = Repo.get(User, actor_user_id)
+    server = if conversation, do: conversation.server, else: nil
+    canonical_event_type = ArblargSDK.canonical_event_type(event_type)
+
+    normalized_event_type =
+      Map.get(ArblargSDK.schema_bindings(), canonical_event_type, canonical_event_type)
+
+    cond do
+      is_nil(conversation) or is_nil(server) or is_nil(actor_user) ->
+        {:error, :not_found}
+
+      conversation.type != "channel" ->
+        {:error, :unsupported_conversation_type}
+
+      canonical_event_type not in shared_governance_extension_event_types() ->
+        {:error, :unsupported_event_type}
+
+      true ->
+        stream_id = outbound_channel_stream_id(conversation)
+        sequence = next_outbound_sequence(stream_id)
+        refs = event_refs_payload(server, conversation)
+
+        extension_payload =
+          normalized_event_type
+          |> extension_payload_for_event_type(
+            payload,
+            server,
+            conversation,
+            actor_user
+          )
+          |> Map.put("refs", refs)
+
+        with :ok <- ArblargSDK.validate_event_payload(canonical_event_type, extension_payload) do
+          {:ok,
+           event_envelope(
+             canonical_event_type,
+             stream_id,
+             sequence,
+             extension_payload,
+             context
+           ), target_domains_for_conversation(conversation, context), canonical_event_type,
+           extension_payload}
+        end
     end
   end
 
@@ -636,18 +826,90 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   defp outbound_channel_stream_id(_conversation), do: nil
 
-  defp target_domains_for_server(%Server{is_federated_mirror: true, origin_domain: origin_domain}, _context)
-       when is_binary(origin_domain) do
-    [String.downcase(origin_domain)]
+  defp target_domains_for_conversation(%Conversation{} = conversation, context)
+       when is_map(context) do
+    Visibility.target_domains_for_room(conversation)
   end
 
-  defp target_domains_for_server(%Server{}, context) do
-    call(context, :outgoing_peers, [])
-    |> Enum.map(&String.downcase(&1.domain))
-    |> Enum.uniq()
+  defp target_domains_for_conversation(_conversation, _context), do: []
+
+  defp build_dm_call_terminal_event(session_id, event_type, extra_fields, context)
+       when is_integer(session_id) and is_binary(event_type) and is_map(extra_fields) and
+              is_map(context) do
+    with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
+         %Conversation{} = conversation <- session.conversation,
+         %User{} = local_user <- session.local_user do
+      stream_id = dm_stream_id(conversation.id)
+      sequence = next_outbound_sequence(stream_id)
+      dm_payload = dm_call_context_payload(session, local_user)
+
+      payload =
+        %{
+          "dm" => dm_payload,
+          "call_id" => session.federated_call_id,
+          "actor" => sender_payload(local_user),
+          "metadata" => session.metadata || %{}
+        }
+        |> Map.merge(Enum.reject(extra_fields, fn {_key, value} -> is_nil(value) end) |> Map.new())
+
+      with :ok <- ArblargSDK.validate_event_payload(event_type, payload) do
+        {:ok, event_envelope(event_type, stream_id, sequence, payload, context),
+         [session.remote_domain]}
+      end
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
-  defp target_domains_for_server(_server, _context), do: []
+  defp dm_call_context_payload(%FederationCallSession{} = session, %User{} = local_user) do
+    local_actor = sender_payload(local_user)
+    local_domain = Elektrine.Messaging.Federation.local_domain()
+
+    if String.downcase(session.origin_domain || "") == String.downcase(local_domain) do
+      %{
+        "id" => dm_federation_id(session.conversation_id),
+        "sender" => local_actor,
+        "recipient" => normalize_remote_actor_payload(session.remote_actor, session.remote_handle)
+      }
+    else
+      %{
+        "id" => dm_federation_id(session.conversation_id),
+        "sender" => normalize_remote_actor_payload(session.remote_actor, session.remote_handle),
+        "recipient" => local_actor
+      }
+    end
+  end
+
+  defp normalize_remote_actor_payload(actor, remote_handle) when is_map(actor) do
+    base =
+      actor
+      |> Enum.into(%{}, fn
+        {key, value} when is_atom(key) -> {Atom.to_string(key), value}
+        pair -> pair
+      end)
+
+    case base["handle"] || remote_handle do
+      handle when is_binary(handle) -> Map.put(base, "handle", handle)
+      _ -> base
+    end
+  end
+
+  defp normalize_remote_actor_payload(_actor, remote_handle) when is_binary(remote_handle) do
+    case DirectMessageState.normalize_remote_dm_handle(remote_handle) do
+      {:ok, recipient} -> DirectMessageState.dm_actor_payload(recipient)
+      _ -> %{"handle" => remote_handle}
+    end
+  end
+
+  defp normalize_remote_actor_payload(_actor, _remote_handle), do: %{}
+
+  defp target_domains_for_invite_target(%Conversation{} = conversation, target_payload, context)
+       when is_map(target_payload) and is_map(context) do
+    Visibility.target_domains_for_invite(conversation, target_payload)
+  end
+
+  defp target_domains_for_invite_target(%Conversation{} = conversation, _target_payload, context),
+    do: target_domains_for_conversation(conversation, context)
 
   defp active_membership_joined_at(conversation_id, user_id)
        when is_integer(conversation_id) and is_integer(user_id) do
@@ -675,6 +937,53 @@ defmodule Elektrine.Messaging.Federation.Builders do
   end
 
   defp active_membership_joined_at(_conversation_id, _user_id), do: nil
+
+  defp shared_governance_extension_event_types do
+    [
+      ArblargSDK.canonical_event_type("role.upsert"),
+      ArblargSDK.canonical_event_type("role.assignment.upsert"),
+      ArblargSDK.canonical_event_type("permission.overwrite.upsert"),
+      ArblargSDK.canonical_event_type("thread.upsert"),
+      ArblargSDK.canonical_event_type("thread.archive"),
+      ArblargSDK.canonical_event_type("moderation.action.recorded")
+    ]
+  end
+
+  defp extension_payload_for_event_type(event_type, payload, server, conversation, actor_user)
+       when is_binary(event_type) and is_map(payload) do
+    base_payload =
+      payload
+      |> Map.put("server", Map.get(payload, "server", server_payload(server)))
+      |> Map.put("channel", Map.get(payload, "channel", channel_payload(conversation)))
+
+    case event_type do
+      event_type
+      when event_type in [
+             "role.upsert",
+             "role.assignment.upsert",
+             "permission.overwrite.upsert"
+           ] ->
+        Map.put_new(base_payload, "actor", sender_payload(actor_user))
+
+      "thread.upsert" ->
+        update_in(base_payload["thread"], fn
+          %{} = thread -> Map.put_new(thread, "owner", sender_payload(actor_user))
+          other -> other
+        end)
+
+      "thread.archive" ->
+        Map.put_new(base_payload, "actor", sender_payload(actor_user))
+
+      "moderation.action.recorded" ->
+        update_in(base_payload["action"], fn
+          %{} = action -> Map.put_new(action, "actor", sender_payload(actor_user))
+          other -> other
+        end)
+
+      _ ->
+        base_payload
+    end
+  end
 
   defp call(context, key, args) do
     context

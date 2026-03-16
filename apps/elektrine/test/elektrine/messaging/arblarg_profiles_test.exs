@@ -60,7 +60,7 @@ defmodule Elektrine.Messaging.ArblargProfilesTest do
 
     Enum.each(registry, fn extension ->
       assert is_map(extension["conformance"])
-      assert extension["fallback"] == "ignore_event"
+      assert extension["fallback"] == "reject_unsupported_event_type"
     end)
   end
 end

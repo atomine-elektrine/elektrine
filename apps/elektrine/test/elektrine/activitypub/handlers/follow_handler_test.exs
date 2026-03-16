@@ -10,6 +10,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
   alias Elektrine.Profiles
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
+  alias Elektrine.SocialFixtures
 
   describe "handle/3 - Follow activity" do
     setup do
@@ -83,6 +84,37 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
       assert accept_count == 0
     end
 
+    test "uses the incoming Follow id when auto-accepting an already-following remote user", %{
+      user: user
+    } do
+      remote_actor = remote_actor_fixture(%{username: "accepted_duplicate_follower"})
+
+      {:ok, _follow} =
+        Profiles.create_remote_follow(
+          remote_actor.id,
+          user.id,
+          false,
+          "https://remote.server/activities/follow/original"
+        )
+
+      incoming_follow_id = "https://remote.server/activities/follow/retry"
+
+      activity = %{
+        "type" => "Follow",
+        "id" => incoming_follow_id,
+        "actor" => remote_actor.uri,
+        "object" => "#{ActivityPub.instance_url()}/users/#{user.username}"
+      }
+
+      assert {:ok, :already_following} = FollowHandler.handle(activity, remote_actor.uri, nil)
+
+      assert %Activity{data: %{"object" => %{"id" => ^incoming_follow_id}}} =
+               Repo.get_by!(Activity,
+                 activity_type: "Accept",
+                 object_id: incoming_follow_id
+               )
+    end
+
     test "accepts follow activity targeting a configured legacy local domain", %{user: user} do
       previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains)
 
@@ -113,6 +145,110 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
 
       assert {:ok, :pending} = FollowHandler.handle(activity, remote_actor.uri, nil)
       assert Profiles.get_follow_by_remote_actor(remote_actor.id, user.id)
+    end
+
+    test "handles Follow with an embedded object map", %{user: user} do
+      remote_actor = remote_actor_fixture(%{username: "mapped_follow_target"})
+
+      activity = %{
+        "type" => "Follow",
+        "id" => "https://remote.server/activities/follow/mapped-target",
+        "actor" => remote_actor.uri,
+        "object" => %{
+          "id" => "#{ActivityPub.instance_url()}/users/#{user.username}",
+          "type" => "Person"
+        }
+      }
+
+      assert {:ok, :pending} = FollowHandler.handle(activity, remote_actor.uri, nil)
+      assert Profiles.get_follow_by_remote_actor(remote_actor.id, user.id)
+    end
+
+    test "returns error for follow of an ActivityPub-disabled user" do
+      user =
+        user_fixture()
+        |> Ecto.Changeset.change(activitypub_enabled: false)
+        |> Repo.update!()
+
+      remote_actor = remote_actor_fixture(%{username: "disabled_target_follower"})
+
+      activity = %{
+        "type" => "Follow",
+        "id" => "https://remote.server/activities/follow/disabled-target",
+        "actor" => remote_actor.uri,
+        "object" => "#{ActivityPub.instance_url()}/users/#{user.username}"
+      }
+
+      assert {:error, :target_not_found} =
+               FollowHandler.handle(activity, remote_actor.uri, nil)
+    end
+
+    test "returns error for follow of a non-public local community" do
+      owner = user_fixture()
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{
+          name: "Private Community #{System.unique_integer([:positive])}",
+          is_public: false
+        })
+
+      {:ok, group_actor} = ActivityPub.get_or_create_community_actor(community.id)
+      remote_actor = remote_actor_fixture(%{username: "private_group_target_follower"})
+
+      activity = %{
+        "type" => "Follow",
+        "id" => "https://remote.server/activities/follow/private-group-target",
+        "actor" => remote_actor.uri,
+        "object" => group_actor.uri
+      }
+
+      assert {:error, :target_not_found} =
+               FollowHandler.handle(activity, remote_actor.uri, nil)
+
+      assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id) == nil
+    end
+
+    test "uses the incoming Follow id when auto-accepting an already-following community follower" do
+      owner = user_fixture()
+
+      community =
+        SocialFixtures.community_conversation_fixture(owner, %{
+          name: "Duplicate Community #{System.unique_integer([:positive])}"
+        })
+
+      {:ok, group_actor} = ActivityPub.get_or_create_community_actor(community.id)
+      remote_actor = remote_actor_fixture(%{username: "accepted_duplicate_group_follower"})
+
+      {:ok, _follow} =
+        ActivityPub.create_group_follow(
+          remote_actor.id,
+          group_actor.id,
+          "https://remote.server/activities/follow/group-original",
+          false
+        )
+
+      incoming_follow_id = "https://remote.server/activities/follow/group-retry"
+
+      activity = %{
+        "type" => "Follow",
+        "id" => incoming_follow_id,
+        "actor" => remote_actor.uri,
+        "object" => group_actor.uri
+      }
+
+      assert {:ok, :already_following} = FollowHandler.handle(activity, remote_actor.uri, nil)
+
+      assert %Activity{
+               actor_uri: actor_uri,
+               data: %{"object" => %{"id" => ^incoming_follow_id, "object" => object_uri}}
+             } =
+               Repo.get_by!(Activity,
+                 activity_type: "Accept",
+                 object_id: incoming_follow_id
+               )
+
+      assert actor_uri == group_actor.uri
+      assert object_uri == group_actor.uri
     end
   end
 
@@ -237,6 +373,23 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
       result = FollowHandler.handle_reject(activity, "https://remote.server/users/someone", nil)
       assert result == {:ok, :unknown_follow}
     end
+
+    test "handles Reject with a string Follow object" do
+      user = user_fixture()
+      remote_actor = remote_actor_fixture(%{username: "string_reject_target"})
+      follow_id = create_local_follow_request(user, remote_actor)
+
+      activity = %{
+        "type" => "Reject",
+        "actor" => remote_actor.uri,
+        "object" => follow_id
+      }
+
+      assert {:ok, :follow_rejected} =
+               FollowHandler.handle_reject(activity, remote_actor.uri, nil)
+
+      assert is_nil(Profiles.get_follow_to_remote_actor(user.id, remote_actor.id))
+    end
   end
 
   describe "handle_undo/2" do
@@ -257,6 +410,30 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
       assert result == {:ok, :invalid}
     end
 
+    test "uses embedded Follow.object when undoing a standard Follow activity" do
+      user = user_fixture()
+      remote_actor = remote_actor_fixture(%{username: "undo_standard_follow"})
+      follow_id = "https://remote.server/activities/follow/#{System.unique_integer([:positive])}"
+
+      {:ok, _follow} =
+        Profiles.create_remote_follow(
+          remote_actor.id,
+          user.id,
+          false,
+          follow_id
+        )
+
+      object = %{
+        "type" => "Follow",
+        "id" => follow_id,
+        "actor" => remote_actor.uri,
+        "object" => "#{ActivityPub.instance_url()}/users/#{user.username}"
+      }
+
+      assert {:ok, :unfollowed} = FollowHandler.handle_undo(object, remote_actor.uri)
+      assert is_nil(Profiles.get_follow_by_remote_actor(remote_actor.id, user.id))
+    end
+
     test "handles object as nested map" do
       base_url = ActivityPub.instance_url()
 
@@ -267,6 +444,16 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
         )
 
       assert result == {:error, :undo_follow_failed}
+    end
+
+    test "returns :invalid for nested map without an id" do
+      result =
+        FollowHandler.handle_undo(
+          %{"object" => %{"type" => "Follow"}},
+          "https://remote.server/users/unfollower"
+        )
+
+      assert result == {:ok, :invalid}
     end
   end
 

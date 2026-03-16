@@ -1,0 +1,5 @@
+{
+  "name": "elektrine-password-manager-extension",
+  "private": true,
+  "type": "module"
+}

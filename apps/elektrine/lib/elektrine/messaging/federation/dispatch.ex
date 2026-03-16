@@ -4,6 +4,7 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
   import Elektrine.Messaging.Federation.Utils
   require Logger
 
+  alias Elektrine.Messaging.Federation.{Transport, Visibility}
   alias Elektrine.Messaging.{FederationOutboxEvent, FederationOutboxWorker}
   alias Elektrine.Repo
 
@@ -14,6 +15,7 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
       call(context, :outgoing_peers, [])
       |> Enum.map(&String.downcase(&1.domain))
       |> Enum.uniq()
+      |> filter_domains_for_event(event, context)
 
     do_enqueue_outbox_event(event, peer_domains, context)
   end
@@ -27,11 +29,13 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
       |> Enum.map(&String.downcase/1)
       |> Enum.filter(fn domain -> match?(%{}, call(context, :outgoing_peer, [domain])) end)
       |> Enum.uniq()
+      |> filter_domains_for_event(event, context)
 
     do_enqueue_outbox_event(event, filtered_domains, context)
   end
 
-  def enqueue_outbox_event(event, _target_domains, context) when is_map(event) and is_map(context) do
+  def enqueue_outbox_event(event, _target_domains, context)
+      when is_map(event) and is_map(context) do
     enqueue_outbox_event(event, :all, context)
   end
 
@@ -48,9 +52,14 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
       case call(context, :outgoing_peer, [domain]) do
         %{} = peer ->
           items
+          |> Enum.filter(&peer_supports_item?(peer, &1))
           |> Enum.chunk_every(call(context, :peer_ephemeral_limit, [peer]))
-          |> Enum.each(fn item_chunk ->
-            _ = call(context, :push_ephemeral_batch_to_peer, [peer, item_chunk])
+          |> Enum.each(fn
+            [] ->
+              :ok
+
+            item_chunk ->
+              _ = call(context, :push_ephemeral_batch_to_peer, [peer, item_chunk])
           end)
 
         _ ->
@@ -79,6 +88,16 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
          fragment when is_binary(fragment) <-
            actor_stream_fragment(get_in(payload, ["presence", "actor"])) do
       "presence:#{server_id}:#{fragment}"
+    else
+      _ -> nil
+    end
+  end
+
+  def ephemeral_stream_id(event_type, payload)
+      when event_type in ["dm.call.signal"] and is_map(payload) do
+    with call_id when is_binary(call_id) <- normalize_optional_string(payload["call_id"]),
+         fragment when is_binary(fragment) <- actor_stream_fragment(payload["actor"]) do
+      "dm_call:#{call_id}:#{fragment}"
     else
       _ -> nil
     end
@@ -174,6 +193,37 @@ defmodule Elektrine.Messaging.Federation.Dispatch do
   end
 
   defp normalize_optional_string(_value), do: nil
+
+  defp filter_domains_for_event(event, domains, context)
+       when is_map(event) and is_list(domains) and is_map(context) do
+    event_type = normalize_optional_string(event["event_type"])
+
+    authorized_domains =
+      case Visibility.target_domains_for_event(event) do
+        nil -> nil
+        domains -> MapSet.new(domains)
+      end
+
+    Enum.filter(domains, fn domain ->
+      case {event_type, call(context, :outgoing_peer, [domain])} do
+        {event_type, %{} = peer} when is_binary(event_type) ->
+          Transport.peer_supports_event_type?(peer, event_type) and
+            (is_nil(authorized_domains) or MapSet.member?(authorized_domains, domain))
+
+        _ ->
+          false
+      end
+    end)
+  end
+
+  defp filter_domains_for_event(_event, _domains, _context), do: []
+
+  defp peer_supports_item?(peer, %{"event_type" => event_type})
+       when is_map(peer) and is_binary(event_type) do
+    Transport.peer_supports_event_type?(peer, event_type)
+  end
+
+  defp peer_supports_item?(_peer, _item), do: false
 
   defp call(context, key, args) do
     context

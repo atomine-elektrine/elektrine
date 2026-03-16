@@ -44,6 +44,29 @@ defmodule Elektrine.PasswordManager do
   end
 
   @doc """
+  Deletes a user's vault metadata and all encrypted entries.
+
+  This is intended for recovery when a passphrase has been lost and the
+  encrypted contents are no longer usable.
+  """
+  def delete_vault(user_id) when is_integer(user_id) do
+    Repo.transaction(fn ->
+      {deleted_entries, _} =
+        from(entry in VaultEntry, where: entry.user_id == ^user_id)
+        |> Repo.delete_all()
+
+      {deleted_settings, _} =
+        from(settings in VaultSettings, where: settings.user_id == ^user_id)
+        |> Repo.delete_all()
+
+      %{
+        deleted_entries: deleted_entries,
+        vault_deleted: deleted_settings > 0
+      }
+    end)
+  end
+
+  @doc """
   Lists vault entries for a user.
 
   By default only non-sensitive fields are selected.
@@ -68,6 +91,24 @@ defmodule Elektrine.PasswordManager do
       |> Repo.insert()
     else
       {:error, :vault_not_configured}
+    end
+  end
+
+  @doc """
+  Updates a vault entry for a user.
+  """
+  def update_entry(user_id, entry_id, attrs)
+      when is_integer(user_id) and is_integer(entry_id) and is_map(attrs) do
+    attrs = attrs |> normalize_params() |> Map.put("user_id", user_id)
+
+    case Repo.get_by(VaultEntry, id: entry_id, user_id: user_id) do
+      nil ->
+        {:error, :not_found}
+
+      entry ->
+        entry
+        |> VaultEntry.create_changeset(attrs)
+        |> Repo.update()
     end
   end
 

@@ -71,4 +71,24 @@ defmodule ElektrineWeb.RemoteUserLive.ShowTest do
 
     assert inspect(updated_socket.redirected) =~ "/timeline/post/42"
   end
+
+  test "sort_posts normalizes remote collection totals for top and hot sorts" do
+    low_score_post = %{
+      "id" => "https://remote.example/posts/low",
+      "published" => "2026-01-01T00:00:00Z",
+      "likes" => %{"totalItems" => "2"}
+    }
+
+    high_score_post = %{
+      "id" => "https://remote.example/posts/high",
+      "published" => "2026-01-01T00:00:00Z",
+      "likes" => %{"totalItems" => "12"}
+    }
+
+    assert [^high_score_post, ^low_score_post] =
+             Show.sort_posts([low_score_post, high_score_post], "top")
+
+    assert [^high_score_post, ^low_score_post] =
+             Show.sort_posts([low_score_post, high_score_post], "hot")
+  end
 end

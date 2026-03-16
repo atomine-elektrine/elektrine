@@ -529,13 +529,28 @@ defmodule ElektrineWeb.ProfileController do
   defp assign_profile_defaults(conn, user) do
     # Subdomain URLs use the user's handle
     local_handle = user.handle || user.username
-    profile_url = "https://#{local_handle}.#{Domains.primary_profile_domain()}"
+    custom_profile_domain = conn.assigns[:profile_custom_domain]
+
+    profile_host_domain =
+      custom_profile_domain || Domains.profile_base_domain_for_host(conn.host) ||
+        Domains.primary_profile_domain()
+
+    profile_navigation_domain =
+      if custom_profile_domain, do: Domains.primary_profile_domain(), else: profile_host_domain
+
+    profile_url =
+      if custom_profile_domain,
+        do: "https://#{custom_profile_domain}",
+        else: Domains.profile_url_for_handle(local_handle, conn.host)
+
     # Base URL for absolute links - ensures navigation goes to main domain, not subdomain
     base_url = get_base_url(conn)
 
     conn
     |> assign_if_missing(:profile_static, true)
     |> assign_if_missing(:current_user, conn.assigns[:current_user])
+    |> assign_if_missing(:profile_host_domain, profile_host_domain)
+    |> assign_if_missing(:profile_navigation_domain, profile_navigation_domain)
     |> assign_if_missing(:profile_url, profile_url)
     |> assign_if_missing(:base_url, base_url)
     |> assign_if_missing(:show_followers, false)
@@ -605,21 +620,28 @@ defmodule ElektrineWeb.ProfileController do
   defp get_base_url(conn) do
     host = String.downcase(conn.host || "")
 
-    case Domains.profile_base_domain_for_host(host) do
-      nil ->
-        ""
+    cond do
+      is_binary(conn.assigns[:profile_custom_domain]) ->
+        "https://#{Domains.primary_profile_domain()}"
 
-      domain ->
-        if host == domain or host == "www." <> domain do
-          ""
-        else
-          "https://#{domain}"
+      true ->
+        case Domains.profile_base_domain_for_host(host) do
+          nil ->
+            ""
+
+          domain ->
+            if host == domain or host == "www." <> domain do
+              ""
+            else
+              "https://#{domain}"
+            end
         end
     end
   end
 
   defp allowed_profile_host?(host) when is_binary(host) do
-    not is_nil(Domains.profile_base_domain_for_host(host))
+    not is_nil(Domains.profile_base_domain_for_host(host)) or
+      match?(%{domain: _}, Domains.profile_custom_domain_for_host(host))
   end
 
   defp allowed_profile_host?(_), do: false

@@ -21,6 +21,7 @@ defmodule Elektrine.Accounts do
   alias Elektrine.Accounts.InviteCodeUse
   alias Elektrine.Accounts.User
   alias Elektrine.Accounts.UsernameHistory
+  alias Elektrine.Async
   alias Elektrine.Platform.Modules
 
   # Import sub-context modules for delegation
@@ -39,6 +40,7 @@ defmodule Elektrine.Accounts do
   @self_service_invite_max_uses 1
   @self_service_invite_expiry_days 14
   @seconds_per_day 86_400
+  @activitypub_actor_update_fields [:avatar]
 
   ## Core User Management
 
@@ -199,19 +201,35 @@ defmodule Elektrine.Accounts do
         # Record username history and update mailbox if username changed
         case Ecto.Changeset.get_change(changeset, :username) do
           nil ->
-            # Username didn't change
-            {:ok, updated_user}
+            :ok
 
           new_username ->
-            # Username changed, record it in history and update mailbox
             record_username_change(user.id, user.username, new_username)
             update_mailbox_email_for_username_change(updated_user)
-            {:ok, updated_user}
         end
+
+        maybe_federate_actor_update(updated_user, changeset)
+        {:ok, updated_user}
 
       error ->
         error
     end
+  end
+
+  defp maybe_federate_actor_update(%User{activitypub_enabled: true} = user, changeset) do
+    if actor_update_field_changed?(changeset) do
+      Async.run(fn ->
+        Elektrine.ActivityPub.Outbox.federate_profile_update(user.id)
+      end)
+    end
+
+    :ok
+  end
+
+  defp maybe_federate_actor_update(_user, _changeset), do: :ok
+
+  defp actor_update_field_changed?(%Ecto.Changeset{changes: changes}) do
+    Enum.any?(@activitypub_actor_update_fields, &Map.has_key?(changes, &1))
   end
 
   @doc """

@@ -191,7 +191,7 @@ defmodule Elektrine.Email.Messages do
     if message.mailbox_id == mailbox_id && is_integer(message.thread_id) do
       Message
       |> where([m], m.mailbox_id == ^mailbox_id and m.thread_id == ^message.thread_id)
-      |> order_by(asc: :inserted_at)
+      |> order_by([m], asc: m.inserted_at, asc: m.id)
       |> Repo.all()
       |> decrypt_email_messages(mailbox_id)
     else
@@ -477,7 +477,11 @@ defmodule Elektrine.Email.Messages do
       if Map.get(attrs, :message_id) || Map.get(attrs, "message_id") do
         attrs
       else
-        Map.put(attrs, :message_id, "<draft-#{Ecto.UUID.generate()}@elektrine.com>")
+        Map.put(
+          attrs,
+          :message_id,
+          Elektrine.EmailAddresses.message_id("draft-#{Ecto.UUID.generate()}")
+        )
       end
 
     if draft_id do

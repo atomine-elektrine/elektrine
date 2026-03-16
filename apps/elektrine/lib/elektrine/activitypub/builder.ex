@@ -5,8 +5,8 @@ defmodule Elektrine.ActivityPub.Builder do
 
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
-  alias Elektrine.Messaging.Conversation
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Messaging
+  alias Elektrine.Messaging.{Conversation, Message}
 
   @doc """
   Builds an Actor document for a user.
@@ -37,7 +37,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "published" => format_datetime(user.inserted_at),
       "manuallyApprovesFollowers" => user.activitypub_manually_approve_followers || false,
       "discoverable" => user.profile_visibility == "public",
-      "icon" => build_icon(user),
+      "icon" => build_icon(user, base_url),
       "image" => build_header_image(user, base_url),
       "publicKey" => %{
         "id" => "#{actor_url}#main-key",
@@ -61,10 +61,10 @@ defmodule Elektrine.ActivityPub.Builder do
     end
   end
 
-  defp build_icon(user) do
+  defp build_icon(user, base_url) do
     if user.avatar do
       # Convert avatar to full URL for federation
-      avatar_url = Elektrine.Uploads.avatar_url(user.avatar)
+      avatar_url = user.avatar |> Elektrine.Uploads.avatar_url() |> absolutize_url(base_url)
 
       %{
         "type" => "Image",
@@ -105,6 +105,16 @@ defmodule Elektrine.ActivityPub.Builder do
         else
           nil
         end
+    end
+  end
+
+  defp absolutize_url(nil, _base_url), do: nil
+
+  defp absolutize_url(url, base_url) when is_binary(url) do
+    if String.starts_with?(url, "http://") or String.starts_with?(url, "https://") do
+      url
+    else
+      "#{String.trim_trailing(base_url, "/")}#{url}"
     end
   end
 
@@ -153,7 +163,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "endpoints" => %{
         "sharedInbox" => "#{base_url}/inbox"
       },
-      "attributedTo" => build_community_moderators(community)
+      "attributedTo" => community_moderator_actor_uris(community, base_url)
     }
   end
 
@@ -185,20 +195,32 @@ defmodule Elektrine.ActivityPub.Builder do
     end
   end
 
-  defp build_community_moderators(community) do
-    # Return list of moderator actor URIs
-    # Use the creator as the moderator list until role mapping is implemented.
-    base_url = ActivityPub.instance_url()
+  def community_moderator_actor_uris(
+        %Conversation{} = community,
+        base_url \\ ActivityPub.instance_url()
+      ) do
+    community
+    |> moderator_users()
+    |> Enum.map(&"#{base_url}/users/#{&1.username}")
+  end
 
-    if community.creator_id do
-      try do
-        creator = Elektrine.Accounts.get_user!(community.creator_id)
-        ["#{base_url}/users/#{creator.username}"]
-      rescue
-        _ -> []
-      end
-    else
-      []
+  defp moderator_users(%Conversation{} = community) do
+    community.id
+    |> Messaging.get_community_moderators()
+    |> Enum.map(& &1.user)
+    |> Enum.filter(&(&1 && &1.activitypub_enabled))
+    |> case do
+      [] -> creator_user(community)
+      users -> users
+    end
+  end
+
+  defp creator_user(%Conversation{creator_id: nil}), do: []
+
+  defp creator_user(%Conversation{creator_id: creator_id}) do
+    case Elektrine.Repo.get(User, creator_id) do
+      %User{activitypub_enabled: true} = user -> [user]
+      _ -> []
     end
   end
 
@@ -277,16 +299,19 @@ defmodule Elektrine.ActivityPub.Builder do
       end
 
     object_type = if post.reply_to_id, do: "Note", else: "Page"
+    cc = community_cc_addresses(post, community_actor_url)
 
     %{
       "id" => post_id,
       "type" => object_type,
       "attributedTo" => author_uri,
-      "content" => post.content || "",
+      "content" => format_html_content(post.content),
       "mediaType" => "text/html",
       "published" => format_datetime(post.inserted_at),
       "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => [community_actor_url],
+      "cc" => cc,
+      "attachment" => build_attachments(post),
+      "tag" => build_tags(post),
       "audience" => community_actor_url,
       "url" => ActivityPub.community_post_web_url(community.name, post.id, base_url),
       "inReplyTo" => build_community_in_reply_to(post, community, base_url),
@@ -299,13 +324,24 @@ defmodule Elektrine.ActivityPub.Builder do
     |> maybe_put("updated", format_datetime(post.edited_at))
     |> maybe_put("summary", post.content_warning)
     |> maybe_put("name", if(object_type == "Page", do: post.title, else: nil))
+    |> maybe_add_quote_url(post)
+  end
+
+  @doc """
+  Builds a local community object, choosing Question for polls.
+  """
+  def build_community_object(%Message{} = post, %Conversation{} = community, opts \\ []) do
+    case get_builder_opt(opts, :poll) do
+      %{options: _} = poll -> build_community_question(post, community, poll, opts)
+      _ -> build_community_note(post, community, opts)
+    end
   end
 
   defp format_content(message) do
-    # Convert message content to HTML
-    # Handle nil or empty content (e.g., boost posts)
-    content = message.content || ""
+    format_html_content(message.content)
+  end
 
+  defp format_html_content(content) when is_binary(content) do
     if String.trim(content) == "" do
       ""
     else
@@ -315,7 +351,9 @@ defmodule Elektrine.ActivityPub.Builder do
     end
   end
 
-  defp build_to_addresses(message, user, community_uri \\ nil) do
+  defp format_html_content(_), do: ""
+
+  defp build_to_addresses(message, user, community_uri) do
     base_url = ActivityPub.instance_url()
 
     base =
@@ -353,12 +391,7 @@ defmodule Elektrine.ActivityPub.Builder do
       end
 
     # Add mentioned users (handle nil content)
-    mention_uris =
-      if message.content do
-        Elektrine.ActivityPub.Mentions.get_mention_uris(message.content)
-      else
-        []
-      end
+    mention_uris = mention_uris_for_message(message)
 
     base_cc ++ mention_uris
   end
@@ -439,7 +472,7 @@ defmodule Elektrine.ActivityPub.Builder do
           %{
             "type" => "Hashtag",
             "name" => "##{tag}",
-            "href" => "#{Elektrine.ActivityPub.instance_url()}/hashtag/#{tag}"
+            "href" => "#{Elektrine.ActivityPub.instance_url()}/tags/#{tag}"
           }
         end)
       else
@@ -550,41 +583,99 @@ defmodule Elektrine.ActivityPub.Builder do
     object_id =
       message.activitypub_id || "#{base_url}/users/#{user.username}/statuses/#{message.id}"
 
-    # Build poll options
-    options =
-      Enum.map(poll.options, fn option ->
-        %{
-          "type" => "Note",
-          "name" => option.option_text,
-          "replies" => %{
-            "type" => "Collection",
-            "totalItems" => option.vote_count || 0
-          }
-        }
-      end)
-
-    # Determine end time
-    end_time =
-      if poll.closes_at do
-        format_datetime(poll.closes_at)
-      else
-        # Default: 24 hours from now
-        DateTime.add(DateTime.utc_now(), 24 * 3600, :second) |> DateTime.to_iso8601()
-      end
+    community_uri = get_community_uri_from_chain(message)
 
     %{
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => object_id,
       "type" => "Question",
       "attributedTo" => "#{base_url}/users/#{user.username}",
-      "content" => format_content(message),
+      "name" => poll.question,
+      "content" => poll_content(message, poll),
       "published" => format_datetime(message.inserted_at),
-      "endTime" => end_time,
+      "endTime" => poll_end_time(poll),
       "closed" => format_datetime(poll.closes_at),
-      "votersCount" => poll.total_votes || 0,
-      if(poll.allow_multiple, do: "anyOf", else: "oneOf") => options,
-      "to" => build_to_addresses(message, user),
-      "cc" => build_cc_addresses(message, user)
+      "votersCount" => poll_voters_count(poll),
+      poll_choice_key(poll) => build_poll_options(poll),
+      "to" => build_to_addresses(message, user, community_uri),
+      "cc" => build_cc_addresses(message, user),
+      "attachment" => build_attachments(message),
+      "tag" => build_tags(message),
+      "url" => object_id,
+      "inReplyTo" => build_in_reply_to(message),
+      "sensitive" => message.sensitive || false
+    }
+    |> maybe_put("audience", community_uri)
+    |> maybe_put("updated", format_datetime(message.edited_at))
+    |> maybe_add_content_warning(message)
+    |> maybe_add_quote_url(message)
+  end
+
+  @doc """
+  Builds a Question object for a local community poll.
+  """
+  def build_community_question(%Message{} = post, %Conversation{} = community, poll, opts \\ []) do
+    base_url = get_builder_opt(opts, :base_url, ActivityPub.instance_url())
+    community_actor_url = ActivityPub.community_actor_uri(community.name, base_url)
+    post_id = ActivityPub.community_post_uri(community.name, post.id, base_url)
+
+    author_uri =
+      case get_builder_opt(opts, :author_uri) do
+        value when is_binary(value) and value != "" ->
+          value
+
+        _ ->
+          case post.sender do
+            %{username: username} -> "#{base_url}/users/#{username}"
+            _ -> community_actor_url
+          end
+      end
+
+    %{
+      "id" => post_id,
+      "type" => "Question",
+      "attributedTo" => author_uri,
+      "name" => post.title || poll.question,
+      "content" => poll_content(post, poll),
+      "mediaType" => "text/html",
+      "published" => format_datetime(post.inserted_at),
+      "endTime" => poll_end_time(poll),
+      "closed" => format_datetime(poll.closes_at),
+      "votersCount" => poll_voters_count(poll),
+      poll_choice_key(poll) => build_poll_options(poll),
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => community_cc_addresses(post, community_actor_url),
+      "attachment" => build_attachments(post),
+      "tag" => build_tags(post),
+      "audience" => community_actor_url,
+      "url" => ActivityPub.community_post_web_url(community.name, post.id, base_url),
+      "inReplyTo" => build_community_in_reply_to(post, community, base_url),
+      "sensitive" => post.sensitive || false,
+      "context" => community_actor_url,
+      "commentsEnabled" => is_nil(post.locked_at),
+      "stickied" => post.is_pinned || false,
+      "distinguished" => false
+    }
+    |> maybe_put("updated", format_datetime(post.edited_at))
+    |> maybe_put("summary", post.content_warning)
+    |> maybe_add_quote_url(post)
+  end
+
+  @doc """
+  Builds a Create activity for a local community object.
+  """
+  def build_community_create_activity(%Message{} = post, %Conversation{} = community, object) do
+    base_url = ActivityPub.instance_url()
+
+    %{
+      "@context" => "https://www.w3.org/ns/activitystreams",
+      "id" => "#{object["id"]}/activity",
+      "type" => "Create",
+      "actor" => ActivityPub.community_actor_uri(community.name, base_url),
+      "published" => format_datetime(post.inserted_at),
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => community_create_cc_addresses(post, community, base_url),
+      "object" => object
     }
   end
 
@@ -615,6 +706,64 @@ defmodule Elektrine.ActivityPub.Builder do
   end
 
   defp get_builder_opt(_, _, default), do: default
+
+  defp community_cc_addresses(%Message{} = post, community_actor_url) do
+    [community_actor_url | mention_uris_for_message(post)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp community_create_cc_addresses(%Message{} = post, %Conversation{} = community, base_url) do
+    [
+      ActivityPub.community_followers_uri(community.name, base_url)
+      | mention_uris_for_message(post)
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp mention_uris_for_message(%Message{content: content}) when is_binary(content),
+    do: Elektrine.ActivityPub.Mentions.get_mention_uris(content)
+
+  defp mention_uris_for_message(_), do: []
+
+  defp poll_content(%Message{} = message, poll) do
+    case format_content(message) do
+      "" -> format_html_content(poll.question)
+      content -> content
+    end
+  end
+
+  defp build_poll_options(poll) do
+    poll.options
+    |> Enum.sort_by(& &1.position)
+    |> Enum.map(fn option ->
+      %{
+        "type" => "Note",
+        "name" => option.option_text,
+        "replies" => %{
+          "type" => "Collection",
+          "totalItems" => option.vote_count || 0
+        }
+      }
+    end)
+  end
+
+  defp poll_choice_key(poll) do
+    if poll.allow_multiple, do: "anyOf", else: "oneOf"
+  end
+
+  defp poll_voters_count(poll) do
+    poll.voters_count || poll.total_votes || 0
+  end
+
+  defp poll_end_time(poll) do
+    if poll.closes_at do
+      format_datetime(poll.closes_at)
+    else
+      DateTime.add(DateTime.utc_now(), 24 * 3600, :second) |> DateTime.to_iso8601()
+    end
+  end
 
   @doc """
   Builds a Follow activity.
@@ -789,9 +938,12 @@ defmodule Elektrine.ActivityPub.Builder do
   @doc """
   Builds a Delete activity with a Tombstone object.
   """
-  def build_delete_activity(%User{} = user, object_uri, former_type \\ "Note") do
+  def build_delete_activity(actor_or_user, object_uri, former_type \\ "Note", opts \\ [])
+
+  def build_delete_activity(%User{} = user, object_uri, former_type, opts) do
     base_url = ActivityPub.instance_url()
     activity_id = "#{base_url}/activities/#{Ecto.UUID.generate()}"
+    {to, cc} = activity_audience(nil, opts, ["https://www.w3.org/ns/activitystreams#Public"], [])
 
     tombstone = %{
       "type" => "Tombstone",
@@ -805,26 +957,77 @@ defmodule Elektrine.ActivityPub.Builder do
       "id" => activity_id,
       "type" => "Delete",
       "actor" => "#{base_url}/users/#{user.username}",
-      "object" => tombstone,
-      "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+      "object" => tombstone
     }
+    |> maybe_put_list("to", to)
+    |> maybe_put_list("cc", cc)
+  end
+
+  def build_delete_activity(
+        %Elektrine.ActivityPub.Actor{} = actor,
+        object_uri,
+        former_type,
+        opts
+      ) do
+    activity_id = "#{actor.uri}/activities/#{Ecto.UUID.generate()}"
+    {to, cc} = activity_audience(nil, opts, ["https://www.w3.org/ns/activitystreams#Public"], [])
+
+    tombstone = %{
+      "type" => "Tombstone",
+      "id" => object_uri,
+      "formerType" => former_type,
+      "deleted" => DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+
+    %{
+      "@context" => "https://www.w3.org/ns/activitystreams",
+      "id" => activity_id,
+      "type" => "Delete",
+      "actor" => actor.uri,
+      "object" => tombstone
+    }
+    |> maybe_put_list("to", to)
+    |> maybe_put_list("cc", cc)
   end
 
   @doc """
   Builds an Update activity (for profile or post updates).
   """
-  def build_update_activity(%User{} = user, object) do
+  def build_update_activity(actor_or_user, object, opts \\ [])
+
+  def build_update_activity(%User{} = user, object, opts) do
     base_url = ActivityPub.instance_url()
     activity_id = "#{base_url}/activities/#{Ecto.UUID.generate()}"
+
+    {to, cc} =
+      activity_audience(object, opts, ["https://www.w3.org/ns/activitystreams#Public"], [])
 
     %{
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Update",
       "actor" => "#{base_url}/users/#{user.username}",
-      "object" => object,
-      "to" => ["https://www.w3.org/ns/activitystreams#Public"]
+      "object" => object
     }
+    |> maybe_put_list("to", to)
+    |> maybe_put_list("cc", cc)
+  end
+
+  def build_update_activity(%Elektrine.ActivityPub.Actor{} = actor, object, opts) do
+    activity_id = "#{actor.uri}/activities/#{Ecto.UUID.generate()}"
+
+    {to, cc} =
+      activity_audience(object, opts, ["https://www.w3.org/ns/activitystreams#Public"], [])
+
+    %{
+      "@context" => "https://www.w3.org/ns/activitystreams",
+      "id" => activity_id,
+      "type" => "Update",
+      "actor" => actor.uri,
+      "object" => object
+    }
+    |> maybe_put_list("to", to)
+    |> maybe_put_list("cc", cc)
   end
 
   @doc """
@@ -869,6 +1072,48 @@ defmodule Elektrine.ActivityPub.Builder do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp activity_audience(object, opts, default_to, default_cc) do
+    to =
+      select_audience(
+        get_builder_opt(opts, :to, object_audience(object, "to")),
+        default_to
+      )
+
+    cc =
+      select_audience(
+        get_builder_opt(opts, :cc, object_audience(object, "cc")),
+        default_cc
+      )
+
+    {to, cc}
+  end
+
+  defp object_audience(object, field) when is_map(object), do: Map.get(object, field)
+  defp object_audience(_object, _field), do: nil
+
+  defp select_audience(value, fallback) do
+    case normalize_audience(value) do
+      [] -> normalize_audience(fallback)
+      audience -> audience
+    end
+  end
+
+  defp normalize_audience(values) when is_list(values) do
+    values
+    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.uniq()
+  end
+
+  defp normalize_audience(value) when is_binary(value) do
+    if String.trim(value) == "" do
+      []
+    else
+      [value]
+    end
+  end
+
+  defp normalize_audience(_value), do: []
 
   defp maybe_put_list(map, _key, values) when values in [nil, []], do: map
 

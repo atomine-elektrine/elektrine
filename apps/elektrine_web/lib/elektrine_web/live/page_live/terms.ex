@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.Terms do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.EmailAddresses
+
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
   def mount(_params, _session, socket) do
@@ -117,8 +119,8 @@ defmodule ElektrineWeb.PageLive.Terms do
                 <p>For questions about these terms, please contact us at:</p>
                 <p class="mt-2">
                   Email:
-                  <a href="mailto:legal@elektrine.com" class="link link-primary">
-                    legal@elektrine.com
+                  <a href={EmailAddresses.mailto("legal")} class="link link-primary">
+                    {EmailAddresses.local("legal")}
                   </a>
                 </p>
               </section>

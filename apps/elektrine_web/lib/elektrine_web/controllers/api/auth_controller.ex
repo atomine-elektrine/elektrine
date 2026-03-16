@@ -2,6 +2,7 @@ defmodule ElektrineWeb.API.AuthController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.EmailAddresses
   alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Plugs.APIAuth
 
@@ -55,7 +56,7 @@ defmodule ElektrineWeb.API.AuthController do
           user: %{
             id: user.id,
             username: user.username,
-            email: "#{user.username}@elektrine.com",
+            email: EmailAddresses.primary_for_user(user),
             avatar: user.avatar,
             is_admin: user.is_admin,
             inserted_at: user.inserted_at,
@@ -136,7 +137,7 @@ defmodule ElektrineWeb.API.AuthController do
       user: %{
         id: user.id,
         username: user.username,
-        email: "#{user.username}@elektrine.com",
+        email: EmailAddresses.primary_for_user(user),
         avatar: user.avatar,
         is_admin: user.is_admin,
         inserted_at: user.inserted_at,

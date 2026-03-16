@@ -4,6 +4,8 @@ defmodule Elektrine.ActivityPub.Outbox do
   Publishes local user actions to remote followers.
   """
 
+  import Ecto.Query, warn: false
+
   require Logger
 
   alias Elektrine.Accounts
@@ -12,7 +14,6 @@ defmodule Elektrine.ActivityPub.Outbox do
   alias Elektrine.Bluesky.OutboundWorker
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
-  alias Elektrine.Social.Poll
 
   @doc """
   Federates a newly created message/post to remote followers.
@@ -30,20 +31,15 @@ defmodule Elektrine.ActivityPub.Outbox do
       poll = maybe_poll_for_message(message)
       create_activity = build_post_create_activity(message, user, poll)
       maybe_set_message_activitypub_id(message, create_activity["object"]["id"])
-
-      base_inboxes = base_post_inboxes(message, user.id)
-      mention_inboxes = mention_inboxes_for_message(message)
-      relay_inboxes = relay_inboxes_for_visibility(message.visibility)
       community_uri = get_community_uri_from_chain(message)
-      community_inboxes = community_inboxes_for_uri(community_uri)
-
-      inbox_urls =
-        (base_inboxes ++ mention_inboxes ++ relay_inboxes ++ community_inboxes) |> Enum.uniq()
+      inbox_urls = fanout_inboxes_for_post(message, user.id)
 
       Logger.debug(
         "Federating post #{message.id}: " <>
-          "base=#{length(base_inboxes)}, mentions=#{length(mention_inboxes)}, " <>
-          "relays=#{length(relay_inboxes)}, community=#{length(community_inboxes)}, " <>
+          "base=#{length(base_post_inboxes(message, user.id))}, " <>
+          "mentions=#{length(mention_inboxes_for_message(message))}, " <>
+          "relays=#{length(relay_inboxes_for_visibility(message.visibility))}, " <>
+          "community=#{length(community_inboxes_for_uri(community_uri))}, " <>
           "total=#{length(inbox_urls)}, community_uri=#{inspect(community_uri)}"
       )
 
@@ -70,11 +66,21 @@ defmodule Elektrine.ActivityPub.Outbox do
   defp activitypub_user(_), do: nil
 
   defp maybe_poll_for_message(%Message{post_type: "poll", id: message_id}) do
-    Repo.get_by(Poll, message_id: message_id)
-    |> Repo.preload(:options)
+    case poll_schema() do
+      nil ->
+        nil
+
+      poll_schema ->
+        Repo.get_by(poll_schema, message_id: message_id)
+        |> Repo.preload(:options)
+    end
   end
 
   defp maybe_poll_for_message(_), do: nil
+
+  defp poll_schema do
+    if Code.ensure_loaded?(Elektrine.Social.Poll), do: Elektrine.Social.Poll, else: nil
+  end
 
   defp build_post_create_activity(message, user, nil),
     do: Builder.build_create_activity(message, user)
@@ -141,6 +147,18 @@ defmodule Elektrine.ActivityPub.Outbox do
 
   defp maybe_single_inbox(inbox_url) when is_binary(inbox_url), do: [inbox_url]
   defp maybe_single_inbox(_), do: []
+
+  defp fanout_inboxes_for_post(message, user_id) do
+    base_inboxes = base_post_inboxes(message, user_id)
+    mention_inboxes = mention_inboxes_for_message(message)
+    relay_inboxes = relay_inboxes_for_visibility(message.visibility)
+    community_uri = get_community_uri_from_chain(message)
+    community_inboxes = community_inboxes_for_uri(community_uri)
+
+    (base_inboxes ++ mention_inboxes ++ relay_inboxes ++ community_inboxes)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
 
   defp publish_post_activity(message, _create_activity, _user, []),
     do: Logger.warning("No inboxes to send post #{message.id} to")
@@ -214,8 +232,9 @@ defmodule Elektrine.ActivityPub.Outbox do
     user = Accounts.get_user!(user_id)
 
     if message && message.activitypub_id && user.activitypub_enabled do
-      # Build original Like activity
-      like_activity = Builder.build_like_activity(user, message.activitypub_id)
+      like_activity =
+        latest_local_activity_data(user.id, "Like", message.activitypub_id) ||
+          Builder.build_like_activity(user, message.activitypub_id)
 
       # Build Undo activity
       undo_activity = Builder.build_undo_activity(user, like_activity)
@@ -280,8 +299,9 @@ defmodule Elektrine.ActivityPub.Outbox do
     user = Accounts.get_user!(user_id)
 
     if message && message.activitypub_id && user.activitypub_enabled do
-      # Build original Dislike activity
-      dislike_activity = Builder.build_dislike_activity(user, message.activitypub_id)
+      dislike_activity =
+        latest_local_activity_data(user.id, "Dislike", message.activitypub_id) ||
+          Builder.build_dislike_activity(user, message.activitypub_id)
 
       # Build Undo activity
       undo_activity = Builder.build_undo_activity(user, dislike_activity)
@@ -331,8 +351,9 @@ defmodule Elektrine.ActivityPub.Outbox do
     user = Accounts.get_user!(user_id)
 
     if message && message.activitypub_id && user.activitypub_enabled do
-      # Build original Announce activity
-      announce_activity = Builder.build_announce_activity(user, message.activitypub_id)
+      announce_activity =
+        latest_local_activity_data(user.id, "Announce", message.activitypub_id) ||
+          Builder.build_announce_activity(user, message.activitypub_id)
 
       # Build Undo activity
       undo_activity = Builder.build_undo_activity(user, announce_activity)
@@ -410,9 +431,9 @@ defmodule Elektrine.ActivityPub.Outbox do
     user = Accounts.get_user!(user_id)
 
     if message && message.activitypub_id && user.activitypub_enabled do
-      # Build original EmojiReact activity
       emoji_react_activity =
-        Builder.build_emoji_react_activity(user, message.activitypub_id, emoji)
+        latest_local_activity_data(user.id, "EmojiReact", message.activitypub_id, content: emoji) ||
+          Builder.build_emoji_react_activity(user, message.activitypub_id, emoji)
 
       # Build Undo activity
       undo_activity = Builder.build_undo_activity(user, emoji_react_activity)
@@ -431,12 +452,9 @@ defmodule Elektrine.ActivityPub.Outbox do
   Sends a Delete activity when a message is deleted.
   """
   def federate_delete(%Message{} = message) do
-    with activitypub_id when not is_nil(activitypub_id) <- message.activitypub_id,
-         sender_id when not is_nil(sender_id) <- message.sender_id,
-         %{} = user <- activitypub_user(sender_id) do
-      delete_activity = Builder.build_delete_activity(user, activitypub_id)
-      inbox_urls = Publisher.get_follower_inboxes(user.id)
-      maybe_publish(delete_activity, user, inbox_urls)
+    case local_public_community(message) do
+      {:ok, community} -> federate_local_community_delete(message, community)
+      :error -> federate_user_delete(message)
     end
 
     :ok
@@ -446,13 +464,9 @@ defmodule Elektrine.ActivityPub.Outbox do
   Sends an Update activity when a message is edited.
   """
   def federate_update(%Message{} = message) do
-    with true <- not is_nil(message.activitypub_id),
-         sender_id when not is_nil(sender_id) <- message.sender_id,
-         %{} = user <- activitypub_user(sender_id) do
-      updated_note = Builder.build_note(message, user)
-      update_activity = Builder.build_update_activity(user, updated_note)
-      inbox_urls = Publisher.get_follower_inboxes(user.id)
-      maybe_publish(update_activity, user, inbox_urls)
+    case local_public_community(message) do
+      {:ok, community} -> federate_local_community_update(message, community)
+      :error -> federate_user_update(message)
     end
 
     :ok
@@ -485,6 +499,220 @@ defmodule Elektrine.ActivityPub.Outbox do
     :ok
   end
 
+  defp build_post_object(message, user) do
+    case maybe_poll_for_message(message) do
+      %{options: _} = poll -> Builder.build_question(message, user, poll)
+      _ -> Builder.build_note(message, user)
+    end
+  end
+
+  defp build_community_post_object(message, community, author_uri) do
+    Builder.build_community_object(message, community,
+      poll: maybe_poll_for_message(message),
+      author_uri: author_uri
+    )
+  end
+
+  defp update_delete_inboxes(message, user_id, create_activity) do
+    case delivery_inboxes_for_activity(create_activity) do
+      [] -> fanout_inboxes_for_post(message, user_id)
+      inboxes -> inboxes
+    end
+  end
+
+  defp community_update_delete_inboxes(message, community_actor_id, create_activity) do
+    case delivery_inboxes_for_activity(create_activity) do
+      [] -> community_post_inboxes(message, community_actor_id)
+      inboxes -> inboxes
+    end
+  end
+
+  defp delivery_inboxes_for_activity(nil), do: []
+
+  defp delivery_inboxes_for_activity(%ActivityPub.Activity{id: activity_id}) do
+    from(d in ActivityPub.Delivery,
+      where: d.activity_id == ^activity_id,
+      select: d.inbox_url
+    )
+    |> Repo.all()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp latest_local_create_activity(%Message{activitypub_id: activitypub_id}, user_id)
+       when is_binary(activitypub_id) and not is_nil(user_id) do
+    from(a in ActivityPub.Activity,
+      where:
+        a.local == true and
+          a.internal_user_id == ^user_id and
+          a.activity_type == "Create" and
+          a.object_id == ^activitypub_id,
+      order_by: [desc: a.inserted_at],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp latest_local_create_activity(_, _), do: nil
+
+  defp latest_local_community_create_activity(%Message{activitypub_id: activitypub_id}, actor_uri)
+       when is_binary(activitypub_id) and is_binary(actor_uri) do
+    from(a in ActivityPub.Activity,
+      where:
+        a.local == true and
+          is_nil(a.internal_user_id) and
+          a.actor_uri == ^actor_uri and
+          a.activity_type == "Create" and
+          a.object_id == ^activitypub_id,
+      order_by: [desc: a.inserted_at],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp latest_local_community_create_activity(_, _), do: nil
+
+  defp activity_audience_opts(create_activity, fallback_object) do
+    audience_source =
+      if is_map(create_activity && create_activity.data), do: create_activity.data, else: %{}
+
+    %{
+      to:
+        Map.get(audience_source, "to") || get_in(audience_source, ["object", "to"]) ||
+          fallback_object["to"],
+      cc:
+        Map.get(audience_source, "cc") || get_in(audience_source, ["object", "cc"]) ||
+          fallback_object["cc"]
+    }
+  end
+
+  defp former_type_for_message(%Message{post_type: "poll"}), do: "Question"
+  defp former_type_for_message(_message), do: "Note"
+
+  defp federate_user_delete(%Message{} = message) do
+    with activitypub_id when not is_nil(activitypub_id) <- message.activitypub_id,
+         sender_id when not is_nil(sender_id) <- message.sender_id,
+         %{} = user <- activitypub_user(sender_id) do
+      create_activity = latest_local_create_activity(message, user.id)
+
+      delete_activity =
+        Builder.build_delete_activity(
+          user,
+          activitypub_id,
+          former_type_for_message(message),
+          activity_audience_opts(create_activity, build_post_object(message, user))
+        )
+
+      inbox_urls = update_delete_inboxes(message, user.id, create_activity)
+      maybe_publish(delete_activity, user, inbox_urls)
+    end
+  end
+
+  defp federate_user_update(%Message{} = message) do
+    with true <- not is_nil(message.activitypub_id),
+         sender_id when not is_nil(sender_id) <- message.sender_id,
+         %{} = user <- activitypub_user(sender_id) do
+      create_activity = latest_local_create_activity(message, user.id)
+
+      updated_object =
+        message
+        |> build_post_object(user)
+        |> preserve_original_object_routing(create_activity)
+
+      update_activity =
+        Builder.build_update_activity(
+          user,
+          updated_object,
+          activity_audience_opts(create_activity, updated_object)
+        )
+
+      inbox_urls = update_delete_inboxes(message, user.id, create_activity)
+      maybe_publish(update_activity, user, inbox_urls)
+    end
+  end
+
+  defp federate_local_community_delete(%Message{} = message, community) do
+    with activitypub_id when not is_nil(activitypub_id) <- message.activitypub_id,
+         sender_id when not is_nil(sender_id) <- message.sender_id,
+         %{} = user <- activitypub_user(sender_id),
+         {:ok, community_actor} <- ActivityPub.get_or_create_community_actor(community.id) do
+      author_uri = "#{ActivityPub.instance_url()}/users/#{user.username}"
+      community_object = build_community_post_object(message, community, author_uri)
+      create_activity = latest_local_community_create_activity(message, community_actor.uri)
+
+      delete_activity =
+        Builder.build_delete_activity(
+          community_actor,
+          activitypub_id,
+          former_type_for_message(message),
+          activity_audience_opts(create_activity, community_object)
+        )
+
+      inbox_urls = community_update_delete_inboxes(message, community_actor.id, create_activity)
+      maybe_publish(delete_activity, nil, inbox_urls)
+    end
+  end
+
+  defp federate_local_community_update(%Message{} = message, community) do
+    with true <- not is_nil(message.activitypub_id),
+         sender_id when not is_nil(sender_id) <- message.sender_id,
+         %{} = user <- activitypub_user(sender_id),
+         {:ok, community_actor} <- ActivityPub.get_or_create_community_actor(community.id) do
+      create_activity = latest_local_community_create_activity(message, community_actor.uri)
+
+      updated_object =
+        build_community_post_object(
+          message,
+          community,
+          "#{ActivityPub.instance_url()}/users/#{user.username}"
+        )
+        |> preserve_original_object_routing(create_activity)
+
+      update_activity =
+        Builder.build_update_activity(
+          community_actor,
+          updated_object,
+          activity_audience_opts(create_activity, updated_object)
+        )
+
+      inbox_urls = community_update_delete_inboxes(message, community_actor.id, create_activity)
+      maybe_publish(update_activity, nil, inbox_urls)
+    end
+  end
+
+  defp local_public_community(%Message{} = message) do
+    case message_conversation(message) do
+      %Elektrine.Messaging.Conversation{
+        type: "community",
+        is_public: true,
+        is_federated_mirror: false
+      } = community ->
+        {:ok, community}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp message_conversation(%Message{
+         conversation: %Ecto.Association.NotLoaded{},
+         conversation_id: id
+       }),
+       do: Repo.get(Elektrine.Messaging.Conversation, id)
+
+  defp message_conversation(%Message{conversation: nil, conversation_id: id}),
+    do: Repo.get(Elektrine.Messaging.Conversation, id)
+
+  defp message_conversation(%Message{conversation: conversation}), do: conversation
+
+  defp community_post_inboxes(message, community_actor_id) do
+    (relay_inboxes_for_visibility(message.visibility) ++
+       ActivityPub.get_group_follower_inboxes(community_actor_id) ++
+       mention_inboxes_for_message(message))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
   @doc """
   Federates a community post to remote followers.
   Called when a discussion post is created in a public community.
@@ -499,47 +727,37 @@ defmodule Elektrine.ActivityPub.Outbox do
         federate_local_community_post(message, community)
       end
     end
+
+    :ok
   end
 
   defp federate_local_community_post(message, community) do
     with {:ok, community_actor} <- ActivityPub.get_or_create_community_actor(community.id),
-         user <- Accounts.get_user!(message.sender_id) do
+         %Accounts.User{activitypub_enabled: true} = user <- Accounts.get_user!(message.sender_id) do
       post_id = ActivityPub.community_post_uri(community.name, message.id)
 
       page_object =
-        Builder.build_community_note(message, community,
-          author_uri: "#{ActivityPub.instance_url()}/users/#{user.username}"
+        build_community_post_object(
+          message,
+          community,
+          "#{ActivityPub.instance_url()}/users/#{user.username}"
         )
 
-      create_activity =
-        build_community_create_activity(message, community_actor, page_object, post_id)
+      create_activity = Builder.build_community_create_activity(message, community, page_object)
 
       maybe_set_community_activitypub_id(message, community, post_id)
 
-      all_inboxes =
-        (ActivityPub.get_relay_inboxes() ++
-           ActivityPub.get_group_follower_inboxes(community_actor.id))
-        |> Enum.uniq()
+      all_inboxes = community_post_inboxes(message, community_actor.id)
 
       # Community actors don't have a local User, so we publish with `nil` actor user.
       maybe_publish(create_activity, nil, all_inboxes)
     else
+      %Accounts.User{activitypub_enabled: false} ->
+        :ok
+
       {:error, reason} ->
         Logger.error("Failed to create community actor: #{inspect(reason)}")
     end
-  end
-
-  defp build_community_create_activity(message, community_actor, page_object, post_id) do
-    %{
-      "@context" => "https://www.w3.org/ns/activitystreams",
-      "id" => "#{post_id}/activity",
-      "type" => "Create",
-      "actor" => community_actor.uri,
-      "published" => Builder.format_datetime(message.inserted_at),
-      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => [community_actor.followers_url],
-      "object" => page_object
-    }
   end
 
   defp maybe_set_community_activitypub_id(
@@ -709,26 +927,74 @@ defmodule Elektrine.ActivityPub.Outbox do
     if author.activitypub_enabled, do: Publisher.get_follower_inboxes(author.id), else: []
   end
 
+  defp latest_local_activity_data(user_id, activity_type, object_id, opts \\ []) do
+    case ActivityPub.get_latest_local_activity(user_id, activity_type, object_id, opts) do
+      %{data: data} when is_map(data) -> data
+      _ -> nil
+    end
+  end
+
   # Get the instance inbox from an actor URI
   defp get_instance_inbox_from_uri(actor_uri) when is_binary(actor_uri) do
     # First try to get the actor from our database
     case ActivityPub.get_actor_by_uri(actor_uri) do
-      %{inbox_url: inbox} when is_binary(inbox) ->
-        inbox
+      %{metadata: metadata, inbox_url: inbox} ->
+        shared_inbox = get_in(metadata || %{}, ["endpoints", "sharedInbox"])
+
+        case preferred_actor_inbox(shared_inbox, inbox) do
+          nil -> fallback_instance_inbox(actor_uri)
+          inbox_url -> inbox_url
+        end
 
       _ ->
-        # Fall back to constructing the shared inbox from the domain
-        case URI.parse(actor_uri) do
-          %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-            "#{scheme}://#{host}/inbox"
-
-          _ ->
-            nil
-        end
+        fallback_instance_inbox(actor_uri)
     end
   end
 
   defp get_instance_inbox_from_uri(_), do: nil
+
+  defp preferred_actor_inbox(shared_inbox, inbox_url) do
+    case shared_inbox do
+      value when is_binary(value) and value != "" -> value
+      _ -> if(is_binary(inbox_url) and inbox_url != "", do: inbox_url, else: nil)
+    end
+  end
+
+  defp fallback_instance_inbox(actor_uri) do
+    case URI.parse(actor_uri) do
+      %URI{scheme: scheme, host: host, port: port}
+      when scheme in ["http", "https"] and is_binary(host) ->
+        "#{uri_origin(scheme, host, port)}/inbox"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp uri_origin(scheme, host, port) when port in [80, 443, nil],
+    do: "#{scheme}://#{host}"
+
+  defp uri_origin(scheme, host, port), do: "#{scheme}://#{host}:#{port}"
+
+  defp preserve_original_object_routing(updated_object, nil), do: updated_object
+
+  defp preserve_original_object_routing(updated_object, %ActivityPub.Activity{data: data})
+       when is_map(updated_object) and is_map(data) do
+    case Map.get(data, "object") do
+      original_object when is_map(original_object) ->
+        Enum.reduce(["to", "cc", "audience", "context"], updated_object, fn field, acc ->
+          case Map.get(original_object, field) do
+            nil -> acc
+            value -> Map.put(acc, field, value)
+          end
+        end)
+
+      _ ->
+        updated_object
+    end
+  end
+
+  defp preserve_original_object_routing(updated_object, _), do: updated_object
 
   # Federates a post to a remote Group actor.
   defp federate_post_to_remote_group(message, mirror_community) do

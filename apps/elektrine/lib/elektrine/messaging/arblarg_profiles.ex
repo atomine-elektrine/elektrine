@@ -5,7 +5,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
   This module codifies interoperability discipline for Arblarg:
   - one mandatory core profile
   - optional community extension profile
-  - strict extension registry with namespaces and fallback rules
+  - strict extension registry with namespaces and rejection rules
   - conformance-claim gating
   """
 
@@ -30,7 +30,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "stable",
       required: false,
       events: [ArblargSDK.bootstrap_server_upsert_event_type()],
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "optional",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_CORE_PASSED",
       test_command: @conformance_test_command,
@@ -42,7 +42,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "experimental",
       required: false,
       events: ArblargSDK.roles_event_types(),
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_ROLES_PASSED",
       test_command: @community_conformance_test_command,
@@ -54,7 +54,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "experimental",
       required: false,
       events: ArblargSDK.permissions_event_types(),
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_PERMISSIONS_PASSED",
       test_command: @community_conformance_test_command,
@@ -66,7 +66,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "experimental",
       required: false,
       events: ArblargSDK.threads_event_types(),
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_THREADS_PASSED",
       test_command: @community_conformance_test_command,
@@ -78,7 +78,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "experimental",
       required: false,
       events: ArblargSDK.presence_event_types(),
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_PRESENCE_PASSED",
       test_command: @community_conformance_test_command,
@@ -90,7 +90,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "experimental",
       required: false,
       events: ArblargSDK.moderation_event_types(),
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "required_for_arblarg_community_1_0",
       env_flag: "MESSAGING_FEDERATION_CONFORMANCE_EXT_MODERATION_PASSED",
       test_command: @community_conformance_test_command,
@@ -102,7 +102,7 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       stability: "experimental",
       required: false,
       events: ArblargSDK.dm_event_types(),
-      fallback: "ignore_event",
+      fallback: "reject_unsupported_event_type",
       gate: "optional",
       env_flag: nil,
       test_command: nil,
@@ -111,10 +111,10 @@ defmodule Elektrine.Messaging.ArblargProfiles do
     %{
       urn: "urn:arblarg:ext:voice:1",
       version: 1,
-      stability: "reserved",
+      stability: "experimental",
       required: false,
-      events: [],
-      fallback: "ignore_event",
+      events: ArblargSDK.voice_event_types(),
+      fallback: "reject_unsupported_event_type",
       gate: "optional",
       env_flag: nil,
       test_command: nil,
@@ -123,8 +123,16 @@ defmodule Elektrine.Messaging.ArblargProfiles do
   ]
 
   @community_required_extensions @extension_definitions
-                                 |> Enum.filter(&(&1.profile_requirement == @community_profile_id))
+                                 |> Enum.filter(
+                                   &(&1.profile_requirement == @community_profile_id)
+                                 )
                                  |> Enum.map(& &1.urn)
+
+  @extension_definitions_by_event_type Enum.reduce(@extension_definitions, %{}, fn definition, acc ->
+                                     Enum.reduce(definition.events, acc, fn event_type, event_acc ->
+                                       Map.put(event_acc, event_type, definition)
+                                     end)
+                                   end)
 
   def core_profile_id, do: @core_profile_id
   def core_profile_description, do: @core_profile_description
@@ -135,6 +143,21 @@ defmodule Elektrine.Messaging.ArblargProfiles do
   def conformance_test_command, do: @conformance_test_command
   def community_conformance_test_command, do: @community_conformance_test_command
   def community_required_extensions, do: @community_required_extensions
+  def extension_definition_for_event_type(event_type), do: extension_definition(event_type)
+
+  def extension_urn_for_event_type(event_type) do
+    case extension_definition(event_type) do
+      %{urn: urn} -> urn
+      _ -> nil
+    end
+  end
+
+  def required_profile_for_event_type(event_type) do
+    case extension_definition(event_type) do
+      %{profile_requirement: profile_requirement} -> profile_requirement
+      _ -> nil
+    end
+  end
 
   def core_event_types, do: ArblargSDK.core_event_types()
 
@@ -272,6 +295,13 @@ defmodule Elektrine.Messaging.ArblargProfiles do
       }
     }
   end
+
+  defp extension_definition(event_type) when is_binary(event_type) do
+    canonical_event_type = ArblargSDK.canonical_event_type(event_type)
+    Map.get(@extension_definitions_by_event_type, canonical_event_type)
+  end
+
+  defp extension_definition(_event_type), do: nil
 
   defp messaging_federation_config do
     Application.get_env(:elektrine, :messaging_federation, [])

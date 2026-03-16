@@ -9,7 +9,6 @@ defmodule Elektrine.Email.HarakaClient do
 
   require Logger
 
-  @default_base_url "https://mail.elektrine.com"
   @api_path "/api/v1/send"
 
   defmodule FinchClient do
@@ -157,7 +156,7 @@ defmodule Elektrine.Email.HarakaClient do
   end
 
   defp configured_base_url do
-    [System.get_env("HARAKA_BASE_URL"), mailer_config()[:base_url], @default_base_url]
+    [System.get_env("HARAKA_BASE_URL"), mailer_config()[:base_url], default_base_url()]
     |> Enum.find_value(&present_string/1)
     |> normalize_base_url()
   end
@@ -196,10 +195,12 @@ defmodule Elektrine.Email.HarakaClient do
     base_url
     |> String.trim_trailing("/")
     |> case do
-      "https://haraka.elektrine.com" -> @default_base_url
+      "https://haraka.elektrine.com" -> default_base_url()
       normalized -> normalized
     end
   end
+
+  defp default_base_url, do: Elektrine.EmailAddresses.mail_base_url()
 
   defp build_api_body(params) do
     # If raw email data is provided, use that directly (preserves attachments and MIME structure)

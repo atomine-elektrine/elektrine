@@ -1,3 +1,5 @@
+import { sanitizeMarkdownHref } from '../markdown_helpers'
+
 // Markdown editor related hooks
 
 export const MarkdownEditor = {
@@ -322,7 +324,15 @@ export const MarkdownEditor = {
       // Inline code
       .replace(/`([^`]+)`/g, '<code class="bg-base-200 px-1 rounded">$1</code>')
       // Links
-      .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" class="text-primary underline">$1</a>')
+      .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, (match, label, href) => {
+        const safeHref = sanitizeMarkdownHref(href)
+
+        if (!safeHref) {
+          return match
+        }
+
+        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-primary underline">${label}</a>`
+      })
   },
 
   escapeHtml(text) {
@@ -641,7 +651,15 @@ export const ReplyMarkdownEditor = {
       // Inline code
       .replace(/`([^`]+)`/g, '<code class="bg-base-200 px-1 rounded">$1</code>')
       // Links
-      .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" class="text-primary underline">$1</a>')
+      .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, (match, label, href) => {
+        const safeHref = sanitizeMarkdownHref(href)
+
+        if (!safeHref) {
+          return match
+        }
+
+        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-primary underline">${label}</a>`
+      })
   },
 
   escapeHtml(text) {

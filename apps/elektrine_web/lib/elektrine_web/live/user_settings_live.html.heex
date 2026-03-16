@@ -37,12 +37,15 @@
 
             <div class="space-y-2">
               <.link
-                href={~p"/account/profile/edit"}
+                navigate={~p"/account/profile/edit"}
                 class="btn btn-ghost btn-sm w-full justify-start"
               >
-                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Z Profile")}
+                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
               </.link>
-              <.link href={~p"/account/storage"} class="btn btn-ghost btn-sm w-full justify-start">
+              <.link
+                navigate={~p"/account/storage"}
+                class="btn btn-ghost btn-sm w-full justify-start"
+              >
                 <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
               </.link>
             </div>
@@ -347,12 +350,6 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                  <span class={[
-                    "badge",
-                    if(@invite_codes_enabled, do: "badge-success", else: "badge-warning")
-                  ]}>
-                    {if @invite_codes_enabled, do: "Invite-only", else: "Open signup"}
-                  </span>
                   <span class="badge badge-outline">
                     TL{@invite_code_policy.min_trust_level}+
                   </span>
@@ -566,7 +563,7 @@
               </p>
               <div class="card-actions">
                 <.link
-                  href={~p"/account/password"}
+                  navigate={~p"/account/password"}
                   class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
                 >
                   {gettext("Change Password")}
@@ -594,7 +591,7 @@
                 </p>
                 <div class="card-actions">
                   <.link
-                    href={~p"/account/two_factor"}
+                    navigate={~p"/account/two_factor"}
                     class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
                   >
                     {gettext("Manage 2FA")}
@@ -610,7 +607,7 @@
                 </p>
                 <div class="card-actions">
                   <.link
-                    href={~p"/account/two_factor/setup"}
+                    navigate={~p"/account/two_factor/setup"}
                     class="btn btn-primary btn-sm w-full text-xs sm:text-sm"
                   >
                     {gettext("Enable 2FA")}
@@ -635,7 +632,7 @@
               </p>
               <div class="card-actions">
                 <.link
-                  href={~p"/account/passkeys"}
+                  navigate={~p"/account/passkeys"}
                   class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
                 >
                   {gettext("Manage Passkeys")}
@@ -728,7 +725,7 @@
                 </p>
                 <div class="card-actions">
                   <.link
-                    href={~p"/account/app-passwords"}
+                    navigate={~p"/account/app-passwords"}
                     class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
                   >
                     {gettext("Manage App Passwords")}
@@ -890,6 +887,27 @@
                   </li>
                   <li>{gettext("Use unique passwords for each account.")}</li>
                 </ul>
+
+                <%= if @password_manager_vault_configured do %>
+                  <div class="mt-5 rounded-lg border border-error/30 bg-error/5 p-4">
+                    <p class="text-sm text-base-content/70 mb-3">
+                      {gettext(
+                        "Lost your passphrase? Delete the vault and all saved entries, then create a new one."
+                      )}
+                    </p>
+                    <button
+                      id="password-manager-delete-vault"
+                      type="button"
+                      phx-click="password_manager_delete_vault"
+                      data-confirm={
+                        gettext("Delete your vault and all saved entries? This cannot be undone.")
+                      }
+                      class="btn btn-error btn-outline btn-sm"
+                    >
+                      {gettext("Delete Vault")}
+                    </button>
+                  </div>
+                <% end %>
               </div>
             </div>
           </div>
@@ -2933,6 +2951,11 @@
                           <td><code>GET /api/ext/v1/password-manager/entries</code></td>
                           <td><code>read:vault</code></td>
                           <td>{gettext("List encrypted vault entries")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>DELETE /api/ext/v1/password-manager/vault</code></td>
+                          <td><code>write:vault</code></td>
+                          <td>{gettext("Delete the encrypted vault and all saved entries")}</td>
                         </tr>
                         <tr>
                           <td><code>POST /api/ext/v1/exports</code></td>

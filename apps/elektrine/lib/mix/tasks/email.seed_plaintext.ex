@@ -3,6 +3,7 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
 
   use Mix.Task
   alias Elektrine.Email
+  alias Elektrine.EmailAddresses
   alias Elektrine.Repo
 
   @moduledoc """
@@ -57,9 +58,11 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
     mailbox = Email.get_user_mailbox(user.id)
 
     if mailbox do
-      Mix.shell().info("Seeding plaintext test emails for #{user.username}@elektrine.com...")
+      Mix.shell().info(
+        "Seeding plaintext test emails for #{EmailAddresses.primary_for_user(user)}..."
+      )
 
-      test_emails()
+      test_emails(mailbox.email)
       |> Enum.each(fn email_data ->
         attrs = Map.put(email_data, :mailbox_id, mailbox.id)
 
@@ -79,12 +82,12 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
     end
   end
 
-  defp test_emails do
+  defp test_emails(target_email) do
     [
       %{
-        message_id: "plaintext-test-1-#{System.unique_integer([:positive])}@elektrine.com",
+        message_id: EmailAddresses.uid("plaintext-test-1-#{System.unique_integer([:positive])}"),
         from: "alice@example.com",
-        to: "test@elektrine.com",
+        to: target_email,
         subject: "Simple plaintext message",
         text_body:
           "Hello! This is a simple plaintext email with no HTML formatting.\n\nIt has multiple paragraphs and should display with proper line breaks.\n\nBest regards,\nAlice",
@@ -92,9 +95,9 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
         status: "received"
       },
       %{
-        message_id: "plaintext-test-2-#{System.unique_integer([:positive])}@elektrine.com",
+        message_id: EmailAddresses.uid("plaintext-test-2-#{System.unique_integer([:positive])}"),
         from: "support@techcompany.com",
-        to: "test@elektrine.com",
+        to: target_email,
         subject: "Code snippet and formatting test",
         text_body: """
         Hi there,
@@ -124,9 +127,9 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
         status: "received"
       },
       %{
-        message_id: "plaintext-test-3-#{System.unique_integer([:positive])}@elektrine.com",
+        message_id: EmailAddresses.uid("plaintext-test-3-#{System.unique_integer([:positive])}"),
         from: "newsletter@community.org",
-        to: "test@elektrine.com",
+        to: target_email,
         subject: "Weekly newsletter with mixed content",
         text_body: """
         WEEKLY COMMUNITY NEWSLETTER
@@ -171,9 +174,9 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
         is_newsletter: true
       },
       %{
-        message_id: "plaintext-test-4-#{System.unique_integer([:positive])}@elektrine.com",
+        message_id: EmailAddresses.uid("plaintext-test-4-#{System.unique_integer([:positive])}"),
         from: "system@bank.com",
-        to: "test@elektrine.com",
+        to: target_email,
         subject: "Account statement - Transaction details",
         text_body: """
         ACCOUNT STATEMENT
@@ -216,9 +219,9 @@ defmodule Mix.Tasks.Email.SeedPlaintext do
         is_receipt: true
       },
       %{
-        message_id: "plaintext-test-5-#{System.unique_integer([:positive])}@elektrine.com",
+        message_id: EmailAddresses.uid("plaintext-test-5-#{System.unique_integer([:positive])}"),
         from: "notifications@platform.com",
-        to: "test@elektrine.com",
+        to: target_email,
         subject: "Security alert: New login detected",
         text_body: """
         SECURITY ALERT

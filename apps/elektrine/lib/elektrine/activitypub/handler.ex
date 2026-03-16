@@ -16,7 +16,7 @@ defmodule Elektrine.ActivityPub.Handler do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{MRF, ObjectValidator}
+  alias Elektrine.ActivityPub.{MRF, ObjectValidator, UndoResolver}
 
   alias Elektrine.ActivityPub.Handlers.{
     AnnounceHandler,
@@ -100,21 +100,54 @@ defmodule Elektrine.ActivityPub.Handler do
   to fetch actors and objects from remote servers.
   """
   def process_activity_async(activity, actor_uri, target_user) do
-    target_user = target_user || ActivityPub.resolve_target_user(activity)
+    domain = actor_uri |> URI.parse() |> Map.get(:host)
 
-    # Check if user has blocked this actor
-    if target_user && ActivityPub.user_blocked?(target_user.id, actor_uri) do
+    if domain && ActivityPub.instance_blocked?(domain) do
       {:ok, :blocked}
     else
-      case apply_mrf_policies(activity, actor_uri) do
-        {:reject, _reason} ->
-          {:ok, :mrf_rejected}
+      case ObjectValidator.validate(activity) do
+        {:error, reason} ->
+          Logger.warning("Invalid activity from #{actor_uri}: #{reason}")
+          {:ok, :invalid}
 
-        {:ok, filtered_activity} ->
-          route_activity(filtered_activity, actor_uri, target_user)
+        {:ok, validated_activity} ->
+          target_user = target_user || ActivityPub.resolve_target_user(validated_activity)
+
+          # Check if user has blocked this actor
+          if target_user && ActivityPub.user_blocked?(target_user.id, actor_uri) do
+            {:ok, :blocked}
+          else
+            case apply_mrf_policies(validated_activity, actor_uri) do
+              {:reject, _reason} ->
+                {:ok, :mrf_rejected}
+
+              {:ok, filtered_activity} ->
+                route_activity(filtered_activity, actor_uri, target_user)
+            end
+          end
       end
     end
   end
+
+  def retryable_error?(reason) when is_atom(reason) do
+    not non_retryable_error?(reason)
+  end
+
+  def retryable_error?(_reason), do: true
+
+  def non_retryable_error?(reason)
+      when reason in [
+             :handle_like_failed,
+             :handle_dislike_failed,
+             :fetch_failed,
+             :http_error,
+             :not_found,
+             :unauthorized
+           ] do
+    true
+  end
+
+  def non_retryable_error?(_reason), do: false
 
   # Route activity to the appropriate handler
   defp route_activity(activity, actor_uri, target_user) do
@@ -196,12 +229,23 @@ defmodule Elektrine.ActivityPub.Handler do
   # Handle Undo when object is a URI string - fetch and process
   defp handle_undo(%{"object" => object_uri} = activity, actor_uri, target_user)
        when is_binary(object_uri) do
-    case Elektrine.ActivityPub.Fetcher.fetch_object(object_uri) do
-      {:ok, object} when is_map(object) ->
+    case UndoResolver.resolve(object_uri, actor_uri) do
+      {:ok, object} ->
         handle_undo(%{activity | "object" => object}, actor_uri, target_user)
 
-      {:error, _reason} ->
-        {:ok, :acknowledged}
+      :not_found ->
+        case Elektrine.ActivityPub.Fetcher.fetch_object(object_uri) do
+          {:ok, object} when is_map(object) ->
+            handle_undo(%{activity | "object" => object}, actor_uri, target_user)
+
+          {:ok, _object} ->
+            Logger.warning("Undo object #{object_uri} did not resolve to an object map")
+            {:error, :undo_activity_fetch_failed}
+
+          {:error, reason} ->
+            Logger.warning("Failed to fetch Undo object #{object_uri}: #{inspect(reason)}")
+            {:error, :undo_activity_fetch_failed}
+        end
     end
   end
 

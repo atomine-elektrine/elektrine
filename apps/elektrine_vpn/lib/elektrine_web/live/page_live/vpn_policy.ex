@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.VPNPolicy do
   use ElektrineVPNWeb, :live_view
 
+  alias Elektrine.EmailAddresses
+
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
   def mount(_params, _session, socket) do
@@ -169,8 +171,8 @@ defmodule ElektrineWeb.PageLive.VPNPolicy do
                   </li>
                   <li>
                     Email
-                    <a href="mailto:support@elektrine.com" class="link link-primary">
-                      support@elektrine.com
+                    <a href={EmailAddresses.mailto("support")} class="link link-primary">
+                      {EmailAddresses.local("support")}
                     </a>
                   </li>
                 </ul>

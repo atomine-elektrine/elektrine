@@ -17,7 +17,7 @@ defmodule Elektrine.Notifications.FederationNotificationsTest do
 
       assert notification.title == "@liaizon@social.wake.st accepted your follow request"
       assert notification.body == nil
-      assert notification.url == "/remote/@liaizon@social.wake.st"
+      assert notification.url == "/remote/liaizon@social.wake.st"
       assert notification.source_type == "activitypub_actor"
       assert notification.source_id == actor.id
     end
@@ -31,7 +31,7 @@ defmodule Elektrine.Notifications.FederationNotificationsTest do
 
       assert notification.title == "@nixcraft@social.wake.st is now following you"
       assert notification.body == nil
-      assert notification.url == "/remote/@nixcraft@social.wake.st"
+      assert notification.url == "/remote/nixcraft@social.wake.st"
       assert notification.source_type == "activitypub_actor"
       assert notification.source_id == actor.id
     end

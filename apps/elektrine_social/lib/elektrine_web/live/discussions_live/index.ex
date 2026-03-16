@@ -7,10 +7,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{Messaging, Profiles, Repo, Social}
+  alias Elektrine.Social.Recommendations
   alias ElektrineWeb.Components.Social.PostUtilities
   import ElektrineWeb.Components.Platform.ZNav
   import ElektrineWeb.Components.Social.LemmyPost
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
+  @community_feed_rerank_delay_ms 1200
+  @session_interest_dwell_ms 10_000
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -66,6 +69,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> assign(:post_replies, %{})
       |> assign(:post_reactions, %{})
       |> assign(:feed_sort, "new")
+      |> assign(:session_context, default_session_context())
+      |> assign(:community_feed_rerank_ref, nil)
       |> assign(:remote_user_preview, nil)
       |> assign(:remote_user_loading, false)
       |> assign(:show_image_upload_modal, false)
@@ -109,20 +114,109 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     {:noreply, push_patch(socket, to: ~p"/communities?view=#{view}")}
   end
 
-  def handle_event("record_dwell_times", _params, socket) do
-    {:noreply, socket}
+  def handle_event("record_dwell_times", %{"views" => views}, socket) do
+    user = socket.assigns[:current_user]
+
+    updated_socket =
+      if user do
+        Enum.reduce(views, socket, fn view, acc ->
+          post_id = view["post_id"]
+
+          if post_id do
+            Recommendations.record_view_with_dwell(user.id, post_id, %{
+              dwell_time_ms: view["dwell_time_ms"],
+              scroll_depth: view["scroll_depth"],
+              expanded: view["expanded"] || false,
+              source: view["source"] || "communities"
+            })
+
+            acc
+            |> note_community_view_signal(post_id)
+            |> maybe_note_community_dwell_interest(post_id, view["dwell_time_ms"])
+          else
+            acc
+          end
+        end)
+        |> schedule_community_feed_rerank()
+      else
+        socket
+      end
+
+    {:noreply, updated_socket}
   end
 
-  def handle_event("record_dwell_time", _params, socket) do
-    {:noreply, socket}
+  def handle_event("record_dwell_time", params, socket) do
+    user = socket.assigns[:current_user]
+
+    updated_socket =
+      if user && params["post_id"] do
+        Recommendations.record_view_with_dwell(user.id, params["post_id"], %{
+          dwell_time_ms: params["dwell_time_ms"],
+          scroll_depth: params["scroll_depth"],
+          expanded: params["expanded"] || false,
+          source: params["source"] || "communities"
+        })
+
+        socket
+        |> note_community_view_signal(params["post_id"])
+        |> maybe_note_community_dwell_interest(params["post_id"], params["dwell_time_ms"])
+        |> schedule_community_feed_rerank()
+      else
+        socket
+      end
+
+    {:noreply, updated_socket}
   end
 
-  def handle_event("record_dismissal", _params, socket) do
-    {:noreply, socket}
+  def handle_event("record_dismissal", params, socket) do
+    user = socket.assigns[:current_user]
+
+    updated_socket =
+      if user && params["post_id"] && params["type"] do
+        Recommendations.record_dismissal(
+          user.id,
+          params["post_id"],
+          params["type"],
+          params["dwell_time_ms"]
+        )
+
+        socket
+        |> note_community_dismissal_signal(params["post_id"])
+        |> schedule_community_feed_rerank()
+      else
+        socket
+      end
+
+    {:noreply, updated_socket}
   end
 
-  def handle_event("update_session_context", _params, socket) do
-    {:noreply, socket}
+  def handle_event("update_session_context", params, socket) do
+    liked_creators = params["liked_creators"] || []
+    liked_local_creators = params["liked_local_creators"] || liked_creators
+    current_context = socket.assigns[:session_context] || default_session_context()
+
+    updated_context = %{
+      current_context
+      | liked_hashtags:
+          merge_recent_unique(current_context.liked_hashtags, params["liked_hashtags"] || [], 20),
+        liked_creators: merge_recent_unique(current_context.liked_creators, liked_creators, 10),
+        liked_local_creators:
+          merge_recent_unique(current_context.liked_local_creators, liked_local_creators, 10),
+        liked_remote_creators:
+          merge_recent_unique(
+            current_context.liked_remote_creators,
+            params["liked_remote_creators"] || [],
+            10
+          ),
+        viewed_posts:
+          merge_recent_unique(current_context.viewed_posts, params["viewed_posts"] || [], 50),
+        engagement_rate: coerce_float(params["engagement_rate"], current_context.engagement_rate)
+    }
+
+    {:noreply,
+     socket
+     |> assign(:session_context, updated_context)
+     |> schedule_community_feed_rerank()}
   end
 
   def handle_event("stop_propagation", _params, socket) do
@@ -147,7 +241,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       filter_popular_communities_by_category(socket.assigns.popular_communities, category)
 
     filtered_community_posts =
-      filter_community_posts_by_category(socket.assigns.followed_community_posts, category)
+      socket.assigns.followed_community_posts
+      |> filter_community_posts_by_category(category)
+      |> sort_feed_posts(
+        socket.assigns.feed_sort,
+        socket.assigns.lemmy_counts,
+        socket.assigns.session_context
+      )
 
     {:noreply,
      socket
@@ -169,7 +269,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         sort_feed_posts(
           socket.assigns.filtered_community_posts,
           sort,
-          socket.assigns.lemmy_counts
+          socket.assigns.lemmy_counts,
+          socket.assigns.session_context
         )
 
       {:noreply,
@@ -526,7 +627,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           end
         end)
 
-        {:noreply, updated_socket}
+        {:noreply,
+         updated_socket
+         |> note_community_positive_signal(post)
+         |> schedule_community_feed_rerank(250)}
       else
         {:noreply, socket}
       end
@@ -565,7 +669,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           end
         end)
 
-        {:noreply, updated_socket}
+        {:noreply,
+         updated_socket
+         |> note_community_dismissal_signal(post_id)
+         |> schedule_community_feed_rerank(300)}
       else
         {:noreply, socket}
       end
@@ -1076,7 +1183,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         sort_feed_posts(
           socket.assigns.filtered_community_posts,
           socket.assigns.feed_sort,
-          updated_lemmy_counts
+          updated_lemmy_counts,
+          socket.assigns.session_context
         )
 
       {:noreply,
@@ -1305,6 +1413,11 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         MapSet.new()
       end
 
+    filtered_followed_posts =
+      followed_community_posts
+      |> filter_community_posts_by_category(socket.assigns.selected_category)
+      |> sort_feed_posts(socket.assigns.feed_sort, lemmy_counts, socket.assigns.session_context)
+
     {:noreply,
      socket
      |> assign(:communities, communities)
@@ -1322,7 +1435,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:filtered_federated_discussions, federated_discussions)
      |> assign(:filtered_recent_activity, recent_activity)
      |> assign(:filtered_popular_communities, popular_communities)
-     |> assign(:filtered_community_posts, followed_community_posts)
+     |> assign(:filtered_community_posts, filtered_followed_posts)
      |> assign(:filtered_remote_communities, followed_remote_communities)
      |> assign(:joined_community_ids, joined_community_ids)
      |> assign(:post_interactions, post_interactions)
@@ -1330,6 +1443,21 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:post_replies, post_replies)
      |> assign(:post_reactions, post_reactions)
      |> assign(:loading_communities, false)}
+  end
+
+  def handle_info(:refresh_community_feed_ranking, socket) do
+    socket = assign(socket, :community_feed_rerank_ref, nil)
+
+    filtered_posts =
+      socket.assigns.followed_community_posts
+      |> filter_community_posts_by_category(socket.assigns.selected_category)
+      |> sort_feed_posts(
+        socket.assigns.feed_sort,
+        socket.assigns.lemmy_counts,
+        socket.assigns.session_context
+      )
+
+    {:noreply, assign(socket, :filtered_community_posts, filtered_posts)}
   end
 
   def handle_info(_info, socket) do
@@ -1639,68 +1767,348 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     end)
   end
 
-  defp sort_feed_posts(posts, "new", _lemmy_counts) do
-    Enum.sort(posts, fn a, b ->
-      a_inserted_at = normalize_inserted_at(Map.get(a, :inserted_at))
-      b_inserted_at = normalize_inserted_at(Map.get(b, :inserted_at))
+  defp sort_feed_posts(posts, "new", lemmy_counts, session_context) do
+    now = NaiveDateTime.utc_now()
 
-      case NaiveDateTime.compare(a_inserted_at, b_inserted_at) do
-        :gt -> true
-        :lt -> false
-        :eq -> Map.get(a, :id, 0) >= Map.get(b, :id, 0)
+    Enum.sort(posts, fn a, b ->
+      a_score =
+        community_base_score(a, "new", lemmy_counts, now) +
+          community_personalization_score(a, session_context)
+
+      b_score =
+        community_base_score(b, "new", lemmy_counts, now) +
+          community_personalization_score(b, session_context)
+
+      cond do
+        a_score > b_score ->
+          true
+
+        a_score < b_score ->
+          false
+
+        true ->
+          a_inserted_at = normalize_inserted_at(Map.get(a, :inserted_at))
+          b_inserted_at = normalize_inserted_at(Map.get(b, :inserted_at))
+
+          case NaiveDateTime.compare(a_inserted_at, b_inserted_at) do
+            :gt -> true
+            :lt -> false
+            :eq -> Map.get(a, :id, 0) >= Map.get(b, :id, 0)
+          end
       end
     end)
   end
 
-  defp sort_feed_posts(posts, "top", lemmy_counts) do
-    Enum.sort_by(
-      posts,
-      fn post ->
-        case Map.get(lemmy_counts, post.activitypub_id) do
-          %{score: score} -> score
-          _ -> post.like_count || 0
-        end
-      end,
-      :desc
-    )
-  end
-
-  defp sort_feed_posts(posts, "hot", lemmy_counts) do
+  defp sort_feed_posts(posts, "top", lemmy_counts, session_context) do
     now = NaiveDateTime.utc_now()
 
     Enum.sort_by(
       posts,
       fn post ->
-        score =
-          case Map.get(lemmy_counts, post.activitypub_id) do
-            %{score: s, comments: c} -> s + c * 2
-            _ -> (post.like_count || 0) + (post.reply_count || 0) * 2
-          end
-
-        hours_ago = NaiveDateTime.diff(now, post.inserted_at, :hour)
-        decay = :math.pow(0.5, max(hours_ago, 0) / 12)
-        score * decay
+        community_base_score(post, "top", lemmy_counts, now) +
+          community_personalization_score(post, session_context)
       end,
       :desc
     )
   end
 
-  defp sort_feed_posts(posts, "comments", lemmy_counts) do
+  defp sort_feed_posts(posts, "hot", lemmy_counts, session_context) do
+    now = NaiveDateTime.utc_now()
+
     Enum.sort_by(
       posts,
       fn post ->
-        case Map.get(lemmy_counts, post.activitypub_id) do
-          %{comments: comments} -> comments
-          _ -> post.reply_count || 0
-        end
+        community_base_score(post, "hot", lemmy_counts, now) +
+          community_personalization_score(post, session_context)
       end,
       :desc
     )
   end
 
-  defp sort_feed_posts(posts, _, _lemmy_counts) do
+  defp sort_feed_posts(posts, "comments", lemmy_counts, session_context) do
+    now = NaiveDateTime.utc_now()
+
+    Enum.sort_by(
+      posts,
+      fn post ->
+        community_base_score(post, "comments", lemmy_counts, now) +
+          community_personalization_score(post, session_context)
+      end,
+      :desc
+    )
+  end
+
+  defp sort_feed_posts(posts, _, _lemmy_counts, _session_context) do
     posts
   end
+
+  defp community_base_score(post, "new", lemmy_counts, now) do
+    recency_boost_for_post(post, now) * 3 +
+      community_base_score(post, "hot", lemmy_counts, now) * 0.25
+  end
+
+  defp community_base_score(post, "top", lemmy_counts, _now) do
+    case Map.get(lemmy_counts, post.activitypub_id) do
+      %{score: score} -> score
+      _ -> post.like_count || 0
+    end
+  end
+
+  defp community_base_score(post, "hot", lemmy_counts, now) do
+    score =
+      case Map.get(lemmy_counts, post.activitypub_id) do
+        %{score: s, comments: c} -> s + c * 2
+        _ -> (post.like_count || 0) + (post.reply_count || 0) * 2 + (post.share_count || 0) * 3
+      end
+
+    hours_ago = NaiveDateTime.diff(now, normalize_inserted_at(post.inserted_at), :hour)
+    decay = :math.pow(0.5, max(hours_ago, 0) / 14)
+    score * decay + recency_boost_for_post(post, now)
+  end
+
+  defp community_base_score(post, "comments", lemmy_counts, _now) do
+    case Map.get(lemmy_counts, post.activitypub_id) do
+      %{comments: comments} -> comments
+      _ -> post.reply_count || 0
+    end
+  end
+
+  defp community_personalization_score(post, session_context) do
+    session_context = session_context || default_session_context()
+    hashtags = extract_post_hashtags(post)
+    hashtag_matches = Enum.count(hashtags, &(&1 in (session_context.liked_hashtags || [])))
+
+    creator_bonus =
+      cond do
+        post.federated && post.remote_actor_id in (session_context.liked_remote_creators || []) ->
+          28
+
+        !post.federated && post.sender_id in (session_context.liked_local_creators || []) ->
+          28
+
+        true ->
+          0
+      end
+
+    viewed_penalty =
+      if normalize_post_id(post.id) in (session_context.viewed_posts || []) do
+        -18
+      else
+        0
+      end
+
+    dismissed_penalty =
+      if normalize_post_id(post.id) in (session_context.dismissed_posts || []) do
+        -80
+      else
+        0
+      end
+
+    underexposed_bonus =
+      total_engagement =
+      (post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0)
+
+    if total_engagement <= 8, do: 6, else: 0
+
+    media_bonus = if Enum.empty?(post.media_urls || []), do: 0, else: 4
+
+    creator_bonus + hashtag_matches * 4 + viewed_penalty + dismissed_penalty + underexposed_bonus +
+      media_bonus
+  end
+
+  defp recency_boost_for_post(post, now) do
+    hours_ago = NaiveDateTime.diff(now, normalize_inserted_at(post.inserted_at), :hour)
+
+    cond do
+      hours_ago < 4 -> 14
+      hours_ago < 12 -> 10
+      hours_ago < 24 -> 6
+      hours_ago < 72 -> 2
+      true -> 0
+    end
+  end
+
+  defp extract_post_hashtags(post) do
+    case Map.get(post, :hashtags) do
+      hashtags when is_list(hashtags) -> Enum.map(hashtags, & &1.normalized_name)
+      _ -> []
+    end
+  end
+
+  defp default_session_context do
+    %{
+      liked_hashtags: [],
+      liked_creators: [],
+      liked_local_creators: [],
+      liked_remote_creators: [],
+      viewed_posts: [],
+      dismissed_posts: [],
+      total_views: 0,
+      total_interactions: 0,
+      engagement_rate: 0.0
+    }
+  end
+
+  defp note_community_positive_signal(socket, nil), do: socket
+
+  defp note_community_positive_signal(socket, post) do
+    session_context =
+      socket.assigns[:session_context]
+      |> default_if_nil(default_session_context())
+      |> merge_community_positive_signal(post, 1)
+
+    assign(socket, :session_context, session_context)
+  end
+
+  defp note_community_view_signal(socket, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    if is_nil(normalized_post_id) do
+      socket
+    else
+      session_context =
+        socket.assigns[:session_context]
+        |> default_if_nil(default_session_context())
+        |> merge_community_view_signal(normalized_post_id)
+
+      assign(socket, :session_context, session_context)
+    end
+  end
+
+  defp maybe_note_community_dwell_interest(socket, post_id, dwell_time_ms) do
+    if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
+      post =
+        Enum.find(socket.assigns.followed_community_posts || [], fn candidate ->
+          candidate.id == normalize_post_id(post_id)
+        end)
+
+      note_community_positive_signal(socket, post)
+    else
+      socket
+    end
+  end
+
+  defp note_community_dismissal_signal(socket, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    if is_nil(normalized_post_id) do
+      socket
+    else
+      session_context =
+        socket.assigns[:session_context]
+        |> default_if_nil(default_session_context())
+        |> Map.update!(:dismissed_posts, &merge_recent_unique(&1, [normalized_post_id], 50))
+
+      assign(socket, :session_context, session_context)
+    end
+  end
+
+  defp merge_community_positive_signal(session_context, post, interaction_increment) do
+    session_context
+    |> Map.update!(:liked_hashtags, &merge_recent_unique(&1, extract_post_hashtags(post), 20))
+    |> Map.update!(:liked_local_creators, fn creators ->
+      if post.federated do
+        creators
+      else
+        merge_recent_unique(creators, [post.sender_id], 10)
+      end
+    end)
+    |> Map.update!(:liked_remote_creators, fn creators ->
+      if post.federated do
+        merge_recent_unique(creators, [post.remote_actor_id], 10)
+      else
+        creators
+      end
+    end)
+    |> then(fn context ->
+      Map.put(context, :liked_creators, context.liked_local_creators)
+    end)
+    |> Map.update!(:total_interactions, &(&1 + interaction_increment))
+    |> refresh_community_engagement_rate()
+  end
+
+  defp merge_community_view_signal(session_context, post_id) do
+    already_viewed = post_id in (session_context.viewed_posts || [])
+
+    session_context
+    |> Map.update!(:viewed_posts, &merge_recent_unique(&1, [post_id], 50))
+    |> Map.update!(:total_views, fn count -> if(already_viewed, do: count, else: count + 1) end)
+    |> refresh_community_engagement_rate()
+  end
+
+  defp refresh_community_engagement_rate(session_context) do
+    total_views =
+      max(session_context.total_views || length(session_context.viewed_posts || []), 1)
+
+    total_interactions = session_context.total_interactions || 0
+    Map.put(session_context, :engagement_rate, total_interactions / total_views)
+  end
+
+  defp schedule_community_feed_rerank(socket, delay_ms \\ @community_feed_rerank_delay_ms) do
+    if is_reference(socket.assigns[:community_feed_rerank_ref]) do
+      Process.cancel_timer(socket.assigns.community_feed_rerank_ref)
+    end
+
+    assign(
+      socket,
+      :community_feed_rerank_ref,
+      Process.send_after(self(), :refresh_community_feed_ranking, delay_ms)
+    )
+  end
+
+  defp normalize_post_id(post_id) when is_integer(post_id) and post_id > 0, do: post_id
+
+  defp normalize_post_id(post_id) when is_binary(post_id) do
+    case Integer.parse(post_id) do
+      {value, ""} when value > 0 -> value
+      _ -> nil
+    end
+  end
+
+  defp normalize_post_id(_), do: nil
+
+  defp merge_recent_unique(values, additions, limit) do
+    Enum.reduce(List.wrap(additions), values || [], fn value, acc ->
+      if is_nil(value) or value == "" do
+        acc
+      else
+        (Enum.reject(acc, &(&1 == value)) ++ [value])
+        |> trim_recent(limit)
+      end
+    end)
+  end
+
+  defp trim_recent(values, limit) when is_list(values) and length(values) > limit do
+    Enum.take(values, -limit)
+  end
+
+  defp trim_recent(values, _limit), do: values
+
+  defp coerce_int(value, _default) when is_integer(value), do: value
+
+  defp coerce_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      _ -> default
+    end
+  end
+
+  defp coerce_int(_, default), do: default
+
+  defp coerce_float(value, _default) when is_float(value), do: value
+  defp coerce_float(value, _default) when is_integer(value), do: value / 1
+
+  defp coerce_float(value, default) when is_binary(value) do
+    case Float.parse(value) do
+      {float, ""} -> float
+      _ -> default
+    end
+  end
+
+  defp coerce_float(_, default), do: default
+
+  defp default_if_nil(nil, default), do: default
+  defp default_if_nil(value, _default), do: value
 
   defp normalize_inserted_at(%NaiveDateTime{} = inserted_at), do: inserted_at
   defp normalize_inserted_at(%DateTime{} = inserted_at), do: DateTime.to_naive(inserted_at)

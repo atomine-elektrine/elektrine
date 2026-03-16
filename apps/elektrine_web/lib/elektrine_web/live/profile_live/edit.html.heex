@@ -1,20 +1,18 @@
-<div
-  id="profile-settings-container"
-  phx-hook="GlassCardContainer"
-  class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+<.account_page
+  title="Customize Your Profile"
+  subtitle={
+    "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}"
+  }
+  sidebar_link="profile"
 >
-  <div class="mb-6 sm:mb-8">
-    <h1 class="text-2xl sm:text-3xl font-bold text-base-content">Customize Your Profile</h1>
-    <p class="text-base-content/70 mt-2">
-      Create your personal page at {Elektrine.Domains.primary_profile_domain()}/{@user.handle ||
-        @user.username}
-    </p>
-  </div>
-
   <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
     <!-- Sidebar Navigation -->
     <div class="lg:col-span-1">
-      <div class="sticky top-24 self-start">
+      <div
+        id="profile-settings-container"
+        phx-hook="GlassCardContainer"
+        class="sticky top-24 self-start"
+      >
         <div class="card glass-card shadow-lg">
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-4">Sections</h3>
@@ -35,9 +33,6 @@
             <div class="divider my-4"></div>
 
             <div class="space-y-2">
-              <.link href={~p"/account"} class="btn btn-ghost btn-sm w-full justify-start">
-                <.icon name="hero-arrow-left" class="w-4 h-4" /> Account
-              </.link>
               <.link
                 href={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
                 target="_blank"
@@ -50,6 +45,12 @@
                 class="btn btn-ghost btn-sm w-full justify-start"
               >
                 <.icon name="hero-chart-bar" class="w-4 h-4" /> Analytics
+              </.link>
+              <.link
+                href={~p"/account/profile/domains"}
+                class="btn btn-ghost btn-sm w-full justify-start"
+              >
+                <.icon name="hero-globe-alt" class="w-4 h-4" /> Profile Domains
               </.link>
             </div>
           </div>
@@ -2903,7 +2904,7 @@
       <% end %>
     </div>
   </div>
-</div>
+</.account_page>
 
 <!-- Code Editor Modal -->
 <%= if @editing_file do %>

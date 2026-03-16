@@ -4,6 +4,7 @@ defmodule Elektrine.Messaging.Federation.Ingress do
   import Elektrine.Messaging.Federation.Utils
 
   alias Elektrine.Messaging.{ArblargSDK, Server}
+
   alias Elektrine.Messaging.Federation.{
     Contexts,
     Errors,
@@ -15,6 +16,7 @@ defmodule Elektrine.Messaging.Federation.Ingress do
     Snapshots,
     Validation
   }
+
   alias Elektrine.Repo
 
   def build_server_snapshot(server_id, opts \\ []) do
@@ -34,7 +36,8 @@ defmodule Elektrine.Messaging.Federation.Ingress do
     receive_event(payload, remote_domain, ingress_context())
   end
 
-  def receive_event(payload, remote_domain, context) when is_binary(remote_domain) and is_map(context) do
+  def receive_event(payload, remote_domain, context)
+      when is_binary(remote_domain) and is_map(context) do
     with :ok <- call(context, :validate_event_payload, [payload, remote_domain]) do
       payload = call(context, :normalize_incoming_event_payload, [payload])
 
@@ -84,7 +87,8 @@ defmodule Elektrine.Messaging.Federation.Ingress do
     receive_event_batch(payload, remote_domain, ingress_context())
   end
 
-  def receive_event_batch(payload, remote_domain, context) when is_binary(remote_domain) and is_map(context) do
+  def receive_event_batch(payload, remote_domain, context)
+      when is_binary(remote_domain) and is_map(context) do
     with {:ok, batch_id, events} <- call(context, :normalize_incoming_batch_payload, [payload]) do
       results =
         Enum.map(events, fn event ->
@@ -147,7 +151,10 @@ defmodule Elektrine.Messaging.Federation.Ingress do
              frame_delivery_id
            ]),
          results <-
-           Enum.map(items, &call(context, :process_incoming_ephemeral_result, [&1, remote_domain])) do
+           Enum.map(
+             items,
+             &call(context, :process_incoming_ephemeral_result, [&1, remote_domain])
+           ) do
       {:ok, call(context, :batch_summary, [delivery_id, results])}
     end
   end
@@ -166,7 +173,8 @@ defmodule Elektrine.Messaging.Federation.Ingress do
     recover_sequence_gap(payload, remote_domain, snapshot_context())
   end
 
-  def recover_sequence_gap(payload, remote_domain, snapshot_context) when is_binary(remote_domain) do
+  def recover_sequence_gap(payload, remote_domain, snapshot_context)
+      when is_binary(remote_domain) do
     Snapshots.recover_sequence_gap(payload, remote_domain, snapshot_context)
   end
 
@@ -178,7 +186,8 @@ defmodule Elektrine.Messaging.Federation.Ingress do
     Snapshots.refresh_mirror_server_snapshot(server, snapshot_context)
   end
 
-  def refresh_mirror_server_snapshot(_server, _snapshot_context), do: {:error, :not_federated_mirror}
+  def refresh_mirror_server_snapshot(_server, _snapshot_context),
+    do: {:error, :not_federated_mirror}
 
   def push_snapshot_to_peer(peer, snapshot) do
     Snapshots.push_snapshot_to_peer(peer, snapshot, snapshot_context())
@@ -257,8 +266,11 @@ defmodule Elektrine.Messaging.Federation.Ingress do
       normalize_optional_string: &normalize_optional_string/1,
       validate_snapshot_payload: &validate_snapshot_payload/2,
       validate_snapshot_governance_payload: &validate_snapshot_governance_payload/3,
+      truncate: &truncate/1,
       apply_event: &EventRouter.apply_event/3,
       signed_headers: &RequestAuth.signed_headers/5,
+      peer_supports_event_type:
+        &Elektrine.Messaging.Federation.Transport.peer_supports_event_type?/2,
       infer_remote_server_id_from_federation_id: &infer_remote_server_id_from_federation_id/1,
       outgoing_peer: &Peers.outgoing_peer/1,
       incoming_peer: &Peers.incoming_peer/1,
@@ -276,8 +288,7 @@ defmodule Elektrine.Messaging.Federation.Ingress do
       receive_event: &__MODULE__.receive_event/2,
       recover_sequence_gap: &__MODULE__.recover_sequence_gap/2,
       error_code: &Errors.error_code/1,
-      validate_origin_bound_actors_in_event_data:
-        &validate_origin_bound_actors_in_event_data/3,
+      validate_origin_bound_actors_in_event_data: &validate_origin_bound_actors_in_event_data/3,
       validate_origin_owned_identifiers_in_event_data:
         &validate_origin_owned_identifiers_in_event_data/3,
       apply_event: &EventRouter.apply_event/3

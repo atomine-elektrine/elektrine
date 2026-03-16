@@ -7,7 +7,9 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   require Logger
 
   def init(opts) do
-    Keyword.put_new(opts, :env_names, ["PHOENIX_API_KEY"])
+    opts
+    |> Keyword.put_new(:env_names, ["PHOENIX_API_KEY"])
+    |> Keyword.put_new(:query_param, nil)
   end
 
   def call(conn, opts) do
@@ -17,7 +19,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
         unauthorized(conn)
 
       expected_key ->
-        case List.first(get_req_header(conn, "x-api-key")) do
+        case provided_key(conn, opts) do
           provided_key when is_binary(provided_key) ->
             if secure_compare(provided_key, expected_key) do
               conn
@@ -28,6 +30,23 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
           _ ->
             unauthorized(conn)
         end
+    end
+  end
+
+  defp provided_key(conn, opts) do
+    List.first(get_req_header(conn, "x-api-key")) || query_param_key(conn, opts)
+  end
+
+  defp query_param_key(conn, opts) do
+    case Keyword.fetch!(opts, :query_param) do
+      nil ->
+        nil
+
+      query_param ->
+        conn
+        |> fetch_query_params()
+        |> Map.get(:params, %{})
+        |> Map.get(query_param)
     end
   end
 

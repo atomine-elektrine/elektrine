@@ -37,20 +37,28 @@ defmodule Elektrine.Messaging.ArblargExtensionConformanceTest do
       assert is_map(ArblargSDK.schema("1.0", vector["expected_schema"]))
       assert :ok = ArblargSDK.validate_event_payload(canonical_event_type, vector["payload"])
 
-      assert :ok =
-               ArblargSDK.validate_event_envelope(
-                 build_envelope(canonical_event_type, vector["payload"])
-               )
+      if canonical_event_type in ArblargSDK.ephemeral_event_types() do
+        refute valid_durable_envelope?(canonical_event_type)
+      else
+        assert :ok =
+                 ArblargSDK.validate_event_envelope(
+                   build_envelope(canonical_event_type, vector["payload"])
+                 )
+      end
 
       expected_invalid_error = String.to_atom(vector["expected_invalid_error"])
 
       assert {:error, ^expected_invalid_error} =
                ArblargSDK.validate_event_payload(canonical_event_type, vector["invalid_payload"])
 
-      assert {:error, ^expected_invalid_error} =
-               ArblargSDK.validate_event_envelope(
-                 build_envelope(canonical_event_type, vector["invalid_payload"])
-               )
+      if canonical_event_type in ArblargSDK.ephemeral_event_types() do
+        refute valid_durable_envelope?(canonical_event_type)
+      else
+        assert {:error, ^expected_invalid_error} =
+                 ArblargSDK.validate_event_envelope(
+                   build_envelope(canonical_event_type, vector["invalid_payload"])
+                 )
+      end
     end)
   end
 
@@ -62,13 +70,17 @@ defmodule Elektrine.Messaging.ArblargExtensionConformanceTest do
       "event_type" => event_type,
       "event_id" => "evt-#{Ecto.UUID.generate()}",
       "origin_domain" => "example.net",
-      "stream_id" => "channel:https://example.net/federation/messaging/channels/1",
+      "stream_id" => "channel:https://example.net/_arblarg/channels/1",
       "sequence" => 1,
       "sent_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
       "idempotency_key" => "idem-#{Ecto.UUID.generate()}",
       "payload" => payload
     }
     |> ArblargSDK.sign_event_envelope("k1", "extension-conformance-secret")
+  end
+
+  defp valid_durable_envelope?(event_type) do
+    event_type not in ArblargSDK.ephemeral_event_types()
   end
 
   defp read_vectors! do

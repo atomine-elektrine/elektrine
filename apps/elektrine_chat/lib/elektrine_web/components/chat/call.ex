@@ -11,8 +11,9 @@ defmodule ElektrineWeb.Components.Chat.Call do
   @doc """
   Renders call action buttons (audio and video call)
   """
-  attr :user, :map, required: true
+  attr :user, :map, default: nil
   attr :conversation_id, :string, default: nil
+  attr :remote_handle, :string, default: nil
 
   def call_buttons(assigns) do
     ~H"""
@@ -20,9 +21,10 @@ defmodule ElektrineWeb.Components.Chat.Call do
       <button
         type="button"
         phx-click="initiate_call"
-        phx-value-user_id={@user.id}
+        phx-value-user_id={@user && @user.id}
         phx-value-call_type="audio"
         phx-value-conversation_id={@conversation_id}
+        phx-value-remote_handle={@remote_handle}
         class="btn btn-ghost btn-circle btn-sm p-0 min-h-0 h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
         title="Audio call"
       >
@@ -45,9 +47,10 @@ defmodule ElektrineWeb.Components.Chat.Call do
       <button
         type="button"
         phx-click="initiate_call"
-        phx-value-user_id={@user.id}
+        phx-value-user_id={@user && @user.id}
         phx-value-call_type="video"
         phx-value-conversation_id={@conversation_id}
+        phx-value-remote_handle={@remote_handle}
         class="btn btn-ghost btn-circle btn-sm p-0 min-h-0 h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
         title="Video call"
       >

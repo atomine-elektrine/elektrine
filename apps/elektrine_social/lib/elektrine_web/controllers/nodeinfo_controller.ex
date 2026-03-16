@@ -98,13 +98,16 @@ defmodule ElektrineWeb.NodeinfoController do
 
   # Software name for nodeinfo
   defp software_name do
-    Application.get_env(:elektrine, :nodeinfo_software_name, "z")
+    :elektrine
+    |> Application.get_env(:nodeinfo_software_name, "elektrine")
+    |> normalize_string("elektrine")
+    |> String.downcase()
   end
 
   defp build_metadata do
     base_metadata = %{
-      nodeName: "Z",
-      nodeDescription: "A federated social platform",
+      nodeName: instance_name(),
+      nodeDescription: instance_description(),
       features: build_features(),
       postFormats: [
         "text/plain",
@@ -210,6 +213,31 @@ defmodule ElektrineWeb.NodeinfoController do
   defp maybe_add_mrf_hellthread(federation, mrf_hellthread) do
     Map.put(federation, :mrf_hellthread, mrf_hellthread)
   end
+
+  defp instance_name do
+    Application.get_env(:elektrine, :instance_name, "Elektrine")
+    |> normalize_string("Elektrine")
+  end
+
+  defp instance_description do
+    Application.get_env(:elektrine, :instance_description, "An Elektrine instance")
+    |> normalize_string("An Elektrine instance")
+  end
+
+  defp normalize_string(value, fallback) when is_binary(value) do
+    case String.trim(value) do
+      "" -> fallback
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_string(value, fallback) when is_atom(value) do
+    value
+    |> Atom.to_string()
+    |> normalize_string(fallback)
+  end
+
+  defp normalize_string(_value, fallback), do: fallback
 
   defp get_quarantined_instances do
     import Ecto.Query

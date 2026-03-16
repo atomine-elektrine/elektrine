@@ -51,7 +51,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   def call(%{assigns: %{subdomain_handle: handle}, request_path: "/" <> asset_path} = conn, _opts)
       when is_binary(handle) and byte_size(handle) > 0 and byte_size(asset_path) > 0 do
     # Don't hijack app endpoints on subdomains; let them route normally.
-    if subdomain_app_path?(asset_path) do
+    if profile_app_path?(conn, asset_path) do
       conn
     else
       if safe_asset_path?(asset_path) do
@@ -181,7 +181,15 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   defp isolate_static_site_on_subdomain?(conn, handle) do
     host = String.downcase(conn.host || "")
-    host in Elektrine.Domains.app_hosts() and conn.assigns[:subdomain_handle] != handle
+    Elektrine.Domains.app_host?(host) and conn.assigns[:subdomain_handle] != handle
+  end
+
+  defp profile_app_path?(conn, path) when is_binary(path) do
+    if is_binary(conn.assigns[:profile_custom_domain]) do
+      custom_domain_app_path?(path)
+    else
+      subdomain_app_path?(path)
+    end
   end
 
   defp profile_subdomain_url(conn, handle, path) do
@@ -263,5 +271,23 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
       String.starts_with?(path, "c/") or
       String.starts_with?(path, "tags/") or
       path in ["favicon.ico", "robots.txt", "sitemap.xml", "inbox"]
+  end
+
+  # Custom root domains are dedicated profile hosts, so standard web files like
+  # favicon.ico and robots.txt can be served from the uploaded static site.
+  defp custom_domain_app_path?(path) when is_binary(path) do
+    path == "" or
+      String.starts_with?(path, "live") or
+      String.starts_with?(path, "socket") or
+      String.starts_with?(path, "phoenix") or
+      String.starts_with?(path, "assets") or
+      String.starts_with?(path, "profiles/") or
+      String.starts_with?(path, "uploads") or
+      String.starts_with?(path, "users/") or
+      String.starts_with?(path, "relay") or
+      String.starts_with?(path, "nodeinfo") or
+      String.starts_with?(path, "c/") or
+      String.starts_with?(path, "tags/") or
+      path == "inbox"
   end
 end

@@ -3,6 +3,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
   Handles notifications for ActivityPub federation events.
   """
 
+  alias Elektrine.ActorPaths
   alias Elektrine.ActivityPub
   alias Elektrine.Notifications
 
@@ -162,6 +163,6 @@ defmodule Elektrine.Notifications.FederationNotifications do
   end
 
   defp remote_actor_profile_path(%ActivityPub.Actor{} = actor) do
-    "/remote/#{remote_actor_handle(actor)}"
+    ActorPaths.profile_path(actor) || "/remote/#{remote_actor_handle(actor)}"
   end
 end

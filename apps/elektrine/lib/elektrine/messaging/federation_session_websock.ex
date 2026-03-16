@@ -106,7 +106,7 @@ defmodule Elektrine.Messaging.FederationSessionWebSock do
     end
   end
 
-  defp dispatch_control_request("stream_events", request, _state, request_id, encoding) do
+  defp dispatch_control_request("stream_events", request, state, request_id, encoding) do
     payload = Map.get(request, "payload") || %{}
 
     case Map.get(payload, "stream_id") do
@@ -114,7 +114,8 @@ defmodule Elektrine.Messaging.FederationSessionWebSock do
         response =
           Federation.export_stream_events(stream_id,
             after_sequence: payload["after_sequence"] || 0,
-            limit: payload["limit"] || 128
+            limit: payload["limit"] || 128,
+            peer: Map.get(state, :peer)
           )
 
         ok_frame(request_id, response, encoding)
@@ -124,11 +125,12 @@ defmodule Elektrine.Messaging.FederationSessionWebSock do
     end
   end
 
-  defp dispatch_control_request("snapshot", request, _state, request_id, encoding) do
+  defp dispatch_control_request("snapshot", request, state, request_id, encoding) do
     payload = Map.get(request, "payload") || %{}
 
     with server_id when is_integer(server_id) <- parse_server_id(payload["server_id"]),
-         {:ok, snapshot} <- Federation.build_server_snapshot(server_id) do
+         {:ok, snapshot} <-
+           Federation.build_server_snapshot(server_id, peer: Map.get(state, :peer)) do
       ok_frame(request_id, snapshot, encoding)
     else
       nil -> error_frame(request_id, :invalid_server_id, encoding)

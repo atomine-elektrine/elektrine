@@ -123,33 +123,24 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
         emit_handler_telemetry(activity, actor_uri, :success, started_at)
         :ok
 
-      {:error, reason}
-      when reason in [
-             :handle_like_failed,
-             :handle_dislike_failed,
-             :fetch_failed,
-             :http_error,
-             :not_found
-           ] ->
-        # These are usually non-recoverable for this worker; retrying tends to add queue noise.
-        # EmojiReact failures are intentionally excluded so they can retry after post hydration.
-        Logger.debug("Activity #{activity["id"]} failed (#{reason}), not retrying")
-
-        emit_handler_telemetry(activity, actor_uri, :ignored, started_at, %{
-          reason: reason
-        })
-
-        :ok
-
       {:error, reason} ->
-        Logger.warning("Failed to process activity #{activity["id"]}: #{inspect(reason)}")
+        if Handler.retryable_error?(reason) do
+          Logger.warning("Failed to process activity #{activity["id"]}: #{inspect(reason)}")
 
-        emit_handler_telemetry(activity, actor_uri, :failure, started_at, %{
-          reason: reason
-        })
+          emit_handler_telemetry(activity, actor_uri, :failure, started_at, %{
+            reason: reason
+          })
 
-        # Return error to trigger retry
-        {:error, reason}
+          {:error, reason}
+        else
+          Logger.debug("Activity #{activity["id"]} failed (#{reason}), not retrying")
+
+          emit_handler_telemetry(activity, actor_uri, :ignored, started_at, %{
+            reason: reason
+          })
+
+          :ok
+        end
     end
   end
 

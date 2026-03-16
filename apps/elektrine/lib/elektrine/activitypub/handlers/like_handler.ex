@@ -14,13 +14,14 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   @doc """
   Handles an incoming Like activity.
   """
-  def handle(%{"object" => object_ref}, actor_uri, _target_user) do
+  def handle(%{"object" => object_ref} = activity, actor_uri, _target_user) do
+    activity_id = activity["id"]
     object_uri = normalize_object_id(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
-         {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
-         {:ok, message} <- get_local_message_from_uri(object_uri) do
-      case Messaging.create_federated_like(message.id, remote_actor.id) do
+         {:ok, message} <- get_local_message_from_uri(object_uri),
+         {:ok, remote_actor} <- fetch_remote_actor(actor_uri, :like_actor_fetch_failed) do
+      case Messaging.create_federated_like(message.id, remote_actor.id, activity_id) do
         {:ok, _like} ->
           Async.run(fn ->
             Elektrine.Notifications.FederationNotifications.notify_remote_like(
@@ -40,6 +41,9 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
         Logger.debug("Like for unknown message, ignoring")
         {:error, :handle_like_failed}
 
+      {:error, :like_actor_fetch_failed} ->
+        {:error, :like_actor_fetch_failed}
+
       error ->
         Logger.warning("Failed to handle like: #{inspect(error)}")
         {:error, :handle_like_failed}
@@ -49,13 +53,14 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   @doc """
   Handles an incoming Dislike activity (downvote).
   """
-  def handle_dislike(%{"object" => object_ref}, actor_uri, _target_user) do
+  def handle_dislike(%{"object" => object_ref} = activity, actor_uri, _target_user) do
+    activity_id = activity["id"]
     object_uri = normalize_object_id(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
-         {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
-         {:ok, message} <- get_local_message_from_uri(object_uri) do
-      case Messaging.create_federated_dislike(message.id, remote_actor.id) do
+         {:ok, message} <- get_local_message_from_uri(object_uri),
+         {:ok, remote_actor} <- fetch_remote_actor(actor_uri, :dislike_actor_fetch_failed) do
+      case Messaging.create_federated_dislike(message.id, remote_actor.id, activity_id) do
         {:ok, _dislike} ->
           {:ok, :disliked}
 
@@ -67,6 +72,9 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
       {:error, :message_not_found} ->
         Logger.debug("Dislike for unknown message, ignoring")
         {:error, :handle_dislike_failed}
+
+      {:error, :dislike_actor_fetch_failed} ->
+        {:error, :dislike_actor_fetch_failed}
 
       error ->
         Logger.warning("Failed to handle dislike: #{inspect(error)}")
@@ -146,7 +154,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   Handles Undo Like activity.
   """
   def handle_undo_like(%{"object" => object_ref}, actor_uri) do
-    object_uri = normalize_object_id(object_ref)
+    object_uri = resolve_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
@@ -167,7 +175,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   Handles Undo Dislike activity.
   """
   def handle_undo_dislike(%{"object" => object_ref}, actor_uri) do
-    object_uri = normalize_object_id(object_ref)
+    object_uri = resolve_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
@@ -189,7 +197,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   """
   def handle_undo_emoji_react(%{"object" => object_ref, "content" => emoji}, actor_uri)
       when is_binary(emoji) do
-    object_uri = normalize_object_id(object_ref)
+    object_uri = resolve_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
@@ -234,6 +242,15 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   defp normalize_object_id(object) when is_binary(object), do: object
   defp normalize_object_id(%{"id" => id}), do: id
   defp normalize_object_id(_), do: nil
+
+  defp resolve_target_object_uri(object) when is_binary(object), do: object
+
+  defp resolve_target_object_uri(%{"object" => object_ref}) do
+    resolve_target_object_uri(object_ref)
+  end
+
+  defp resolve_target_object_uri(%{"id" => id}) when is_binary(id), do: id
+  defp resolve_target_object_uri(_), do: nil
 
   defp get_local_message_from_uri(uri) do
     base_url = ActivityPub.instance_url()
@@ -311,6 +328,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
           else
             inner_object
           end
+          |> inherit_wrapper_fields(object)
 
         normalize_reactable_object(inner_with_actor)
 
@@ -322,6 +340,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
             else
               fetched_inner
             end
+            |> inherit_wrapper_fields(object)
 
           normalize_reactable_object(inner_with_actor)
         end
@@ -339,6 +358,35 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp fetch_remote_actor(actor_uri, error_reason) do
+    case ActivityPub.get_or_fetch_actor(actor_uri) do
+      {:ok, actor} ->
+        {:ok, actor}
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch remote actor #{actor_uri}: #{inspect(reason)}")
+        {:error, error_reason}
+    end
+  end
+
+  defp inherit_wrapper_fields(object, activity) when is_map(object) and is_map(activity) do
+    ["to", "cc", "audience", "published"]
+    |> Enum.reduce(object, fn field, acc ->
+      case {Map.get(acc, field), Map.get(activity, field)} do
+        {value, inherited} when value in [nil, ""] and not is_nil(inherited) ->
+          Map.put(acc, field, inherited)
+
+        {[], inherited} when not is_nil(inherited) ->
+          Map.put(acc, field, inherited)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp inherit_wrapper_fields(object, _activity), do: object
 
   defp normalize_actor_uri(uri) when is_binary(uri), do: uri
   defp normalize_actor_uri([head | _]), do: normalize_actor_uri(head)

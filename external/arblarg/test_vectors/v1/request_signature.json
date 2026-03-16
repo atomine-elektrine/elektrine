@@ -1,15 +1,15 @@
 {
-  "body": "{\"event_id\":\"evt-vector-0001\",\"event_type\":\"message.create\",\"idempotency_key\":\"op-message-create-0001\",\"origin_domain\":\"example.net\",\"payload\":{\"channel\":{\"id\":\"https://example.net/federation/messaging/channels/1\",\"name\":\"general\"},\"message\":{\"channel_id\":\"https://example.net/federation/messaging/channels/1\",\"content\":\"hello golden vector\",\"id\":\"https://example.net/federation/messaging/messages/1\",\"sender\":{\"display_name\":\"alice\",\"domain\":\"example.net\",\"handle\":\"alice@example.net\",\"id\":\"https://example.net/users/alice\",\"uri\":\"https://example.net/users/alice\",\"username\":\"alice\"}},\"server\":{\"id\":\"https://example.net/federation/messaging/servers/1\",\"name\":\"Example\"}},\"protocol\":\"arblarg\",\"protocol_id\":\"arblarg\",\"protocol_label\":\"arblarg/1.0\",\"protocol_version\":\"1.0\",\"sent_at\":\"2026-02-22T12:34:56Z\",\"sequence\":42,\"stream_id\":\"channel:https://example.net/federation/messaging/channels/1\"}",
-  "description": "Canonical HTTP request signature payload and signature for POST /federation/messaging/events",
+  "body": "{\"event_id\":\"evt-vector-0001\",\"event_type\":\"message.create\",\"idempotency_key\":\"op-message-create-0001\",\"origin_domain\":\"example.net\",\"payload\":{\"channel\":{\"id\":\"https://example.net/_arblarg/channels/1\",\"name\":\"general\"},\"message\":{\"channel_id\":\"https://example.net/_arblarg/channels/1\",\"content\":\"hello golden vector\",\"id\":\"https://example.net/_arblarg/messages/1\",\"sender\":{\"display_name\":\"alice\",\"domain\":\"example.net\",\"handle\":\"alice@example.net\",\"id\":\"https://example.net/users/alice\",\"uri\":\"https://example.net/users/alice\",\"username\":\"alice\"}},\"server\":{\"id\":\"https://example.net/_arblarg/servers/1\",\"name\":\"Example\"}},\"protocol\":\"arblarg\",\"protocol_id\":\"arblarg\",\"protocol_label\":\"arblarg/1.0\",\"protocol_version\":\"1.0\",\"sent_at\":\"2026-02-22T12:34:56Z\",\"sequence\":42,\"stream_id\":\"channel:https://example.net/_arblarg/channels/1\"}",
+  "description": "Canonical HTTP request signature payload and signature for POST /_arblarg/events",
   "domain": "example.net",
   "expected": {
-    "body_digest": "N_BQffGZtdIXA8i2AlgNTQ2lil0m5aH67xIIlUOM_Pw",
-    "canonical_request_payload": "example.net\npost\n/federation/messaging/events\n\n1760000000\nN_BQffGZtdIXA8i2AlgNTQ2lil0m5aH67xIIlUOM_Pw\nreq-vector-0001",
-    "signature": "HiGrk3eEvljS8Rtgfey7_rQV8hmqaeLwxJSfWuX8vYDHT-JWpy4uh9bJ-e2Q7lGedPFd0kq9menJVApuv_9rCQ"
+    "body_digest": "C6SQwxey68sPijN2aU-hi2qPoCPPkNTQbX2m-ZIKbLE",
+    "canonical_request_payload": "example.net\npost\n/_arblarg/events\n\n1760000000\nC6SQwxey68sPijN2aU-hi2qPoCPPkNTQbX2m-ZIKbLE\nreq-vector-0001",
+    "signature": "AI5udcntYPpUa32Ni4F2TbtqvPt7vWpFdrMDWeUGWtsv6EsZ0mpPjX4fBdxitsN3Fm56KMHHkVSkYr3FvheXDg"
   },
   "method": "POST",
   "name": "arblarg-v1-http-request-signature",
-  "path": "/federation/messaging/events",
+  "path": "/_arblarg/events",
   "query": "",
   "request_id": "req-vector-0001",
   "signing_secret": "golden-vector-secret-v1",

@@ -110,6 +110,10 @@ defmodule Elektrine.ActivityPub.ObjectValidator do
     {:ok, activity}
   end
 
+  defp validate_update(%{"object" => object_uri} = activity) when is_binary(object_uri) do
+    {:ok, activity}
+  end
+
   defp validate_update(_), do: {:error, "Update activity missing object"}
 
   # Delete validation

@@ -36,7 +36,8 @@ defmodule ElektrineWeb.PlatformAccess do
      [
        "/chat",
        "/friends",
-       "/federation/messaging",
+       "/_arblarg",
+       "/api/private-attachments",
        "/api/servers",
        "/api/conversations",
        "/api/messages",

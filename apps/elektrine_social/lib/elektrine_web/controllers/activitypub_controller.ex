@@ -1,12 +1,16 @@
 defmodule ElektrineWeb.ActivityPubController do
   use ElektrineSocialWeb, :controller
 
+  require Logger
+
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Cached, as: CachedAccounts
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Builder
   alias Elektrine.ActivityPub.InboxQueue
+  alias Elektrine.ActivityPub.ObjectValidator
   alias Elektrine.Domains
+  alias Elektrine.Messaging.Message
   alias Elektrine.Telemetry.Events
 
   @doc """
@@ -32,9 +36,6 @@ defmodule ElektrineWeb.ActivityPubController do
           "name" => relay_actor.display_name || "Elektrine Relay",
           "summary" => relay_actor.summary || "Relay actor for #{ActivityPub.instance_domain()}",
           "inbox" => "#{base_url}/relay/inbox",
-          "outbox" => "#{base_url}/relay/outbox",
-          "followers" => "#{base_url}/relay/followers",
-          "following" => "#{base_url}/relay/following",
           "endpoints" => %{
             "sharedInbox" => "#{base_url}/inbox"
           },
@@ -177,7 +178,6 @@ defmodule ElektrineWeb.ActivityPubController do
   end
 
   defp handle_inbox_activity(conn, activity, username) do
-    require Logger
     start_time = System.monotonic_time(:millisecond)
 
     # Look up target user if specified (using cached version for performance)
@@ -190,8 +190,8 @@ defmodule ElektrineWeb.ActivityPubController do
 
     user_lookup_time = System.monotonic_time(:millisecond) - start_time
 
-    # Return 404 for user-specific inbox if user not found
-    if username && is_nil(user) do
+    # Return 404 for user-specific inbox if the user is missing or not AP-enabled.
+    if username && (is_nil(user) || user.activitypub_enabled != true) do
       total_time = System.monotonic_time(:millisecond) - start_time
       Events.federation(:inbox, :enqueue, :failure, total_time, %{reason: :user_not_found})
 
@@ -214,45 +214,46 @@ defmodule ElektrineWeb.ActivityPubController do
         # The plug has already validated the signature and assigned :valid_signature
         case check_signature_validation(conn, activity, actor_uri) do
           :ok ->
-            enqueue_start = System.monotonic_time(:millisecond)
+            case validate_incoming_activity(activity, actor_uri) do
+              {:ok, validated_activity} ->
+                enqueue_start = System.monotonic_time(:millisecond)
 
-            # Enqueue to in-memory queue (no DB hit - batched later)
-            target_user_id = user && user.id
-            result = InboxQueue.enqueue(activity, actor_uri, target_user_id)
+                # Enqueue to in-memory queue (no DB hit - batched later)
+                target_user_id = user && user.id
+                result = InboxQueue.enqueue(validated_activity, actor_uri, target_user_id)
 
-            enqueue_time = System.monotonic_time(:millisecond) - enqueue_start
-            total_time = System.monotonic_time(:millisecond) - start_time
+                enqueue_time = System.monotonic_time(:millisecond) - enqueue_start
+                total_time = System.monotonic_time(:millisecond) - start_time
 
-            # Log timing if slow (> 50ms - should be very fast now)
-            if total_time > 50 do
-              Logger.warning(
-                "Slow inbox: user_lookup=#{user_lookup_time}ms enqueue=#{enqueue_time}ms total=#{total_time}ms"
-              )
+                # Log timing if slow (> 50ms - should be very fast now)
+                if total_time > 50 do
+                  Logger.warning(
+                    "Slow inbox: user_lookup=#{user_lookup_time}ms enqueue=#{enqueue_time}ms total=#{total_time}ms"
+                  )
+                end
+
+                # InboxQueue always succeeds (returns {:ok, _})
+                _ = result
+
+                Events.federation(:inbox, :enqueue, :success, total_time, %{
+                  domain: URI.parse(actor_uri).host || "unknown"
+                })
+
+                conn
+                |> put_status(:accepted)
+                |> json(%{})
+
+              {:error, :invalid_activity} ->
+                total_time = System.monotonic_time(:millisecond) - start_time
+
+                Events.federation(:inbox, :enqueue, :failure, total_time, %{
+                  reason: :invalid_activity
+                })
+
+                conn
+                |> put_status(:bad_request)
+                |> json(%{error: "Invalid activity"})
             end
-
-            # InboxQueue always succeeds (returns {:ok, _})
-            _ = result
-
-            Events.federation(:inbox, :enqueue, :success, total_time, %{
-              domain: URI.parse(actor_uri).host || "unknown"
-            })
-
-            conn
-            |> put_status(:accepted)
-            |> json(%{})
-
-          {:accept_delete, reason} ->
-            # Accept Delete activities from unknown actors to stop Mastodon retries
-            Logger.info(
-              "Accepting Delete activity despite signature issue: #{format_error(reason)}"
-            )
-
-            total_time = System.monotonic_time(:millisecond) - start_time
-            Events.federation(:inbox, :signature, :accepted_delete, total_time, %{reason: reason})
-
-            conn
-            |> put_status(:accepted)
-            |> json(%{})
 
           {:error, reason} ->
             Logger.warning("Inbox rejected: #{format_error(reason)} from #{actor_uri}")
@@ -268,19 +269,15 @@ defmodule ElektrineWeb.ActivityPubController do
   end
 
   # Check signature validation - uses plug-assigned values or falls back to lightweight check
-  defp check_signature_validation(conn, activity, actor_uri) do
+  defp check_signature_validation(conn, _activity, actor_uri) do
     cond do
       # Signature was validated by HTTPSignaturePlug
       conn.assigns[:valid_signature] == true ->
         validate_verified_signature_actor(conn, actor_uri)
 
-      # Signature validation failed - check if it's a Delete we should accept anyway
+      # Signature validation failed
       conn.assigns[:valid_signature] == false ->
-        if activity["type"] == "Delete" do
-          {:accept_delete, conn.assigns[:signature_error] || :unknown}
-        else
-          {:error, conn.assigns[:signature_error] || :invalid_signature}
-        end
+        {:error, conn.assigns[:signature_error] || :invalid_signature}
 
       # Inbox routes must pass through HTTPSignaturePlug before controller dispatch.
       true ->
@@ -604,8 +601,12 @@ defmodule ElektrineWeb.ActivityPubController do
             |> json(%{error: "Not found"})
 
           message ->
-            if message.sender_id == user.id do
-              object_data = Builder.build_note(message, user)
+            message = Elektrine.Repo.preload(message, :conversation)
+
+            if user.activitypub_enabled and message.sender_id == user.id and
+                 message.visibility == "public" and is_nil(message.deleted_at) and
+                 message.is_draft != true and public_user_status_object?(message, user) do
+              object_data = build_public_message_object(message, user)
 
               conn
               |> put_resp_content_type("application/activity+json")
@@ -661,7 +662,12 @@ defmodule ElektrineWeb.ActivityPubController do
     collection_url = "#{base_url}/tags/#{hashtag.normalized_name}"
 
     # Get total count of public posts with this hashtag
-    total_count = Elektrine.Social.count_hashtag_posts(hashtag.id, visibility: "public")
+    total_count =
+      Elektrine.Social.count_hashtag_posts(hashtag.id,
+        visibility: "public",
+        exclude_drafts: true,
+        activitypub_enabled_only: true
+      )
 
     collection = %{
       "@context" => "https://www.w3.org/ns/activitystreams",
@@ -680,7 +686,7 @@ defmodule ElektrineWeb.ActivityPubController do
     # Paginated page request
     base_url = ActivityPub.instance_url()
     collection_url = "#{base_url}/tags/#{hashtag.normalized_name}"
-    page_num = String.to_integer(page)
+    page_num = parse_page_number(page)
     limit = 20
     offset = (page_num - 1) * limit
 
@@ -688,6 +694,8 @@ defmodule ElektrineWeb.ActivityPubController do
     posts =
       Elektrine.Social.list_hashtag_posts(hashtag.id,
         visibility: "public",
+        exclude_drafts: true,
+        activitypub_enabled_only: true,
         limit: limit,
         offset: offset,
         preload: [:sender, :conversation]
@@ -695,18 +703,12 @@ defmodule ElektrineWeb.ActivityPubController do
 
     # Build Note objects for each post
     items =
-      Enum.map(posts, fn post ->
-        if post.sender do
-          Builder.build_note(post, post.sender)
-        else
-          nil
-        end
-      end)
+      Enum.map(posts, &build_hashtag_collection_item/1)
       |> Enum.reject(&is_nil/1)
 
     collection_page = %{
       "@context" => "https://www.w3.org/ns/activitystreams",
-      "id" => "#{collection_url}?page=#{page}",
+      "id" => "#{collection_url}?page=#{page_num}",
       "type" => "OrderedCollectionPage",
       "partOf" => collection_url,
       "orderedItems" => items
@@ -742,26 +744,19 @@ defmodule ElektrineWeb.ActivityPubController do
 
     if is_activitypub_request do
       # Return ActivityPub JSON
-      case ActivityPub.get_community_by_identifier(community_name) do
-        nil ->
+      case fetch_public_community(community_name) do
+        {:error, :not_found} ->
           conn
           |> put_status(:not_found)
           |> put_resp_content_type("application/activity+json")
           |> json(%{error: "Community not found"})
 
-        community ->
-          if community.type == "community" && community.is_public do
-            actor_data = Builder.build_group(community)
+        {:ok, community} ->
+          actor_data = Builder.build_group(community)
 
-            conn
-            |> put_resp_content_type("application/activity+json")
-            |> json(actor_data)
-          else
-            conn
-            |> put_status(:not_found)
-            |> put_resp_content_type("application/activity+json")
-            |> json(%{error: "Community not found"})
-          end
+          conn
+          |> put_resp_content_type("application/activity+json")
+          |> json(actor_data)
       end
     else
       # Browser request - pass through (will hit LiveView route)
@@ -776,79 +771,60 @@ defmodule ElektrineWeb.ActivityPubController do
   Handles incoming activities to a community inbox.
   """
   def community_inbox(conn, %{"name" => community_name} = params) do
-    case fetch_community_by_identifier(community_name) do
-      nil ->
+    case fetch_public_community(community_name) do
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Community not found"})
 
-      community ->
-        if community.type == "community" do
-          {:ok, _community_actor} = ActivityPub.get_or_create_community_actor(community.id)
-          activity = Map.drop(params, ["name"])
-          actor_uri = activity["actor"]
+      {:ok, community} ->
+        {:ok, _community_actor} = ActivityPub.get_or_create_community_actor(community.id)
+        activity = Map.drop(params, ["name"])
+        actor_uri = activity["actor"]
 
-          if is_nil(actor_uri) do
-            conn
-            |> put_status(:bad_request)
-            |> json(%{error: "Missing actor"})
-          else
-            case check_signature_validation(conn, activity, actor_uri) do
-              :ok ->
-                # Handle the activity for this community
-                _result =
-                  case activity["type"] do
-                    "Follow" ->
-                      Elektrine.ActivityPub.Handlers.FollowHandler.handle(
-                        activity,
-                        actor_uri,
-                        nil
-                      )
+        if is_nil(actor_uri) do
+          conn
+          |> put_status(:bad_request)
+          |> json(%{error: "Missing actor"})
+        else
+          case check_signature_validation(conn, activity, actor_uri) do
+            :ok ->
+              case validate_incoming_activity(activity, actor_uri) do
+                {:ok, validated_activity} ->
+                  result =
+                    Elektrine.ActivityPub.Handler.process_activity_async(
+                      validated_activity,
+                      actor_uri,
+                      nil
+                    )
 
-                    "Undo" ->
-                      # Handle Undo Follow (unsubscribe from community)
-                      case activity["object"] do
-                        %{"type" => "Follow"} = follow_object ->
-                          Elektrine.ActivityPub.Handlers.FollowHandler.handle_undo(
-                            follow_object,
-                            actor_uri
-                          )
-
-                        _ ->
-                          {:ok, :ignored}
+                  case result do
+                    {:error, reason} ->
+                      if Elektrine.ActivityPub.Handler.retryable_error?(reason) do
+                        community_inbox_retryable_error(conn, reason)
+                      else
+                        conn
+                        |> put_status(:accepted)
+                        |> json(%{})
                       end
 
-                    "Create" ->
-                      # Handle remote posts to community (if we want to accept external posts)
-                      require Logger
-                      Logger.info("Community received Create activity from #{actor_uri}")
-                      {:ok, :logged}
-
-                    activity_type ->
-                      require Logger
-                      Logger.info("Community inbox activity: #{activity_type}")
-                      {:ok, :logged}
+                    _ ->
+                      conn
+                      |> put_status(:accepted)
+                      |> json(%{})
                   end
 
-                conn
-                |> put_status(:accepted)
-                |> json(%{})
+                {:error, :invalid_activity} ->
+                  conn
+                  |> put_status(:bad_request)
+                  |> json(%{error: "Invalid activity"})
+              end
 
-              {:accept_delete, _reason} ->
-                conn
-                |> put_status(:accepted)
-                |> json(%{})
-
-              {:error, _reason} ->
-                conn
-                |> put_status(:unauthorized)
-                |> json(%{error: "Invalid signature"})
-            end
+            {:error, _reason} ->
+              conn
+              |> put_status(:unauthorized)
+              |> json(%{error: "Invalid signature"})
           end
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{error: "Community not found"})
         end
     end
   end
@@ -871,7 +847,12 @@ defmodule ElektrineWeb.ActivityPubController do
 
         case params["page"] do
           nil ->
-            post_count = Elektrine.Social.count_discussion_posts(community.id)
+            post_count =
+              Elektrine.Social.count_discussion_posts(community.id,
+                visibility: "public",
+                exclude_drafts: true,
+                activitypub_enabled_only: true
+              )
 
             collection = %{
               "@context" => "https://www.w3.org/ns/activitystreams",
@@ -886,7 +867,7 @@ defmodule ElektrineWeb.ActivityPubController do
             |> json(collection)
 
           page ->
-            page_num = String.to_integer(page)
+            page_num = parse_page_number(page)
             limit = 20
             offset = (page_num - 1) * limit
 
@@ -894,27 +875,18 @@ defmodule ElektrineWeb.ActivityPubController do
               Elektrine.Social.get_discussion_posts(community.id,
                 limit: limit,
                 offset: offset,
-                sort_by: "recent"
+                sort_by: "recent",
+                visibility: "public",
+                exclude_drafts: true,
+                activitypub_enabled_only: true
               )
 
             items =
-              Enum.map(posts, fn post ->
-                note = Builder.build_community_note(post, community)
-
-                %{
-                  "id" => "#{note["id"]}/activity",
-                  "type" => "Create",
-                  "actor" => ActivityPub.community_actor_uri(community.name, base_url),
-                  "published" => Builder.format_datetime(post.inserted_at),
-                  "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-                  "cc" => [ActivityPub.community_followers_uri(community.name, base_url)],
-                  "object" => note
-                }
-              end)
+              Enum.map(posts, &build_public_community_create_activity(&1, community))
 
             collection_page = %{
               "@context" => "https://www.w3.org/ns/activitystreams",
-              "id" => "#{outbox_url}?page=#{page}",
+              "id" => "#{outbox_url}?page=#{page_num}",
               "type" => "OrderedCollectionPage",
               "partOf" => outbox_url,
               "orderedItems" => items
@@ -956,15 +928,30 @@ defmodule ElektrineWeb.ActivityPubController do
             actor -> ActivityPub.get_group_follower_count(actor.id)
           end
 
-        total_count = (community.member_count || 0) + follower_count
+        total_count = follower_count
 
-        collection = %{
-          "@context" => "https://www.w3.org/ns/activitystreams",
-          "id" => followers_url,
-          "type" => "OrderedCollection",
-          "totalItems" => total_count,
-          "first" => "#{followers_url}?page=1"
-        }
+        collection =
+          case conn.params["page"] do
+            nil ->
+              %{
+                "@context" => "https://www.w3.org/ns/activitystreams",
+                "id" => followers_url,
+                "type" => "OrderedCollection",
+                "totalItems" => total_count,
+                "first" => "#{followers_url}?page=1"
+              }
+
+            page ->
+              page_num = parse_page_number(page)
+
+              %{
+                "@context" => "https://www.w3.org/ns/activitystreams",
+                "id" => "#{followers_url}?page=#{page_num}",
+                "type" => "OrderedCollectionPage",
+                "partOf" => followers_url,
+                "orderedItems" => []
+              }
+          end
 
         conn
         |> put_resp_content_type("application/activity+json")
@@ -987,16 +974,7 @@ defmodule ElektrineWeb.ActivityPubController do
       {:ok, community} ->
         base_url = ActivityPub.instance_url()
         moderators_url = ActivityPub.community_moderators_uri(community.name, base_url)
-
-        moderator_uris =
-          Elektrine.Messaging.get_community_moderators(community.id)
-          |> Enum.map(fn member ->
-            case member.user do
-              nil -> nil
-              user -> "#{base_url}/users/#{user.username}"
-            end
-          end)
-          |> Enum.filter(& &1)
+        moderator_uris = Builder.community_moderator_actor_uris(community, base_url)
 
         collection = %{
           "@context" => "https://www.w3.org/ns/activitystreams",
@@ -1022,7 +1000,7 @@ defmodule ElektrineWeb.ActivityPubController do
          {:ok, post} <- fetch_public_community_post(community.id, message_id) do
       conn
       |> put_resp_content_type("application/activity+json")
-      |> json(Builder.build_community_note(post, community))
+      |> json(build_public_community_object(post, community))
     else
       {:error, :not_found} ->
         conn
@@ -1039,19 +1017,7 @@ defmodule ElektrineWeb.ActivityPubController do
 
     with {:ok, community} <- fetch_public_community(community_name),
          {:ok, post} <- fetch_public_community_post(community.id, message_id) do
-      note = Builder.build_community_note(post, community)
-      base_url = ActivityPub.instance_url()
-
-      create_activity = %{
-        "@context" => "https://www.w3.org/ns/activitystreams",
-        "id" => "#{note["id"]}/activity",
-        "type" => "Create",
-        "actor" => ActivityPub.community_actor_uri(community.name, base_url),
-        "published" => Builder.format_datetime(post.inserted_at),
-        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-        "cc" => [ActivityPub.community_followers_uri(community.name, base_url)],
-        "object" => note
-      }
+      create_activity = build_public_community_create_activity(post, community)
 
       conn
       |> put_resp_content_type("application/activity+json")
@@ -1066,7 +1032,9 @@ defmodule ElektrineWeb.ActivityPubController do
 
   defp fetch_public_community(community_name) do
     case fetch_community_by_identifier(community_name) do
-      community when not is_nil(community) and community.is_public ->
+      community
+      when not is_nil(community) and community.is_public and
+             community.is_federated_mirror != true ->
         {:ok, community}
 
       _ ->
@@ -1077,18 +1045,178 @@ defmodule ElektrineWeb.ActivityPubController do
   defp fetch_public_community_post(community_id, message_id) do
     with {id, ""} <- Integer.parse(message_id),
          post when not is_nil(post) <- Elektrine.Messaging.get_message(id),
+         post <- Elektrine.Repo.preload(post, :sender),
          true <- post.conversation_id == community_id and is_nil(post.deleted_at),
-         true <- post.visibility == "public" do
-      {:ok, Elektrine.Repo.preload(post, :sender)}
+         true <- post.visibility == "public",
+         true <- post.is_draft != true,
+         true <- activitypub_visible_sender?(post.sender) do
+      {:ok, post}
     else
       _ -> {:error, :not_found}
     end
   end
 
+  defp activitypub_visible_sender?(%{activitypub_enabled: true}), do: true
+  defp activitypub_visible_sender?(_), do: false
+
   defp fetch_community_by_identifier(identifier) do
     case ActivityPub.get_community_by_identifier(identifier) do
       %{type: "community"} = community -> community
       _ -> nil
+    end
+  end
+
+  defp build_hashtag_collection_item(post) do
+    cond do
+      match?(%{conversation: %{type: "community", is_federated_mirror: true}}, post) and
+          post.sender ->
+        build_public_message_object(post, post.sender)
+
+      match?(%{conversation: %{type: "community"}}, post) ->
+        build_public_community_object(post, post.conversation)
+
+      post.sender ->
+        build_public_message_object(post, post.sender)
+
+      true ->
+        nil
+    end
+  end
+
+  defp build_public_message_object(message, user) do
+    base_object =
+      case maybe_poll_for_message(message) do
+        %{options: _} = poll -> Builder.build_question(message, user, poll)
+        _ -> Builder.build_note(message, user)
+      end
+
+    preserve_original_object_routing(base_object, latest_local_create_activity(message, user))
+  end
+
+  defp build_public_community_object(post, community) do
+    Builder.build_community_object(post, community, poll: maybe_poll_for_message(post))
+  end
+
+  defp build_public_community_create_activity(post, community) do
+    post
+    |> build_public_community_object(community)
+    |> then(&Builder.build_community_create_activity(post, community, &1))
+  end
+
+  defp maybe_poll_for_message(%Message{post_type: "poll", id: message_id}) do
+    case poll_schema() do
+      nil ->
+        nil
+
+      poll_schema ->
+        Elektrine.Repo.get_by(poll_schema, message_id: message_id)
+        |> Elektrine.Repo.preload(:options)
+    end
+  end
+
+  defp maybe_poll_for_message(_), do: nil
+
+  defp poll_schema do
+    if Code.ensure_loaded?(Elektrine.Social.Poll), do: Elektrine.Social.Poll, else: nil
+  end
+
+  defp community_message?(%{conversation: %{type: "community"}}), do: true
+  defp community_message?(_), do: false
+
+  defp public_user_status_object?(message, user) do
+    case message.activitypub_id do
+      value when is_binary(value) and value != "" ->
+        comparable_uri(value) in Enum.map(
+          user_status_uri_candidates(user, message),
+          &comparable_uri/1
+        )
+
+      _ ->
+        not community_message?(message)
+    end
+  end
+
+  defp user_status_uri_candidates(user, message) do
+    canonical_uri = "#{ActivityPub.instance_url()}/users/#{user.username}/statuses/#{message.id}"
+
+    case Domains.activitypub_move_from_domain() do
+      legacy_domain when is_binary(legacy_domain) ->
+        legacy_uri =
+          "#{ActivityPub.instance_url_for_domain(legacy_domain)}/users/#{user.username}/statuses/#{message.id}"
+
+        [canonical_uri, legacy_uri]
+
+      _ ->
+        [canonical_uri]
+    end
+  end
+
+  defp latest_local_create_activity(message, user) do
+    user
+    |> user_status_uri_candidates(message)
+    |> Enum.find_value(fn object_id ->
+      ActivityPub.get_latest_local_activity(user.id, "Create", object_id)
+    end)
+  end
+
+  defp preserve_original_object_routing(object, nil), do: object
+
+  defp preserve_original_object_routing(object, %{data: data})
+       when is_map(object) and is_map(data) do
+    case Map.get(data, "object") do
+      original_object when is_map(original_object) ->
+        Enum.reduce(["to", "cc", "audience", "context"], object, fn field, acc ->
+          case Map.get(original_object, field) do
+            nil -> acc
+            value -> Map.put(acc, field, value)
+          end
+        end)
+
+      _ ->
+        object
+    end
+  end
+
+  defp preserve_original_object_routing(object, _), do: object
+
+  defp community_inbox_retryable_error(conn, :undo_activity_fetch_failed) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{error: "Failed to fetch referenced activity"})
+  end
+
+  defp community_inbox_retryable_error(conn, reason)
+       when reason in [
+              :create_object_fetch_failed,
+              :update_object_fetch_failed,
+              :announce_object_fetch_failed
+            ] do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{error: "Failed to fetch referenced object"})
+  end
+
+  defp community_inbox_retryable_error(conn, reason)
+       when reason in [:move_actor_fetch_failed, :update_actor_fetch_failed] do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{error: "Failed to fetch referenced actor"})
+  end
+
+  defp community_inbox_retryable_error(conn, _reason) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{error: "Temporary processing failure"})
+  end
+
+  defp validate_incoming_activity(activity, actor_uri) do
+    case ObjectValidator.validate(activity) do
+      {:ok, validated_activity} ->
+        {:ok, validated_activity}
+
+      {:error, reason} ->
+        Logger.warning("Invalid activity from #{actor_uri}: #{reason}")
+        {:error, :invalid_activity}
     end
   end
 end

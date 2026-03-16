@@ -25,43 +25,50 @@ defmodule Elektrine.Messaging.Federation.Contexts do
     %{
       enabled?: fetch(options, :enabled?),
       build_server_snapshot: fetch(options, :build_server_snapshot),
+      build_server_snapshot_for_peer: fetch(options, :build_server_snapshot_for_peer),
       outgoing_peers: fetch(options, :outgoing_peers),
       push_snapshot_to_peer: fetch(options, :push_snapshot_to_peer),
       build_server_upsert_event: fn server_id ->
         Builders.build_server_upsert_event(server_id, builder_context.())
       end,
       build_message_created_event: fn message ->
-        Builders.build_message_created_event(message, [], builder_context.())
-      end,
-      build_message_created_event_with_opts: fn message, opts ->
-        Builders.build_message_created_event(message, opts, builder_context.())
+        Builders.build_message_created_event(message, builder_context.())
       end,
       build_dm_message_created_event: fn message, remote_handle ->
         Builders.build_dm_message_created_event(message, remote_handle, builder_context.())
       end,
-      build_message_updated_event: fn message ->
-        Builders.build_message_updated_event(message, [], builder_context.())
+      build_dm_call_invite_event: fn session_id ->
+        Builders.build_dm_call_invite_event(session_id, builder_context.())
       end,
-      build_message_updated_event_with_opts: fn message, opts ->
-        Builders.build_message_updated_event(message, opts, builder_context.())
+      build_dm_call_accept_event: fn session_id ->
+        Builders.build_dm_call_accept_event(session_id, builder_context.())
+      end,
+      build_dm_call_reject_event: fn session_id ->
+        Builders.build_dm_call_reject_event(session_id, builder_context.())
+      end,
+      build_dm_call_end_event: fn session_id ->
+        Builders.build_dm_call_end_event(session_id, builder_context.())
+      end,
+      build_dm_call_signal_ephemeral_item: fn session_id, actor_user_id, kind, signal_payload ->
+        Builders.build_dm_call_signal_ephemeral_item(
+          session_id,
+          actor_user_id,
+          kind,
+          signal_payload,
+          builder_context.()
+        )
+      end,
+      build_message_updated_event: fn message ->
+        Builders.build_message_updated_event(message, builder_context.())
       end,
       build_message_deleted_event: fn message ->
-        Builders.build_message_deleted_event(message, [], builder_context.())
-      end,
-      build_message_deleted_event_with_opts: fn message, opts ->
-        Builders.build_message_deleted_event(message, opts, builder_context.())
+        Builders.build_message_deleted_event(message, builder_context.())
       end,
       build_reaction_added_event: fn message, reaction ->
-        Builders.build_reaction_added_event(message, reaction, [], builder_context.())
-      end,
-      build_reaction_added_event_with_opts: fn message, reaction, opts ->
-        Builders.build_reaction_added_event(message, reaction, opts, builder_context.())
+        Builders.build_reaction_added_event(message, reaction, builder_context.())
       end,
       build_reaction_removed_event: fn message, user_id, emoji ->
-        Builders.build_reaction_removed_event(message, user_id, emoji, [], builder_context.())
-      end,
-      build_reaction_removed_event_with_opts: fn message, user_id, emoji, opts ->
-        Builders.build_reaction_removed_event(message, user_id, emoji, opts, builder_context.())
+        Builders.build_reaction_removed_event(message, user_id, emoji, builder_context.())
       end,
       build_read_cursor_event: fn conversation_id, user_id, message_id, read_at ->
         Builders.build_read_cursor_event(
@@ -75,12 +82,20 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       build_typing_ephemeral_item: fn conversation_id, user_id, mode ->
         Builders.build_typing_ephemeral_item(conversation_id, user_id, mode, builder_context.())
       end,
-      build_presence_ephemeral_item: fn server_id, user_id, status, activities ->
+      build_presence_ephemeral_item: fn user_id, status, activities ->
         Builders.build_presence_ephemeral_item(
-          server_id,
           user_id,
           status,
           activities,
+          builder_context.()
+        )
+      end,
+      build_extension_event: fn conversation_id, actor_user_id, event_type, payload ->
+        Builders.build_extension_event(
+          conversation_id,
+          actor_user_id,
+          event_type,
+          payload,
           builder_context.()
         )
       end,
@@ -102,6 +117,22 @@ defmodule Elektrine.Messaging.Federation.Contexts do
         Builders.build_invite_upsert_event(
           conversation_id,
           target_user_id,
+          actor_user_id,
+          state,
+          role,
+          metadata,
+          builder_context.()
+        )
+      end,
+      build_invite_upsert_event_for_target_payload: fn conversation_id,
+                                                       target_payload,
+                                                       actor_user_id,
+                                                       state,
+                                                       role,
+                                                       metadata ->
+        Builders.build_invite_upsert_event_for_target_payload(
+          conversation_id,
+          target_payload,
           actor_user_id,
           state,
           role,
@@ -136,6 +167,17 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       fanout_ephemeral_batch: fn items, domains ->
         Dispatch.fanout_ephemeral_batch(items, domains, dispatch_context.())
       end,
+      build_room_presence_ephemeral_item: fn conversation_id, user_id, status, activities ->
+        Builders.build_room_presence_ephemeral_item(
+          conversation_id,
+          user_id,
+          status,
+          activities,
+          builder_context.()
+        )
+      end,
+      presence_subscriber_domains_for_local_user:
+        &State.local_presence_subscriber_domains_for_user/1,
       active_server_ids_for_user: &Builders.active_server_ids_for_user/1,
       persist_local_invite_projection: fn conversation_id,
                                           target_user_id,
@@ -150,6 +192,14 @@ defmodule Elektrine.Messaging.Federation.Contexts do
           state,
           role,
           metadata,
+          state_context.()
+        )
+      end,
+      persist_local_extension_projection: fn conversation_id, event_type, payload ->
+        State.persist_local_extension_projection(
+          conversation_id,
+          event_type,
+          payload,
           state_context.()
         )
       end,
@@ -180,7 +230,9 @@ defmodule Elektrine.Messaging.Federation.Contexts do
     %{
       successful_delivery_statuses: fetch(options, :successful_delivery_statuses),
       outgoing_peer: fetch(options, :outgoing_peer),
-      peer_batch_limit: fn peer -> Transport.peer_batch_limit(peer, Runtime.delivery_batch_size()) end,
+      peer_batch_limit: fn peer ->
+        Transport.peer_batch_limit(peer, Runtime.delivery_batch_size())
+      end,
       delivery_batch_size: &Runtime.delivery_batch_size/0,
       outbox_backoff_seconds: &Runtime.outbox_backoff_seconds/1,
       normalize_optional_string: fetch(options, :normalize_optional_string),
@@ -270,6 +322,7 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       delivery_timeout_ms: &Runtime.delivery_timeout_ms/0,
       truncate: fetch(options, :truncate),
       peer_supports: &Transport.peer_supports?/3,
+      peer_supports_event_type: &Transport.peer_supports_event_type?/2,
       outbound_session_websocket_url: &Runtime.outbound_session_websocket_url/1,
       outbound_snapshot_url: &Runtime.outbound_snapshot_url/2,
       infer_remote_server_id_from_federation_id:
@@ -312,8 +365,10 @@ defmodule Elektrine.Messaging.Federation.Contexts do
   def state do
     %{
       broadcast_conversation_event: &MirrorBroadcasts.broadcast_conversation_event/2,
-      maybe_broadcast_mirror_message_created: &MirrorBroadcasts.maybe_broadcast_mirror_message_created/1,
-      maybe_broadcast_mirror_message_updated: &MirrorBroadcasts.maybe_broadcast_mirror_message_updated/1,
+      maybe_broadcast_mirror_message_created:
+        &MirrorBroadcasts.maybe_broadcast_mirror_message_created/1,
+      maybe_broadcast_mirror_message_updated:
+        &MirrorBroadcasts.maybe_broadcast_mirror_message_updated/1,
       local_domain: &Runtime.local_domain/0,
       presence_ttl_seconds: &Runtime.presence_ttl_seconds/0
     }
@@ -372,6 +427,7 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       resolve_local_dm_recipient: fn recipient_payload ->
         DirectMessageState.resolve_local_dm_recipient(recipient_payload, direct_message_state())
       end,
+      resolve_local_dm_participant: &Elektrine.Messaging.Federation.VoiceCalls.resolve_local_dm_participant/1,
       resolve_remote_dm_sender: &DirectMessageState.resolve_remote_dm_sender/2,
       ensure_remote_dm_conversation: &DirectMessageState.ensure_remote_dm_conversation/2,
       upsert_remote_dm_message: fn conversation, message_payload, remote_domain, remote_sender ->
@@ -394,7 +450,19 @@ defmodule Elektrine.Messaging.Federation.Contexts do
           remote_sender,
           direct_message_state()
         )
-      end
+      end,
+      ensure_inbound_call_session:
+        &Elektrine.Messaging.Federation.VoiceCalls.ensure_inbound_session/5,
+      reject_inbound_call_invite:
+        &Elektrine.Messaging.Federation.VoiceCalls.reject_inbound_invite/6,
+      apply_remote_call_accept:
+        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_accept/5,
+      apply_remote_call_reject:
+        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_reject/6,
+      apply_remote_call_end:
+        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_end/6,
+      apply_remote_call_signal:
+        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_signal/5
     }
   end
 
@@ -409,6 +477,12 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       ensure_channel_event_context: fn data, remote_domain ->
         Mirrors.ensure_channel_event_context(data, remote_domain, mirror_data())
       end,
+      ensure_authoritative_channel_event_context: fn data, remote_domain ->
+        Mirrors.ensure_authoritative_channel_event_context(data, remote_domain, mirror_data())
+      end,
+      resolve_channel_event_context: fn data, remote_domain ->
+        Mirrors.resolve_channel_event_context(data, remote_domain, mirror_data())
+      end,
       ensure_server_event_context: fn data, remote_domain ->
         Mirrors.ensure_server_event_context(data, remote_domain, mirror_data())
       end,
@@ -418,18 +492,27 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       upsert_or_update_mirror_message: fn channel, payload, remote_domain ->
         Mirrors.upsert_or_update_mirror_message(channel, payload, remote_domain, mirror_data())
       end,
-      soft_delete_mirror_message: &Mirrors.soft_delete_mirror_message/3,
-      maybe_broadcast_mirror_message_created: &MirrorBroadcasts.maybe_broadcast_mirror_message_created/1,
-      maybe_broadcast_mirror_message_updated: &MirrorBroadcasts.maybe_broadcast_mirror_message_updated/1,
-      maybe_broadcast_mirror_message_deleted: &MirrorBroadcasts.maybe_broadcast_mirror_message_deleted/1,
+      soft_delete_mirror_message: &Mirrors.soft_delete_mirror_message/4,
+      maybe_broadcast_mirror_message_created:
+        &MirrorBroadcasts.maybe_broadcast_mirror_message_created/1,
+      maybe_broadcast_mirror_message_updated:
+        &MirrorBroadcasts.maybe_broadcast_mirror_message_updated/1,
+      maybe_broadcast_mirror_message_deleted:
+        &MirrorBroadcasts.maybe_broadcast_mirror_message_deleted/1,
       get_mirror_message: &Mirrors.get_mirror_message/2,
+      ensure_remote_actor_membership: &Mirrors.ensure_remote_actor_membership/4,
+      ensure_remote_actor_governance_permission:
+        &Mirrors.ensure_remote_actor_governance_permission/4,
+      ensure_remote_message_author: &Mirrors.ensure_remote_message_author/3,
       resolve_or_create_remote_actor_id: fn actor_payload, remote_domain ->
         Actors.resolve_or_create_remote_actor_id(actor_payload, remote_domain, actor_context.())
       end,
       add_mirror_reaction: &MirrorBroadcasts.add_mirror_reaction/3,
       remove_mirror_reaction: &MirrorBroadcasts.remove_mirror_reaction/3,
-      maybe_broadcast_mirror_reaction_added: &MirrorBroadcasts.maybe_broadcast_mirror_reaction_added/2,
-      maybe_broadcast_mirror_reaction_removed: &MirrorBroadcasts.maybe_broadcast_mirror_reaction_removed/4,
+      maybe_broadcast_mirror_reaction_added:
+        &MirrorBroadcasts.maybe_broadcast_mirror_reaction_added/2,
+      maybe_broadcast_mirror_reaction_removed:
+        &MirrorBroadcasts.maybe_broadcast_mirror_reaction_removed/4,
       parse_datetime: fetch(options, :parse_datetime),
       parse_int: fetch(options, :parse_int),
       upsert_remote_read_cursor: fn conversation_id,
@@ -465,15 +548,15 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       end,
       event_server_payload: &Mirrors.event_server_payload/1,
       normalize_presence_activities: &State.normalize_presence_activities/1,
-      upsert_presence_state: fn server_id,
-                                 remote_actor_id,
-                                 status,
-                                 activities,
-                                 updated_at,
-                                 remote_domain,
-                                 ttl_ms ->
-        State.upsert_presence_state(
-          server_id,
+      local_presence_subscriber_user_ids: &State.local_presence_subscriber_user_ids/1,
+      server_ids_for_remote_actor: &State.server_ids_for_remote_actor/1,
+      upsert_account_presence_state: fn remote_actor_id,
+                                        status,
+                                        activities,
+                                        updated_at,
+                                        remote_domain,
+                                        ttl_ms ->
+        State.upsert_account_presence_state(
           remote_actor_id,
           status,
           activities,
@@ -483,13 +566,47 @@ defmodule Elektrine.Messaging.Federation.Contexts do
           state()
         )
       end,
-      maybe_broadcast_presence_update: fn server_id,
+      upsert_room_presence_state: fn conversation_id,
+                                     remote_actor_id,
+                                     status,
+                                     activities,
+                                     updated_at,
+                                     remote_domain,
+                                     ttl_ms ->
+        State.upsert_room_presence_state(
+          conversation_id,
+          remote_actor_id,
+          status,
+          activities,
+          updated_at,
+          remote_domain,
+          ttl_ms,
+          state()
+        )
+      end,
+      maybe_broadcast_presence_update: fn subscriber_user_ids,
+                                          server_ids,
                                           remote_actor_id,
                                           status,
                                           activities,
                                           updated_at ->
         State.maybe_broadcast_presence_update(
-          server_id,
+          subscriber_user_ids,
+          server_ids,
+          remote_actor_id,
+          status,
+          activities,
+          updated_at,
+          state()
+        )
+      end,
+      maybe_broadcast_room_presence_update: fn conversation_id,
+                                               remote_actor_id,
+                                               status,
+                                               activities,
+                                               updated_at ->
+        State.maybe_broadcast_room_presence_update(
+          conversation_id,
           remote_actor_id,
           status,
           activities,
@@ -507,9 +624,20 @@ defmodule Elektrine.Messaging.Federation.Contexts do
   end
 
   def extension_event(options) when is_map(options) do
+    actor_context = fetch(options, :actor_context)
+
     %{
-      upsert_mirror_server: &Mirrors.upsert_mirror_server/2,
-      upsert_single_mirror_channel: &Mirrors.upsert_single_mirror_channel/2,
+      ensure_authoritative_channel_event_context: fn data, remote_domain ->
+        Mirrors.ensure_authoritative_channel_event_context(data, remote_domain, mirror_data())
+      end,
+      resolve_channel_event_context: fn data, remote_domain ->
+        Mirrors.resolve_channel_event_context(data, remote_domain, mirror_data())
+      end,
+      ensure_remote_actor_governance_permission:
+        &Mirrors.ensure_remote_actor_governance_permission/4,
+      resolve_or_create_remote_actor_id: fn actor_payload, remote_domain ->
+        Actors.resolve_or_create_remote_actor_id(actor_payload, remote_domain, actor_context.())
+      end,
       upsert_extension_projection: fn event_type,
                                       event_key,
                                       payload,
@@ -530,11 +658,11 @@ defmodule Elektrine.Messaging.Federation.Contexts do
         )
       end,
       upsert_extension_system_message: fn mirror_channel,
-                                           event_type,
-                                           event_key,
-                                           content,
-                                           metadata,
-                                           remote_domain ->
+                                          event_type,
+                                          event_key,
+                                          content,
+                                          metadata,
+                                          remote_domain ->
         State.upsert_extension_system_message(
           mirror_channel,
           event_type,

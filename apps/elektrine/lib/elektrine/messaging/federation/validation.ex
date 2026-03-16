@@ -11,6 +11,10 @@ defmodule Elektrine.Messaging.Federation.Validation do
     messages = payload["messages"] || []
     governance = payload["governance"]
     stream_positions = payload["stream_positions"]
+    reactions = payload["reactions"] || []
+    read_cursors = payload["read_cursors"] || []
+    message_deletions = payload["message_deletions"] || []
+    extensions = payload["extensions"] || []
 
     governance_entry_count =
       context
@@ -25,6 +29,10 @@ defmodule Elektrine.Messaging.Federation.Validation do
              {:error, :invalid_server_payload},
          true <- is_list(channels) or {:error, :invalid_payload},
          true <- is_list(messages) or {:error, :invalid_payload},
+         true <- is_list(reactions) or {:error, :invalid_payload},
+         true <- is_list(read_cursors) or {:error, :invalid_payload},
+         true <- is_list(message_deletions) or {:error, :invalid_payload},
+         true <- is_list(extensions) or {:error, :invalid_payload},
          true <- is_map(governance) or {:error, :invalid_snapshot_governance},
          true <- snapshot_governance_present?(payload) or {:error, :invalid_snapshot_governance},
          true <-
@@ -53,7 +61,12 @@ defmodule Elektrine.Messaging.Federation.Validation do
          :ok <- validate_snapshot_signature(payload, remote_domain, context),
          :ok <- validate_snapshot_message_actors(messages, remote_domain, context),
          :ok <- validate_snapshot_origin_owned_identifiers(payload, remote_domain),
-         :ok <- validate_snapshot_governance_shape(governance, remote_domain, context) do
+         :ok <- validate_snapshot_stream_positions(stream_positions, remote_domain),
+         :ok <- validate_snapshot_governance_shape(governance, remote_domain, context),
+         :ok <- validate_snapshot_reactions(reactions, remote_domain, context),
+         :ok <- validate_snapshot_read_cursors(read_cursors, remote_domain, context),
+         :ok <- validate_snapshot_message_deletions(message_deletions, remote_domain, context),
+         :ok <- validate_snapshot_extensions(extensions, remote_domain, context) do
       :ok
     else
       {:error, reason} -> {:error, reason}
@@ -61,7 +74,8 @@ defmodule Elektrine.Messaging.Federation.Validation do
     end
   end
 
-  def validate_snapshot_payload(_payload, _remote_domain, _context), do: {:error, :invalid_payload}
+  def validate_snapshot_payload(_payload, _remote_domain, _context),
+    do: {:error, :invalid_payload}
 
   def validate_event_payload(payload, remote_domain, context)
       when is_map(payload) and is_binary(remote_domain) and is_map(context) do
@@ -123,7 +137,7 @@ defmodule Elektrine.Messaging.Federation.Validation do
       when is_binary(event_type) and is_map(payload) and is_binary(remote_domain) and
              is_map(context) do
     with :ok <- ArblargSDK.validate_event_payload(event_type, payload),
-         :ok <- validate_origin_bound_actors_in_event_data(event_type, payload, remote_domain, context),
+         :ok <- validate_snapshot_governance_actors(event_type, payload, remote_domain, context),
          :ok <-
            validate_origin_owned_identifiers_in_event_data(
              event_type,
@@ -140,11 +154,31 @@ defmodule Elektrine.Messaging.Federation.Validation do
   def validate_snapshot_governance_payload(_event_type, _payload, _remote_domain, _context),
     do: {:error, :invalid_snapshot_governance}
 
+  defp validate_snapshot_governance_actors("membership.upsert", payload, _remote_domain, _context)
+       when is_map(payload) do
+    actor = get_in(payload, ["membership", "actor"])
+
+    if actor_domain_matches_origin?(actor, actor_origin_domain(actor)) do
+      :ok
+    else
+      {:error, :origin_actor_domain_mismatch}
+    end
+  end
+
+  defp validate_snapshot_governance_actors(event_type, payload, remote_domain, context) do
+    validate_snapshot_origin_bound_actors_in_event_data(
+      event_type,
+      payload,
+      remote_domain,
+      context
+    )
+  end
+
   def validate_origin_bound_actors_in_event_data(event_type, data, remote_domain, context)
       when is_binary(event_type) and is_map(data) and is_binary(remote_domain) and is_map(context) do
     actors =
       event_type
-      |> ArblargSDK.canonical_event_type()
+      |> normalized_event_name()
       |> origin_bound_actors(data)
 
     if Enum.all?(actors, &actor_domain_matches_origin?(&1, remote_domain)) do
@@ -161,7 +195,7 @@ defmodule Elektrine.Messaging.Federation.Validation do
       when is_binary(event_type) and is_map(data) and is_binary(remote_domain) and is_map(context) do
     identifiers =
       event_type
-      |> ArblargSDK.canonical_event_type()
+      |> normalized_event_name()
       |> origin_owned_event_identifiers(data, context)
 
     if Enum.all?(identifiers, &origin_owned_absolute_uri?(&1, remote_domain)) do
@@ -171,8 +205,13 @@ defmodule Elektrine.Messaging.Federation.Validation do
     end
   end
 
-  def validate_origin_owned_identifiers_in_event_data(_event_type, _data, _remote_domain, _context),
-    do: {:error, :invalid_payload}
+  def validate_origin_owned_identifiers_in_event_data(
+        _event_type,
+        _data,
+        _remote_domain,
+        _context
+      ),
+      do: {:error, :invalid_payload}
 
   defp maybe_verify_envelope_signature(payload, remote_domain, context) do
     case payload["signature"] do
@@ -236,6 +275,15 @@ defmodule Elektrine.Messaging.Federation.Validation do
       "ban.upsert" ->
         [get_in(data, ["ban", "actor"])]
 
+      "role.upsert" ->
+        [data["actor"]]
+
+      "role.assignment.upsert" ->
+        [data["actor"]]
+
+      "permission.overwrite.upsert" ->
+        [data["actor"]]
+
       "thread.upsert" ->
         [get_in(data, ["thread", "owner"])]
 
@@ -256,6 +304,21 @@ defmodule Elektrine.Messaging.Federation.Validation do
 
       "dm.message.create" ->
         [get_in(data, ["dm", "sender"]), get_in(data, ["message", "sender"])]
+
+      "dm.call.invite" ->
+        [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), get_in(data, ["call", "actor"])]
+
+      "dm.call.accept" ->
+        [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), data["actor"]]
+
+      "dm.call.reject" ->
+        [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), data["actor"]]
+
+      "dm.call.end" ->
+        [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), data["actor"]]
+
+      "dm.call.signal" ->
+        [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), data["actor"]]
 
       _ ->
         []
@@ -295,7 +358,14 @@ defmodule Elektrine.Messaging.Federation.Validation do
   defp validate_stream_origin(stream_id, remote_domain)
        when is_binary(stream_id) and is_binary(remote_domain) do
     case String.split(stream_id, ":", parts: 2) do
-      [_scope, identifier] when identifier != "" ->
+      ["channel", identifier] when identifier != "" ->
+        if absolute_http_uri?(identifier) do
+          :ok
+        else
+          {:error, :origin_stream_host_mismatch}
+        end
+
+      [scope, identifier] when scope in ["server", "dm"] and identifier != "" ->
         if origin_owned_absolute_uri?(identifier, remote_domain) do
           :ok
         else
@@ -312,40 +382,67 @@ defmodule Elektrine.Messaging.Federation.Validation do
   defp origin_owned_event_identifiers(event_type, data, context)
        when is_binary(event_type) and is_map(data) and is_map(context) do
     base_context_ids =
-      [
-        call(context, :event_server_id, [data]),
-        call(context, :event_channel_id, [data])
-      ]
-      |> Enum.filter(&is_binary/1)
+      if multi_origin_room_event_type?(event_type) or
+           room_scoped_presence_event_type?(event_type, data) do
+        []
+      else
+        [
+          call(context, :event_server_id, [data]),
+          call(context, :event_channel_id, [data])
+        ]
+        |> Enum.filter(&is_binary/1)
+      end
 
     event_specific_ids =
       case event_type do
         "server.upsert" ->
-          Enum.map(data["channels"] || [], &Map.get(&1, "id"))
+          [get_in(data, ["server", "id"]) | Enum.map(data["channels"] || [], &Map.get(&1, "id"))]
 
         "message.create" ->
-          [get_in(data, ["message", "id"]), get_in(data, ["message", "channel_id"])]
+          [get_in(data, ["message", "id"])]
 
         "message.update" ->
-          [get_in(data, ["message", "id"]), get_in(data, ["message", "channel_id"])]
+          [get_in(data, ["message", "id"])]
 
         "message.delete" ->
           [data["message_id"]]
-
-        "reaction.add" ->
-          [data["message_id"]]
-
-        "reaction.remove" ->
-          [data["message_id"]]
-
-        "read.cursor" ->
-          [data["read_through_message_id"]]
 
         "dm.message.create" ->
           [
             get_in(data, ["dm", "id"]),
             get_in(data, ["message", "id"]),
             get_in(data, ["message", "dm_id"])
+          ]
+
+        "dm.call.invite" ->
+          [
+            get_in(data, ["dm", "id"]),
+            get_in(data, ["call", "id"]),
+            get_in(data, ["call", "dm_id"])
+          ]
+
+        "dm.call.accept" ->
+          [
+            get_in(data, ["dm", "id"]),
+            data["call_id"]
+          ]
+
+        "dm.call.reject" ->
+          [
+            get_in(data, ["dm", "id"]),
+            data["call_id"]
+          ]
+
+        "dm.call.end" ->
+          [
+            get_in(data, ["dm", "id"]),
+            data["call_id"]
+          ]
+
+        "dm.call.signal" ->
+          [
+            get_in(data, ["dm", "id"]),
+            data["call_id"]
           ]
 
         _ ->
@@ -363,14 +460,13 @@ defmodule Elektrine.Messaging.Federation.Validation do
        when is_map(payload) and is_binary(remote_domain) do
     server_ids = [get_in(payload, ["server", "id"])]
     channel_ids = Enum.map(payload["channels"] || [], &Map.get(&1, "id"))
+    message_channel_ids = Enum.map(payload["messages"] || [], &Map.get(&1, "channel_id"))
 
-    message_ids =
-      Enum.flat_map(payload["messages"] || [], fn message ->
-        [message["id"], message["channel_id"]]
-      end)
+    deletion_channel_ids =
+      Enum.map(payload["message_deletions"] || [], &get_in(&1, ["refs", "channel_id"]))
 
     identifiers =
-      (server_ids ++ channel_ids ++ message_ids)
+      (server_ids ++ channel_ids ++ message_channel_ids ++ deletion_channel_ids)
       |> Enum.filter(&is_binary/1)
 
     if Enum.all?(identifiers, &origin_owned_absolute_uri?(&1, remote_domain)) do
@@ -386,11 +482,9 @@ defmodule Elektrine.Messaging.Federation.Validation do
   defp validate_snapshot_message_actors(messages, remote_domain, context)
        when is_list(messages) and is_binary(remote_domain) and is_map(context) do
     Enum.reduce_while(messages, :ok, fn message, :ok ->
-      payload = %{"message" => message, "refs" => %{"channel_id" => message["channel_id"]}}
-
-      case validate_origin_bound_actors_in_event_data("message.create", payload, remote_domain, context) do
-        :ok -> {:cont, :ok}
-        {:error, reason} -> {:halt, {:error, reason}}
+      case snapshot_message_origin_valid?(message, remote_domain) do
+        true -> {:cont, :ok}
+        false -> {:halt, {:error, :origin_actor_domain_mismatch}}
       end
     end)
   end
@@ -411,6 +505,147 @@ defmodule Elektrine.Messaging.Federation.Validation do
 
   defp validate_snapshot_governance_shape(_governance, _remote_domain, _context),
     do: {:error, :invalid_snapshot_governance}
+
+  defp validate_snapshot_reactions(reactions, remote_domain, context)
+       when is_list(reactions) and is_binary(remote_domain) and is_map(context) do
+    validate_snapshot_event_list(
+      reactions,
+      "reaction.add",
+      remote_domain,
+      context,
+      :invalid_payload
+    )
+  end
+
+  defp validate_snapshot_reactions(_reactions, _remote_domain, _context),
+    do: {:error, :invalid_payload}
+
+  defp validate_snapshot_read_cursors(read_cursors, remote_domain, context)
+       when is_list(read_cursors) and is_binary(remote_domain) and is_map(context) do
+    validate_snapshot_event_list(
+      read_cursors,
+      "read.cursor",
+      remote_domain,
+      context,
+      :invalid_payload
+    )
+  end
+
+  defp validate_snapshot_read_cursors(_read_cursors, _remote_domain, _context),
+    do: {:error, :invalid_payload}
+
+  defp validate_snapshot_message_deletions(message_deletions, remote_domain, context)
+       when is_list(message_deletions) and is_binary(remote_domain) and is_map(context) do
+    validate_snapshot_event_list(
+      message_deletions,
+      "message.delete",
+      remote_domain,
+      context,
+      :invalid_payload
+    )
+  end
+
+  defp validate_snapshot_message_deletions(_message_deletions, _remote_domain, _context),
+    do: {:error, :invalid_payload}
+
+  defp validate_snapshot_extensions(extensions, remote_domain, context)
+       when is_list(extensions) and is_binary(remote_domain) and is_map(context) do
+    Enum.reduce_while(extensions, :ok, fn extension_entry, :ok ->
+      case extension_entry do
+        %{"event_type" => event_type, "payload" => payload}
+        when is_binary(event_type) and is_map(payload) ->
+          case validate_snapshot_event_entry(event_type, payload, remote_domain, context) do
+            :ok -> {:cont, :ok}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+
+        _ ->
+          {:halt, {:error, :invalid_payload}}
+      end
+    end)
+  end
+
+  defp validate_snapshot_extensions(_extensions, _remote_domain, _context),
+    do: {:error, :invalid_payload}
+
+  defp validate_snapshot_stream_positions(stream_positions, remote_domain)
+       when is_list(stream_positions) and is_binary(remote_domain) do
+    if Enum.all?(stream_positions, &valid_snapshot_stream_position?(&1, remote_domain)) do
+      :ok
+    else
+      {:error, :invalid_snapshot_stream_positions}
+    end
+  end
+
+  defp validate_snapshot_stream_positions(_stream_positions, _remote_domain),
+    do: {:error, :invalid_snapshot_stream_positions}
+
+  defp validate_snapshot_event_list(entries, event_type, remote_domain, context, error_reason)
+       when is_list(entries) and is_binary(event_type) and is_binary(remote_domain) and
+              is_map(context) do
+    Enum.reduce_while(entries, :ok, fn payload, :ok ->
+      case validate_snapshot_event_entry(event_type, payload, remote_domain, context) do
+        :ok -> {:cont, :ok}
+        {:error, _reason} -> {:halt, {:error, error_reason}}
+      end
+    end)
+  end
+
+  defp validate_snapshot_event_entry(event_type, payload, remote_domain, context)
+       when is_binary(event_type) and is_map(payload) and is_binary(remote_domain) and
+              is_map(context) do
+    with :ok <- ArblargSDK.validate_event_payload(event_type, payload),
+         :ok <-
+           validate_snapshot_origin_bound_actors_in_event_data(
+             event_type,
+             payload,
+             remote_domain,
+             context
+           ),
+         :ok <-
+           validate_origin_owned_identifiers_in_event_data(
+             event_type,
+             payload,
+             remote_domain,
+             context
+           ) do
+      :ok
+    end
+  end
+
+  defp validate_snapshot_event_entry(_event_type, _payload, _remote_domain, _context),
+    do: {:error, :invalid_payload}
+
+  defp validate_snapshot_origin_bound_actors_in_event_data(
+         event_type,
+         data,
+         remote_domain,
+         context
+       )
+       when is_binary(event_type) and is_map(data) and is_binary(remote_domain) and
+              is_map(context) do
+    normalized_event_type = normalized_event_name(event_type)
+
+    if multi_origin_room_event_type?(normalized_event_type) do
+      actors = origin_bound_actors(normalized_event_type, data)
+
+      if Enum.all?(actors, &snapshot_actor_origin_valid?/1) do
+        :ok
+      else
+        {:error, :origin_actor_domain_mismatch}
+      end
+    else
+      validate_origin_bound_actors_in_event_data(event_type, data, remote_domain, context)
+    end
+  end
+
+  defp validate_snapshot_origin_bound_actors_in_event_data(
+         _event_type,
+         _data,
+         _remote_domain,
+         _context
+       ),
+       do: {:error, :invalid_payload}
 
   defp validate_snapshot_signature(payload, remote_domain, context)
        when is_map(payload) and is_binary(remote_domain) and is_map(context) do
@@ -457,6 +692,19 @@ defmodule Elektrine.Messaging.Federation.Validation do
 
   defp origin_owned_absolute_uri?(_value, _remote_domain), do: false
 
+  defp absolute_http_uri?(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp absolute_http_uri?(_value), do: false
+
   defp host_belongs_to_domain?(host, remote_domain)
        when is_binary(host) and is_binary(remote_domain) do
     normalized_host = String.downcase(host)
@@ -492,12 +740,157 @@ defmodule Elektrine.Messaging.Federation.Validation do
 
   defp snapshot_stream_positions_present?(_payload), do: false
 
+  defp valid_snapshot_stream_position?(position, remote_domain)
+       when is_map(position) and is_binary(remote_domain) do
+    origin_domain =
+      normalize_optional_string(position["origin_domain"] || position[:origin_domain]) ||
+        remote_domain
+
+    stream_id = position["stream_id"] || position[:stream_id]
+    last_sequence = position["last_sequence"] || position[:last_sequence]
+
+    case {origin_domain, stream_id, last_sequence} do
+      {origin_domain, stream_id, last_sequence}
+      when is_binary(origin_domain) and is_binary(stream_id) and is_integer(last_sequence) and
+             last_sequence >= 0 ->
+        case String.split(stream_id, ":", parts: 2) do
+          ["channel", identifier] when identifier != "" ->
+            absolute_http_uri?(identifier)
+
+          [scope, identifier] when scope in ["server", "dm"] and identifier != "" ->
+            origin_owned_absolute_uri?(identifier, origin_domain)
+
+          _ ->
+            false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_snapshot_stream_position?(_position, _remote_domain), do: false
+
   defp normalize_optional_string(value) when is_binary(value) do
     trimmed = String.trim(value)
     if trimmed == "", do: nil, else: trimmed
   end
 
   defp normalize_optional_string(_value), do: nil
+
+  defp snapshot_message_origin_valid?(message, snapshot_origin_domain)
+       when is_map(message) and is_binary(snapshot_origin_domain) do
+    message_id = normalize_optional_string(message["id"])
+
+    cond do
+      !is_binary(message_id) ->
+        false
+
+      is_map(message["sender"]) ->
+        sender_domain = actor_origin_domain(message["sender"])
+
+        is_binary(sender_domain) and
+          actor_domain_matches_origin?(message["sender"], sender_domain) and
+          origin_owned_absolute_uri?(message_id, sender_domain)
+
+      true ->
+        origin_owned_absolute_uri?(message_id, snapshot_origin_domain)
+    end
+  end
+
+  defp snapshot_message_origin_valid?(_message, _snapshot_origin_domain), do: false
+
+  defp snapshot_actor_origin_valid?(nil), do: true
+
+  defp snapshot_actor_origin_valid?(actor) when is_map(actor) do
+    case actor_origin_domain(actor) do
+      origin_domain when is_binary(origin_domain) ->
+        actor_domain_matches_origin?(actor, origin_domain)
+
+      _ ->
+        false
+    end
+  end
+
+  defp snapshot_actor_origin_valid?(_actor), do: false
+
+  defp actor_origin_domain(actor) when is_map(actor) do
+    normalize_optional_string(actor["domain"] || actor[:domain]) ||
+      actor
+      |> actor_uri()
+      |> actor_uri_host()
+  end
+
+  defp actor_origin_domain(_actor), do: nil
+
+  defp actor_uri(actor) when is_map(actor) do
+    normalize_optional_string(actor["uri"] || actor[:uri] || actor["id"] || actor[:id])
+  end
+
+  defp actor_uri(_actor), do: nil
+
+  defp actor_uri_host(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> String.downcase(host)
+      _ -> nil
+    end
+  end
+
+  defp actor_uri_host(_uri), do: nil
+
+  defp room_participation_event_type?(event_type)
+       when event_type in [
+              "message.create",
+              "message.update",
+              "message.delete",
+              "reaction.add",
+              "reaction.remove",
+              "read.cursor",
+              "membership.upsert",
+              "typing.start",
+              "typing.stop"
+            ],
+       do: true
+
+  defp room_participation_event_type?(_event_type), do: false
+
+  defp shared_room_governance_event_type?(event_type)
+       when event_type in [
+              "invite.upsert",
+              "ban.upsert",
+              "role.upsert",
+              "role.assignment.upsert",
+              "permission.overwrite.upsert",
+              "thread.upsert",
+              "thread.archive",
+              "moderation.action.recorded"
+            ],
+       do: true
+
+  defp shared_room_governance_event_type?(_event_type), do: false
+
+  defp multi_origin_room_event_type?(event_type) do
+    normalized_event_type = normalized_event_name(event_type)
+
+    room_participation_event_type?(normalized_event_type) or
+      shared_room_governance_event_type?(normalized_event_type)
+  end
+
+  defp room_scoped_presence_event_type?(event_type, data)
+       when is_binary(event_type) and is_map(data) do
+    normalized_event_name(event_type) == "presence.update" and
+      (is_binary(get_in(data, ["refs", "channel_id"])) or
+         is_binary(get_in(data, ["channel", "id"])))
+  end
+
+  defp room_scoped_presence_event_type?(_event_type, _data), do: false
+
+  defp normalized_event_name(event_type) when is_binary(event_type) do
+    canonical_event_type = ArblargSDK.canonical_event_type(event_type)
+    Map.get(ArblargSDK.schema_bindings(), canonical_event_type, canonical_event_type)
+  end
+
+  defp normalized_event_name(event_type), do: event_type
 
   defp call(context, key, args) do
     context

@@ -21,13 +21,16 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-2xl mx-auto">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold mb-2">Manage Two-Factor Authentication</h1>
-        <p class="text-base-content/70">Your account is protected with two-factor authentication</p>
-      </div>
-
-      <div id="2fa-manage-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
+    <.account_page
+      title="Two-Factor Authentication"
+      subtitle="Your account is protected with an authenticator app and backup codes."
+      sidebar_tab="security"
+    >
+      <div
+        id="2fa-manage-card"
+        phx-hook="GlassCard"
+        class="card glass-card border border-base-300 shadow-xl"
+      >
         <div class="card-body">
           <div class="flex items-center gap-4 mb-6">
             <.icon name="hero-shield-check" class="w-12 h-12 text-success" />
@@ -78,14 +81,6 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
             >
               <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Disable 2FA
             </button>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="card-actions">
-            <.link href={~p"/account"} class="btn btn-ghost">
-              <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to account settings
-            </.link>
           </div>
         </div>
       </div>
@@ -195,7 +190,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
           <button>close</button>
         </form>
       </dialog>
-    </div>
+    </.account_page>
     """
   end
 end

@@ -258,7 +258,7 @@ defmodule Elektrine.Email.Mailbox do
 
     cond do
       forward_enabled && (is_nil(forward_to) || String.trim(forward_to) == "") ->
-        add_error(changeset, :forward_to, "must be specified when forwarding is enabled")
+        add_error(changeset, :forward_to, "enter a forwarding address")
 
       forward_to && String.trim(forward_to) != "" ->
         changeset
@@ -283,7 +283,7 @@ defmodule Elektrine.Email.Mailbox do
       mailbox_addresses = mailbox_addresses(username, user_id, email)
 
       if String.downcase(forward_to) in Enum.map(mailbox_addresses, &String.downcase/1) do
-        add_error(changeset, :forward_to, "cannot forward to the same email address")
+        add_error(changeset, :forward_to, "choose a different forwarding address")
       else
         changeset
       end
@@ -307,14 +307,14 @@ defmodule Elektrine.Email.Mailbox do
           add_error(
             changeset,
             :forward_to,
-            "forwarding loop detected - this would create an infinite forwarding cycle"
+            "this forwarding address would create a loop"
           )
 
         :max_depth_reached ->
           add_error(
             changeset,
             :forward_to,
-            "forwarding chain too deep - maximum 10 hops allowed"
+            "this forwarding chain is too long"
           )
 
         :safe ->

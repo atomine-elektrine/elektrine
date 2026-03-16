@@ -2,7 +2,7 @@ defmodule Elektrine.ActivityPub.Pipeline do
   @moduledoc "Formal pipeline for processing ActivityPub activities.\n\nImplements a structured flow for incoming and outgoing activities:\n1. Validate - Validate activity structure and content\n2. MRF - Apply Message Rewrite Facility policies\n3. Persist - Save to database within a transaction\n4. Side Effects - Handle notifications, broadcasts, etc.\n5. Federate - Deliver to remote instances (for local activities)\n\nAll operations are wrapped in a database transaction for atomicity.\n"
   require Logger
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{MRF, ObjectValidator, SideEffects}
+  alias Elektrine.ActivityPub.{MRF, ObjectValidator, SideEffects, UndoResolver}
   alias Elektrine.Repo
 
   alias Elektrine.ActivityPub.Handlers.{
@@ -153,12 +153,23 @@ defmodule Elektrine.ActivityPub.Pipeline do
 
   defp handle_undo(%{"object" => object_uri}, actor_uri, target_user)
        when is_binary(object_uri) do
-    case ActivityPub.Fetcher.fetch_object(object_uri) do
-      {:ok, object} when is_map(object) ->
+    case UndoResolver.resolve(object_uri, actor_uri) do
+      {:ok, object} ->
         handle_undo(%{"object" => object}, actor_uri, target_user)
 
-      {:error, _} ->
-        {:ok, :acknowledged}
+      :not_found ->
+        case ActivityPub.Fetcher.fetch_object(object_uri) do
+          {:ok, object} when is_map(object) ->
+            handle_undo(%{"object" => object}, actor_uri, target_user)
+
+          {:ok, _object} ->
+            Logger.warning("Undo object #{object_uri} did not resolve to an object map")
+            {:error, :undo_activity_fetch_failed}
+
+          {:error, reason} ->
+            Logger.warning("Failed to fetch Undo object #{object_uri}: #{inspect(reason)}")
+            {:error, :undo_activity_fetch_failed}
+        end
     end
   end
 

@@ -34,16 +34,19 @@ defmodule ElektrineWeb.Plugs.PATAuth do
   """
   import Plug.Conn
 
+  alias Elektrine.Accounts
   alias Elektrine.Developer
   alias Elektrine.Developer.ApiToken
   alias ElektrineWeb.API.Response
   alias ElektrineWeb.ClientIP
+  alias ElektrineWeb.Plugs.APIAuth
 
   def init(opts) do
     %{
       scopes: Keyword.get(opts, :scopes, []),
       any: Keyword.get(opts, :any, true),
-      optional: Keyword.get(opts, :optional, false)
+      optional: Keyword.get(opts, :optional, false),
+      allow_api_token: Keyword.get(opts, :allow_api_token, false)
     }
   end
 
@@ -75,12 +78,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
 
           # Token doesn't have correct prefix
           not String.starts_with?(token, "ekt_") ->
-            # Fall through to other auth methods if optional
-            if opts.optional do
-              conn
-            else
-              auth_error(conn, :invalid_token_format)
-            end
+            handle_non_pat_token(conn, token, opts)
 
           # Verify token
           true ->
@@ -126,6 +124,31 @@ defmodule ElektrineWeb.Plugs.PATAuth do
     end
   end
 
+  defp handle_non_pat_token(conn, token, opts) do
+    cond do
+      opts.allow_api_token ->
+        case verify_api_token(token) do
+          {:ok, user} ->
+            conn
+            |> assign(:current_user, user)
+            |> assign(:auth_method, :api_token)
+
+          {:error, reason} ->
+            if opts.optional do
+              conn
+            else
+              auth_error(conn, reason)
+            end
+        end
+
+      opts.optional ->
+        conn
+
+      true ->
+        auth_error(conn, :invalid_token_format)
+    end
+  end
+
   defp verify_and_authorize(token, opts, conn) do
     ip_address = get_client_ip(conn)
 
@@ -140,6 +163,16 @@ defmodule ElektrineWeb.Plugs.PATAuth do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp verify_api_token(token) do
+    with {:ok, user_id} <- APIAuth.verify_token_internal(token) do
+      try do
+        {:ok, Accounts.get_user!(user_id)}
+      rescue
+        Ecto.NoResultsError -> {:error, :invalid_token}
+      end
     end
   end
 

@@ -59,6 +59,58 @@ defmodule Elektrine.Messaging.Federation.Egress do
     Publisher.publish_dm_message_created(message, remote_handle, publisher_context)
   end
 
+  def publish_dm_call_invite(session_id) do
+    publish_dm_call_invite(session_id, publisher_context())
+  end
+
+  def publish_dm_call_invite(session_id, publisher_context) do
+    Publisher.publish_dm_call_invite(session_id, publisher_context)
+  end
+
+  def publish_dm_call_accept(session_id) do
+    publish_dm_call_accept(session_id, publisher_context())
+  end
+
+  def publish_dm_call_accept(session_id, publisher_context) do
+    Publisher.publish_dm_call_accept(session_id, publisher_context)
+  end
+
+  def publish_dm_call_reject(session_id) do
+    publish_dm_call_reject(session_id, publisher_context())
+  end
+
+  def publish_dm_call_reject(session_id, publisher_context) do
+    Publisher.publish_dm_call_reject(session_id, publisher_context)
+  end
+
+  def publish_dm_call_end(session_id) do
+    publish_dm_call_end(session_id, publisher_context())
+  end
+
+  def publish_dm_call_end(session_id, publisher_context) do
+    Publisher.publish_dm_call_end(session_id, publisher_context)
+  end
+
+  def publish_dm_call_signal(session_id, actor_user_id, kind, signal_payload) do
+    publish_dm_call_signal(session_id, actor_user_id, kind, signal_payload, publisher_context())
+  end
+
+  def publish_dm_call_signal(
+        session_id,
+        actor_user_id,
+        kind,
+        signal_payload,
+        publisher_context
+      ) do
+    Publisher.publish_dm_call_signal(
+      session_id,
+      actor_user_id,
+      kind,
+      signal_payload,
+      publisher_context
+    )
+  end
+
   def publish_message_updated(message) do
     publish_message_updated(message, publisher_context())
   end
@@ -157,12 +209,64 @@ defmodule Elektrine.Messaging.Federation.Egress do
     Publisher.publish_presence_update(server_id, user_id, status, activities, publisher_context)
   end
 
+  def publish_room_presence_update(conversation_id, user_id, status, activities \\ []) do
+    publish_room_presence_update(
+      conversation_id,
+      user_id,
+      status,
+      activities,
+      publisher_context()
+    )
+  end
+
+  def publish_room_presence_update(
+        conversation_id,
+        user_id,
+        status,
+        activities,
+        publisher_context
+      ) do
+    Publisher.publish_room_presence_update(
+      conversation_id,
+      user_id,
+      status,
+      activities,
+      publisher_context
+    )
+  end
+
   def publish_user_presence_update(user_id, status, activities \\ []) do
     publish_user_presence_update(user_id, status, activities, publisher_context())
   end
 
   def publish_user_presence_update(user_id, status, activities, publisher_context) do
     Publisher.publish_user_presence_update(user_id, status, activities, publisher_context)
+  end
+
+  def publish_extension_event(conversation_id, actor_user_id, event_type, payload) do
+    publish_extension_event(
+      conversation_id,
+      actor_user_id,
+      event_type,
+      payload,
+      publisher_context()
+    )
+  end
+
+  def publish_extension_event(
+        conversation_id,
+        actor_user_id,
+        event_type,
+        payload,
+        publisher_context
+      ) do
+    Publisher.publish_extension_event(
+      conversation_id,
+      actor_user_id,
+      event_type,
+      payload,
+      publisher_context
+    )
   end
 
   def publish_membership_state(conversation_id, user_id, state, role \\ "member") do
@@ -209,7 +313,46 @@ defmodule Elektrine.Messaging.Federation.Egress do
       role,
       metadata,
       publisher_context
-      )
+    )
+  end
+
+  def publish_remote_invite_state(
+        conversation_id,
+        target_payload,
+        actor_user_id,
+        state \\ "pending",
+        role \\ "member",
+        metadata \\ %{}
+      ) do
+    publish_remote_invite_state(
+      conversation_id,
+      target_payload,
+      actor_user_id,
+      state,
+      role,
+      metadata,
+      publisher_context()
+    )
+  end
+
+  def publish_remote_invite_state(
+        conversation_id,
+        target_payload,
+        actor_user_id,
+        state,
+        role,
+        metadata,
+        publisher_context
+      ) do
+    Publisher.publish_remote_invite_state(
+      conversation_id,
+      target_payload,
+      actor_user_id,
+      state,
+      role,
+      metadata,
+      publisher_context
+    )
   end
 
   def publish_ban_state(
@@ -252,53 +395,7 @@ defmodule Elektrine.Messaging.Federation.Egress do
       expires_at,
       metadata,
       publisher_context
-      )
-  end
-
-  def submit_mirror_message_created(message) do
-    submit_mirror_message_created(message, publisher_context())
-  end
-
-  def submit_mirror_message_created(%ChatMessage{} = message, publisher_context) do
-    Publisher.submit_mirror_message_created(message, publisher_context)
-  end
-
-  def submit_mirror_message_updated(message) do
-    submit_mirror_message_updated(message, publisher_context())
-  end
-
-  def submit_mirror_message_updated(%ChatMessage{} = message, publisher_context) do
-    Publisher.submit_mirror_message_updated(message, publisher_context)
-  end
-
-  def submit_mirror_message_deleted(message) do
-    submit_mirror_message_deleted(message, publisher_context())
-  end
-
-  def submit_mirror_message_deleted(%ChatMessage{} = message, publisher_context) do
-    Publisher.submit_mirror_message_deleted(message, publisher_context)
-  end
-
-  def submit_mirror_reaction_added(message, reaction) do
-    submit_mirror_reaction_added(message, reaction, publisher_context())
-  end
-
-  def submit_mirror_reaction_added(
-        %ChatMessage{} = message,
-        %ChatMessageReaction{} = reaction,
-        publisher_context
-      ) do
-    Publisher.submit_mirror_reaction_added(message, reaction, publisher_context)
-  end
-
-  def submit_mirror_reaction_removed(%ChatMessage{} = message, user_id, emoji)
-      when is_integer(user_id) do
-    submit_mirror_reaction_removed(message, user_id, emoji, publisher_context())
-  end
-
-  def submit_mirror_reaction_removed(%ChatMessage{} = message, user_id, emoji, publisher_context)
-      when is_integer(user_id) do
-    Publisher.submit_mirror_reaction_removed(message, user_id, emoji, publisher_context)
+    )
   end
 
   def maybe_push_for_conversation(conversation_id) do
@@ -329,6 +426,9 @@ defmodule Elektrine.Messaging.Federation.Egress do
     Contexts.publisher(%{
       enabled?: &Runtime.enabled?/0,
       build_server_snapshot: &Ingress.build_server_snapshot/1,
+      build_server_snapshot_for_peer: fn server_id, peer ->
+        Ingress.build_server_snapshot(server_id, peer: peer)
+      end,
       outgoing_peers: &Elektrine.Messaging.Federation.Peers.outgoing_peers/0,
       push_snapshot_to_peer: &Ingress.push_snapshot_to_peer/2,
       builder_context: &builder_context/0,

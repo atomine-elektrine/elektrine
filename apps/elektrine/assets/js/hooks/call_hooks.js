@@ -62,44 +62,25 @@ function setMediaElementsFromStream(stream) {
  */
 export const CallInitiator = {
   mounted() {
-    this.handleEvent("start_call", ({ call_id, call_type, ice_servers, user_token }) => {
-      this.startCall(call_id, call_type, ice_servers, user_token)
+    this.handleEvent("start_call", ({ call_id, call_type, ice_servers, transport, user_token, user_id }) => {
+      this.startCall(call_id, call_type, ice_servers, transport, user_token, user_id)
+    })
+
+    this.handleEvent("resume_call", ({ call_id, call_type, ice_servers, transport, user_token, user_id, initiator }) => {
+      this.resumeCall(call_id, call_type, ice_servers, transport, user_token, user_id, initiator)
     })
   },
 
-  async startCall(callId, callType, iceServers, userToken) {
+  async startCall(callId, callType, iceServers, transport, userToken, userId) {
     this.cleanup()
 
     try {
       globalRingtone.playOutgoing()
 
       const socket = createSocket(userToken)
-      const client = new WebRTCClient(socket, callId, null, iceServers)
+      const client = new WebRTCClient(socket, callId, userId, iceServers, transport)
 
-      this.client = client
-      window.activeCallClient = client
-
-      client.onRemoteStream((stream) => {
-        this.pushEvent("remote_stream_ready", {})
-        this.setRemoteStream(stream)
-      })
-
-      client.onCallEnded((reason) => {
-        if (reason !== "rejected") {
-          globalRingtone.playEnded()
-        } else {
-          globalRingtone.stop()
-        }
-
-        this.pushEvent("call_ended", { reason })
-        this.cleanup()
-      })
-
-      client.onConnectionEstablished(() => {
-        globalRingtone.stop()
-        globalRingtone.playConnected()
-        this.pushEvent("call_connected", {})
-      })
+      this.attachClient(client)
 
       await client.initialize()
       await client.startCall(callType)
@@ -108,6 +89,27 @@ export const CallInitiator = {
       this.pushEvent("call_started", {})
     } catch (error) {
       globalRingtone.stop()
+      this.pushEvent("call_error", { error: mapCallError(error) })
+
+      if (this.client) {
+        this.client.endCall()
+      }
+    }
+  },
+
+  async resumeCall(callId, callType, iceServers, transport, userToken, userId, initiator) {
+    this.cleanup()
+
+    try {
+      const socket = createSocket(userToken)
+      const client = new WebRTCClient(socket, callId, userId, iceServers, transport)
+
+      this.attachClient(client)
+
+      await client.initialize()
+      await client.resumeCall(callType, Boolean(initiator))
+      this.setLocalStream(client.getLocalStream())
+    } catch (error) {
       this.pushEvent("call_error", { error: mapCallError(error) })
 
       if (this.client) {
@@ -126,6 +128,33 @@ export const CallInitiator = {
 
   setRemoteStream(stream) {
     setMediaElementsFromStream(stream)
+  },
+
+  attachClient(client) {
+    this.client = client
+    window.activeCallClient = client
+
+    client.onRemoteStream((stream) => {
+      this.pushEvent("remote_stream_ready", {})
+      this.setRemoteStream(stream)
+    })
+
+    client.onCallEnded((reason) => {
+      if (reason !== "rejected") {
+        globalRingtone.playEnded()
+      } else {
+        globalRingtone.stop()
+      }
+
+      this.pushEvent("call_ended", { reason })
+      this.cleanup()
+    })
+
+    client.onConnectionEstablished(() => {
+      globalRingtone.stop()
+      globalRingtone.playConnected()
+      this.pushEvent("call_connected", {})
+    })
   },
 
   cleanup() {
@@ -149,8 +178,8 @@ export const CallInitiator = {
  */
 export const CallReceiver = {
   mounted() {
-    this.handleEvent("answer_call", ({ call_id, ice_servers, user_token }) => {
-      this.answerCall(call_id, ice_servers, user_token)
+    this.handleEvent("answer_call", ({ call_id, ice_servers, transport, user_token, user_id }) => {
+      this.answerCall(call_id, ice_servers, transport, user_token, user_id)
     })
 
     this.handleEvent("reject_call", ({ call_id, user_token }) => {
@@ -166,14 +195,14 @@ export const CallReceiver = {
     })
   },
 
-  async answerCall(callId, iceServers, userToken) {
+  async answerCall(callId, iceServers, transport, userToken, userId) {
     this.cleanup()
 
     try {
       globalRingtone.stop()
 
       const socket = createSocket(userToken)
-      const client = new WebRTCClient(socket, callId, null, iceServers)
+      const client = new WebRTCClient(socket, callId, userId, iceServers, transport)
 
       this.client = client
       window.activeCallClient = client
@@ -219,7 +248,7 @@ export const CallReceiver = {
       globalRingtone.stop()
 
       const socket = createSocket(userToken)
-      const client = new WebRTCClient(socket, callId, null, [])
+      const client = new WebRTCClient(socket, callId, null, [], null)
 
       await client.initialize()
       client.rejectCall()

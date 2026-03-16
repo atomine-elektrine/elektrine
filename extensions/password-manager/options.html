@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elektrine Password Manager Settings</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell page-shell">
+      <section class="hero">
+        <span class="eyebrow">Password Manager</span>
+        <h1>Extension Settings</h1>
+        <p>
+          Sign in with your Elektrine account to connect this browser. Your vault passphrase stays
+          only for the current browser session.
+        </p>
+      </section>
+
+      <div id="statusMessage" class="feedback hidden"></div>
+
+      <section class="panel">
+        <h2>Server</h2>
+        <p>Use the base URL for the Elektrine server this browser should connect to.</p>
+        <div class="options-grid">
+          <div class="field">
+            <label for="serverUrl">Server URL</label>
+            <input id="serverUrl" type="url" placeholder="https://your-elektrine.example" required />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Account sign-in</h2>
+        <p>Use your normal Elektrine username and password.</p>
+        <div class="options-grid">
+          <div class="field">
+            <label for="accountUsername">Username</label>
+            <input id="accountUsername" type="text" placeholder="your-username" autocomplete="username" />
+          </div>
+          <div class="field">
+            <label for="accountPassword">Password</label>
+            <input id="accountPassword" type="password" autocomplete="current-password" />
+          </div>
+        </div>
+        <div class="actions">
+          <button id="signInButton" class="button" type="button">Sign in</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Connection</h2>
+        <p id="connectionSummary">Not signed in on this browser yet.</p>
+        <div class="actions">
+          <button id="testButton" class="button secondary" type="button">Test connection</button>
+          <button id="signOutButton" class="button ghost" type="button">Sign out</button>
+          <button id="clearPassphraseButton" class="button ghost" type="button">Clear session passphrase</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Notes</h2>
+        <ul class="help-list">
+          <li>Account sign-in keeps this browser connected to your Elektrine account.</li>
+          <li>The vault passphrase is stored only for the current browser session.</li>
+          <li>Signing out disconnects this browser from your account.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

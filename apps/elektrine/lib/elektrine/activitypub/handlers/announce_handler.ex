@@ -12,12 +12,15 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   @doc """
   Handles an incoming Announce activity.
   """
-  def handle(%{"object" => object_uri}, actor_uri, _target_user) when is_binary(object_uri) do
+  def handle(%{"object" => object_uri} = activity, actor_uri, _target_user)
+      when is_binary(object_uri) do
+    activity_id = activity["id"]
+
     case get_local_message_from_uri(object_uri) do
       {:ok, message} ->
         # Local post being boosted
         with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-          case Messaging.create_federated_boost(message.id, remote_actor.id) do
+          case Messaging.create_federated_boost(message.id, remote_actor.id, activity_id) do
             {:ok, _} ->
               Async.run(fn ->
                 Elektrine.Notifications.FederationNotifications.notify_remote_announce(
@@ -35,7 +38,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
         end
 
       {:error, :message_not_found} ->
-        handle_remote_announce(object_uri, actor_uri)
+        handle_remote_announce(object_uri, actor_uri, activity_id)
     end
   end
 
@@ -73,7 +76,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   Handles Undo Announce activity.
   """
   def handle_undo(%{"object" => object_ref}, actor_uri) do
-    object_uri = normalize_object_id(object_ref)
+    object_uri = resolve_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
@@ -92,11 +95,10 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
   # Private functions
 
-  defp handle_remote_announce(object_uri, actor_uri) do
+  defp handle_remote_announce(object_uri, actor_uri, announce_activity_id) do
     with {:ok, booster_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
-         {:ok, object} <- Elektrine.ActivityPub.Fetcher.fetch_object(object_uri) do
-      {actual_object, original_actor_uri} = unwrap_object(object)
-
+         {:ok, object} <- Elektrine.ActivityPub.Fetcher.fetch_object(object_uri),
+         {:ok, {actual_object, original_actor_uri}} <- unwrap_object(object) do
       cond do
         is_nil(actual_object) ->
           {:ok, :ignored}
@@ -111,36 +113,53 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
           {:ok, :ignored}
 
         true ->
-          create_or_boost_post(actual_object, original_actor_uri, booster_actor)
+          create_or_boost_post(
+            actual_object,
+            original_actor_uri,
+            booster_actor,
+            announce_activity_id
+          )
       end
     else
+      {:error, :nested_fetch_failed} ->
+        {:error, :announce_object_fetch_failed}
+
       {:error, reason} ->
         Logger.warning("Failed to fetch announced object #{object_uri}: #{inspect(reason)}")
-        if activity_wrapper_uri?(object_uri), do: {:ok, :ignored}, else: {:error, :fetch_failed}
+        {:error, :announce_object_fetch_failed}
     end
   end
 
   defp unwrap_object(object, depth \\ 0)
-  defp unwrap_object(_object, depth) when depth > 4, do: {nil, nil}
+  defp unwrap_object(_object, depth) when depth > 4, do: {:ok, {nil, nil}}
 
   defp unwrap_object(object, depth) do
     case object["type"] do
       type when type in ["Note", "Page", "Article"] ->
-        {object, object["attributedTo"]}
+        {:ok, {object, object["attributedTo"]}}
 
       "Create" ->
         inner_object = object["object"]
 
         if is_map(inner_object) do
-          {inner_object, inner_object["attributedTo"] || object["actor"]}
+          inherited_object = inherit_wrapper_fields(object, inner_object)
+          {:ok, {inherited_object, inherited_object["attributedTo"] || object["actor"]}}
         else
           case Elektrine.ActivityPub.Fetcher.fetch_object(inner_object) do
             {:ok, fetched} ->
-              {resolved, actor_uri} = unwrap_object(fetched, depth + 1)
-              {resolved, actor_uri || fetched["attributedTo"] || object["actor"]}
+              inherited_object = inherit_wrapper_fields(object, fetched)
 
-            _ ->
-              {nil, nil}
+              with {:ok, {resolved, actor_uri}} <- unwrap_object(inherited_object, depth + 1) do
+                {:ok,
+                 {resolved, actor_uri || inherited_object["attributedTo"] || object["actor"]}}
+              end
+
+            {:error, reason} ->
+              Logger.warning(
+                "Failed to fetch nested announced object #{inspect(inner_object)}: #{inspect(reason)}"
+              )
+
+              {:error, :nested_fetch_failed}
           end
         end
 
@@ -148,30 +167,41 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
         unwrap_announced_object(object["object"], object["actor"], depth + 1)
 
       _ ->
-        {nil, nil}
+        {:ok, {nil, nil}}
     end
   end
 
   defp unwrap_announced_object(object_ref, fallback_actor_uri, depth) when is_map(object_ref) do
-    {resolved, actor_uri} = unwrap_object(object_ref, depth)
-    {resolved, actor_uri || fallback_actor_uri}
+    with {:ok, {resolved, actor_uri}} <- unwrap_object(object_ref, depth) do
+      {:ok, {resolved, actor_uri || fallback_actor_uri}}
+    end
   end
 
   defp unwrap_announced_object(object_ref, fallback_actor_uri, depth)
        when is_binary(object_ref) do
     case Elektrine.ActivityPub.Fetcher.fetch_object(object_ref) do
       {:ok, fetched} ->
-        {resolved, actor_uri} = unwrap_object(fetched, depth)
-        {resolved, actor_uri || fallback_actor_uri}
+        with {:ok, {resolved, actor_uri}} <- unwrap_object(fetched, depth) do
+          {:ok, {resolved, actor_uri || fallback_actor_uri}}
+        end
 
-      _ ->
-        {nil, nil}
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to fetch nested announced object #{inspect(object_ref)}: #{inspect(reason)}"
+        )
+
+        {:error, :nested_fetch_failed}
     end
   end
 
-  defp unwrap_announced_object(_object_ref, _fallback_actor_uri, _depth), do: {nil, nil}
+  defp unwrap_announced_object(_object_ref, _fallback_actor_uri, _depth), do: {:ok, {nil, nil}}
 
-  defp create_or_boost_post(actual_object, original_actor_uri, booster_actor) do
+  defp create_or_boost_post(
+         actual_object,
+         original_actor_uri,
+         booster_actor,
+         announce_activity_id
+       ) do
     # Delegate to CreateHandler for the actual post creation
     alias Elektrine.ActivityPub.Handlers.CreateHandler
 
@@ -182,69 +212,93 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
         []
       end
 
-    case CreateHandler.create_note(actual_object, original_actor_uri, create_opts) do
-      {:ok, :already_exists} ->
-        # Skip boost treatment for community distributions and relay actors
-        is_distribution = distribution_actor?(booster_actor)
+    with :ok <- CreateHandler.validate_object_author(actual_object, original_actor_uri),
+         false <-
+           ActivityPub.remote_delete_recorded?(original_actor_uri, [
+             actual_object["id"],
+             actual_object["url"]
+           ]) do
+      case CreateHandler.create_note(actual_object, original_actor_uri, create_opts) do
+        {:ok, :already_exists} ->
+          # Skip boost treatment for community distributions and relay actors
+          is_distribution = distribution_actor?(booster_actor)
 
-        unless is_distribution do
-          ap_id = actual_object["id"]
+          unless is_distribution do
+            ap_id = actual_object["id"]
 
-          case Elektrine.Repo.get_by(Elektrine.Messaging.Message, activitypub_id: ap_id) do
-            %{id: message_id} ->
-              Messaging.create_federated_boost(message_id, booster_actor.id)
+            case Elektrine.Repo.get_by(Elektrine.Messaging.Message, activitypub_id: ap_id) do
+              %{id: message_id, deleted_at: nil} ->
+                Messaging.create_federated_boost(
+                  message_id,
+                  booster_actor.id,
+                  announce_activity_id
+                )
 
-            nil ->
-              :ok
-          end
-        end
+              nil ->
+                :ok
 
-        {:ok, :announced}
-
-      {:ok, message} when is_struct(message) ->
-        # Skip boost treatment for community distributions and relay actors
-        is_distribution = distribution_actor?(booster_actor)
-
-        updated_msg =
-          if is_distribution do
-            message
-          else
-            Messaging.create_federated_boost(message.id, booster_actor.id)
-
-            case Elektrine.Messaging.Messages.update_message_metadata(message, %{
-                   media_metadata:
-                     Map.merge(message.media_metadata || %{}, %{
-                       "boosted_by" => %{
-                         "username" => booster_actor.username,
-                         "domain" => booster_actor.domain,
-                         "display_name" => booster_actor.display_name,
-                         "avatar_url" => booster_actor.avatar_url
-                       }
-                     })
-                 }) do
-              {:ok, updated} -> updated
-              {:error, _} -> message
+              _deleted_message ->
+                :ok
             end
           end
 
-        # Reload with associations for broadcasting
-        reloaded =
-          Elektrine.Repo.preload(
-            updated_msg,
-            [:remote_actor, :sender, :link_preview, :hashtags],
-            force: true
+          {:ok, :announced}
+
+        {:ok, message} when is_struct(message) ->
+          # Skip boost treatment for community distributions and relay actors
+          is_distribution = distribution_actor?(booster_actor)
+
+          updated_msg =
+            if is_distribution do
+              message
+            else
+              Messaging.create_federated_boost(message.id, booster_actor.id, announce_activity_id)
+
+              case Elektrine.Messaging.Messages.update_message_metadata(message, %{
+                     media_metadata:
+                       Map.merge(message.media_metadata || %{}, %{
+                         "boosted_by" => %{
+                           "username" => booster_actor.username,
+                           "domain" => booster_actor.domain,
+                           "display_name" => booster_actor.display_name,
+                           "avatar_url" => booster_actor.avatar_url
+                         }
+                       })
+                   }) do
+                {:ok, updated} -> updated
+                {:error, _} -> message
+              end
+            end
+
+          # Reload with associations for broadcasting
+          reloaded =
+            Elektrine.Repo.preload(
+              updated_msg,
+              [:remote_actor, :sender, :link_preview, :hashtags],
+              force: true
+            )
+
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "timeline:public",
+            {:new_public_post, reloaded}
           )
 
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "timeline:public",
-          {:new_public_post, reloaded}
+          {:ok, :announced}
+
+        error ->
+          error
+      end
+    else
+      true ->
+        {:ok, :ignored_deleted_object}
+
+      {:error, :actor_mismatch} ->
+        Logger.warning(
+          "Rejecting Announce for #{inspect(actual_object["id"])}: object attributedTo does not match announced actor #{original_actor_uri}"
         )
 
-        {:ok, :announced}
-
-      error ->
-        error
+        {:ok, :unauthorized}
     end
   end
 
@@ -252,11 +306,14 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   defp normalize_object_id(%{"id" => id}), do: id
   defp normalize_object_id(_), do: nil
 
-  defp activity_wrapper_uri?(uri) when is_binary(uri) do
-    String.contains?(uri, "/activities/")
+  defp resolve_target_object_uri(object) when is_binary(object), do: object
+
+  defp resolve_target_object_uri(%{"object" => object_ref}) do
+    resolve_target_object_uri(object_ref)
   end
 
-  defp activity_wrapper_uri?(_), do: false
+  defp resolve_target_object_uri(%{"id" => id}) when is_binary(id), do: id
+  defp resolve_target_object_uri(_), do: nil
 
   # Check if actor is a distribution actor (relay or community group)
   # These actors relay/distribute content, not boost it
@@ -288,6 +345,24 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   end
 
   defp relay_uri?(_), do: false
+
+  defp inherit_wrapper_fields(activity, object) when is_map(activity) and is_map(object) do
+    ["to", "cc", "audience", "published"]
+    |> Enum.reduce(object, fn field, acc ->
+      case {Map.get(acc, field), Map.get(activity, field)} do
+        {value, inherited} when value in [nil, ""] and not is_nil(inherited) ->
+          Map.put(acc, field, inherited)
+
+        {[], inherited} when not is_nil(inherited) ->
+          Map.put(acc, field, inherited)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp inherit_wrapper_fields(_activity, object), do: object
 
   defp get_local_message_from_uri(uri) do
     base_url = ActivityPub.instance_url()

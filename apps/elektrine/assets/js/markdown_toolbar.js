@@ -1,3 +1,5 @@
+import { sanitizeMarkdownHref } from "./markdown_helpers";
+
 // Markdown toolbar module for email compose
 export function initMarkdownToolbar() {
   // Handle tab switching
@@ -250,7 +252,15 @@ function processMarkdownInline(text) {
     // Inline code
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     // Links
-    .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, (match, label, href) => {
+      const safeHref = sanitizeMarkdownHref(href);
+
+      if (!safeHref) {
+        return match;
+      }
+
+      return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
 }
 
 // Escape HTML to prevent XSS

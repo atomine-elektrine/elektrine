@@ -55,10 +55,10 @@ defmodule ElektrineWeb.Endpoint do
   plug ElektrineWeb.Plugs.CacheRawBody,
     paths: [
       "/webhook/stripe",
-      "/federation/messaging/events",
-      "/federation/messaging/events/batch",
-      "/federation/messaging/ephemeral",
-      "/federation/messaging/sync"
+      "/_arblarg/events",
+      "/_arblarg/events/batch",
+      "/_arblarg/ephemeral",
+      "/_arblarg/sync"
     ],
     suffixes: ["/inbox"]
 
@@ -79,5 +79,6 @@ defmodule ElektrineWeb.Endpoint do
   plug ElektrineWeb.Plugs.RuntimeSession
   plug ElektrineWeb.Plugs.ProfileSubdomain
   plug ElektrineWeb.Plugs.SecurityHeaders
+  plug ElektrineWeb.Plugs.ProfileCustomDomain
   plug ElektrineWeb.Router
 end

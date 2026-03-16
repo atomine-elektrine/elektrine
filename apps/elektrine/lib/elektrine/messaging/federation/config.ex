@@ -8,23 +8,23 @@ defmodule Elektrine.Messaging.Federation.Config do
   end
 
   def outbound_events_url(peer) do
-    peer.event_endpoint || "#{peer.base_url}/federation/messaging/events"
+    peer.event_endpoint || "#{peer.base_url}/_arblarg/events"
   end
 
   def outbound_events_batch_url(peer) do
-    peer.events_batch_endpoint || "#{peer.base_url}/federation/messaging/events/batch"
+    peer.events_batch_endpoint || "#{peer.base_url}/_arblarg/events/batch"
   end
 
   def outbound_ephemeral_url(peer) do
-    peer.ephemeral_endpoint || "#{peer.base_url}/federation/messaging/ephemeral"
+    peer.ephemeral_endpoint || "#{peer.base_url}/_arblarg/ephemeral"
   end
 
   def outbound_sync_url(peer) do
-    peer.sync_endpoint || "#{peer.base_url}/federation/messaging/sync"
+    peer.sync_endpoint || "#{peer.base_url}/_arblarg/sync"
   end
 
   def outbound_stream_events_url(peer, query_string \\ "") do
-    base = peer.stream_events_endpoint || "#{peer.base_url}/federation/messaging/streams/events"
+    base = peer.stream_events_endpoint || "#{peer.base_url}/_arblarg/streams/events"
 
     case normalize_optional_string(query_string) do
       nil -> base
@@ -56,7 +56,7 @@ defmodule Elektrine.Messaging.Federation.Config do
              |> value_from(:base_url)
              |> normalize_optional_string()
              |> websocket_base_url(allow_insecure_transport) do
-          base when is_binary(base) -> base <> "/federation/messaging/session"
+          base when is_binary(base) -> base <> "/_arblarg/session"
           _ -> nil
         end
 
@@ -75,7 +75,7 @@ defmodule Elektrine.Messaging.Federation.Config do
         end
 
       _ ->
-        "#{peer.base_url}/federation/messaging/servers/#{remote_server_id}/snapshot"
+        "#{peer.base_url}/_arblarg/servers/#{remote_server_id}/snapshot"
     end
   end
 
@@ -374,6 +374,27 @@ defmodule Elektrine.Messaging.Federation.Config do
     base_url = value_from(peer, :base_url)
     shared_secret = value_from(peer, :shared_secret)
     keys = normalize_peer_keys(value_from(peer, :keys, []), shared_secret)
+    compatibility_claims =
+      normalize_peer_compatibility_claims(value_from(peer, :compatibility_claims, []))
+
+    extensions = normalize_peer_extensions(value_from(peer, :extensions, []))
+
+    supported_event_types =
+      normalize_peer_supported_event_types(value_from(peer, :supported_event_types, []))
+
+    limits = normalize_peer_limits(value_from(peer, :limits))
+
+    transport_profiles =
+      normalize_peer_transport_profiles(value_from(peer, :transport_profiles))
+
+    features =
+      value_from(peer, :features)
+      |> normalize_peer_features()
+      |> maybe_put_peer_capability("compatibility_claims", compatibility_claims)
+      |> maybe_put_peer_capability("extensions", extensions)
+      |> maybe_put_peer_capability("supported_event_types", supported_event_types)
+      |> maybe_put_peer_capability("limits", limits)
+      |> maybe_put_peer_capability("transport_profiles", transport_profiles)
 
     normalized_base_url =
       if is_binary(base_url) do
@@ -394,6 +415,10 @@ defmodule Elektrine.Messaging.Federation.Config do
         active_outbound_key_id: resolve_active_outbound_key_id(peer, keys),
         allow_incoming: value_from(peer, :allow_incoming, true) == true,
         allow_outgoing: value_from(peer, :allow_outgoing, true) == true,
+        compatibility_claims: compatibility_claims,
+        extensions: extensions,
+        supported_event_types: supported_event_types,
+        features: features,
         event_endpoint: normalize_optional_string(value_from(peer, :event_endpoint)),
         events_batch_endpoint:
           normalize_optional_string(value_from(peer, :events_batch_endpoint)),
@@ -430,6 +455,140 @@ defmodule Elektrine.Messaging.Federation.Config do
   end
 
   defp valid_peer_base_url?(_, _), do: false
+
+  defp normalize_peer_features(features) when is_map(features) do
+    normalize_peer_capability_document(features)
+  end
+
+  defp normalize_peer_features(_features), do: %{}
+
+  defp normalize_peer_compatibility_claims(claims) when is_list(claims) do
+    claims
+    |> Enum.map(&normalize_optional_string/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp normalize_peer_compatibility_claims(_claims), do: []
+
+  defp normalize_peer_extensions(extensions) when is_list(extensions) do
+    extensions
+    |> Enum.map(&normalize_peer_extension/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_peer_extensions(_extensions), do: []
+
+  defp normalize_peer_extension(extension) when is_binary(extension) do
+    case normalize_optional_string(extension) do
+      nil -> nil
+      urn -> %{"urn" => urn}
+    end
+  end
+
+  defp normalize_peer_extension(extension) when is_map(extension) do
+    normalized = normalize_peer_capability_document(extension)
+
+    case normalize_optional_string(value_from(normalized, :urn)) do
+      nil -> nil
+      urn -> Map.put(normalized, "urn", urn)
+    end
+  end
+
+  defp normalize_peer_extension(_extension), do: nil
+
+  defp normalize_peer_supported_event_types(event_types) when is_list(event_types) do
+    event_types
+    |> Enum.map(&normalize_optional_string/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&ArblargSDK.canonical_event_type/1)
+    |> Enum.uniq()
+  end
+
+  defp normalize_peer_supported_event_types(_event_types), do: []
+
+  defp normalize_peer_limits(limits) when is_map(limits) do
+    [
+      "max_batch_events",
+      "max_ephemeral_items",
+      "max_snapshot_channels",
+      "max_snapshot_messages",
+      "max_snapshot_governance_entries",
+      "max_stream_replay_limit",
+      "max_session_inflight_batches",
+      "max_session_inflight_events",
+      "typing_ttl_ms",
+      "presence_ttl_ms"
+    ]
+    |> Enum.reduce(%{}, fn key, acc ->
+      case capability_value_from(limits, key) do
+        value when is_integer(value) and value > 0 -> Map.put(acc, key, value)
+        _ -> acc
+      end
+    end)
+  end
+
+  defp normalize_peer_limits(_limits), do: %{}
+
+  defp normalize_peer_transport_profiles(profiles) when is_map(profiles) do
+    preferred_order =
+      profiles
+      |> value_from(:preferred_order, [])
+      |> List.wrap()
+      |> Enum.filter(&is_binary/1)
+
+    fallback_order =
+      profiles
+      |> value_from(:fallback_order, [])
+      |> List.wrap()
+      |> Enum.filter(&is_binary/1)
+
+    %{}
+    |> maybe_put_peer_capability(
+      "preferred_order",
+      if(preferred_order == [], do: nil, else: preferred_order)
+    )
+    |> maybe_put_peer_capability(
+      "fallback_order",
+      if(fallback_order == [], do: nil, else: fallback_order)
+    )
+    |> maybe_put_peer_capability(
+      "session_websocket",
+      case value_from(profiles, :session_websocket) do
+        %{} = session_profile -> normalize_peer_capability_document(session_profile)
+        _ -> nil
+      end
+    )
+  end
+
+  defp normalize_peer_transport_profiles(_profiles), do: %{}
+
+  defp maybe_put_peer_capability(map, _key, nil), do: map
+  defp maybe_put_peer_capability(map, _key, []), do: map
+  defp maybe_put_peer_capability(map, _key, %{} = value) when map_size(value) == 0, do: map
+
+  defp maybe_put_peer_capability(map, key, value) when is_map(map) and is_binary(key) do
+    Map.put(map, key, value)
+  end
+
+  defp normalize_peer_capability_document(value) when is_map(value) do
+    Enum.reduce(value, %{}, fn {key, nested_value}, acc ->
+      normalized_key =
+        case key do
+          binary when is_binary(binary) -> binary
+          atom when is_atom(atom) -> Atom.to_string(atom)
+          other -> to_string(other)
+        end
+
+      Map.put(acc, normalized_key, normalize_peer_capability_document(nested_value))
+    end)
+  end
+
+  defp normalize_peer_capability_document(value) when is_list(value) do
+    Enum.map(value, &normalize_peer_capability_document/1)
+  end
+
+  defp normalize_peer_capability_document(value), do: value
 
   defp normalize_peer_keys(keys, shared_secret) when is_list(keys) do
     normalized = keys |> Enum.map(&normalize_single_peer_key/1) |> Enum.reject(&is_nil/1)
@@ -615,5 +774,23 @@ defmodule Elektrine.Messaging.Federation.Config do
 
   defp value_from(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+  end
+
+  defp capability_value_from(map, key, default \\ nil) when is_map(map) and is_binary(key) do
+    case Map.get(map, key) do
+      nil ->
+        map
+        |> Enum.find(fn
+          {atom_key, _value} when is_atom(atom_key) -> Atom.to_string(atom_key) == key
+          _ -> false
+        end)
+        |> case do
+          {_, value} -> value
+          nil -> default
+        end
+
+      value ->
+        value
+    end
   end
 end

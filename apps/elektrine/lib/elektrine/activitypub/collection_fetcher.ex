@@ -75,34 +75,16 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   @spec fetch_collection_count(String.t() | map()) :: {:ok, non_neg_integer()} | {:error, any()}
   def fetch_collection_count(url) when is_binary(url) do
     case Fetcher.fetch_object(url) do
-      {:ok, %{"totalItems" => count}} when is_integer(count) ->
-        {:ok, count}
-
-      {:ok, %{"totalItems" => count}} when is_binary(count) ->
-        {:ok, String.to_integer(count)}
-
       {:ok, collection} ->
-        # No totalItems, need to count items
-        case collect_from_page(collection, max_items: 1000) do
-          {:ok, items} -> {:ok, length(items)}
-          {:partial, items} -> {:ok, length(items)}
-          error -> error
-        end
+        count_collection_items(collection)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  def fetch_collection_count(%{"totalItems" => count}) when is_integer(count), do: {:ok, count}
-
-  def fetch_collection_count(%{"totalItems" => count}) when is_binary(count),
-    do: {:ok, String.to_integer(count)}
-
-  def fetch_collection_count(%{"items" => items}) when is_list(items), do: {:ok, length(items)}
-
-  def fetch_collection_count(%{"orderedItems" => items}) when is_list(items),
-    do: {:ok, length(items)}
+  def fetch_collection_count(collection) when is_map(collection),
+    do: count_collection_items(collection)
 
   def fetch_collection_count(_), do: {:ok, 0}
 
@@ -129,6 +111,46 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   end
 
   # Private functions
+
+  defp count_collection_items(%{"totalItems" => count}) when is_integer(count) do
+    {:ok, max(count, 0)}
+  end
+
+  defp count_collection_items(%{"totalItems" => count} = collection) when is_binary(count) do
+    case parse_count(count) do
+      {:ok, parsed_count} ->
+        {:ok, parsed_count}
+
+      :error ->
+        count_collection_items_without_total(collection)
+    end
+  end
+
+  defp count_collection_items(%{"items" => items}) when is_list(items), do: {:ok, length(items)}
+
+  defp count_collection_items(%{"orderedItems" => items}) when is_list(items),
+    do: {:ok, length(items)}
+
+  defp count_collection_items(collection) when is_map(collection) do
+    count_collection_items_without_total(collection)
+  end
+
+  defp count_collection_items(_), do: {:ok, 0}
+
+  defp count_collection_items_without_total(collection) do
+    case collect_from_page(collection, max_items: 1000) do
+      {:ok, items} -> {:ok, length(items)}
+      {:partial, items} -> {:ok, length(items)}
+      error -> error
+    end
+  end
+
+  defp parse_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, ""} -> {:ok, max(count, 0)}
+      _ -> :error
+    end
+  end
 
   defp collect_from_page(page, opts) do
     max_items = Keyword.get(opts, :max_items, @max_collection_items)

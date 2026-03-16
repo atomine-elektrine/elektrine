@@ -27,7 +27,10 @@ defmodule Elektrine.Messaging.Message do
     belongs_to :conversation, Elektrine.Messaging.Conversation
     belongs_to :sender, Elektrine.Accounts.User
     belongs_to :reply_to, __MODULE__
-    belongs_to :link_preview, {"link_previews", Elektrine.Social.LinkPreview}
+
+    belongs_to :link_preview,
+               {"link_previews", Elektrine.Messaging.OptionalSocialSchemas.LinkPreview}
+
     has_many :replies, __MODULE__, foreign_key: :reply_to_id
     has_many :reactions, Elektrine.Messaging.MessageReaction, foreign_key: :message_id
 
@@ -76,9 +79,9 @@ defmodule Elektrine.Messaging.Message do
     # Post type specific fields
     # For link-type posts
     field :primary_url, :string
-    has_one :poll, {"polls", Elektrine.Social.Poll}
+    has_one :poll, {"polls", Elektrine.Messaging.OptionalSocialSchemas.Poll}
 
-    many_to_many :hashtags, {"hashtags", Elektrine.Social.Hashtag},
+    many_to_many :hashtags, {"hashtags", Elektrine.Messaging.OptionalSocialSchemas.Hashtag},
       join_through: "post_hashtags",
       on_replace: :delete
 
@@ -226,7 +229,9 @@ defmodule Elektrine.Messaging.Message do
       :reply_count,
       :share_count,
       :quote_count,
-      :quoted_message_id
+      :quoted_message_id,
+      :content_warning,
+      :sensitive
     ])
     |> normalize_federated_columns()
     |> normalize_activitypub_refs()

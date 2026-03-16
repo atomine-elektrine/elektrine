@@ -394,7 +394,7 @@
                 />
               </div>
 
-              <%= if @show_reply_form && @current_user do %>
+              <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
                 <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
                   <%= if length(@quick_reply_recent_replies) > 0 do %>
                     <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
@@ -498,6 +498,7 @@
               quick_reply_recent_replies={@quick_reply_recent_replies}
               reply_content={@reply_content}
               reply_content_domain={nil}
+              replying_to_comment_id={@replying_to_comment_id}
             />
           <% end %>
           
@@ -1166,7 +1167,7 @@
                       <% end %>
                       
 <!-- Reply Form -->
-                      <%= if @show_reply_form do %>
+                      <%= if @show_reply_form && is_nil(@replying_to_comment_id) do %>
                         <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
                           <%= if length(@quick_reply_recent_replies) > 0 do %>
                             <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
@@ -1271,6 +1272,7 @@
                   quick_reply_recent_replies={@quick_reply_recent_replies}
                   reply_content={@reply_content}
                   reply_content_domain={@remote_actor && @remote_actor.domain}
+                  replying_to_comment_id={@replying_to_comment_id}
                 />
               <% end %>
               

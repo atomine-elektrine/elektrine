@@ -1,6 +1,10 @@
 defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
   use Elektrine.DataCase, async: true
 
+  if not Code.ensure_loaded?(Elektrine.Social.Hashtag) do
+    @moduletag skip: "requires :elektrine_social"
+  end
+
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message

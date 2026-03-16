@@ -92,7 +92,7 @@
       data-profile-user-id={@user.id}
       data-current-user-id={@current_user && @current_user.id}
       data-profile-accent={accent_color}
-      data-main-domain={Elektrine.Domains.primary_profile_domain()}
+      data-main-domain={@profile_navigation_domain || Elektrine.Domains.primary_profile_domain()}
       data-local-domain={Elektrine.Domains.default_user_handle_domain()}
       phx-hook={
         if @profile && @profile.typewriter_title && @profile.page_title,

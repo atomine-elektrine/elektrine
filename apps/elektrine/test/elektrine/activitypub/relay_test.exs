@@ -1,6 +1,8 @@
 defmodule Elektrine.ActivityPub.RelayTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Relay
   alias Elektrine.ActivityPub.RelaySubscription
   alias Elektrine.Repo
@@ -21,6 +23,9 @@ defmodule Elektrine.ActivityPub.RelayTest do
       assert actor.actor_type == "Application"
       assert actor.display_name == "Elektrine Relay"
       assert actor.public_key != nil
+      assert actor.outbox_url == nil
+      assert actor.followers_url == nil
+      assert actor.following_url == nil
       # Private key is stored in metadata for local actors
       assert actor.metadata["private_key"] != nil
     end
@@ -30,6 +35,35 @@ defmodule Elektrine.ActivityPub.RelayTest do
       {:ok, actor2} = Relay.get_or_create_relay_actor()
 
       assert actor1.id == actor2.id
+    end
+
+    test "normalizes stale relay collection URLs on an existing relay actor" do
+      relay_uri = Relay.relay_actor_id()
+
+      {:ok, stale_actor} =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: relay_uri,
+          username: "relay",
+          domain: ActivityPub.instance_domain(),
+          inbox_url: "#{ActivityPub.instance_url()}/relay/inbox",
+          outbox_url: "#{ActivityPub.instance_url()}/relay/outbox",
+          followers_url: "#{ActivityPub.instance_url()}/relay/followers",
+          following_url: "#{ActivityPub.instance_url()}/relay/following",
+          public_key: "-----BEGIN PUBLIC KEY-----test-key-----END PUBLIC KEY-----",
+          actor_type: "Application",
+          display_name: "Elektrine Relay",
+          metadata: %{"private_key" => "test-private-key"},
+          last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+        |> Repo.insert()
+
+      assert {:ok, normalized_actor} = Relay.get_or_create_relay_actor()
+
+      assert normalized_actor.id == stale_actor.id
+      assert normalized_actor.outbox_url == nil
+      assert normalized_actor.followers_url == nil
+      assert normalized_actor.following_url == nil
     end
   end
 

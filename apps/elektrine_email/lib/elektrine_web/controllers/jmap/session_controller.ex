@@ -6,8 +6,9 @@ defmodule ElektrineWeb.JMAP.SessionController do
   use ElektrineEmailWeb, :controller
 
   alias Elektrine.Email
+  alias Elektrine.EmailAddresses
   alias Elektrine.JMAP
-  import Plug.Conn, only: [get_req_header: 2]
+  alias ElektrineWeb.ClientIP
 
   @doc """
   GET /.well-known/jmap
@@ -70,7 +71,7 @@ defmodule ElektrineWeb.JMAP.SessionController do
 
   defp account_capabilities(user, mailbox) do
     %{
-      "name" => mailbox.email || "#{user.username}@elektrine.com",
+      "name" => mailbox.email || EmailAddresses.primary_for_user(user),
       "isPersonal" => true,
       "isReadOnly" => false,
       "accountCapabilities" => %{
@@ -85,7 +86,7 @@ defmodule ElektrineWeb.JMAP.SessionController do
     scheme =
       cond do
         conn.scheme == :https -> "https"
-        forwarded_as_https?(conn) -> "https"
+        ClientIP.forwarded_as_https?(conn) -> "https"
         true -> "http"
       end
 
@@ -96,20 +97,6 @@ defmodule ElektrineWeb.JMAP.SessionController do
       "#{scheme}://#{host}"
     else
       "#{scheme}://#{host}:#{port}"
-    end
-  end
-
-  defp forwarded_as_https?(conn) do
-    case get_req_header(conn, "x-forwarded-proto") do
-      [value | _] ->
-        value
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-        |> String.downcase() == "https"
-
-      _ ->
-        false
     end
   end
 end

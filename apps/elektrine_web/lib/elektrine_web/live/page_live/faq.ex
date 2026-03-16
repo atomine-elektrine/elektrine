@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.FAQ do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.EmailAddresses
+
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
   def mount(_params, _session, socket) do
@@ -233,7 +235,9 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Support: support@elektrine.com. Security: security@elektrine.com. Privacy: privacy@elektrine.com.
+                    Support: {EmailAddresses.local("support")}. Security: {EmailAddresses.local(
+                      "security"
+                    )}. Privacy: {EmailAddresses.local("privacy")}.
                   </p>
                 </div>
               </div>
@@ -241,7 +245,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
 
             <div class="alert mt-8">
               <div>
-                <p>Still have questions? Email support@elektrine.com</p>
+                <p>Still have questions? Email {EmailAddresses.local("support")}</p>
               </div>
             </div>
           </div>

@@ -19,6 +19,7 @@ defmodule Elektrine.Email.Sender do
   """
 
   alias Elektrine.Email
+  alias Elektrine.EmailAddresses
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.ListTypes
@@ -145,14 +146,10 @@ defmodule Elektrine.Email.Sender do
     bcc_emails = parse_email_list(prepared_params[:bcc] || prepared_params["bcc"] || "")
     all_recipients = to_emails ++ cc_emails ++ bcc_emails
 
-    # Resolve all recipients once and build a cache map to avoid duplicate DB calls
+    # Resolve all recipients once and build a cache map to avoid duplicate DB calls.
     resolution_cache = build_resolution_cache(all_recipients)
-
-    # Determine routing strategy: internal or external
-    # Email is internal ONLY if:
-    # 1. All TO recipients are our local domains
-    # 2. None of the TO recipients have external forwarding
-    routing_strategy = determine_routing_strategy(to_emails, resolution_cache)
+    delivery_plan = build_delivery_plan(to_emails, cc_emails, bcc_emails, resolution_cache)
+    routing_strategy = determine_routing_strategy(delivery_plan)
 
     result =
       case routing_strategy do
@@ -169,10 +166,16 @@ defmodule Elektrine.Email.Sender do
                {:ok, _ownership} <-
                  validate_from_address_ownership(prepared_params[:from], user_id),
                {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
-               {:ok, resolved_params} <- resolve_recipient_aliases(formatted_params),
-               :ok <- validate_external_recipient_domains(resolved_params),
-               {:ok, pgp_params} <- maybe_pgp_encrypt(resolved_params, user_id),
-               {:ok, swoosh_response} <- send_via_swoosh(pgp_params) do
+               {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
+               external_params <-
+                 put_filtered_recipients(
+                   pgp_params,
+                   delivery_plan.external.to,
+                   delivery_plan.external.cc,
+                   delivery_plan.external.bcc
+                 ),
+               :ok <- validate_external_recipient_domains(external_params),
+               {:ok, swoosh_response} <- send_via_swoosh(external_params) do
             stored_params = merge_pgp_message_body(formatted_params, pgp_params)
 
             # Always store sent message regardless of source (webmail or SMTP)
@@ -190,8 +193,13 @@ defmodule Elektrine.Email.Sender do
                 Logger.error("Failed to store sent message: #{inspect(reason)}")
             end
 
-            # Also deliver to any internal CC/BCC recipients
-            deliver_to_internal_cc_bcc_recipients(mailbox.id, stored_params, db_attachments)
+            # Also deliver to any internal recipients without sending them back out
+            deliver_to_internal_external_route_recipients(
+              mailbox.id,
+              stored_params,
+              delivery_plan.internal,
+              db_attachments
+            )
 
             # Record successful send for rate limiting
             RateLimiter.record_send(user_id)
@@ -536,7 +544,7 @@ defmodule Elektrine.Email.Sender do
           unsubscribe_headers = %{
             "List-Unsubscribe" => "<#{unsubscribe_url}>",
             "List-Unsubscribe-Post" => "List-Unsubscribe=One-Click",
-            "List-Id" => "<#{list_id}.elektrine.com>"
+            "List-Id" => EmailAddresses.list_id(list_id)
           }
 
           # Merge with existing headers
@@ -756,65 +764,66 @@ defmodule Elektrine.Email.Sender do
     end)
   end
 
-  # Build a cache map of all recipient resolutions to avoid duplicate DB calls
-  # Returns a map: %{email => {resolved_email, is_external}}
+  # Build a cache map of all recipient resolutions to avoid duplicate DB calls.
+  # Returns a map: %{email => {resolved_email, resolved_target_external?}}
   defp build_resolution_cache(emails) when is_list(emails) do
     emails
     |> Enum.map(fn email ->
-      clean = String.trim(String.downcase(email))
+      clean = recipient_cache_key(email)
       {clean, resolve_single_email(email)}
     end)
     |> Map.new()
   end
 
-  # Determine routing strategy based on TO recipients and forwarding
-  # Returns :internal or :external
-  defp determine_routing_strategy(to_emails, resolution_cache) do
-    # Check if all TO recipients are internal domains
-    all_internal = is_internal_email?(to_emails)
+  defp build_delivery_plan(to_emails, cc_emails, bcc_emails, resolution_cache) do
+    to_plan = partition_recipient_group(to_emails, resolution_cache)
+    cc_plan = partition_recipient_group(cc_emails, resolution_cache)
+    bcc_plan = partition_recipient_group(bcc_emails, resolution_cache)
 
-    # Check if any TO recipients have external forwarding (using cache)
-    has_external_forwarding =
-      Enum.any?(to_emails, fn email ->
-        case Map.get(resolution_cache, String.trim(String.downcase(email))) do
-          {_resolved, is_external} -> is_external
-          _ -> false
-        end
-      end)
+    %{
+      external: %{
+        to: to_plan.external,
+        cc: cc_plan.external,
+        bcc: bcc_plan.external
+      },
+      internal: %{
+        to: to_plan.internal,
+        cc: cc_plan.internal,
+        bcc: bcc_plan.internal
+      }
+    }
+  end
 
-    if all_internal && !has_external_forwarding do
+  # Determine routing strategy based on whether any recipients must be sent externally.
+  defp determine_routing_strategy(delivery_plan) do
+    external_recipients =
+      delivery_plan.external.to ++ delivery_plan.external.cc ++ delivery_plan.external.bcc
+
+    if external_recipients == [] do
       :internal
     else
       :external
     end
   end
 
-  # Resolve all recipient aliases before sending
-  defp resolve_recipient_aliases(params) do
-    to_resolved = resolve_email_list(parse_email_list(params[:to] || ""))
-    cc_resolved = resolve_email_list(parse_email_list(params[:cc] || ""))
-    bcc_resolved = resolve_email_list(parse_email_list(params[:bcc] || ""))
+  defp partition_recipient_group([], _resolution_cache), do: %{external: [], internal: []}
 
-    resolved_params =
-      params
-      |> Map.put(:to, if(to_resolved != [], do: Enum.join(to_resolved, ", "), else: params[:to]))
-      |> Map.put(:cc, if(cc_resolved != [], do: Enum.join(cc_resolved, ", "), else: params[:cc]))
-      |> Map.put(
-        :bcc,
-        if(bcc_resolved != [], do: Enum.join(bcc_resolved, ", "), else: params[:bcc])
-      )
+  defp partition_recipient_group(emails, resolution_cache) when is_list(emails) do
+    Enum.reduce(emails, %{external: [], internal: []}, fn email, acc ->
+      case Map.get(resolution_cache, recipient_cache_key(email)) do
+        {resolved, true} ->
+          %{acc | external: acc.external ++ [resolved]}
 
-    {:ok, resolved_params}
-  end
+        {_resolved, false} ->
+          %{acc | internal: acc.internal ++ [email]}
 
-  # Resolve a list of email addresses through alias and mailbox forwarding
-  # Returns a list of resolved email addresses
-  defp resolve_email_list([]), do: []
-
-  defp resolve_email_list(emails) when is_list(emails) do
-    Enum.map(emails, fn email ->
-      {resolved, _is_external} = resolve_single_email(email)
-      resolved
+        nil ->
+          if is_internal_email?([email]) do
+            %{acc | internal: acc.internal ++ [email]}
+          else
+            %{acc | external: acc.external ++ [email]}
+          end
+      end
     end)
   end
 
@@ -837,11 +846,18 @@ defmodule Elektrine.Email.Sender do
             {forward_to, is_external}
 
           _ ->
-            # No forwarding
-            {email, false}
+            {clean_email, !is_internal_email?([clean_email])}
         end
     end
   end
+
+  defp recipient_cache_key(email) when is_binary(email) do
+    email
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp recipient_cache_key(email), do: email |> to_string() |> recipient_cache_key()
 
   # Validates that the user owns the from address (mailbox or alias)
   defp validate_from_address_ownership(from_address, user_id) do
@@ -1457,20 +1473,24 @@ defmodule Elektrine.Email.Sender do
     end
   end
 
-  # Deliver to internal CC/BCC recipients when sending external email
-  defp deliver_to_internal_cc_bcc_recipients(sender_mailbox_id, email_params, db_attachments) do
-    cc_emails = parse_email_list(email_params[:cc] || "")
-    bcc_emails = parse_email_list(email_params[:bcc] || "")
-
+  # Deliver to internal recipients when the send also has external recipients.
+  defp deliver_to_internal_external_route_recipients(
+         sender_mailbox_id,
+         email_params,
+         internal_recipients,
+         db_attachments
+       ) do
     sender_mailbox = Email.get_mailbox_internal(sender_mailbox_id)
 
-    # Process CC recipients
-    Enum.each(cc_emails, fn cc_email ->
+    Enum.each(internal_recipients.to, fn to_email ->
+      deliver_to_internal_recipient(to_email, email_params, "to", db_attachments)
+    end)
+
+    Enum.each(internal_recipients.cc, fn cc_email ->
       deliver_to_cc_or_bcc_recipient(cc_email, email_params, "cc", sender_mailbox, db_attachments)
     end)
 
-    # Process BCC recipients
-    Enum.each(bcc_emails, fn bcc_email ->
+    Enum.each(internal_recipients.bcc, fn bcc_email ->
       deliver_to_cc_or_bcc_recipient(
         bcc_email,
         email_params,
@@ -1918,11 +1938,11 @@ defmodule Elektrine.Email.Sender do
     </html>
     """
 
-    user_email = "#{user.username}@#{user.preferred_email_domain || "elektrine.com"}"
+    user_email = EmailAddresses.primary_for_user(user)
 
     %Swoosh.Email{}
     |> Swoosh.Email.to({user.username, user_email})
-    |> Swoosh.Email.from({"Elektrine", "noreply@elektrine.com"})
+    |> Swoosh.Email.from({"Elektrine", EmailAddresses.local("noreply")})
     |> Swoosh.Email.subject("VPN Bandwidth Warning - #{threshold}% Used")
     |> Swoosh.Email.text_body(text_body)
     |> Swoosh.Email.html_body(html_body)
@@ -2053,11 +2073,11 @@ defmodule Elektrine.Email.Sender do
     </html>
     """
 
-    user_email = "#{user.username}@#{user.preferred_email_domain || "elektrine.com"}"
+    user_email = EmailAddresses.primary_for_user(user)
 
     %Swoosh.Email{}
     |> Swoosh.Email.to({user.username, user_email})
-    |> Swoosh.Email.from({"Elektrine", "noreply@elektrine.com"})
+    |> Swoosh.Email.from({"Elektrine", EmailAddresses.local("noreply")})
     |> Swoosh.Email.subject("VPN Service Suspended - Quota Exceeded")
     |> Swoosh.Email.text_body(text_body)
     |> Swoosh.Email.html_body(html_body)
@@ -2123,7 +2143,7 @@ defmodule Elektrine.Email.Sender do
     email =
       Swoosh.Email.new()
       |> Swoosh.Email.to(forward_to)
-      |> Swoosh.Email.from({"Elektrine Forwarding", "noreply@elektrine.com"})
+      |> Swoosh.Email.from({"Elektrine Forwarding", EmailAddresses.local("noreply")})
       |> Swoosh.Email.subject(subject)
       |> Swoosh.Email.text_body(text_body)
 

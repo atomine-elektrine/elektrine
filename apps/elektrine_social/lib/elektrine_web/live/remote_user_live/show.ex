@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.RemoteUserLive.Show do
   use ElektrineSocialWeb, :live_view
 
+  alias Elektrine.ActorPaths
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
@@ -18,6 +19,16 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
   @impl true
   def mount(params, _session, socket) do
+    case local_profile_redirect_path(params) do
+      path when is_binary(path) ->
+        {:ok, push_navigate(socket, to: path)}
+
+      nil ->
+        mount_remote_profile(params, socket)
+    end
+  end
+
+  defp mount_remote_profile(params, socket) do
     user = socket.assigns[:current_user]
 
     # Initialize with loading state
@@ -127,16 +138,21 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     end
   end
 
+  defp local_profile_redirect_path(%{"handle" => handle}) when is_binary(handle) do
+    ActorPaths.local_profile_path(handle)
+  end
+
+  defp local_profile_redirect_path(_), do: nil
+
   # Fast path: check if actor is already cached locally
   defp get_cached_actor(params) do
     case params do
       %{"handle" => handle} ->
-        case String.split(handle, "@", parts: 2) do
-          [username, domain] ->
-            username = String.trim_leading(username, "!")
+        case parse_remote_handle(handle) do
+          {:ok, %{username: username, domain: domain}} ->
             ActivityPub.get_actor_by_username_and_domain(username, domain)
 
-          _ ->
+          {:error, _reason} ->
             nil
         end
 
@@ -201,6 +217,41 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     |> assign(:actor_loading, false)
   end
 
+  defp parse_remote_handle(handle) when is_binary(handle) do
+    cleaned = String.trim(handle)
+
+    case cleaned do
+      "" ->
+        {:error, :invalid_handle}
+
+      "!" <> rest ->
+        build_remote_handle(rest, "!")
+
+      "@" <> rest ->
+        build_remote_handle(rest, "")
+
+      _ ->
+        build_remote_handle(cleaned, "")
+    end
+  end
+
+  defp parse_remote_handle(_), do: {:error, :invalid_handle}
+
+  defp build_remote_handle(handle, prefix) do
+    case String.split(handle, "@", parts: 2) do
+      [username, domain] when username != "" and domain != "" ->
+        {:ok,
+         %{
+           username: username,
+           domain: domain,
+           acct: "#{prefix}#{username}@#{domain}"
+         }}
+
+      _ ->
+        {:error, :invalid_handle}
+    end
+  end
+
   @impl true
   def handle_info({:fetch_actor, params}, socket) do
     # Fetch actor in a Task to avoid blocking
@@ -208,11 +259,8 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       Task.async(fn ->
         case params do
           %{"handle" => handle} ->
-            case String.split(handle, "@", parts: 2) do
-              [username, domain] ->
-                username = String.trim_leading(username, "!")
-                acct = "#{username}@#{domain}"
-
+            case parse_remote_handle(handle) do
+              {:ok, %{acct: acct}} ->
                 case ActivityPub.Fetcher.webfinger_lookup(acct) do
                   {:ok, actor_uri} ->
                     case ActivityPub.get_or_fetch_actor(actor_uri) do
@@ -224,7 +272,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
                     error
                 end
 
-              _ ->
+              {:error, _reason} ->
                 {:error, :invalid_handle}
             end
 
@@ -2452,17 +2500,17 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         post.like_count
 
       # Outbox post - check for likes object with totalItems
-      is_map(post["likes"]) && post["likes"]["totalItems"] ->
-        post["likes"]["totalItems"]
+      is_map(post["likes"]) ->
+        get_collection_total_items(post["likes"])
 
       # Lemmy/ActivityPub posts might have comment count as activity indicator
       # Use replies count as a proxy for engagement when no vote counts available
-      is_map(post["replies"]) && post["replies"]["totalItems"] ->
-        post["replies"]["totalItems"]
+      is_map(post["replies"]) ->
+        get_collection_total_items(post["replies"])
 
       # Check for replies as a map with items
-      is_map(post["comments"]) && post["comments"]["totalItems"] ->
-        post["comments"]["totalItems"]
+      is_map(post["comments"]) ->
+        get_collection_total_items(post["comments"])
 
       true ->
         0

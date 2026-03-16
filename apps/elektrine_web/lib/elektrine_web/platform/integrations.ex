@@ -585,6 +585,16 @@ defmodule ElektrineWeb.Platform.Integrations do
     )
   end
 
+  def vault_delete_vault(user_id) do
+    call_optional(
+      :vault,
+      @password_manager_module,
+      :delete_vault,
+      [user_id],
+      {:error, :unavailable}
+    )
+  end
+
   def vault_list_entries(user_id) do
     call_optional(
       :vault,

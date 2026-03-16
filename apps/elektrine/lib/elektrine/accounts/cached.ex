@@ -6,6 +6,7 @@ defmodule Elektrine.Accounts.Cached do
 
   alias Elektrine.Accounts
   alias Elektrine.AppCache
+  alias Elektrine.EmailAddresses
 
   @doc """
   Gets cached user data by ID.
@@ -62,7 +63,7 @@ defmodule Elektrine.Accounts.Cached do
     # Also clear email/username lookup caches
     try do
       user = Accounts.get_user!(user_id)
-      user_email = "#{user.username}@#{user.preferred_email_domain || "elektrine.com"}"
+      user_email = EmailAddresses.primary_for_user(user)
       AppCache.get_system_config("user_by_username:#{user.username}", fn -> nil end)
       AppCache.get_system_config("user_by_email:#{user_email}", fn -> nil end)
     rescue

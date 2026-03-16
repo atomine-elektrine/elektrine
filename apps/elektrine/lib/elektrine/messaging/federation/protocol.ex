@@ -148,18 +148,18 @@ defmodule Elektrine.Messaging.Federation.Protocol do
   def discovery_endpoints(base_url, version, allow_insecure_transport)
       when is_binary(base_url) and is_binary(version) do
     endpoints = %{
-      "well_known" => "#{base_url}/.well-known/arblarg",
-      "well_known_versioned" => "#{base_url}/.well-known/arblarg/{version}",
-      "profiles" => "#{base_url}/federation/messaging/arblarg/profiles",
-      "events" => "#{base_url}/federation/messaging/events",
-      "events_batch" => "#{base_url}/federation/messaging/events/batch",
-      "ephemeral" => "#{base_url}/federation/messaging/ephemeral",
-      "sync" => "#{base_url}/federation/messaging/sync",
-      "stream_events" => "#{base_url}/federation/messaging/streams/events",
-      "public_servers" => "#{base_url}/federation/messaging/servers/public",
-      "snapshot_template" => "#{base_url}/federation/messaging/servers/{server_id}/snapshot",
-      "schema_template" => "#{base_url}/federation/messaging/arblarg/{version}/schemas/{name}",
-      "schemas" => "#{base_url}/federation/messaging/arblarg/#{version}/schemas"
+      "well_known" => "#{base_url}/.well-known/_arblarg",
+      "well_known_versioned" => "#{base_url}/.well-known/_arblarg/{version}",
+      "profiles" => "#{base_url}/_arblarg/profiles",
+      "events" => "#{base_url}/_arblarg/events",
+      "events_batch" => "#{base_url}/_arblarg/events/batch",
+      "ephemeral" => "#{base_url}/_arblarg/ephemeral",
+      "sync" => "#{base_url}/_arblarg/sync",
+      "stream_events" => "#{base_url}/_arblarg/streams/events",
+      "public_servers" => "#{base_url}/_arblarg/servers/public",
+      "snapshot_template" => "#{base_url}/_arblarg/servers/{server_id}/snapshot",
+      "schema_template" => "#{base_url}/_arblarg/{version}/schemas/{name}",
+      "schemas" => "#{base_url}/_arblarg/#{version}/schemas"
     }
 
     case session_websocket_url(base_url, allow_insecure_transport) do
@@ -190,7 +190,7 @@ defmodule Elektrine.Messaging.Federation.Protocol do
       "session_websocket" => %{
         "mode" => "optional",
         "framing" => "arblarg_websocket_stream_session",
-        "request_path" => "/federation/messaging/session",
+        "request_path" => "/_arblarg/session",
         "subprotocol" => "arblarg.session.v1",
         "encodings" => ["json", "cbor"],
         "flow_control" => session_flow_control_document(limits),
@@ -213,7 +213,7 @@ defmodule Elektrine.Messaging.Federation.Protocol do
   def session_flow_control_document(_limits), do: %{}
 
   def discovery_schema_map(base_url, version) when is_binary(base_url) and is_binary(version) do
-    schema_base = "#{base_url}/federation/messaging/arblarg/#{version}/schemas"
+    schema_base = "#{base_url}/_arblarg/#{version}/schemas"
 
     schema_links =
       ArblargSDK.schema_bindings()
@@ -232,12 +232,12 @@ defmodule Elektrine.Messaging.Federation.Protocol do
   defp session_websocket_url(base_url, allow_insecure_transport) when is_binary(base_url) do
     case URI.parse(base_url) do
       %URI{scheme: "https"} = uri ->
-        %{uri | scheme: "wss", path: "/federation/messaging/session"}
+        %{uri | scheme: "wss", path: "/_arblarg/session"}
         |> URI.to_string()
 
       %URI{scheme: "http"} = uri ->
         if allow_insecure_transport do
-          %{uri | scheme: "ws", path: "/federation/messaging/session"}
+          %{uri | scheme: "ws", path: "/_arblarg/session"}
           |> URI.to_string()
         else
           nil
@@ -263,6 +263,11 @@ defmodule Elektrine.Messaging.Federation.Protocol do
       "origin_owned_identifiers" => true,
       "signed_snapshots" => true,
       "snapshot_governance" => true,
+      "snapshot_message_deletions" => true,
+      "snapshot_reactions" => true,
+      "snapshot_read_cursors" => true,
+      "snapshot_extensions" => true,
+      "canonical_extension_event_types" => true,
       "session_transport" => true,
       "dynamic_peer_discovery" => true,
       "open_domain_bootstrap" => true,
@@ -294,6 +299,11 @@ defmodule Elektrine.Messaging.Federation.Protocol do
       "origin_owned_identifiers" => true,
       "signed_snapshots" => true,
       "snapshot_governance" => true,
+      "snapshot_message_deletions" => true,
+      "snapshot_reactions" => true,
+      "snapshot_read_cursors" => true,
+      "snapshot_extensions" => true,
+      "canonical_extension_event_types" => true,
       "session_transport" => true,
       "dynamic_peer_discovery" => true,
       "open_domain_bootstrap" => true,

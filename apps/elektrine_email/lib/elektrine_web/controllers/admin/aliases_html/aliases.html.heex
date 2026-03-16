@@ -23,7 +23,7 @@
               value={@search_query}
               placeholder='Search alias or email... (use "quotes" for exact match)'
               class="input flex-1 join-item w-full"
-              title='Use quotes for exact match, e.g. "admin@elektrine.com"'
+              title={"Use quotes for exact match, e.g. \"#{Elektrine.EmailAddresses.local("admin")}\""}
             />
             <button type="submit" class="btn btn-primary join-item">
               <.icon name="hero-magnifying-glass" class="w-4 h-4" /> Search

@@ -170,8 +170,15 @@ defmodule ElektrineWeb.PasswordResetController do
             |> put_flash(:info, reset_confirmation_message())
             |> redirect(to: ~p"/login")
 
-          {:error, _changeset} ->
+          {:error, %Ecto.Changeset{}} ->
             Events.auth(:password_reset_request, :failure, %{reason: :changeset_error})
+
+            conn
+            |> put_flash(:error, "There was an error processing your request. Please try again.")
+            |> redirect(to: ~p"/password/reset")
+
+          {:error, _reason} ->
+            Events.auth(:password_reset_request, :failure, %{reason: :email_failed})
 
             conn
             |> put_flash(:error, "There was an error processing your request. Please try again.")

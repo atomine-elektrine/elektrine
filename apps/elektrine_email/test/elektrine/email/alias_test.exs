@@ -74,7 +74,11 @@ defmodule Elektrine.Email.AliasTest do
       changeset = Alias.changeset(%Alias{}, attrs)
       errors = errors_on(changeset)
 
-      assert Enum.any?(errors.alias_email, &String.contains?(&1, "at most 30 characters"))
+      assert Enum.any?(
+               errors.alias_email,
+               &String.contains?(&1, "30 or fewer letters or numbers")
+             )
+
       assert %{target_email: ["should be at most 255 character(s)"]} = errors
       assert %{description: ["should be at most 500 character(s)"]} = errors
     end
@@ -133,7 +137,7 @@ defmodule Elektrine.Email.AliasTest do
 
         assert Enum.any?(
                  errors.alias_email,
-                 &String.contains?(&1, "must use one of the allowed domains")
+                 &String.contains?(&1, "choose one of your available email domains")
                )
       end
     end
@@ -168,7 +172,7 @@ defmodule Elektrine.Email.AliasTest do
 
         assert Enum.any?(
                  errors.alias_email,
-                 &String.contains?(&1, "must have at least 4 characters before the @ symbol")
+                 &String.contains?(&1, "use at least 4 letters or numbers before the @")
                )
       end
 

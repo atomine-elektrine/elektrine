@@ -156,4 +156,42 @@ defmodule ElektrineWeb.OverviewLiveTest do
              "Follow"
            )
   end
+
+  test "not interested removes a post from the overview feed", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Overview dismissal target", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/overview")
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        send(view.pid, :load_feed_data)
+        rendered = render(view)
+
+        if rendered =~ "Overview dismissal target" and
+             has_element?(
+               view,
+               ~s(button[phx-click="not_interested"][phx-value-post_id="#{post.id}"])
+             ) do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Overview dismissal target"
+
+    view
+    |> element(~s(button[phx-click="not_interested"][phx-value-post_id="#{post.id}"]))
+    |> render_click()
+
+    refute render(view) =~ "Overview dismissal target"
+  end
 end

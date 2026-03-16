@@ -4,7 +4,11 @@ defmodule ElektrineWeb.CommunityPostTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.Accounts
+  alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
+  alias Elektrine.SocialFixtures
 
   setup do
     # Create a test user
@@ -275,6 +279,42 @@ defmodule ElektrineWeb.CommunityPostTest do
 
       # Should show error message
       assert html =~ "Content cannot be empty"
+    end
+  end
+
+  describe "post detail rendering" do
+    test "renders trusted markdown images in reply content", %{
+      conn: conn,
+      user: user,
+      community: community
+    } do
+      post =
+        SocialFixtures.discussion_post_fixture(%{
+          user: user,
+          community: community,
+          title: "Markdown image reply target"
+        })
+
+      replier = AccountsFixtures.user_fixture()
+      image_url = "https://lemmy.world/pictrs/image/69634f61-d012-4a6d-8fc9-a03f37d47791.gif"
+
+      {:ok, _reply} =
+        %Message{}
+        |> Message.changeset(%{
+          conversation_id: community.id,
+          sender_id: replier.id,
+          content: "![](#{image_url})",
+          message_type: "text",
+          visibility: "public",
+          post_type: "comment",
+          reply_to_id: post.id
+        })
+        |> Repo.insert()
+
+      {:ok, _view, html} = live(conn, ~p"/communities/#{community.name}/post/#{post.id}")
+
+      assert html =~ ~s(src="#{image_url}")
+      refute html =~ "![](#{image_url})"
     end
   end
 end

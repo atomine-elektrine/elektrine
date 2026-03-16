@@ -74,6 +74,23 @@ defmodule Elektrine.Email.FiltersTest do
       assert errors_on(changeset).actions != nil
     end
 
+    test "fails to create filter with regex operators", %{user: user} do
+      attrs = %{
+        user_id: user.id,
+        name: "Regex Filter",
+        conditions: %{
+          "match_type" => "all",
+          "rules" => [
+            %{"field" => "subject", "operator" => "matches_regex", "value" => "^\\[\\w+\\]"}
+          ]
+        },
+        actions: %{"mark_as_read" => true}
+      }
+
+      {:error, changeset} = Filters.create_filter(attrs)
+      assert errors_on(changeset).conditions != nil
+    end
+
     test "lists filters for user", %{user: user} do
       create_test_filter(user.id, "Filter A", 1)
       create_test_filter(user.id, "Filter B", 0)
@@ -339,7 +356,7 @@ defmodule Elektrine.Email.FiltersTest do
       assert Filter.matches?(filter, message)
     end
 
-    test "matches_regex operator" do
+    test "legacy regex operators no longer match messages" do
       filter = %Filter{
         conditions: %{
           "rules" => [
@@ -350,28 +367,6 @@ defmodule Elektrine.Email.FiltersTest do
 
       message = %{
         subject: "[URGENT] Please respond",
-        from: nil,
-        to: nil,
-        cc: nil,
-        text_body: nil,
-        html_body: nil,
-        has_attachments: false
-      }
-
-      assert Filter.matches?(filter, message)
-    end
-
-    test "matches_regex handles invalid regex gracefully" do
-      filter = %Filter{
-        conditions: %{
-          "rules" => [
-            %{"field" => "subject", "operator" => "matches_regex", "value" => "[invalid"}
-          ]
-        }
-      }
-
-      message = %{
-        subject: "Test",
         from: nil,
         to: nil,
         cc: nil,

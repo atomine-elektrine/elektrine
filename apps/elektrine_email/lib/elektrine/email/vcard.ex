@@ -1,5 +1,7 @@
 defmodule Elektrine.Email.VCard do
   @moduledoc "vCard parser and generator for CardDAV support.\nSupports vCard 3.0 (RFC 2426) and vCard 4.0 (RFC 6350).\n"
+
+  alias Elektrine.EmailAddresses
   alias Elektrine.Email.Contact
   @doc "Parse a vCard string into a map of contact fields.\n"
   def parse(vcard_string) when is_binary(vcard_string) do
@@ -66,7 +68,7 @@ defmodule Elektrine.Email.VCard do
       |> Base.encode16(case: :lower)
       |> String.replace(~r/(.{8})(.{4})(.{4})(.{4})(.{12})/, "\\1-\\2-\\3-\\4-\\5")
 
-    "#{uuid}@elektrine.com"
+    EmailAddresses.uid(uuid)
   end
 
   defp maybe_add(lines, key, contact, formatter) do

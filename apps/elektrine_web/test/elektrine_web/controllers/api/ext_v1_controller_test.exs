@@ -6,6 +6,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   import Elektrine.SocialFixtures
 
   alias Elektrine.Calendar, as: CalendarContext
+  alias Elektrine.PasswordManager
   alias Elektrine.Developer
   alias Elektrine.Email
   alias Elektrine.Email.Contacts
@@ -13,6 +14,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias ElektrineWeb.Plugs.APIAuth
 
   describe "PAT auth + versioned external API" do
     test "returns standardized missing token error", %{conn: conn} do
@@ -388,7 +390,144 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       assert %{"data" => data} = json_response(conn, 200)
       assert data["vault_configured"] == false
+      assert is_nil(data["vault_verifier"])
       assert data["entries"] == []
+    end
+
+    test "password manager list returns encrypted verifier metadata when configured", %{
+      conn: conn
+    } do
+      user = user_fixture()
+
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 encrypted_verifier: %{
+                   version: 1,
+                   algorithm: "AES-GCM",
+                   kdf: "PBKDF2-SHA256",
+                   iterations: 210_000,
+                   salt: Base.encode64(<<0::128>>),
+                   iv: Base.encode64(<<0::96>>),
+                   ciphertext: Base.encode64(<<1, 2, 3, 4>>)
+                 }
+               })
+
+      conn = with_pat(conn, user.id, ["read:vault"])
+      conn = get(conn, "/api/ext/v1/password-manager/entries")
+
+      assert %{"data" => data} = json_response(conn, 200)
+      assert data["vault_configured"] == true
+      assert data["vault_verifier"]["algorithm"] == "AES-GCM"
+      assert data["vault_verifier"]["kdf"] == "PBKDF2-SHA256"
+    end
+
+    test "password manager endpoints accept standard account auth tokens", %{conn: conn} do
+      user = user_fixture()
+      {:ok, token} = APIAuth.generate_token(user.id)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get("/api/ext/v1/password-manager/entries")
+
+      assert %{"data" => data} = json_response(conn, 200)
+      assert data["vault_configured"] == false
+      assert data["entries"] == []
+    end
+
+    test "password manager write endpoints accept standard account auth tokens", %{conn: conn} do
+      user = user_fixture()
+      {:ok, token} = APIAuth.generate_token(user.id)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post("/api/ext/v1/password-manager/vault/setup", %{
+          "vault" => %{"encrypted_verifier" => valid_client_payload()}
+        })
+
+      assert %{"data" => data} = json_response(conn, 201)
+      assert data["message"] == "Vault configured"
+      assert data["vault_configured"] == true
+    end
+
+    test "password manager delete vault endpoint removes verifier and entries", %{conn: conn} do
+      user = user_fixture()
+      {:ok, token} = APIAuth.generate_token(user.id)
+
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 encrypted_verifier: valid_client_payload()
+               })
+
+      assert {:ok, _entry} =
+               PasswordManager.create_entry(user.id, %{
+                 title: "Disposable",
+                 encrypted_password: valid_client_payload()
+               })
+
+      delete_conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> delete("/api/ext/v1/password-manager/vault")
+
+      assert %{"data" => data} = json_response(delete_conn, 200)
+      assert data["message"] == "Vault deleted"
+      assert data["deleted_entries"] == 1
+      assert data["vault_configured"] == false
+
+      list_conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get("/api/ext/v1/password-manager/entries")
+
+      assert %{"data" => list_data} = json_response(list_conn, 200)
+      assert list_data["vault_configured"] == false
+      assert list_data["entries"] == []
+    end
+
+    test "password manager endpoints reject account scopes without vault scopes", %{conn: conn} do
+      user = user_fixture()
+      conn = with_pat(conn, user.id, ["read:account"])
+
+      conn = get(conn, "/api/ext/v1/password-manager/entries")
+
+      assert %{"error" => error} = json_response(conn, 403)
+      assert error["code"] == "insufficient_scope"
+    end
+
+    test "password manager update endpoint updates an existing entry", %{conn: conn} do
+      user = user_fixture()
+
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 encrypted_verifier: valid_client_payload()
+               })
+
+      assert {:ok, entry} =
+               PasswordManager.create_entry(user.id, %{
+                 title: "GitHub",
+                 login_username: "old@example.com",
+                 website: "https://github.com",
+                 encrypted_password: valid_client_payload()
+               })
+
+      conn = with_pat(conn, user.id, ["write:vault"])
+
+      conn =
+        put(conn, "/api/ext/v1/password-manager/entries/#{entry.id}", %{
+          "entry" => %{
+            "title" => "GitHub Updated",
+            "login_username" => "new@example.com",
+            "website" => "https://github.com",
+            "encrypted_password" => valid_client_payload(),
+            "encrypted_notes" => valid_client_payload()
+          }
+        })
+
+      assert %{"data" => %{"entry" => updated_entry}} = json_response(conn, 200)
+      assert updated_entry["title"] == "GitHub Updated"
+      assert updated_entry["login_username"] == "new@example.com"
     end
 
     test "webhook endpoints work with webhook scope", %{conn: conn} do
@@ -480,5 +619,17 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       })
 
     put_req_header(conn, "authorization", "Bearer #{token.token}")
+  end
+
+  defp valid_client_payload do
+    %{
+      version: 1,
+      algorithm: "AES-GCM",
+      kdf: "PBKDF2-SHA256",
+      iterations: 210_000,
+      salt: Base.encode64(<<0::128>>),
+      iv: Base.encode64(<<0::96>>),
+      ciphertext: Base.encode64(<<1, 2, 3, 4>>)
+    }
   end
 end

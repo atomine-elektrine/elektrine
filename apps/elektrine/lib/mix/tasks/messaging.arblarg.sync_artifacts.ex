@@ -10,13 +10,13 @@ defmodule Mix.Tasks.Messaging.Arblarg.SyncArtifacts do
 
   @impl true
   def run(_args) do
-    Mix.Task.run("app.start")
+    Mix.Task.run("compile")
 
     version = ArblargSDK.protocol_version()
     major_version = version |> String.split(".") |> List.first()
 
     schema_dir =
-      Path.expand("external/arblarg/schemas/v#{major_version}", File.cwd!())
+      Path.expand("../../../../../external/arblarg/schemas/v#{major_version}", __DIR__)
 
     File.mkdir_p!(schema_dir)
 

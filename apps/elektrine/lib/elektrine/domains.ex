@@ -46,6 +46,13 @@ defmodule Elektrine.Domains do
   Base domains that can host profile subdomains.
   """
   def profile_base_domains do
+    configured_profile_base_domains()
+  end
+
+  @doc """
+  Configured base domains that can host profile subdomains.
+  """
+  def configured_profile_base_domains do
     Application.get_env(:elektrine, :profile_base_domains, supported_email_domains())
     |> normalize_domains()
     |> ensure_primary_domain()
@@ -55,7 +62,32 @@ defmodule Elektrine.Domains do
   Primary base domain for profile URLs.
   """
   def primary_profile_domain do
-    List.first(profile_base_domains()) || primary_email_domain()
+    List.first(configured_profile_base_domains()) || primary_email_domain()
+  end
+
+  @doc """
+  Optional DNS target hostname to show when onboarding custom profile domains.
+
+  Set this to the hostname of your external profile edge, such as a dedicated
+  Caddy Fly app, when custom domains should not point directly at the main app.
+  """
+  def profile_custom_domain_edge_target do
+    System.get_env("PROFILE_CUSTOM_DOMAIN_EDGE_TARGET")
+    |> normalize_domain(nil)
+  end
+
+  @doc """
+  Optional IPv4 address for custom profile domain onboarding.
+  """
+  def profile_custom_domain_edge_ipv4 do
+    normalize_ip_address(System.get_env("PROFILE_CUSTOM_DOMAIN_EDGE_IPV4"))
+  end
+
+  @doc """
+  Optional IPv6 address for custom profile domain onboarding.
+  """
+  def profile_custom_domain_edge_ipv6 do
+    normalize_ip_address(System.get_env("PROFILE_CUSTOM_DOMAIN_EDGE_IPV6"))
   end
 
   @doc """
@@ -251,19 +283,88 @@ defmodule Elektrine.Domains do
   def local_activitypub_domain?(_), do: false
 
   @doc """
+  True if the given domain is one of our local built-in profile domains.
+  """
+  def local_profile_domain?(domain) when is_binary(domain) do
+    normalized = normalize_host(domain)
+
+    normalized != "" and
+      (local_activitypub_domain?(normalized) or
+         not is_nil(configured_profile_base_domain_for_host(normalized)))
+  end
+
+  def local_profile_domain?(_), do: false
+
+  @doc """
+  True if the given host is a root app host (domain or www.domain) for configured profile domains.
+  """
+  def app_host?(host) when is_binary(host) do
+    normalized_host = normalize_host(host)
+
+    case profile_base_domain_for_host(normalized_host) do
+      nil -> false
+      domain -> normalized_host == domain or normalized_host == "www." <> domain
+    end
+  end
+
+  def app_host?(_), do: false
+
+  @doc """
+  Builds the local profile URL for a handle.
+
+  When the current request host is a verified custom profile domain, the returned URL is the
+  bare root domain for that profile.
+  """
+  def profile_url_for_handle(handle, host \\ nil)
+
+  def profile_url_for_handle(handle, host) when is_binary(handle) do
+    clean_handle =
+      handle
+      |> String.trim()
+      |> String.trim_leading("@")
+
+    if clean_handle == "" do
+      nil
+    else
+      case profile_custom_domain_for_host(host) do
+        %{domain: domain} ->
+          "https://#{domain}"
+
+        _ ->
+          base_domain = profile_base_domain_for_host(host) || primary_profile_domain()
+          "https://#{URI.encode_www_form(clean_handle)}.#{base_domain}"
+      end
+    end
+  end
+
+  def profile_url_for_handle(_, _), do: nil
+
+  @doc """
   Returns the configured profile base domain for a host.
   Supports both root hosts and handle subdomains.
   """
   def profile_base_domain_for_host(host) when is_binary(host) do
-    downcased = String.downcase(host)
-
-    Enum.find(profile_base_domains(), fn domain ->
-      downcased == domain or downcased == "www." <> domain or
-        String.ends_with?(downcased, "." <> domain)
-    end)
+    downcased = normalize_host(host)
+    configured_profile_base_domain_for_host(downcased)
   end
 
   def profile_base_domain_for_host(_), do: nil
+
+  @doc """
+  Returns the verified custom profile domain for a host when one exists.
+  Supports redirecting `www.` aliases to the root domain.
+  """
+  def profile_custom_domain_for_host(host) when is_binary(host) do
+    normalized_host = normalize_host(host)
+
+    if normalized_host == "" do
+      nil
+    else
+      maybe_profile_custom_domains(:get_verified_custom_domain_for_host, [normalized_host])
+    end
+  end
+
+  def profile_custom_domain_for_host(_), do: nil
 
   @doc """
   Main domain URL inferred from the request host.
@@ -272,9 +373,15 @@ defmodule Elektrine.Domains do
   def main_domain_url_from_host(host, scheme \\ "https")
 
   def main_domain_url_from_host(host, scheme) when is_binary(host) and is_binary(scheme) do
-    case profile_base_domain_for_host(host) do
-      nil -> ""
-      domain -> "#{scheme}://#{domain}"
+    cond do
+      match?(%{domain: _}, profile_custom_domain_for_host(host)) ->
+        "#{scheme}://#{primary_profile_domain()}"
+
+      true ->
+        case profile_base_domain_for_host(host) do
+          nil -> ""
+          domain -> "#{scheme}://#{domain}"
+        end
     end
   end
 
@@ -293,6 +400,12 @@ defmodule Elektrine.Domains do
 
   defp verified_custom_email_domains_for_user(_), do: []
 
+  defp configured_profile_base_domain_for_host(host) do
+    Enum.find(configured_profile_base_domains(), fn domain ->
+      host == domain or host == "www." <> domain or String.ends_with?(host, "." <> domain)
+    end)
+  end
+
   defp maybe_custom_domains(function_name, args) do
     if Code.ensure_loaded?(Elektrine.Email.CustomDomains) and
          function_exported?(Elektrine.Email.CustomDomains, function_name, length(args)) do
@@ -302,6 +415,17 @@ defmodule Elektrine.Domains do
     end
   rescue
     _ -> []
+  end
+
+  defp maybe_profile_custom_domains(function_name, args) do
+    if Code.ensure_loaded?(Elektrine.Profiles.CustomDomains) and
+         function_exported?(Elektrine.Profiles.CustomDomains, function_name, length(args)) do
+      apply(Elektrine.Profiles.CustomDomains, function_name, args)
+    else
+      nil
+    end
+  rescue
+    _ -> nil
   end
 
   defp ensure_primary_domain(domains) do
@@ -332,6 +456,26 @@ defmodule Elektrine.Domains do
     |> case do
       "" -> fallback
       value -> value
+    end
+  end
+
+  defp normalize_host(host) when is_binary(host) do
+    host
+    |> String.trim()
+    |> String.downcase()
+    |> String.split(":", parts: 2)
+    |> List.first()
+    |> normalize_domain("")
+  end
+
+  defp normalize_ip_address(nil), do: nil
+
+  defp normalize_ip_address(value) when is_binary(value) do
+    trimmed = String.trim(value)
+
+    case :inet.parse_address(String.to_charlist(trimmed)) do
+      {:ok, _ip} -> trimmed
+      _ -> nil
     end
   end
 end

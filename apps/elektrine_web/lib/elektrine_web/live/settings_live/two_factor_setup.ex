@@ -62,16 +62,17 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="mb-6 sm:mb-8">
-        <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
-          Set Up Two-Factor Authentication
-        </h1>
-        <p class="text-base-content/70 mt-2">Secure your account with an authenticator app</p>
-      </div>
-
+    <.account_page
+      title="Set Up Two-Factor Authentication"
+      subtitle="Secure your account with an authenticator app."
+      sidebar_tab="security"
+    >
       <div class="space-y-4 sm:space-y-6">
-        <div id="step1-card" phx-hook="GlassCard" class="card glass-card shadow-lg">
+        <div
+          id="step1-card"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
+        >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <span class="badge badge-primary badge-lg">1</span>
@@ -121,7 +122,11 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
 
-        <div id="step2-card" phx-hook="GlassCard" class="card glass-card shadow-lg">
+        <div
+          id="step2-card"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
+        >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <span class="badge badge-primary badge-lg">2</span>
@@ -189,7 +194,11 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
 
-        <div id="step3-card" phx-hook="GlassCard" class="card glass-card shadow-lg">
+        <div
+          id="step3-card"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
+        >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <span class="badge badge-primary badge-lg">3</span>
@@ -218,7 +227,11 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
 
-        <div id="step4-card" phx-hook="GlassCard" class="card glass-card shadow-lg">
+        <div
+          id="step4-card"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
+        >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <span class="badge badge-primary badge-lg">4</span>
@@ -253,11 +266,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 />
               </div>
 
-              <div class="card-actions justify-between mt-4 sm:mt-6">
-                <.link href={~p"/account"} class="btn btn-ghost btn-sm sm:btn-md">
-                  <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to settings
-                </.link>
-
+              <div class="card-actions justify-end mt-4 sm:mt-6">
                 <button type="submit" class="btn btn-primary btn-sm sm:btn-md" disabled={@submitting}>
                   <%= if @submitting do %>
                     <.spinner size="sm" /> Verifying...
@@ -270,7 +279,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
       </div>
-    </div>
+    </.account_page>
     """
   end
 

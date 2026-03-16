@@ -4,6 +4,7 @@ defmodule Elektrine.UserNotifier do
   """
 
   import Swoosh.Email
+  alias Elektrine.EmailAddresses
 
   @doc """
   Deliver password reset instructions to the given user.
@@ -16,7 +17,7 @@ defmodule Elektrine.UserNotifier do
       |> subject("Reset your Elektrine password")
       |> html_body(password_reset_html_body(user, reset_token))
       |> text_body(password_reset_text_body(user, reset_token))
-      |> header("List-Id", "<elektrine-password-reset.elektrine.com>")
+      |> header("List-Id", EmailAddresses.list_id("elektrine-password-reset"))
     else
       raise ArgumentError, "User #{user.username} has no recovery email set"
     end
@@ -139,7 +140,6 @@ defmodule Elektrine.UserNotifier do
 
   # Get system from email based on configuration
   defp system_from_email do
-    # Default to elektrine.com domain
-    {"Elektrine", "noreply@elektrine.com"}
+    {"Elektrine", EmailAddresses.local("noreply")}
   end
 end

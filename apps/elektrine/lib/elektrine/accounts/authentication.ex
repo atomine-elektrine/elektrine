@@ -529,11 +529,18 @@ defmodule Elektrine.Accounts.Authentication do
               %User{recovery_email: recovery_email, recovery_email_verified: true}
               when not is_nil(recovery_email) ->
                 token = generate_password_reset_token()
+                previous_reset_state = password_reset_state(user)
 
                 case user |> User.password_reset_changeset(token) |> Repo.update() do
                   {:ok, updated_user} ->
-                    send_password_reset_email(updated_user, token)
-                    {:ok, updated_user}
+                    case send_password_reset_email(updated_user, token) do
+                      {:ok, _result} ->
+                        {:ok, updated_user}
+
+                      {:error, reason} ->
+                        restore_password_reset_state(updated_user, previous_reset_state)
+                        {:error, reason}
+                    end
 
                   {:error, changeset} ->
                     {:error, changeset}
@@ -554,7 +561,14 @@ defmodule Elektrine.Accounts.Authentication do
            end) do
           {:ok, :emails_sent}
         else
-          {:ok, :user_not_found}
+          if Enum.any?(results, fn
+               {:error, :email_failed} -> true
+               _ -> false
+             end) do
+            {:error, :email_failed}
+          else
+            {:ok, :user_not_found}
+          end
         end
     end
   end
@@ -670,7 +684,15 @@ defmodule Elektrine.Accounts.Authentication do
 
   defp send_password_reset_email(%User{recovery_email: recovery_email} = user, token)
        when not is_nil(recovery_email) do
-    Elektrine.UserNotifier.password_reset_instructions(user, token) |> Elektrine.Mailer.deliver()
+    case Elektrine.UserNotifier.password_reset_instructions(user, token)
+         |> Elektrine.Mailer.deliver() do
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, reason} ->
+        Logger.error("Failed to send password reset email: #{inspect(reason)}")
+        {:error, :email_failed}
+    end
   rescue
     e ->
       Logger.error("Failed to send password reset email: #{inspect(e)}")
@@ -679,5 +701,23 @@ defmodule Elektrine.Accounts.Authentication do
 
   defp send_password_reset_email(_, _) do
     {:error, :no_recovery_email}
+  end
+
+  defp password_reset_state(%User{} = user) do
+    %{
+      password_reset_token: user.password_reset_token,
+      password_reset_token_expires_at: user.password_reset_token_expires_at
+    }
+  end
+
+  defp restore_password_reset_state(%User{} = user, previous_state) do
+    case user |> Ecto.Changeset.change(previous_state) |> Repo.update() do
+      {:ok, _restored_user} ->
+        :ok
+
+      {:error, restore_reason} ->
+        Logger.error("Failed to restore password reset token state: #{inspect(restore_reason)}")
+        :error
+    end
   end
 end

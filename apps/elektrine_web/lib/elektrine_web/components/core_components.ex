@@ -25,6 +25,7 @@ defmodule ElektrineWeb.CoreComponents do
   Icons are provided by [heroicons](https://heroicons.com).
   """
   use Phoenix.Component
+  use Gettext, backend: ElektrineWeb.Gettext
   alias Phoenix.LiveView.JS
 
   # UI Components
@@ -48,6 +49,7 @@ defmodule ElektrineWeb.CoreComponents do
   # Datetime Components
   alias ElektrineWeb.Components.Datetime.LocalTime
 
+  alias Elektrine.Platform.Modules
   alias ElektrineWeb.Platform.Integrations
 
   # Modal component and helpers
@@ -114,6 +116,168 @@ defmodule ElektrineWeb.CoreComponents do
 
   # Datetime components
   defdelegate local_time(assigns), to: LocalTime
+
+  @doc """
+  Renders a consistent shell for account/settings detail pages.
+  """
+  attr :title, :string, required: true
+  attr :subtitle, :string, default: nil
+  attr :sidebar_tab, :string, default: nil
+  attr :sidebar_link, :string, default: nil
+  attr :max_width, :string, default: nil
+  attr :class, :string, default: nil
+  slot :inner_block, required: true
+
+  def account_page(assigns) do
+    ~H"""
+    <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+      <div class="mb-6 sm:mb-8">
+        <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
+          {gettext("Account Settings")}
+        </h1>
+        <p class="text-base-content/70 mt-2">
+          {gettext("Manage your account preferences and security settings")}
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-4 lg:gap-8">
+        <div class="lg:col-span-1">
+          <.account_settings_sidebar
+            :if={@sidebar_tab || @sidebar_link}
+            selected_tab={@sidebar_tab}
+            selected_link={@sidebar_link}
+          />
+        </div>
+        <section class={["w-full space-y-6 sm:space-y-8 lg:col-span-3", @max_width, @class]}>
+          <header class="space-y-3">
+            <h2 class="text-2xl font-bold text-base-content sm:text-3xl">{@title}</h2>
+            <p :if={@subtitle} class="text-base-content/70">{@subtitle}</p>
+          </header>
+          {render_slot(@inner_block)}
+        </section>
+      </div>
+    </div>
+    """
+  end
+
+  attr :selected_tab, :string, default: nil
+  attr :selected_link, :string, default: nil
+
+  def account_settings_sidebar(assigns) do
+    assigns = assign(assigns, :tabs, account_setting_tabs())
+
+    ~H"""
+    <div class="sticky top-24 self-start">
+      <div class="card glass-card shadow-lg">
+        <div class="card-body p-4">
+          <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
+          <ul class="menu menu-compact w-full p-0 space-y-1">
+            <%= for {tab_id, tab_icon, tab_tone} <- @tabs do %>
+              <li>
+                <.link
+                  navigate={"/account?tab=#{tab_id}"}
+                  class={account_setting_link_class(@selected_tab, tab_id, tab_tone)}
+                >
+                  <.icon name={tab_icon} class="w-4 h-4" /> {account_setting_label(tab_id)}
+                </.link>
+              </li>
+            <% end %>
+          </ul>
+
+          <div class="divider my-4"></div>
+
+          <div class="space-y-2">
+            <.link
+              navigate="/account/profile/edit"
+              class={account_setting_secondary_link_class(@selected_link, "profile")}
+            >
+              <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
+            </.link>
+            <.link
+              navigate="/account/profile/domains"
+              class={account_setting_secondary_link_class(@selected_link, "profile-domains")}
+            >
+              <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Profile Domains")}
+            </.link>
+            <.link
+              navigate="/account/storage"
+              class={account_setting_secondary_link_class(@selected_link, "storage")}
+            >
+              <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
+            </.link>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp account_setting_tabs do
+    [
+      {"profile", "hero-user", :default},
+      {"security", "hero-shield-check", :default},
+      {"password-manager", "hero-lock-closed", :default},
+      {"privacy", "hero-lock-closed", :default},
+      {"preferences", "hero-cog-6-tooth", :default},
+      {"notifications", "hero-bell", :default},
+      {"federation", "hero-globe-alt", :default},
+      {"timeline", "hero-queue-list", :default},
+      {"email", "hero-envelope", :default},
+      {"developer", "hero-code-bracket", :default},
+      {"danger", "hero-exclamation-triangle", :danger}
+    ]
+    |> Enum.filter(fn {tab, _icon, _tone} -> account_setting_enabled?(tab) end)
+  end
+
+  defp account_setting_label("profile"), do: gettext("Profile")
+  defp account_setting_label("security"), do: gettext("Security")
+  defp account_setting_label("password-manager"), do: gettext("Password Manager")
+  defp account_setting_label("privacy"), do: gettext("Privacy")
+  defp account_setting_label("preferences"), do: gettext("Preferences")
+  defp account_setting_label("notifications"), do: gettext("Notifications")
+  defp account_setting_label("federation"), do: gettext("Federation")
+  defp account_setting_label("timeline"), do: gettext("Timeline")
+  defp account_setting_label("email"), do: gettext("Email")
+  defp account_setting_label("developer"), do: gettext("Developer")
+  defp account_setting_label("danger"), do: gettext("Danger Zone")
+  defp account_setting_label(_), do: gettext("Settings")
+
+  defp account_setting_link_class(selected_tab, tab_id, tone) do
+    base =
+      "text-sm rounded-lg flex items-center gap-2 px-3 py-2 border transition-all duration-200"
+
+    active? = selected_tab == tab_id
+
+    case tone do
+      :danger ->
+        if active? do
+          "#{base} border-error/40 bg-error/10 text-error shadow-sm"
+        else
+          "#{base} border-transparent text-error/80 hover:bg-error/10 hover:border-error/20"
+        end
+
+      _ ->
+        if active? do
+          "#{base} border-primary/30 bg-primary/10 text-primary shadow-sm"
+        else
+          "#{base} border-transparent text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
+        end
+    end
+  end
+
+  defp account_setting_enabled?("password-manager"), do: Modules.enabled?(:vault)
+  defp account_setting_enabled?("email"), do: Modules.enabled?(:email)
+  defp account_setting_enabled?(_tab), do: true
+
+  defp account_setting_secondary_link_class(selected_link, link_id) do
+    base = "btn btn-ghost btn-sm w-full justify-start border transition-all duration-200"
+
+    if selected_link == link_id do
+      "#{base} border-primary/30 bg-primary/10 text-primary shadow-sm"
+    else
+      "#{base} border-transparent"
+    end
+  end
 
   @doc """
   Renders a dismissible flash message.

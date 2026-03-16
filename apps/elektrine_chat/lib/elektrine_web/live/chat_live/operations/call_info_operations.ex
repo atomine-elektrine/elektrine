@@ -22,12 +22,11 @@ defmodule ElektrineWeb.ChatLive.Operations.CallInfoOperations do
          socket.assigns.call.incoming_call.id == call.id do
       {:noreply, socket}
     else
-      # Reload call with user data if not already loaded
       call =
-        if Ecto.assoc_loaded?(call.caller) do
+        if local_call_with_loaded_users?(call) do
           call
         else
-          Elektrine.Calls.get_call_with_users(call.id)
+          maybe_reload_local_call(call)
         end
 
       socket =
@@ -90,5 +89,17 @@ defmodule ElektrineWeb.ChatLive.Operations.CallInfoOperations do
     |> Map.put(:status, nil)
     |> Map.put(:audio_enabled, true)
     |> Map.put(:video_enabled, true)
+  end
+
+  defp local_call_with_loaded_users?(%{source: :federated}), do: true
+
+  defp local_call_with_loaded_users?(call) do
+    Ecto.assoc_loaded?(call.caller) and Ecto.assoc_loaded?(call.callee)
+  end
+
+  defp maybe_reload_local_call(%{source: :federated} = call), do: call
+
+  defp maybe_reload_local_call(call) do
+    Elektrine.Calls.get_call_with_users(call.id) || call
   end
 end

@@ -333,6 +333,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
   defp make_links_clickable(text) when is_binary(text) do
     text
     |> make_content_safe_with_links()
+    |> render_markdown_images()
     |> preserve_line_breaks()
   end
 

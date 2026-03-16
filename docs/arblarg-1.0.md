@@ -2,127 +2,246 @@
 
 ## Status
 
-This document is the normative specification for Arblarg 1.0.
+This document defines the current normative Arblarg 1.0 wire contract.
 
-Arblarg 1.0 is a stable wire contract. `1.0` changes MUST remain backward
-compatible. Additive changes are allowed. Breaking changes require a new
-protocol version.
-
-Canonical protocol naming:
-
-- Human name: `Arblarg`
-- Wire protocol token: `arblarg`
-- Protocol id: `arblarg`
-- Default protocol label: `arblarg/1.0`
-
-Repository artifacts under `external/arblarg/` are generated publication
-artifacts and test vectors. They are not normative by themselves. If an
-artifact disagrees with this specification, the artifact is wrong and MUST be
-regenerated.
-
-## 1. Scope
-
-Arblarg is a server-authoritative federated chat protocol optimized for:
-
-- ordered per-stream event delivery
-- idempotent retries
-- compact ref-based payloads on the hot path
-- signed HTTP federation between domains
-- optional long-lived websocket sessions between domains
-- batch transport
-- stream replay catch-up
-- signed snapshot bootstrap with governance state and stream checkpoints
-- an ephemeral lane for presence and typing
-
-Arblarg is intentionally not:
-
-- a multi-writer room DAG
-- a room-state conflict-resolution protocol
-- an E2EE device graph protocol
-
-Each durable stream has one authoritative origin domain.
-
-## 2. Terminology
-
-- `origin_domain`: domain that authored the event or snapshot
-- `stream_id`: ordered durable log scope
-- `sequence`: monotonic per-stream cursor
-- `event_id`: unique event identifier
-- `idempotency_key`: retry-stable semantic dedupe key
-- `federation_id`: globally scoped object identifier, normally an absolute URL
-- `actor`: canonical user identity object carried in payloads
-- `snapshot`: coarse bootstrap export containing objects and stream checkpoints
-
-The keywords `MUST`, `SHOULD`, and `MAY` are used in the RFC sense.
-
-## 3. Discovery And Bootstrap
-
-### 3.1 Canonical discovery endpoints
-
-Federating domains SHOULD publish:
-
-- `GET /.well-known/arblarg`
-- `GET /.well-known/arblarg/{version}`
-
-The current version string is `1.0`.
-
-### 3.2 Discovery document
-
-The discovery document is JSON.
-
-Required fields:
+Arblarg 1.0 is a stable protocol version:
 
 - `protocol = "arblarg"`
 - `protocol_id = "arblarg"`
 - `default_protocol_version = "1.0"`
+- `protocol_label = "arblarg/1.0"`
+
+Breaking wire changes require a new protocol version. Additive changes are
+allowed inside `1.0` only when they remain backward compatible.
+
+Arblarg 1.0 is specified by:
+
+- this document for semantics, authorization, and interoperability rules
+- the JSON schemas under `external/arblarg/schemas/v1/` for payload shape
+- the discovery and profiles documents exposed by an implementation
+
+If prose and generated artifacts disagree, this document is normative for
+semantics and the JSON schemas are normative for field shape.
+
+## 1. Overview
+
+Arblarg is a federated, Discord-shaped chat protocol built around signed events,
+ordered room streams, explicit recovery, and room-scoped replication.
+
+Arblarg 1.0 is optimized for:
+
+- domain-to-domain federation over signed HTTP
+- ordered durable event delivery with idempotent retries
+- compact refs on the hot path
+- optional long-lived websocket sessions between domains
+- explicit replay and snapshot recovery
+- peer-filtered bootstrap and visibility-aware fanout
+- ephemeral presence and typing
+
+Arblarg 1.0 is intentionally not:
+
+- a Matrix-style state DAG
+- a general-purpose XML messaging substrate
+- an end-to-end encrypted device protocol
+- a media transport for voice or video
+
+Arblarg's product model is:
+
+- `domain`: trust, signing, and transport authority
+- `server`: user-facing community container hosted by a domain
+- `channel` or `room`: the participation unit inside a server
+- `actor`: canonical user identity carried in event payloads
+
+A domain MAY host multiple Arblarg servers. A server is not the same thing as a
+domain.
+
+## 2. Core Model
+
+### 2.1 Domains, servers, rooms, and mirrors
+
+Every event is authenticated by a federating domain. A server and its rooms are
+protocol objects hosted under that domain.
+
+Remote state is stored locally as a mirror:
+
+- a local mirror is a projection of remote server and room state
+- a mirror is created or repaired by replay and snapshot import
+- a mirror is not authoritative for objects hosted elsewhere
+
+### 2.2 Streams and ordering
+
+Durable ordering is scoped by `(origin_domain, stream_id)`.
+
+`stream_id` values:
+
+- `server:{server_id}`
+- `channel:{channel_id}`
+- `dm:{dm_id}`
+
+Rules:
+
+- `sequence` is monotonic per `(origin_domain, stream_id)`
+- `idempotency_key` is retry-stable per semantic event
+- receivers MUST deduplicate by `(origin_domain, idempotency_key)`
+- receivers MUST track high-water marks per `(origin_domain, stream_id)`
+
+Arblarg does not define a full state DAG. Receivers accept authorized signed
+events and maintain latest-state projections.
+
+### 2.3 Multi-origin rooms
+
+Arblarg 1.0 supports direct multi-origin room participation.
+
+For room participation traffic:
+
+- `message.create`
+- `message.update`
+- `message.delete`
+- `reaction.add`
+- `reaction.remove`
+- `read.cursor`
+- `membership.upsert`
+- `typing.start`
+- `typing.stop`
+- room-scoped `presence.update`
+
+the acting domain MUST be allowed to author events for its own actors inside a
+room hosted by another domain.
+
+The room is still identified by a single authoritative `channel_id`, but
+durable ordering is per `(origin_domain, stream_id)`, not per room globally.
+
+### 2.4 Shared room governance
+
+Arblarg 1.0 also supports shared room governance events:
+
+- `invite.upsert`
+- `ban.upsert`
+- `role.upsert`
+- `role.assignment.upsert`
+- `permission.overwrite.upsert`
+- `thread.upsert`
+- `thread.archive`
+- `moderation.action.recorded`
+
+These events are room-scoped and multi-origin, but they are not a DAG. Receivers
+project latest accepted state per governed object key.
+
+Governance authorization is based on effective room permissions, not just the
+sender homeserver.
+
+### 2.5 Built-in roles and permissions
+
+The default interoperable permission vocabulary is:
+
+- `read_messages`
+- `send_messages`
+- `invite_members`
+- `manage_moderation`
+- `manage_roles`
+- `manage_permissions`
+
+Built-in interoperable roles are:
+
+- `owner`
+- `admin`
+- `moderator`
+- `member`
+- `readonly`
+
+Implementations MAY add additional permission strings, but unsupported tokens
+are only synchronized metadata unless a receiver understands them.
+
+## 3. Identifiers and actor rules
+
+### 3.1 Federation identifiers
+
+Arblarg federation identifiers SHOULD be absolute HTTPS URLs.
+
+Examples:
+
+- server id: `https://example.com/_arblarg/servers/42`
+- channel id: `https://example.com/_arblarg/channels/7`
+- message id: `https://example.com/_arblarg/messages/9001`
+- dm id: `https://example.com/_arblarg/dms/3`
+
+### 3.2 Origin ownership
+
+Actor-bearing and actor-authored identifiers MUST be origin-owned by the event
+`origin_domain`.
+
+That means:
+
+- actor URIs MUST resolve to the sender domain
+- actor-authored object ids such as message ids MUST resolve to the sender
+  domain
+- room context ids do not have to resolve to the sender domain in a multi-origin
+  room event
+
+Room context ids identify the governed room authority. Actor-authored ids
+identify the sender's objects.
+
+### 3.3 Compact refs
+
+Room and DM events MAY carry compact refs:
+
+```json
+{
+  "refs": {
+    "server_id": "https://authority.example/_arblarg/servers/1",
+    "channel_id": "https://authority.example/_arblarg/channels/2"
+  }
+}
+```
+
+Rules:
+
+- if both object blocks and refs are present, they MUST agree
+- receivers MUST treat refs and expanded object ids as the same context
+- compact refs are preferred on hot-path delivery
+
+### 3.4 Canonical actor representation
+
+Actor payloads MUST include:
+
+- `uri`
+- `username`
+- `domain`
+- `handle`
+
+Optional fields:
+
+- `id`
+- `display_name`
+- `avatar_url`
+- `key_id`
+
+Actor identity equality is by `uri`, not by `handle`.
+
+## 4. Discovery, profiles, and trust
+
+### 4.1 Discovery endpoints
+
+Federating domains SHOULD publish:
+
+- `GET /.well-known/_arblarg`
+- `GET /.well-known/_arblarg/{version}`
+
+The current version string is `1.0`.
+
+### 4.2 Discovery document
+
+The discovery document is signed JSON and SHOULD include:
+
+- `protocol`
+- `protocol_id`
+- `default_protocol_version`
 - `domain`
 - `identity`
 - `endpoints`
 - `signature`
 
-Optional descriptive metadata:
-
-- `protocol_versions = ["1.0"]`
-- `protocol_labels = ["arblarg/1.0"]`
-- `default_protocol_label = "arblarg/1.0"`
-- `version = 1`
-- `features`
-- `limits`
-- `transport_profiles`
-- `relay_transport`
-
-`identity` has this shape:
-
-```json
-{
-  "algorithm": "ed25519",
-  "current_key_id": "k1",
-  "keys": [
-    {
-      "id": "k1",
-      "algorithm": "ed25519",
-      "public_key": "<base64url-without-padding>"
-    }
-  ]
-}
-```
-
-`signature` has this shape:
-
-```json
-{
-  "algorithm": "ed25519",
-  "key_id": "k1",
-  "value": "<base64url-without-padding>"
-}
-```
-
-The discovery signature is computed over `canonical_json(document_without_signature)`.
-
-Receivers MUST ignore unknown discovery-document fields.
-
-Receivers SHOULD treat these fields as descriptive metadata, not identity-bearing
-material:
+Recommended optional fields:
 
 - `protocol_versions`
 - `protocol_labels`
@@ -133,7 +252,28 @@ material:
 - `transport_profiles`
 - `relay_transport`
 
-### 3.3 Discovery endpoints map
+`identity.keys[].public_key` MUST be base64url public-key material. Invalid
+public keys MUST be rejected.
+
+### 4.3 Profiles document
+
+Implementations SHOULD expose:
+
+- `GET /_arblarg/profiles`
+
+The profiles document advertises:
+
+- compatibility claims
+- extension registry
+- supported event types
+- transport profiles
+- feature flags
+- schema URLs
+- conformance metadata
+
+Senders MUST use discovery plus profiles data for capability negotiation.
+
+### 4.4 Required discovery endpoints map
 
 `endpoints` SHOULD include:
 
@@ -151,136 +291,61 @@ material:
 - `schema_template`
 - `schemas`
 
-### 3.4 Feature flags
+### 4.5 Trust and key continuity
 
-Current 1.0 features include:
+Discovery key continuity states are:
 
-- `relay_transport`
-- `batched_event_delivery`
-- `stream_catch_up`
-- `compact_event_refs`
-- `binary_event_batches`
-- `read_cursors`
-- `ephemeral_lane`
-- `structured_error_codes`
-- `origin_owned_identifiers`
-- `signed_snapshots`
-- `snapshot_governance`
-- `session_transport`
-- `dynamic_peer_discovery`
-- `open_domain_bootstrap`
-- `key_continuity_tracking`
-- `key_continuity_quarantine`
-- `discovery_document_signature`
-- `wire_contract_frozen`
+- `trusted`
+- `rotated`
+- `replaced`
 
-If `limits` is present, senders MUST respect:
-
-- `max_batch_events`
-- `max_ephemeral_items`
-- `max_snapshot_channels`
-- `max_snapshot_messages`
-- `max_snapshot_governance_entries`
-- `max_stream_replay_limit`
-- `max_session_inflight_batches`
-- `max_session_inflight_events`
-
-If `transport_profiles` is present, senders SHOULD follow the peer's
-`preferred_order` and `fallback_order`.
-
-### 3.5 Bootstrap algorithm
-
-For unknown domains, an implementation SHOULD:
-
-1. Fetch `https://{domain}/.well-known/arblarg`.
-2. If unavailable, it MAY try the versioned Arblarg path.
-3. Validate `protocol`, `protocol_id`, `default_protocol_version`, and
-   `domain`.
-4. Validate the discovery signature using a key in `identity.keys`.
-5. Require discovery endpoint URLs to remain on the claimed domain or one of its
-   subdomains.
-6. Cache endpoint URLs and identity keys.
-7. Compute a continuity fingerprint from `identity.current_key_id` and
-   `identity.keys`.
-8. Compare the new fingerprint to the previously cached fingerprint.
-
-Trust-state semantics:
+Rules:
 
 - `trusted`: fingerprint unchanged
-- `rotated`: fingerprint changed, but at least one public key overlaps
-- `replaced`: fingerprint changed with no overlapping keys
+- `rotated`: fingerprint changed with overlapping key material
+- `replaced`: fingerprint changed without overlap
+- implementations SHOULD quarantine `replaced` peers for incoming traffic until
+  explicitly trusted again
+- refreshed discovery state MUST still pass trust policy checks before new keys
+  are accepted
 
-Required operator behavior:
+## 5. Transport and request security
 
-- `trusted`: normal traffic is allowed
-- `rotated`: traffic MAY continue, but operators SHOULD be warned
-- `replaced`: traffic MUST be quarantined until operator approval
+### 5.1 Base transport
 
-This is an HTTPS bootstrap model with signed discovery, domain-owned endpoint
-validation, and key continuity tracking. Initial discovery trust is not pure
-TOFU: first contact MUST be backed by either:
+Arblarg uses HTTPS by default.
 
-- a configured operator trust anchor for the remote domain, or
-- a matching DNS TXT proof published under `_arblarg.<domain>` or
-  `_arblarg-bootstrap.<domain>`
+Primary durable transport endpoints:
 
-DNS proof requirements:
+- `POST /_arblarg/events`
+- `POST /_arblarg/events/batch`
+- `POST /_arblarg/sync`
+- `GET /_arblarg/streams/events`
+- `GET /_arblarg/servers/{server_id}/snapshot`
 
-- the TXT record MUST match the discovery identity fingerprint or a discovery
-  public key
-- the TXT record MUST be either operator-authenticated out of band or bound to
-  the current HTTPS identity with `tls_certificate_sha256={base64url_sha256}`
-- receivers MUST fail bootstrap if the TXT proof exists but does not satisfy the
-  authentication or TLS-binding requirement
+Ephemeral transport endpoint:
 
-If neither proof exists, discovery MUST fail.
+- `POST /_arblarg/ephemeral`
 
-## 4. Transport
+Optional session transport:
 
-### 4.1 Base transport
+- websocket at `/_arblarg/session`
+- subprotocol `arblarg.session.v1`
 
-Arblarg uses signed HTTP requests. HTTPS is required in normal operation.
+### 5.2 Content types
 
-### 4.2 Content types
+Arblarg 1.0 uses JSON for:
 
-JSON is always valid.
+- single durable events
+- snapshot transport
+- ephemeral batches
 
-The 1.0 fast path also supports:
+Batch transport MAY additionally offer CBOR or other encodings when profiles
+advertise them.
 
-- `application/arblarg-batch+cbor`
-- `application/arblarg-ephemeral+cbor`
+### 5.3 Required request headers
 
-Single-event requests and snapshots are JSON in Arblarg 1.0.
-
-### 4.3 Session transport profile
-
-Peers MAY expose a long-lived websocket session at the discovery
-`session_websocket` endpoint.
-
-The current 1.0 session profile uses:
-
-- websocket transport
-- transport-neutral stream-session frames
-- `GET /federation/messaging/session`
-- the same request-signature fields used by HTTP federation, carried as
-  `x-arblarg-*` HTTP headers on the upgrade request
-- optional websocket subprotocol `arblarg.session.v1`
-- JSON text or CBOR binary frames
-
-The server MAY send an initial `hello` frame advertising limits and supported
-encodings.
-
-The 1.0 session profile supports:
-
-- multiplexed in-flight deliveries across independent streams
-- sender-enforced ordered delivery within a single stream
-- `ack_window` flow control using `max_inflight_batches` and
-  `max_inflight_events`
-- durable delivery ops and control ops on the same long-lived session
-
-### 4.4 Required request headers
-
-Every signed federation request MUST include:
+Signed federation requests use:
 
 - `x-arblarg-domain`
 - `x-arblarg-key-id`
@@ -290,395 +355,169 @@ Every signed federation request MUST include:
 - `x-arblarg-signature-algorithm`
 - `x-arblarg-signature`
 
-`x-arblarg-signature-algorithm` MUST be `ed25519`.
+### 5.4 Body digest and signature string
 
-### 4.5 Body digest
+The request body digest is computed over the raw request body.
 
-The body digest is:
+The canonical request signature string MUST bind:
 
-- SHA-256 of the raw request body bytes
-- Base64URL encoded
-- unpadded
+- domain
+- method
+- request path
+- query string
+- timestamp
+- content digest
+- request id
 
-For bodyless requests, the digest is computed over the empty string.
+### 5.5 Replay protection
 
-### 4.6 Request signature canonical string
+Receivers MUST reject request replays using at least:
 
-The request signature payload is the UTF-8 string:
+- signed timestamp freshness
+- request id / nonce tracking
 
-```text
-lower(domain)
-lower(method)
-canonical_path(request_path)
-trim(query_string)
-timestamp
-canonical_content_digest
-request_id
-```
+### 5.6 Transport profiles
 
-Rules:
+If `transport_profiles` is advertised, senders SHOULD follow:
 
-- `canonical_path(nil)` is `/`
-- a non-empty path without a leading slash gets one prepended
-- `query_string` is the raw trimmed query string
-- the content digest is the provided digest, or the digest of the empty string
+- `preferred_order`
+- `fallback_order`
 
-The signature is Ed25519 over the canonical string bytes. The signature value is
-Base64URL encoded without padding.
+Implementations MAY downgrade transport when the peer returns capability-related
+HTTP errors such as `404`, `406`, `410`, `415`, `426`, or `501`.
 
-### 4.7 Replay protection
+## 6. Durable event envelope
 
-Receivers MUST reject:
+Every durable event envelope MUST include:
 
-- timestamps outside the allowed skew window
-- replayed signed requests
-
-Arblarg 1.0 clock skew tolerance is `300` seconds.
-
-## 5. Event Envelope
-
-Durable events are carried in an envelope with these required fields:
-
-- `protocol = "arblarg"`
-- `protocol_id = "arblarg"`
-- `protocol_version = "1.0"`
+- `version`
 - `event_type`
-- `event_id`
 - `origin_domain`
 - `stream_id`
 - `sequence`
-- `sent_at`
+- `event_id`
 - `idempotency_key`
+- `occurred_at`
 - `payload`
+
+Durable envelopes SHOULD also include:
+
 - `signature`
 
-Current 1.0 emitters also include:
+Rules:
 
-- `protocol_label = "arblarg/1.0"`
+- the payload MUST validate against the matching schema
+- durable extension events MUST use canonical URN `event_type` values on wire
+- aliases MAY be accepted as SDK input before signing
+- receivers MUST verify payload semantics in addition to schema validation
 
-### 5.1 Event signature
+### 6.1 Event signatures
 
-Durable envelopes are signed independently from the HTTP request.
+Durable envelopes SHOULD be signed with Ed25519 over canonical JSON for the
+envelope without its `signature` block.
 
-The canonical event signature payload is:
+### 6.2 Canonical JSON
 
-```text
-arblarg
-protocol_version
-event_type
-event_id
-origin_domain
-stream_id
-sequence
-sent_at
-idempotency_key
-canonical_json(payload)
-```
+Canonical JSON MUST be deterministic:
 
-### 5.2 Canonical JSON
+- object keys sorted lexicographically
+- no insignificant whitespace
+- stable number/string encoding
 
-`canonical_json` is defined as:
+### 6.3 Deduplication and retries
 
-- object keys converted to strings
-- object keys sorted lexicographically at every level
-- arrays preserved in input order
-- scalars encoded as normal JSON scalars
-- no extra whitespace
+Rules:
 
-### 5.3 Ordering and dedupe
+- `event_id` is unique per delivery artifact
+- `idempotency_key` is stable across retries of the same semantic event
+- retries MUST preserve `idempotency_key`
+- receivers MUST tolerate duplicate deliveries
 
-Ordering is scoped by `(origin_domain, stream_id)`.
+## 7. Event classes
 
-Sequence rules:
+### 7.1 Core room participation events
 
-- the first event in a stream uses `sequence = 1`
-- each new event increments by exactly `1`
-- `sequence <= last_sequence` is stale or duplicate
-- `sequence > last_sequence + 1` is a gap
+Core room participation events are:
 
-Idempotency rules:
+- `message.create`
+- `message.update`
+- `message.delete`
+- `reaction.add`
+- `reaction.remove`
+- `read.cursor`
+- `membership.upsert`
 
-- senders MUST keep `idempotency_key` stable across semantic retries
-- receivers MUST dedupe by `(origin_domain, idempotency_key)`
+General rules:
 
-`event_id` rules:
+- `stream_id` MUST be `channel:{effective_channel_id}` for room-scoped events
+- the acting participant MUST be an active room member unless the event itself
+  is establishing a join request or accepted membership
+- the sender domain MAY only author actor-bearing objects for its own actors
 
-- `event_id` MUST be unique within an origin domain
-- receivers SHOULD treat repeated `(origin_domain, event_id)` as duplicates
+`membership.upsert` rules:
 
-## 6. Identifiers And Context
+- describes effective room state for a participant
+- typical states are `invited`, `active`, `left`, and `banned`
+- a self-authored join request is represented as a membership projection that
+  remains non-active until accepted
+- room authorities or authorized moderators MAY later update the effective role
+  or state
 
-### 6.1 Federation ids
+### 7.2 Shared room governance events
 
-The 1.0 shape uses absolute URLs:
+Governance events are:
 
-- server id: `https://{domain}/federation/messaging/servers/{server_id}`
-- channel id: `https://{domain}/federation/messaging/channels/{channel_id}`
-- message id: `https://{domain}/federation/messaging/messages/{message_id}`
-- dm id: `https://{domain}/federation/messaging/dms/{conversation_id}`
+- `invite.upsert`
+- `ban.upsert`
+- `role.upsert`
+- `role.assignment.upsert`
+- `permission.overwrite.upsert`
+- `thread.upsert`
+- `thread.archive`
+- `moderation.action.recorded`
 
-Origin ownership rules:
+Rules:
 
-- the authenticated `origin_domain` MUST own the host of every durable object id
-- ownership includes the exact domain and any subdomain of that domain
-- receivers MUST reject envelopes or snapshots that violate this rule
+- governance is room-scoped
+- governance is multi-origin
+- authorization is based on effective room permissions
+- concurrent governance is projected as latest accepted state per governed
+  object key
 
-### 6.2 Stream ids
+Expected permission checks:
 
-The current stream forms are:
+- `invite.upsert` requires `invite_members`
+- `ban.upsert` and `moderation.action.recorded` require `manage_moderation`
+- `role.upsert` and `role.assignment.upsert` require `manage_roles`
+- `permission.overwrite.upsert` requires `manage_permissions`
+- `thread.upsert` and `thread.archive` require thread ownership or sufficient
+  room moderation privilege
 
-- `server:{server_federation_id}`
-- `channel:{channel_federation_id}`
-- `dm:{dm_federation_id}`
+### 7.3 Bootstrap event
 
-The embedded federation id inside a `stream_id` MUST also be owned by the
-authenticated `origin_domain`.
+`server.upsert` is a bootstrap advertisement event.
 
-### 6.3 Compact refs
+Rules:
 
-Hot-path channel events SHOULD use refs instead of repeating full objects:
+- it describes a server and a peer-visible subset of its channels
+- it MUST omit non-public channels for unauthenticated bootstrap
+- channel entries MAY include policy hints such as `is_public` and
+  `approval_mode_enabled`
+- receivers MUST still enforce actual authorization from room governance state
 
-```json
-{
-  "refs": {
-    "server_id": "https://example.net/federation/messaging/servers/1",
-    "channel_id": "https://example.net/federation/messaging/channels/9"
-  }
-}
-```
+### 7.4 Direct messages
 
-Receivers MUST accept both:
+`dm.message.create` is a durable DM event.
 
-- full `server` and `channel` context objects
-- compact `refs`
+Rules:
 
-where the event type defines either form.
+- `stream_id` MUST be `dm:{dm_id}`
+- DM sender identity MUST be validated by actor `uri`
+- DM event context is DM-scoped, not room-scoped
 
-## 7. Canonical Actor Representation
+## 8. Extension registry and negotiation
 
-Arblarg 1.0 requires a canonical actor object on every user-authored event.
-
-Required actor fields:
-
-- `uri`
-- `username`
-- `domain`
-- `handle`
-
-Common optional actor fields:
-
-- `id`
-- `display_name`
-- `avatar_url`
-- `key_id`
-
-Required rules:
-
-- `handle` MUST be `username@domain`
-- `uri` MUST be a stable absolute `http` or `https` actor URI
-- the host of `uri` MUST be owned by the authenticated `origin_domain`
-- `id`, if present, SHOULD equal `uri`
-- actor identity equality MUST use `uri`, not `handle`
-- `handle` is a presentation alias and MUST NOT be used as the primary actor key
-- receivers MUST ignore unknown actor fields
-- receivers MUST reject user-authored events whose actor domain does not match
-  the authenticated `origin_domain`
-- `key_id` MAY be omitted; when omitted, actor identity is server-asserted by
-  the authenticated origin domain
-
-Arblarg 1.0 is server-authoritative for user identity. It does not define
-per-actor signature verification.
-
-This origin-binding rule applies to:
-
-- message authors
-- reaction actors
-- read-cursor actors
-- membership, invite, and ban actors
-- thread owners and archive actors
-- presence and typing actors
-- moderation actors
-- DM senders
-
-## 8. Core Durable Events
-
-The mandatory core profile is `arblarg-core/1.0`.
-
-### 8.1 `message.create`
-
-Context:
-
-- `server` and `channel`, or `refs`
-
-Required payload fields:
-
-- `message.id`
-- `message.content`
-- `message.sender`
-
-Optional payload fields:
-
-- `message.attachments`
-
-If present, `message.attachments` is an array of structured attachment objects.
-Each attachment includes:
-
-- `id`
-- `url`
-- `mime_type`
-- `authorization`
-- `retention`
-
-Common optional attachment fields:
-
-- `byte_size`
-- `sha256`
-- `expires_at`
-- `alt_text`
-- `width`
-- `height`
-- `duration_ms`
-
-Attachment semantics:
-
-- `authorization = "public"` means the object is fetchable without additional
-  origin credentials
-- `authorization = "signed"` means access requires a signed URL or equivalent
-  bearer capability minted by the origin
-- `authorization = "origin-authenticated"` means the object requires origin
-  server authentication
-- `retention = "origin"` means the origin retains the canonical object
-- `retention = "rehosted"` means the sender intentionally hosts a federated
-  copy at the advertised URL
-- `retention = "expiring"` means the attachment URL is expected to expire and
-  `expires_at` SHOULD be present
-- `media_urls` and `media_metadata` are not part of the Arblarg 1.0 wire
-  contract
-
-### 8.2 `message.update`
-
-Same context rules as `message.create`.
-
-Required payload fields:
-
-- `message.id`
-- `message.content`
-- `message.sender`
-
-`message.attachments`, when present, uses the same structured attachment shape
-and semantics as `message.create`.
-
-### 8.3 `message.delete`
-
-Required payload fields:
-
-- `message_id`
-
-### 8.4 `reaction.add`
-
-Required payload fields:
-
-- `message_id`
-- `reaction.emoji`
-- `reaction.actor`
-
-### 8.5 `reaction.remove`
-
-Same shape as `reaction.add`.
-
-### 8.6 `read.cursor`
-
-Required payload fields:
-
-- `actor`
-- `read_through_message_id`
-- `read_at`
-
-Optional payload fields:
-
-- `read_through_sequence`
-
-`read.cursor` replaces per-message durable read receipts on the hot path.
-
-### 8.7 `membership.upsert`
-
-Required payload fields:
-
-- `membership.actor`
-- `membership.role`
-- `membership.state`
-- `membership.updated_at`
-
-Allowed `membership.role` values:
-
-- `owner`
-- `admin`
-- `moderator`
-- `member`
-- `readonly`
-
-Allowed `membership.state` values:
-
-- `active`
-- `invited`
-- `left`
-- `banned`
-
-### 8.8 `invite.upsert`
-
-Required payload fields:
-
-- `invite.actor`
-- `invite.target`
-- `invite.role`
-- `invite.state`
-- `invite.invited_at`
-- `invite.updated_at`
-
-Allowed `invite.state` values:
-
-- `pending`
-- `accepted`
-- `declined`
-- `revoked`
-
-### 8.9 `ban.upsert`
-
-Required payload fields:
-
-- `ban.actor`
-- `ban.target`
-- `ban.state`
-- `ban.banned_at`
-- `ban.updated_at`
-
-Allowed `ban.state` values:
-
-- `active`
-- `lifted`
-
-Governance projection rules:
-
-- these events are channel-scoped in Arblarg 1.0
-- the event context channel, or `refs.channel_id`, identifies the governed room
-- receivers maintain one effective membership projection per `(channel, actor_uri)`
-- `membership.upsert` writes the effective role and state directly
-- `invite.upsert` maps `pending -> invited`, `accepted -> active`, and
-  `declined|revoked -> left`
-- `ban.upsert` maps `active -> banned` and `lifted -> left`
-- later applied governance events in the authoritative channel stream overwrite
-  earlier projected state for the same actor
-
-These governance events are authoritative because each stream has one origin.
-Arblarg 1.0 does not define Matrix-style state resolution.
-
-## 9. Extension Events
-
-Canonical profile and schema metadata is published at:
-
-- `GET /federation/messaging/arblarg/profiles`
-
-Current extension URNs:
+Current extension URNs are:
 
 - `urn:arblarg:ext:bootstrap:1`
 - `urn:arblarg:ext:roles:1`
@@ -689,368 +528,292 @@ Current extension URNs:
 - `urn:arblarg:ext:dm:1`
 - `urn:arblarg:ext:voice:1`
 
-Canonical event aliases are normalized by the SDK, for example:
+`urn:arblarg:ext:voice:1` is reserved in 1.0 and defines no wire events.
 
-- `server.upsert`
-- `thread.upsert`
-- `presence.update`
-- `dm.message.create`
+Negotiation rules:
 
-`urn:arblarg:ext:voice:1` is reserved in 1.0 and defines no event types.
+- senders MUST only emit optional extension events to peers that advertise
+  compatible support
+- support MAY be advertised in discovery, profiles, static peer config, or all
+  three
+- receivers that do not support an extension event MUST reject it as
+  `unsupported_event_type`
 
-## 10. Durable HTTP Endpoints
+## 9. Visibility and routing
 
-### 10.1 `POST /federation/messaging/events`
+Arblarg is not a global broadcast protocol.
 
-Request body:
+### 9.1 Room visibility
 
-- one signed durable event envelope
+Peers are allowed to see a room when at least one of these is true:
 
-Success statuses:
+- the room is public and publicly bootstrap-visible
+- the peer has an active member in the room
+- the peer is the target or host of an active invite or pending join workflow
 
-- `200 { "status": "applied" }`
-- `200 { "status": "duplicate" }`
-- `200 { "status": "stale" }`
-- `202 { "status": "recovered_via_stream" }`
-- `202 { "status": "recovered_via_snapshot" }`
+`server.upsert`, snapshots, replay, and live fanout MUST respect peer visibility.
 
-Recovery success semantics:
+### 9.2 Live fanout
 
-- a `202` recovery response means the receiver completed recovery and already
-  retried the triggering event internally
-- senders SHOULD treat either `202` status as terminal success for the original
-  delivery attempt
-- senders SHOULD NOT immediately resend the same event after a recovery success
+Durable room events MUST be routed only to homeservers that currently share
+authorized participation or visibility in that room.
 
-Typical failures:
+Ephemeral room events MUST be routed only to homeservers that currently
+participate in that room.
 
-- `400` invalid payload, protocol, version, signature, actor binding, or
-  snapshot checkpoint data
-- `401` invalid request signature or replay
-- `409` sequence gap or origin conflict
-- `422` unsupported event type or semantic apply failure
+### 9.3 Mirrors
 
-### 10.2 `POST /federation/messaging/events/batch`
+A receiver stores remote rooms as mirrors:
 
-Accepted request body forms:
+- mirrors are queryable local projections
+- mirrored rooms may be writable for local users when federation membership and
+  ACL permit it
+- mirrored rooms are not a separate protocol type; they are local projections of
+  authoritative remote rooms
 
-- object with `events`
-- bare array of event envelopes
+## 10. Snapshots and recovery
 
-Success response body:
+### 10.1 Snapshot purpose
 
-- `version = 1`
-- `batch_id`
-- `event_count`
-- `counts`
-- `error_counts`
-- `results`
+A snapshot is a signed coarse export used for:
 
-Each durable batch result entry includes:
+- initial mirror bootstrap
+- coarse repair after unrecoverable replay gaps
+- reseeding local high-water marks
 
-- `event_id`
-- `status`
-- `code` when `status = "error"`
+### 10.2 Snapshot contents
 
-Batch result `status` values are:
+A snapshot MAY include:
 
-- `applied`
-- `duplicate`
-- `stale`
-- `recovered_via_stream`
-- `recovered_via_snapshot`
-- `error`
-
-When CBOR is used, the response content type MUST be
-`application/arblarg-batch+cbor`.
-
-### 10.3 `POST /federation/messaging/sync`
-
-Imports a coarse server snapshot.
-
-Snapshot request fields:
-
-- `version = 1`
-- `origin_domain`
 - `server`
 - `channels`
 - `messages`
 - `governance`
+- `message_deletions`
+- `reactions`
+- `read_cursors`
+- `extensions`
 - `stream_positions`
 - `signature`
 
-Each `stream_positions` entry includes:
+`stream_positions` are required for a complete snapshot.
 
-- `stream_id`
-- `last_sequence`
+### 10.3 Multi-origin snapshots
 
-`governance` includes:
+For multi-origin rooms:
 
-- `memberships`
-- `invites`
-- `bans`
+- snapshots MAY include actor-bearing entries authored by domains other than the
+  snapshot signer
+- receivers MUST validate embedded actor origin from the payloads themselves
+- `stream_positions` MUST be scoped by `(origin_domain, stream_id)`
+- snapshots SHOULD include checkpoints for all known participant origins in the
+  exported rooms, not only the snapshot sender
 
-### 10.4 `GET /federation/messaging/servers/{server_id}/snapshot`
+### 10.4 Snapshot visibility
 
-Exports a local snapshot with:
+Snapshots MUST be peer-filtered:
+
+- only visible rooms MAY be exported to a requesting peer
+- private rooms MUST NOT leak through public bootstrap or unrelated snapshot
+  export
+- room policy hints in channel entries MUST round-trip when available
+
+### 10.5 Replay and gap handling
+
+When a receiver detects a sequence gap:
+
+1. it SHOULD attempt stream replay for the missing `(origin_domain, stream_id)`
+2. if replay cannot repair the gap, it SHOULD fetch a snapshot
+3. for room events, snapshot fallback SHOULD use the room authority identified
+   by room refs, not merely the author of the triggering event
+
+## 11. Ephemeral lane
+
+### 11.1 Endpoint and batch shape
+
+Ephemeral events are delivered through:
+
+- `POST /_arblarg/ephemeral`
+
+The request body is a batch containing:
 
 - `version`
-- `origin_domain`
-- `server`
-- `channels`
-- `messages`
-- `governance`
-- `stream_positions`
-- `signature`
-
-Snapshots are bootstrap payloads. They are not durable event envelopes, but they
-MUST be signed over `canonical_json(snapshot_without_signature)`.
-
-### 10.5 `GET /federation/messaging/streams/events`
-
-Query parameters:
-
-- `stream_id`
-- `after_sequence`
-- `limit`
-
-Success response body:
-
-- `version = 1`
-- `stream_id`
-- `after_sequence`
-- `next_after_sequence`
-- `last_sequence`
-- `has_more`
-- `events`
-
-`events` is an ordered list of signed durable event envelopes.
-
-This endpoint is the normative gap-recovery path.
-
-### 10.6 Session websocket operations
-
-Server `hello` frame:
-
-- `op = "hello"`
-- `protocol = "arblarg"`
-- `transport = "session_websocket"`
-- `session_version = 1`
-- `mode = "stream_session"`
-- `encodings`
-- `flow_control`
-
-Client delivery frames use:
-
-- `op`
-- `delivery_id`
-- `payload`
-
-Client control frames use:
-
-- `op`
-- `request_id`
-- `payload`
-
-Server ack frames use:
-
-- `op = "ack"`
-- `delivery_id`
-- `status`
-- `payload` for success
-- `code` for failure
-
-Server response frames use:
-
-- `op = "response"`
-- `request_id`
-- `status`
-- `payload` for success
-- `code` for failure
-
-Supported delivery `op` values are:
-
-- `stream_batch`
-- `deliver_ephemeral`
-
-Supported control `op` values are:
-
-- `events_batch`
-- `ephemeral_batch`
-- `stream_events`
-- `snapshot`
-- `ping`
-
-`stream_batch` payloads include:
-
-- `version = 1`
-- `delivery_id`
-- `stream_id`
-- `events`
-
-`deliver_ephemeral` payloads include:
-
-- `version = 1`
-- `delivery_id`
+- `batch_id`
 - `items`
 
-Ack payload bodies match the corresponding durable or ephemeral batch result
-shapes. Control response payload bodies match the corresponding HTTP endpoint
-shapes.
-
-Within a single `stream_id`, senders MUST preserve delivery order. Independent
-streams MAY be delivered concurrently up to the advertised flow-control window.
-
-### 10.7 `GET /federation/messaging/servers/public`
-
-This is a public server directory endpoint. Federating peers SHOULD key on
-`federation_id`, not local integer ids.
-
-## 11. Ephemeral Lane
-
-### 11.1 Endpoint
-
-- `POST /federation/messaging/ephemeral`
-
-Accepted request body forms:
-
-- object with `items`
-- bare array of items
-
-### 11.2 Item shape
-
-Each item includes:
+Each item MUST include:
 
 - `event_type`
 - `origin_domain`
-- `sent_at`
 - `payload`
 
-### 11.3 Allowed ephemeral event types
+### 11.2 Allowed ephemeral event types
 
-- `urn:arblarg:ext:presence:1#presence.update`
-- `urn:arblarg:ext:presence:1#typing.start`
-- `urn:arblarg:ext:presence:1#typing.stop`
+Allowed ephemeral event types are:
 
-### 11.4 Semantics
+- `presence.update`
+- `typing.start`
+- `typing.stop`
 
-Ephemeral items:
+These events MUST NOT appear inside durable signed envelopes.
 
-- are not inserted into the durable ordered log
-- are not replayed by `streams/events`
-- are intended for coalesced soft-state updates
+### 11.3 Presence
 
-`typing.start` MAY include `ttl_ms`.
+`presence.update` carries:
 
-`presence.update` MAY include `presence.ttl_ms`.
+- `presence.actor`
+- `presence.status`
+- `presence.updated_at`
 
-Success response body:
+Optional fields:
 
-- `version = 1`
-- `batch_id`
-- `event_count`
-- `counts`
-- `error_counts`
-- `results`
+- `presence.activities`
+- `presence.ttl_ms`
+- room or server context via `channel` / `server` or `refs`
 
-Each ephemeral result entry includes:
+Presence semantics:
 
-- `event_type`
-- `status`
-- `code` when `status = "error"`
+- if room context is present, the update is room-scoped occupant presence
+- if room context is absent, the update is account presence
+- account presence SHOULD only be federated to explicit subscribers
+- room presence SHOULD only be federated to participating room homeservers
+- presence is TTL-based and non-replayable
 
-Ephemeral result `status` values are:
+### 11.4 Typing
 
-- `applied`
-- `error`
+`typing.start` and `typing.stop` are room-scoped ephemeral hints.
 
-When CBOR is used, the response content type MUST be
-`application/arblarg-ephemeral+cbor`.
+Rules:
 
-## 12. Recovery Rules
+- they MUST include room context
+- `typing.start` MAY include `ttl_ms`
+- typing is not durable, not replayable, and not snapshotted
 
-Receivers SHOULD recover gaps like this:
+## 12. HTTP and session endpoints
 
-1. Detect `sequence > last_sequence + 1` for `(origin_domain, stream_id)`.
-2. Fetch `GET /federation/messaging/streams/events`.
-3. Apply replayed events in ascending order.
-4. Retry the triggering event.
-5. If replay is unavailable, fetch a snapshot and seed checkpoints from
-   `stream_positions`.
-6. Continue recovery from replay if additional events are still missing.
+### 12.1 Durable event ingest
 
-If a receiver returns `recovered_via_stream` or `recovered_via_snapshot`, the
-triggering event has already been retried by the receiver as part of recovery.
+`POST /_arblarg/events`
 
-Interoperability rules:
+- accepts one durable signed event envelope
+- returns applied, duplicate, stale, or recovery-aware statuses
 
-- stream replay is authoritative for ordered recovery
-- snapshots are valid for bootstrap and coarse repair
-- snapshot `stream_positions` seed local high-water marks
-- snapshot `governance` seeds effective membership, invite, and ban state
-- a snapshot without stream checkpoints is incomplete
+### 12.2 Durable batch ingest
 
-## 13. Compatibility And Negotiation
+`POST /_arblarg/events/batch`
 
-Receivers:
+- accepts multiple durable envelopes
+- applies each independently
 
-- MUST ignore unknown object fields
-- MUST reject unsupported `event_type` values
-- MUST accept both refs and full context objects where defined
+### 12.3 Snapshot import
 
-Senders:
+`POST /_arblarg/sync`
 
-- SHOULD prefer compact refs on hot-path events
-- SHOULD batch when a peer advertises `batched_event_delivery`
-- SHOULD use CBOR when a peer advertises `binary_event_batches`
-- SHOULD use the ephemeral lane only when a peer advertises `ephemeral_lane`
-- SHOULD follow `transport_profiles.preferred_order` when advertised
-- MUST respect advertised batch and replay limits
-- MUST fall back in `transport_profiles.fallback_order` when a preferred
-  transport returns `404`, `406`, `410`, `415`, `426`, or `501`
-- MUST fall back to JSON and durable paths when a peer does not advertise the
-  fast path
+- imports a signed snapshot
+- seeds mirrors and stream checkpoints
 
-## 14. Profiles, Schemas, And Conformance
+### 12.4 Snapshot export
 
-Canonical endpoints:
+`GET /_arblarg/servers/{server_id}/snapshot`
 
-- `GET /federation/messaging/arblarg/profiles`
-- `GET /federation/messaging/arblarg/{version}/schemas/{name}`
+- exports a peer-filtered signed snapshot
 
-Current profile ids:
+### 12.5 Stream replay export
 
-- mandatory: `arblarg-core/1.0`
-- optional: `arblarg-community/1.0`
+`GET /_arblarg/streams/events`
 
-Published JSON Schemas and test vectors in `external/arblarg/` are derived
-artifacts. CI SHOULD verify that they match the live schema set.
+Query parameters SHOULD identify:
 
-## 15. Minimal Sender Checklist
+- `stream_id`
+- `origin_domain`
+- replay cursor or sequence start
+- replay limit
 
-An interoperable Arblarg 1.0 sender SHOULD:
+### 12.6 Session websocket
 
-1. Publish `/.well-known/arblarg`.
-2. Publish Ed25519 discovery keys and a signed discovery document.
-3. Sign every federation HTTP request.
+The websocket session profile is optional.
+
+It MAY carry:
+
+- durable stream batches
+- ephemeral batches
+- replay requests
+- snapshot control operations
+- ping / flow-control ops
+
+## 13. Error handling
+
+Receivers SHOULD return structured error codes.
+
+Common error classes include:
+
+- `invalid_payload`
+- `unsupported_event_type`
+- `invalid_event_signature`
+- `origin_domain_mismatch`
+- `origin_actor_domain_mismatch`
+- `origin_identifier_host_mismatch`
+- `origin_stream_host_mismatch`
+- `not_authorized_for_room`
+- `unsupported_version`
+
+Senders SHOULD treat authorization and capability errors as non-retryable unless
+operator action or membership state changes.
+
+## 14. Conformance and schema publication
+
+Implementations SHOULD publish:
+
+- schema index under `/_arblarg/{version}/schemas`
+- profiles metadata under `/_arblarg/profiles`
+
+The canonical schema set for 1.0 currently includes:
+
+- `envelope`
+- `message.create`
+- `message.update`
+- `message.delete`
+- `reaction.add`
+- `reaction.remove`
+- `read.cursor`
+- `membership.upsert`
+- `invite.upsert`
+- `ban.upsert`
+- `server.upsert`
+- `role.upsert`
+- `role.assignment.upsert`
+- `permission.overwrite.upsert`
+- `thread.upsert`
+- `thread.archive`
+- `presence.update`
+- `typing.start`
+- `typing.stop`
+- `moderation.action.recorded`
+- `dm.message.create`
+
+## 15. Minimal sender checklist
+
+A conforming sender SHOULD:
+
+1. Discover the peer and validate its signed discovery document.
+2. Load peer capabilities from discovery and profiles.
+3. Sign every federation request.
 4. Sign every durable event envelope.
-5. Emit ordered sequences per `(origin_domain, stream_id)`.
-6. Keep `idempotency_key` stable across retries.
-7. Emit canonical actor objects on every user-authored event.
-8. Support the core durable events.
-9. Support stream replay.
-10. Support snapshot import and export with `stream_positions`.
-11. Support signed snapshots with `governance` and `stream_positions`.
-12. Ignore unknown fields.
-13. Prefer compact refs, batching, and the session transport when compatible.
+5. Use canonical extension URNs on wire for durable extension events.
+6. Preserve `idempotency_key` across retries.
+7. Maintain ordering per `(origin_domain, stream_id)`.
+8. Restrict live fanout to authorized participant peers.
+9. Restrict bootstrap and snapshots to peer-visible rooms.
+10. Support replay and signed snapshot recovery with multi-origin
+    `stream_positions`.
+11. Reject invalid actor origin and invalid origin-owned identifiers.
+12. Treat presence and typing as ephemeral only.
 
-## 16. Future Work
+## 16. Future work
 
-These items are intentionally outside Arblarg 1.0:
+The following are intentionally outside Arblarg 1.0:
 
-- HTTP/2 or HTTP/3 session transport profiles
-- an E2EE device-key layer
-- voice transport semantics
-
-Those can be added as new compatible profiles or transport profiles without
-changing the 1.0 durable event model.
+- native voice and video media transport
+- end-to-end device identity and key graph semantics
+- Matrix-style DAG state resolution
+- richer transport profiles beyond the current HTTP and websocket model

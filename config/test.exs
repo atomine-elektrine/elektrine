@@ -48,7 +48,7 @@ config :elektrine,
 
 # Enable server for Wallaby browser tests
 config :elektrine, ElektrineWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4002")],
   # Generate random secret for tests
   secret_key_base: Base.encode64(:crypto.strong_rand_bytes(48)),
   server: true

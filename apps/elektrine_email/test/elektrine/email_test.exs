@@ -262,7 +262,7 @@ defmodule Elektrine.EmailAliasTest do
 
       assert Enum.any?(
                errors.alias_email,
-               &String.contains?(&1, "must use one of the allowed domains")
+               &String.contains?(&1, "choose one of your available email domains")
              )
     end
 
@@ -328,7 +328,7 @@ defmodule Elektrine.EmailAliasTest do
 
       assert {:error, changeset} = Email.create_alias(alias_attrs)
 
-      assert %{alias_email: ["this email address is already in use as a mailbox"]} =
+      assert %{alias_email: ["that email address is already in use"]} =
                errors_on(changeset)
     end
   end

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
   alias Elektrine.ActivityPub
   alias Elektrine.Emojis.CustomEmoji
+  alias Elektrine.AccountsFixtures
   alias ElektrineWeb.HtmlHelpers
 
   test "render_actor_display_name renders custom emojis for remote actors" do
@@ -39,14 +40,38 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
     assert HtmlHelpers.render_actor_display_name(actor) == "zero"
   end
 
-  test "render_remote_post_content linkifies full fediverse handles" do
+  test "render_remote_post_content links local fediverse handles to local profiles" do
+    user = AccountsFixtures.user_fixture(%{username: "maxfield"})
+
     html =
       HtmlHelpers.render_remote_post_content(
         "Hello @maxfield@#{ActivityPub.instance_domain()}",
         "remote.example"
       )
 
-    assert html =~ ~s(href="/remote/maxfield@#{ActivityPub.instance_domain()}")
+    assert html =~ ~s(href="/#{user.handle}")
     assert html =~ "@maxfield@#{ActivityPub.instance_domain()}"
+  end
+
+  test "render_remote_post_content keeps remote fediverse handles on remote routes" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "Hello @alice@mastodon.social",
+        "remote.example"
+      )
+
+    assert html =~ ~s(href="/remote/alice@mastodon.social")
+    assert html =~ "@alice@mastodon.social"
+  end
+
+  test "render_remote_post_content links short mentions using the origin domain" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "<p>Hello @alice</p>",
+        "mastodon.social"
+      )
+
+    assert html =~ ~s(href="/remote/alice@mastodon.social")
+    assert html =~ ">@alice</a>"
   end
 end

@@ -22,22 +22,26 @@ defmodule ElektrineWeb.ClientIP do
   @spec client_ip_tuple(Plug.Conn.t()) :: ip_tuple() | nil
   def client_ip_tuple(conn) do
     remote_ip = conn.remote_ip
-    on_fly = running_on_fly?()
-    fly_client_ip = if on_fly, do: header_ip(conn, "fly-client-ip"), else: nil
-    cf_connecting_ip = if on_fly, do: header_ip(conn, "cf-connecting-ip"), else: nil
+    trusted_remote? = trusted_proxy?(remote_ip)
+
+    fly_client_ip =
+      if trusted_remote? and running_on_fly?() do
+        header_ip(conn, "fly-client-ip")
+      end
 
     cond do
-      trusted_proxy?(remote_ip) ->
+      trusted_remote? ->
         forwarded_ip(conn) || fly_client_ip || remote_ip
-
-      # On Fly with Cloudflare in front, prefer the original client address from
-      # Cloudflare over the Fly edge IP fallback.
-      on_fly ->
-        cf_connecting_ip || fly_client_ip || remote_ip
 
       true ->
         remote_ip
     end
+  end
+
+  @spec forwarded_as_https?(Plug.Conn.t()) :: boolean()
+  def forwarded_as_https?(conn) do
+    header_forwarded_as_https?(conn) and
+      (trusted_proxy?(conn.remote_ip) or forwarded_from_fly_edge?(conn))
   end
 
   @spec trusted_proxy?(ip_tuple() | nil) :: boolean()
@@ -134,6 +138,38 @@ defmodule ElektrineWeb.ClientIP do
       nil -> false
       "" -> false
       _ -> true
+    end
+  end
+
+  # Fly terminates TLS at the edge and forwards cleartext HTTP to the app.
+  # We keep client IP resolution strict, but scheme detection can safely
+  # trust Fly's edge marker to avoid redirect loops when TRUSTED_PROXY_CIDRS
+  # has not been configured yet on a deploy.
+  defp forwarded_from_fly_edge?(conn) do
+    running_on_fly?() and fly_client_ip_present?(conn)
+  end
+
+  defp fly_client_ip_present?(conn) do
+    case get_req_header(conn, "fly-client-ip") do
+      [value | _] ->
+        match?({:ok, _}, parse_ip_string(value))
+
+      _ ->
+        false
+    end
+  end
+
+  defp header_forwarded_as_https?(conn) do
+    case get_req_header(conn, "x-forwarded-proto") do
+      [value | _] ->
+        value
+        |> String.split(",")
+        |> List.first()
+        |> String.trim()
+        |> String.downcase() == "https"
+
+      _ ->
+        false
     end
   end
 

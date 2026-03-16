@@ -7,57 +7,64 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
   alias Elektrine.Profiles
   @doc "Handles an incoming Follow activity.\n"
   def handle(
-        %{"id" => follow_id, "actor" => actor_uri, "object" => object_uri},
+        %{"id" => follow_id, "actor" => actor_uri, "object" => object_ref},
         actor_uri,
         _target_user
       ) do
-    remote_actor_result =
-      if Application.get_env(:elektrine, :env) == :dev do
-        case ActivityPub.get_or_fetch_actor(actor_uri) do
-          {:ok, actor} ->
-            {:ok, actor}
+    case resolve_follow_target_uri(object_ref) do
+      object_uri when is_binary(object_uri) and object_uri != "" ->
+        remote_actor_result =
+          if Application.get_env(:elektrine, :env) == :dev do
+            case ActivityPub.get_or_fetch_actor(actor_uri) do
+              {:ok, actor} ->
+                {:ok, actor}
 
-          {:error, _} ->
-            uri = URI.parse(actor_uri)
+              {:error, _} ->
+                uri = URI.parse(actor_uri)
 
-            Elektrine.Repo.insert(
-              %ActivityPub.Actor{
-                uri: actor_uri,
-                username: "testuser",
-                domain: uri.host,
-                inbox_url: "#{actor_uri}/inbox",
-                public_key:
-                  "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
-                last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
-                metadata: %{"mock" => true}
-              },
-              on_conflict: :nothing
-            )
+                Elektrine.Repo.insert(
+                  %ActivityPub.Actor{
+                    uri: actor_uri,
+                    username: "testuser",
+                    domain: uri.host,
+                    inbox_url: "#{actor_uri}/inbox",
+                    public_key:
+                      "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
+                    last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+                    metadata: %{"mock" => true}
+                  },
+                  on_conflict: :nothing
+                )
+            end
+          else
+            ActivityPub.get_or_fetch_actor(actor_uri)
+          end
+
+        case remote_actor_result do
+          {:ok, remote_actor} ->
+            relay_url = Relay.relay_actor_id()
+
+            cond do
+              object_uri == relay_url ->
+                Logger.info("Relay #{actor_uri} wants to follow our relay")
+                {:ok, relay_actor} = Relay.get_or_create_relay_actor()
+                send_relay_accept(relay_actor, remote_actor, follow_id)
+                {:ok, :relay_follow_accepted}
+
+              group_actor = ActivityPub.get_local_group_actor_by_uri(object_uri) ->
+                handle_group_follow(remote_actor, group_actor, follow_id, actor_uri)
+
+              true ->
+                handle_user_follow(remote_actor, object_uri, follow_id, actor_uri)
+            end
+
+          error ->
+            Logger.error("Failed to handle follow: #{inspect(error)}")
+            {:error, :handle_follow_failed}
         end
-      else
-        ActivityPub.get_or_fetch_actor(actor_uri)
-      end
 
-    case remote_actor_result do
-      {:ok, remote_actor} ->
-        relay_url = Relay.relay_actor_id()
-
-        cond do
-          object_uri == relay_url ->
-            Logger.info("Relay #{actor_uri} wants to follow our relay")
-            {:ok, relay_actor} = Relay.get_or_create_relay_actor()
-            send_relay_accept(relay_actor, remote_actor, follow_id)
-            {:ok, :relay_follow_accepted}
-
-          group_actor = ActivityPub.get_local_group_actor_by_uri(object_uri) ->
-            handle_group_follow(remote_actor, group_actor, follow_id, actor_uri)
-
-          true ->
-            handle_user_follow(remote_actor, object_uri, follow_id, actor_uri)
-        end
-
-      error ->
-        Logger.error("Failed to handle follow: #{inspect(error)}")
+      _ ->
+        Logger.warning("Invalid Follow target from #{actor_uri}: #{inspect(object_ref)}")
         {:error, :handle_follow_failed}
     end
   end
@@ -149,6 +156,23 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
         actor_uri,
         _target_user
       ) do
+    handle_reject_by_id(follow_id, actor_uri)
+  end
+
+  def handle_reject(
+        %{"object" => follow_id},
+        actor_uri,
+        _target_user
+      )
+      when is_binary(follow_id) do
+    handle_reject_by_id(follow_id, actor_uri)
+  end
+
+  def handle_reject(_activity, _actor_uri, _target_user) do
+    {:ok, :unhandled}
+  end
+
+  defp handle_reject_by_id(follow_id, actor_uri) do
     case Relay.handle_reject(follow_id, actor_uri) do
       {:ok, _subscription} ->
         {:ok, :relay_subscription_rejected}
@@ -176,10 +200,6 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
             end
         end
     end
-  end
-
-  def handle_reject(_activity, _actor_uri, _target_user) do
-    {:ok, :unhandled}
   end
 
   @doc "Handles Undo Follow activity.\n"
@@ -210,8 +230,14 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
 
   def handle_undo(%{"object" => followed_uri} = _follow_object, actor_uri)
       when is_map(followed_uri) do
-    uri = followed_uri["id"] || followed_uri
-    handle_undo(%{"object" => uri}, actor_uri)
+    case resolve_follow_target_uri(followed_uri) do
+      uri when is_binary(uri) and uri != "" ->
+        handle_undo(%{"object" => uri}, actor_uri)
+
+      _ ->
+        Logger.warning("Invalid Undo Follow from #{actor_uri}")
+        {:ok, :invalid}
+    end
   end
 
   def handle_undo(_object, actor_uri) do
@@ -236,6 +262,15 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     |> String.trim_trailing("/")
   end
 
+  defp resolve_follow_target_uri(uri) when is_binary(uri), do: uri
+
+  defp resolve_follow_target_uri(%{"object" => object_ref}) do
+    resolve_follow_target_uri(object_ref)
+  end
+
+  defp resolve_follow_target_uri(%{"id" => id}) when is_binary(id), do: id
+  defp resolve_follow_target_uri(_), do: nil
+
   defp handle_user_follow(remote_actor, object_uri, follow_id, _actor_uri) do
     case get_local_user_from_uri(object_uri) do
       {:ok, followed_user} ->
@@ -245,7 +280,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
           if existing_follow.pending do
             {:ok, :pending}
           else
-            send_accept(followed_user, remote_actor, existing_follow, object_uri)
+            send_accept(followed_user, remote_actor, follow_id, object_uri)
             {:ok, :already_following}
           end
         else
@@ -257,7 +292,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
                  pending,
                  follow_id
                ) do
-            {:ok, follow} ->
+            {:ok, _follow} ->
               if pending do
                 Async.run(fn ->
                   Elektrine.Notifications.FederationNotifications.notify_remote_follow(
@@ -268,7 +303,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
 
                 {:ok, :pending}
               else
-                send_accept(followed_user, remote_actor, follow, object_uri)
+                send_accept(followed_user, remote_actor, follow_id, object_uri)
 
                 Async.run(fn ->
                   Elektrine.Notifications.FederationNotifications.notify_remote_follow(
@@ -296,12 +331,12 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     existing_follow = ActivityPub.get_group_follow(remote_actor.id, group_actor.id)
 
     if existing_follow do
-      send_group_accept(group_actor, remote_actor, existing_follow)
+      send_group_accept(group_actor, remote_actor, follow_id)
       {:ok, :already_following}
     else
       case ActivityPub.create_group_follow(remote_actor.id, group_actor.id, follow_id, false) do
-        {:ok, follow} ->
-          send_group_accept(group_actor, remote_actor, follow)
+        {:ok, _follow} ->
+          send_group_accept(group_actor, remote_actor, follow_id)
           {:ok, :accepted}
 
         {:error, reason} ->
@@ -311,12 +346,12 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     end
   end
 
-  defp send_accept(user, remote_actor, follow, object_uri) do
+  defp send_accept(user, remote_actor, follow_id, object_uri) when is_binary(follow_id) do
     target_uri = object_uri || "#{ActivityPub.instance_url()}/users/#{user.username}"
 
     accept_activity =
       Builder.build_accept_activity(user, %{
-        "id" => follow.activitypub_id,
+        "id" => follow_id,
         "type" => "Follow",
         "actor" => remote_actor.uri,
         "object" => target_uri
@@ -325,7 +360,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     Publisher.publish(accept_activity, user, [remote_actor.inbox_url])
   end
 
-  defp send_group_accept(group_actor, remote_actor, follow) do
+  defp send_group_accept(group_actor, remote_actor, follow_id) when is_binary(follow_id) do
     base_url = ActivityPub.instance_url()
     activity_id = "#{base_url}/activities/#{Ecto.UUID.generate()}"
 
@@ -335,7 +370,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
       "type" => "Accept",
       "actor" => group_actor.uri,
       "object" => %{
-        "id" => follow.activitypub_id,
+        "id" => follow_id,
         "type" => "Follow",
         "actor" => remote_actor.uri,
         "object" => group_actor.uri
@@ -370,8 +405,8 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     case ActivityPub.local_username_from_uri(uri) do
       {:ok, username} ->
         case Elektrine.Accounts.get_user_by_username(username) do
-          nil -> {:error, :not_found}
-          user -> {:ok, user}
+          %{activitypub_enabled: true} = user -> {:ok, user}
+          _ -> {:error, :not_found}
         end
 
       {:error, _reason} ->

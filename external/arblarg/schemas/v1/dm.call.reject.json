@@ -1,0 +1,174 @@
+{
+  "$id": "arblarg://schemas/1.0/dm.call.reject",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "actor": {
+      "properties": {
+        "avatar_url": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "handle": {
+          "minLength": 3,
+          "type": "string"
+        },
+        "id": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "uri": {
+          "format": "uri",
+          "minLength": 1,
+          "pattern": "^https?://",
+          "type": "string"
+        },
+        "username": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "username",
+        "domain",
+        "handle"
+      ],
+      "type": "object"
+    },
+    "call_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "dm": {
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "recipient": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "sender": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "sender",
+        "recipient"
+      ],
+      "type": "object"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "rejected_at": {
+      "format": "date-time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dm",
+    "call_id",
+    "actor",
+    "rejected_at"
+  ],
+  "title": "Arblarg dm.call.reject payload",
+  "type": "object"
+}

@@ -37,7 +37,7 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
     event =
       signed_local_event(
         "message.create",
-        "channel:https://#{Federation.local_domain()}/federation/messaging/channels/interop-local",
+        "channel:https://#{Federation.local_domain()}/_arblarg/channels/interop-local",
         1,
         message_payload(Federation.local_domain(), "interop-local", "hello from local")
       )
@@ -89,15 +89,25 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
     assert {:ok, discovered_peer} = Federation.discover_peer("reference.test")
     assert discovered_peer.domain == "reference.test"
 
+    membership_event =
+      ReferencePeer.signed_event(
+        peer,
+        "membership.upsert",
+        "channel:https://reference.test/_arblarg/channels/interop-ref",
+        1,
+        membership_payload("reference.test", "interop-ref")
+      )
+
     event =
       ReferencePeer.signed_event(
         peer,
         "message.create",
-        "channel:https://reference.test/federation/messaging/channels/interop-ref",
-        1,
+        "channel:https://reference.test/_arblarg/channels/interop-ref",
+        2,
         message_payload("reference.test", "interop-ref", "hello from reference")
       )
 
+    assert {:ok, :applied} = Federation.receive_event(membership_event, "reference.test")
     assert {:ok, :applied} = Federation.receive_event(event, "reference.test")
   end
 
@@ -117,7 +127,7 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
       active_outbound_key_id: local_key_id,
       keys: [%{id: local_key_id, private_key: local_private_key}],
       session_websocket_endpoint:
-        "ws://127.0.0.1:#{ReferencePeerSessionServer.port(session_server)}/federation/messaging/session",
+        "ws://127.0.0.1:#{ReferencePeerSessionServer.port(session_server)}/_arblarg/session",
       transport_profiles: %{
         "session_websocket" => %{
           "encodings" => ["json"],
@@ -140,11 +150,11 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
             "stream_batch",
             %{
               "stream_id" =>
-                "channel:https://#{Federation.local_domain()}/federation/messaging/channels/#{suffix}",
+                "channel:https://#{Federation.local_domain()}/_arblarg/channels/#{suffix}",
               "events" => [
                 signed_local_event(
                   "message.create",
-                  "channel:https://#{Federation.local_domain()}/federation/messaging/channels/#{suffix}",
+                  "channel:https://#{Federation.local_domain()}/_arblarg/channels/#{suffix}",
                   1,
                   message_payload(Federation.local_domain(), suffix, content)
                 )
@@ -169,7 +179,7 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
         replay =
           ReferencePeer.export_stream_events(
             streamed_peer,
-            "channel:https://#{Federation.local_domain()}/federation/messaging/channels/#{suffix}"
+            "channel:https://#{Federation.local_domain()}/_arblarg/channels/#{suffix}"
           )
 
         assert replay["last_sequence"] == 1
@@ -220,18 +230,18 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
   defp message_payload(domain, suffix, content) do
     %{
       "server" => %{
-        "id" => "https://#{domain}/federation/messaging/servers/#{suffix}",
+        "id" => "https://#{domain}/_arblarg/servers/#{suffix}",
         "name" => "interop-#{suffix}",
         "is_public" => true
       },
       "channel" => %{
-        "id" => "https://#{domain}/federation/messaging/channels/#{suffix}",
+        "id" => "https://#{domain}/_arblarg/channels/#{suffix}",
         "name" => "general",
         "position" => 0
       },
       "message" => %{
-        "id" => "https://#{domain}/federation/messaging/messages/#{suffix}",
-        "channel_id" => "https://#{domain}/federation/messaging/channels/#{suffix}",
+        "id" => "https://#{domain}/_arblarg/messages/#{suffix}",
+        "channel_id" => "https://#{domain}/_arblarg/channels/#{suffix}",
         "content" => content,
         "message_type" => "text",
         "attachments" => [],
@@ -243,6 +253,35 @@ defmodule Elektrine.Messaging.ReferencePeerInteropTest do
           "domain" => domain,
           "handle" => "alice@#{domain}"
         }
+      }
+    }
+  end
+
+  defp membership_payload(domain, suffix) do
+    %{
+      "server" => %{
+        "id" => "https://#{domain}/_arblarg/servers/#{suffix}",
+        "name" => "interop-#{suffix}",
+        "is_public" => true
+      },
+      "channel" => %{
+        "id" => "https://#{domain}/_arblarg/channels/#{suffix}",
+        "name" => "general",
+        "position" => 0
+      },
+      "membership" => %{
+        "actor" => %{
+          "id" => "https://#{domain}/users/alice",
+          "uri" => "https://#{domain}/users/alice",
+          "username" => "alice",
+          "display_name" => "alice",
+          "domain" => domain,
+          "handle" => "alice@#{domain}"
+        },
+        "state" => "active",
+        "role" => "member",
+        "joined_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "updated_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
       }
     }
   end

@@ -6,6 +6,17 @@ defmodule Elektrine.StaticSitesTest do
 
   setup do
     user = AccountsFixtures.user_fixture()
+    previous_uploads = Application.get_env(:elektrine, :uploads, [])
+
+    Application.put_env(:elektrine, :uploads,
+      adapter: :local,
+      uploads_dir: "tmp/test_uploads"
+    )
+
+    on_exit(fn ->
+      Application.put_env(:elektrine, :uploads, previous_uploads)
+    end)
+
     # Clean up test uploads directory
     uploads_dir =
       Application.get_env(:elektrine, :uploads, [])

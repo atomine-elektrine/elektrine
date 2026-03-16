@@ -47,6 +47,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
             socket
             |> assign(:reply_to_post, reply_to_post)
             |> assign(:reply_to_post_recent_replies, recent_replies)
+            |> assign(:reply_to_reply_id, nil)
             |> maybe_fetch_remote_replies_preview(message_id, reply_to_post, recent_replies)
             |> Helpers.touch_filtered_posts(
               Enum.reject(

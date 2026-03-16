@@ -2,7 +2,11 @@ defmodule Elektrine.AccountsTest do
   use Elektrine.DataCase
 
   alias Elektrine.Accounts
+  alias Elektrine.AccountsFixtures
   alias Elektrine.Accounts.User
+  alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.{Activity, Actor, Delivery}
+  alias Elektrine.Profiles
 
   describe "user validation" do
     test "username validation requires minimum 2 characters" do
@@ -72,48 +76,109 @@ defmodule Elektrine.AccountsTest do
     end
   end
 
-  describe "user deletion with mailboxes" do
-    test "delete_user/1 removes user's mailboxes and messages" do
-      # Create a user
-      {:ok, user} =
-        Accounts.create_user(%{
-          username: "testdel",
-          password: "testpassword123",
-          password_confirmation: "testpassword123"
-        })
+  if Code.ensure_loaded?(Elektrine.Email.Message) and Code.ensure_loaded?(Elektrine.Email.Mailbox) do
+    describe "user deletion with mailboxes" do
+      test "delete_user/1 removes user's mailboxes and messages" do
+        # Create a user
+        {:ok, user} =
+          Accounts.create_user(%{
+            username: "testdel",
+            password: "testpassword123",
+            password_confirmation: "testpassword123"
+          })
 
-      # User creation should have created a mailbox
-      mailbox = Elektrine.Repo.get_by(Elektrine.Email.Mailbox, user_id: user.id)
-      assert mailbox
-      assert mailbox.email == "testdel@elektrine.com"
+        # User creation should have created a mailbox
+        mailbox = Elektrine.Repo.get_by(Elektrine.Email.Mailbox, user_id: user.id)
+        assert mailbox
+        assert mailbox.email == "testdel@elektrine.com"
 
-      # Create a message in the mailbox
-      {:ok, message} =
-        %Elektrine.Email.Message{}
-        |> Elektrine.Email.Message.changeset(%{
-          mailbox_id: mailbox.id,
-          message_id: "test-message-#{System.unique_integer()}",
-          from: "sender@example.com",
-          to: "testdel@elektrine.com",
-          subject: "Test message",
-          text_body: "Test content"
-        })
-        |> Elektrine.Repo.insert()
+        # Create a message in the mailbox
+        {:ok, message} =
+          %Elektrine.Email.Message{}
+          |> Elektrine.Email.Message.changeset(%{
+            mailbox_id: mailbox.id,
+            message_id: "test-message-#{System.unique_integer()}",
+            from: "sender@example.com",
+            to: "testdel@elektrine.com",
+            subject: "Test message",
+            text_body: "Test content"
+          })
+          |> Elektrine.Repo.insert()
 
-      # Verify the message exists
-      assert Elektrine.Repo.get(Elektrine.Email.Message, message.id)
+        # Verify the message exists
+        assert Elektrine.Repo.get(Elektrine.Email.Message, message.id)
 
-      # Delete the user
-      {:ok, _deleted_user} = Accounts.delete_user(user)
+        # Delete the user
+        {:ok, _deleted_user} = Accounts.delete_user(user)
 
-      # Verify user is deleted
-      refute Elektrine.Repo.get(User, user.id)
+        # Verify user is deleted
+        refute Elektrine.Repo.get(User, user.id)
 
-      # Verify mailbox is deleted
-      refute Elektrine.Repo.get(Elektrine.Email.Mailbox, mailbox.id)
+        # Verify mailbox is deleted
+        refute Elektrine.Repo.get(Elektrine.Email.Mailbox, mailbox.id)
 
-      # Verify message is deleted
-      refute Elektrine.Repo.get(Elektrine.Email.Message, message.id)
+        # Verify message is deleted
+        refute Elektrine.Repo.get(Elektrine.Email.Message, message.id)
+      end
     end
+  end
+
+  describe "ActivityPub actor updates" do
+    test "avatar changes publish an Update to remote followers" do
+      user = AccountsFixtures.user_fixture()
+      remote_actor = remote_actor_fixture()
+
+      assert {:ok, _follow} = Profiles.create_remote_follow(remote_actor.id, user.id)
+
+      assert {:ok, updated_user} =
+               Accounts.update_user(user, %{
+                 avatar: "/uploads/avatars/new-avatar.jpg",
+                 avatar_size: 12_345
+               })
+
+      actor_uri = "#{ActivityPub.instance_url()}/users/#{updated_user.username}"
+
+      assert %Activity{id: activity_id, data: data} =
+               Repo.get_by!(Activity,
+                 internal_user_id: user.id,
+                 activity_type: "Update",
+                 object_id: actor_uri
+               )
+
+      assert get_in(data, ["object", "icon", "url"]) ==
+               "#{ActivityPub.instance_url()}#{Elektrine.Uploads.avatar_url(updated_user.avatar)}"
+
+      assert Repo.all(
+               from(d in Delivery, where: d.activity_id == ^activity_id, select: d.inbox_url)
+             ) == [remote_actor.inbox_url]
+    end
+
+    test "non-actor settings do not publish an Update" do
+      user = AccountsFixtures.user_fixture()
+      remote_actor = remote_actor_fixture()
+
+      assert {:ok, _follow} = Profiles.create_remote_follow(remote_actor.id, user.id)
+      assert {:ok, _updated_user} = Accounts.update_user(user, %{locale: "zh"})
+
+      refute Repo.get_by(Activity, internal_user_id: user.id, activity_type: "Update")
+    end
+  end
+
+  defp remote_actor_fixture(attrs \\ %{}) do
+    unique = System.unique_integer([:positive])
+
+    defaults = %{
+      uri: "https://fed.example/users/test#{unique}",
+      username: "test#{unique}",
+      domain: "fed.example",
+      inbox_url: "https://fed.example/users/test#{unique}/inbox",
+      public_key: "-----BEGIN PUBLIC KEY-----test-key-----END PUBLIC KEY-----",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      metadata: %{}
+    }
+
+    %Actor{}
+    |> Actor.changeset(Map.merge(defaults, attrs))
+    |> Repo.insert!()
   end
 end

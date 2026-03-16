@@ -702,7 +702,11 @@ defmodule Elektrine.Subscriptions do
   end
 
   defp base_url do
-    ElektrineWeb.Endpoint.url()
+    if Code.ensure_loaded?(ElektrineWeb.Endpoint) do
+      ElektrineWeb.Endpoint.url()
+    else
+      "https://#{Elektrine.Domains.instance_domain()}"
+    end
   end
 
   @doc """

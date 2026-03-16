@@ -52,9 +52,10 @@ defmodule ElektrineWeb.Admin.DeletionRequestsController do
           admin.id,
           "approve",
           "deletion_request",
-          target_user_id: request.user_id,
           details: %{
             request_id: request.id,
+            deleted_user_id: request.user_id,
+            deleted_username: request.user.username,
             admin_notes: admin_notes,
             requested_at: request.inserted_at
           },

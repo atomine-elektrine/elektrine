@@ -1,0 +1,192 @@
+{
+  "$id": "arblarg://schemas/1.0/dm.call.invite",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "call": {
+      "properties": {
+        "actor": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "call_type": {
+          "enum": [
+            "audio",
+            "video"
+          ],
+          "type": "string"
+        },
+        "dm_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "initiated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "dm_id",
+        "call_type",
+        "actor",
+        "initiated_at"
+      ],
+      "type": "object"
+    },
+    "dm": {
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "recipient": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        },
+        "sender": {
+          "properties": {
+            "avatar_url": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "domain": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "handle": {
+              "minLength": 3,
+              "type": "string"
+            },
+            "id": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "key_id": {
+              "type": "string"
+            },
+            "uri": {
+              "format": "uri",
+              "minLength": 1,
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            "username": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "username",
+            "domain",
+            "handle"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "sender",
+        "recipient"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "dm",
+    "call"
+  ],
+  "title": "Arblarg dm.call.invite payload",
+  "type": "object"
+}

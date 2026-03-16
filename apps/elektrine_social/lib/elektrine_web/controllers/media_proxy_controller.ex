@@ -121,16 +121,30 @@ defmodule ElektrineWeb.MediaProxyController do
     end
   end
 
-  defp maybe_put_content_disposition(conn, content_type) do
-    # Force download for non-safe content types
-    safe_types = [
-      "image/",
-      "video/",
-      "audio/",
-      "text/plain"
-    ]
+  @doc false
+  def inline_safe_content_type?(content_type) when is_binary(content_type) do
+    content_type
+    |> String.downcase()
+    |> String.split(";")
+    |> List.first()
+    |> case do
+      "image/jpeg" -> true
+      "image/jpg" -> true
+      "image/png" -> true
+      "image/gif" -> true
+      "image/webp" -> true
+      "image/avif" -> true
+      "video/" <> _rest -> true
+      "audio/" <> _rest -> true
+      "text/plain" -> true
+      _ -> false
+    end
+  end
 
-    if Enum.any?(safe_types, &String.starts_with?(content_type, &1)) do
+  def inline_safe_content_type?(_content_type), do: false
+
+  defp maybe_put_content_disposition(conn, content_type) do
+    if inline_safe_content_type?(content_type) do
       conn
     else
       put_resp_header(conn, "content-disposition", "attachment")

@@ -1,8 +1,13 @@
 defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
   use Elektrine.DataCase, async: true
 
+  if not Code.ensure_loaded?(Elektrine.Social.Hashtag) do
+    @moduletag skip: "requires :elektrine_social"
+  end
+
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.ActivityPub.Handlers.DeleteHandler
+  alias Elektrine.ActivityPub.Handlers.{CreateHandler, DeleteHandler}
+  alias Elektrine.ActivityPub
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
@@ -31,6 +36,43 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
 
     assert {:ok, :deleted} = DeleteHandler.handle(activity, author.uri, nil)
     assert Repo.get!(Message, message.id).deleted_at
+  end
+
+  test "records delete receipts for unknown objects so later Create imports are ignored" do
+    author = remote_actor_fixture("deleted-before-import")
+    object_id = "https://remote.server/objects/#{System.unique_integer([:positive])}"
+
+    delete_activity = %{
+      "id" => "https://remote.server/deletes/#{System.unique_integer([:positive])}",
+      "type" => "Delete",
+      "actor" => author.uri,
+      "object" => object_id
+    }
+
+    assert {:ok, :delete_receipt_recorded} =
+             DeleteHandler.handle(delete_activity, author.uri, nil)
+
+    assert ActivityPub.remote_delete_recorded?(author.uri, object_id)
+
+    create_activity = %{
+      "id" => "https://remote.server/creates/#{System.unique_integer([:positive])}",
+      "type" => "Create",
+      "actor" => author.uri,
+      "object" => %{
+        "id" => object_id,
+        "type" => "Note",
+        "attributedTo" => author.uri,
+        "content" => "This post was already deleted",
+        "published" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => []
+      }
+    }
+
+    assert {:ok, :ignored_deleted_object} =
+             CreateHandler.handle(create_activity, author.uri, nil)
+
+    assert is_nil(Messaging.get_message_by_activitypub_id(object_id))
   end
 
   defp remote_actor_fixture(label) do

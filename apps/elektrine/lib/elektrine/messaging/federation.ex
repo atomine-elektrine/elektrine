@@ -19,6 +19,9 @@ defmodule Elektrine.Messaging.Federation do
   defdelegate outgoing_peer(domain), to: Peers
   defdelegate local_domain, to: Peers
   defdelegate list_server_presence_states(server_id), to: Peers
+  defdelegate list_visible_server_presence_states(server_id, user_id), to: Peers
+  defdelegate list_room_presence_states(conversation_id), to: Peers
+  defdelegate list_visible_room_presence_states(conversation_id, user_id), to: Peers
   defdelegate list_peer_controls, to: Peers
   defdelegate paginate_peer_controls(search_query, page, per_page), to: Peers
   defdelegate upsert_peer_policy(domain, attrs), to: Peers
@@ -101,6 +104,11 @@ defmodule Elektrine.Messaging.Federation do
   defdelegate publish_message_created(message), to: Egress
   defdelegate publish_dm_message_created(message), to: Egress
   defdelegate publish_dm_message_created(message, remote_handle), to: Egress
+  defdelegate publish_dm_call_invite(session_id), to: Egress
+  defdelegate publish_dm_call_accept(session_id), to: Egress
+  defdelegate publish_dm_call_reject(session_id), to: Egress
+  defdelegate publish_dm_call_end(session_id), to: Egress
+  defdelegate publish_dm_call_signal(session_id, actor_user_id, kind, signal_payload), to: Egress
   defdelegate publish_message_updated(message), to: Egress
   defdelegate publish_message_deleted(message), to: Egress
   defdelegate publish_reaction_added(message, reaction), to: Egress
@@ -121,8 +129,16 @@ defmodule Elektrine.Messaging.Federation do
     Egress.publish_presence_update(server_id, user_id, status, activities)
   end
 
+  def publish_room_presence_update(conversation_id, user_id, status, activities \\ []) do
+    Egress.publish_room_presence_update(conversation_id, user_id, status, activities)
+  end
+
   def publish_user_presence_update(user_id, status, activities \\ []) do
     Egress.publish_user_presence_update(user_id, status, activities)
+  end
+
+  def publish_extension_event(conversation_id, actor_user_id, event_type, payload) do
+    Egress.publish_extension_event(conversation_id, actor_user_id, event_type, payload)
   end
 
   def publish_membership_state(conversation_id, user_id, state, role \\ "member") do
@@ -140,6 +156,24 @@ defmodule Elektrine.Messaging.Federation do
     Egress.publish_invite_state(
       conversation_id,
       target_user_id,
+      actor_user_id,
+      state,
+      role,
+      metadata
+    )
+  end
+
+  def publish_remote_invite_state(
+        conversation_id,
+        target_payload,
+        actor_user_id,
+        state \\ "pending",
+        role \\ "member",
+        metadata \\ %{}
+      ) do
+    Egress.publish_remote_invite_state(
+      conversation_id,
+      target_payload,
       actor_user_id,
       state,
       role,
@@ -167,11 +201,6 @@ defmodule Elektrine.Messaging.Federation do
     )
   end
 
-  defdelegate submit_mirror_message_created(message), to: Egress
-  defdelegate submit_mirror_message_updated(message), to: Egress
-  defdelegate submit_mirror_message_deleted(message), to: Egress
-  defdelegate submit_mirror_reaction_added(message, reaction), to: Egress
-  defdelegate submit_mirror_reaction_removed(message, user_id, emoji), to: Egress
   defdelegate maybe_push_for_conversation(conversation_id), to: Egress
   defdelegate maybe_push_for_server(server_id), to: Egress
   defdelegate process_outbox_event(outbox_event_id), to: Egress

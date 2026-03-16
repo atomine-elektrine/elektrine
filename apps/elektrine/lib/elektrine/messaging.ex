@@ -148,6 +148,23 @@ defmodule Elektrine.Messaging do
   defdelegate get_conversation_members(conversation_id), to: Conversations
 
   @doc """
+  Lists pending remote join requests for a locally authoritative channel.
+  """
+  defdelegate list_pending_remote_join_requests(conversation_id), to: Conversations
+
+  @doc """
+  Approves a pending remote join request.
+  """
+  defdelegate approve_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id),
+    to: Conversations
+
+  @doc """
+  Declines a pending remote join request.
+  """
+  defdelegate decline_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id),
+    to: Conversations
+
+  @doc """
   Promotes a member to admin role.
   """
   defdelegate promote_to_admin(conversation_id, user_id, promoter_id), to: Conversations
@@ -161,6 +178,9 @@ defmodule Elektrine.Messaging do
   Updates a member's role in a conversation.
   """
   defdelegate update_member_role(conversation_id, user_id, new_role), to: Conversations
+
+  defdelegate update_member_role(conversation_id, user_id, new_role, actor_user_id),
+    to: Conversations
 
   @doc """
   Promotes a user to moderator.
@@ -228,6 +248,13 @@ defmodule Elektrine.Messaging do
   Lists federated remote presence states for a server.
   """
   defdelegate list_server_presence_states(server_id), to: Federation
+
+  @doc """
+  Lists federated remote presence states visible to a specific local user in a server.
+  """
+  defdelegate list_visible_server_presence_states(server_id, user_id), to: Federation
+  defdelegate list_room_presence_states(conversation_id), to: Federation
+  defdelegate list_visible_room_presence_states(conversation_id, user_id), to: Federation
 
   @doc """
   Lists public servers the user can discover and join.
@@ -925,7 +952,9 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a like from a federated source.
   """
-  defdelegate create_federated_like(message_id, remote_actor_id), to: Messages
+  def create_federated_like(message_id, remote_actor_id, activitypub_id \\ nil) do
+    Messages.create_federated_like(message_id, remote_actor_id, activitypub_id)
+  end
 
   @doc """
   Deletes a like from a federated source.
@@ -935,7 +964,9 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a dislike (downvote) from a federated source.
   """
-  defdelegate create_federated_dislike(message_id, remote_actor_id), to: Messages
+  def create_federated_dislike(message_id, remote_actor_id, activitypub_id \\ nil) do
+    Messages.create_federated_dislike(message_id, remote_actor_id, activitypub_id)
+  end
 
   @doc """
   Deletes a dislike from a federated source.
@@ -945,7 +976,9 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a boost (announce) record from a federated source.
   """
-  defdelegate create_federated_boost(message_id, remote_actor_id), to: Messages
+  def create_federated_boost(message_id, remote_actor_id, activitypub_id \\ nil) do
+    Messages.create_federated_boost(message_id, remote_actor_id, activitypub_id)
+  end
 
   @doc """
   Deletes a boost from a federated source.

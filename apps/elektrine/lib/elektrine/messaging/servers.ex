@@ -179,7 +179,7 @@ defmodule Elektrine.Messaging.Servers do
         with :ok <- maybe_hydrate_mirror_server(server) do
           Repo.transaction(fn ->
             with {:ok, member} <- do_add_member(server_id, user_id, "member"),
-                 :ok <- add_user_to_all_server_channels(server_id, user_id) do
+                 :ok <- maybe_add_user_to_server_channels(server, user_id) do
               {:ok, member}
             else
               {:error, reason} -> Repo.rollback(reason)
@@ -255,6 +255,7 @@ defmodule Elektrine.Messaging.Servers do
     Enum.reduce_while(user_ids, :ok, fn user_id, :ok ->
       case Conversations.add_member_to_conversation(channel_id, user_id, "member") do
         {:ok, _member} -> {:cont, :ok}
+        {:error, :banned} -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
@@ -271,10 +272,22 @@ defmodule Elektrine.Messaging.Servers do
     Enum.reduce_while(channel_ids, :ok, fn channel_id, :ok ->
       case Conversations.add_member_to_conversation(channel_id, user_id, "member") do
         {:ok, _member} -> {:cont, :ok}
+        {:error, :banned} -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
   end
+
+  # Remote mirrored servers no longer auto-join all rooms. Room access is now
+  # explicitly granted per channel by the authoritative origin.
+  defp maybe_add_user_to_server_channels(%Server{is_federated_mirror: true}, _user_id), do: :ok
+
+  defp maybe_add_user_to_server_channels(%Server{id: server_id}, user_id)
+       when is_integer(server_id) and is_integer(user_id) do
+    add_user_to_all_server_channels(server_id, user_id)
+  end
+
+  defp maybe_add_user_to_server_channels(_server, _user_id), do: {:error, :invalid_event_payload}
 
   defp do_add_member(server_id, user_id, role) do
     existing_member =
@@ -421,7 +434,7 @@ defmodule Elektrine.Messaging.Servers do
   end
 
   defp fetch_remote_public_servers_from_peer(peer, query, limit, timeout_ms) do
-    path = "/federation/messaging/servers/public"
+    path = "/_arblarg/servers/public"
     query_string = build_remote_discovery_query_string(query, limit)
     url = remote_public_servers_url(peer, path, query_string)
     headers = Federation.signed_headers(peer, "GET", path, query_string, "")
@@ -602,7 +615,7 @@ defmodule Elektrine.Messaging.Servers do
 
   defp remote_server_federation_id(%{base_url: base_url}, remote_server_id)
        when is_binary(base_url) and is_integer(remote_server_id) do
-    "#{base_url}/federation/messaging/servers/#{remote_server_id}"
+    "#{base_url}/_arblarg/servers/#{remote_server_id}"
   end
 
   defp remote_server_federation_id(_, _), do: nil

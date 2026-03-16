@@ -953,10 +953,11 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   attr :quick_reply_recent_replies, :list, default: []
   attr :reply_content, :string, default: ""
   attr :reply_content_domain, :any, default: nil
+  attr :replying_to_comment_id, :any, default: nil
 
   def standard_timeline_detail_reply_box(assigns) do
     ~H"""
-    <%= if @show_reply_form && @current_user do %>
+    <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
       <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-6">
         <div class="space-y-3">
           <%= if length(@quick_reply_recent_replies) > 0 do %>
@@ -3399,7 +3400,11 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   @impl true
   def handle_event("toggle_reply_form", _params, socket) do
-    {:noreply, assign(socket, :show_reply_form, !socket.assigns.show_reply_form)}
+    {:noreply,
+     socket
+     |> assign(:show_reply_form, !socket.assigns.show_reply_form)
+     |> assign(:replying_to_comment_id, nil)
+     |> assign(:comment_reply_content, "")}
   end
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
@@ -3490,6 +3495,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
     {:noreply,
      socket
+     |> assign(:show_reply_form, false)
      |> assign(:replying_to_comment_id, new_id)
      |> assign(:comment_reply_content, "")}
   end

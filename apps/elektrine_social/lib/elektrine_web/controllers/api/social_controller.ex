@@ -723,6 +723,11 @@ defmodule ElektrineWeb.API.SocialController do
     user = conn.assigns[:current_user]
 
     case Messaging.join_conversation(parse_int(id, 0), user.id) do
+      {:ok, :pending} ->
+        conn
+        |> put_status(:accepted)
+        |> json(%{message: "Join request sent"})
+
       {:ok, _} ->
         conn
         |> put_status(:ok)

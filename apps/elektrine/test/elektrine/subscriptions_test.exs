@@ -208,8 +208,8 @@ defmodule Elektrine.SubscriptionsTest do
 
     expect_stripe(:create_checkout_session, fn params ->
       assert params.customer == "cus_checkout"
-      assert params.success_url == "#{ElektrineWeb.Endpoint.url()}/subscribe/vpn?success=true"
-      assert params.cancel_url == "#{ElektrineWeb.Endpoint.url()}/subscribe/vpn"
+      assert params.success_url == "#{expected_base_url()}/subscribe/vpn?success=true"
+      assert params.cancel_url == "#{expected_base_url()}/subscribe/vpn"
       {:ok, %{url: "https://checkout.test/session"}}
     end)
 
@@ -413,5 +413,15 @@ defmodule Elektrine.SubscriptionsTest do
 
   defp expect_stripe(name, fun) do
     Process.put({FakeStripeClient, name}, fun)
+  end
+
+  defp expected_base_url do
+    endpoint = Module.concat([ElektrineWeb, Endpoint])
+
+    if Code.ensure_loaded?(endpoint) do
+      apply(endpoint, :url, [])
+    else
+      "https://#{Elektrine.Domains.instance_domain()}"
+    end
   end
 end

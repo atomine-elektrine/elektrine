@@ -14,6 +14,8 @@ defmodule ElektrineWeb.DAV.CalendarController do
   alias Elektrine.Calendar
   alias ElektrineWeb.DAV.{Properties, ResponseHelpers}
 
+  import SweetXml
+
   require Logger
 
   @doc """
@@ -157,7 +159,7 @@ defmodule ElektrineWeb.DAV.CalendarController do
             Map.merge(
               %{
                 user_id: user.id,
-                name: props[:displayname] || calendar_name
+                name: props[:name] || calendar_name
               },
               props
             )
@@ -407,15 +409,15 @@ defmodule ElektrineWeb.DAV.CalendarController do
   end
 
   defp extract_hrefs(body) do
-    Regex.scan(~r/<D:href>([^<]+)<\/D:href>/i, body)
-    |> Enum.map(fn [_, href] -> href end)
+    body
+    |> parse_xml_document()
+    |> xml_text_list(~x"//*[local-name()='href']/text()"ls)
   end
 
   defp extract_sync_token(body) do
-    case Regex.run(~r/<D:sync-token>([^<]+)<\/D:sync-token>/i, body) do
-      [_, token] -> token
-      _ -> nil
-    end
+    body
+    |> parse_xml_document()
+    |> xml_text(~x"//*[local-name()='sync-token'][1]/text()"os)
   end
 
   defp parse_sync_token(nil), do: nil
@@ -436,25 +438,22 @@ defmodule ElektrineWeb.DAV.CalendarController do
   defp parse_sync_token(_), do: nil
 
   defp extract_time_range(body) do
-    # Parse CalDAV time-range filter
-    # Format: <C:time-range start="20240101T000000Z" end="20240201T000000Z"/>
-    start_match = Regex.run(~r/start="([^"]+)"/, body)
-    end_match = Regex.run(~r/end="([^"]+)"/, body)
+    document = parse_xml_document(body)
 
     start_dt =
-      case start_match do
-        [_, dt_str] -> parse_icalendar_datetime(dt_str)
-        _ -> nil
-      end
+      document
+      |> xml_text(~x"//*[local-name()='time-range'][1]/@start"os)
+      |> parse_icalendar_datetime()
 
     end_dt =
-      case end_match do
-        [_, dt_str] -> parse_icalendar_datetime(dt_str)
-        _ -> nil
-      end
+      document
+      |> xml_text(~x"//*[local-name()='time-range'][1]/@end"os)
+      |> parse_icalendar_datetime()
 
     {start_dt, end_dt}
   end
+
+  defp parse_icalendar_datetime(nil), do: nil
 
   defp parse_icalendar_datetime(str) do
     str = String.replace(str, "Z", "")
@@ -481,29 +480,51 @@ defmodule ElektrineWeb.DAV.CalendarController do
   end
 
   defp parse_mkcalendar_body(body) do
-    # Parse MKCALENDAR request for display name, description, color
-    props = %{}
+    document = parse_xml_document(body)
 
-    props =
-      case Regex.run(~r/<D:displayname>([^<]+)<\/D:displayname>/i, body) do
-        [_, name] -> Map.put(props, :name, name)
-        _ -> props
-      end
-
-    props =
-      case Regex.run(~r/<C:calendar-description>([^<]+)<\/C:calendar-description>/i, body) do
-        [_, desc] -> Map.put(props, :description, desc)
-        _ -> props
-      end
-
-    props =
-      case Regex.run(~r/<(?:A|x1):calendar-color>([^<]+)<\/(?:A|x1):calendar-color>/i, body) do
-        [_, color] -> Map.put(props, :color, color)
-        _ -> props
-      end
-
-    props
+    %{}
+    |> put_if_present(:name, xml_text(document, ~x"//*[local-name()='displayname'][1]/text()"os))
+    |> put_if_present(
+      :description,
+      xml_text(document, ~x"//*[local-name()='calendar-description'][1]/text()"os)
+    )
+    |> put_if_present(
+      :color,
+      xml_text(document, ~x"//*[local-name()='calendar-color'][1]/text()"os)
+    )
   end
+
+  defp parse_xml_document(body) when byte_size(body) == 0, do: nil
+
+  defp parse_xml_document(body) do
+    SweetXml.parse(body, dtd: :none, quiet: true)
+  rescue
+    _ -> nil
+  end
+
+  defp xml_text(nil, _path), do: nil
+
+  defp xml_text(document, path) do
+    case xpath(document, path) do
+      nil -> nil
+      value -> value |> to_string() |> String.trim() |> empty_to_nil()
+    end
+  end
+
+  defp xml_text_list(nil, _path), do: []
+
+  defp xml_text_list(document, path) do
+    document
+    |> xpath(path)
+    |> Enum.map(&(&1 |> to_string() |> String.trim()))
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, key, value), do: Map.put(map, key, value)
+
+  defp empty_to_nil(""), do: nil
+  defp empty_to_nil(value), do: value
 
   defp base_url(conn) do
     scheme = if conn.scheme == :https, do: "https", else: "http"

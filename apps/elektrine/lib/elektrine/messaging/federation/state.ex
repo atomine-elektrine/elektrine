@@ -6,17 +6,19 @@ defmodule Elektrine.Messaging.Federation.State do
 
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
+
   alias Elektrine.Messaging.{
     ChatMessage,
     Conversation,
+    FederationAccountPresenceState,
     FederationExtensionEvent,
     FederationInviteState,
     FederationMembershipState,
-    FederationPresenceState,
+    FederationRoomPresenceState,
     FederationReadCursor
   }
 
-  alias Elektrine.PubSubTopics
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
 
   def upsert_remote_read_cursor(
@@ -123,6 +125,8 @@ defmodule Elektrine.Messaging.Federation.State do
       )
       when is_binary(event_type) and is_binary(event_key) and is_binary(remote_domain) and
              is_map(payload) do
+    event_type = Elektrine.Messaging.ArblargSDK.canonical_event_type(event_type)
+
     attrs = %{
       event_type: event_type,
       origin_domain: String.downcase(remote_domain),
@@ -174,6 +178,7 @@ defmodule Elektrine.Messaging.Federation.State do
       )
       when is_binary(event_type) and is_binary(event_key) and is_binary(content) and
              is_map(metadata) and is_binary(remote_domain) and is_map(context) do
+    event_type = Elektrine.Messaging.ArblargSDK.canonical_event_type(event_type)
     federated_source = "arblarg:ext:#{event_type}:#{event_key}"
 
     attrs = %{
@@ -234,8 +239,7 @@ defmodule Elektrine.Messaging.Federation.State do
       ),
       do: {:error, :invalid_event_payload}
 
-  def upsert_presence_state(
-        server_id,
+  def upsert_account_presence_state(
         remote_actor_id,
         status,
         activities,
@@ -244,12 +248,11 @@ defmodule Elektrine.Messaging.Federation.State do
         ttl_ms,
         context
       )
-      when is_integer(server_id) and is_integer(remote_actor_id) and is_binary(status) and
-             is_binary(remote_domain) and is_map(context) do
+      when is_integer(remote_actor_id) and is_binary(status) and is_binary(remote_domain) and
+             is_map(context) do
     effective_updated_at = updated_at || DateTime.utc_now()
 
     attrs = %{
-      server_id: server_id,
       remote_actor_id: remote_actor_id,
       status: status,
       origin_domain: String.downcase(remote_domain),
@@ -258,24 +261,72 @@ defmodule Elektrine.Messaging.Federation.State do
       activities: %{"items" => normalize_presence_activities(activities)}
     }
 
-    case Repo.get_by(FederationPresenceState,
-           server_id: server_id,
-           remote_actor_id: remote_actor_id
-         ) do
+    case Repo.get_by(FederationAccountPresenceState, remote_actor_id: remote_actor_id) do
       nil ->
-        %FederationPresenceState{}
-        |> FederationPresenceState.changeset(attrs)
+        %FederationAccountPresenceState{}
+        |> FederationAccountPresenceState.changeset(attrs)
         |> Repo.insert()
 
-      %FederationPresenceState{} = state ->
+      %FederationAccountPresenceState{} = state ->
         state
-        |> FederationPresenceState.changeset(attrs)
+        |> FederationAccountPresenceState.changeset(attrs)
         |> Repo.update()
     end
   end
 
-  def upsert_presence_state(
-        _server_id,
+  def upsert_account_presence_state(
+        _remote_actor_id,
+        _status,
+        _activities,
+        _updated_at,
+        _remote_domain,
+        _ttl_ms,
+        _context
+      ),
+      do: {:error, :invalid_event_payload}
+
+  def upsert_room_presence_state(
+        conversation_id,
+        remote_actor_id,
+        status,
+        activities,
+        updated_at,
+        remote_domain,
+        ttl_ms,
+        context
+      )
+      when is_integer(conversation_id) and is_integer(remote_actor_id) and is_binary(status) and
+             is_binary(remote_domain) and is_map(context) do
+    effective_updated_at = updated_at || DateTime.utc_now()
+
+    attrs = %{
+      conversation_id: conversation_id,
+      remote_actor_id: remote_actor_id,
+      status: status,
+      origin_domain: String.downcase(remote_domain),
+      updated_at_remote: effective_updated_at,
+      expires_at_remote: presence_expiry_from_ttl(effective_updated_at, ttl_ms, context),
+      activities: %{"items" => normalize_presence_activities(activities)}
+    }
+
+    case Repo.get_by(FederationRoomPresenceState,
+           conversation_id: conversation_id,
+           remote_actor_id: remote_actor_id
+         ) do
+      nil ->
+        %FederationRoomPresenceState{}
+        |> FederationRoomPresenceState.changeset(attrs)
+        |> Repo.insert()
+
+      %FederationRoomPresenceState{} = state ->
+        state
+        |> FederationRoomPresenceState.changeset(attrs)
+        |> Repo.update()
+    end
+  end
+
+  def upsert_room_presence_state(
+        _conversation_id,
         _remote_actor_id,
         _status,
         _activities,
@@ -448,16 +499,188 @@ defmodule Elektrine.Messaging.Federation.State do
       ),
       do: {:error, :invalid_event_payload}
 
+  def persist_local_extension_projection(conversation_id, event_type, payload, context)
+      when is_integer(conversation_id) and is_binary(event_type) and is_map(payload) and
+             is_map(context) do
+    canonical_event_type = Elektrine.Messaging.ArblargSDK.canonical_event_type(event_type)
+
+    normalized_event_type =
+      Map.get(
+        Elektrine.Messaging.ArblargSDK.schema_bindings(),
+        canonical_event_type,
+        canonical_event_type
+      )
+
+    with %Conversation{} = conversation <- Repo.get(Conversation, conversation_id),
+         event_key when is_binary(event_key) <-
+           local_extension_event_key(normalized_event_type, payload, conversation),
+         occurred_at <- local_extension_occurred_at(normalized_event_type, payload),
+         status <- local_extension_status(normalized_event_type, payload),
+         {:ok, _projection} <-
+           upsert_extension_projection(
+             canonical_event_type,
+             event_key,
+             payload,
+             call(context, :local_domain, []),
+             conversation.server_id,
+             conversation.id,
+             occurred_at,
+             status
+           ) do
+      :ok
+    else
+      nil -> {:error, :invalid_event_payload}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :invalid_event_payload}
+    end
+  end
+
+  def persist_local_extension_projection(_conversation_id, _event_type, _payload, _context),
+    do: {:error, :invalid_event_payload}
+
+  def local_presence_subscriber_domains_for_user(user_id) when is_integer(user_id) do
+    from(f in Follow,
+      join: actor in ActivityPubActor,
+      on: actor.id == f.remote_actor_id,
+      where:
+        f.followed_id == ^user_id and is_nil(f.follower_id) and not is_nil(f.remote_actor_id) and
+          f.pending == false,
+      where: not is_nil(actor.domain),
+      select: actor.domain,
+      distinct: true
+    )
+    |> Repo.all()
+    |> Enum.filter(&is_binary/1)
+  end
+
+  def local_presence_subscriber_domains_for_user(_user_id), do: []
+
+  def local_presence_subscriber_user_ids(remote_actor_id) when is_integer(remote_actor_id) do
+    from(f in Follow,
+      where:
+        f.remote_actor_id == ^remote_actor_id and not is_nil(f.follower_id) and
+          is_nil(f.followed_id) and f.pending == false,
+      select: f.follower_id,
+      distinct: true
+    )
+    |> Repo.all()
+  end
+
+  def local_presence_subscriber_user_ids(_remote_actor_id), do: []
+
+  def server_ids_for_remote_actor(remote_actor_id) when is_integer(remote_actor_id) do
+    from(state in FederationMembershipState,
+      join: conversation in Conversation,
+      on: conversation.id == state.conversation_id,
+      where: state.remote_actor_id == ^remote_actor_id and state.state == "active",
+      where: not is_nil(conversation.server_id),
+      select: conversation.server_id,
+      distinct: true
+    )
+    |> Repo.all()
+  end
+
+  def server_ids_for_remote_actor(_remote_actor_id), do: []
+
+  defp local_extension_event_key("role.upsert", payload, %Conversation{} = conversation) do
+    case get_in(payload, ["role", "id"]) do
+      role_id when is_binary(role_id) -> "role:#{role_id}:channel:#{conversation.id}"
+      _ -> nil
+    end
+  end
+
+  defp local_extension_event_key(
+         "role.assignment.upsert",
+         payload,
+         %Conversation{} = conversation
+       ) do
+    with role_id when is_binary(role_id) <- get_in(payload, ["assignment", "role_id"]),
+         target_type when is_binary(target_type) <-
+           get_in(payload, ["assignment", "target", "type"]),
+         target_id when is_binary(target_id) <- get_in(payload, ["assignment", "target", "id"]) do
+      "role_assignment:#{role_id}:#{target_type}:#{target_id}:channel:#{conversation.id}"
+    else
+      _ -> nil
+    end
+  end
+
+  defp local_extension_event_key(
+         "permission.overwrite.upsert",
+         payload,
+         %Conversation{} = conversation
+       ) do
+    case get_in(payload, ["overwrite", "id"]) do
+      overwrite_id when is_binary(overwrite_id) ->
+        "overwrite:#{overwrite_id}:channel:#{conversation.id}"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp local_extension_event_key("thread.upsert", payload, %Conversation{} = conversation) do
+    case get_in(payload, ["thread", "id"]) do
+      thread_id when is_binary(thread_id) -> "thread:#{thread_id}:channel:#{conversation.id}"
+      _ -> nil
+    end
+  end
+
+  defp local_extension_event_key("thread.archive", payload, %Conversation{} = conversation) do
+    case payload["thread_id"] do
+      thread_id when is_binary(thread_id) -> "thread:#{thread_id}:channel:#{conversation.id}"
+      _ -> nil
+    end
+  end
+
+  defp local_extension_event_key(
+         "moderation.action.recorded",
+         payload,
+         %Conversation{} = conversation
+       ) do
+    case get_in(payload, ["action", "id"]) do
+      action_id when is_binary(action_id) -> "moderation:#{action_id}:channel:#{conversation.id}"
+      _ -> nil
+    end
+  end
+
+  defp local_extension_event_key(_event_type, _payload, _conversation), do: nil
+
+  defp local_extension_occurred_at("role.upsert", payload) do
+    parse_datetime(get_in(payload, ["role", "updated_at"])) || DateTime.utc_now()
+  end
+
+  defp local_extension_occurred_at("thread.archive", payload) do
+    parse_datetime(payload["archived_at"]) || DateTime.utc_now()
+  end
+
+  defp local_extension_occurred_at("moderation.action.recorded", payload) do
+    parse_datetime(get_in(payload, ["action", "occurred_at"])) || DateTime.utc_now()
+  end
+
+  defp local_extension_occurred_at(_event_type, _payload), do: DateTime.utc_now()
+
+  defp local_extension_status("role.assignment.upsert", payload),
+    do: get_in(payload, ["assignment", "state"])
+
+  defp local_extension_status("thread.upsert", payload), do: get_in(payload, ["thread", "state"])
+  defp local_extension_status("thread.archive", _payload), do: "archived"
+
+  defp local_extension_status("moderation.action.recorded", payload),
+    do: get_in(payload, ["action", "kind"])
+
+  defp local_extension_status(_event_type, _payload), do: nil
+
   def maybe_broadcast_presence_update(
-        server_id,
+        subscriber_user_ids,
+        server_ids,
         remote_actor_id,
         status,
         activities,
         updated_at,
         context
       )
-      when is_integer(server_id) and is_integer(remote_actor_id) and is_binary(status) and
-             is_map(context) do
+      when is_list(subscriber_user_ids) and is_list(server_ids) and is_integer(remote_actor_id) and
+             is_binary(status) and is_map(context) do
     actor = Repo.get(ActivityPubActor, remote_actor_id)
     username = if actor, do: actor.username, else: "remote"
     domain = if actor, do: actor.domain, else: call(context, :local_domain, [])
@@ -470,7 +693,7 @@ defmodule Elektrine.Messaging.Federation.State do
       end
 
     payload = %{
-      server_id: server_id,
+      server_ids: Enum.filter(server_ids, &is_integer/1),
       remote_actor_id: remote_actor_id,
       handle: handle,
       label: label,
@@ -480,17 +703,76 @@ defmodule Elektrine.Messaging.Federation.State do
       updated_at: updated_at || DateTime.utc_now()
     }
 
-    Phoenix.PubSub.broadcast(
-      Elektrine.PubSub,
-      PubSubTopics.users_presence(),
-      {:federation_presence_update, payload}
-    )
+    subscriber_user_ids
+    |> Enum.filter(&is_integer/1)
+    |> Enum.uniq()
+    |> Enum.each(fn user_id ->
+      Phoenix.PubSub.broadcast(
+        Elektrine.PubSub,
+        "user:#{user_id}",
+        {:federation_presence_update, payload}
+      )
+    end)
 
     :ok
   end
 
   def maybe_broadcast_presence_update(
-        _server_id,
+        _subscriber_user_ids,
+        _server_ids,
+        _remote_actor_id,
+        _status,
+        _activities,
+        _updated_at,
+        _context
+      ),
+      do: :ok
+
+  def maybe_broadcast_room_presence_update(
+        conversation_id,
+        remote_actor_id,
+        status,
+        activities,
+        updated_at,
+        context
+      )
+      when is_integer(conversation_id) and is_integer(remote_actor_id) and is_binary(status) and
+             is_map(context) do
+    case Repo.get(ActivityPubActor, remote_actor_id) do
+      %ActivityPubActor{} = actor ->
+        handle = "@#{actor.username}@#{actor.domain}"
+
+        label =
+          case normalize_optional_string(actor.display_name) do
+            nil -> handle
+            display_name -> "#{display_name} (#{handle})"
+          end
+
+        payload = %{
+          conversation_id: conversation_id,
+          remote_actor_id: remote_actor_id,
+          handle: handle,
+          label: label,
+          avatar_url: actor.avatar_url,
+          status: status,
+          activities: normalize_presence_activities(activities),
+          updated_at: updated_at || DateTime.utc_now()
+        }
+
+        call(context, :broadcast_conversation_event, [
+          conversation_id,
+          {:federation_presence_update, payload}
+        ])
+
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  def maybe_broadcast_room_presence_update(
+        _conversation_id,
         _remote_actor_id,
         _status,
         _activities,

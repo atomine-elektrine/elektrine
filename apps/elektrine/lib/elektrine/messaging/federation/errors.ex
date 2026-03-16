@@ -38,6 +38,7 @@ defmodule Elektrine.Messaging.Federation.Errors do
     origin_actor_host_mismatch: "origin_actor_host_mismatch",
     origin_stream_host_mismatch: "origin_stream_host_mismatch",
     federation_origin_conflict: "federation_origin_conflict",
+    not_authorized_for_room: "not_authorized_for_room",
     snapshot_unavailable: "snapshot_unavailable",
     stream_recovery_failed: "stream_recovery_failed",
     sequence_gap: "sequence_gap",

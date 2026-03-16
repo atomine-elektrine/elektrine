@@ -86,7 +86,7 @@ defmodule Elektrine.Application do
   end
 
   defp web_children do
-    if component_enabled?(:web) do
+    if component_enabled?(:web) and web_runtime_available?() do
       [
         ElektrineWeb.Telemetry,
         Elektrine.Webhook.RateLimiter,
@@ -118,6 +118,12 @@ defmodule Elektrine.Application do
     :elektrine
     |> Application.get_env(:runtime_components, [])
     |> Keyword.get(component, true)
+  end
+
+  defp web_runtime_available? do
+    Code.ensure_loaded?(ElektrineWeb.Telemetry) and
+      Code.ensure_loaded?(ElektrineWeb.Presence) and
+      Code.ensure_loaded?(ElektrineWeb.Endpoint)
   end
 
   defp enqueue_only_oban_config do
