@@ -8,6 +8,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
   alias Elektrine.Accounts.User
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Friends
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
@@ -135,6 +136,38 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
     assert render_hook(textarea, "update_reply_content", %{"value" => "typed live"}) =~
              "10/3 required chars"
+  end
+
+  test "replying to a thread reply hides the post-level quick reply form", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Thread root", visibility: "public")
+
+    {:ok, reply} =
+      Social.create_timeline_post(author.id, "Thread reply",
+        visibility: "public",
+        reply_to_id: post.id
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "show_reply_form", %{"message_id" => to_string(post.id)})
+    assert has_element?(view, "#reply-form-#{post.id}")
+    assert has_element?(view, ~s(input[name="reply_to_id"][value="#{post.id}"]))
+
+    render_hook(view, "show_reply_to_reply_form", %{
+      "reply_id" => to_string(reply.id),
+      "post_id" => to_string(post.id)
+    })
+
+    refute has_element?(view, "#reply-form-#{post.id}")
+    refute has_element?(view, ~s(input[name="reply_to_id"][value="#{post.id}"]))
+    assert has_element?(view, ~s(input[name="reply_to_id"][value="#{reply.id}"]))
   end
 
   test "saving a timeline post immediately flips the bookmark button to solid", %{conn: conn} do
@@ -804,6 +837,76 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert html =~ "Middle ancestor context"
     assert html =~ ~s(phx-value-id="#{root_post.id}")
     assert html =~ ~s(phx-value-id="#{middle_post.id}")
+  end
+
+  test "timeline thread context renders local custom emojis for local ancestors", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    %CustomEmoji{}
+    |> CustomEmoji.changeset(%{
+      shortcode: "thumbsupcat",
+      image_url: "https://cdn.example/emojis/thumbsupcat.png",
+      instance_domain: nil,
+      visible_in_picker: false,
+      disabled: false
+    })
+    |> Repo.insert!()
+
+    {:ok, root_post} =
+      Social.create_timeline_post(author.id, "Root ancestor :thumbsupcat:", visibility: "public")
+
+    {:ok, middle_post} =
+      Social.create_timeline_post(author.id, "Middle ancestor :thumbsupcat:",
+        visibility: "public",
+        reply_to_id: root_post.id
+      )
+
+    local_domain = Elektrine.Domains.instance_domain()
+    root_ref = "https://#{local_domain}/objects/root-#{root_post.id}"
+    middle_ref = "https://#{local_domain}/objects/middle-#{middle_post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^root_post.id),
+      set: [federated: true, activitypub_id: root_ref]
+    )
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^middle_post.id),
+      set: [
+        federated: true,
+        activitypub_id: middle_ref,
+        media_metadata: %{"inReplyTo" => root_ref}
+      ]
+    )
+
+    {:ok, _leaf_reply} =
+      Social.create_timeline_post(author.id, "Leaf reply in emoji thread",
+        visibility: "public",
+        reply_to_id: middle_post.id
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=replies")
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "Leaf reply in emoji thread" do
+          {:halt, rendered}
+        else
+          Process.sleep(100)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Root ancestor"
+    assert html =~ "Middle ancestor"
+    assert html =~ "custom-emoji"
+    assert html =~ "thumbsupcat.png"
   end
 
   test "load_remote_replies keeps loading until ingested replies are available", %{conn: conn} do

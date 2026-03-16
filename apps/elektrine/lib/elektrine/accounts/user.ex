@@ -624,7 +624,7 @@ defmodule Elektrine.Accounts.User do
   defp validate_username_not_alias(changeset) do
     username = get_field(changeset, :username)
 
-    if username do
+    if not is_nil(username) and Elektrine.Platform.Modules.compiled?(:email) do
       # Check if this username would conflict with existing aliases on our domains
       allowed_domains = Elektrine.Domains.supported_email_domains()
 

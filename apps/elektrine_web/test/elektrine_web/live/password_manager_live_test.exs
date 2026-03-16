@@ -90,6 +90,36 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
     refute render(view) =~ "Disposable"
   end
 
+  test "can delete a vault and start over", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    assert {:ok, _settings} =
+             PasswordManager.setup_vault(user.id, %{
+               "encrypted_verifier" => encrypted_payload("verifier")
+             })
+
+    {:ok, _entry} =
+      PasswordManager.create_entry(user.id, %{
+        "title" => "Disposable",
+        "encrypted_password" => encrypted_payload("temp-password")
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/password-manager")
+
+    assert render(view) =~ "Delete Vault"
+
+    view
+    |> element("#delete-vault-button")
+    |> render_click()
+
+    refute PasswordManager.vault_configured?(user.id)
+    assert PasswordManager.list_entries(user.id, include_secrets: true) == []
+    assert render(view) =~ "Set Vault Passphrase"
+  end
+
   defp encrypted_payload(value) do
     %{
       "version" => 1,

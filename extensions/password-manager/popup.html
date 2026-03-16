@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Elektrine Password Manager</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell popup-shell">
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <span class="eyebrow">Password Manager</span>
+            <h1>Browser Extension</h1>
+            <p>Unlock your encrypted vault, create entries, and autofill the active page.</p>
+          </div>
+          <button id="openOptionsButton" class="button secondary" type="button">Settings</button>
+        </div>
+        <div class="hero-chip">
+          <strong>Current site:</strong>
+          <span id="currentSiteLabel">Checking tab...</span>
+        </div>
+      </section>
+
+      <div id="feedback" class="feedback hidden"></div>
+
+      <section id="configSection" class="panel hidden">
+        <h2>Connect the extension</h2>
+        <p>Open Settings to connect this browser with your Elektrine account.</p>
+        <div class="actions">
+          <button id="configureButton" class="button" type="button">Open Settings</button>
+        </div>
+      </section>
+
+      <section id="setupSection" class="panel hidden">
+        <h2>Set up your vault</h2>
+        <p>This creates the browser-encrypted verifier used to prove the passphrase locally.</p>
+        <form id="setupForm">
+          <div class="field">
+            <label for="setupPassphrase">Vault passphrase</label>
+            <input id="setupPassphrase" type="password" autocomplete="new-password" minlength="8" required />
+          </div>
+          <div class="field">
+            <label for="setupPassphraseConfirm">Confirm passphrase</label>
+            <input
+              id="setupPassphraseConfirm"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+            />
+          </div>
+          <div class="actions">
+            <button id="setupSubmitButton" class="button" type="submit">Create vault</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="unlockSection" class="panel hidden">
+        <h2>Unlock vault</h2>
+        <p>The passphrase stays only in browser session storage and is cleared when you lock it.</p>
+        <form id="unlockForm">
+          <div class="field">
+            <label for="unlockPassphrase">Vault passphrase</label>
+            <input id="unlockPassphrase" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="actions">
+            <button id="unlockSubmitButton" class="button" type="submit">Unlock</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="resetSection" class="panel hidden danger-panel">
+        <h2>Delete vault</h2>
+        <p>If you lost the vault passphrase, delete the encrypted verifier and all saved entries, then create a new vault.</p>
+        <div class="actions">
+          <button id="resetVaultButton" class="button danger" type="button">Delete vault and start over</button>
+        </div>
+      </section>
+
+      <section id="vaultSection" class="panel hidden">
+        <div class="toolbar">
+          <input id="searchInput" type="search" placeholder="Search entries" />
+          <button id="lockButton" class="button secondary" type="button">Lock</button>
+        </div>
+
+        <details class="details">
+          <summary>Add entry</summary>
+          <div class="details-inner">
+            <form id="createEntryForm">
+              <div class="field">
+                <label for="entryTitle">Title</label>
+                <input id="entryTitle" type="text" maxlength="120" placeholder="GitHub" required />
+              </div>
+              <div class="row">
+                <div class="field">
+                  <label for="entryUsername">Username or email</label>
+                  <input id="entryUsername" type="text" maxlength="255" placeholder="you@example.com" />
+                </div>
+                <div class="field">
+                  <label for="entryWebsite">Website</label>
+                  <input id="entryWebsite" type="url" maxlength="255" placeholder="https://github.com" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="entryPassword">Password</label>
+                <input id="entryPassword" type="text" maxlength="255" required />
+              </div>
+              <div class="field">
+                <label for="entryNotes">Notes</label>
+                <textarea id="entryNotes" placeholder="Optional notes"></textarea>
+              </div>
+              <div class="actions">
+                <button id="generatePasswordButton" class="button secondary" type="button">
+                  Generate password
+                </button>
+                <button id="createEntrySubmitButton" class="button" type="submit">Save entry</button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <div id="entriesList" class="entries"></div>
+      </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

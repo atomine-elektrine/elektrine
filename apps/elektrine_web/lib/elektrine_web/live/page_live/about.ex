@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.About do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.EmailAddresses
+
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
   def mount(_params, _session, socket) do
@@ -73,20 +75,20 @@ defmodule ElektrineWeb.PageLive.About do
                 <div class="mt-4 space-y-2">
                   <p>
                     General:
-                    <a href="mailto:welcome@elektrine.com" class="link link-primary">
-                      welcome@elektrine.com
+                    <a href={EmailAddresses.mailto("welcome")} class="link link-primary">
+                      {EmailAddresses.local("welcome")}
                     </a>
                   </p>
                   <p>
                     Support:
-                    <a href="mailto:support@elektrine.com" class="link link-primary">
-                      support@elektrine.com
+                    <a href={EmailAddresses.mailto("support")} class="link link-primary">
+                      {EmailAddresses.local("support")}
                     </a>
                   </p>
                   <p>
                     Security:
-                    <a href="mailto:security@elektrine.com" class="link link-primary">
-                      security@elektrine.com
+                    <a href={EmailAddresses.mailto("security")} class="link link-primary">
+                      {EmailAddresses.local("security")}
                     </a>
                   </p>
                 </div>

@@ -274,14 +274,28 @@ defmodule ElektrineWeb.API.MetaController do
         method: "GET",
         path: "/api/ext/v1/password-manager/entries",
         summary: "List encrypted vault entries",
-        required_scopes: ["read:vault", "write:vault", "read:account", "write:account"],
+        required_scopes: ["read:vault", "write:vault"],
         platform_module: :vault
       },
       %{
         method: "POST",
         path: "/api/ext/v1/password-manager/entries",
         summary: "Create encrypted vault entries",
-        required_scopes: ["write:vault", "write:account"],
+        required_scopes: ["write:vault"],
+        platform_module: :vault
+      },
+      %{
+        method: "PUT",
+        path: "/api/ext/v1/password-manager/entries/:id",
+        summary: "Update encrypted vault entries",
+        required_scopes: ["write:vault"],
+        platform_module: :vault
+      },
+      %{
+        method: "DELETE",
+        path: "/api/ext/v1/password-manager/vault",
+        summary: "Delete encrypted vault metadata and all saved entries",
+        required_scopes: ["write:vault"],
         platform_module: :vault
       },
       %{

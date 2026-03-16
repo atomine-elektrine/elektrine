@@ -8,6 +8,7 @@ defmodule ElektrineWeb.JMAP.APIController do
 
   alias Elektrine.Email
   alias Elektrine.Email.{SendEmailWorker, Sender}
+  alias Elektrine.EmailAddresses
   alias Elektrine.JMAP
   alias Elektrine.Repo
   alias Oban.Job
@@ -428,7 +429,7 @@ defmodule ElektrineWeb.JMAP.APIController do
     identity = %{
       "id" => "identity-#{user.id}",
       "name" => user.username,
-      "email" => mailbox.email || "#{user.username}@elektrine.com",
+      "email" => mailbox.email || EmailAddresses.primary_for_user(user),
       "replyTo" => nil,
       "bcc" => nil,
       "textSignature" => "",
@@ -609,7 +610,7 @@ defmodule ElektrineWeb.JMAP.APIController do
   defp jmap_email_to_attrs(email_args, mailbox) do
     %{
       mailbox_id: mailbox.id,
-      message_id: "<#{Ecto.UUID.generate()}@elektrine.com>",
+      message_id: EmailAddresses.message_id(Ecto.UUID.generate()),
       from: first_address_email(Map.get(email_args, "from")) || mailbox.email,
       to: format_addresses(Map.get(email_args, "to", [])),
       cc: format_addresses(Map.get(email_args, "cc", [])),

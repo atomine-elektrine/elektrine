@@ -3,6 +3,8 @@ defmodule ElektrineWeb.Router do
 
   import ElektrineWeb.UserAuth
 
+  @default_profile_host_scope "*.#{Application.compile_env(:elektrine, :primary_domain, "elektrine.com")}"
+
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
@@ -61,6 +63,13 @@ defmodule ElektrineWeb.Router do
     )
   end
 
+  pipeline :caddy_internal_api do
+    plug(ElektrineWeb.Plugs.InternalAPIAuth,
+      env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"],
+      query_param: "token"
+    )
+  end
+
   # Browser-based JSON API pipeline
   # Used for AJAX calls from static pages that need session/CSRF but return JSON.
   # Examples: profile follow/unfollow, friend requests, followers/following lists
@@ -87,6 +96,14 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
+    plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
+  end
+
+  pipeline :api_vault_authenticated do
+    plug(:accepts, ["json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -151,13 +168,14 @@ defmodule ElektrineWeb.Router do
 
   pipeline :api_pat_vault_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth,
-      scopes: ["read:vault", "write:vault", "read:account", "write:account"],
-      any: true
+      scopes: ["read:vault", "write:vault"],
+      any: true,
+      allow_api_token: true
     )
   end
 
   pipeline :api_pat_vault_write_scope do
-    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault", "write:account"], any: true)
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"], allow_api_token: true)
   end
 
   pipeline :api_pat_export_scope do
@@ -269,6 +287,14 @@ defmodule ElektrineWeb.Router do
     post("/user_exists", MongooseIMAuthController, :user_exists)
   end
 
+  # Internal Caddy on-demand TLS allowlist endpoint.
+  # This stays on the private/origin app hostname and should be called only by the Caddy edge.
+  scope "/_edge/tls/v1", ElektrineWeb do
+    pipe_through([:api, :caddy_internal_api])
+
+    get("/allow", CaddyTLSController, :allow)
+  end
+
   # Media proxy for federation privacy (no auth required)
   scope "/media_proxy", ElektrineWeb do
     pipe_through(:api)
@@ -276,8 +302,14 @@ defmodule ElektrineWeb.Router do
     get("/:signature/:encoded_url", MediaProxyController, :proxy)
   end
 
+  scope "/api", ElektrineWeb do
+    pipe_through([ElektrineWeb.Plugs.RequirePlatformModule])
+
+    get("/private-attachments/:token", PrivateAttachmentController, :show)
+  end
+
   # Lightweight signed messaging federation endpoints (instance-to-instance)
-  scope "/federation/messaging", ElektrineWeb do
+  scope "/_arblarg", ElektrineWeb do
     pipe_through([:api, :messaging_federation])
 
     post("/events", MessagingFederationController, :event)
@@ -288,21 +320,21 @@ defmodule ElektrineWeb.Router do
     get("/servers/:server_id/snapshot", MessagingFederationController, :snapshot)
   end
 
-  scope "/federation/messaging", ElektrineWeb do
+  scope "/_arblarg", ElektrineWeb do
     pipe_through([:messaging_federation])
 
     get("/session", MessagingFederationController, :session_websocket)
   end
 
   # Public messaging federation server directory for cross-instance discovery
-  scope "/federation/messaging", ElektrineWeb do
+  scope "/_arblarg", ElektrineWeb do
     pipe_through(:api)
 
     get("/servers/public", MessagingFederationController, :public_servers)
   end
 
   # Public Arblarg schema registry
-  scope "/federation/messaging/arblarg", ElektrineWeb do
+  scope "/_arblarg", ElektrineWeb do
     pipe_through(:api)
 
     get("/profiles", MessagingFederationController, :profiles)
@@ -313,8 +345,8 @@ defmodule ElektrineWeb.Router do
   scope "/.well-known", ElektrineWeb do
     pipe_through(:api)
 
-    get("/arblarg", MessagingFederationController, :well_known)
-    get("/arblarg/:version", MessagingFederationController, :well_known_versioned)
+    get("/_arblarg", MessagingFederationController, :well_known)
+    get("/_arblarg/:version", MessagingFederationController, :well_known_versioned)
   end
 
   # Matrix well-known discovery/delegation endpoints
@@ -998,6 +1030,24 @@ defmodule ElektrineWeb.Router do
     get("/conversations/:conversation_id/members", ConversationController, :members)
     post("/conversations/:conversation_id/members", ConversationController, :add_member)
 
+    get(
+      "/conversations/:conversation_id/remote-join-requests",
+      ConversationController,
+      :pending_remote_join_requests
+    )
+
+    post(
+      "/conversations/:conversation_id/remote-join-requests/approve",
+      ConversationController,
+      :approve_remote_join_request
+    )
+
+    post(
+      "/conversations/:conversation_id/remote-join-requests/decline",
+      ConversationController,
+      :decline_remote_join_request
+    )
+
     delete(
       "/conversations/:conversation_id/members/:user_id",
       ConversationController,
@@ -1170,7 +1220,7 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_vault_read_scope])
+    pipe_through([:api_vault_authenticated, :api_pat_vault_read_scope])
 
     scope "/", alias: false do
       get("/entries", ElektrinePasswordManagerWeb.API.VaultController, :index)
@@ -1179,11 +1229,13 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_vault_write_scope])
+    pipe_through([:api_vault_authenticated, :api_pat_vault_write_scope])
 
     scope "/", alias: false do
       post("/vault/setup", ElektrinePasswordManagerWeb.API.VaultController, :setup)
+      delete("/vault", ElektrinePasswordManagerWeb.API.VaultController, :delete_vault)
       post("/entries", ElektrinePasswordManagerWeb.API.VaultController, :create)
+      put("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :update)
       delete("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :delete)
     end
   end
@@ -1242,7 +1294,7 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/password-manager", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
+    pipe_through([:api_vault_authenticated, :api_pat_vault_read_scope])
 
     scope "/", alias: false do
       get("/entries", ElektrinePasswordManagerWeb.API.VaultController, :index)
@@ -1251,11 +1303,13 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/password-manager", ElektrineWeb.API do
-    pipe_through([:api_pat_authenticated, :api_pat_account_write_scope])
+    pipe_through([:api_vault_authenticated, :api_pat_vault_write_scope])
 
     scope "/", alias: false do
       post("/vault/setup", ElektrinePasswordManagerWeb.API.VaultController, :setup)
+      delete("/vault", ElektrinePasswordManagerWeb.API.VaultController, :delete_vault)
       post("/entries", ElektrinePasswordManagerWeb.API.VaultController, :create)
+      put("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :update)
       delete("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :delete)
     end
   end
@@ -1323,7 +1377,8 @@ defmodule ElektrineWeb.Router do
   # All pages in single live_session for seamless navigation
   scope "/",
         ElektrineWeb,
-        host: Application.compile_env(:elektrine, :profile_host_scope, "*.elektrine.com") do
+        host:
+          Application.compile_env(:elektrine, :profile_host_scope, @default_profile_host_scope) do
     pipe_through(:profile)
 
     get("/", ProfileController, :show)
@@ -1416,6 +1471,7 @@ defmodule ElektrineWeb.Router do
 
       # Profile editing
       live("/account/profile/edit", ProfileLive.Edit, :edit)
+      live("/account/profile/domains", ProfileLive.Domains, :index)
       live("/account/profile/analytics", ProfileLive.Analytics, :analytics)
       live("/account/storage", StorageLive)
 

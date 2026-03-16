@@ -136,6 +136,50 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert length(messages) == 1
     end
 
+    test "stores repeated messages with the same sender and subject when message ids differ",
+         %{conn: conn, mailbox: mailbox} do
+      base_params = %{
+        "from" => "sender@example.com",
+        "to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@elektrine.com",
+        "subject" => "Repeated status update"
+      }
+
+      first_conn =
+        conn
+        |> auth_conn()
+        |> post(
+          ~p"/api/haraka/inbound",
+          Map.merge(base_params, %{
+            "text_body" => "first body",
+            "message_id" => "test-repeat-1-#{System.system_time(:millisecond)}"
+          })
+        )
+
+      second_conn =
+        build_conn()
+        |> auth_conn()
+        |> post(
+          ~p"/api/haraka/inbound",
+          Map.merge(base_params, %{
+            "text_body" => "second body",
+            "message_id" => "test-repeat-2-#{System.system_time(:millisecond)}"
+          })
+        )
+
+      assert json_response(first_conn, 200)["status"] == "success"
+      assert json_response(second_conn, 200)["status"] == "success"
+
+      messages =
+        mailbox.id
+        |> Email.list_inbox_messages()
+        |> Enum.filter(&(&1.subject == "Repeated status update"))
+
+      assert length(messages) == 2
+
+      assert Enum.sort(Enum.map(messages, & &1.text_body)) == ["first body", "second body"]
+    end
+
     test "prefers cleaner subject decoding from raw Subject header when payload subject is mojibake",
          %{conn: conn, mailbox: mailbox} do
       params = %{

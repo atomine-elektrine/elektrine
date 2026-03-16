@@ -41,6 +41,7 @@ defmodule ElektrineChat do
 
   defdelegate remove_member_from_conversation(conversation_id, user_id), to: Messaging
   defdelegate update_member_role(conversation_id, user_id, new_role), to: Messaging
+  defdelegate update_member_role(conversation_id, user_id, new_role, actor_user_id), to: Messaging
   defdelegate get_conversation_member(conversation_id, user_id), to: Messaging
   defdelegate get_conversation_members(conversation_id), to: Messaging
 

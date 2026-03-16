@@ -11,7 +11,7 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
   @doc """
   Handles an incoming Delete activity.
   """
-  def handle(%{"object" => object}, actor_uri, _target_user) do
+  def handle(%{"object" => object} = activity, actor_uri, _target_user) do
     object_id =
       case object do
         obj when is_binary(obj) -> obj
@@ -22,7 +22,17 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
     if object_id do
       case Messaging.get_message_by_activitypub_ref(object_id) do
         nil ->
-          {:ok, :unknown_object}
+          case ActivityPub.record_remote_delete_receipt(activity, actor_uri, object_id) do
+            {:ok, _receipt} ->
+              {:ok, :delete_receipt_recorded}
+
+            {:error, reason} ->
+              Logger.warning(
+                "Failed to record Delete receipt for #{inspect(object_id)} from #{actor_uri}: #{inspect(reason)}"
+              )
+
+              {:error, :delete_receipt_failed}
+          end
 
         message ->
           if message.federated && message.remote_actor_id do
@@ -35,10 +45,20 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
               })
               |> Elektrine.Repo.update()
 
-              {:ok, :deleted}
+              case ActivityPub.record_remote_delete_receipt(activity, actor_uri, object_id) do
+                {:ok, _receipt} ->
+                  {:ok, :deleted}
+
+                {:error, reason} ->
+                  Logger.warning(
+                    "Deleted message #{message.id} but failed to persist Delete receipt: #{inspect(reason)}"
+                  )
+
+                  {:ok, :deleted}
+              end
             else
               Logger.warning("Delete attempt from non-owner: #{actor_uri}")
-              {:error, :unauthorized}
+              {:ok, :unauthorized}
             end
           else
             {:ok, :not_federated_message}

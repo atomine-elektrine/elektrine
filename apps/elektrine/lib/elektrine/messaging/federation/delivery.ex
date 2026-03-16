@@ -162,8 +162,11 @@ defmodule Elektrine.Messaging.Federation.Delivery do
       peer ->
         batch_rows = outbox_batch_for_domain(outbox, normalized_domain, context)
         peer_batch_limit = call(context, :peer_batch_limit, [peer])
+        {supported_rows, unsupported_rows} = split_supported_rows(batch_rows, peer)
 
-        batch_rows
+        Enum.each(unsupported_rows, &record_outbox_domain_success(&1, normalized_domain))
+
+        supported_rows
         |> Enum.chunk_every(peer_batch_limit)
         |> Enum.reduce_while(:ok, fn row_chunk, :ok ->
           events = Enum.map(row_chunk, & &1.payload)
@@ -321,6 +324,14 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   defp ephemeral_transport_order(_peer, _context),
     do: ["events_batch_cbor", "events_batch_json", "events_json"]
 
+  defp split_supported_rows(batch_rows, peer) when is_list(batch_rows) and is_map(peer) do
+    Enum.split_with(batch_rows, fn row ->
+      Transport.peer_supports_event_type?(peer, row.event_type || get_in(row.payload, ["event_type"]))
+    end)
+  end
+
+  defp split_supported_rows(batch_rows, _peer), do: {batch_rows, []}
+
   defp push_event_batch_via_transport(peer, events, "session_websocket", context) do
     if call(context, :peer_supports, [peer, "session_transport", false]) &&
          is_binary(call(context, :outbound_session_websocket_url, [peer])) do
@@ -392,7 +403,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
     do: {:skip, :unsupported_transport_profile}
 
   defp push_event_batch_request(peer, events, format, context) when format in [:cbor, :json] do
-    path = "/federation/messaging/events/batch"
+    path = "/_arblarg/events/batch"
     url = call(context, :outbound_events_batch_url, [peer])
 
     payload = %{
@@ -447,7 +458,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   end
 
   defp push_single_event_to_peer(peer, event, context) when is_map(event) do
-    path = "/federation/messaging/events"
+    path = "/_arblarg/events"
     url = call(context, :outbound_events_url, [peer])
     body = Jason.encode!(event)
 
@@ -480,7 +491,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   end
 
   defp push_ephemeral_batch_request(peer, items, format, context) when format in [:cbor, :json] do
-    path = "/federation/messaging/ephemeral"
+    path = "/_arblarg/ephemeral"
     url = call(context, :outbound_ephemeral_url, [peer])
 
     payload = %{

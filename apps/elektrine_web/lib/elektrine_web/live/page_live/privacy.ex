@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.Privacy do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.EmailAddresses
+
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
   def mount(_params, _session, socket) do
@@ -138,8 +140,8 @@ defmodule ElektrineWeb.PageLive.Privacy do
                 <p>For privacy-related questions or requests:</p>
                 <p class="mt-2">
                   Email:
-                  <a href="mailto:privacy@elektrine.com" class="link link-primary">
-                    privacy@elektrine.com
+                  <a href={EmailAddresses.mailto("privacy")} class="link link-primary">
+                    {EmailAddresses.local("privacy")}
                   </a>
                 </p>
               </section>

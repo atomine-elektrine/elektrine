@@ -8,10 +8,16 @@
       "expected_schema": "role.upsert",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
+        },
+        "actor": {
+          "uri": "https://example.net/users/alice",
+          "username": "alice",
+          "domain": "example.net",
+          "handle": "alice@example.net"
         },
         "role": {
           "id": "role-admin",
@@ -25,10 +31,10 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "role": {
           "id": "role-admin",
@@ -47,10 +53,16 @@
       "expected_schema": "role.assignment.upsert",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
+        },
+        "actor": {
+          "uri": "https://example.net/users/alice",
+          "username": "alice",
+          "domain": "example.net",
+          "handle": "alice@example.net"
         },
         "assignment": {
           "role_id": "role-admin",
@@ -63,10 +75,10 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "assignment": {
           "role_id": "role-admin",
@@ -86,10 +98,16 @@
       "expected_schema": "permission.overwrite.upsert",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
+        },
+        "actor": {
+          "uri": "https://example.net/users/alice",
+          "username": "alice",
+          "domain": "example.net",
+          "handle": "alice@example.net"
         },
         "overwrite": {
           "id": "ovr-1",
@@ -107,10 +125,10 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "overwrite": {
           "id": "ovr-1",
@@ -132,14 +150,14 @@
       "expected_schema": "thread.upsert",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "thread": {
           "id": "thread-1",
-          "channel_id": "https://example.net/federation/messaging/channels/1",
+          "channel_id": "https://example.net/_arblarg/channels/1",
           "name": "Roadmap",
           "state": "active",
           "owner": {
@@ -156,14 +174,14 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "thread": {
           "id": "thread-1",
-          "channel_id": "https://example.net/federation/messaging/channels/1",
+          "channel_id": "https://example.net/_arblarg/channels/1",
           "name": "Roadmap",
           "state": "unknown",
           "owner": {
@@ -185,10 +203,10 @@
       "expected_schema": "thread.archive",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "thread_id": "thread-1",
         "archived_at": "2026-02-22T12:34:56Z",
@@ -203,10 +221,10 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "thread_id": "thread-1",
         "archived_at": "not-a-date",
@@ -228,7 +246,7 @@
       "expected_schema": "presence.update",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "presence": {
           "actor": {
@@ -245,7 +263,7 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "presence": {
           "actor": {
@@ -269,17 +287,18 @@
       "expected_schema": "moderation.action.recorded",
       "payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "action": {
           "id": "mod-1",
           "kind": "timeout",
-          "target": {
-            "uri": "https://example.net/users/bob"
-          },
+            "target": {
+              "type": "user",
+              "id": "https://example.net/users/bob"
+            },
           "actor": {
             "id": "https://example.net/users/alice",
             "uri": "https://example.net/users/alice",
@@ -295,17 +314,18 @@
       },
       "invalid_payload": {
         "server": {
-          "id": "https://example.net/federation/messaging/servers/1"
+          "id": "https://example.net/_arblarg/servers/1"
         },
         "channel": {
-          "id": "https://example.net/federation/messaging/channels/1"
+          "id": "https://example.net/_arblarg/channels/1"
         },
         "action": {
           "id": "mod-1",
           "kind": "suspend",
-          "target": {
-            "uri": "https://example.net/users/bob"
-          },
+            "target": {
+              "type": "user",
+              "id": "https://example.net/users/bob"
+            },
           "actor": {
             "id": "https://example.net/users/alice",
             "uri": "https://example.net/users/alice",

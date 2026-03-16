@@ -381,7 +381,10 @@ defmodule Elektrine.Messaging.Federation.Discovery do
          last_key_change_at: nil,
          identity: identity,
          endpoints: endpoints,
-         features: normalize_discovery_capabilities(payload),
+         features:
+           payload
+           |> normalize_discovery_capabilities()
+           |> maybe_enrich_discovery_capabilities(claimed_domain, endpoints, context),
          last_discovered_at: DateTime.utc_now() |> DateTime.truncate(:second),
          last_error: nil
        }}
@@ -596,15 +599,131 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     features = normalize_discovery_features(discovery_field(payload, "features"))
     limits = normalize_discovery_limits(discovery_field(payload, "limits"))
 
+    compatibility_claims =
+      normalize_discovery_compatibility_claims(discovery_field(payload, "compatibility_claims"))
+
+    extensions = normalize_discovery_extensions(discovery_field(payload, "extensions"))
+
+    supported_event_types =
+      normalize_discovery_supported_event_types(
+        discovery_field(payload, "supported_event_types") ||
+          discovery_field(discovery_field(payload, "events"), "supported")
+      )
+
     transport_profiles =
       normalize_discovery_transport_profiles(discovery_field(payload, "transport_profiles"))
 
     features
+    |> maybe_put_discovery_capability(
+      "compatibility_claims",
+      if(compatibility_claims == [], do: nil, else: compatibility_claims)
+    )
+    |> maybe_put_discovery_capability(
+      "extensions",
+      if(extensions == [], do: nil, else: extensions)
+    )
+    |> maybe_put_discovery_capability(
+      "supported_event_types",
+      if(supported_event_types == [], do: nil, else: supported_event_types)
+    )
     |> maybe_put_discovery_capability("limits", limits)
     |> maybe_put_discovery_capability("transport_profiles", transport_profiles)
   end
 
   defp normalize_discovery_capabilities(_payload), do: %{}
+
+  defp maybe_enrich_discovery_capabilities(capabilities, claimed_domain, endpoints, context)
+       when is_map(capabilities) and is_binary(claimed_domain) and is_map(endpoints) and
+              is_map(context) do
+    case discovery_field(endpoints, "profiles") do
+      profiles_url when is_binary(profiles_url) ->
+        case fetch_remote_profiles_capabilities(claimed_domain, profiles_url, context) do
+          {:ok, %{} = profile_capabilities} when map_size(profile_capabilities) > 0 ->
+            deep_merge_capability_maps(capabilities, profile_capabilities)
+
+          _ ->
+            capabilities
+        end
+
+      _ ->
+        capabilities
+    end
+  end
+
+  defp maybe_enrich_discovery_capabilities(capabilities, _claimed_domain, _endpoints, _context)
+       when is_map(capabilities),
+       do: capabilities
+
+  defp fetch_remote_profiles_capabilities(domain, profiles_url, context)
+       when is_binary(domain) and is_binary(profiles_url) and is_map(context) do
+    payload_result =
+      case call(context, :federation_config, []) |> Keyword.get(:profiles_fetcher) do
+        fun when is_function(fun, 2) ->
+          case fun.(domain, profiles_url) do
+            {:ok, %{} = payload} -> {:ok, payload}
+            {:error, reason} -> {:error, reason}
+            _other -> {:error, :invalid_profiles_response}
+          end
+
+        _ ->
+          fetch_single_discovery_url(profiles_url, context)
+      end
+
+    case payload_result do
+      {:ok, %{} = payload} -> {:ok, normalize_profiles_capabilities(payload)}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :invalid_profiles_response}
+    end
+  end
+
+  defp fetch_remote_profiles_capabilities(_domain, _profiles_url, _context),
+    do: {:error, :invalid_profiles_response}
+
+  defp normalize_profiles_capabilities(payload) when is_map(payload) do
+    protocol = normalize_optional_string(discovery_field(payload, "protocol"))
+    protocol_id = normalize_optional_string(discovery_field(payload, "protocol_id"))
+
+    if protocol == ArblargSDK.protocol_name() and
+         protocol_id == ArblargSDK.protocol_id() and
+         profiles_support_supported_version?(payload) do
+      normalize_discovery_capabilities(payload)
+    else
+      %{}
+    end
+  end
+
+  defp normalize_profiles_capabilities(_payload), do: %{}
+
+  defp profiles_support_supported_version?(payload) when is_map(payload) do
+    supported_version = ArblargSDK.protocol_version()
+
+    case normalize_optional_string(discovery_field(payload, "default_protocol_version")) do
+      version when is_binary(version) ->
+        version == supported_version
+
+      _ ->
+        payload
+        |> discovery_field("protocol_versions")
+        |> List.wrap()
+        |> Enum.any?(&(&1 == supported_version))
+    end
+  end
+
+  defp profiles_support_supported_version?(_payload), do: false
+
+  defp deep_merge_capability_maps(left, right) when is_map(left) and is_map(right) do
+    Map.merge(left, right, fn _key, left_value, right_value ->
+      deep_merge_capability_values(left_value, right_value)
+    end)
+  end
+
+  defp deep_merge_capability_values(left, right) when is_map(left) and is_map(right),
+    do: deep_merge_capability_maps(left, right)
+
+  defp deep_merge_capability_values(left, right) when is_list(left) and is_list(right),
+    do: Enum.uniq(left ++ right)
+
+  defp deep_merge_capability_values(_left, right), do: right
 
   defp maybe_put_discovery_capability(map, _key, nil), do: map
   defp maybe_put_discovery_capability(map, _key, %{} = value) when map_size(value) == 0, do: map
@@ -615,6 +734,61 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp normalize_discovery_features(features) when is_map(features), do: features
   defp normalize_discovery_features(_features), do: %{}
+
+  defp normalize_discovery_compatibility_claims(claims) when is_list(claims) do
+    claims
+    |> Enum.map(&normalize_optional_string/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp normalize_discovery_compatibility_claims(_claims), do: []
+
+  defp normalize_discovery_extensions(extensions) when is_list(extensions) do
+    extensions
+    |> Enum.map(&normalize_discovery_extension/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_discovery_extensions(_extensions), do: []
+
+  defp normalize_discovery_extension(extension) when is_binary(extension) do
+    case normalize_optional_string(extension) do
+      nil -> nil
+      urn -> %{"urn" => urn}
+    end
+  end
+
+  defp normalize_discovery_extension(extension) when is_map(extension) do
+    normalized =
+      Enum.reduce(extension, %{}, fn {key, value}, acc ->
+        normalized_key =
+          case key do
+            binary when is_binary(binary) -> binary
+            atom when is_atom(atom) -> Atom.to_string(atom)
+            other -> to_string(other)
+          end
+
+        Map.put(acc, normalized_key, value)
+      end)
+
+    case normalize_optional_string(discovery_field(normalized, "urn")) do
+      nil -> nil
+      urn -> Map.put(normalized, "urn", urn)
+    end
+  end
+
+  defp normalize_discovery_extension(_extension), do: nil
+
+  defp normalize_discovery_supported_event_types(event_types) when is_list(event_types) do
+    event_types
+    |> Enum.map(&normalize_optional_string/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&ArblargSDK.canonical_event_type/1)
+    |> Enum.uniq()
+  end
+
+  defp normalize_discovery_supported_event_types(_event_types), do: []
 
   defp normalize_discovery_limits(limits) when is_map(limits) do
     [
@@ -1377,8 +1551,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
       base = "#{scheme}://#{domain}"
 
       [
-        "#{base}/.well-known/arblarg",
-        "#{base}/.well-known/arblarg/#{ArblargSDK.protocol_version()}"
+        "#{base}/.well-known/_arblarg",
+        "#{base}/.well-known/_arblarg/#{ArblargSDK.protocol_version()}"
       ]
     end)
   end

@@ -38,7 +38,7 @@ defmodule Elektrine.Messaging.ReferencePeer do
     base_url = Keyword.get(opts, :base_url, "https://#{peer.domain}")
 
     session_url =
-      Keyword.get(opts, :session_websocket, "wss://#{peer.domain}/federation/messaging/session")
+      Keyword.get(opts, :session_websocket, "wss://#{peer.domain}/_arblarg/session")
 
     unsigned = %{
       "protocol" => ReferencePeerProtocol.protocol_name(),
@@ -61,21 +61,21 @@ defmodule Elektrine.Messaging.ReferencePeer do
         ]
       },
       "endpoints" => %{
-        "well_known" => "#{base_url}/.well-known/arblarg",
+        "well_known" => "#{base_url}/.well-known/_arblarg",
         "well_known_versioned" =>
-          "#{base_url}/.well-known/arblarg/#{ReferencePeerProtocol.protocol_version()}",
-        "profiles" => "#{base_url}/federation/messaging/arblarg/profiles",
-        "events" => "#{base_url}/federation/messaging/events",
-        "events_batch" => "#{base_url}/federation/messaging/events/batch",
-        "ephemeral" => "#{base_url}/federation/messaging/ephemeral",
-        "sync" => "#{base_url}/federation/messaging/sync",
-        "stream_events" => "#{base_url}/federation/messaging/streams/events",
+          "#{base_url}/.well-known/_arblarg/#{ReferencePeerProtocol.protocol_version()}",
+        "profiles" => "#{base_url}/_arblarg/profiles",
+        "events" => "#{base_url}/_arblarg/events",
+        "events_batch" => "#{base_url}/_arblarg/events/batch",
+        "ephemeral" => "#{base_url}/_arblarg/ephemeral",
+        "sync" => "#{base_url}/_arblarg/sync",
+        "stream_events" => "#{base_url}/_arblarg/streams/events",
         "session_websocket" => session_url,
-        "public_servers" => "#{base_url}/federation/messaging/servers/public",
-        "snapshot_template" => "#{base_url}/federation/messaging/servers/{server_id}/snapshot",
-        "schema_template" => "#{base_url}/federation/messaging/arblarg/{version}/schemas/{name}",
+        "public_servers" => "#{base_url}/_arblarg/servers/public",
+        "snapshot_template" => "#{base_url}/_arblarg/servers/{server_id}/snapshot",
+        "schema_template" => "#{base_url}/_arblarg/{version}/schemas/{name}",
         "schemas" =>
-          "#{base_url}/federation/messaging/arblarg/#{ReferencePeerProtocol.protocol_version()}/schemas"
+          "#{base_url}/_arblarg/#{ReferencePeerProtocol.protocol_version()}/schemas"
       },
       "features" => peer.features,
       "transport_profiles" => %{
@@ -94,7 +94,7 @@ defmodule Elektrine.Messaging.ReferencePeer do
         "session_websocket" => %{
           "mode" => "preferred",
           "framing" => "arblarg_websocket_stream_session",
-          "request_path" => "/federation/messaging/session",
+          "request_path" => "/_arblarg/session",
           "subprotocol" => "arblarg.session.v1",
           "encodings" => ["json", "cbor"],
           "flow_control" => %{

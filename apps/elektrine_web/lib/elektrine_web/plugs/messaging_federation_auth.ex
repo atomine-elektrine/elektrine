@@ -108,8 +108,10 @@ defmodule ElektrineWeb.Plugs.MessagingFederationAuth do
         reject(conn, :replayed_request)
 
       true ->
+        verified_peer = Federation.incoming_peer(domain) || peer
+
         conn
-        |> assign(:federation_peer, peer)
+        |> assign(:federation_peer, verified_peer)
         |> assign(:federation_peer_domain, domain)
         |> assign(:federation_peer_key_id, key_id)
         |> assign(:federation_request_id, request_id)

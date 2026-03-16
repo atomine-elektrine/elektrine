@@ -19,11 +19,16 @@ defmodule ElektrinePasswordManagerWeb.API.VaultController do
 
     all_entries = PasswordManager.list_entries(user.id)
     entries = all_entries |> Enum.drop(offset) |> Enum.take(limit)
-    vault_configured = PasswordManager.vault_configured?(user.id)
+    vault_settings = PasswordManager.get_vault_settings(user.id)
+    vault_configured = not is_nil(vault_settings)
 
     Response.ok(
       conn,
-      %{entries: entries, vault_configured: vault_configured},
+      %{
+        entries: entries,
+        vault_configured: vault_configured,
+        vault_verifier: vault_settings && vault_settings.encrypted_verifier
+      },
       %{pagination: %{limit: limit, offset: offset, total_count: length(all_entries)}}
     )
   end
@@ -46,6 +51,25 @@ defmodule ElektrinePasswordManagerWeb.API.VaultController do
         Response.error(conn, :unprocessable_entity, "validation_failed", "Invalid vault setup", %{
           errors: errors_on(changeset)
         })
+    end
+  end
+
+  @doc """
+  DELETE /api/ext/v1/password-manager/vault
+  """
+  def delete_vault(conn, _params) do
+    user = conn.assigns.current_user
+
+    case PasswordManager.delete_vault(user.id) do
+      {:ok, result} ->
+        Response.ok(conn, %{
+          message: "Vault deleted",
+          deleted_entries: result.deleted_entries,
+          vault_configured: false
+        })
+
+      {:error, _reason} ->
+        Response.error(conn, :internal_server_error, "delete_failed", "Could not delete vault")
     end
   end
 
@@ -78,6 +102,34 @@ defmodule ElektrinePasswordManagerWeb.API.VaultController do
 
       {:error, :invalid_payload} ->
         Response.error(conn, :bad_request, "invalid_payload", "Invalid entry payload")
+    end
+  end
+
+  @doc """
+  PUT /api/ext/v1/password-manager/entries/:id
+  """
+  def update(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+    attrs = Map.get(params, "entry", params)
+
+    with {:ok, entry_id} <- parse_id(id),
+         {:ok, attrs} <- Payloads.decode_encrypted_entry_params(attrs),
+         {:ok, entry} <- PasswordManager.update_entry(user.id, entry_id, attrs) do
+      Response.ok(conn, %{entry: format_entry(entry)})
+    else
+      {:error, :bad_request} ->
+        Response.error(conn, :bad_request, "invalid_id", "Invalid entry id")
+
+      {:error, :invalid_payload} ->
+        Response.error(conn, :bad_request, "invalid_payload", "Invalid entry payload")
+
+      {:error, :not_found} ->
+        Response.error(conn, :not_found, "not_found", "Entry not found")
+
+      {:error, changeset} ->
+        Response.error(conn, :unprocessable_entity, "validation_failed", "Invalid entry", %{
+          errors: errors_on(changeset)
+        })
     end
   end
 

@@ -53,11 +53,11 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageInfoOperationsTest do
     assert hd(updated_socket.assigns.message.read_status[2]).username == "@reader"
   end
 
-  test "handle_federation_presence_update/2 updates only active server entries" do
-    socket = socket_fixture(%{active_server_id: 55, federation_presence: %{}})
+  test "handle_federation_presence_update/2 updates only the selected conversation entries" do
+    socket = socket_fixture(%{federation_presence: %{}})
 
     payload = %{
-      server_id: 55,
+      conversation_id: 10,
       remote_actor_id: 99,
       handle: "@alice@example.com",
       label: "Alice",
@@ -72,7 +72,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageInfoOperationsTest do
     assert {:noreply, unchanged_socket} =
              MessageInfoOperations.handle_federation_presence_update(
                updated_socket,
-               Map.put(payload, :server_id, 77)
+               Map.put(payload, :conversation_id, 77)
              )
 
     assert map_size(unchanged_socket.assigns.federation_presence) == 1

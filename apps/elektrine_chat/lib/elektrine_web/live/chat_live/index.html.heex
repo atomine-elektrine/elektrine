@@ -664,9 +664,9 @@
                   <%= if remote_online > 0 do %>
                     <span
                       class="badge badge-success badge-xs"
-                      title={"#{remote_online} federated users currently online"}
+                      title={"#{remote_online} federated participants currently present in this room"}
                     >
-                      {remote_online} remote online
+                      {remote_online} remote present
                     </span>
                   <% end %>
                 <% end %>
@@ -678,8 +678,13 @@
                 Enum.find(@conversation.selected.members, fn member ->
                   member.user_id != @current_user.id and is_nil(member.left_at)
                 end) %>
-              <%= if other_user && other_user.user do %>
-                <.call_buttons user={other_user.user} conversation_id={@conversation.selected.id} />
+              <% remote_handle = Messaging.remote_dm_handle(@conversation.selected) %>
+              <%= if (other_user && other_user.user) || is_binary(remote_handle) do %>
+                <.call_buttons
+                  user={other_user && other_user.user}
+                  conversation_id={@conversation.selected.id}
+                  remote_handle={remote_handle}
+                />
               <% end %>
             <% end %>
 
@@ -1986,7 +1991,9 @@
                       @conversation.selected.members,
                       &(&1.user_id == @current_user.id and is_nil(&1.left_at))
                     ) %>
-                  <%= if current_member && current_member.role == "admin" do %>
+                  <%= if @current_user.is_admin ||
+                        (current_member &&
+                           current_member.role in ["owner", "admin", "moderator"]) do %>
                     <button
                       phx-click="show_add_members"
                       class="btn btn-sm btn-ghost w-full justify-start"

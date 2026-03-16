@@ -73,7 +73,7 @@ defmodule Mix.Tasks.Messaging.Federation.InteropSmoke do
     event =
       signed_local_event(
         "message.create",
-        "channel:https://#{Federation.local_domain()}/federation/messaging/channels/interop-local-task",
+        "channel:https://#{Federation.local_domain()}/_arblarg/channels/interop-local-task",
         1,
         message_payload(Federation.local_domain(), "interop-local-task", "hello from local task")
       )
@@ -98,7 +98,7 @@ defmodule Mix.Tasks.Messaging.Federation.InteropSmoke do
       ReferencePeer.signed_event(
         peer,
         "message.create",
-        "channel:https://#{peer.domain}/federation/messaging/channels/interop-ref-task",
+        "channel:https://#{peer.domain}/_arblarg/channels/interop-ref-task",
         1,
         message_payload(peer.domain, "interop-ref-task", "hello from reference task")
       )
@@ -151,18 +151,18 @@ defmodule Mix.Tasks.Messaging.Federation.InteropSmoke do
   defp message_payload(domain, suffix, content) do
     %{
       "server" => %{
-        "id" => "https://#{domain}/federation/messaging/servers/#{suffix}",
+        "id" => "https://#{domain}/_arblarg/servers/#{suffix}",
         "name" => "interop-#{suffix}",
         "is_public" => true
       },
       "channel" => %{
-        "id" => "https://#{domain}/federation/messaging/channels/#{suffix}",
+        "id" => "https://#{domain}/_arblarg/channels/#{suffix}",
         "name" => "general",
         "position" => 0
       },
       "message" => %{
-        "id" => "https://#{domain}/federation/messaging/messages/#{suffix}",
-        "channel_id" => "https://#{domain}/federation/messaging/channels/#{suffix}",
+        "id" => "https://#{domain}/_arblarg/messages/#{suffix}",
+        "channel_id" => "https://#{domain}/_arblarg/channels/#{suffix}",
         "content" => content,
         "message_type" => "text",
         "media_urls" => [],

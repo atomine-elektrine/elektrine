@@ -1,8 +1,10 @@
 defmodule ElektrineWeb.Plugs.RequireElektrineDomain do
   @moduledoc """
-  Plug to ensure that admin routes are only accessible from the elektrine.com domain.
+  Plug to ensure that admin routes are only accessible from configured instance domains.
   Returns 404 Not Found if accessed from other domains, making admin routes appear non-existent.
   """
+
+  alias Elektrine.Domains
 
   import Plug.Conn
   import Phoenix.Controller
@@ -14,11 +16,9 @@ defmodule ElektrineWeb.Plugs.RequireElektrineDomain do
 
     require Logger
 
-    Logger.info(
-      "RequireElektrineDomain: host=#{inspect(host)}, allowed=#{elektrine_domain?(host)}"
-    )
+    Logger.info("RequireElektrineDomain: host=#{inspect(host)}, allowed=#{allowed_domain?(host)}")
 
-    if elektrine_domain?(host) do
+    if allowed_domain?(host) do
       conn
     else
       Logger.warning("RequireElektrineDomain: BLOCKED - host #{inspect(host)} is not allowed")
@@ -38,17 +38,17 @@ defmodule ElektrineWeb.Plugs.RequireElektrineDomain do
     end
   end
 
-  defp elektrine_domain?(host) do
+  defp allowed_domain?(host) do
     # Remove port if present
     domain = host |> String.split(":") |> List.first() |> String.downcase()
 
-    # Check if it's elektrine.com or any subdomain of elektrine.com
     # Allow localhost for development
-    # Also allow www.elektrine.com
-    domain == "elektrine.com" ||
-      domain == "www.elektrine.com" ||
-      String.ends_with?(domain, ".elektrine.com") ||
-      domain == "localhost" ||
-      String.starts_with?(domain, "localhost:")
+    domain == "localhost" ||
+      String.starts_with?(domain, "localhost:") ||
+      Enum.any?(Domains.profile_base_domains(), fn base_domain ->
+        domain == base_domain ||
+          domain == "www." <> base_domain ||
+          String.ends_with?(domain, "." <> base_domain)
+      end)
   end
 end

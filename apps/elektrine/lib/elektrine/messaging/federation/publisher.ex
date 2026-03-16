@@ -6,11 +6,11 @@ defmodule Elektrine.Messaging.Federation.Publisher do
 
   def push_server_snapshot(server_id, context) when is_map(context) do
     if enabled?(context) do
-      with {:ok, snapshot} <- call(context, :build_server_snapshot, [server_id]) do
-        Enum.each(call(context, :outgoing_peers, []), fn peer ->
+      Enum.each(call(context, :outgoing_peers, []), fn peer ->
+        with {:ok, snapshot} <- build_server_snapshot_for_peer(server_id, peer, context) do
           call(context, :push_snapshot_to_peer, [peer, snapshot])
-        end)
-      end
+        end
+      end)
     end
 
     :ok
@@ -51,9 +51,75 @@ defmodule Elektrine.Messaging.Federation.Publisher do
              call(context, :resolve_outbound_dm_handle, [message, remote_handle]),
            {:ok, recipient} <- call(context, :normalize_remote_dm_handle, [outbound_handle]),
            %{} <- call(context, :outgoing_peer, [recipient.domain]),
-           {:ok, event} <- call(context, :build_dm_message_created_event, [message, recipient.handle]) do
+           {:ok, event} <-
+             call(context, :build_dm_message_created_event, [message, recipient.handle]) do
         enqueue_outbox_event(context, event, [recipient.domain])
       end
+    end
+
+    :ok
+  end
+
+  def publish_dm_call_invite(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    if enabled?(context) do
+      with {:ok, event, target_domains} <- call(context, :build_dm_call_invite_event, [session_id]) do
+        enqueue_outbox_event(context, event, target_domains)
+      end
+    end
+
+    :ok
+  end
+
+  def publish_dm_call_accept(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    if enabled?(context) do
+      with {:ok, event, target_domains} <- call(context, :build_dm_call_accept_event, [session_id]) do
+        enqueue_outbox_event(context, event, target_domains)
+      end
+    end
+
+    :ok
+  end
+
+  def publish_dm_call_reject(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    if enabled?(context) do
+      with {:ok, event, target_domains} <- call(context, :build_dm_call_reject_event, [session_id]) do
+        enqueue_outbox_event(context, event, target_domains)
+      end
+    end
+
+    :ok
+  end
+
+  def publish_dm_call_end(session_id, context)
+      when is_integer(session_id) and is_map(context) do
+    if enabled?(context) do
+      with {:ok, event, target_domains} <- call(context, :build_dm_call_end_event, [session_id]) do
+        enqueue_outbox_event(context, event, target_domains)
+      end
+    end
+
+    :ok
+  end
+
+  def publish_dm_call_signal(session_id, actor_user_id, kind, signal_payload, context)
+      when is_integer(session_id) and is_integer(actor_user_id) and is_binary(kind) and
+             is_map(signal_payload) and is_map(context) do
+    if enabled?(context) do
+      Async.start(fn ->
+        with {:ok, item, target_domains} <-
+               call(context, :build_dm_call_signal_ephemeral_item, [
+                 session_id,
+                 actor_user_id,
+                 kind,
+                 signal_payload
+               ]),
+             true <- target_domains != [] do
+          _ = call(context, :fanout_ephemeral_batch, [[item], target_domains])
+        end
+      end)
     end
 
     :ok
@@ -151,18 +217,25 @@ defmodule Elektrine.Messaging.Federation.Publisher do
     publish_typing_indicator(conversation_id, user_id, :stop, context)
   end
 
-  def publish_presence_update(server_id, user_id, status, activities, context)
-      when is_integer(server_id) and is_integer(user_id) and is_binary(status) and
+  def publish_presence_update(_server_id, user_id, status, activities, context)
+      when is_integer(user_id) and is_binary(status) and
+             is_map(context) do
+    publish_user_presence_update(user_id, status, activities, context)
+  end
+
+  def publish_room_presence_update(conversation_id, user_id, status, activities, context)
+      when is_integer(conversation_id) and is_integer(user_id) and is_binary(status) and
              is_map(context) do
     if enabled?(context) do
       Async.start(fn ->
         with {:ok, item, target_domains} <-
-               call(context, :build_presence_ephemeral_item, [
-                 server_id,
+               call(context, :build_room_presence_ephemeral_item, [
+                 conversation_id,
                  user_id,
                  status,
                  activities
-               ]) do
+               ]),
+             true <- target_domains != [] do
           _ = call(context, :fanout_ephemeral_batch, [[item], target_domains])
         end
       end)
@@ -174,10 +247,40 @@ defmodule Elektrine.Messaging.Federation.Publisher do
   def publish_user_presence_update(user_id, status, activities, context)
       when is_integer(user_id) and is_binary(status) and is_map(context) do
     if enabled?(context) do
-      call(context, :active_server_ids_for_user, [user_id])
-      |> Enum.each(fn server_id ->
-        publish_presence_update(server_id, user_id, status, activities, context)
-      end)
+      target_domains = call(context, :presence_subscriber_domains_for_local_user, [user_id])
+
+      if target_domains != [] do
+        Async.start(fn ->
+          with {:ok, item} <-
+                 call(context, :build_presence_ephemeral_item, [user_id, status, activities]) do
+            _ = call(context, :fanout_ephemeral_batch, [[item], target_domains])
+          end
+        end)
+      end
+    end
+
+    :ok
+  end
+
+  def publish_extension_event(conversation_id, actor_user_id, event_type, payload, context)
+      when is_integer(conversation_id) and is_integer(actor_user_id) and is_binary(event_type) and
+             is_map(payload) and is_map(context) do
+    if enabled?(context) do
+      with {:ok, event, target_domains, canonical_event_type, extension_payload} <-
+             call(context, :build_extension_event, [
+               conversation_id,
+               actor_user_id,
+               event_type,
+               payload
+             ]),
+           :ok <-
+             call(context, :persist_local_extension_projection, [
+               conversation_id,
+               canonical_event_type,
+               extension_payload
+             ]) do
+        enqueue_outbox_event(context, event, target_domains)
+      end
     end
 
     :ok
@@ -239,6 +342,35 @@ defmodule Elektrine.Messaging.Federation.Publisher do
     :ok
   end
 
+  def publish_remote_invite_state(
+        conversation_id,
+        target_payload,
+        actor_user_id,
+        state,
+        role,
+        metadata,
+        context
+      )
+      when is_integer(conversation_id) and is_map(target_payload) and
+             is_integer(actor_user_id) and is_binary(state) and is_binary(role) and
+             is_map(metadata) and is_map(context) do
+    if enabled?(context) do
+      with {:ok, event, target_domains} <-
+             call(context, :build_invite_upsert_event_for_target_payload, [
+               conversation_id,
+               target_payload,
+               actor_user_id,
+               state,
+               role,
+               metadata
+             ]) do
+        enqueue_outbox_event(context, event, target_domains)
+      end
+    end
+
+    :ok
+  end
+
   def publish_ban_state(
         conversation_id,
         target_user_id,
@@ -270,85 +402,6 @@ defmodule Elektrine.Messaging.Federation.Publisher do
     :ok
   end
 
-  def submit_mirror_message_created(%ChatMessage{} = message, context) when is_map(context) do
-    if enabled?(context) do
-      with {:ok, event} <-
-             call(context, :build_message_created_event_with_opts, [
-               message,
-               [allow_mirror: true]
-             ]) do
-        enqueue_outbox_event(context, event)
-      end
-    end
-
-    :ok
-  end
-
-  def submit_mirror_message_updated(%ChatMessage{} = message, context) when is_map(context) do
-    if enabled?(context) do
-      with {:ok, event} <-
-             call(context, :build_message_updated_event_with_opts, [
-               message,
-               [allow_mirror: true]
-             ]) do
-        enqueue_outbox_event(context, event)
-      end
-    end
-
-    :ok
-  end
-
-  def submit_mirror_message_deleted(%ChatMessage{} = message, context) when is_map(context) do
-    if enabled?(context) do
-      with {:ok, event} <-
-             call(context, :build_message_deleted_event_with_opts, [
-               message,
-               [allow_mirror: true]
-             ]) do
-        enqueue_outbox_event(context, event)
-      end
-    end
-
-    :ok
-  end
-
-  def submit_mirror_reaction_added(
-        %ChatMessage{} = message,
-        %ChatMessageReaction{} = reaction,
-        context
-      )
-      when is_map(context) do
-    if enabled?(context) do
-      with {:ok, event} <-
-             call(context, :build_reaction_added_event_with_opts, [
-               message,
-               reaction,
-               [allow_mirror: true]
-             ]) do
-        enqueue_outbox_event(context, event)
-      end
-    end
-
-    :ok
-  end
-
-  def submit_mirror_reaction_removed(%ChatMessage{} = message, user_id, emoji, context)
-      when is_integer(user_id) and is_map(context) do
-    if enabled?(context) do
-      with {:ok, event} <-
-             call(context, :build_reaction_removed_event_with_opts, [
-               message,
-               user_id,
-               emoji,
-               [allow_mirror: true]
-             ]) do
-        enqueue_outbox_event(context, event)
-      end
-    end
-
-    :ok
-  end
-
   def maybe_push_for_conversation(conversation_id, context)
       when is_integer(conversation_id) and is_map(context) do
     if enabled?(context) do
@@ -361,7 +414,10 @@ defmodule Elektrine.Messaging.Federation.Publisher do
   def maybe_push_for_server(server_id, context)
       when is_integer(server_id) and is_map(context) do
     if enabled?(context) do
-      Async.start(fn -> publish_server_upsert(server_id, context) end)
+      Async.start(fn ->
+        publish_server_upsert(server_id, context)
+        push_server_snapshot(server_id, context)
+      end)
     end
 
     :ok
@@ -387,6 +443,13 @@ defmodule Elektrine.Messaging.Federation.Publisher do
 
   defp enqueue_outbox_event(context, event, target_domains \\ :all) do
     call(context, :enqueue_outbox_event, [event, target_domains])
+  end
+
+  defp build_server_snapshot_for_peer(server_id, peer, context) do
+    call(context, :build_server_snapshot_for_peer, [server_id, peer])
+  rescue
+    KeyError ->
+      call(context, :build_server_snapshot, [server_id])
   end
 
   defp call(context, key, args) do

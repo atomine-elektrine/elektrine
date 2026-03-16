@@ -1,6 +1,10 @@
 defmodule Elektrine.ActivityPub.Handlers.FlagHandlerTest do
   use Elektrine.DataCase, async: true
 
+  if not Code.ensure_loaded?(Elektrine.Social.Hashtag) do
+    @moduletag skip: "requires :elektrine_social"
+  end
+
   import Elektrine.AccountsFixtures
 
   alias Elektrine.Accounts

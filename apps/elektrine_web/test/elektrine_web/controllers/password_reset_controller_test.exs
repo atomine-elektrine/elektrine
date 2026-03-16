@@ -1,11 +1,18 @@
 defmodule ElektrineWeb.PasswordResetControllerTest do
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
   import Ecto.Changeset
   import Elektrine.DataCase, only: [errors_on: 1]
+
+  defmodule FailingMailerAdapter do
+    use Swoosh.Adapter
+
+    def deliver(_email, _config), do: {:error, :forced_failure}
+    def deliver_many(_emails, _config), do: {:error, :forced_failure}
+  end
 
   # Helper to set recovery email as verified (bypasses normal validation)
   defp set_recovery_email_verified(user, email) do
@@ -85,6 +92,50 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
 
       assert redirected_to(conn) == ~p"/login"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "password reset instructions"
+    end
+
+    test "shows error and restores prior token state when email delivery fails", %{
+      conn: conn,
+      user: user
+    } do
+      previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, Elektrine.Mailer, previous_mailer_config)
+      end)
+
+      Application.put_env(
+        :elektrine,
+        Elektrine.Mailer,
+        Keyword.put(previous_mailer_config, :adapter, FailingMailerAdapter)
+      )
+
+      old_token = "old_reset_token_#{System.unique_integer([:positive])}"
+      old_expiry = DateTime.utc_now() |> DateTime.add(30, :minute) |> DateTime.truncate(:second)
+
+      user =
+        user
+        |> change(%{
+          recovery_email: "recovery@example.com",
+          recovery_email_verified: true,
+          password_reset_token: User.hash_sensitive_token(old_token),
+          password_reset_token_expires_at: old_expiry
+        })
+        |> Repo.update!()
+
+      conn =
+        post(conn, ~p"/password/reset", %{
+          "password_reset" => %{"username_or_email" => user.username},
+          "cf-turnstile-response" => "test-token"
+        })
+
+      assert redirected_to(conn) == ~p"/password/reset"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "error processing your request"
+      refute_received {:email, _}
+
+      reloaded_user = Accounts.get_user!(user.id)
+      assert reloaded_user.password_reset_token == User.hash_sensitive_token(old_token)
+      assert reloaded_user.password_reset_token_expires_at == old_expiry
     end
   end
 

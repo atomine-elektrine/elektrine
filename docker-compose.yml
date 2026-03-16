@@ -42,12 +42,36 @@ services:
       LETS_ENCRYPT_CERT_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/fullchain.pem
       LETS_ENCRYPT_KEY_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/privkey.pem
     ports:
-      - "80:8080"
-      - "443:8443"
+      - "${APP_HTTP_BIND:-80:8080}"
+      - "${APP_HTTPS_BIND:-443:8443}"
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - uploads:/app/uploads
       - app_data:/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
+  caddy_edge:
+    image: caddy:2.10.2
+    container_name: elektrine_caddy_edge
+    profiles:
+      - caddy
+    depends_on:
+      app:
+        condition: service_started
+    env_file:
+      - .env.production
+    environment:
+      ACME_EMAIL: ${CADDY_ACME_EMAIL:-admin@example.com}
+      CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
+      ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
+    ports:
+      - "${CADDY_HTTP_BIND:-80:80}"
+      - "${CADDY_HTTPS_BIND:-443:443}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
     networks:
       - elektrine_network
     restart: unless-stopped
@@ -85,6 +109,7 @@ volumes:
   letsencrypt:
   uploads:
   app_data:
+  caddy_data:
   bluesky_pds_data:
 
 networks:

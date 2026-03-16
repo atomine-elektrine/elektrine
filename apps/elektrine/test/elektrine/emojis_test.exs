@@ -42,6 +42,32 @@ defmodule Elektrine.EmojisTest do
                Emojis.render_custom_emojis("hello :blobcat:", "remote.example")
     end
 
+    test "renders local emojis when the caller passes the local instance hostname" do
+      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+      Repo.insert_all(CustomEmoji, [
+        %{
+          shortcode: "thumbsupcat",
+          image_url: "https://cdn.example/emojis/thumbsupcat.png",
+          instance_domain: nil,
+          visible_in_picker: false,
+          disabled: false,
+          inserted_at: now,
+          updated_at: now
+        }
+      ])
+
+      {html, emojis} =
+        Emojis.render_custom_emojis(
+          "hello :thumbsupcat:",
+          Elektrine.Domains.instance_domain()
+        )
+
+      assert length(emojis) == 1
+      assert html =~ "custom-emoji"
+      assert html =~ "thumbsupcat.png"
+    end
+
     test "returns the shortcode for unsafe inline emoji rows" do
       now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 

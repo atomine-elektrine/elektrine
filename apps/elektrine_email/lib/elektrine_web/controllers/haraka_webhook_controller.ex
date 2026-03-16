@@ -401,7 +401,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
         "haraka-#{:rand.uniform(1_000_000)}-#{System.system_time(:millisecond)}"
 
     from = get_header_value(params, "from", "mail_from") || "unknown@example.com"
-    to = get_header_value(params, "to", "rcpt_to") || "unknown@elektrine.com"
+    to = get_header_value(params, "to", "rcpt_to") || Elektrine.EmailAddresses.local("unknown")
     subject = extract_subject(params)
     in_reply_to = extract_threading_header(params, ["in_reply_to", "in-reply-to"])
     references = extract_threading_header(params, ["references"])
@@ -1490,20 +1490,34 @@ defmodule ElektrineWeb.HarakaWebhookController do
     if by_message_id do
       by_message_id
     else
-      five_minutes_ago = DateTime.utc_now() |> DateTime.add(-300, :second)
+      if synthetic_haraka_message_id?(email_data["message_id"]) do
+        five_minutes_ago = DateTime.utc_now() |> DateTime.add(-300, :second)
+        text_body = email_data["text_body"] || ""
+        html_body = email_data["html_body"] || ""
+        has_attachments = truthy?(email_data["has_attachments"])
 
-      near_duplicate_query =
-        Message
-        |> where([m], m.mailbox_id == ^email_data["mailbox_id"])
-        |> where([m], m.subject == ^email_data["subject"])
-        |> where([m], m.from == ^email_data["from"])
-        |> where([m], m.inserted_at > ^five_minutes_ago)
-        |> maybe_filter_by_envelope_rcpt(envelope_rcpt_to)
-        |> limit(1)
+        near_duplicate_query =
+          Message
+          |> where([m], m.mailbox_id == ^email_data["mailbox_id"])
+          |> where([m], m.subject == ^email_data["subject"])
+          |> where([m], m.from == ^email_data["from"])
+          |> where([m], coalesce(m.text_body, "") == ^text_body)
+          |> where([m], coalesce(m.html_body, "") == ^html_body)
+          |> where([m], m.has_attachments == ^has_attachments)
+          |> where([m], m.inserted_at > ^five_minutes_ago)
+          |> maybe_filter_by_envelope_rcpt(envelope_rcpt_to)
+          |> limit(1)
 
-      Repo.one(near_duplicate_query)
+        Repo.one(near_duplicate_query)
+      end
     end
   end
+
+  defp synthetic_haraka_message_id?(message_id) when is_binary(message_id) do
+    String.starts_with?(message_id, "haraka-")
+  end
+
+  defp synthetic_haraka_message_id?(_message_id), do: false
 
   defp maybe_filter_by_envelope_rcpt(query, envelope_rcpt_to)
        when is_binary(envelope_rcpt_to) and envelope_rcpt_to != "" do

@@ -1,3 +1,5 @@
+import { markdownToHtml } from './markdown_helpers';
+
 // Tab switcher module for markdown editing
 export function initTabSwitcher() {
   document.addEventListener('click', (e) => {
@@ -37,16 +39,7 @@ export function initTabSwitcher() {
 
       // Update preview with markdown
       if (textarea && previewDiv) {
-        // Simple markdown to HTML conversion
-        let html = textarea.value
-          .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-          .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-          .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-          .replace(/\n/g, '<br>');
-
+        const html = markdownToHtml(textarea.value);
         previewDiv.innerHTML = html;
       }
     }

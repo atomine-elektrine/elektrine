@@ -45,7 +45,7 @@ defmodule ElektrineWeb.ArblargConformanceTest do
     test "CONF-001 discovery and schemas are published", %{conn: conn} do
       discovery =
         conn
-        |> get("/.well-known/arblarg")
+        |> get("/.well-known/_arblarg")
         |> json_response(200)
 
       assert discovery["protocol"] == ArblargSDK.protocol_name()
@@ -64,21 +64,21 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
       versioned =
         build_conn()
-        |> get("/.well-known/arblarg/1.0")
+        |> get("/.well-known/_arblarg/1.0")
         |> json_response(200)
 
       assert versioned["default_protocol_version"] == "1.0"
 
       schema =
         build_conn()
-        |> get("/federation/messaging/arblarg/1.0/schemas/envelope")
+        |> get("/_arblarg/1.0/schemas/envelope")
         |> json_response(200)
 
       assert schema["title"] == "Arblarg Event Envelope"
 
       profiles =
         build_conn()
-        |> get("/federation/messaging/arblarg/profiles")
+        |> get("/_arblarg/profiles")
         |> json_response(200)
 
       assert "arblarg-core/1.0" in profiles["compatibility_claims"]
@@ -90,26 +90,67 @@ defmodule ElektrineWeb.ArblargConformanceTest do
     end
 
     test "CONF-002 signed core events are accepted", %{conn: conn} do
-      event =
+      membership_event =
         build_event(
-          "message.create",
-          "channel:https://remote.test/federation/messaging/channels/conformance-1",
+          "membership.upsert",
+          "channel:https://remote.test/_arblarg/channels/conformance-1",
           1,
-          "idem-conf-002",
+          "idem-conf-002-membership",
           %{
             "server" => %{
-              "id" => "https://remote.test/federation/messaging/servers/conformance-1",
+              "id" => "https://remote.test/_arblarg/servers/conformance-1",
               "name" => "Conformance",
               "is_public" => true
             },
             "channel" => %{
-              "id" => "https://remote.test/federation/messaging/channels/conformance-1",
+              "id" => "https://remote.test/_arblarg/channels/conformance-1",
+              "name" => "general",
+              "position" => 0
+            },
+            "membership" => %{
+              "actor" => canonical_actor("alice", @remote_domain),
+              "role" => "member",
+              "state" => "active",
+              "joined_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "metadata" => %{"source" => "conformance"}
+            }
+          }
+        )
+
+      membership_body = Jason.encode!(membership_event)
+
+      assert "applied" ==
+               (conn
+                |> signed_federation_headers(
+                  "POST",
+                  "/_arblarg/events",
+                  membership_body
+                )
+                |> put_req_header("content-type", "application/json")
+                |> post("/_arblarg/events", membership_body)
+                |> json_response(200))["status"]
+
+      event =
+        build_event(
+          "message.create",
+          "channel:https://remote.test/_arblarg/channels/conformance-1",
+          2,
+          "idem-conf-002",
+          %{
+            "server" => %{
+              "id" => "https://remote.test/_arblarg/servers/conformance-1",
+              "name" => "Conformance",
+              "is_public" => true
+            },
+            "channel" => %{
+              "id" => "https://remote.test/_arblarg/channels/conformance-1",
               "name" => "general",
               "position" => 0
             },
             "message" => %{
-              "id" => "https://remote.test/federation/messaging/messages/conf-1",
-              "channel_id" => "https://remote.test/federation/messaging/channels/conformance-1",
+              "id" => "https://remote.test/_arblarg/messages/conf-1",
+              "channel_id" => "https://remote.test/_arblarg/channels/conformance-1",
               "content" => "hello from arblarg",
               "message_type" => "text",
               "media_urls" => [],
@@ -123,9 +164,9 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
       response =
         conn
-        |> signed_federation_headers("POST", "/federation/messaging/events", body)
+        |> signed_federation_headers("POST", "/_arblarg/events", body)
         |> put_req_header("content-type", "application/json")
-        |> post("/federation/messaging/events", body)
+        |> post("/_arblarg/events", body)
         |> json_response(200)
 
       assert response["status"] == "applied"
@@ -135,12 +176,12 @@ defmodule ElektrineWeb.ArblargConformanceTest do
       event =
         build_event(
           "urn:arblarg:ext:bootstrap:1#server.upsert",
-          "server:https://remote.test/federation/messaging/servers/conformance-2",
+          "server:https://remote.test/_arblarg/servers/conformance-2",
           1,
           "idem-conf-003",
           %{
             "server" => %{
-              "id" => "https://remote.test/federation/messaging/servers/conformance-2",
+              "id" => "https://remote.test/_arblarg/servers/conformance-2",
               "name" => "Replay Conformance",
               "is_public" => true
             },
@@ -154,45 +195,80 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
       first_conn =
         conn
-        |> signed_federation_headers("POST", "/federation/messaging/events", body,
+        |> signed_federation_headers("POST", "/_arblarg/events", body,
           timestamp: timestamp,
           request_id: request_id
         )
         |> put_req_header("content-type", "application/json")
-        |> post("/federation/messaging/events", body)
+        |> post("/_arblarg/events", body)
 
       assert json_response(first_conn, 200)["status"] == "applied"
 
       second_conn =
         build_conn()
-        |> signed_federation_headers("POST", "/federation/messaging/events", body,
+        |> signed_federation_headers("POST", "/_arblarg/events", body,
           timestamp: timestamp,
           request_id: request_id
         )
         |> put_req_header("content-type", "application/json")
-        |> post("/federation/messaging/events", body)
+        |> post("/_arblarg/events", body)
 
       _response = json_response(second_conn, 401)
     end
 
     test "CONF-004 idempotency_key deduplicates semantic retries", %{conn: conn} do
-      stream_id = "channel:https://remote.test/federation/messaging/channels/conformance-4"
+      stream_id = "channel:https://remote.test/_arblarg/channels/conformance-4"
 
-      event_one =
-        build_event("message.create", stream_id, 1, "idem-conf-004", %{
+      membership_event =
+        build_event("membership.upsert", stream_id, 1, "idem-conf-004-membership", %{
           "server" => %{
-            "id" => "https://remote.test/federation/messaging/servers/conformance-4",
+            "id" => "https://remote.test/_arblarg/servers/conformance-4",
             "name" => "Conformance",
             "is_public" => true
           },
           "channel" => %{
-            "id" => "https://remote.test/federation/messaging/channels/conformance-4",
+            "id" => "https://remote.test/_arblarg/channels/conformance-4",
+            "name" => "general",
+            "position" => 0
+          },
+          "membership" => %{
+            "actor" => canonical_actor("alice", @remote_domain),
+            "role" => "member",
+            "state" => "active",
+            "joined_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "metadata" => %{"source" => "conformance"}
+          }
+        })
+
+      membership_body = Jason.encode!(membership_event)
+
+      assert "applied" ==
+               (conn
+                |> signed_federation_headers(
+                  "POST",
+                  "/_arblarg/events",
+                  membership_body
+                )
+                |> put_req_header("content-type", "application/json")
+                |> post("/_arblarg/events", membership_body)
+                |> json_response(200))["status"]
+
+      event_one =
+        build_event("message.create", stream_id, 2, "idem-conf-004", %{
+          "server" => %{
+            "id" => "https://remote.test/_arblarg/servers/conformance-4",
+            "name" => "Conformance",
+            "is_public" => true
+          },
+          "channel" => %{
+            "id" => "https://remote.test/_arblarg/channels/conformance-4",
             "name" => "general",
             "position" => 0
           },
           "message" => %{
-            "id" => "https://remote.test/federation/messaging/messages/conf-4",
-            "channel_id" => "https://remote.test/federation/messaging/channels/conformance-4",
+            "id" => "https://remote.test/_arblarg/messages/conf-4",
+            "channel_id" => "https://remote.test/_arblarg/channels/conformance-4",
             "content" => "dedupe me",
             "message_type" => "text",
             "media_urls" => [],
@@ -205,25 +281,25 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
       assert "applied" ==
                (conn
-                |> signed_federation_headers("POST", "/federation/messaging/events", body_one)
+                |> signed_federation_headers("POST", "/_arblarg/events", body_one)
                 |> put_req_header("content-type", "application/json")
-                |> post("/federation/messaging/events", body_one)
+                |> post("/_arblarg/events", body_one)
                 |> json_response(200))["status"]
 
       event_two =
         event_one
         |> Map.delete("signature")
         |> Map.put("event_id", "evt-#{Ecto.UUID.generate()}")
-        |> Map.put("sequence", 2)
+        |> Map.put("sequence", 3)
         |> ArblargSDK.sign_event_envelope(@remote_key_id, @remote_secret)
 
       body_two = Jason.encode!(event_two)
 
       response =
         build_conn()
-        |> signed_federation_headers("POST", "/federation/messaging/events", body_two)
+        |> signed_federation_headers("POST", "/_arblarg/events", body_two)
         |> put_req_header("content-type", "application/json")
-        |> post("/federation/messaging/events", body_two)
+        |> post("/_arblarg/events", body_two)
         |> json_response(200)
 
       assert response["status"] == "duplicate"
@@ -243,23 +319,93 @@ defmodule ElektrineWeb.ArblargConformanceTest do
         })
         |> Repo.insert()
 
-      stream_id = "channel:https://remote.test/federation/messaging/channels/conformance-5"
+      stream_id = "channel:https://remote.test/_arblarg/channels/conformance-5"
 
-      create_event =
-        build_event("message.create", stream_id, 1, "idem-conf-005-msg", %{
+      bob_membership_event =
+        build_event("membership.upsert", stream_id, 1, "idem-conf-005-bob-membership", %{
           "server" => %{
-            "id" => "https://remote.test/federation/messaging/servers/conformance-5",
+            "id" => "https://remote.test/_arblarg/servers/conformance-5",
             "name" => "Conformance",
             "is_public" => true
           },
           "channel" => %{
-            "id" => "https://remote.test/federation/messaging/channels/conformance-5",
+            "id" => "https://remote.test/_arblarg/channels/conformance-5",
+            "name" => "general",
+            "position" => 0
+          },
+          "membership" => %{
+            "actor" => canonical_actor("bob", @remote_domain),
+            "role" => "member",
+            "state" => "active",
+            "joined_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "metadata" => %{"source" => "conformance"}
+          }
+        })
+
+      bob_membership_body = Jason.encode!(bob_membership_event)
+
+      assert "applied" ==
+               (conn
+                |> signed_federation_headers(
+                  "POST",
+                  "/_arblarg/events",
+                  bob_membership_body
+                )
+                |> put_req_header("content-type", "application/json")
+                |> post("/_arblarg/events", bob_membership_body)
+                |> json_response(200))["status"]
+
+      alice_membership_event =
+        build_event("membership.upsert", stream_id, 2, "idem-conf-005-alice-membership", %{
+          "server" => %{
+            "id" => "https://remote.test/_arblarg/servers/conformance-5",
+            "name" => "Conformance",
+            "is_public" => true
+          },
+          "channel" => %{
+            "id" => "https://remote.test/_arblarg/channels/conformance-5",
+            "name" => "general",
+            "position" => 0
+          },
+          "membership" => %{
+            "actor" => canonical_actor("alice", @remote_domain, uri: actor_uri),
+            "role" => "member",
+            "state" => "active",
+            "joined_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "metadata" => %{"source" => "conformance"}
+          }
+        })
+
+      alice_membership_body = Jason.encode!(alice_membership_event)
+
+      assert "applied" ==
+               (conn
+                |> signed_federation_headers(
+                  "POST",
+                  "/_arblarg/events",
+                  alice_membership_body
+                )
+                |> put_req_header("content-type", "application/json")
+                |> post("/_arblarg/events", alice_membership_body)
+                |> json_response(200))["status"]
+
+      create_event =
+        build_event("message.create", stream_id, 3, "idem-conf-005-msg", %{
+          "server" => %{
+            "id" => "https://remote.test/_arblarg/servers/conformance-5",
+            "name" => "Conformance",
+            "is_public" => true
+          },
+          "channel" => %{
+            "id" => "https://remote.test/_arblarg/channels/conformance-5",
             "name" => "general",
             "position" => 0
           },
           "message" => %{
-            "id" => "https://remote.test/federation/messaging/messages/conf-5",
-            "channel_id" => "https://remote.test/federation/messaging/channels/conformance-5",
+            "id" => "https://remote.test/_arblarg/messages/conf-5",
+            "channel_id" => "https://remote.test/_arblarg/channels/conformance-5",
             "content" => "mark me read",
             "message_type" => "text",
             "media_urls" => [],
@@ -272,24 +418,24 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
       assert "applied" ==
                (conn
-                |> signed_federation_headers("POST", "/federation/messaging/events", create_body)
+                |> signed_federation_headers("POST", "/_arblarg/events", create_body)
                 |> put_req_header("content-type", "application/json")
-                |> post("/federation/messaging/events", create_body)
+                |> post("/_arblarg/events", create_body)
                 |> json_response(200))["status"]
 
       read_event =
-        build_event("read.cursor", stream_id, 2, "idem-conf-005-read", %{
+        build_event("read.cursor", stream_id, 4, "idem-conf-005-read", %{
           "server" => %{
-            "id" => "https://remote.test/federation/messaging/servers/conformance-5",
+            "id" => "https://remote.test/_arblarg/servers/conformance-5",
             "name" => "Conformance",
             "is_public" => true
           },
           "channel" => %{
-            "id" => "https://remote.test/federation/messaging/channels/conformance-5",
+            "id" => "https://remote.test/_arblarg/channels/conformance-5",
             "name" => "general",
             "position" => 0
           },
-          "read_through_message_id" => "https://remote.test/federation/messaging/messages/conf-5",
+          "read_through_message_id" => "https://remote.test/_arblarg/messages/conf-5",
           "actor" => canonical_actor("alice", @remote_domain, uri: actor_uri),
           "read_at" => DateTime.utc_now() |> DateTime.to_iso8601()
         })
@@ -298,9 +444,9 @@ defmodule ElektrineWeb.ArblargConformanceTest do
 
       response =
         build_conn()
-        |> signed_federation_headers("POST", "/federation/messaging/events", read_body)
+        |> signed_federation_headers("POST", "/_arblarg/events", read_body)
         |> put_req_header("content-type", "application/json")
-        |> post("/federation/messaging/events", read_body)
+        |> post("/_arblarg/events", read_body)
         |> json_response(200)
 
       assert response["status"] == "applied"

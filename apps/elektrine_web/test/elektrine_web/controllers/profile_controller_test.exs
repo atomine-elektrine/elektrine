@@ -7,6 +7,8 @@ defmodule ElektrineWeb.ProfileControllerTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Profiles
+  alias Elektrine.Repo
+  alias Elektrine.Profiles.CustomDomain
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -52,6 +54,49 @@ defmodule ElektrineWeb.ProfileControllerTest do
 
       assert conn.status == 200
       assert conn.resp_body =~ "Test User"
+    end
+
+    test "renders builder profiles on verified custom root domains", %{conn: conn, user: user} do
+      unique = System.unique_integer([:positive])
+      custom_domain = "builder#{unique}.brand.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain)
+        |> get("/")
+
+      assert conn.status == 200
+      assert conn.resp_body =~ "Test User"
+      assert conn.resp_body =~ "https://#{custom_domain}"
+    end
+
+    test "redirects custom-domain www aliases to the bare root domain", %{conn: conn, user: user} do
+      unique = System.unique_integer([:positive])
+      custom_domain = "wwwalias#{unique}.brand.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(:host, "www." <> custom_domain)
+        |> get("/")
+
+      assert conn.status == 302
+      assert get_resp_header(conn, "location") == ["https://#{custom_domain}/"]
     end
   end
 

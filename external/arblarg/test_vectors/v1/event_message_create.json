@@ -1,8 +1,8 @@
 {
   "description": "Canonical event signature payload and signature for a core message.create event",
   "expected": {
-    "canonical_event_payload": "arblarg\n1.0\nmessage.create\nevt-vector-0001\nexample.net\nchannel:https://example.net/federation/messaging/channels/1\n42\n2026-02-22T12:34:56Z\nop-message-create-0001\n{\"channel\":{\"id\":\"https://example.net/federation/messaging/channels/1\",\"name\":\"general\"},\"message\":{\"channel_id\":\"https://example.net/federation/messaging/channels/1\",\"content\":\"hello golden vector\",\"id\":\"https://example.net/federation/messaging/messages/1\",\"sender\":{\"display_name\":\"alice\",\"domain\":\"example.net\",\"handle\":\"alice@example.net\",\"id\":\"https://example.net/users/alice\",\"uri\":\"https://example.net/users/alice\",\"username\":\"alice\"}},\"server\":{\"id\":\"https://example.net/federation/messaging/servers/1\",\"name\":\"Example\"}}",
-    "signature": "Qo-nciHhJHX8OESiTjPkRg9ccrtiR0EIBmI_0kXVHC2BZlSN_hTJWzHq1Zde05k56Kov5AL1xCyTwze2taU0Cw"
+    "canonical_event_payload": "arblarg\n1.0\nmessage.create\nevt-vector-0001\nexample.net\nchannel:https://example.net/_arblarg/channels/1\n42\n2026-02-22T12:34:56Z\nop-message-create-0001\n{\"channel\":{\"id\":\"https://example.net/_arblarg/channels/1\",\"name\":\"general\"},\"message\":{\"channel_id\":\"https://example.net/_arblarg/channels/1\",\"content\":\"hello golden vector\",\"id\":\"https://example.net/_arblarg/messages/1\",\"sender\":{\"display_name\":\"alice\",\"domain\":\"example.net\",\"handle\":\"alice@example.net\",\"id\":\"https://example.net/users/alice\",\"uri\":\"https://example.net/users/alice\",\"username\":\"alice\"}},\"server\":{\"id\":\"https://example.net/_arblarg/servers/1\",\"name\":\"Example\"}}",
+    "signature": "F-FBFF80M6qNPFFTDvfnZ5OrkQn2RzjIxs1BOOrYVkxFOLGXdXLGhvXJuhbpMP_dVEeHo4WUXx_hAeV27tc2AA"
   },
   "key_id": "golden-k1",
   "name": "arblarg-v1-message-create-event-signature",
@@ -15,13 +15,13 @@
     "origin_domain": "example.net",
     "payload": {
       "channel": {
-        "id": "https://example.net/federation/messaging/channels/1",
+        "id": "https://example.net/_arblarg/channels/1",
         "name": "general"
       },
       "message": {
-        "channel_id": "https://example.net/federation/messaging/channels/1",
+        "channel_id": "https://example.net/_arblarg/channels/1",
         "content": "hello golden vector",
-        "id": "https://example.net/federation/messaging/messages/1",
+        "id": "https://example.net/_arblarg/messages/1",
         "sender": {
           "display_name": "alice",
           "domain": "example.net",
@@ -32,7 +32,7 @@
         }
       },
       "server": {
-        "id": "https://example.net/federation/messaging/servers/1",
+        "id": "https://example.net/_arblarg/servers/1",
         "name": "Example"
       }
     },
@@ -42,6 +42,6 @@
     "protocol_version": "1.0",
     "sent_at": "2026-02-22T12:34:56Z",
     "sequence": 42,
-    "stream_id": "channel:https://example.net/federation/messaging/channels/1"
+    "stream_id": "channel:https://example.net/_arblarg/channels/1"
   }
 }

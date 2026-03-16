@@ -287,12 +287,14 @@ defmodule Elektrine.Messaging.ChatMessage do
     encrypted_content = get_field(changeset, :encrypted_content)
     media_urls = get_field(changeset, :media_urls) || []
     message_type = get_field(changeset, :message_type)
+    deleted_at = get_field(changeset, :deleted_at)
 
     has_content = !is_nil(content) && String.trim(content) != ""
     has_encrypted = !is_nil(encrypted_content)
     has_media = !Enum.empty?(media_urls)
 
     cond do
+      not is_nil(deleted_at) -> changeset
       message_type == "system" -> changeset
       message_type == "voice" && has_media -> changeset
       has_content or has_encrypted or has_media -> changeset

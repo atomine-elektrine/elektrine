@@ -167,9 +167,20 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   defp profile_subdomain_host?(_), do: false
 
   defp profile_base_domain(host) when is_binary(host) do
-    Enum.find(Elektrine.Domains.profile_base_domains(), fn base_domain ->
-      String.ends_with?(host, ".#{base_domain}")
-    end)
+    normalized_host = String.downcase(host)
+
+    case Elektrine.Domains.profile_base_domain_for_host(normalized_host) do
+      nil ->
+        nil
+
+      base_domain ->
+        if normalized_host != base_domain and
+             String.ends_with?(normalized_host, ".#{base_domain}") do
+          base_domain
+        else
+          nil
+        end
+    end
   end
 
   defp profile_base_domain(_), do: nil

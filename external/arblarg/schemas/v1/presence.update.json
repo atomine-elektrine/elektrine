@@ -1,19 +1,10 @@
 {
   "$id": "arblarg://schemas/1.0/presence.update",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "anyOf": [
-    {
-      "required": [
-        "server"
-      ]
-    },
-    {
-      "required": [
-        "refs"
-      ]
-    }
-  ],
   "properties": {
+    "channel": {
+      "type": "object"
+    },
     "presence": {
       "properties": {
         "activities": {
@@ -95,14 +86,15 @@
     },
     "refs": {
       "properties": {
+        "channel_id": {
+          "minLength": 1,
+          "type": "string"
+        },
         "server_id": {
           "minLength": 1,
           "type": "string"
         }
       },
-      "required": [
-        "server_id"
-      ],
       "type": "object"
     },
     "server": {

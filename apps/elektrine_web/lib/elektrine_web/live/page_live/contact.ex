@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.Contact do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.EmailAddresses
+
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
   def mount(_params, _session, socket) do
@@ -21,8 +23,8 @@ defmodule ElektrineWeb.PageLive.Contact do
               <div class="card bg-base-300">
                 <div class="card-body">
                   <h3 class="font-semibold">General</h3>
-                  <a href="mailto:welcome@elektrine.com" class="link link-primary">
-                    welcome@elektrine.com
+                  <a href={EmailAddresses.mailto("welcome")} class="link link-primary">
+                    {EmailAddresses.local("welcome")}
                   </a>
                 </div>
               </div>
@@ -30,8 +32,8 @@ defmodule ElektrineWeb.PageLive.Contact do
               <div class="card bg-base-300">
                 <div class="card-body">
                   <h3 class="font-semibold">Support</h3>
-                  <a href="mailto:support@elektrine.com" class="link link-primary">
-                    support@elektrine.com
+                  <a href={EmailAddresses.mailto("support")} class="link link-primary">
+                    {EmailAddresses.local("support")}
                   </a>
                 </div>
               </div>
@@ -39,8 +41,8 @@ defmodule ElektrineWeb.PageLive.Contact do
               <div class="card bg-base-300">
                 <div class="card-body">
                   <h3 class="font-semibold">Security</h3>
-                  <a href="mailto:security@elektrine.com" class="link link-primary">
-                    security@elektrine.com
+                  <a href={EmailAddresses.mailto("security")} class="link link-primary">
+                    {EmailAddresses.local("security")}
                   </a>
                 </div>
               </div>
@@ -48,8 +50,8 @@ defmodule ElektrineWeb.PageLive.Contact do
               <div class="card bg-base-300">
                 <div class="card-body">
                   <h3 class="font-semibold">Privacy</h3>
-                  <a href="mailto:privacy@elektrine.com" class="link link-primary">
-                    privacy@elektrine.com
+                  <a href={EmailAddresses.mailto("privacy")} class="link link-primary">
+                    {EmailAddresses.local("privacy")}
                   </a>
                 </div>
               </div>

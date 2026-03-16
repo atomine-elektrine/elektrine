@@ -6,6 +6,13 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
 
+  defmodule FailingMailerAdapter do
+    use Swoosh.Adapter
+
+    def deliver(_email, _config), do: {:error, :forced_failure}
+    def deliver_many(_emails, _config), do: {:error, :forced_failure}
+  end
+
   describe "send_verification_email/1" do
     setup do
       {:ok, user} =
@@ -76,6 +83,45 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       assert String.length(updated_user.recovery_email_verification_token) == 64
       assert updated_user.recovery_email_verification_sent_at != nil
       refute updated_user.recovery_email_verification_token == extract_verification_token()
+    end
+
+    test "returns error and restores previous verification state when email delivery fails", %{
+      user: user
+    } do
+      previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, Elektrine.Mailer, previous_mailer_config)
+      end)
+
+      Application.put_env(
+        :elektrine,
+        Elektrine.Mailer,
+        Keyword.put(previous_mailer_config, :adapter, FailingMailerAdapter)
+      )
+
+      old_token = "old_verification_token_#{System.unique_integer([:positive])}"
+      old_sent_at = DateTime.utc_now() |> DateTime.add(-10, :minute) |> DateTime.truncate(:second)
+
+      user
+      |> Ecto.Changeset.change(%{
+        recovery_email: "recovery@example.com",
+        recovery_email_verified: false,
+        recovery_email_verification_token: User.hash_sensitive_token(old_token),
+        recovery_email_verification_sent_at: old_sent_at
+      })
+      |> Repo.update!()
+
+      assert {:error, :email_failed} =
+               RecoveryEmailVerification.send_verification_email(user.id, force: true)
+
+      reloaded_user = Accounts.get_user!(user.id)
+
+      assert reloaded_user.recovery_email_verification_token ==
+               User.hash_sensitive_token(old_token)
+
+      assert reloaded_user.recovery_email_verification_sent_at == old_sent_at
+      refute_received {:email, _}
     end
   end
 

@@ -30,7 +30,9 @@ defmodule ElektrinePasswordManagerWeb.Routes do
     quote do
       scope "/", alias: false do
         post("/vault/setup", unquote(Macro.escape(controller)), :setup)
+        delete("/vault", unquote(Macro.escape(controller)), :delete_vault)
         post("/entries", unquote(Macro.escape(controller)), :create)
+        put("/entries/:id", unquote(Macro.escape(controller)), :update)
         delete("/entries/:id", unquote(Macro.escape(controller)), :delete)
       end
     end

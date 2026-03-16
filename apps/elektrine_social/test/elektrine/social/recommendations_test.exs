@@ -135,8 +135,85 @@ defmodule Elektrine.Social.RecommendationsTest do
     end
   end
 
+  describe "get_for_you_feed/2 session adaptation" do
+    test "boosts creators that the viewer engaged with in the current session" do
+      viewer = user_fixture()
+      preferred_author = user_fixture()
+      other_author = user_fixture()
+
+      preferred_post =
+        post_fixture(%{
+          user: preferred_author,
+          content: "preferred creator post #{System.unique_integer([:positive])}"
+        })
+
+      other_post =
+        post_fixture(%{
+          user: other_author,
+          content: "other creator post #{System.unique_integer([:positive])}"
+        })
+
+      set_like_count(preferred_post.id, 5)
+      set_like_count(other_post.id, 5)
+      set_inserted_at(preferred_post.id, ~N[2026-03-16 10:00:00])
+      set_inserted_at(other_post.id, ~N[2026-03-16 11:00:00])
+
+      feed_ids =
+        Recommendations.get_for_you_feed(viewer.id,
+          limit: 20,
+          session_context: %{
+            liked_creators: [preferred_author.id],
+            liked_local_creators: [preferred_author.id]
+          }
+        )
+        |> Enum.map(& &1.id)
+
+      assert Enum.find_index(feed_ids, &(&1 == preferred_post.id)) <
+               Enum.find_index(feed_ids, &(&1 == other_post.id))
+    end
+
+    test "heavily penalizes posts dismissed in the current session" do
+      viewer = user_fixture()
+      author = user_fixture()
+
+      keep_post =
+        post_fixture(%{
+          user: author,
+          content: "keep me #{System.unique_integer([:positive])}"
+        })
+
+      dismissed_post =
+        post_fixture(%{
+          user: author,
+          content: "dismiss me #{System.unique_integer([:positive])}"
+        })
+
+      set_like_count(keep_post.id, 6)
+      set_like_count(dismissed_post.id, 6)
+
+      feed_ids =
+        Recommendations.get_for_you_feed(viewer.id,
+          limit: 20,
+          session_context: %{dismissed_posts: [dismissed_post.id]}
+        )
+        |> Enum.map(& &1.id)
+
+      assert keep_post.id in feed_ids
+
+      dismissed_index = Enum.find_index(feed_ids, &(&1 == dismissed_post.id))
+      keep_index = Enum.find_index(feed_ids, &(&1 == keep_post.id))
+
+      assert is_nil(dismissed_index) or keep_index < dismissed_index
+    end
+  end
+
   defp set_like_count(post_id, count) do
     from(m in Message, where: m.id == ^post_id)
     |> Repo.update_all(set: [like_count: count])
+  end
+
+  defp set_inserted_at(post_id, inserted_at) do
+    from(m in Message, where: m.id == ^post_id)
+    |> Repo.update_all(set: [inserted_at: inserted_at])
   end
 end

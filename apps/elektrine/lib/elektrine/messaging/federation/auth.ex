@@ -58,7 +58,10 @@ defmodule Elektrine.Messaging.Federation.Auth do
         request_id
       )
 
-    ArblargSDK.verify_payload_signature(payload, secret, signature)
+    case ArblargSDK.verification_public_key(secret) do
+      {:ok, public_key} -> ArblargSDK.verify_payload_signature(payload, public_key, signature)
+      _ -> false
+    end
   end
 
   def verify_peer_signature(
@@ -295,7 +298,7 @@ defmodule Elektrine.Messaging.Federation.Auth do
        ) do
     if discovered_peer?(peer) do
       case call(context, :discover_peer_force, [peer.domain]) do
-        {:ok, refreshed_peer} ->
+        {:ok, %{allow_incoming: true} = refreshed_peer} ->
           verify_signature_with_peer(
             refreshed_peer,
             domain,

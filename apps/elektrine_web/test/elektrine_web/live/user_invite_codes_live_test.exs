@@ -92,6 +92,26 @@ defmodule ElektrineWeb.UserInviteCodesLiveTest do
     assert render(view) =~ "Invite creation unlocks at TL1"
   end
 
+  test "does not show a signup mode badge in account settings", %{
+    conn: conn
+  } do
+    {:ok, _config} = Elektrine.System.set_invite_codes_enabled(false)
+
+    user = AccountsFixtures.user_fixture()
+    {:ok, trusted_user} = Accounts.admin_update_user(user, %{trust_level: 1})
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(trusted_user)
+      |> live(~p"/account?tab=profile")
+
+    html = render(view)
+
+    refute html =~ "Open signup"
+    refute html =~ "Invite-only"
+    assert html =~ "Registration is currently open"
+  end
+
   defp log_in_user(conn, user) do
     token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
 

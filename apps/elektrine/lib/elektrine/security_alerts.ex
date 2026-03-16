@@ -8,6 +8,7 @@ defmodule Elektrine.SecurityAlerts do
   import Swoosh.Email
 
   alias Elektrine.Accounts
+  alias Elektrine.EmailAddresses
   alias Elektrine.Email.MailboxAdapter
   alias Elektrine.Platform.Modules
 
@@ -29,10 +30,18 @@ defmodule Elektrine.SecurityAlerts do
             Logger.debug("Rate limited spoofing alert for #{spoofed_address}")
             {:ok, :rate_limited}
           else
-            # Send alerts
-            send_spoofing_alert_to_user(user, spoofed_address, recipient_address, subject)
-            set_rate_limit(cache_key)
-            {:ok, :sent}
+            case send_spoofing_alert_to_user(user, spoofed_address, recipient_address, subject) do
+              :ok ->
+                set_rate_limit(cache_key)
+                {:ok, :sent}
+
+              {:error, reason} ->
+                Logger.error(
+                  "Failed to deliver spoofing alert for #{spoofed_address}: #{inspect(reason)}"
+                )
+
+                {:error, reason}
+            end
           end
 
         {:error, :not_found} ->
@@ -49,12 +58,17 @@ defmodule Elektrine.SecurityAlerts do
   end
 
   defp send_spoofing_alert_to_user(user, spoofed_address, recipient_address, subject) do
-    # 1. Send to user's mailbox
-    send_to_mailbox(user, spoofed_address, recipient_address, subject)
+    results =
+      [send_to_mailbox(user, spoofed_address, recipient_address, subject)] ++
+        if(user.recovery_email,
+          do: [send_to_recovery_email(user, spoofed_address, recipient_address, subject)],
+          else: []
+        )
 
-    # 2. Send to recovery email if set
-    if user.recovery_email do
-      send_to_recovery_email(user, spoofed_address, recipient_address, subject)
+    if Enum.any?(results, &(&1 == :ok)) do
+      :ok
+    else
+      {:error, :delivery_failed}
     end
   end
 
@@ -70,7 +84,7 @@ defmodule Elektrine.SecurityAlerts do
         message_attrs = %{
           "message_id" =>
             "security-alert-#{:rand.uniform(1_000_000)}-#{System.system_time(:millisecond)}",
-          "from" => "Elektrine Security <security@elektrine.com>",
+          "from" => "Elektrine Security <#{EmailAddresses.local("security")}>",
           "to" => mailbox.email,
           "subject" => alert_subject,
           "text_body" => text_body,
@@ -107,7 +121,7 @@ defmodule Elektrine.SecurityAlerts do
     email =
       new()
       |> to(user.recovery_email)
-      |> from({"Elektrine Security", "security@elektrine.com"})
+      |> from({"Elektrine Security", EmailAddresses.local("security")})
       |> subject(alert_subject)
       |> html_body(spoofing_alert_html(user, spoofed_address, recipient_address, subject))
       |> text_body(spoofing_alert_text(user, spoofed_address, recipient_address, subject))

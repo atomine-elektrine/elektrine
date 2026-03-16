@@ -50,7 +50,7 @@ defmodule Elektrine.ActivityPub.Relay do
         create_relay_actor()
 
       actor ->
-        {:ok, actor}
+        normalize_relay_actor(actor)
     end
   end
 
@@ -63,9 +63,6 @@ defmodule Elektrine.ActivityPub.Relay do
       username: @relay_actor_nickname,
       domain: ActivityPub.instance_domain(),
       inbox_url: "#{ActivityPub.instance_url()}/#{@relay_actor_nickname}/inbox",
-      outbox_url: "#{ActivityPub.instance_url()}/#{@relay_actor_nickname}/outbox",
-      followers_url: "#{ActivityPub.instance_url()}/#{@relay_actor_nickname}/followers",
-      following_url: "#{ActivityPub.instance_url()}/#{@relay_actor_nickname}/following",
       public_key: public_key,
       actor_type: "Application",
       display_name: "Elektrine Relay",
@@ -79,6 +76,20 @@ defmodule Elektrine.ActivityPub.Relay do
     %ActivityPub.Actor{}
     |> ActivityPub.Actor.changeset(actor_attrs)
     |> Repo.insert()
+  end
+
+  defp normalize_relay_actor(actor) do
+    if actor.outbox_url || actor.followers_url || actor.following_url do
+      actor
+      |> ActivityPub.Actor.changeset(%{
+        outbox_url: nil,
+        followers_url: nil,
+        following_url: nil
+      })
+      |> Repo.update()
+    else
+      {:ok, actor}
+    end
   end
 
   defp generate_key_pair do
@@ -522,8 +533,7 @@ defmodule Elektrine.ActivityPub.Relay do
       "type" => "Announce",
       "actor" => relay_actor.uri,
       "object" => object_id,
-      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => [relay_actor.followers_url]
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"]
     }
   end
 

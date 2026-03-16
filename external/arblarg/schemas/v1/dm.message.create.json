@@ -98,6 +98,7 @@
         }
       },
       "required": [
+        "id",
         "sender",
         "recipient"
       ],

@@ -4,6 +4,8 @@ defmodule Elektrine.Calendar.ICalendar do
   Handles VEVENT, VTODO, and VALARM components.
   """
 
+  alias Elektrine.EmailAddresses
+
   @doc """
   Parse an iCalendar string into an event map.
   """
@@ -182,7 +184,7 @@ defmodule Elektrine.Calendar.ICalendar do
       |> Base.encode16(case: :lower)
       |> String.replace(~r/(.{8})(.{4})(.{4})(.{4})(.{12})/, "\\1-\\2-\\3-\\4-\\5")
 
-    "#{uuid}@elektrine.com"
+    EmailAddresses.uid(uuid)
   end
 
   @doc """

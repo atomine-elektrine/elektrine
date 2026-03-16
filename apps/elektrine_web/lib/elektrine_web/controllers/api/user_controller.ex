@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.API.UserController do
   use ElektrineWeb, :controller
   alias Elektrine.Accounts
+  alias Elektrine.EmailAddresses
   alias ElektrineWeb.Plugs.APIAuth
   action_fallback(ElektrineWeb.FallbackController)
   @doc "POST /api/users/register\nRegisters a new user\n"
@@ -55,7 +56,7 @@ defmodule ElektrineWeb.API.UserController do
           user: %{
             id: user.id,
             username: user.username,
-            email: "#{user.username}@elektrine.com",
+            email: EmailAddresses.primary_for_user(user),
             avatar: user.avatar,
             is_admin: false,
             inserted_at: user.inserted_at,
@@ -90,7 +91,7 @@ defmodule ElektrineWeb.API.UserController do
       user: %{
         id: user.id,
         username: user.username,
-        email: "#{user.username}@elektrine.com",
+        email: EmailAddresses.primary_for_user(user),
         avatar: user.avatar,
         is_admin: user.is_admin,
         inserted_at: user.inserted_at,

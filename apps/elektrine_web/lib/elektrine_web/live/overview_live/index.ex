@@ -22,6 +22,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @feed_load_timeout_ms 12_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
+  @session_rerank_delay_ms 1200
+  @session_interest_dwell_ms 10_000
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -68,6 +70,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:dashboard, default_dashboard())
        |> assign(:dashboard_last_refreshed_at, nil)
        |> assign(:data_loaded, false)
+       |> assign(:session_context, default_session_context())
+       |> assign(:feed_rerank_ref, nil)
        |> assign(:show_image_modal, false)
        |> assign(:modal_image_url, nil)
        |> assign(:modal_images, [])
@@ -128,6 +132,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
         {:ok, message_id} ->
           user_id = socket.assigns.current_user.id
           currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
+          post = find_overview_post(socket.assigns.all_posts, message_id)
 
           update_likes_fn = fn posts ->
             Enum.map(posts, fn post ->
@@ -162,7 +167,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  socket
                  |> update(:user_likes, &Map.put(&1, message_id, true))
                  |> update(:all_posts, update_likes_fn)
-                 |> update(:filtered_all_posts, update_likes_fn)}
+                 |> update(:filtered_all_posts, update_likes_fn)
+                 |> note_positive_signal(post)
+                 |> schedule_feed_rerank(250)}
 
               {:error, _} ->
                 {:noreply, put_flash(socket, :error, "Failed to like post")}
@@ -191,6 +198,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
         {:ok, message_id} ->
           user_id = socket.assigns.current_user.id
           currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
+          post = find_overview_post(socket.assigns.all_posts, message_id)
 
           update_boosts_fn = fn posts ->
             Enum.map(posts, fn post ->
@@ -225,7 +233,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  socket
                  |> update(:user_boosts, &Map.put(&1, message_id, true))
                  |> update(:all_posts, update_boosts_fn)
-                 |> update(:filtered_all_posts, update_boosts_fn)}
+                 |> update(:filtered_all_posts, update_boosts_fn)
+                 |> note_positive_signal(post)
+                 |> schedule_feed_rerank(350)}
 
               {:error, _} ->
                 {:noreply, put_flash(socket, :error, "Failed to boost post")}
@@ -793,64 +803,131 @@ defmodule ElektrineWeb.OverviewLive.Index do
     {:noreply, put_flash(socket, :error, "Admin actions not available here")}
   end
 
+  def handle_event("not_interested", %{"post_id" => post_id}, socket) do
+    user = socket.assigns[:current_user]
+
+    updated_socket =
+      if user && post_id do
+        Integrations.overview_record_dismissal(user.id, post_id, "not_interested", nil)
+
+        socket
+        |> note_dismissal_signal(post_id)
+        |> remove_overview_post(post_id)
+        |> schedule_feed_rerank(150)
+        |> put_flash(:info, "We’ll show less like this.")
+      else
+        socket
+      end
+
+    {:noreply, updated_socket}
+  end
+
+  def handle_event("hide_post", %{"post_id" => post_id}, socket) do
+    user = socket.assigns[:current_user]
+
+    updated_socket =
+      if user && post_id do
+        Integrations.overview_record_dismissal(user.id, post_id, "hidden", nil)
+
+        socket
+        |> note_dismissal_signal(post_id)
+        |> remove_overview_post(post_id)
+        |> schedule_feed_rerank(150)
+        |> put_flash(:info, "Post hidden from your overview.")
+      else
+        socket
+      end
+
+    {:noreply, updated_socket}
+  end
+
   def handle_event("record_dwell_time", params, socket) do
     user = socket.assigns[:current_user]
 
-    if user do
-      post_id = params["post_id"]
+    updated_socket =
+      if user do
+        post_id = params["post_id"]
 
-      if post_id do
-        attrs = %{
-          dwell_time_ms: params["dwell_time_ms"],
-          scroll_depth: params["scroll_depth"],
-          expanded: params["expanded"] || false,
-          source: params["source"] || "overview"
-        }
+        if post_id do
+          attrs = %{
+            dwell_time_ms: params["dwell_time_ms"],
+            scroll_depth: params["scroll_depth"],
+            expanded: params["expanded"] || false,
+            source: params["source"] || "overview"
+          }
 
-        Integrations.overview_record_view_with_dwell(user.id, post_id, attrs)
+          Integrations.overview_record_view_with_dwell(user.id, post_id, attrs)
+
+          socket
+          |> note_view_signal(post_id, params["dwell_time_ms"])
+          |> maybe_note_dwell_interest(post_id, params["dwell_time_ms"])
+          |> schedule_feed_rerank()
+        else
+          socket
+        end
+      else
+        socket
       end
-    end
 
-    {:noreply, socket}
+    {:noreply, updated_socket}
   end
 
   def handle_event("record_dwell_times", %{"views" => views}, socket) do
     user = socket.assigns[:current_user]
 
-    if user do
-      Enum.each(views, fn view ->
-        post_id = view["post_id"]
+    updated_socket =
+      if user do
+        Enum.reduce(views, socket, fn view, acc ->
+          post_id = view["post_id"]
 
-        if post_id do
-          attrs = %{
-            dwell_time_ms: view["dwell_time_ms"],
-            scroll_depth: view["scroll_depth"],
-            expanded: view["expanded"] || false,
-            source: view["source"] || "overview"
-          }
+          if post_id do
+            attrs = %{
+              dwell_time_ms: view["dwell_time_ms"],
+              scroll_depth: view["scroll_depth"],
+              expanded: view["expanded"] || false,
+              source: view["source"] || "overview"
+            }
 
-          Integrations.overview_record_view_with_dwell(user.id, post_id, attrs)
-        end
-      end)
-    end
+            Integrations.overview_record_view_with_dwell(user.id, post_id, attrs)
 
-    {:noreply, socket}
+            acc
+            |> note_view_signal(post_id, view["dwell_time_ms"])
+            |> maybe_note_dwell_interest(post_id, view["dwell_time_ms"])
+          else
+            acc
+          end
+        end)
+        |> schedule_feed_rerank()
+      else
+        socket
+      end
+
+    {:noreply, updated_socket}
   end
 
   def handle_event("record_dismissal", params, socket) do
     user = socket.assigns[:current_user]
 
-    if user do
-      post_id = params["post_id"]
-      type = params["type"]
-      dwell_time_ms = params["dwell_time_ms"]
+    updated_socket =
+      if user do
+        post_id = params["post_id"]
+        type = params["type"]
+        dwell_time_ms = params["dwell_time_ms"]
 
-      if post_id && type do
-        Integrations.overview_record_dismissal(user.id, post_id, type, dwell_time_ms)
+        if post_id && type do
+          Integrations.overview_record_dismissal(user.id, post_id, type, dwell_time_ms)
+
+          socket
+          |> note_dismissal_signal(post_id)
+          |> schedule_feed_rerank()
+        else
+          socket
+        end
+      else
+        socket
       end
-    end
 
-    {:noreply, socket}
+    {:noreply, updated_socket}
   end
 
   def handle_event("update_session_context", params, socket) do
@@ -858,15 +935,40 @@ defmodule ElektrineWeb.OverviewLive.Index do
     liked_local_creators = params["liked_local_creators"] || liked_creators
 
     session_context = %{
-      liked_hashtags: params["liked_hashtags"] || [],
-      liked_creators: liked_creators,
-      liked_local_creators: liked_local_creators,
-      liked_remote_creators: params["liked_remote_creators"] || [],
-      viewed_posts: params["viewed_posts"] || [],
-      engagement_rate: params["engagement_rate"] || 0.0
+      (socket.assigns[:session_context] || default_session_context())
+      | liked_hashtags:
+          merge_recent_unique(
+            socket.assigns[:session_context][:liked_hashtags],
+            params["liked_hashtags"] || [],
+            20
+          ),
+        liked_creators: merge_recent_unique([], liked_creators, 10),
+        liked_local_creators:
+          merge_recent_unique(
+            socket.assigns[:session_context][:liked_local_creators],
+            liked_local_creators,
+            10
+          ),
+        liked_remote_creators:
+          merge_recent_unique(
+            socket.assigns[:session_context][:liked_remote_creators],
+            params["liked_remote_creators"] || [],
+            10
+          ),
+        viewed_posts:
+          merge_recent_unique(
+            socket.assigns[:session_context][:viewed_posts],
+            params["viewed_posts"] || [],
+            50
+          ),
+        engagement_rate:
+          coerce_float(
+            params["engagement_rate"],
+            socket.assigns[:session_context][:engagement_rate] || 0.0
+          )
     }
 
-    {:noreply, assign(socket, :session_context, session_context)}
+    {:noreply, socket |> assign(:session_context, session_context) |> schedule_feed_rerank()}
   end
 
   def handle_event("", _params, socket) do
@@ -1055,6 +1157,36 @@ defmodule ElektrineWeb.OverviewLive.Index do
              |> assign(:loading_feed, false)
              |> assign(:data_loaded, true)
              |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")}
+        end
+    end
+  end
+
+  def handle_info(:refresh_feed_ranking, socket) do
+    socket = assign(socket, :feed_rerank_ref, nil)
+
+    cond do
+      is_nil(socket.assigns[:current_user]) or socket.assigns.loading_feed or
+          !socket.assigns.data_loaded ->
+        {:noreply, socket}
+
+      true ->
+        case load_with_timeout(
+               :for_you_feed_rerank,
+               fn ->
+                 Integrations.overview_for_you_feed(
+                   socket.assigns.current_user.id,
+                   limit: 50,
+                   session_context: socket.assigns[:session_context] || %{}
+                 )
+                 |> build_feed_state(socket.assigns.current_user.id)
+               end,
+               4000
+             ) do
+          {:ok, feed_data} ->
+            {:noreply, assign_feed_data(socket, feed_data)}
+
+          {:error, _reason} ->
+            {:noreply, socket}
         end
     end
   end
@@ -2050,6 +2182,217 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp register_post_state(socket, _post), do: socket
+
+  defp default_session_context do
+    %{
+      liked_hashtags: [],
+      liked_creators: [],
+      liked_local_creators: [],
+      liked_remote_creators: [],
+      viewed_posts: [],
+      dismissed_posts: [],
+      total_views: 0,
+      total_interactions: 0,
+      engagement_rate: 0.0
+    }
+  end
+
+  defp note_positive_signal(socket, nil), do: socket
+
+  defp note_positive_signal(socket, post) do
+    session_context =
+      socket.assigns[:session_context]
+      |> default_if_nil(default_session_context())
+      |> merge_positive_signal(post, 1)
+
+    assign(socket, :session_context, session_context)
+  end
+
+  defp note_view_signal(socket, post_id, _dwell_time_ms) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    if is_nil(normalized_post_id) do
+      socket
+    else
+      session_context =
+        socket.assigns[:session_context]
+        |> default_if_nil(default_session_context())
+        |> merge_view_signal(normalized_post_id)
+
+      assign(socket, :session_context, session_context)
+    end
+  end
+
+  defp maybe_note_dwell_interest(socket, post_id, dwell_time_ms) do
+    if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
+      socket
+      |> note_positive_signal(find_overview_post(socket.assigns.all_posts, post_id))
+      |> schedule_feed_rerank()
+    else
+      socket
+    end
+  end
+
+  defp note_dismissal_signal(socket, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    if is_nil(normalized_post_id) do
+      socket
+    else
+      session_context =
+        socket.assigns[:session_context]
+        |> default_if_nil(default_session_context())
+        |> Map.update!(:dismissed_posts, &merge_recent_unique(&1, [normalized_post_id], 50))
+
+      assign(socket, :session_context, session_context)
+    end
+  end
+
+  defp merge_positive_signal(session_context, post, interaction_increment) do
+    hashtags =
+      case Map.get(post, :hashtags) do
+        hashtags when is_list(hashtags) -> Enum.map(hashtags, & &1.normalized_name)
+        _ -> []
+      end
+
+    session_context
+    |> Map.update!(:liked_hashtags, &merge_recent_unique(&1, hashtags, 20))
+    |> Map.update!(:liked_local_creators, fn creators ->
+      if post.federated do
+        creators
+      else
+        merge_recent_unique(creators, [post.sender_id], 10)
+      end
+    end)
+    |> Map.update!(:liked_remote_creators, fn creators ->
+      if post.federated do
+        merge_recent_unique(creators, [post.remote_actor_id], 10)
+      else
+        creators
+      end
+    end)
+    |> then(fn context ->
+      Map.put(context, :liked_creators, context.liked_local_creators)
+    end)
+    |> Map.update!(:total_interactions, &(&1 + interaction_increment))
+    |> refresh_engagement_rate()
+  end
+
+  defp merge_view_signal(session_context, post_id) do
+    already_viewed = post_id in (session_context.viewed_posts || [])
+
+    session_context
+    |> Map.update!(:viewed_posts, &merge_recent_unique(&1, [post_id], 50))
+    |> Map.update!(:total_views, fn count -> if(already_viewed, do: count, else: count + 1) end)
+    |> refresh_engagement_rate()
+  end
+
+  defp refresh_engagement_rate(session_context) do
+    total_views =
+      max(session_context.total_views || length(session_context.viewed_posts || []), 1)
+
+    total_interactions = session_context.total_interactions || 0
+    Map.put(session_context, :engagement_rate, total_interactions / total_views)
+  end
+
+  defp schedule_feed_rerank(socket, delay_ms \\ @session_rerank_delay_ms) do
+    if is_reference(socket.assigns[:feed_rerank_ref]) do
+      Process.cancel_timer(socket.assigns.feed_rerank_ref)
+    end
+
+    assign(socket, :feed_rerank_ref, Process.send_after(self(), :refresh_feed_ranking, delay_ms))
+  end
+
+  defp remove_overview_post(socket, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+
+    if is_nil(normalized_post_id) do
+      socket
+    else
+      socket
+      |> update(:all_posts, fn posts ->
+        Enum.reject(posts || [], &(&1.id == normalized_post_id))
+      end)
+      |> update(:filtered_all_posts, fn posts ->
+        Enum.reject(posts || [], &(&1.id == normalized_post_id))
+      end)
+      |> update(:user_likes, &Map.delete(&1, normalized_post_id))
+      |> update(:user_boosts, &Map.delete(&1, normalized_post_id))
+      |> update(:user_saves, &Map.delete(&1, normalized_post_id))
+      |> update(:post_reactions, &Map.delete(&1, normalized_post_id))
+      |> maybe_clear_modal_post(normalized_post_id)
+    end
+  end
+
+  defp maybe_clear_modal_post(socket, post_id) do
+    case socket.assigns[:modal_post] do
+      %{id: ^post_id} ->
+        socket
+        |> assign(:modal_post, nil)
+        |> assign(:show_image_modal, false)
+        |> assign(:modal_image_url, nil)
+        |> assign(:modal_images, [])
+        |> assign(:modal_image_index, 0)
+
+      _ ->
+        socket
+    end
+  end
+
+  defp find_overview_post(posts, post_id) do
+    normalized_post_id = normalize_post_id(post_id)
+    Enum.find(posts || [], &(&1.id == normalized_post_id))
+  end
+
+  defp normalize_post_id(post_id) do
+    case parse_positive_int(post_id) do
+      {:ok, value} -> value
+      :error -> nil
+    end
+  end
+
+  defp coerce_int(value, _default) when is_integer(value), do: value
+
+  defp coerce_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      _ -> default
+    end
+  end
+
+  defp coerce_int(_, default), do: default
+
+  defp coerce_float(value, _default) when is_float(value), do: value
+  defp coerce_float(value, _default) when is_integer(value), do: value / 1
+
+  defp coerce_float(value, default) when is_binary(value) do
+    case Float.parse(value) do
+      {float, ""} -> float
+      _ -> default
+    end
+  end
+
+  defp coerce_float(_, default), do: default
+
+  defp merge_recent_unique(values, additions, limit) do
+    Enum.reduce(List.wrap(additions), values || [], fn value, acc ->
+      if is_nil(value) or value == "" do
+        acc
+      else
+        (Enum.reject(acc, &(&1 == value)) ++ [value])
+        |> trim_recent(limit)
+      end
+    end)
+  end
+
+  defp trim_recent(values, limit) when is_list(values) and length(values) > limit do
+    Enum.take(values, -limit)
+  end
+
+  defp trim_recent(values, _limit), do: values
+
+  defp default_if_nil(nil, default), do: default
+  defp default_if_nil(value, _default), do: value
 
   defp close_quote_modal(socket) do
     socket

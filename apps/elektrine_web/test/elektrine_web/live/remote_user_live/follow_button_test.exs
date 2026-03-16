@@ -4,6 +4,7 @@ defmodule ElektrineWeb.RemoteUserLive.FollowButtonTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Repo
 
@@ -58,6 +59,25 @@ defmodule ElektrineWeb.RemoteUserLive.FollowButtonTest do
     assert Enum.all?(buttons, &(Floki.attribute(&1, "type") == ["button"]))
   end
 
+  test "notification-style remote user handles resolve cached actors", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    actor =
+      remote_actor_fixture(%{
+        uri: "https://mastodon.social/users/dansup",
+        username: "dansup",
+        domain: "mastodon.social",
+        display_name: "Dan"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/@#{actor.username}@#{actor.domain}")
+
+    assert html =~ "@#{actor.username}@#{actor.domain}"
+  end
+
   test "community join buttons render as non-submit buttons", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 
@@ -82,5 +102,45 @@ defmodule ElektrineWeb.RemoteUserLive.FollowButtonTest do
 
     assert length(buttons) == 2
     assert Enum.all?(buttons, &(Floki.attribute(&1, "type") == ["button"]))
+  end
+
+  test "community handles preserve the ! prefix when resolving cached actors", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    actor =
+      remote_actor_fixture(%{
+        actor_type: "Group",
+        uri: "https://lemmy.example/c/elixir",
+        username: "elixir",
+        domain: "lemmy.example",
+        display_name: "Elixir",
+        inbox_url: "https://lemmy.example/inbox"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/!#{actor.username}@#{actor.domain}")
+
+    assert html =~ "!#{actor.username}@#{actor.domain}"
+  end
+
+  test "local-domain handles redirect to the local profile route", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    user = AccountsFixtures.user_fixture(%{username: "maxfield"})
+    expected_path = "/#{user.handle}"
+
+    assert {:error, reason} =
+             conn
+             |> log_in_user(viewer)
+             |> live("/remote/#{user.username}@#{ActivityPub.instance_domain()}")
+
+    assert(
+      case reason do
+        {:live_redirect, %{to: ^expected_path}} -> true
+        {:redirect, %{to: ^expected_path}} -> true
+        _ -> false
+      end
+    )
   end
 end

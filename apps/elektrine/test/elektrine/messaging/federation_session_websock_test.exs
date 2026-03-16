@@ -45,7 +45,7 @@ defmodule Elektrine.Messaging.FederationSessionWebSockTest do
       "payload" => %{
         "version" => 1,
         "delivery_id" => "delivery-1",
-        "stream_id" => "server:https://remote.test/federation/messaging/servers/77",
+        "stream_id" => "server:https://remote.test/_arblarg/servers/77",
         "events" => [signed_server_upsert_event("evt-session-1", 1, "session-room")]
       }
     }
@@ -72,7 +72,7 @@ defmodule Elektrine.Messaging.FederationSessionWebSockTest do
       "delivery_id" => "delivery-2",
       "payload" => %{
         "version" => 1,
-        "stream_id" => "server:https://remote.test/federation/messaging/servers/78",
+        "stream_id" => "server:https://remote.test/_arblarg/servers/78",
         "events" => [signed_server_upsert_event("evt-session-2", 1, "invalid-session-room")]
       }
     }
@@ -89,7 +89,7 @@ defmodule Elektrine.Messaging.FederationSessionWebSockTest do
   end
 
   defp signed_server_upsert_event(event_id, sequence, server_name) do
-    server_id = "https://remote.test/federation/messaging/servers/77"
+    server_id = "https://remote.test/_arblarg/servers/77"
     stream_id = "server:#{server_id}"
 
     %{

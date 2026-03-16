@@ -533,12 +533,9 @@ body.has-blinkenlights #cursor-glow-overlay {
 }
 
 .footer-wordmark-glow {
-  transition: none;
-  will-change: filter, opacity;
-  filter: none;
+  opacity: 0.78;
 }
 
 .footer-wordmark-glow:hover {
-  opacity: 0.46 !important;
-  filter: brightness(1.85) saturate(2.1) contrast(1.08);
+  opacity: 1 !important;
 }

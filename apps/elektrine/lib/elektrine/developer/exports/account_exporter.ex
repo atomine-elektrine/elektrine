@@ -13,6 +13,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
   import Ecto.Query
   alias Elektrine.Accounts.User
+  alias Elektrine.EmailAddresses
   alias Elektrine.Repo
 
   @doc """
@@ -144,7 +145,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
           escape_csv(user.username || ""),
           escape_csv(user.handle || ""),
           escape_csv(user.display_name || ""),
-          escape_csv("#{user.username}@elektrine.com"),
+          escape_csv(EmailAddresses.primary_for_user(user) || ""),
           to_string(contact.followed_at)
         ]
         |> Enum.join(",")
@@ -254,7 +255,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
     FN:#{display_name}
     N:;#{display_name};;;
     NICKNAME:#{user.username}
-    EMAIL:#{user.username}@elektrine.com
+    EMAIL:#{EmailAddresses.primary_for_user(user)}
     X-SOCIALPROFILE;TYPE=elektrine:#{user.handle}
     REV:#{DateTime.utc_now() |> DateTime.to_iso8601()}
     END:VCARD
@@ -280,7 +281,7 @@ defmodule Elektrine.Developer.Exports.AccountExporter do
 
     """
     BEGIN:VEVENT
-    UID:#{event.id}@elektrine.com
+    UID:#{EmailAddresses.uid(event.id)}
     DTSTART:#{start_dt}
     DTEND:#{end_dt}
     SUMMARY:#{escape_ical(event.title)}

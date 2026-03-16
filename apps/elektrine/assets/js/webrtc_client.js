@@ -8,11 +8,12 @@ const ICE_RESTART_DELAY_MS = 1200
 const MAX_ICE_RESTART_ATTEMPTS = 2
 
 export class WebRTCClient {
-  constructor(socket, callId, userId, iceServers) {
+  constructor(socket, callId, userId, iceServers, transport = null) {
     this.socket = socket
     this.callId = callId
     this.userId = userId
     this.iceServers = iceServers || []
+    this.transport = transport || {}
     this.channel = null
     this.peerConnection = null
     this.localStream = null
@@ -31,6 +32,8 @@ export class WebRTCClient {
     this.iceRestartTimer = null
     this.onlineHandler = null
     this.offlineHandler = null
+    this.peerReady = false
+    this.shouldInitiateOnPeerReady = false
   }
 
   /**
@@ -65,6 +68,17 @@ export class WebRTCClient {
    */
   setupChannelHandlers() {
     this.channel.on("peer_ready", async () => {
+      this.peerReady = true
+
+      if (this.shouldInitiateOnPeerReady && !this.pendingOffer) {
+        try {
+          await this.initiateOffer()
+        } catch (_error) {
+          this.finishCall("failed")
+          return
+        }
+      }
+
       await this.flushPendingOffer()
     })
 
@@ -208,16 +222,22 @@ export class WebRTCClient {
       throw new Error("Client already cleaned up")
     }
 
-    await this.getUserMedia(callType)
+    await this.prepareLocalPeer(callType)
+    this.shouldInitiateOnPeerReady = true
+    await this.initiateOffer()
+  }
 
-    const peer = this.createPeerConnection()
-    this.attachLocalTracks(peer)
+  async resumeCall(callType = "video", initiator = false) {
+    if (this.disposed) {
+      throw new Error("Client already cleaned up")
+    }
 
-    const offer = await peer.createOffer()
-    await peer.setLocalDescription(offer)
+    await this.prepareLocalPeer(callType)
+    this.shouldInitiateOnPeerReady = initiator
 
-    this.pendingOffer = offer
-    await this.flushPendingOffer()
+    if (this.channel && this.channel.state === "joined") {
+      this.channel.push("ready_to_receive", {})
+    }
   }
 
   /**
@@ -345,7 +365,7 @@ export class WebRTCClient {
   }
 
   async flushPendingOffer() {
-    if (!this.pendingOffer || !this.channel || this.channel.state !== "joined") {
+    if (!this.pendingOffer || !this.peerReady || !this.channel || this.channel.state !== "joined") {
       return
     }
 
@@ -498,6 +518,8 @@ export class WebRTCClient {
     this.pendingOffer = null
     this.iceCandidateQueue = []
     this.remoteDescriptionSet = false
+    this.peerReady = false
+    this.shouldInitiateOnPeerReady = false
   }
 
   /**
@@ -533,5 +555,21 @@ export class WebRTCClient {
    */
   getRemoteStream() {
     return this.remoteStream
+  }
+
+  async prepareLocalPeer(callType) {
+    await this.getUserMedia(callType)
+
+    const peer = this.createPeerConnection()
+    this.attachLocalTracks(peer)
+    return peer
+  }
+
+  async initiateOffer() {
+    const peer = this.createPeerConnection()
+    const offer = await peer.createOffer()
+    await peer.setLocalDescription(offer)
+    this.pendingOffer = offer
+    await this.flushPendingOffer()
   }
 }

@@ -36,7 +36,8 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
   def resolve_local_dm_recipient(recipient_payload, context)
       when is_map(recipient_payload) and is_map(context) do
-    with {:ok, recipient} <- normalize_dm_actor_payload(recipient_payload, call(context, :local_domain, [])),
+    with {:ok, recipient} <-
+           normalize_dm_actor_payload(recipient_payload, call(context, :local_domain, [])),
          true <- recipient.domain == call(context, :local_domain, []),
          %User{} = local_user <- Accounts.get_user_by_username(recipient.username) do
       {:ok, local_user}
@@ -47,10 +48,11 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     end
   end
 
-  def resolve_local_dm_recipient(_recipient_payload, _context), do: {:error, :invalid_event_payload}
+  def resolve_local_dm_recipient(_recipient_payload, _context),
+    do: {:error, :invalid_event_payload}
 
   def resolve_remote_dm_sender(sender_payload, remote_domain)
-       when is_map(sender_payload) and is_binary(remote_domain) do
+      when is_map(sender_payload) and is_binary(remote_domain) do
     normalized_remote_domain = String.downcase(remote_domain)
 
     with {:ok, sender} <- normalize_dm_actor_payload(sender_payload, normalized_remote_domain),
@@ -66,22 +68,23 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     do: {:error, :invalid_event_payload}
 
   def ensure_remote_dm_conversation(%User{} = local_user, remote_sender)
-       when is_map(remote_sender) do
-    remote_source = remote_dm_source(remote_sender.handle)
+      when is_map(remote_sender) do
+    remote_source = remote_dm_source(remote_sender)
+    remote_sources = remote_dm_source_candidates(remote_sender)
 
     existing_remote_dm =
       from(c in Conversation,
         join: cm in ConversationMember,
         on: c.id == cm.conversation_id,
         where:
-          c.type == "dm" and c.federated_source == ^remote_source and
+          c.type == "dm" and c.federated_source in ^remote_sources and
             cm.user_id == ^local_user.id and is_nil(cm.left_at),
         limit: 1
       )
 
     case Repo.one(existing_remote_dm) do
       %Conversation{} = conversation ->
-        {:ok, conversation}
+        maybe_upgrade_remote_dm_source(conversation, remote_source)
 
       nil ->
         case Repo.transaction(fn ->
@@ -216,6 +219,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
       end
 
     call(context, :broadcast_conversation_event, [conversation.id, {:new_chat_message, decrypted}])
+
     Elektrine.AppCache.invalidate_chat_cache(local_user.id)
 
     Phoenix.PubSub.broadcast(
@@ -261,7 +265,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
   end
 
   def normalize_dm_actor_payload(payload, fallback_domain)
-       when is_map(payload) and is_binary(fallback_domain) do
+      when is_map(payload) and is_binary(fallback_domain) do
     normalized_fallback_domain = String.downcase(fallback_domain)
     raw_uri = normalize_optional_string(payload["uri"] || payload[:uri])
     raw_handle = normalize_optional_string(payload["handle"] || payload[:handle])
@@ -329,11 +333,8 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
   def normalize_remote_dm_handle(_handle), do: {:error, :invalid_remote_handle}
 
   def remote_dm_handle_from_source(source) when is_binary(source) do
-    with true <- String.starts_with?(source, @remote_dm_source_prefix),
-         {:ok, recipient} <-
-           source
-           |> String.replace_prefix(@remote_dm_source_prefix, "")
-           |> normalize_remote_dm_handle() do
+    with remote_handle when is_binary(remote_handle) <- remote_dm_source_value(source),
+         {:ok, recipient} <- normalize_remote_dm_handle(remote_handle) do
       recipient.handle
     else
       _ -> nil
@@ -342,7 +343,85 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
   def remote_dm_handle_from_source(_source), do: nil
 
-  defp remote_dm_source(handle), do: @remote_dm_source_prefix <> handle
+  def remote_dm_uri_from_source(source) when is_binary(source) do
+    case String.split(source, "|", parts: 2) do
+      [uri_source, _rest] ->
+        uri_source
+        |> String.replace_prefix(@remote_dm_source_prefix <> "uri:", "")
+        |> URI.decode_www_form()
+        |> normalize_optional_string()
+
+      _ ->
+        nil
+    end
+  end
+
+  def remote_dm_uri_from_source(_source), do: nil
+
+  def remote_dm_source(remote_sender) when is_map(remote_sender) do
+    uri = Map.get(remote_sender, :uri) || Map.get(remote_sender, "uri")
+    handle = Map.get(remote_sender, :handle) || Map.get(remote_sender, "handle")
+
+    if is_binary(uri) and is_binary(handle) do
+      @remote_dm_source_prefix <> "uri:" <> URI.encode_www_form(uri) <> "|handle:" <> handle
+    else
+      remote_dm_source(handle)
+    end
+  end
+
+  def remote_dm_source(handle) when is_binary(handle) do
+    @remote_dm_source_prefix <> "handle:" <> handle
+  end
+
+  def remote_dm_source(_handle), do: nil
+
+  defp remote_dm_source_candidates(remote_sender) when is_map(remote_sender) do
+    handle = Map.get(remote_sender, :handle) || Map.get(remote_sender, "handle")
+
+    [
+      remote_dm_source(remote_sender),
+      remote_dm_source(handle),
+      if(is_binary(handle), do: @remote_dm_source_prefix <> handle)
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+  end
+
+  defp remote_dm_source_candidates(_remote_sender), do: []
+
+  defp remote_dm_source_value(source) do
+    cond do
+      !String.starts_with?(source, @remote_dm_source_prefix) ->
+        nil
+
+      String.starts_with?(source, @remote_dm_source_prefix <> "uri:") ->
+        source
+        |> String.split("|handle:", parts: 2)
+        |> case do
+          [_uri_source, handle] -> handle
+          _ -> nil
+        end
+
+      String.starts_with?(source, @remote_dm_source_prefix <> "handle:") ->
+        String.replace_prefix(source, @remote_dm_source_prefix <> "handle:", "")
+
+      true ->
+        String.replace_prefix(source, @remote_dm_source_prefix, "")
+    end
+  end
+
+  defp maybe_upgrade_remote_dm_source(%Conversation{} = conversation, remote_source) do
+    if is_binary(remote_source) and conversation.federated_source != remote_source do
+      case conversation
+           |> Conversation.changeset(%{federated_source: remote_source})
+           |> Repo.update() do
+        {:ok, updated_conversation} -> {:ok, updated_conversation}
+        {:error, _reason} -> {:ok, conversation}
+      end
+    else
+      {:ok, conversation}
+    end
+  end
 
   defp maybe_notify_remote_dm_recipient(
          %User{notify_on_direct_message: false},

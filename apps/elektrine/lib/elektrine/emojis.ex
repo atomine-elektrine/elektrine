@@ -11,10 +11,20 @@ defmodule Elektrine.Emojis do
   Returns nil if not found.
   """
   def get_custom_emoji(shortcode, instance_domain \\ nil) do
-    Repo.one(
+    query =
       from e in CustomEmoji,
-        where: e.shortcode == ^shortcode and e.instance_domain == ^instance_domain
-    )
+        where: e.shortcode == ^shortcode
+
+    query =
+      case direct_lookup_scope(instance_domain) do
+        :local ->
+          from e in query, where: is_nil(e.instance_domain)
+
+        {:domain, domain} ->
+          from e in query, where: e.instance_domain == ^domain
+      end
+
+    Repo.one(query)
   end
 
   @doc """
@@ -232,16 +242,53 @@ defmodule Elektrine.Emojis do
       from e in CustomEmoji,
         where: e.shortcode in ^shortcodes and e.disabled == false
 
-    # If instance_domain is provided, filter by it; otherwise get from any instance
     query =
-      if instance_domain do
-        from e in query, where: e.instance_domain == ^instance_domain
-      else
-        query
+      case render_lookup_scope(instance_domain) do
+        :any ->
+          query
+
+        :local ->
+          from e in query, where: is_nil(e.instance_domain)
+
+        {:domain, domain} ->
+          from e in query, where: e.instance_domain == ^domain
       end
 
     Repo.all(query)
   end
+
+  defp direct_lookup_scope(instance_domain) do
+    case normalize_lookup_instance_domain(instance_domain) do
+      nil -> :local
+      :local -> :local
+      domain -> {:domain, domain}
+    end
+  end
+
+  defp render_lookup_scope(instance_domain) do
+    case normalize_lookup_instance_domain(instance_domain) do
+      nil -> :any
+      :local -> :local
+      domain -> {:domain, domain}
+    end
+  end
+
+  defp normalize_lookup_instance_domain(instance_domain) when is_binary(instance_domain) do
+    normalized = String.trim(instance_domain)
+
+    cond do
+      normalized == "" ->
+        nil
+
+      String.downcase(normalized) == String.downcase(Elektrine.Domains.instance_domain()) ->
+        :local
+
+      true ->
+        normalized
+    end
+  end
+
+  defp normalize_lookup_instance_domain(_), do: nil
 
   defp fetch_emoji_by_shortcode(shortcode) do
     Repo.one(

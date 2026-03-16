@@ -168,6 +168,36 @@ defmodule ElektrineWeb.DAV.CalendarControllerTest do
       assert calendar != nil
     end
 
+    test "creates a new calendar with arbitrary namespace prefixes", %{conn: conn} do
+      user = create_test_user()
+
+      body = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <cal:mkcalendar xmlns:ns0="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:apple="http://apple.com/ns/ical/">
+        <ns0:set>
+          <ns0:prop>
+            <ns0:displayname>Prefix Calendar</ns0:displayname>
+            <cal:calendar-description>Alt Prefix Description</cal:calendar-description>
+            <apple:calendar-color>#ff0000</apple:calendar-color>
+          </ns0:prop>
+        </ns0:set>
+      </cal:mkcalendar>
+      """
+
+      conn =
+        conn
+        |> auth_conn(user)
+        |> put_req_header("content-type", "application/xml")
+        |> request(:mkcalendar, "/calendars/#{user.username}/prefix/", body)
+
+      assert conn.status == 201
+
+      calendar = CalendarContext.get_calendar_by_name(user.id, "Prefix Calendar")
+      assert calendar != nil
+      assert calendar.description == "Alt Prefix Description"
+      assert calendar.color == "#ff0000"
+    end
+
     test "returns 405 if calendar already exists", %{conn: conn} do
       user = create_test_user()
 
@@ -446,6 +476,43 @@ defmodule ElektrineWeb.DAV.CalendarControllerTest do
       assert conn.resp_body =~ "Multiget Event"
     end
 
+    test "handles calendar-multiget with arbitrary DAV namespace prefixes", %{conn: conn} do
+      user = create_test_user()
+
+      {:ok, calendar} =
+        CalendarContext.create_calendar(%{
+          user_id: user.id,
+          name: "Alt Prefix Multiget"
+        })
+
+      {:ok, event} =
+        CalendarContext.create_event(%{
+          calendar_id: calendar.id,
+          summary: "Alt Prefix Event",
+          dtstart: ~U[2024-01-15 10:00:00Z]
+        })
+
+      body = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <x:calendar-multiget xmlns:prop="DAV:" xmlns:x="urn:ietf:params:xml:ns:caldav">
+        <prop:prop>
+          <prop:getetag/>
+          <x:calendar-data/>
+        </prop:prop>
+        <prop:href>/calendars/#{user.username}/#{calendar.id}/#{event.uid}.ics</prop:href>
+      </x:calendar-multiget>
+      """
+
+      conn =
+        conn
+        |> auth_conn(user)
+        |> put_req_header("content-type", "application/xml")
+        |> request(:report, "/calendars/#{user.username}/#{calendar.id}/", body)
+
+      assert conn.status == 207
+      assert conn.resp_body =~ "Alt Prefix Event"
+    end
+
     test "handles calendar-query with time-range", %{conn: conn} do
       user = create_test_user()
 
@@ -531,6 +598,44 @@ defmodule ElektrineWeb.DAV.CalendarControllerTest do
 
       assert conn.status == 207
       assert conn.resp_body =~ event.uid
+    end
+
+    test "uses sync-token values with arbitrary namespace prefixes", %{conn: conn} do
+      user = create_test_user()
+
+      {:ok, calendar} =
+        CalendarContext.create_calendar(%{
+          user_id: user.id,
+          name: "Alt Prefix Sync"
+        })
+
+      {:ok, event} =
+        CalendarContext.create_event(%{
+          calendar_id: calendar.id,
+          summary: "Future Sync Event",
+          dtstart: ~U[2024-01-15 10:00:00Z]
+        })
+
+      future_timestamp = DateTime.utc_now() |> DateTime.add(86_400, :second) |> DateTime.to_unix()
+
+      body = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <dav:sync-collection xmlns:dav="DAV:">
+        <dav:sync-token>data:,ctag-#{future_timestamp}</dav:sync-token>
+        <dav:prop>
+          <dav:getetag/>
+        </dav:prop>
+      </dav:sync-collection>
+      """
+
+      conn =
+        conn
+        |> auth_conn(user)
+        |> put_req_header("content-type", "application/xml")
+        |> request(:report, "/calendars/#{user.username}/#{calendar.id}/", body)
+
+      assert conn.status == 207
+      refute conn.resp_body =~ event.uid
     end
   end
 

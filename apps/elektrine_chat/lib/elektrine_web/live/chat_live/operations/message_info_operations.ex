@@ -242,15 +242,17 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageInfoOperations do
   end
 
   def handle_federation_presence_update(socket, payload) when is_map(payload) do
-    server_id = payload[:server_id] || payload["server_id"]
+    conversation_id = payload[:conversation_id] || payload["conversation_id"]
+    selected_conversation_id = get_in(socket.assigns, [:conversation, :selected, :id])
 
-    if is_integer(server_id) and socket.assigns[:active_server_id] == server_id do
+    if is_integer(conversation_id) and selected_conversation_id == conversation_id do
       remote_actor_id = payload[:remote_actor_id] || payload["remote_actor_id"]
 
       if is_integer(remote_actor_id) do
         existing = socket.assigns[:federation_presence] || %{}
 
         presence_entry = %{
+          conversation_id: conversation_id,
           remote_actor_id: remote_actor_id,
           handle: payload[:handle] || payload["handle"] || "@remote",
           label: payload[:label] || payload["label"] || "@remote",

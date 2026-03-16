@@ -173,7 +173,13 @@ export const PasswordVault = {
   },
 
   updated() {
+    const wasConfigured = this.vaultConfigured
     this.captureElements()
+
+    if (wasConfigured && !this.vaultConfigured) {
+      this.clearUnlockedState()
+    }
+
     this.renderLockState()
   },
 
@@ -299,10 +305,15 @@ export const PasswordVault = {
   },
 
   lockVault() {
-    this.passphrase = null
+    this.clearUnlockedState()
     this.renderLockState()
-    this.hideAllSecrets()
     notify("Vault locked.", "info", "Vault")
+  },
+
+  clearUnlockedState() {
+    this.passphrase = null
+    if (this.passphraseInput) this.passphraseInput.value = ""
+    this.hideAllSecrets()
   },
 
   renderLockState() {

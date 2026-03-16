@@ -43,7 +43,9 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "name" => channel.name,
       "description" => channel.description,
       "topic" => channel.channel_topic,
-      "position" => channel.channel_position
+      "position" => channel.channel_position,
+      "is_public" => channel.is_public,
+      "approval_mode_enabled" => channel.approval_mode_enabled
     }
   end
 
@@ -58,24 +60,25 @@ defmodule Elektrine.Messaging.Federation.Utils do
     %{
       "id" => message.federated_source || message_federation_id(message.id),
       "channel_id" => channel.federated_source || channel_federation_id(channel.id),
-      "content" => message.content,
+      "content" => message.content || "",
       "message_type" => message.message_type,
       "attachments" => attachment_payloads(message),
       "created_at" => format_created_at(message.inserted_at),
       "edited_at" => format_created_at(message.edited_at),
-      "sender" => format_sender(message.sender)
+      "deleted_at" => format_created_at(message.deleted_at),
+      "sender" => message_sender_payload(message)
     }
   end
 
   def event_message_payload(message) do
     %{
       "id" => message.federated_source || message_federation_id(message.id),
-      "content" => message.content,
+      "content" => message.content || "",
       "message_type" => message.message_type,
       "attachments" => attachment_payloads(message),
       "created_at" => format_created_at(message.inserted_at),
       "edited_at" => format_created_at(message.edited_at),
-      "sender" => format_sender(message.sender)
+      "sender" => message_sender_payload(message)
     }
   end
 
@@ -204,19 +207,19 @@ defmodule Elektrine.Messaging.Federation.Utils do
   def normalize_media_urls(_values), do: []
 
   def server_federation_id(server_id) do
-    "#{local_base_url()}/federation/messaging/servers/#{server_id}"
+    "#{local_base_url()}/_arblarg/servers/#{server_id}"
   end
 
   def channel_federation_id(channel_id) do
-    "#{local_base_url()}/federation/messaging/channels/#{channel_id}"
+    "#{local_base_url()}/_arblarg/channels/#{channel_id}"
   end
 
   def message_federation_id(message_id) do
-    "#{local_base_url()}/federation/messaging/messages/#{message_id}"
+    "#{local_base_url()}/_arblarg/messages/#{message_id}"
   end
 
   def dm_federation_id(conversation_id) do
-    "#{local_base_url()}/federation/messaging/dms/#{conversation_id}"
+    "#{local_base_url()}/_arblarg/dms/#{conversation_id}"
   end
 
   defp attachment_metadata_source(message) do
@@ -314,6 +317,13 @@ defmodule Elektrine.Messaging.Federation.Utils do
     }
   end
 
+  def message_sender_payload(message) when is_map(message) do
+    format_sender(Map.get(message, :sender)) ||
+      embedded_sender_payload(Map.get(message, :media_metadata))
+  end
+
+  def message_sender_payload(_message), do: nil
+
   def format_created_at(nil) do
     nil
   end
@@ -352,6 +362,50 @@ defmodule Elektrine.Messaging.Federation.Utils do
     default
   end
 
+  def embedded_sender_payload(metadata) when is_map(metadata) do
+    case metadata["remote_sender"] || metadata[:remote_sender] do
+      %{} = sender ->
+        uri =
+          normalize_optional_string(sender["uri"] || sender[:uri] || sender["id"] || sender[:id])
+
+        username =
+          normalize_optional_string(
+            sender["username"] || sender[:username] || sender["handle"] || sender[:handle]
+          )
+
+        domain =
+          normalize_optional_string(sender["domain"] || sender[:domain]) ||
+            embedded_sender_domain_from_uri(uri)
+
+        handle =
+          normalize_optional_string(sender["handle"] || sender[:handle]) ||
+            embedded_sender_handle(username, domain)
+
+        display_name =
+          normalize_optional_string(sender["display_name"] || sender[:display_name]) || username
+
+        if is_binary(uri) or is_binary(username) or is_binary(handle) do
+          %{
+            "id" => uri || handle || username,
+            "uri" => uri || handle || username,
+            "username" => username || handle || "remote",
+            "display_name" => display_name || username || handle || "remote",
+            "domain" => domain,
+            "handle" => handle
+          }
+          |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+          |> Map.new()
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def embedded_sender_payload(_metadata), do: nil
+
   def infer_remote_server_id(payload) when is_map(payload) do
     payload_data = payload["payload"] || %{}
     refs = payload_data["refs"] || %{}
@@ -377,6 +431,35 @@ defmodule Elektrine.Messaging.Federation.Utils do
   def infer_remote_server_id(_) do
     {:error, :cannot_infer_snapshot_server_id}
   end
+
+  def infer_room_origin_domain(payload) when is_map(payload) do
+    payload_data = payload["payload"] || payload
+    refs = payload_data["refs"] || %{}
+
+    server_host =
+      (get_in(payload_data, ["server", "id"]) || refs["server_id"])
+      |> uri_host()
+
+    channel_host =
+      (get_in(payload_data, ["channel", "id"]) || refs["channel_id"])
+      |> uri_host()
+
+    cond do
+      is_binary(server_host) and is_binary(channel_host) and server_host == channel_host ->
+        server_host
+
+      is_binary(channel_host) ->
+        channel_host
+
+      is_binary(server_host) ->
+        server_host
+
+      true ->
+        nil
+    end
+  end
+
+  def infer_room_origin_domain(_payload), do: nil
 
   def infer_remote_server_id_from_federation_id(federation_id) when is_binary(federation_id) do
     case extract_trailing_integer(federation_id) do
@@ -413,6 +496,31 @@ defmodule Elektrine.Messaging.Federation.Utils do
   def extract_trailing_integer(_) do
     nil
   end
+
+  def uri_host(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{host: host} when is_binary(host) and host != "" -> String.downcase(host)
+      _ -> nil
+    end
+  end
+
+  def uri_host(_value), do: nil
+
+  defp embedded_sender_domain_from_uri(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> String.downcase(host)
+      _ -> nil
+    end
+  end
+
+  defp embedded_sender_domain_from_uri(_uri), do: nil
+
+  defp embedded_sender_handle(username, domain)
+       when is_binary(username) and is_binary(domain) and username != "" and domain != "" do
+    "#{username}@#{domain}"
+  end
+
+  defp embedded_sender_handle(_username, _domain), do: nil
 
   defp body_digest(body) when is_binary(body) do
     "sha-256=" <> ArblargSDK.body_digest(body)

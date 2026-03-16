@@ -7,6 +7,17 @@ defmodule ElektrineWeb.Layouts do
 
   alias Elektrine.Platform.Modules
 
+  @footer_wordmark_palette [
+    "#ff2b2b",
+    "#2455ff",
+    "#ffe600",
+    "#ffffff",
+    "#00e5ff",
+    "#56ff00",
+    "#ff00c8",
+    "#ff7a00"
+  ]
+
   @doc ~s|Gets active announcements for display in layouts.\nThis function is called from the layout templates.\n|
   def get_active_announcements do
     Elektrine.Admin.list_active_announcements()
@@ -354,6 +365,24 @@ defmodule ElektrineWeb.Layouts do
     end
   end
 
+  @doc ~s|Returns a random hard-stop gradient for the footer wordmark.\n|
+  def footer_wordmark_style do
+    colors = Enum.take_random(@footer_wordmark_palette, 4)
+    angle = Enum.random(0..359)
+    band_size = div(100, length(colors))
+
+    stops =
+      colors
+      |> Enum.with_index()
+      |> Enum.map_join(", ", fn {color, index} ->
+        start_pct = index * band_size
+        end_pct = (index + 1) * band_size
+        "#{color} #{start_pct}% #{end_pct}%"
+      end)
+
+    "background-image: linear-gradient(#{angle}deg, #{stops});"
+  end
+
   @doc ~s|Gets the CSS class for status indicator based on user status.\n|
   def status_indicator_class("online") do
     "bg-success"
@@ -393,8 +422,14 @@ defmodule ElektrineWeb.Layouts do
         _ -> ""
       end
 
-    (is_binary(path) and String.starts_with?(path, "/chat")) or
-      String.contains?(socket_view, "ChatLive")
+    full_width_path? =
+      is_binary(path) and
+        Enum.any?(
+          ["/chat", "/timeline", "/gallery", "/email", "/communities", "/d/"],
+          &String.starts_with?(path, &1)
+        )
+
+    full_width_path? or String.contains?(socket_view, "ChatLive")
   end
 
   defp determine_grid_from_path(assigns) do

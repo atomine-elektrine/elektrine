@@ -354,111 +354,116 @@ defmodule Elektrine.Search do
 
   # Search email messages and mailboxes
   defp search_emails(user, search_term, limit) do
-    # Extract keywords and hash them for blind index search
-    keywords = Elektrine.Encryption.extract_keywords(search_term)
+    if not Elektrine.Platform.Modules.compiled?(:email) do
+      []
+    else
+      keywords = Elektrine.Encryption.extract_keywords(search_term)
 
-    # Search user's email messages
-    messages =
-      if Enum.empty?(keywords) do
-        []
-      else
-        keyword_hashes =
-          Enum.map(keywords, fn kw ->
-            Elektrine.Encryption.hash_keyword(kw, user.id)
-          end)
+      messages =
+        if Enum.empty?(keywords) do
+          []
+        else
+          keyword_hashes =
+            Enum.map(keywords, fn kw ->
+              Elektrine.Encryption.hash_keyword(kw, user.id)
+            end)
 
-        from(m in Elektrine.Email.Message,
-          join: mb in Elektrine.Email.Mailbox,
-          on: m.mailbox_id == mb.id,
+          from(m in Elektrine.Email.Message,
+            join: mb in Elektrine.Email.Mailbox,
+            on: m.mailbox_id == mb.id,
+            where:
+              mb.user_id == ^user.id and
+                (ilike(m.subject, ^search_term) or
+                   ilike(m.from, ^search_term) or
+                   ilike(m.to, ^search_term) or
+                   fragment("? && ?", m.search_index, ^keyword_hashes)),
+            select: %{
+              id: m.id,
+              type: "email",
+              title: m.subject,
+              content: "Email message",
+              url: fragment("CONCAT(?, ?)", "/email/view/", m.id),
+              updated_at: m.inserted_at,
+              relevance: 0.8,
+              mailbox_id: m.mailbox_id
+            },
+            limit: ^div(limit, 6)
+          )
+          |> Repo.all()
+          |> decrypt_email_content(user.id)
+        end
+
+      mailboxes =
+        from(mb in Elektrine.Email.Mailbox,
           where:
             mb.user_id == ^user.id and
-              (ilike(m.subject, ^search_term) or
-                 ilike(m.from, ^search_term) or
-                 ilike(m.to, ^search_term) or
-                 fragment("? && ?", m.search_index, ^keyword_hashes)),
+              ilike(mb.email, ^search_term),
           select: %{
-            id: m.id,
-            type: "email",
-            title: m.subject,
-            content: "Email message",
-            url: fragment("CONCAT(?, ?)", "/email/view/", m.id),
-            updated_at: m.inserted_at,
-            relevance: 0.8,
-            mailbox_id: m.mailbox_id
+            id: mb.id,
+            type: "mailbox",
+            title: mb.email,
+            content: "Email mailbox",
+            url: "/email",
+            updated_at: mb.inserted_at,
+            relevance: 0.9
           },
           limit: ^div(limit, 6)
         )
         |> Repo.all()
-        |> decrypt_email_content(user.id)
-      end
 
-    # Search user's mailboxes
-    mailboxes =
-      from(mb in Elektrine.Email.Mailbox,
-        where:
-          mb.user_id == ^user.id and
-            ilike(mb.email, ^search_term),
-        select: %{
-          id: mb.id,
-          type: "mailbox",
-          title: mb.email,
-          content: "Email mailbox",
-          url: "/email",
-          updated_at: mb.inserted_at,
-          relevance: 0.9
-        },
-        limit: ^div(limit, 6)
-      )
-      |> Repo.all()
-
-    messages ++ mailboxes
+      messages ++ mailboxes
+    end
   end
 
   defp search_files(user, search_term, limit) do
-    from(m in Elektrine.Email.Message,
-      join: mb in Elektrine.Email.Mailbox,
-      on: m.mailbox_id == mb.id,
-      where:
-        mb.user_id == ^user.id and
-          m.has_attachments == true and
-          m.deleted == false and
-          (ilike(m.subject, ^search_term) or ilike(m.from, ^search_term) or
-             fragment("CAST(? AS text) ILIKE ?", m.attachments, ^search_term)),
-      select: %{
-        id: m.id,
-        type: "file",
-        subject: m.subject,
-        from: m.from,
-        attachments: m.attachments,
-        updated_at: m.inserted_at,
-        relevance: 0.72
-      },
-      limit: ^max(div(limit, 8), 3),
-      order_by: [desc: m.inserted_at]
-    )
-    |> Repo.all()
-    |> Enum.map(fn result ->
-      attachment_name = first_attachment_name(result.attachments)
-      subject = if is_binary(result.subject), do: String.trim(result.subject), else: ""
-      from = if is_binary(result.from), do: String.trim(result.from), else: "Unknown sender"
+    if not Elektrine.Platform.Modules.compiled?(:email) do
+      []
+    else
+      from(m in Elektrine.Email.Message,
+        join: mb in Elektrine.Email.Mailbox,
+        on: m.mailbox_id == mb.id,
+        where:
+          mb.user_id == ^user.id and
+            m.has_attachments == true and
+            m.deleted == false and
+            (ilike(m.subject, ^search_term) or ilike(m.from, ^search_term) or
+               fragment("CAST(? AS text) ILIKE ?", m.attachments, ^search_term)),
+        select: %{
+          id: m.id,
+          type: "file",
+          subject: m.subject,
+          from: m.from,
+          attachments: m.attachments,
+          updated_at: m.inserted_at,
+          relevance: 0.72
+        },
+        limit: ^max(div(limit, 8), 3),
+        order_by: [desc: m.inserted_at]
+      )
+      |> Repo.all()
+      |> Enum.map(fn result ->
+        attachment_name = first_attachment_name(result.attachments)
+        subject = if is_binary(result.subject), do: String.trim(result.subject), else: ""
+        from = if is_binary(result.from), do: String.trim(result.from), else: "Unknown sender"
 
-      title =
-        cond do
-          attachment_name != nil -> attachment_name
-          subject != "" -> subject
-          true -> "Email attachment"
-        end
+        title =
+          cond do
+            attachment_name != nil -> attachment_name
+            subject != "" -> subject
+            true -> "Email attachment"
+          end
 
-      %{
-        id: result.id,
-        type: "file",
-        title: title,
-        content: "File in email from #{from}",
-        url: "/email/view/#{result.id}",
-        updated_at: result.updated_at,
-        relevance: result.relevance
-      }
-    end)
+        %{
+          id: result.id,
+          type: "file",
+          title: title,
+          content: "File in email from #{from}",
+          url: "/email/view/#{result.id}",
+          updated_at: result.updated_at,
+          relevance: result.relevance
+        }
+      end)
+    end
   end
 
   defp search_settings(query, limit, scopes, strict_scopes?) do
@@ -501,21 +506,25 @@ defmodule Elektrine.Search do
         |> Enum.map(fn action -> %{text: action.title, type: "action"} end)
       else
         email_domains =
-          from(m in Elektrine.Email.Message,
-            join: mb in Elektrine.Email.Mailbox,
-            on: m.mailbox_id == mb.id,
-            where:
-              mb.user_id == ^user.id and
-                ilike(m.from, ^search_term),
-            select: %{
-              text: fragment("SPLIT_PART(?, '@', 2)", m.from),
-              type: "email_domain"
-            },
-            distinct: fragment("SPLIT_PART(?, '@', 2)", m.from),
-            limit: ^limit
-          )
-          |> Repo.all()
-          |> Enum.filter(&(&1.text != ""))
+          if Elektrine.Platform.Modules.compiled?(:email) do
+            from(m in Elektrine.Email.Message,
+              join: mb in Elektrine.Email.Mailbox,
+              on: m.mailbox_id == mb.id,
+              where:
+                mb.user_id == ^user.id and
+                  ilike(m.from, ^search_term),
+              select: %{
+                text: fragment("SPLIT_PART(?, '@', 2)", m.from),
+                type: "email_domain"
+              },
+              distinct: fragment("SPLIT_PART(?, '@', 2)", m.from),
+              limit: ^limit
+            )
+            |> Repo.all()
+            |> Enum.filter(&(&1.text != ""))
+          else
+            []
+          end
 
         people_filter = person_match_dynamic(search_patterns)
 

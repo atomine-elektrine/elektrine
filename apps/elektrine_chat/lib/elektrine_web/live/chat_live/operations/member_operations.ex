@@ -14,11 +14,23 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
   alias Elektrine.Messaging, as: Messaging
 
   def handle_event("show_add_members", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members_modal, true))}
+    pending_remote_join_requests =
+      load_pending_remote_join_requests(
+        socket.assigns.conversation.selected,
+        socket.assigns.current_user
+      )
+
+    {:noreply,
+     socket
+     |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members_modal, true))
+     |> assign(:pending_remote_join_requests, pending_remote_join_requests)}
   end
 
   def handle_event("hide_add_members", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))}
+    {:noreply,
+     socket
+     |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))
+     |> assign(:pending_remote_join_requests, [])}
   end
 
   def handle_event("add_member_to_conversation", %{"user_id" => user_id}, socket) do
@@ -35,6 +47,14 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to add member")}
     end
+  end
+
+  def handle_event("approve_remote_join_request", %{"remote_actor_id" => remote_actor_id}, socket) do
+    review_remote_join_request(socket, remote_actor_id, :approve)
+  end
+
+  def handle_event("decline_remote_join_request", %{"remote_actor_id" => remote_actor_id}, socket) do
+    review_remote_join_request(socket, remote_actor_id, :decline)
   end
 
   def handle_event("kick_member", %{"user_id" => user_id}, socket) do
@@ -54,7 +74,12 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
     conversation = socket.assigns.conversation.selected
     user_id = String.to_integer(user_id)
 
-    case Messaging.update_member_role(conversation.id, user_id, "admin") do
+    case Messaging.update_member_role(
+           conversation.id,
+           user_id,
+           "admin",
+           socket.assigns.current_user.id
+         ) do
       {:ok, _} ->
         {:noreply, notify_info(socket, "Member promoted to admin")}
 
@@ -67,7 +92,12 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
     conversation = socket.assigns.conversation.selected
     user_id = String.to_integer(user_id)
 
-    case Messaging.update_member_role(conversation.id, user_id, "member") do
+    case Messaging.update_member_role(
+           conversation.id,
+           user_id,
+           "member",
+           socket.assigns.current_user.id
+         ) do
       {:ok, _} ->
         {:noreply, notify_info(socket, "Member demoted")}
 
@@ -126,5 +156,89 @@ defmodule ElektrineWeb.ChatLive.Operations.MemberOperations do
 
   def handle_event("hide_moderation_log", _params, socket) do
     {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_moderation_log, false))}
+  end
+
+  defp review_remote_join_request(socket, remote_actor_id, decision)
+       when decision in [:approve, :decline] do
+    conversation = socket.assigns.conversation.selected
+
+    with true <- can_manage_remote_join_requests?(conversation, socket.assigns.current_user),
+         {parsed_remote_actor_id, ""} <- Integer.parse(remote_actor_id) do
+      result =
+        case decision do
+          :approve ->
+            Messaging.approve_remote_join_request(
+              conversation.id,
+              parsed_remote_actor_id,
+              socket.assigns.current_user.id
+            )
+
+          :decline ->
+            Messaging.decline_remote_join_request(
+              conversation.id,
+              parsed_remote_actor_id,
+              socket.assigns.current_user.id
+            )
+        end
+
+      case result do
+        {:ok, _request} ->
+          updated_requests =
+            load_pending_remote_join_requests(conversation, socket.assigns.current_user)
+
+          message =
+            if decision == :approve do
+              "Remote join approved"
+            else
+              "Remote join declined"
+            end
+
+          {:noreply,
+           socket
+           |> assign(:pending_remote_join_requests, updated_requests)
+           |> notify_info(message)}
+
+        {:error, :not_found} ->
+          {:noreply, notify_error(socket, "Remote join request not found")}
+
+        {:error, _reason} ->
+          {:noreply, notify_error(socket, "Failed to review remote join request")}
+      end
+    else
+      false ->
+        {:noreply, notify_error(socket, "You don't have permission to review remote joins")}
+
+      _ ->
+        {:noreply, notify_error(socket, "Invalid remote join request")}
+    end
+  end
+
+  defp load_pending_remote_join_requests(
+         %{type: "channel", is_federated_mirror: false, id: conversation_id} = conversation,
+         current_user
+       ) do
+    if can_manage_remote_join_requests?(conversation, current_user) do
+      Messaging.list_pending_remote_join_requests(conversation_id)
+    else
+      []
+    end
+  end
+
+  defp load_pending_remote_join_requests(_conversation, _current_user), do: []
+
+  defp can_manage_remote_join_requests?(conversation, current_user) do
+    current_member =
+      case conversation do
+        %{members: members} when is_list(members) ->
+          Enum.find(members, fn member ->
+            member.user_id == Map.get(current_user, :id) and is_nil(member.left_at)
+          end)
+
+        _ ->
+          nil
+      end
+
+    Map.get(current_user, :is_admin, false) or
+      (!!current_member && current_member.role in ["owner", "admin", "moderator"])
   end
 end

@@ -2,6 +2,7 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
   @moduledoc false
 
   alias Elektrine.Messaging.ArblargSDK
+
   alias Elektrine.Messaging.Federation.{
     Contexts,
     DirectMessages,
@@ -44,9 +45,16 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
 
   def apply_event(event_type, data, remote_domain) when is_binary(event_type) do
     canonical_event_type = ArblargSDK.canonical_event_type(event_type)
-    handler_event_type = Map.get(ArblargSDK.schema_bindings(), canonical_event_type, canonical_event_type)
 
-    case DirectMessages.apply_event(handler_event_type, data, remote_domain, direct_message_context()) do
+    handler_event_type =
+      Map.get(ArblargSDK.schema_bindings(), canonical_event_type, canonical_event_type)
+
+    case DirectMessages.apply_event(
+           handler_event_type,
+           data,
+           remote_domain,
+           direct_message_context()
+         ) do
       {:error, :unhandled_event_type} ->
         case MirrorEvents.apply_event(
                handler_event_type,
@@ -99,7 +107,8 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
 
   defp extension_event_context do
     Contexts.extension_event(%{
-      parse_datetime: &Utils.parse_datetime/1
+      parse_datetime: &Utils.parse_datetime/1,
+      actor_context: &actor_context/0
     })
   end
 

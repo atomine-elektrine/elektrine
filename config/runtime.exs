@@ -325,7 +325,9 @@ if System.get_env("EMAIL_SERVICE") == "haraka" do
     adapter: Elektrine.Email.HarakaAdapter,
     api_key:
       first_present_env.(["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY"]),
-    base_url: first_present_env.(["HARAKA_BASE_URL"]) || "https://mail.elektrine.com",
+    base_url:
+      first_present_env.(["HARAKA_BASE_URL"]) ||
+        "https://mail.#{System.get_env("PRIMARY_DOMAIN") || System.get_env("EMAIL_DOMAIN") || "elektrine.com"}",
     timeout: 30_000
 
   # Enable API client for Haraka

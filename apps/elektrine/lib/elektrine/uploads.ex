@@ -65,6 +65,16 @@ defmodule Elektrine.Uploads do
   ]
   @favicon_extensions ~w[.png .ico .svg .jpg .jpeg]
   @max_favicon_size Constants.max_favicon_size()
+  @private_attachment_prefixes ~w[
+    attachments/
+    chat-attachments/
+    timeline-attachments/
+    discussion-attachments/
+    gallery-attachments/
+    voice-messages/
+  ]
+  @private_attachment_token_salt "private attachment"
+  @private_attachment_token_ttl_seconds 3600
   @malicious_patterns [
     ~r/<?php/i,
     ~r/<\?=/i,
@@ -855,6 +865,10 @@ defmodule Elektrine.Uploads do
     String.contains?(key, ["..", "\\"])
   end
 
+  defp allowed_private_attachment_prefix?(key) when is_binary(key) do
+    Enum.any?(@private_attachment_prefixes, &String.starts_with?(key, &1))
+  end
+
   @doc "Returns the public URL for an avatar.\n\nThe avatar value could be a filename or a full URL depending on storage adapter.\n"
   def avatar_url(nil) do
     nil
@@ -865,10 +879,9 @@ defmodule Elektrine.Uploads do
   end
 
   def avatar_url(avatar) when is_binary(avatar) do
-    if String.starts_with?(avatar, "http") do
-      avatar
-    else
-      avatar |> prefixed_key("avatars") |> public_storage_url()
+    case get_config(:adapter) do
+      :local -> local_upload_url(avatar, "avatars")
+      :s3 -> remote_upload_url(avatar, "avatars")
     end
   end
 
@@ -1030,7 +1043,7 @@ defmodule Elektrine.Uploads do
   defp attachment_url_presigned(attachment) do
     cond do
       get_config(:adapter) == :local ->
-        attachment_url_direct(attachment)
+        local_private_attachment_url(attachment)
 
       String.starts_with?(attachment, "http") ->
         attachment
@@ -1058,6 +1071,67 @@ defmodule Elektrine.Uploads do
         else
           attachment_url_direct(attachment)
         end
+    end
+  end
+
+  def verify_private_attachment_token(token) when is_binary(token) do
+    with {:ok, key} <-
+           Phoenix.Token.verify(
+             ElektrineWeb.Endpoint,
+             @private_attachment_token_salt,
+             token,
+             max_age: @private_attachment_token_ttl_seconds
+           ),
+         {:ok, normalized_key} <- normalize_local_delete_key(key),
+         false <- invalid_delete_key?(normalized_key),
+         true <- allowed_private_attachment_prefix?(normalized_key) do
+      {:ok, normalized_key}
+    else
+      true -> {:error, :invalid_attachment_key}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :invalid_token}
+    end
+  end
+
+  def verify_private_attachment_token(_token), do: {:error, :invalid_token}
+
+  def private_attachment_local_path(key) when is_binary(key) do
+    if get_config(:adapter) != :local do
+      {:error, :unsupported_adapter}
+    else
+      uploads_dir = get_config(:uploads_dir) || "priv/static/uploads"
+      uploads_root = Path.expand(uploads_dir)
+      filepath = Path.expand(Path.join(uploads_root, key))
+
+      cond do
+        invalid_delete_key?(key) ->
+          {:error, :invalid_attachment_key}
+
+        not allowed_private_attachment_prefix?(key) ->
+          {:error, :invalid_attachment_key}
+
+        not String.starts_with?(filepath, uploads_root <> "/") ->
+          {:error, :invalid_attachment_key}
+
+        File.regular?(filepath) ->
+          {:ok, filepath}
+
+        true ->
+          {:error, :not_found}
+      end
+    end
+  end
+
+  def private_attachment_local_path(_key), do: {:error, :invalid_attachment_key}
+
+  defp local_private_attachment_url(attachment) do
+    with {:ok, key} <- normalize_local_delete_key(attachment),
+         false <- invalid_delete_key?(key),
+         true <- allowed_private_attachment_prefix?(key) do
+      token = Phoenix.Token.sign(ElektrineWeb.Endpoint, @private_attachment_token_salt, key)
+      "/api/private-attachments/#{token}"
+    else
+      _ -> attachment_url_direct(attachment)
     end
   end
 

@@ -172,6 +172,60 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:error, :not_found} = PasswordManager.get_entry_ciphertext(user.id, entry.id)
     end
 
+    test "update_entry/3 updates client-encrypted payloads for the owner", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert {:ok, entry} =
+               PasswordManager.create_entry(user.id, %{
+                 "title" => "Email",
+                 "login_username" => "old@example.com",
+                 "website" => "https://mail.example.com",
+                 "encrypted_password" => encrypted_payload("old-password")
+               })
+
+      assert {:ok, updated_entry} =
+               PasswordManager.update_entry(user.id, entry.id, %{
+                 "title" => "Email Account",
+                 "login_username" => "new@example.com",
+                 "website" => "https://mail.example.com",
+                 "encrypted_password" => encrypted_payload("new-password"),
+                 "encrypted_notes" => encrypted_payload("rotated")
+               })
+
+      assert updated_entry.title == "Email Account"
+      assert updated_entry.login_username == "new@example.com"
+
+      stored_entry = Repo.get!(VaultEntry, entry.id)
+
+      assert stored_entry.encrypted_password["ciphertext"] ==
+               encrypted_payload("new-password")["ciphertext"]
+
+      assert stored_entry.encrypted_notes["ciphertext"] ==
+               encrypted_payload("rotated")["ciphertext"]
+    end
+
+    test "update_entry/3 is scoped by user", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(other_user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-other")
+               })
+
+      assert {:ok, entry} =
+               PasswordManager.create_entry(other_user.id, %{
+                 "title" => "Hidden",
+                 "encrypted_password" => encrypted_payload("secret")
+               })
+
+      assert {:error, :not_found} =
+               PasswordManager.update_entry(user.id, entry.id, %{
+                 "title" => "Nope",
+                 "encrypted_password" => encrypted_payload("updated")
+               })
+    end
+
     test "delete_entry/2 only deletes user-owned entries", %{user: user, other_user: other_user} do
       assert {:ok, _settings} =
                PasswordManager.setup_vault(user.id, %{
@@ -187,6 +241,26 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:error, :not_found} = PasswordManager.delete_entry(other_user.id, entry.id)
       assert {:ok, _deleted} = PasswordManager.delete_entry(user.id, entry.id)
       assert {:error, :not_found} = PasswordManager.get_entry_ciphertext(user.id, entry.id)
+    end
+
+    test "delete_vault/1 removes verifier metadata and all entries", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert {:ok, _entry} =
+               PasswordManager.create_entry(user.id, %{
+                 "title" => "Wipe Me",
+                 "encrypted_password" => encrypted_payload("temporary")
+               })
+
+      assert {:ok, %{deleted_entries: 1, vault_deleted: true}} =
+               PasswordManager.delete_vault(user.id)
+
+      refute PasswordManager.vault_configured?(user.id)
+      assert PasswordManager.list_entries(user.id, include_secrets: true) == []
+      assert is_nil(PasswordManager.get_vault_settings(user.id))
     end
   end
 

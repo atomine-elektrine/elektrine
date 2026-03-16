@@ -4,6 +4,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.{Profiles, StaticSites}
+  alias Elektrine.Profiles.CustomDomain
+  alias Elektrine.Repo
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -64,6 +66,73 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert conn.status == 200
       assert conn.resp_body == css_content
       assert {"content-type", "text/css; charset=utf-8"} in conn.resp_headers
+    end
+
+    test "serves static sites on verified custom root domains", %{
+      conn: conn,
+      user: user,
+      html_content: html_content
+    } do
+      unique = System.unique_integer([:positive])
+      custom_domain = "static#{unique}.brand.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain)
+        |> get("/")
+
+      assert conn.status == 200
+      assert conn.resp_body == html_content
+    end
+
+    test "serves nested static assets on verified custom root domains", %{
+      conn: conn,
+      user: user
+    } do
+      unique = System.unique_integer([:positive])
+      custom_domain = "staticasset#{unique}.brand.test"
+
+      {:ok, _} = StaticSites.upload_file(user, "css/site.css", ".profile{color:red;}", "text/css")
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain)
+        |> get("/css/site.css")
+
+      assert conn.status == 200
+      assert conn.resp_body == ".profile{color:red;}"
+    end
+
+    test "serves root-level static assets on verified custom root domains", %{user: user} do
+      robots = "User-agent: *\nAllow: /\n"
+
+      {:ok, _} = StaticSites.upload_file(user, "robots.txt", robots, "text/plain")
+
+      conn =
+        Plug.Test.conn(:get, "/robots.txt")
+        |> Plug.Conn.assign(:profile_custom_domain, "brand.test")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body == robots
+      assert {"content-type", "text/plain; charset=utf-8"} in conn.resp_headers
     end
 
     test "does not intercept app endpoints on subdomains", %{user: user} do

@@ -1,6 +1,10 @@
 defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
   use Elektrine.DataCase, async: true
 
+  if not Code.ensure_loaded?(Elektrine.Social.Hashtag) do
+    @moduletag skip: "requires :elektrine_social"
+  end
+
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
@@ -201,6 +205,103 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
 
       assert {:ok, :unauthorized} = CreateHandler.handle(activity, signer.uri, nil)
       assert is_nil(Messaging.get_message_by_activitypub_id(object["id"]))
+    end
+
+    test "rejects direct create_note calls when attributedTo does not match the actor" do
+      signer = remote_actor_fixture("directsigner")
+      claimed_author = remote_actor_fixture("directclaimed")
+
+      object =
+        note_object(claimed_author.uri, %{
+          "id" => "https://remote.example/notes/#{System.unique_integer([:positive])}"
+        })
+
+      assert {:error, :actor_mismatch} = CreateHandler.create_note(object, signer.uri)
+      assert is_nil(Messaging.get_message_by_activitypub_id(object["id"]))
+    end
+
+    test "returns create_object_fetch_failed for Create activities with unfetchable object URIs" do
+      author = remote_actor_fixture("uriobject")
+
+      activity = %{
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Create",
+        "actor" => author.uri,
+        "object" => "http://127.0.0.1/objects/#{System.unique_integer([:positive])}"
+      }
+
+      assert {:error, :create_object_fetch_failed} =
+               CreateHandler.handle(activity, author.uri, nil)
+    end
+
+    test "inherits public visibility from the outer Create activity" do
+      author = remote_actor_fixture("outervisibility")
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://remote.example/notes/#{System.unique_integer([:positive])}",
+          "to" => [],
+          "cc" => []
+        })
+
+      activity = %{
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Create",
+        "actor" => author.uri,
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "object" => object
+      }
+
+      assert {:ok, message} = CreateHandler.handle(activity, author.uri, nil)
+      assert message.visibility == "public"
+    end
+  end
+
+  describe "federated content persistence" do
+    test "persists content warnings and sensitive flags for remote notes" do
+      author = remote_actor_fixture("sensitive")
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://remote.example/notes/#{System.unique_integer([:positive])}",
+          "content" => "<p>Spoiler post</p>",
+          "summary" => "Spoiler warning",
+          "sensitive" => true
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert message.content == "Spoiler post"
+      assert message.content_warning == "Spoiler warning"
+      assert message.sensitive == true
+    end
+
+    test "uses Question name as the poll question when content is blank" do
+      author = remote_actor_fixture("questionname")
+
+      object = %{
+        "type" => "Question",
+        "id" => "https://remote.example/questions/#{System.unique_integer([:positive])}",
+        "attributedTo" => author.uri,
+        "name" => "<p>Pick a lane</p>",
+        "content" => "",
+        "published" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "oneOf" => [
+          %{"name" => "One"},
+          %{"name" => "Two"}
+        ]
+      }
+
+      assert {:ok, message} = CreateHandler.create_question(object, author.uri)
+
+      poll =
+        Repo.get_by!(Poll, message_id: message.id)
+        |> Repo.preload(:options)
+
+      assert poll.question == "Pick a lane"
+      assert Enum.map(poll.options, & &1.option_text) == ["One", "Two"]
     end
   end
 

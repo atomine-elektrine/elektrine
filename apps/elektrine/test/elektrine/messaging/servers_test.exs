@@ -3,6 +3,7 @@ defmodule Elektrine.Messaging.ServersTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.Conversation
   alias Elektrine.Messaging.Server
   alias Elektrine.Repo
 
@@ -53,6 +54,37 @@ defmodule Elektrine.Messaging.ServersTest do
                joined_server.channels,
                &Messaging.get_conversation_member(&1.id, joiner.id)
              )
+    end
+
+    test "joins mirrored servers without auto-joining mirrored channels" do
+      joiner = AccountsFixtures.user_fixture()
+
+      server =
+        %Server{}
+        |> Server.changeset(%{
+          name: "remote-hub",
+          description: "Federated remote server",
+          is_public: true,
+          federation_id: "https://remote.example/_arblarg/servers/88",
+          origin_domain: "remote.example",
+          is_federated_mirror: true
+        })
+        |> Repo.insert!()
+
+      channel =
+        %Conversation{}
+        |> Conversation.channel_changeset(%{
+          name: "general",
+          description: "Mirrored remote channel",
+          server_id: server.id,
+          federated_source: "https://remote.example/_arblarg/channels/89",
+          is_federated_mirror: true
+        })
+        |> Repo.insert!()
+
+      assert {:ok, _member} = Messaging.join_server(server.id, joiner.id)
+      assert %{role: "member"} = Messaging.get_server_member(server.id, joiner.id)
+      refute Messaging.get_conversation_member(channel.id, joiner.id)
     end
   end
 
@@ -122,7 +154,7 @@ defmodule Elektrine.Messaging.ServersTest do
           description: "Federated remote server",
           is_public: true,
           member_count: 42,
-          federation_id: "https://remote.example/federation/messaging/servers/77",
+          federation_id: "https://remote.example/_arblarg/servers/77",
           origin_domain: "remote.example",
           is_federated_mirror: true
         })
@@ -154,7 +186,7 @@ defmodule Elektrine.Messaging.ServersTest do
           description: "dev community",
           is_public: true,
           member_count: 12,
-          federation_id: "https://federated.example/federation/messaging/servers/19",
+          federation_id: "https://federated.example/_arblarg/servers/19",
           origin_domain: "federated.example",
           is_federated_mirror: true
         })
@@ -181,7 +213,7 @@ defmodule Elektrine.Messaging.ServersTest do
           "is_public" => true,
           "member_count" => 21,
           "origin_domain" => "remote.example",
-          "federation_id" => "https://remote.example/federation/messaging/servers/212"
+          "federation_id" => "https://remote.example/_arblarg/servers/212"
         }
       ]
 
@@ -192,12 +224,12 @@ defmodule Elektrine.Messaging.ServersTest do
 
       assert Enum.any?(
                servers,
-               &(&1.federation_id == "https://remote.example/federation/messaging/servers/212")
+               &(&1.federation_id == "https://remote.example/_arblarg/servers/212")
              )
 
       mirror =
         Repo.get_by(Server,
-          federation_id: "https://remote.example/federation/messaging/servers/212"
+          federation_id: "https://remote.example/_arblarg/servers/212"
         )
 
       assert mirror

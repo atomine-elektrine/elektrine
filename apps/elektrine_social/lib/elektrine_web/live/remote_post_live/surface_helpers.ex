@@ -3,6 +3,7 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
   import Ecto.Query
 
+  alias Elektrine.ActorPaths
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.Messaging
   alias Elektrine.Repo
@@ -488,7 +489,7 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
   defp actor_profile_path(username, domain)
        when is_binary(username) and username != "" and is_binary(domain) and domain != "" do
-    "/remote/#{username}@#{domain}"
+    ActorPaths.profile_path(username, domain)
   end
 
   defp actor_profile_path(_, _), do: nil

@@ -58,12 +58,12 @@
         },
         "kind": {
           "enum": [
+            "warn",
             "timeout",
             "kick",
             "ban",
             "unban",
-            "message_delete",
-            "role_update"
+            "delete_message"
           ],
           "type": "string"
         },

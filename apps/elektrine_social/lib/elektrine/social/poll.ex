@@ -68,11 +68,26 @@ defmodule Elektrine.Social.Poll do
   @doc """
   Checks if the poll is still open for voting.
   """
-  def open?(%__MODULE__{closes_at: nil}), do: true
+  def open?(%{closes_at: nil}), do: true
 
-  def open?(%__MODULE__{closes_at: closes_at}) do
+  def open?(%{closes_at: %DateTime{} = closes_at}) do
     DateTime.compare(DateTime.utc_now(), closes_at) == :lt
   end
+
+  def open?(%{closes_at: %NaiveDateTime{} = closes_at}) do
+    closes_at
+    |> DateTime.from_naive!("Etc/UTC")
+    |> then(&(DateTime.compare(DateTime.utc_now(), &1) == :lt))
+  end
+
+  def open?(%{closes_at: closes_at}) when is_binary(closes_at) do
+    case DateTime.from_iso8601(closes_at) do
+      {:ok, datetime, _offset} -> DateTime.compare(DateTime.utc_now(), datetime) == :lt
+      _ -> false
+    end
+  end
+
+  def open?(_poll), do: false
 
   @doc """
   Checks if the poll has closed.

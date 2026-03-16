@@ -10,6 +10,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
   alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Sender
+  alias ElektrineWeb.UserErrorHelpers
   require Logger
   @impl true
   def mount(params, session, socket) do
@@ -853,7 +854,9 @@ defmodule ElektrineWeb.EmailLive.Compose do
         {:noreply,
          socket
          |> assign(:sending, false)
-         |> notify_error("Failed to send email: #{inspect(reason)}")
+         |> notify_error(
+           UserErrorHelpers.reason_message(reason, "Failed to send email. Please try again.")
+         )
          |> assign(:form, to_form(email_params))}
     end
   end
@@ -1585,7 +1588,7 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp error_to_string(error) do
-    gettext("Upload error: %{error}", error: inspect(error))
+    UserErrorHelpers.reason_message(error, gettext("Upload failed. Please try again."))
   end
 
   defp parse_email_tags(email_string) when is_binary(email_string) do

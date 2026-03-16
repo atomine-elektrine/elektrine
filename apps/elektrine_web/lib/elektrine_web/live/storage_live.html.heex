@@ -1,20 +1,8 @@
-<div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
-  <!-- Header -->
-  <div class="mb-8">
-    <div class="mb-4">
-      <.link href={~p"/account"} class="btn btn-secondary btn-sm">
-        <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Account Settings
-      </.link>
-    </div>
-    <div>
-      <h1 class="text-3xl font-bold flex items-center gap-3">
-        <.icon name="hero-circle-stack" class="w-8 h-8" /> Storage Management
-      </h1>
-      <p class="text-base-content/70 mt-2">
-        Manage your storage usage across all features
-      </p>
-    </div>
-  </div>
+<.account_page
+  title="Storage Management"
+  subtitle="Manage your storage usage across all features"
+  sidebar_link="storage"
+>
   
 <!-- Storage Overview Card -->
   <div class="card glass-card shadow-lg border border-base-300 mb-6">
@@ -287,7 +275,7 @@
       <div class="card-body">
         <div class="flex items-center justify-between mb-4">
           <h2 class="card-title">Static Site Files</h2>
-          <.link href={~p"/account/profile/edit"} class="btn btn-primary btn-sm">
+          <.link navigate={~p"/account/profile/edit"} class="btn btn-primary btn-sm">
             <.icon name="hero-pencil" class="w-4 h-4" /> Manage Site
           </.link>
         </div>
@@ -344,4 +332,4 @@
       </ul>
     </div>
   </div>
-</div>
+</.account_page>

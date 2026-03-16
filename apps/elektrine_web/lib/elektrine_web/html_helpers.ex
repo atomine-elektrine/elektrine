@@ -1,5 +1,7 @@
 defmodule ElektrineWeb.HtmlHelpers do
   @moduledoc ~s|Centralized HTML helper functions for safe content rendering.\n\nCRITICAL: Always escape user input BEFORE processing to prevent XSS attacks.\nNever use raw() without first escaping user content.\n"""  @doc ~s"""Safely converts user content to HTML with clickable links and hashtags.\n\nSECURITY: This function ALWAYS escapes user input first to prevent XSS,\nthen processes URLs and hashtags on the already-escaped content.\n\n## Examples\n\n    iex> make_content_safe_with_links(\"<script>alert('XSS')</script>\")\n    \"&lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\"\n\n    iex> make_content_safe_with_links(\"Check out https://example.com\")\n    \"Check out <a href=\"https://example.com\" ...>https://example.com</a>\"\n|
+  alias Elektrine.ActorPaths
+
   def make_content_safe_with_links(nil) do
     ""
   end
@@ -538,7 +540,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> HtmlSanitizeEx.Scrubber.scrub(ElektrineWeb.Scrubbers.RemoteContent)
     |> render_markdown_images()
     |> linkify_plain_text_urls()
-    |> rewrite_mention_links_to_local()
+    |> rewrite_mention_links_to_local(instance_domain)
     |> add_link_styles()
     |> render_custom_emojis(instance_domain)
     |> add_paragraph_spacing()
@@ -565,7 +567,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> HtmlSanitizeEx.Scrubber.scrub(ElektrineWeb.Scrubbers.RemoteContent)
     |> strip_mastodon_link_spans()
     |> rewrite_hashtag_links_to_local()
-    |> rewrite_mention_links_to_local()
+    |> rewrite_mention_links_to_local(instance_domain)
     |> linkify_plain_text_urls()
     |> add_link_styles()
     |> render_custom_emojis(instance_domain)
@@ -699,12 +701,16 @@ defmodule ElektrineWeb.HtmlHelpers do
     content
   end
 
-  @doc ~s|Rewrites remote mention links to local /remote/user@domain paths.\nHandles various ActivityPub mention link formats:\n- https://domain.com/@username\n- https://domain.com/users/username\n- https://domain.com/u/username (Lemmy)\n|
-  def rewrite_mention_links_to_local(html) when is_binary(html) do
-    html |> rewrite_mention_hrefs() |> linkify_fediverse_mentions()
+  @doc ~s|Rewrites mention links to local profile routes.\nFor local ActivityPub domains, mentions resolve to local profile/community pages.\nFor remote domains, mentions resolve to /remote/user@domain paths.\nHandles various ActivityPub mention link formats:\n- https://domain.com/@username\n- https://domain.com/users/username\n- https://domain.com/u/username (Lemmy)\n|
+  def rewrite_mention_links_to_local(html, instance_domain \\ nil)
+
+  def rewrite_mention_links_to_local(html, instance_domain) when is_binary(html) do
+    html
+    |> rewrite_mention_hrefs()
+    |> linkify_plain_text_mentions(instance_domain)
   end
 
-  def rewrite_mention_links_to_local(content) do
+  def rewrite_mention_links_to_local(content, _instance_domain) do
     content
   end
 
@@ -731,31 +737,53 @@ defmodule ElektrineWeb.HtmlHelpers do
       html,
       fn _full, domain, username, _content ->
         clean_username = String.replace(username, ~r/[\/].*$/, "")
-        local_path = "/remote/#{clean_username}@#{domain}"
+
+        local_path =
+          ActorPaths.profile_path(clean_username, domain) || "/remote/#{clean_username}@#{domain}"
 
         ~s(<a href="#{local_path}" class="text-violet-500 hover:text-violet-400 hover:underline font-medium" phx-click="stop_propagation">@#{clean_username}@#{domain}</a>)
       end
     )
   end
 
-  defp linkify_fediverse_mentions(html) do
+  defp linkify_plain_text_mentions(html, instance_domain) do
     html
-    |> String.split(~r/(<a\s[^>]*>.*?<\/a>)/s, include_captures: true)
+    |> String.split(~r/(<a\s[^>]*>.*?<\/a>|<img\s[^>]*\/?>|<[^>]+>)/s, include_captures: true)
     |> Enum.map(fn segment ->
-      if String.starts_with?(segment, "<a ") do
+      if String.starts_with?(segment, "<") do
         segment
       else
         Regex.replace(
-          ~r/@([a-zA-Z0-9_]+)@([a-zA-Z0-9][a-zA-Z0-9.-]+[a-zA-Z0-9])/,
+          ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])/,
           segment,
-          fn full, username, domain ->
-            "<a href=\"/remote/#{username}@#{domain}\" class=\"text-violet-500 hover:text-violet-400 hover:underline font-medium\" phx-click=\"stop_propagation\">#{full}</a>"
+          fn _full, prefix, username, domain ->
+            href = ActorPaths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
+
+            "#{prefix}<a href=\"#{href}\" class=\"text-violet-500 hover:text-violet-400 hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
           end
         )
+        |> maybe_linkify_short_mentions(instance_domain)
       end
     end)
     |> Enum.map_join("", & &1)
   end
+
+  defp maybe_linkify_short_mentions(segment, instance_domain)
+       when is_binary(segment) and is_binary(instance_domain) and instance_domain != "" do
+    Regex.replace(
+      ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@])/,
+      segment,
+      fn _full, prefix, username ->
+        href =
+          ActorPaths.profile_path(username, instance_domain) ||
+            "/remote/#{username}@#{instance_domain}"
+
+        "#{prefix}<a href=\"#{href}\" class=\"text-violet-500 hover:text-violet-400 hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}</a>"
+      end
+    )
+  end
+
+  defp maybe_linkify_short_mentions(segment, _instance_domain), do: segment
 
   defp add_link_styles(html) when is_binary(html) do
     Regex.replace(

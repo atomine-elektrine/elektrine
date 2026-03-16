@@ -347,7 +347,7 @@ defmodule Mix.Tasks.Messaging.Federation.LoadTest do
   end
 
   defp build_scenario(domain, "server.upsert", run_id, _message_size) do
-    server_id = "https://#{domain}/federation/messaging/servers/load-#{run_id}"
+    server_id = "https://#{domain}/_arblarg/servers/load-#{run_id}"
 
     %{
       domain: domain,
@@ -358,8 +358,8 @@ defmodule Mix.Tasks.Messaging.Federation.LoadTest do
   end
 
   defp build_scenario(domain, "message.create", run_id, message_size) do
-    server_id = "https://#{domain}/federation/messaging/servers/load-#{run_id}"
-    channel_id = "https://#{domain}/federation/messaging/channels/load-#{run_id}"
+    server_id = "https://#{domain}/_arblarg/servers/load-#{run_id}"
+    channel_id = "https://#{domain}/_arblarg/channels/load-#{run_id}"
 
     %{
       domain: domain,
@@ -367,7 +367,7 @@ defmodule Mix.Tasks.Messaging.Federation.LoadTest do
       stream_id: "channel:" <> channel_id,
       server_id: server_id,
       channel_id: channel_id,
-      message_prefix: "https://#{domain}/federation/messaging/messages/load-#{run_id}",
+      message_prefix: "https://#{domain}/_arblarg/messages/load-#{run_id}",
       message_content: String.duplicate("x", message_size)
     }
   end

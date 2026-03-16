@@ -167,10 +167,11 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
   def sign_get(url, private_key_pem, key_id) do
     uri = URI.parse(url)
     date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
+    host = host_header_value(uri)
 
     path_with_query =
       if uri.query do
-        "#{uri.path}?#{uri.query}"
+        "#{uri.path || "/"}?#{uri.query}"
       else
         uri.path || "/"
       end
@@ -179,7 +180,7 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
 
     signing_string_parts = [
       "(request-target): get #{path_with_query}",
-      "host: #{uri.host}",
+      "host: #{host}",
       "date: #{date}"
     ]
 
@@ -196,13 +197,14 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       ]
       |> Enum.join(",")
 
-    [{"host", uri.host}, {"date", date}, {"signature", signature_header}]
+    [{"host", host}, {"date", date}, {"signature", signature_header}]
   end
 
   @doc "Signs an HTTP POST request for outgoing federation.\nReturns headers to add to the request.\n"
   def sign(url, body, private_key_pem, key_id) do
     uri = URI.parse(url)
     date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
+    host = host_header_value(uri)
 
     digest =
       if body do
@@ -220,14 +222,14 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
 
     path_with_query =
       if uri.query do
-        "#{uri.path}?#{uri.query}"
+        "#{uri.path || "/"}?#{uri.query}"
       else
         uri.path || "/"
       end
 
     signing_string_parts = [
       "(request-target): post #{path_with_query}",
-      "host: #{uri.host}",
+      "host: #{host}",
       "date: #{date}"
     ]
 
@@ -251,7 +253,7 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       ]
       |> Enum.join(",")
 
-    base_headers = [{"host", uri.host}, {"date", date}, {"signature", signature_header}]
+    base_headers = [{"host", host}, {"date", date}, {"signature", signature_header}]
 
     if digest do
       base_headers ++ [{"digest", digest}]
@@ -280,6 +282,20 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
       Logger.error("Failed to decode private key: #{inspect(e)}")
       {:error, :invalid_key}
   end
+
+  defp host_header_value(%URI{host: host, port: port, scheme: scheme}) when is_binary(host) do
+    if is_nil(port) or default_port?(scheme, port) do
+      host
+    else
+      "#{host}:#{port}"
+    end
+  end
+
+  defp host_header_value(%URI{host: host}) when is_binary(host), do: host
+
+  defp default_port?("http", 80), do: true
+  defp default_port?("https", 443), do: true
+  defp default_port?(_, _), do: false
 
   @doc "Generates a new RSA key pair for a user.\nReturns {public_key_pem, private_key_pem}.\n\nPublic key is generated in PKCS#8 format for ActivityPub compatibility.\n"
   def generate_key_pair do

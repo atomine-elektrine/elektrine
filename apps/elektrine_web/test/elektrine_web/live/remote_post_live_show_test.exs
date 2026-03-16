@@ -167,6 +167,47 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
              )
   end
 
+  test "toggle_reply_form clears active comment reply state" do
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          show_reply_form: false,
+          replying_to_comment_id: "https://remote.example/comments/1",
+          comment_reply_content: "draft"
+        }
+      }
+
+    assert {:noreply, updated_socket} = Show.handle_event("toggle_reply_form", %{}, socket)
+
+    assert updated_socket.assigns.show_reply_form
+    assert is_nil(updated_socket.assigns.replying_to_comment_id)
+    assert updated_socket.assigns.comment_reply_content == ""
+  end
+
+  test "toggle_comment_reply closes the top-level quick reply form" do
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          show_reply_form: true,
+          replying_to_comment_id: nil,
+          comment_reply_content: "stale"
+        }
+      }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_event(
+               "toggle_comment_reply",
+               %{"comment_id" => "https://remote.example/comments/1"},
+               socket
+             )
+
+    refute updated_socket.assigns.show_reply_form
+    assert updated_socket.assigns.replying_to_comment_id == "https://remote.example/comments/1"
+    assert updated_socket.assigns.comment_reply_content == ""
+  end
+
   test "uses mastodon account fallback for avatar and profile link when actor cache misses" do
     comments = [
       %{

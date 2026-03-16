@@ -1,11 +1,18 @@
 defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
   use Elektrine.DataCase, async: true
 
+  if not Code.ensure_loaded?(Elektrine.Social.Hashtag) do
+    @moduletag skip: "requires :elektrine_social"
+  end
+
   import Elektrine.AccountsFixtures
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.LikeHandler
+  alias Elektrine.Messaging.FederatedDislike
+  alias Elektrine.Messaging.FederatedLike
+  alias Elektrine.Messaging.MessageReaction
   alias Elektrine.Messaging
   alias Elektrine.Repo
 
@@ -133,6 +140,42 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
 
       assert result == {:error, :handle_emoji_react_failed}
     end
+
+    test "hydrates wrapped public objects when the Create wrapper carries the audience" do
+      reactor = remote_actor_fixture("reactor")
+      author = remote_actor_fixture("wrappedauthor")
+      wrapper_uri = "https://example.com/activities/#{System.unique_integer([:positive])}"
+      object_id = "https://example.com/objects/#{System.unique_integer([:positive])}"
+
+      wrapper_object = %{
+        "id" => wrapper_uri,
+        "type" => "Create",
+        "actor" => author.uri,
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc" => [],
+        "object" => %{
+          "id" => object_id,
+          "type" => "Note",
+          "content" => "<p>Wrapped note</p>",
+          "attributedTo" => author.uri,
+          "to" => [],
+          "cc" => []
+        }
+      }
+
+      assert {:ok, _cached_wrapper} =
+               Elektrine.AppCache.get_object(wrapper_uri, fn -> {:ok, wrapper_object} end)
+
+      activity = %{
+        "type" => "EmojiReact",
+        "actor" => reactor.uri,
+        "object" => wrapper_uri,
+        "content" => ":thumbsup:"
+      }
+
+      assert {:ok, :emoji_reacted} = LikeHandler.handle_emoji_react(activity, reactor.uri, nil)
+      assert %{visibility: "public"} = Messaging.get_message_by_activitypub_id(object_id)
+    end
   end
 
   describe "handle_undo_like/2" do
@@ -154,6 +197,22 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
 
       result = LikeHandler.handle_undo_like(object, "https://remote.server/users/liker")
       assert result == {:error, :undo_like_failed}
+    end
+
+    test "uses embedded Like.object when undoing a standard Like activity" do
+      liker = remote_actor_fixture("undo_liker")
+      message = remote_message_fixture("undo-like-post")
+
+      assert {:ok, _like} = Messaging.create_federated_like(message.id, liker.id)
+
+      object = %{
+        "type" => "Like",
+        "id" => "https://remote.server/likes/#{System.unique_integer([:positive])}",
+        "object" => message.activitypub_id
+      }
+
+      assert {:ok, :unliked} = LikeHandler.handle_undo_like(object, liker.uri)
+      assert Repo.get_by(FederatedLike, message_id: message.id, remote_actor_id: liker.id) == nil
     end
   end
 
@@ -181,6 +240,33 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
 
       result = LikeHandler.handle_undo_emoji_react(object, "https://remote.server/users/reactor")
       assert result == {:error, :undo_emoji_react_failed}
+    end
+
+    test "uses embedded EmojiReact.object when undoing a standard reaction activity" do
+      reactor = remote_actor_fixture("undo_reactor")
+      message = remote_message_fixture("undo-reaction-post")
+
+      assert {:ok, _reaction} =
+               Elektrine.Messaging.Messages.create_federated_emoji_reaction(
+                 message.id,
+                 reactor.id,
+                 ":blobcat:"
+               )
+
+      object = %{
+        "type" => "EmojiReact",
+        "id" => "https://remote.server/reactions/#{System.unique_integer([:positive])}",
+        "object" => message.activitypub_id,
+        "content" => ":blobcat:"
+      }
+
+      assert {:ok, :emoji_unreacted} = LikeHandler.handle_undo_emoji_react(object, reactor.uri)
+
+      assert Repo.get_by(MessageReaction,
+               message_id: message.id,
+               remote_actor_id: reactor.id,
+               emoji: ":blobcat:"
+             ) == nil
     end
 
     test "returns :no_emoji_found when tags don't contain emoji" do
@@ -221,6 +307,24 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       result = LikeHandler.handle_undo_dislike(object, "https://remote.server/users/disliker")
       assert result == {:error, :undo_dislike_failed}
     end
+
+    test "uses embedded Dislike.object when undoing a standard Dislike activity" do
+      disliker = remote_actor_fixture("undo_disliker")
+      message = remote_message_fixture("undo-dislike-post")
+
+      assert {:ok, _dislike} = Messaging.create_federated_dislike(message.id, disliker.id)
+
+      object = %{
+        "type" => "Dislike",
+        "id" => "https://remote.server/dislikes/#{System.unique_integer([:positive])}",
+        "object" => message.activitypub_id
+      }
+
+      assert {:ok, :undisliked} = LikeHandler.handle_undo_dislike(object, disliker.uri)
+
+      assert Repo.get_by(FederatedDislike, message_id: message.id, remote_actor_id: disliker.id) ==
+               nil
+    end
   end
 
   defp remote_actor_fixture(label) do
@@ -237,5 +341,23 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
     |> Repo.insert!()
+  end
+
+  defp remote_message_fixture(label) do
+    author = remote_actor_fixture("#{label}-author")
+    ap_id = "https://remote.server/objects/#{System.unique_integer([:positive])}"
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: "#{label} content",
+        visibility: "public",
+        activitypub_id: ap_id,
+        activitypub_url: "#{ap_id}/view",
+        federated: true,
+        remote_actor_id: author.id,
+        inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    message
   end
 end

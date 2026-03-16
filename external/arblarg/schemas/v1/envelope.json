@@ -23,11 +23,12 @@
         "urn:arblarg:ext:permissions:1#overwrite.upsert",
         "urn:arblarg:ext:threads:1#thread.upsert",
         "urn:arblarg:ext:threads:1#thread.archive",
-        "urn:arblarg:ext:presence:1#presence.update",
-        "urn:arblarg:ext:presence:1#typing.start",
-        "urn:arblarg:ext:presence:1#typing.stop",
         "urn:arblarg:ext:moderation:1#action.recorded",
-        "urn:arblarg:ext:dm:1#message.create"
+        "urn:arblarg:ext:dm:1#message.create",
+        "urn:arblarg:ext:voice:1#dm.call.invite",
+        "urn:arblarg:ext:voice:1#dm.call.accept",
+        "urn:arblarg:ext:voice:1#dm.call.reject",
+        "urn:arblarg:ext:voice:1#dm.call.end"
       ],
       "type": "string"
     },

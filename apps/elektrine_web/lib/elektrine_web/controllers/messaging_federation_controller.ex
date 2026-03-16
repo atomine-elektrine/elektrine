@@ -15,7 +15,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   @schema_cache_control "public, max-age=3600, stale-while-revalidate=300"
 
   @doc """
-  GET /.well-known/arblarg
+  GET /.well-known/_arblarg
   Public discovery metadata for cross-domain bootstrap.
   """
   def well_known(conn, _params) do
@@ -28,7 +28,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /.well-known/arblarg/:version
+  GET /.well-known/_arblarg/:version
   Version-pinned discovery metadata.
   """
   def well_known_versioned(conn, %{"version" => version}) do
@@ -47,7 +47,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /federation/messaging/arblarg/:version/schemas/:name
+  GET /_arblarg/:version/schemas/:name
   Returns JSON Schema documents for Arblarg protocol artifacts.
   """
   def schema(conn, %{"version" => version} = params) do
@@ -66,7 +66,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /federation/messaging/arblarg/profiles
+  GET /_arblarg/profiles
   Returns Arblarg profile badges and extension registry information.
   """
   def profiles(conn, _params) do
@@ -79,7 +79,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /federation/messaging/servers/public
+  GET /_arblarg/servers/public
   Public directory of local public servers for cross-instance discovery.
   """
   def public_servers(conn, params) do
@@ -101,7 +101,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /federation/messaging/session
+  GET /_arblarg/session
   Upgrades an authenticated federation connection to the transport-neutral
   websocket session profile.
   """
@@ -110,7 +110,10 @@ defmodule ElektrineWeb.MessagingFederationController do
     |> maybe_put_session_subprotocol()
     |> WebSockAdapter.upgrade(
       FederationSessionWebSock,
-      %{remote_domain: conn.assigns.federation_peer_domain},
+      %{
+        remote_domain: conn.assigns.federation_peer_domain,
+        peer: conn.assigns[:federation_peer]
+      },
       timeout: Constants.websocket_timeout()
     )
     |> halt()
@@ -171,7 +174,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   defp normalize_search_query(_value), do: nil
 
   @doc """
-  POST /federation/messaging/events
+  POST /_arblarg/events
   Imports a single ordered/idempotent event from a trusted peer.
   """
   def event(conn, payload) do
@@ -285,12 +288,28 @@ defmodule ElektrineWeb.MessagingFederationController do
           "Federation origin conflict for mirrored resource"
         )
 
+      {:error, :not_authorized_for_room} ->
+        render_error(
+          conn,
+          :forbidden,
+          :not_authorized_for_room,
+          "Remote actor is not authorized for this room"
+        )
+
       {:error, {:post_recovery_apply_failed, :federation_origin_conflict}} ->
         render_error(
           conn,
           :conflict,
           :federation_origin_conflict,
           "Federation origin conflict for mirrored resource"
+        )
+
+      {:error, {:post_recovery_apply_failed, :not_authorized_for_room}} ->
+        render_error(
+          conn,
+          :forbidden,
+          :not_authorized_for_room,
+          "Remote actor is not authorized for this room"
         )
 
       {:error, reason} ->
@@ -304,7 +323,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  POST /federation/messaging/events/batch
+  POST /_arblarg/events/batch
   Imports a signed batch of ordered/idempotent events from a trusted peer.
   """
   def event_batch(conn, payload) do
@@ -336,7 +355,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  POST /federation/messaging/ephemeral
+  POST /_arblarg/ephemeral
   Imports ephemeral presence and typing updates from a trusted peer.
   """
   def ephemeral(conn, payload) do
@@ -368,7 +387,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  POST /federation/messaging/sync
+  POST /_arblarg/sync
   Imports a server snapshot from a trusted peer.
   """
   def sync(conn, payload) do
@@ -449,13 +468,13 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /federation/messaging/servers/:server_id/snapshot
+  GET /_arblarg/servers/:server_id/snapshot
   Exports a local server snapshot for trusted peers.
   """
   def snapshot(conn, %{"server_id" => server_id}) do
     case Integer.parse(server_id) do
       {id, ""} ->
-        case Federation.build_server_snapshot(id) do
+        case Federation.build_server_snapshot(id, peer: conn.assigns[:federation_peer]) do
           {:ok, payload} ->
             conn
             |> put_status(:ok)
@@ -485,7 +504,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   @doc """
-  GET /federation/messaging/streams/events
+  GET /_arblarg/streams/events
   Exports local ordered events for a single stream after a cursor.
   """
   def stream_events(conn, params) do
@@ -497,7 +516,8 @@ defmodule ElektrineWeb.MessagingFederationController do
       payload =
         Federation.export_stream_events(stream_id,
           after_sequence: after_sequence,
-          limit: limit
+          limit: limit,
+          peer: conn.assigns[:federation_peer]
         )
 
       conn

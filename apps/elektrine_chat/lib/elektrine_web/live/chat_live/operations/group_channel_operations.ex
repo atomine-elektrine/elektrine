@@ -305,6 +305,9 @@ defmodule ElektrineWeb.ChatLive.Operations.GroupChannelOperations do
     conversation_id = String.to_integer(group_id)
 
     case Messaging.join_conversation(conversation_id, socket.assigns.current_user.id) do
+      {:ok, :pending} ->
+        {:noreply, notify_info(socket, "Join request sent")}
+
       {:ok, _} ->
         {:noreply,
          socket

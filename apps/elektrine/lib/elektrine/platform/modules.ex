@@ -44,6 +44,12 @@ defmodule Elektrine.Platform.Modules do
 
   @module_ids Enum.map(@modules, & &1.id)
   @module_specs Map.new(@modules, &{&1.id, &1})
+  @availability_markers %{
+    social: Elektrine.Social,
+    email: Elektrine.Email,
+    vault: Elektrine.PasswordManager,
+    vpn: Elektrine.VPN
+  }
 
   @spec all() :: [module_id()]
   def all, do: @module_ids
@@ -53,6 +59,7 @@ defmodule Elektrine.Platform.Modules do
     :elektrine
     |> Application.get_env(:compiled_platform_modules, @module_ids)
     |> normalize_enabled_modules()
+    |> Enum.filter(&module_available?/1)
   end
 
   @spec compiled_specs() :: [map()]
@@ -136,6 +143,17 @@ defmodule Elektrine.Platform.Modules do
   end
 
   def normalize_enabled_modules(_value), do: default_enabled()
+
+  defp module_available?(:chat), do: true
+
+  defp module_available?(module_id) when is_atom(module_id) do
+    case Map.fetch(@availability_markers, module_id) do
+      {:ok, marker_module} -> Code.ensure_loaded?(marker_module)
+      :error -> true
+    end
+  end
+
+  defp module_available?(_module_id), do: false
 
   defp normalize_module_id(value) when value in @module_ids, do: value
 

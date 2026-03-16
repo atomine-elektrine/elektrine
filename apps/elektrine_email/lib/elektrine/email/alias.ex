@@ -41,7 +41,7 @@ defmodule Elektrine.Email.Alias do
     |> validate_length(:description, max: 500)
     |> unique_constraint(:alias_email,
       name: :email_aliases_alias_email_ci_unique,
-      message: "this alias is already taken (case-insensitive)"
+      message: "that email alias is already in use"
     )
     |> validate_alias_not_target()
     |> validate_not_reserved_address()
@@ -74,7 +74,7 @@ defmodule Elektrine.Email.Alias do
           add_error(
             changeset,
             :alias_email,
-            "an alias with this email already exists (case-insensitive check)"
+            "that email alias is already in use"
           )
       end
     else
@@ -98,7 +98,7 @@ defmodule Elektrine.Email.Alias do
             add_error(
               changeset,
               :alias_email,
-              "must use one of the allowed domains: #{Enum.join(allowed_domains, ", ")}"
+              "choose one of your available email domains"
             )
           end
 
@@ -121,7 +121,7 @@ defmodule Elektrine.Email.Alias do
           validate_alias_not_username(changeset, alias_email)
 
         _mailbox ->
-          add_error(changeset, :alias_email, "this email address is already in use as a mailbox")
+          add_error(changeset, :alias_email, "that email address is already in use")
       end
     else
       changeset
@@ -148,7 +148,7 @@ defmodule Elektrine.Email.Alias do
               changeset
 
             _user ->
-              add_error(changeset, :alias_email, "this alias conflicts with an existing username")
+              add_error(changeset, :alias_email, "that email address is not available")
           end
         else
           changeset
@@ -214,7 +214,7 @@ defmodule Elektrine.Email.Alias do
           end
 
         if existing_count >= 15 do
-          add_error(changeset, :alias_email, "you can only have up to 15 aliases")
+          add_error(changeset, :alias_email, "you have reached the limit of 15 aliases")
         else
           changeset
         end
@@ -248,7 +248,7 @@ defmodule Elektrine.Email.Alias do
           add_error(
             changeset,
             :alias_email,
-            "this email address is reserved and cannot be used as an alias"
+            "that email address is not available"
           )
         else
           changeset
@@ -283,7 +283,7 @@ defmodule Elektrine.Email.Alias do
               add_error(
                 changeset,
                 :alias_email,
-                "must have at least 4 characters before the @ symbol"
+                "use at least 4 letters or numbers before the @"
               )
 
             # Check maximum length (30 characters maximum, same as usernames)
@@ -291,7 +291,7 @@ defmodule Elektrine.Email.Alias do
               add_error(
                 changeset,
                 :alias_email,
-                "email address can have at most 30 characters before the @ symbol"
+                "use 30 or fewer letters or numbers before the @"
               )
 
             # Apply same validation as usernames - only alphanumeric
@@ -299,7 +299,7 @@ defmodule Elektrine.Email.Alias do
               add_error(
                 changeset,
                 :alias_email,
-                "email address can only contain letters and numbers before the @ symbol"
+                "use only letters and numbers before the @"
               )
 
             true ->
@@ -326,14 +326,14 @@ defmodule Elektrine.Email.Alias do
           add_error(
             changeset,
             :target_email,
-            "forwarding loop detected - this would create an infinite forwarding cycle"
+            "this forwarding address would create a loop"
           )
 
         :max_depth_reached ->
           add_error(
             changeset,
             :target_email,
-            "forwarding chain too deep - maximum 10 hops allowed"
+            "this forwarding chain is too long"
           )
 
         :safe ->

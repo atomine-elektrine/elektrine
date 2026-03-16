@@ -57,4 +57,20 @@ defmodule ElektrineWeb.AppPasswordsLiveTest do
 
     assert Enum.any?(Accounts.list_app_passwords(user.id), &(&1.name == "Thunderbird on laptop"))
   end
+
+  test "uses the shared account settings shell", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/app-passwords")
+
+    html = render(view)
+
+    refute html =~ "Back to account settings"
+    assert html =~ "Account Settings"
+    assert html =~ ~s(href="/account?tab=security")
+    assert html =~ "E Profile"
+  end
 end

@@ -91,6 +91,8 @@ defmodule ElektrineWeb.ChatLive.Bootstrap do
     |> Phoenix.Component.assign(:custom_emojis, custom_emojis)
     |> Phoenix.Component.assign(:federation_preview, federation_preview)
     |> Phoenix.Component.assign(:federation_presence, %{})
+    |> Phoenix.Component.assign(:room_presence_timer_ref, nil)
+    |> Phoenix.Component.assign(:pending_remote_join_requests, [])
     |> Phoenix.Component.assign(:loading_conversations, loading_conversations)
     |> Phoenix.Component.assign(:refresh_conversations_scheduled, false)
   end

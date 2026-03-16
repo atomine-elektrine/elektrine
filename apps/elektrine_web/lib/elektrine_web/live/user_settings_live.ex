@@ -344,6 +344,28 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   @impl true
+  def handle_event("password_manager_delete_vault", _params, socket) do
+    user = socket.assigns.current_user
+
+    with true <- Integrations.vault_available?(),
+         {:ok, _result} <- Integrations.vault_delete_vault(user.id) do
+      {:noreply,
+       socket
+       |> assign(:password_manager_entries, [])
+       |> assign(:password_manager_vault_configured, false)
+       |> assign(:password_manager_vault_verifier, nil)
+       |> assign(:password_manager_form, password_manager_entry_form(user.id))
+       |> put_flash(:info, "Vault deleted. Create a new passphrase to start over.")}
+    else
+      false ->
+        {:noreply, put_flash(socket, :error, "Vault module is unavailable in this build.")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Could not delete vault")}
+    end
+  end
+
+  @impl true
   def handle_event("cancel_avatar_upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :avatar, ref)}
   end

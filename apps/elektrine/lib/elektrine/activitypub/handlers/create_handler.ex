@@ -35,9 +35,10 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   Handles an incoming Create activity.
   """
   def handle(%{"object" => object} = activity, actor_uri, _target_user) when is_map(object) do
+    object = inherit_wrapper_fields(activity, object)
     activity_id = activity["id"] || object["id"]
 
-    case validate_create_author(object, actor_uri) do
+    case validate_object_author(object, actor_uri) do
       :ok ->
         case object["type"] do
           "Note" -> create_note(object, actor_uri)
@@ -58,6 +59,32 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     end
   end
 
+  def handle(%{"object" => object_uri} = activity, actor_uri, target_user)
+      when is_binary(object_uri) do
+    activity_id = activity["id"] || object_uri
+
+    case ActivityPub.Fetcher.fetch_object(object_uri) do
+      {:ok, object} when is_map(object) ->
+        activity
+        |> Map.put("object", Map.put_new(object, "attributedTo", actor_uri))
+        |> handle(actor_uri, target_user)
+
+      {:ok, _object} ->
+        Logger.warning(
+          "Rejecting Create #{inspect(activity_id)}: referenced object #{inspect(object_uri)} was not an object map"
+        )
+
+        {:error, :fetch_failed}
+
+      {:error, reason} ->
+        Logger.warning(
+          "Rejecting Create #{inspect(activity_id)}: failed to fetch referenced object #{inspect(object_uri)} (#{inspect(reason)})"
+        )
+
+        {:error, :create_object_fetch_failed}
+    end
+  end
+
   @doc """
   Creates a note from an ActivityPub object.
   Public API for use by other handlers (e.g., AnnounceHandler).
@@ -72,89 +99,228 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   - `:fallback_community_uri` - fallback Group/community URI when object fields are incomplete
   """
   def create_note(object, actor_uri, opts) when is_list(opts) do
-    if poll_vote?(object) do
-      handle_incoming_poll_vote(object, actor_uri, opts)
-    else
-      create_regular_note(object, actor_uri, opts)
+    with :ok <- validate_object_author(object, actor_uri) do
+      if poll_vote?(object) do
+        handle_incoming_poll_vote(object, actor_uri, opts)
+      else
+        create_regular_note(object, actor_uri, opts)
+      end
     end
   end
+
+  @doc """
+  Validates that an object's attributedTo matches the verified actor.
+  """
+  def validate_object_author(object, actor_uri) when is_map(object) do
+    validate_create_author(object, actor_uri)
+  end
+
+  def validate_object_author(_object, _actor_uri), do: {:error, :actor_mismatch}
 
   @doc """
   Creates a Question (poll) from an ActivityPub object.
   """
   def create_question(object, actor_uri, opts \\ []) do
-    with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-      content = strip_html(object["content"] || object["question"] || "", object["tag"])
-      hashtags = extract_hashtags(object, content)
+    if deleted_object_recorded?(object, actor_uri) do
+      {:ok, :ignored_deleted_object}
+    else
+      with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
+        payload = build_federated_question_payload(object, actor_uri, opts)
+        attrs = Map.put(payload.attrs, :remote_actor_id, remote_actor.id)
 
-      %URI{host: instance_domain} = URI.parse(actor_uri)
-      Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
+        %URI{host: instance_domain} = URI.parse(actor_uri)
+        Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
 
-      visibility = determine_visibility(object)
+        if attrs.visibility in ["public", "unlisted"] do
+          case Messaging.create_federated_message(Map.put(attrs, :federated, true)) do
+            {:ok, message} ->
+              if payload.options != [] do
+                upsert_federated_poll(message.id, object, payload.options)
+              end
 
-      if visibility in ["public", "unlisted"] do
-        options = extract_poll_options(object)
-        {media_urls, alt_texts} = extract_media_with_alt_text(object)
+              if payload.hashtags != [] do
+                Async.run(fn -> sync_message_hashtags(message.id, payload.hashtags) end)
+              end
 
-        case Messaging.create_federated_message(%{
-               content: content,
-               visibility: visibility,
-               activitypub_id: object["id"],
-               activitypub_url: object["url"] || object["id"],
-               federated: true,
-               remote_actor_id: remote_actor.id,
-               media_urls: media_urls,
-               media_metadata:
-                 build_poll_metadata(
-                   alt_texts,
-                   object,
-                   Keyword.put_new(opts, :author_uri, actor_uri)
-                 ),
-               inserted_at: Helpers.parse_published_date(object["published"]),
-               extracted_hashtags: hashtags,
-               post_type: "poll",
-               like_count: Helpers.extract_interaction_count(object, "likes"),
-               reply_count: Helpers.extract_interaction_count(object, "replies"),
-               share_count: Helpers.extract_interaction_count(object, "shares"),
-               sensitive: object["sensitive"] || false,
-               content_warning: object["summary"]
-             }) do
-          {:ok, message} ->
-            if options != [] do
-              create_federated_poll(message.id, object, options)
-            end
+              reloaded_message =
+                Elektrine.Repo.preload(
+                  message,
+                  [:remote_actor, :sender, :link_preview, :hashtags, poll: [options: []]],
+                  force: true
+                )
 
-            if hashtags != [] do
-              Async.run(fn -> link_hashtags_to_message(message.id, hashtags) end)
-            end
-
-            reloaded_message =
-              Elektrine.Repo.preload(
-                message,
-                [:remote_actor, :sender, :link_preview, :hashtags, poll: [options: []]],
-                force: true
+              Phoenix.PubSub.broadcast(
+                Elektrine.PubSub,
+                "timeline:public",
+                {:new_public_post, reloaded_message}
               )
 
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "timeline:public",
-              {:new_public_post, reloaded_message}
-            )
+              {:ok, message}
 
-            {:ok, message}
+            {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
+              {:ok, :already_exists}
 
-          {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
-            {:ok, :already_exists}
-
-          {:error, reason} ->
-            Logger.error("Failed to create federated poll: #{inspect(reason)}")
-            {:error, :failed_to_create_poll}
+            {:error, reason} ->
+              Logger.error("Failed to create federated poll: #{inspect(reason)}")
+              {:error, :failed_to_create_poll}
+          end
+        else
+          {:ok, :ignored_non_public}
         end
-      else
-        {:ok, :ignored_non_public}
       end
     end
   end
+
+  @doc false
+  def build_federated_message_payload(object, actor_uri, opts \\ []) when is_map(object) do
+    object = maybe_enrich_sparse_object(object)
+    content = strip_html(object["content"] || "", object["tag"])
+    title = normalize_object_title(object["name"])
+    hashtags = extract_hashtags(object, content)
+    {media_urls, alt_texts} = extract_media_with_alt_text(object)
+
+    %{
+      attrs: %{
+        content: content,
+        title: title,
+        visibility: determine_visibility(object),
+        activitypub_id: object["id"],
+        activitypub_url: object["url"] || object["id"],
+        media_urls: media_urls,
+        media_metadata:
+          build_metadata_with_engagement(
+            alt_texts,
+            object,
+            Keyword.put_new(opts, :author_uri, actor_uri)
+          ),
+        reply_to_id: get_reply_to_message_id(object["inReplyTo"]),
+        quoted_message_id: get_quoted_message_id(object),
+        inserted_at: Helpers.parse_published_date(object["published"]),
+        extracted_hashtags: hashtags,
+        like_count: Helpers.extract_interaction_count(object, "likes"),
+        reply_count: Helpers.extract_interaction_count(object, "replies"),
+        share_count: Helpers.extract_interaction_count(object, "shares"),
+        sensitive: object["sensitive"] || false,
+        content_warning: object["summary"]
+      },
+      hashtags: hashtags,
+      mentioned_local_users: extract_local_mentions(object)
+    }
+  end
+
+  @doc false
+  def build_federated_question_payload(object, actor_uri, opts \\ []) when is_map(object) do
+    object = maybe_enrich_sparse_object(object)
+    content = strip_html(object["content"] || "", object["tag"])
+    question = extract_poll_question_text(object)
+    hashtags = extract_hashtags(object, hashtag_source_content(content, question))
+    {media_urls, alt_texts} = extract_media_with_alt_text(object)
+    options = extract_poll_options(object)
+
+    %{
+      attrs: %{
+        content: content,
+        visibility: determine_visibility(object),
+        activitypub_id: object["id"],
+        activitypub_url: object["url"] || object["id"],
+        media_urls: media_urls,
+        media_metadata:
+          build_poll_metadata(
+            alt_texts,
+            object,
+            Keyword.put_new(opts, :author_uri, actor_uri)
+          ),
+        inserted_at: Helpers.parse_published_date(object["published"]),
+        extracted_hashtags: hashtags,
+        post_type: "poll",
+        like_count: Helpers.extract_interaction_count(object, "likes"),
+        reply_count: Helpers.extract_interaction_count(object, "replies"),
+        share_count: Helpers.extract_interaction_count(object, "shares"),
+        sensitive: object["sensitive"] || false,
+        content_warning: object["summary"]
+      },
+      question: question,
+      hashtags: hashtags,
+      options: options
+    }
+  end
+
+  @doc false
+  def sync_message_hashtags(message_id, hashtag_names)
+      when is_integer(message_id) and is_list(hashtag_names) do
+    normalized_names =
+      hashtag_names
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq_by(&String.downcase/1)
+
+    existing_hashtags =
+      from(
+        ph in "post_hashtags",
+        join: h in "hashtags",
+        on: h.id == ph.hashtag_id,
+        where: ph.message_id == ^message_id,
+        select: %{id: h.id, normalized_name: h.normalized_name}
+      )
+      |> Elektrine.Repo.all()
+
+    existing_names = MapSet.new(existing_hashtags, & &1.normalized_name)
+
+    hashtags =
+      normalized_names
+      |> Enum.map(&Social.get_or_create_hashtag/1)
+      |> Enum.filter(&(&1 != nil))
+      |> Enum.uniq_by(& &1.id)
+
+    new_names = MapSet.new(hashtags, & &1.normalized_name)
+
+    from(ph in "post_hashtags", where: ph.message_id == ^message_id)
+    |> Elektrine.Repo.delete_all()
+
+    removed_hashtags =
+      Enum.reject(existing_hashtags, fn hashtag ->
+        MapSet.member?(new_names, hashtag.normalized_name)
+      end)
+
+    added_hashtags =
+      Enum.reject(hashtags, fn hashtag ->
+        MapSet.member?(existing_names, hashtag.normalized_name)
+      end)
+
+    if hashtags != [] do
+      now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+      associations =
+        Enum.map(hashtags, fn hashtag ->
+          %{message_id: message_id, hashtag_id: hashtag.id, inserted_at: now}
+        end)
+
+      Elektrine.Repo.insert_all("post_hashtags", associations, on_conflict: :nothing)
+    end
+
+    Enum.each(removed_hashtags, fn hashtag -> Social.decrement_hashtag_usage(hashtag.id) end)
+    Enum.each(added_hashtags, fn hashtag -> Social.increment_hashtag_usage(hashtag.id) end)
+
+    :ok
+  end
+
+  def sync_message_hashtags(_message_id, _hashtag_names), do: :ok
+
+  @doc false
+  def upsert_federated_poll(message_id, object) when is_integer(message_id) and is_map(object) do
+    upsert_federated_poll(message_id, object, extract_poll_options(object))
+  end
+
+  def upsert_federated_poll(_message_id, _object), do: {:error, :invalid_poll}
+
+  @doc false
+  def upsert_federated_poll(message_id, object, options)
+      when is_integer(message_id) and is_map(object) and is_list(options) do
+    do_upsert_federated_poll(message_id, object, options)
+  end
+
+  def upsert_federated_poll(_message_id, _object, _options), do: {:error, :invalid_poll}
 
   # Private functions
 
@@ -304,70 +470,74 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp create_regular_note(object, actor_uri, opts) do
     object = maybe_enrich_sparse_object(object)
 
-    with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
-      content = strip_html(object["content"] || "", object["tag"])
-      title = normalize_object_title(object["name"])
-      hashtags = extract_hashtags(object, content)
-      mentioned_local_users = extract_local_mentions(object)
+    if deleted_object_recorded?(object, actor_uri) do
+      {:ok, :ignored_deleted_object}
+    else
+      with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
+        content = strip_html(object["content"] || "", object["tag"])
+        title = normalize_object_title(object["name"])
+        hashtags = extract_hashtags(object, content)
+        mentioned_local_users = extract_local_mentions(object)
 
-      %URI{host: instance_domain} = URI.parse(actor_uri)
-      Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
+        %URI{host: instance_domain} = URI.parse(actor_uri)
+        Async.start(fn -> Emojis.process_activitypub_tags(object["tag"], instance_domain) end)
 
-      reply_to_id = get_reply_to_message_id(object["inReplyTo"])
-      quoted_message_id = get_quoted_message_id(object)
-      visibility = determine_visibility(object)
+        reply_to_id = get_reply_to_message_id(object["inReplyTo"])
+        quoted_message_id = get_quoted_message_id(object)
+        visibility = determine_visibility(object)
 
-      if visibility in ["public", "unlisted"] do
-        {media_urls, alt_texts} = extract_media_with_alt_text(object)
+        if visibility in ["public", "unlisted"] do
+          {media_urls, alt_texts} = extract_media_with_alt_text(object)
 
-        result =
-          Messaging.create_federated_message(%{
-            content: content,
-            title: title,
-            visibility: visibility,
-            activitypub_id: object["id"],
-            activitypub_url: object["url"] || object["id"],
-            federated: true,
-            remote_actor_id: remote_actor.id,
-            reply_to_id: reply_to_id,
-            quoted_message_id: quoted_message_id,
-            media_urls: media_urls,
-            media_metadata:
-              build_metadata_with_engagement(
-                alt_texts,
-                object,
-                Keyword.put_new(opts, :author_uri, actor_uri)
-              ),
-            inserted_at: Helpers.parse_published_date(object["published"]),
-            extracted_hashtags: hashtags,
-            like_count: Helpers.extract_interaction_count(object, "likes"),
-            reply_count: Helpers.extract_interaction_count(object, "replies"),
-            share_count: Helpers.extract_interaction_count(object, "shares"),
-            sensitive: object["sensitive"] || false,
-            content_warning: object["summary"]
-          })
+          result =
+            Messaging.create_federated_message(%{
+              content: content,
+              title: title,
+              visibility: visibility,
+              activitypub_id: object["id"],
+              activitypub_url: object["url"] || object["id"],
+              federated: true,
+              remote_actor_id: remote_actor.id,
+              reply_to_id: reply_to_id,
+              quoted_message_id: quoted_message_id,
+              media_urls: media_urls,
+              media_metadata:
+                build_metadata_with_engagement(
+                  alt_texts,
+                  object,
+                  Keyword.put_new(opts, :author_uri, actor_uri)
+                ),
+              inserted_at: Helpers.parse_published_date(object["published"]),
+              extracted_hashtags: hashtags,
+              like_count: Helpers.extract_interaction_count(object, "likes"),
+              reply_count: Helpers.extract_interaction_count(object, "replies"),
+              share_count: Helpers.extract_interaction_count(object, "shares"),
+              sensitive: object["sensitive"] || false,
+              content_warning: object["summary"]
+            })
 
-        case result do
-          {:ok, message} ->
-            handle_post_create_tasks(
-              message,
-              remote_actor,
-              hashtags,
-              reply_to_id,
-              mentioned_local_users
-            )
+          case result do
+            {:ok, message} ->
+              handle_post_create_tasks(
+                message,
+                remote_actor,
+                hashtags,
+                reply_to_id,
+                mentioned_local_users
+              )
 
-            {:ok, message}
+              {:ok, message}
 
-          {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
-            {:ok, :already_exists}
+            {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
+              {:ok, :already_exists}
 
-          {:error, reason} ->
-            Logger.error("Failed to create federated message: #{inspect(reason)}")
-            {:error, :failed_to_create_message}
+            {:error, reason} ->
+              Logger.error("Failed to create federated message: #{inspect(reason)}")
+              {:error, :failed_to_create_message}
+          end
+        else
+          {:ok, :ignored_non_public}
         end
-      else
-        {:ok, :ignored_non_public}
       end
     end
   end
@@ -990,50 +1160,78 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     _ -> 0
   end
 
-  defp create_federated_poll(message_id, object, options) do
+  defp do_upsert_federated_poll(message_id, object, options)
+       when is_integer(message_id) and is_map(object) and is_list(options) do
+    poll_attrs = build_poll_record_attrs(message_id, object, options)
+
+    case Elektrine.Repo.get_by(Elektrine.Social.Poll, message_id: message_id) do
+      nil ->
+        poll_struct = :erlang.apply(Elektrine.Social.Poll, :__struct__, [])
+
+        case Elektrine.Repo.insert(Elektrine.Social.Poll.changeset(poll_struct, poll_attrs)) do
+          {:ok, poll} ->
+            replace_poll_options(poll, options)
+            {:ok, poll}
+
+          {:error, reason} ->
+            Logger.error("Failed to create federated poll: #{inspect(reason)}")
+            {:error, reason}
+        end
+
+      poll ->
+        case poll
+             |> Elektrine.Social.Poll.changeset(Map.delete(poll_attrs, :message_id))
+             |> Elektrine.Repo.update() do
+          {:ok, updated_poll} ->
+            replace_poll_options(updated_poll, options)
+            {:ok, updated_poll}
+
+          {:error, reason} ->
+            Logger.error("Failed to update federated poll: #{inspect(reason)}")
+            {:error, reason}
+        end
+    end
+  end
+
+  defp do_upsert_federated_poll(_message_id, _object, _options), do: {:error, :invalid_poll}
+
+  defp replace_poll_options(poll, options) do
+    from(o in Elektrine.Social.PollOption, where: o.poll_id == ^poll.id)
+    |> Elektrine.Repo.delete_all()
+
+    Enum.each(options, fn option ->
+      option_struct = :erlang.apply(Elektrine.Social.PollOption, :__struct__, [])
+
+      option_attrs = %{
+        poll_id: poll.id,
+        option_text: option.text,
+        vote_count: option.votes,
+        position: option[:position] || 0
+      }
+
+      option_struct
+      |> Elektrine.Social.PollOption.changeset(option_attrs)
+      |> Elektrine.Repo.insert()
+    end)
+  end
+
+  defp build_poll_record_attrs(message_id, object, options) do
     end_time =
       case object["endTime"] || object["closed"] do
         nil -> nil
         time_str -> Helpers.parse_published_date(time_str)
       end
 
-    allow_multiple = !is_nil(object["anyOf"])
     voters_count = extract_voters_count(object, options)
 
-    poll_attrs = %{
+    %{
       message_id: message_id,
-      question: strip_html(object["content"] || "", object["tag"]),
+      question: extract_poll_question_text(object),
       total_votes: voters_count,
       voters_count: voters_count,
       closes_at: end_time,
-      allow_multiple: allow_multiple
+      allow_multiple: !is_nil(object["anyOf"])
     }
-
-    poll_struct = :erlang.apply(Elektrine.Social.Poll, :__struct__, [])
-
-    case Elektrine.Repo.insert(Elektrine.Social.Poll.changeset(poll_struct, poll_attrs)) do
-      {:ok, poll} ->
-        Enum.each(options, fn option ->
-          option_struct = :erlang.apply(Elektrine.Social.PollOption, :__struct__, [])
-
-          option_attrs = %{
-            poll_id: poll.id,
-            option_text: option.text,
-            vote_count: option.votes,
-            position: option[:position] || 0
-          }
-
-          option_struct
-          |> Elektrine.Social.PollOption.changeset(option_attrs)
-          |> Elektrine.Repo.insert()
-        end)
-
-        {:ok, poll}
-
-      {:error, reason} ->
-        Logger.error("Failed to create federated poll: #{inspect(reason)}")
-        {:error, reason}
-    end
   end
 
   defp extract_voters_count(object, options) do
@@ -1088,6 +1286,21 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   end
 
   defp normalize_object_title(_), do: nil
+
+  defp extract_poll_question_text(object) when is_map(object) do
+    [object["question"], object["name"], object["content"]]
+    |> Enum.find_value("", fn value ->
+      normalized = strip_html(value || "", object["tag"])
+      if normalized == "", do: nil, else: normalized
+    end)
+  end
+
+  defp extract_poll_question_text(_), do: ""
+
+  defp hashtag_source_content(content, question)
+       when is_binary(content) and is_binary(question) do
+    if String.trim(content) == "", do: question, else: content
+  end
 
   defp maybe_enrich_sparse_object(%{"id" => id} = object) when is_binary(id) do
     if sparse_object_payload?(object) do
@@ -1222,6 +1435,38 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       true -> "followers"
     end
   end
+
+  defp inherit_wrapper_fields(activity, object) when is_map(activity) and is_map(object) do
+    ["to", "cc", "audience", "published"]
+    |> Enum.reduce(object, fn field, acc ->
+      inherit_wrapper_field(acc, activity, field)
+    end)
+  end
+
+  defp inherit_wrapper_fields(_activity, object), do: object
+
+  defp inherit_wrapper_field(object, activity, field) do
+    case {Map.get(object, field), Map.get(activity, field)} do
+      {value, inherited} when value in [nil, ""] and not is_nil(inherited) ->
+        Map.put(object, field, inherited)
+
+      {[], inherited} when not is_nil(inherited) ->
+        Map.put(object, field, inherited)
+
+      _ ->
+        object
+    end
+  end
+
+  defp deleted_object_recorded?(object, actor_uri) when is_map(object) and is_binary(actor_uri) do
+    refs =
+      [object["id"], object["url"]]
+      |> Enum.reject(&is_nil/1)
+
+    ActivityPub.remote_delete_recorded?(actor_uri, refs)
+  end
+
+  defp deleted_object_recorded?(_object, _actor_uri), do: false
 
   defp get_reply_to_message_id(nil), do: nil
 

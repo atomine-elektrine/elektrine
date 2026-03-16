@@ -85,7 +85,8 @@ defmodule ElektrineWeb.Components.Social.TimelineStreamPost do
           source="timeline"
         />
 
-        <%= if @current_user && @reply_to_post && @reply_to_post.id == @post.id do %>
+        <%= if @current_user && @reply_to_post && @reply_to_post.id == @post.id &&
+              is_nil(@reply_to_reply_id) do %>
           <div
             id={"reply-form-#{@post.id}"}
             class="mt-3 p-4 bg-base-50 rounded-lg border border-base-200"

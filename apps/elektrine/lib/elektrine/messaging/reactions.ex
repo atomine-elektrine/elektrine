@@ -1,6 +1,7 @@
 defmodule Elektrine.Messaging.Reactions do
   @moduledoc "Context for managing message reactions.\n"
   import Ecto.Query, warn: false
+  alias Elektrine.ActivityPub
   alias Elektrine.Messaging.{MessageReaction, RateLimiter}
   alias Elektrine.Repo
   @doc "Adds a reaction to a message.\n"
@@ -149,12 +150,21 @@ defmodule Elektrine.Messaging.Reactions do
     if message && message.federated && message.activitypub_id do
       user = Elektrine.Accounts.get_user!(user_id)
 
-      original_react = %{
-        "type" => "EmojiReact",
-        "actor" => "#{Elektrine.ActivityPub.instance_url()}/users/#{user.username}",
-        "object" => message.activitypub_id,
-        "content" => emoji
-      }
+      original_react =
+        case ActivityPub.get_latest_local_activity(user.id, "EmojiReact", message.activitypub_id,
+               content: emoji
+             ) do
+          %{data: data} when is_map(data) ->
+            data
+
+          _ ->
+            %{
+              "type" => "EmojiReact",
+              "actor" => "#{ActivityPub.instance_url()}/users/#{user.username}",
+              "object" => message.activitypub_id,
+              "content" => emoji
+            }
+        end
 
       undo_activity = Elektrine.ActivityPub.Builder.build_undo_activity(user, original_react)
 

@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Elektrine Vault",
+  "version": "0.1.0",
+  "description": "Autofill and manage Elektrine password vault entries from the browser toolbar.",
+  "permissions": ["storage", "tabs", "activeTab", "clipboardWrite"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "password-manager@elektrine.app",
+      "strict_min_version": "131.0"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Elektrine Vault",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

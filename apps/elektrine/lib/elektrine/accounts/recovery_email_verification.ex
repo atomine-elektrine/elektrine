@@ -8,6 +8,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
 
   import Ecto.Query
   import Swoosh.Email, except: [from: 2]
+  alias Elektrine.EmailAddresses
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
   require Logger
@@ -43,12 +44,18 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
 
   defp do_send_verification_email(user) do
     token = generate_token()
+    previous_verification_state = verification_state(user)
 
     case update_verification_token(user, token) do
       {:ok, updated_user} ->
-        # Send the email with appropriate message based on restriction status
-        send_email(updated_user, token, user.email_sending_restricted)
-        {:ok, updated_user}
+        case send_email(updated_user, token, user.email_sending_restricted) do
+          {:ok, _result} ->
+            {:ok, updated_user}
+
+          {:error, reason} ->
+            restore_verification_state(updated_user, previous_verification_state)
+            {:error, reason}
+        end
 
       {:error, _} = error ->
         error
@@ -69,7 +76,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   end
 
   defp send_email(user, token, is_restricted) do
-    verify_url = ElektrineWeb.Endpoint.url() <> "/verify-recovery-email?token=#{token}"
+    verify_url = base_url() <> "/verify-recovery-email?token=#{token}"
 
     app_name = Application.get_env(:elektrine, :app_name, "Elektrine")
 
@@ -80,16 +87,53 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
         build_verification_email(user, verify_url, app_name)
       end
 
-    # Use Swoosh email directly via Mailer
-    new()
-    |> to(user.recovery_email)
-    |> Swoosh.Email.from({"Elektrine", "noreply@elektrine.com"})
-    |> subject(subject)
-    |> html_body(html_body)
-    |> text_body(text_body)
-    |> Elektrine.Mailer.deliver()
+    case new()
+         |> to(user.recovery_email)
+         |> Swoosh.Email.from({"Elektrine", EmailAddresses.local("noreply")})
+         |> subject(subject)
+         |> html_body(html_body)
+         |> text_body(text_body)
+         |> Elektrine.Mailer.deliver() do
+      {:ok, result} ->
+        Logger.info(
+          "Sent recovery email verification to #{user.recovery_email} for user #{user.id}"
+        )
 
-    Logger.info("Sent recovery email verification to #{user.recovery_email} for user #{user.id}")
+        {:ok, result}
+
+      {:error, reason} ->
+        Logger.error(
+          "Failed to send recovery email verification to #{user.recovery_email}: #{inspect(reason)}"
+        )
+
+        {:error, :email_failed}
+    end
+  end
+
+  defp verification_state(%User{} = user) do
+    %{
+      recovery_email_verification_token: user.recovery_email_verification_token,
+      recovery_email_verification_sent_at: user.recovery_email_verification_sent_at
+    }
+  end
+
+  defp restore_verification_state(%User{} = user, previous_state) do
+    case user |> Ecto.Changeset.change(previous_state) |> Repo.update() do
+      {:ok, _restored_user} ->
+        :ok
+
+      {:error, restore_reason} ->
+        Logger.error("Failed to restore recovery verification state: #{inspect(restore_reason)}")
+        :error
+    end
+  end
+
+  defp base_url do
+    if Code.ensure_loaded?(ElektrineWeb.Endpoint) do
+      ElektrineWeb.Endpoint.url()
+    else
+      "https://#{Elektrine.Domains.instance_domain()}"
+    end
   end
 
   defp build_verification_email(user, verify_url, app_name) do

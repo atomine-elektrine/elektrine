@@ -26,15 +26,25 @@ defmodule Elektrine.Social.Recommendations do
         |> Enum.sort_by(fn {_post, score} -> score end, :desc)
         |> Enum.take(limit * 3)
 
-      fully_scored =
+      ranked_scored =
         pre_scored
         |> Enum.map(fn {post, _quick_score} ->
           {post, score_post_full(post, user_profile, user_id)}
         end)
-        |> Enum.filter(fn {post, score} ->
-          score >= @min_score_threshold or qualifies_for_feed?(post, user_profile)
-        end)
         |> Enum.sort_by(fn {_post, score} -> score end, :desc)
+
+      fully_scored =
+        ranked_scored
+        |> Enum.filter(fn {post, score} ->
+          recommended_for_feed?(post, score, user_profile)
+        end)
+
+      fully_scored =
+        if fully_scored == [] do
+          ranked_scored
+        else
+          fully_scored
+        end
 
       {exploit_posts, explore_candidates} = split_for_exploration(fully_scored, user_profile)
 
@@ -43,13 +53,7 @@ defmodule Elektrine.Social.Recommendations do
         |> Enum.take(ceil(limit * (1 - @exploration_ratio)))
         |> Enum.map(fn {post, _score} -> post end)
 
-      exploration_count = ceil(limit * @exploration_ratio)
-
-      explore_posts =
-        explore_candidates
-        |> Enum.filter(fn {post, _score} -> (post.like_count || 0) >= 5 end)
-        |> Enum.take_random(exploration_count)
-        |> Enum.map(fn {post, _score} -> post end)
+      explore_posts = select_exploration_posts(explore_candidates, limit, user_profile)
 
       interleaved = interleave_posts(main_feed, explore_posts)
       diversify_feed(interleaved)
@@ -70,6 +74,16 @@ defmodule Elektrine.Social.Recommendations do
       (post.media_urls || []) != [] && (post.like_count || 0) >= 2 -> true
       true -> false
     end
+  end
+
+  defp recommended_for_feed?(post, score, user_profile) do
+    qualifies_for_feed?(post, user_profile) or exploratory_candidate?(post, score)
+  end
+
+  defp exploratory_candidate?(post, score) do
+    score >= @min_score_threshold and
+      (((post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0) >= 2) or
+         (post.media_urls || []) != [])
   end
 
   defp build_user_profile(user_id, session_context) do
@@ -101,7 +115,8 @@ defmodule Elektrine.Social.Recommendations do
         ),
       session_liked_remote_creators: Map.get(session_context, :liked_remote_creators, []),
       session_engagement_rate: Map.get(session_context, :engagement_rate, 0.0),
-      session_viewed_posts: Map.get(session_context, :viewed_posts, [])
+      session_viewed_posts: Map.get(session_context, :viewed_posts, []),
+      session_dismissed_posts: Map.get(session_context, :dismissed_posts, [])
     }
   end
 
@@ -109,8 +124,14 @@ defmodule Elektrine.Social.Recommendations do
     blocked_user_ids = Elektrine.Accounts.list_blocked_users(user_id) |> Enum.map(& &1.id)
     blocked_by_user_ids = Elektrine.Accounts.list_users_who_blocked(user_id) |> Enum.map(& &1.id)
     followed_user_ids = get_followed_user_ids(user_id)
+    followed_remote_actor_ids = get_followed_remote_actor_ids(user_id)
     all_blocked_ids = (blocked_user_ids ++ blocked_by_user_ids) |> Enum.uniq()
     thirty_days_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-30, :day)
+    seven_days_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-7, :day)
+    three_days_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-3, :day)
+    recent_pool_limit = candidate_pool_limit(limit, 0.5, 24)
+    interest_pool_limit = candidate_pool_limit(limit, 0.3, 12)
+    discovery_pool_limit = candidate_pool_limit(limit, 0.2, 8)
 
     scope_and_visibility_filter =
       if Enum.empty?(followed_user_ids) do
@@ -130,57 +151,208 @@ defmodule Elektrine.Social.Recommendations do
         )
       end
 
-    local_query =
+    local_base_query =
       from(m in Message,
         join: c in Elektrine.Messaging.Conversation,
         on: c.id == m.conversation_id,
         where:
           is_nil(m.deleted_at) and (m.approval_status == "approved" or is_nil(m.approval_status)) and
-            m.inserted_at > ^thirty_days_ago and m.sender_id != ^user_id,
-        order_by: [desc: m.inserted_at],
-        limit: ^limit
+            m.inserted_at > ^thirty_days_ago and m.sender_id != ^user_id
       )
 
-    local_query = from([m, c] in local_query, where: ^scope_and_visibility_filter)
+    local_base_query = from([m, c] in local_base_query, where: ^scope_and_visibility_filter)
 
-    local_query =
+    local_base_query =
       if Enum.empty?(all_blocked_ids) do
-        local_query
+        local_base_query
       else
-        from(m in local_query, where: m.sender_id not in ^all_blocked_ids)
+        from(m in local_base_query, where: m.sender_id not in ^all_blocked_ids)
       end
 
-    federated_query =
+    federated_base_query =
       from(m in Message,
         where:
           m.federated == true and m.visibility in ["public", "unlisted"] and is_nil(m.deleted_at) and
-            m.inserted_at > ^thirty_days_ago,
-        order_by: [desc: m.inserted_at],
-        limit: ^limit
+            m.inserted_at > ^thirty_days_ago
       )
 
+    federated_base_query =
+      if Enum.empty?(all_blocked_ids) do
+        federated_base_query
+      else
+        from(m in federated_base_query,
+          where: is_nil(m.sender_id) or m.sender_id not in ^all_blocked_ids
+        )
+      end
+
+    local_preloads = [
+      :conversation,
+      :link_preview,
+      :hashtags,
+      sender: [:profile],
+      shared_message: [:link_preview, :remote_actor, sender: [:profile]]
+    ]
+
+    federated_preloads = [
+      :remote_actor,
+      :link_preview,
+      :hashtags,
+      shared_message: [:link_preview, :remote_actor, sender: [:profile]]
+    ]
+
+    local_recent_query =
+      from([m, _c] in local_base_query,
+        order_by: [desc: m.inserted_at, desc: m.id],
+        limit: ^recent_pool_limit
+      )
+
+    local_trending_query =
+      from([m, _c] in local_base_query,
+        where: m.inserted_at > ^seven_days_ago,
+        order_by: [
+          desc:
+            fragment(
+              "COALESCE(?, 0) + (COALESCE(?, 0) * 2) + (COALESCE(?, 0) * 3)",
+              m.like_count,
+              m.reply_count,
+              m.share_count
+            ),
+          desc: m.inserted_at
+        ],
+        limit: ^recent_pool_limit
+      )
+
+    local_discussion_query =
+      from([m, c] in local_base_query,
+        where: c.type == "community" and m.post_type == "discussion",
+        order_by: [desc: m.reply_count, desc: m.like_count, desc: m.inserted_at],
+        limit: ^interest_pool_limit
+      )
+
+    local_media_query =
+      from([m, _c] in local_base_query,
+        where: fragment("COALESCE(array_length(?, 1), 0) > 0", m.media_urls),
+        order_by: [desc: m.inserted_at, desc: m.like_count],
+        limit: ^interest_pool_limit
+      )
+
+    local_underexposed_query =
+      from([m, _c] in local_base_query,
+        where:
+          m.inserted_at > ^three_days_ago and
+            fragment(
+              "COALESCE(?, 0) + COALESCE(?, 0) + COALESCE(?, 0) <= 6",
+              m.like_count,
+              m.reply_count,
+              m.share_count
+            ),
+        order_by: [desc: m.inserted_at, desc: m.id],
+        limit: ^discovery_pool_limit
+      )
+
+    local_followed_query =
+      if Enum.empty?(followed_user_ids) do
+        nil
+      else
+        from([m, _c] in local_base_query,
+          where: m.sender_id in ^followed_user_ids,
+          order_by: [desc: m.inserted_at, desc: m.id],
+          limit: ^interest_pool_limit
+        )
+      end
+
+    federated_recent_query =
+      from(m in federated_base_query,
+        order_by: [desc: m.inserted_at, desc: m.id],
+        limit: ^recent_pool_limit
+      )
+
+    federated_trending_query =
+      from(m in federated_base_query,
+        where: m.inserted_at > ^seven_days_ago,
+        order_by: [
+          desc:
+            fragment(
+              "COALESCE(?, 0) + (COALESCE(?, 0) * 2) + (COALESCE(?, 0) * 3)",
+              m.like_count,
+              m.reply_count,
+              m.share_count
+            ),
+          desc: m.inserted_at
+        ],
+        limit: ^interest_pool_limit
+      )
+
+    federated_underexposed_query =
+      from(m in federated_base_query,
+        where:
+          m.inserted_at > ^three_days_ago and
+            fragment(
+              "COALESCE(?, 0) + COALESCE(?, 0) + COALESCE(?, 0) <= 6",
+              m.like_count,
+              m.reply_count,
+              m.share_count
+            ),
+        order_by: [desc: m.inserted_at, desc: m.id],
+        limit: ^discovery_pool_limit
+      )
+
+    federated_followed_query =
+      if Enum.empty?(followed_remote_actor_ids) do
+        nil
+      else
+        from(m in federated_base_query,
+          where: m.remote_actor_id in ^followed_remote_actor_ids,
+          order_by: [desc: m.inserted_at, desc: m.id],
+          limit: ^interest_pool_limit
+        )
+      end
+
     local_posts =
-      Repo.all(local_query)
-      |> Repo.preload([
-        :conversation,
-        :link_preview,
-        :hashtags,
-        sender: [:profile],
-        shared_message: [:link_preview, :remote_actor, sender: [:profile]]
-      ])
+      [
+        local_followed_query,
+        local_trending_query,
+        local_media_query,
+        local_discussion_query,
+        local_underexposed_query,
+        local_recent_query
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.flat_map(&load_candidate_pool(&1, local_preloads))
 
     federated_posts =
-      Repo.all(federated_query)
-      |> Repo.preload([
-        :remote_actor,
-        :link_preview,
-        :hashtags,
-        shared_message: [:link_preview, :remote_actor, sender: [:profile]]
-      ])
+      [
+        federated_followed_query,
+        federated_trending_query,
+        federated_underexposed_query,
+        federated_recent_query
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.flat_map(&load_candidate_pool(&1, federated_preloads))
 
     (local_posts ++ federated_posts)
-    |> Enum.sort_by(& &1.inserted_at, {:desc, NaiveDateTime})
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.sort_by(
+      fn post ->
+        {
+          if(post.federated, do: 0, else: 1),
+          normalize_inserted_at(post.inserted_at),
+          post.id
+        }
+      end,
+      :desc
+    )
     |> Enum.take(limit)
+  end
+
+  defp load_candidate_pool(query, preloads) do
+    query
+    |> Repo.all()
+    |> Repo.preload(preloads)
+  end
+
+  defp candidate_pool_limit(limit, ratio, min_size) do
+    max(trunc(limit * ratio), min_size)
   end
 
   defp score_post_quick(post, user_profile) do
@@ -224,6 +396,8 @@ defmodule Elektrine.Social.Recommendations do
     score = score + score_collaborative(post, user_profile)
     score = score + score_trending(post)
     score = score + score_media_content(post)
+    score = score + score_novelty(post, user_profile)
+    score = score + score_retention_fit(post)
     score = score + score_domain_affinity(post, user_profile)
     score = score + score_engagement_quality(post)
     score = score + score_session_relevance(post, user_profile)
@@ -304,11 +478,11 @@ defmodule Elektrine.Social.Recommendations do
       end
 
     category_score =
-      if Map.get(post, :category) in user_profile.favorite_categories do
-        15
-      else
-        0
-      end
+      post
+      |> post_interest_categories()
+      |> Enum.count(&(&1 in user_profile.favorite_categories))
+      |> Kernel.*(8)
+      |> min(15)
 
     community_score =
       if post.conversation_id in user_profile.preferred_communities do
@@ -318,6 +492,65 @@ defmodule Elektrine.Social.Recommendations do
       end
 
     min(hashtag_score + high_dwell_bonus + category_score + community_score, 30)
+  end
+
+  defp score_novelty(post, user_profile) do
+    creator_known =
+      if post.federated do
+        post.remote_actor_id in user_profile.followed_remote_actors
+      else
+        post.sender_id in user_profile.followed_users or
+          post.sender_id in user_profile.viewed_creators
+      end
+
+    post_has_been_seen =
+      post.id in user_profile.viewed_posts or post.id in user_profile.session_viewed_posts
+
+    total_engagement = (post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0)
+    hours_old = NaiveDateTime.diff(NaiveDateTime.utc_now(), post.inserted_at, :second) / 3600
+
+    cond do
+      creator_known or post_has_been_seen ->
+        0
+
+      hours_old < 18 and total_engagement <= 8 and total_engagement >= 1 ->
+        12
+
+      hours_old < 36 and total_engagement <= 15 ->
+        8
+
+      hours_old < 72 ->
+        4
+
+      true ->
+        0
+    end
+  end
+
+  defp score_retention_fit(post) do
+    content = String.trim(post.content || "")
+    content_length = String.length(content)
+    media_count = length(post.media_urls || [])
+
+    cond do
+      media_count > 0 and content_length <= 320 ->
+        8
+
+      post.post_type == "discussion" and (post.reply_count || 0) >= 2 ->
+        6
+
+      media_count > 0 ->
+        4
+
+      content_length in 1..220 ->
+        3
+
+      content_length > 1200 and media_count == 0 ->
+        -4
+
+      true ->
+        0
+    end
   end
 
   defp score_collaborative(post, user_profile) do
@@ -483,6 +716,13 @@ defmodule Elektrine.Social.Recommendations do
       end
 
     score =
+      if post.id in user_profile.session_dismissed_posts do
+        score * 0.01
+      else
+        score
+      end
+
+    score =
       if post.id in user_profile.dismissed_posts do
         score * 0.05
       else
@@ -520,6 +760,32 @@ defmodule Elektrine.Social.Recommendations do
     Enum.split_with(scored_posts, fn {post, _score} ->
       matches_known_interest?(post, user_profile)
     end)
+  end
+
+  defp select_exploration_posts(explore_candidates, limit, user_profile) do
+    exploration_count = ceil(limit * @exploration_ratio)
+
+    explore_candidates
+    |> Enum.sort_by(&exploration_priority(&1, user_profile), :desc)
+    |> Enum.take(exploration_count)
+    |> Enum.map(fn {post, _score} -> post end)
+  end
+
+  defp exploration_priority({post, score}, user_profile) do
+    freshness_bonus =
+      case NaiveDateTime.diff(NaiveDateTime.utc_now(), post.inserted_at, :hour) do
+        hours when hours < 12 -> 8
+        hours when hours < 24 -> 5
+        hours when hours < 72 -> 2
+        _ -> 0
+      end
+
+    novelty_bonus = score_novelty(post, user_profile)
+    retention_bonus = max(score_retention_fit(post), 0)
+    total_engagement = (post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0)
+    underexposed_bonus = if total_engagement <= 8, do: 6, else: 0
+
+    score + freshness_bonus + novelty_bonus + retention_bonus + underexposed_bonus
   end
 
   defp matches_known_interest?(post, user_profile) do
@@ -572,28 +838,47 @@ defmodule Elektrine.Social.Recommendations do
 
   defp diversify_feed(posts) do
     posts
-    |> Enum.reduce({[], nil, 0}, fn post, {acc, last_creator, consecutive} ->
-      creator_key =
-        if post.federated do
-          {:remote, post.remote_actor_id}
-        else
-          {:local, post.sender_id}
-        end
+    |> do_diversify_feed([], nil, 0)
+    |> Enum.reverse()
+  end
 
-      if creator_key == last_creator && consecutive >= @max_consecutive_same_creator do
-        {acc, last_creator, consecutive}
+  defp do_diversify_feed([], acc, _last_creator, _consecutive), do: acc
+
+  defp do_diversify_feed(posts, acc, last_creator, consecutive) do
+    {next_post, remaining_posts} = pick_next_diverse_post(posts, last_creator, consecutive)
+    creator = post_creator_key(next_post)
+
+    new_consecutive =
+      if creator == last_creator do
+        consecutive + 1
       else
-        new_consecutive =
-          if creator_key == last_creator do
-            consecutive + 1
-          else
-            1
-          end
-
-        {acc ++ [post], creator_key, new_consecutive}
+        1
       end
-    end)
-    |> elem(0)
+
+    do_diversify_feed(remaining_posts, [next_post | acc], creator, new_consecutive)
+  end
+
+  defp pick_next_diverse_post([post | rest], last_creator, consecutive) do
+    if post_creator_key(post) != last_creator or consecutive < @max_consecutive_same_creator do
+      {post, rest}
+    else
+      case Enum.find_index(rest, fn candidate -> post_creator_key(candidate) != last_creator end) do
+        nil ->
+          {post, rest}
+
+        index ->
+          replacement = Enum.at(rest, index)
+          {replacement, [post | List.delete_at(rest, index)]}
+      end
+    end
+  end
+
+  defp post_creator_key(post) do
+    if post.federated do
+      {:remote, post.remote_actor_id}
+    else
+      {:local, post.sender_id}
+    end
   end
 
   defp get_user_liked_posts(user_id) do
@@ -649,9 +934,54 @@ defmodule Elektrine.Social.Recommendations do
     results |> Enum.map(fn {hashtag, weight} -> {hashtag, weight / max_weight} end) |> Map.new()
   end
 
-  defp get_user_favorite_categories(_user_id) do
-    []
+  defp get_user_favorite_categories(user_id) do
+    post_type_categories =
+      from(l in Social.PostLike,
+        where: l.user_id == ^user_id,
+        join: m in Message,
+        on: m.id == l.message_id,
+        where: not is_nil(m.post_type),
+        group_by: m.post_type,
+        order_by: [desc: count(m.id)],
+        limit: 5,
+        select: m.post_type
+      )
+      |> Repo.all()
+
+    community_categories =
+      from(l in Social.PostLike,
+        where: l.user_id == ^user_id,
+        join: m in Message,
+        on: m.id == l.message_id,
+        join: c in Elektrine.Messaging.Conversation,
+        on: c.id == m.conversation_id,
+        where: not is_nil(c.community_category),
+        group_by: c.community_category,
+        order_by: [desc: count(c.id)],
+        limit: 5,
+        select: c.community_category
+      )
+      |> Repo.all()
+
+    (post_type_categories ++ community_categories)
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.uniq()
   end
+
+  defp post_interest_categories(post) do
+    community_category =
+      case Map.get(post, :conversation) do
+        %{community_category: category} when is_binary(category) and category != "" -> category
+        _ -> nil
+      end
+
+    [Map.get(post, :post_type), community_category]
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+  end
+
+  defp normalize_inserted_at(%NaiveDateTime{} = inserted_at), do: inserted_at
+  defp normalize_inserted_at(%DateTime{} = inserted_at), do: DateTime.to_naive(inserted_at)
+  defp normalize_inserted_at(_), do: ~N[1970-01-01 00:00:00]
 
   defp get_user_communities(user_id) do
     Elektrine.Messaging.list_conversations(user_id)

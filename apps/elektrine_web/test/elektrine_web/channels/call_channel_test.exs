@@ -3,6 +3,8 @@ defmodule ElektrineWeb.CallChannelTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Calls.Call
+  alias Elektrine.Messaging.{Conversation, ConversationMember, FederationCallSession}
+  alias Elektrine.PubSubTopics
   alias Elektrine.Repo
   alias ElektrineWeb.UserSocket
 
@@ -45,6 +47,66 @@ defmodule ElektrineWeb.CallChannelTest do
   test "rejects malformed ICE payloads", %{socket: socket} do
     ref = push(socket, "ice_candidate", %{"candidate" => "invalid"})
     assert_reply ref, :error, %{reason: "invalid_candidate"}
+  end
+
+  test "joins a federated call session and forwards remote signaling" do
+    user = AccountsFixtures.user_fixture()
+
+    conversation =
+      %Conversation{}
+      |> Conversation.dm_changeset(%{
+        creator_id: user.id,
+        name: "@remote@peer.example",
+        federated_source: "arblarg:dm:handle:remote@peer.example"
+      })
+      |> Repo.insert!()
+
+    ConversationMember.add_member_changeset(conversation.id, user.id, "member")
+    |> Repo.insert!()
+
+    session =
+      %FederationCallSession{}
+      |> FederationCallSession.changeset(%{
+        conversation_id: conversation.id,
+        local_user_id: user.id,
+        federated_call_id: "https://peer.example/_arblarg/calls/test-call",
+        origin_domain: "peer.example",
+        remote_domain: "peer.example",
+        remote_handle: "remote@peer.example",
+        remote_actor: %{
+          "handle" => "remote@peer.example",
+          "username" => "remote",
+          "domain" => "peer.example"
+        },
+        call_type: "audio",
+        direction: "inbound",
+        status: "active"
+      })
+      |> Repo.insert!()
+
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user.id)
+    {:ok, socket} = connect(UserSocket, %{"token" => token})
+
+    {:ok, _join_payload, joined_socket} =
+      subscribe_and_join(socket, ElektrineWeb.CallChannel, "call:#{session.id}")
+
+    expected_user_id = user.id
+
+    assert_push "presence_state", %{}
+    assert_push "joined", %{user_id: ^expected_user_id}
+
+    PubSubTopics.broadcast(PubSubTopics.call(session.id), :federated_peer_ready, %{})
+    assert_push "peer_ready", %{user_id: ^expected_user_id}
+
+    offer = %{"type" => "offer", "sdp" => "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\n"}
+
+    PubSubTopics.broadcast(PubSubTopics.call(session.id), :federated_call_signal, %{
+      kind: "offer",
+      payload: offer
+    })
+
+    assert_push "offer", %{sdp: ^offer}
+    assert joined_socket.topic == "call:#{session.id}"
   end
 
   defp valid_candidate do

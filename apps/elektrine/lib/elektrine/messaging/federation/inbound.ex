@@ -6,6 +6,7 @@ defmodule Elektrine.Messaging.Federation.Inbound do
   @presence_update_event_type ArblargSDK.canonical_event_type("presence.update")
   @typing_start_event_type ArblargSDK.canonical_event_type("typing.start")
   @typing_stop_event_type ArblargSDK.canonical_event_type("typing.stop")
+  @dm_call_signal_event_type ArblargSDK.canonical_event_type("dm.call.signal")
 
   def normalize_incoming_batch_payload(%{"events" => events} = payload, context)
       when is_list(events) and is_map(context) do
@@ -165,7 +166,9 @@ defmodule Elektrine.Messaging.Federation.Inbound do
           @typing_start_event_type,
           "typing.start",
           @typing_stop_event_type,
-          "typing.stop"
+          "typing.stop",
+          @dm_call_signal_event_type,
+          "dm.call.signal"
         ] ->
           {:error, :unsupported_event_type}
 

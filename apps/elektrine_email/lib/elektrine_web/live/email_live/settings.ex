@@ -4,6 +4,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
   import ElektrineWeb.Components.Platform.ElektrineNav
 
   alias Elektrine.Email
+  alias ElektrineWeb.UserErrorHelpers
 
   alias Elektrine.Email.{
     Alias,
@@ -685,7 +686,14 @@ defmodule ElektrineWeb.EmailLive.Settings do
 
           {:error, reason} ->
             {:noreply,
-             put_flash(socket, :error, "Failed to verify custom domain: #{inspect(reason)}")}
+             put_flash(
+               socket,
+               :error,
+               UserErrorHelpers.reason_message(
+                 reason,
+                 "Could not verify the custom domain right now."
+               )
+             )}
         end
     end
   end
@@ -736,7 +744,14 @@ defmodule ElektrineWeb.EmailLive.Settings do
 
           {:error, reason} ->
             {:noreply,
-             put_flash(socket, :error, "Failed to remove custom domain: #{inspect(reason)}")}
+             put_flash(
+               socket,
+               :error,
+               UserErrorHelpers.reason_message(
+                 reason,
+                 "Could not remove the custom domain right now."
+               )
+             )}
         end
     end
   end
@@ -830,12 +845,9 @@ defmodule ElektrineWeb.EmailLive.Settings do
   end
 
   defp get_changeset_error(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.map_join("; ", fn {k, v} -> "#{k}: #{Enum.join(v, ", ")}" end)
+    UserErrorHelpers.join_changeset_errors(changeset,
+      fallback: "Please review the form and try again."
+    )
   end
 
   defp assign_aliases_tab(socket, user_id) do

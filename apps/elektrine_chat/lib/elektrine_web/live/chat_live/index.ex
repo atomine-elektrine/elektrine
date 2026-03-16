@@ -3,9 +3,12 @@ defmodule ElektrineWeb.ChatLive.Index do
   require Logger
 
   alias Elektrine.Accounts.User
+  alias Elektrine.Calls
+  alias Elektrine.Calls.Transport, as: CallTransport
   alias Elektrine.Constants
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Messaging.Federation.VoiceCalls
   alias Elektrine.Messaging.Message
   alias Elektrine.Uploads
   import ElektrineWeb.Components.User.Avatar
@@ -21,6 +24,8 @@ defmodule ElektrineWeb.ChatLive.Index do
   alias ElektrineWeb.ChatLive.Bootstrap
   alias ElektrineWeb.ChatLive.HandleFormatter
   alias ElektrineWeb.ChatLive.Operations.{CallInfoOperations, Helpers, MessageInfoOperations}
+
+  @room_presence_heartbeat_ms 30_000
 
   @impl true
   def mount(_params, session, socket) do
@@ -67,10 +72,15 @@ defmodule ElektrineWeb.ChatLive.Index do
         federation_preview: federation_preview,
         loading_conversations: loading_conversations
       )
+      |> restore_active_call_state(user.id)
 
     # Load conversations async after connection
     if connected?(socket) do
       send(self(), :load_conversations)
+
+      if socket.assigns.call.active_call do
+        send(self(), :resume_active_call)
+      end
     end
 
     {:ok, socket}
@@ -98,6 +108,12 @@ defmodule ElektrineWeb.ChatLive.Index do
 
     if conversation_id do
       case Messaging.join_conversation(conversation_id, socket.assigns.current_user.id) do
+        {:ok, :pending} ->
+          {:noreply,
+           socket
+           |> notify_info("Join request sent")
+           |> push_navigate(to: ~p"/chat")}
+
         {:ok, _} ->
           # Successfully joined, trigger conversation refresh and redirect
           {:noreply,
@@ -174,10 +190,11 @@ defmodule ElektrineWeb.ChatLive.Index do
     # Clear selected conversation when navigating to /chat without a conversation_id
     {:noreply,
      socket
+     |> cancel_room_presence_timer()
      |> assign(:conversation, %{socket.assigns.conversation | selected: nil})
      |> assign(:initial_messages_loading, false)
      |> assign(:ui, %{socket.assigns.ui | show_new_chat: show_new_chat})
-     |> assign(:federation_presence, presence_map_for_server(socket.assigns[:active_server_id]))}
+     |> assign(:federation_presence, %{})}
   end
 
   @impl true
@@ -1246,6 +1263,14 @@ defmodule ElektrineWeb.ChatLive.Index do
     end
   end
 
+  def handle_info(:room_presence_heartbeat, socket) do
+    {:noreply, refresh_room_presence_tracking(socket)}
+  end
+
+  def handle_info(:resume_active_call, socket) do
+    {:noreply, maybe_resume_active_call(socket)}
+  end
+
   def handle_info(info, socket) do
     case MessageInfoOperations.route_info(info, socket) do
       {:handled, result} ->
@@ -1644,7 +1669,61 @@ defmodule ElektrineWeb.ChatLive.Index do
           </div>
 
           <div class="space-y-4">
-            <!-- User Search -->
+            <%= if @pending_remote_join_requests != [] do %>
+              <div class="space-y-3">
+                <div>
+                  <p class="text-sm font-semibold">Pending Remote Join Requests</p>
+                  <p class="text-xs opacity-70">
+                    Review remote participants waiting for room approval.
+                  </p>
+                </div>
+
+                <div class="space-y-2">
+                  <%= for request <- @pending_remote_join_requests do %>
+                    <div class="flex items-center justify-between gap-3 p-3 bg-base-200 rounded-lg">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-8 h-8 rounded-full overflow-hidden bg-base-300 flex items-center justify-center shrink-0">
+                          <%= if request.avatar_url do %>
+                            <img
+                              src={request.avatar_url}
+                              alt={request.display_label}
+                              class="w-full h-full object-cover"
+                            />
+                          <% else %>
+                            <.icon name="hero-globe-alt" class="w-4 h-4 opacity-60" />
+                          <% end %>
+                        </div>
+                        <div class="min-w-0">
+                          <p class="font-medium text-sm truncate">{request.display_label}</p>
+                          <p class="text-xs opacity-70 truncate">
+                            Requested role: {request.role} · {request.origin_domain}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center gap-2 shrink-0">
+                        <button
+                          phx-click="approve_remote_join_request"
+                          phx-value-remote_actor_id={request.remote_actor_id}
+                          class="btn btn-success btn-xs"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          phx-click="decline_remote_join_request"
+                          phx-value-remote_actor_id={request.remote_actor_id}
+                          class="btn btn-ghost btn-xs"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            
+    <!-- User Search -->
             <input
               type="text"
               placeholder="Search users to add..."
@@ -2473,7 +2552,14 @@ defmodule ElektrineWeb.ChatLive.Index do
   def terminate(_reason, socket) do
     # Clean up any active calls when user disconnects
     if socket.assigns.call && socket.assigns.call.active_call do
-      Elektrine.Calls.end_call(socket.assigns.call.active_call.id)
+      case socket.assigns.call.active_call do
+        %{source: :federated, id: session_id} ->
+          VoiceCalls.end_session(session_id, socket.assigns.current_user.id, "disconnected")
+          Elektrine.Messaging.Federation.publish_dm_call_end(session_id)
+
+        %{id: call_id} ->
+          Calls.end_call(call_id)
+      end
     end
 
     :ok
@@ -2491,7 +2577,9 @@ defmodule ElektrineWeb.ChatLive.Index do
   defp open_conversation(socket, conversation) do
     conversation_id = conversation.id
     active_server_id = conversation_server_id(conversation) || socket.assigns[:active_server_id]
-    federation_presence = presence_map_for_server(active_server_id)
+
+    federation_presence =
+      presence_map_for_conversation(conversation, socket.assigns.current_user.id)
 
     current_unread_counts = socket.assigns.conversation.unread_counts || %{}
     updated_unread_counts = Map.put(current_unread_counts, conversation_id, 0)
@@ -2544,9 +2632,13 @@ defmodule ElektrineWeb.ChatLive.Index do
       |> assign(:loading_newer_messages, false)
       |> assign(:initial_messages_loading, true)
 
-    if connected?(updated_socket) do
-      send(self(), {:load_conversation_messages, conversation_id})
-    end
+    updated_socket =
+      if connected?(updated_socket) do
+        send(self(), {:load_conversation_messages, conversation_id})
+        refresh_room_presence_tracking(updated_socket)
+      else
+        updated_socket
+      end
 
     updated_socket
   end
@@ -2938,15 +3030,14 @@ defmodule ElektrineWeb.ChatLive.Index do
   defp conversation_server_id(%{server_id: server_id}) when is_integer(server_id), do: server_id
   defp conversation_server_id(_), do: nil
 
-  defp presence_map_for_server(server_id) when is_integer(server_id) do
-    server_id
-    |> Messaging.list_server_presence_states()
-    |> Map.new(fn state ->
-      {state.remote_actor_id, state}
-    end)
+  defp presence_map_for_conversation(%{type: "channel", id: conversation_id}, user_id)
+       when is_integer(conversation_id) and is_integer(user_id) do
+    conversation_id
+    |> Messaging.list_visible_room_presence_states(user_id)
+    |> Map.new(fn state -> {state.remote_actor_id, state} end)
   end
 
-  defp presence_map_for_server(_), do: %{}
+  defp presence_map_for_conversation(_, _), do: %{}
 
   defp remote_presence_online_count(presence_map) when is_map(presence_map) do
     presence_map
@@ -2959,6 +3050,44 @@ defmodule ElektrineWeb.ChatLive.Index do
 
   defp remote_presence_online_count(_), do: 0
 
+  defp refresh_room_presence_tracking(socket) do
+    socket = cancel_room_presence_timer(socket)
+
+    case socket.assigns.conversation.selected do
+      %{type: "channel", id: conversation_id} when is_integer(conversation_id) ->
+        publish_room_presence(conversation_id, socket.assigns.current_user.id, socket)
+
+        timer_ref =
+          Process.send_after(self(), :room_presence_heartbeat, @room_presence_heartbeat_ms)
+
+        assign(socket, :room_presence_timer_ref, timer_ref)
+
+      _ ->
+        assign(socket, :room_presence_timer_ref, nil)
+    end
+  end
+
+  defp cancel_room_presence_timer(socket) do
+    case socket.assigns[:room_presence_timer_ref] do
+      timer_ref when is_reference(timer_ref) ->
+        Process.cancel_timer(timer_ref)
+        assign(socket, :room_presence_timer_ref, nil)
+
+      _ ->
+        assign(socket, :room_presence_timer_ref, nil)
+    end
+  end
+
+  defp publish_room_presence(conversation_id, user_id, _socket)
+       when is_integer(conversation_id) and is_integer(user_id) do
+    Elektrine.Messaging.Federation.publish_room_presence_update(
+      conversation_id,
+      user_id,
+      "online",
+      []
+    )
+  end
+
   defp normalize_optional_text(nil), do: nil
 
   defp normalize_optional_text(value) when is_binary(value) do
@@ -2969,6 +3098,96 @@ defmodule ElektrineWeb.ChatLive.Index do
   end
 
   defp normalize_optional_text(_), do: nil
+
+  defp restore_active_call_state(socket, user_id) when is_integer(user_id) do
+    case latest_active_call_for_user(user_id) do
+      nil ->
+        socket
+
+      {:local, %{} = call} ->
+        assign(socket, :call, %{
+          socket.assigns.call
+          | active_call: call,
+            incoming_call: nil,
+            status: call_status(call),
+            audio_enabled: true,
+            video_enabled: call.call_type == "video"
+        })
+
+      {:federated, %{} = session} ->
+        call = VoiceCalls.ui_call(session)
+
+        assign(socket, :call, %{
+          socket.assigns.call
+          | active_call: call,
+            incoming_call: nil,
+            status: call_status(call),
+            audio_enabled: true,
+            video_enabled: call.call_type == "video"
+        })
+    end
+  end
+
+  defp latest_active_call_for_user(user_id) do
+    local_call = Calls.get_active_call(user_id)
+    federated_call = VoiceCalls.get_active_session_for_local_user(user_id)
+
+    case {local_call, federated_call} do
+      {nil, nil} ->
+        nil
+
+      {%{} = local, nil} ->
+        {:local, local}
+
+      {nil, %{} = federated} ->
+        {:federated, federated}
+
+      {%{} = local, %{} = federated} ->
+        if DateTime.compare(naive_or_utc(local.updated_at), naive_or_utc(federated.updated_at)) in [:gt, :eq] do
+          {:local, local}
+        else
+          {:federated, federated}
+        end
+    end
+  end
+
+  defp maybe_resume_active_call(socket) do
+    case socket.assigns.call.active_call do
+      nil ->
+        socket
+
+      %{} = call ->
+        transport = CallTransport.descriptor_for_user(socket.assigns.current_user.id, call.id)
+
+        push_event(socket, "resume_call", %{
+          call_id: call.id,
+          call_type: call.call_type,
+          ice_servers: transport["ice_servers"],
+          transport: transport,
+          user_token: socket.assigns.user_token,
+          user_id: socket.assigns.current_user.id,
+          initiator: call_initiator?(call, socket.assigns.current_user.id)
+        })
+    end
+  end
+
+  defp call_initiator?(%{source: :federated, caller_id: caller_id}, current_user_id)
+       when is_integer(caller_id) and is_integer(current_user_id),
+       do: caller_id == current_user_id
+
+  defp call_initiator?(%{caller_id: caller_id}, current_user_id)
+       when is_integer(caller_id) and is_integer(current_user_id),
+       do: caller_id == current_user_id
+
+  defp call_initiator?(_call, _current_user_id), do: false
+
+  defp call_status(%{status: status}) when status in ["initiated", "ringing"], do: "connecting"
+  defp call_status(%{status: "active"}), do: "connected"
+  defp call_status(%{status: status}) when is_binary(status), do: status
+  defp call_status(_call), do: "connecting"
+
+  defp naive_or_utc(%NaiveDateTime{} = value), do: DateTime.from_naive!(value, "Etc/UTC")
+  defp naive_or_utc(%DateTime{} = value), do: value
 
   defp parse_checkbox_value(value) when is_list(value) do
     Enum.any?(value, &parse_checkbox_value/1)

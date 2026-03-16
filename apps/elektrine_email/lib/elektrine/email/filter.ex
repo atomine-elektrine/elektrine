@@ -52,9 +52,7 @@ defmodule Elektrine.Email.Filter do
 
   @valid_fields ~w(from to cc subject body has_attachment size)
   @valid_operators ~w(
-    contains not_contains equals not_equals starts_with ends_with
-    matches_regex not_matches_regex
-    greater_than less_than
+    contains not_contains equals not_equals starts_with ends_with greater_than less_than
   )
   @valid_actions ~w(move_to_digest move_to_ledger move_to_folder add_label remove_label mark_as_read mark_as_unread mark_as_spam archive delete star unstar set_priority forward_to)
   @valid_priorities ~w(high normal low)
@@ -192,17 +190,6 @@ defmodule Elektrine.Email.Filter do
 
   defp apply_operator("ends_with", field_value, value) when is_binary(field_value) do
     String.ends_with?(String.downcase(field_value), String.downcase(value))
-  end
-
-  defp apply_operator("matches_regex", field_value, value) when is_binary(field_value) do
-    case Regex.compile(value) do
-      {:ok, regex} -> Regex.match?(regex, field_value)
-      {:error, _} -> false
-    end
-  end
-
-  defp apply_operator("not_matches_regex", field_value, value) when is_binary(field_value) do
-    !apply_operator("matches_regex", field_value, value)
   end
 
   defp apply_operator("greater_than", field_value, value) when is_integer(field_value) do

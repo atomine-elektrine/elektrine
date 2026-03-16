@@ -42,21 +42,7 @@ defmodule ElektrineWeb.Plugs.JMAPAuth do
   end
 
   defp https_request?(conn) do
-    conn.scheme == :https or forwarded_as_https?(conn)
-  end
-
-  defp forwarded_as_https?(conn) do
-    case get_req_header(conn, "x-forwarded-proto") do
-      [value | _] ->
-        value
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-        |> String.downcase() == "https"
-
-      _ ->
-        false
-    end
+    conn.scheme == :https or ClientIP.forwarded_as_https?(conn)
   end
 
   defp allow_insecure_auth? do

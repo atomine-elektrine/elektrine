@@ -140,11 +140,13 @@ defmodule Mix.Tasks.Elektrine.FixUsernameDuplicates do
           IO.puts("   No mailbox to update")
 
         mailbox ->
+          updated_email = Elektrine.EmailAddresses.local(new_username)
+
           mailbox
-          |> Ecto.Changeset.change(email: "#{new_username}@elektrine.com")
+          |> Ecto.Changeset.change(email: updated_email)
           |> Repo.update!()
 
-          IO.puts("   Updated mailbox email to #{new_username}@elektrine.com")
+          IO.puts("   Updated mailbox email to #{updated_email}")
       end
     end)
 

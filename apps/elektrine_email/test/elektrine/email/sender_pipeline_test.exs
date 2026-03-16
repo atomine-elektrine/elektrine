@@ -4,6 +4,9 @@ defmodule Elektrine.Email.SenderPipelineTest do
   alias Elektrine.Accounts
   alias Elektrine.Email
   alias Elektrine.Email.Sender
+  import Swoosh.TestAssertions
+
+  setup :set_swoosh_global
 
   describe "outbound pipeline boundaries" do
     setup do
@@ -87,6 +90,31 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert {:ok, sent_message} = Sender.send_email(sender.id, params)
       assert sent_message.to == recipient_mailbox.email
       refute String.contains?(sent_message.to, "blocked@example.com")
+    end
+
+    test "delivers internal recipients locally while preserving external cc delivery", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      params = %{
+        from: sender_mailbox.email,
+        to: recipient_mailbox.email,
+        cc: "outside@example.com",
+        subject: "Mixed internal and external recipients",
+        text_body: "hello"
+      }
+
+      assert {:ok, %{status: "sent"}} = Sender.send_email(sender.id, params)
+
+      recipient_messages = Email.list_messages(recipient_mailbox.id, 50, 0)
+
+      assert Enum.any?(
+               recipient_messages,
+               &(&1.subject == "Mixed internal and external recipients")
+             )
+
+      assert_email_sent(cc: "outside@example.com")
     end
 
     test "stores parsed SMTP attachments as base64-safe data", %{

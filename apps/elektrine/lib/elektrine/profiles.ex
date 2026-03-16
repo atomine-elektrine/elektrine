@@ -18,6 +18,18 @@ defmodule Elektrine.Profiles do
 
   alias Elektrine.Accounts.User
 
+  # Custom profile domains
+  defdelegate list_user_custom_domains(user_id), to: Elektrine.Profiles.CustomDomains
+  defdelegate get_custom_domain(id, user_id), to: Elektrine.Profiles.CustomDomains
+  defdelegate get_verified_custom_domain(domain), to: Elektrine.Profiles.CustomDomains
+  defdelegate get_verified_custom_domain_for_host(host), to: Elektrine.Profiles.CustomDomains
+  defdelegate create_custom_domain(user_or_id, attrs), to: Elektrine.Profiles.CustomDomains
+  defdelegate verify_custom_domain(custom_domain), to: Elektrine.Profiles.CustomDomains
+  defdelegate delete_custom_domain(custom_domain), to: Elektrine.Profiles.CustomDomains
+  defdelegate verification_host(custom_domain), to: Elektrine.Profiles.CustomDomains
+  defdelegate verification_value(custom_domain), to: Elektrine.Profiles.CustomDomains
+  defdelegate dns_records_for_custom_domain(custom_domain), to: Elektrine.Profiles.CustomDomains
+
   @doc """
   Gets a user's profile page.
   """

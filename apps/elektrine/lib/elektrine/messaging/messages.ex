@@ -1573,16 +1573,20 @@ defmodule Elektrine.Messaging.Messages do
   Creates a message from a federated source (ActivityPub).
   """
   def create_federated_message(attrs) do
-    %Message{}
-    |> Message.federated_changeset(attrs)
-    |> Repo.insert()
-    |> case do
-      {:ok, message} = result ->
-        invalidate_activitypub_ref_cache_for_message(message)
-        result
+    if Elektrine.Platform.Modules.compiled?(:social) do
+      %Message{}
+      |> Message.federated_changeset(attrs)
+      |> Repo.insert()
+      |> case do
+        {:ok, message} = result ->
+          invalidate_activitypub_ref_cache_for_message(message)
+          result
 
-      error ->
-        error
+        error ->
+          error
+      end
+    else
+      {:error, :social_unavailable}
     end
   end
 
@@ -1846,7 +1850,7 @@ defmodule Elektrine.Messaging.Messages do
   @doc """
   Creates a like from a federated source.
   """
-  def create_federated_like(message_id, remote_actor_id) do
+  def create_federated_like(message_id, remote_actor_id, activitypub_id \\ nil) do
     alias Elektrine.Messaging.FederatedLike
 
     # Check if already liked
@@ -1854,11 +1858,16 @@ defmodule Elektrine.Messaging.Messages do
       Repo.get_by(FederatedLike, message_id: message_id, remote_actor_id: remote_actor_id)
 
     if existing do
+      maybe_backfill_federated_activity_id(existing, activitypub_id)
       {:ok, :already_liked}
     else
       # Create like record
       case %FederatedLike{}
-           |> FederatedLike.changeset(%{message_id: message_id, remote_actor_id: remote_actor_id})
+           |> FederatedLike.changeset(%{
+             message_id: message_id,
+             remote_actor_id: remote_actor_id,
+             activitypub_id: activitypub_id
+           })
            |> Repo.insert() do
         {:ok, _like} ->
           # Increment like count
@@ -1909,7 +1918,7 @@ defmodule Elektrine.Messaging.Messages do
   Creates a dislike (downvote) from a federated source.
   Used by Lemmy and other platforms that support downvotes.
   """
-  def create_federated_dislike(message_id, remote_actor_id) do
+  def create_federated_dislike(message_id, remote_actor_id, activitypub_id \\ nil) do
     alias Elektrine.Messaging.FederatedDislike
 
     # Check if already disliked
@@ -1917,13 +1926,15 @@ defmodule Elektrine.Messaging.Messages do
       Repo.get_by(FederatedDislike, message_id: message_id, remote_actor_id: remote_actor_id)
 
     if existing do
+      maybe_backfill_federated_activity_id(existing, activitypub_id)
       {:ok, :already_disliked}
     else
       # Create dislike record
       case %FederatedDislike{}
            |> FederatedDislike.changeset(%{
              message_id: message_id,
-             remote_actor_id: remote_actor_id
+             remote_actor_id: remote_actor_id,
+             activitypub_id: activitypub_id
            })
            |> Repo.insert() do
         {:ok, _dislike} ->
@@ -1975,7 +1986,7 @@ defmodule Elektrine.Messaging.Messages do
   Creates a boost (announce) record from a federated source.
   Tracks which remote actors have boosted a local post.
   """
-  def create_federated_boost(message_id, remote_actor_id) do
+  def create_federated_boost(message_id, remote_actor_id, activitypub_id \\ nil) do
     alias Elektrine.Messaging.FederatedBoost
 
     # Check if already boosted
@@ -1983,13 +1994,15 @@ defmodule Elektrine.Messaging.Messages do
       Repo.get_by(FederatedBoost, message_id: message_id, remote_actor_id: remote_actor_id)
 
     if existing do
+      maybe_backfill_federated_activity_id(existing, activitypub_id)
       {:ok, :already_boosted}
     else
       # Create boost record
       case %FederatedBoost{}
            |> FederatedBoost.changeset(%{
              message_id: message_id,
-             remote_actor_id: remote_actor_id
+             remote_actor_id: remote_actor_id,
+             activitypub_id: activitypub_id
            })
            |> Repo.insert() do
         {:ok, _boost} ->
@@ -2036,6 +2049,19 @@ defmodule Elektrine.Messaging.Messages do
         {:ok, :unboosted}
     end
   end
+
+  defp maybe_backfill_federated_activity_id(record, activitypub_id)
+       when is_binary(activitypub_id) and activitypub_id != "" do
+    if is_nil(record.activitypub_id) do
+      record
+      |> Ecto.Changeset.change(activitypub_id: activitypub_id)
+      |> Repo.update()
+    else
+      {:ok, record}
+    end
+  end
+
+  defp maybe_backfill_federated_activity_id(_record, _activitypub_id), do: :ok
 
   @doc """
   Creates an emoji reaction from a remote actor (EmojiReact activity).

@@ -2,6 +2,7 @@ defmodule ElektrineWeb.EmailController do
   use ElektrineEmailWeb, :controller
 
   alias Elektrine.Email
+  alias Elektrine.EmailAddresses
   import ElektrineWeb.Components.Email.Display
 
   def delete(conn, %{"id" => id}) do
@@ -297,7 +298,7 @@ defmodule ElektrineWeb.EmailController do
       mail_message
       |> Mail.Message.put_header(
         "message-id",
-        message.message_id || "<#{message.id}@elektrine.com>"
+        message.message_id || EmailAddresses.message_id(message.id)
       )
       |> Mail.Message.put_header("date", DateTime.shift_zone!(message.inserted_at, "Etc/UTC"))
       |> Mail.Message.put_header("from", message.from)

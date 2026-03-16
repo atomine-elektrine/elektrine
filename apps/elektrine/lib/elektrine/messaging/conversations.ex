@@ -9,14 +9,21 @@ defmodule Elektrine.Messaging.Conversations do
     ChatUserHiddenMessage,
     Conversation,
     ConversationMember,
+    FederationInviteState,
+    FederationMembershipState,
     Federation,
     Message,
     RateLimiter,
     UserHiddenMessage
   }
 
+  alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
+  alias Elektrine.Messaging.Federation.DirectMessageState
+  alias Elektrine.Messaging.Federation.State, as: FederationState
+  alias Elektrine.Messaging.Federation.Utils, as: FederationUtils
+
   alias Elektrine.Accounts.User
-  @remote_dm_source_prefix "arblarg:dm:"
   @doc "Returns the list of conversations for a user.\n"
   def list_conversations(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
@@ -289,7 +296,7 @@ defmodule Elektrine.Messaging.Conversations do
          {:ok, recipient} <- normalize_remote_dm_handle(remote_handle),
          :ok <- ensure_remote_recipient_domain(local_user_id, recipient),
          %{} <- Federation.outgoing_peer(recipient.domain) do
-      remote_source = remote_dm_source(recipient.handle)
+      remote_source = DirectMessageState.remote_dm_source(recipient.handle)
       display_name = remote_dm_display_name(attrs, recipient)
       avatar_url = remote_dm_avatar_url(attrs)
 
@@ -344,7 +351,7 @@ defmodule Elektrine.Messaging.Conversations do
   @doc "Returns true when a conversation is a remote federated DM.\n"
   def remote_dm_conversation?(%Conversation{type: "dm", federated_source: source})
       when is_binary(source) do
-    String.starts_with?(source, @remote_dm_source_prefix)
+    is_binary(DirectMessageState.remote_dm_handle_from_source(source))
   end
 
   def remote_dm_conversation?(_), do: false
@@ -352,13 +359,7 @@ defmodule Elektrine.Messaging.Conversations do
   @doc "Returns normalized remote DM handle for federated DM conversations.\n"
   def remote_dm_handle(%Conversation{} = conversation) do
     if remote_dm_conversation?(conversation) do
-      conversation.federated_source
-      |> String.replace_prefix(@remote_dm_source_prefix, "")
-      |> normalize_remote_dm_handle()
-      |> case do
-        {:ok, recipient} -> recipient.handle
-        _ -> nil
-      end
+      DirectMessageState.remote_dm_handle_from_source(conversation.federated_source)
     else
       nil
     end
@@ -545,76 +546,108 @@ defmodule Elektrine.Messaging.Conversations do
           {:error, reason}
 
         {:ok, :allowed} ->
-          do_add_member_to_conversation(conversation_id, user_id, role, added_by_user_id)
+          do_add_member_to_conversation(
+            conversation_id,
+            user_id,
+            role,
+            added_by_user_id,
+            true
+          )
       end
     else
-      do_add_member_to_conversation(conversation_id, user_id, role, nil)
+      do_add_member_to_conversation(conversation_id, user_id, role, nil, true)
     end
   end
 
-  defp do_add_member_to_conversation(conversation_id, user_id, role, added_by_user_id) do
-    existing_member =
-      Repo.get_by(ConversationMember, conversation_id: conversation_id, user_id: user_id)
+  def add_member_to_conversation_without_federation(conversation_id, user_id, role \\ "member") do
+    do_add_member_to_conversation(conversation_id, user_id, role, nil, false)
+  end
 
-    case existing_member do
-      nil ->
-        ConversationMember.add_member_changeset(conversation_id, user_id, role)
-        |> Repo.insert()
-        |> case do
-          {:ok, member} ->
-            update_member_count(conversation_id)
-            maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
-            _ = Federation.publish_membership_state(conversation_id, user_id, "active", role)
+  defp do_add_member_to_conversation(
+         conversation_id,
+         user_id,
+         role,
+         added_by_user_id,
+         publish_federation?
+       ) do
+    if Elektrine.Messaging.Moderation.user_banned?(conversation_id, user_id) do
+      {:error, :banned}
+    else
+      existing_member =
+        Repo.get_by(ConversationMember, conversation_id: conversation_id, user_id: user_id)
 
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "conversation:#{conversation_id}",
-              {:member_joined, %{user_id: user_id, conversation_id: conversation_id}}
-            )
+      case existing_member do
+        nil ->
+          ConversationMember.add_member_changeset(conversation_id, user_id, role)
+          |> Repo.insert()
+          |> case do
+            {:ok, member} ->
+              update_member_count(conversation_id)
 
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "user:#{user_id}",
-              {:added_to_conversation, %{conversation_id: conversation_id}}
-            )
+              maybe_publish_federation_membership(
+                publish_federation?,
+                conversation_id,
+                user_id,
+                added_by_user_id,
+                role
+              )
 
-            {:ok, member}
+              Phoenix.PubSub.broadcast(
+                Elektrine.PubSub,
+                "conversation:#{conversation_id}",
+                {:member_joined, %{user_id: user_id, conversation_id: conversation_id}}
+              )
 
-          error ->
-            error
-        end
+              Phoenix.PubSub.broadcast(
+                Elektrine.PubSub,
+                "user:#{user_id}",
+                {:added_to_conversation, %{conversation_id: conversation_id}}
+              )
 
-      member ->
-        member
-        |> ConversationMember.changeset(%{
-          left_at: nil,
-          joined_at: DateTime.utc_now(),
-          role: role
-        })
-        |> Repo.update()
-        |> case do
-          {:ok, updated_member} ->
-            update_member_count(conversation_id)
-            maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
-            _ = Federation.publish_membership_state(conversation_id, user_id, "active", role)
+              {:ok, member}
 
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "conversation:#{conversation_id}",
-              {:member_joined, %{user_id: user_id, conversation_id: conversation_id}}
-            )
+            error ->
+              error
+          end
 
-            Phoenix.PubSub.broadcast(
-              Elektrine.PubSub,
-              "user:#{user_id}",
-              {:added_to_conversation, %{conversation_id: conversation_id}}
-            )
+        member ->
+          member
+          |> ConversationMember.changeset(%{
+            left_at: nil,
+            joined_at: DateTime.utc_now(),
+            role: role
+          })
+          |> Repo.update()
+          |> case do
+            {:ok, updated_member} ->
+              update_member_count(conversation_id)
 
-            {:ok, updated_member}
+              maybe_publish_federation_membership(
+                publish_federation?,
+                conversation_id,
+                user_id,
+                added_by_user_id,
+                role
+              )
 
-          error ->
-            error
-        end
+              Phoenix.PubSub.broadcast(
+                Elektrine.PubSub,
+                "conversation:#{conversation_id}",
+                {:member_joined, %{user_id: user_id, conversation_id: conversation_id}}
+              )
+
+              Phoenix.PubSub.broadcast(
+                Elektrine.PubSub,
+                "user:#{user_id}",
+                {:added_to_conversation, %{conversation_id: conversation_id}}
+              )
+
+              {:ok, updated_member}
+
+            error ->
+              error
+          end
+      end
     end
   end
 
@@ -690,6 +723,49 @@ defmodule Elektrine.Messaging.Conversations do
     |> Repo.all()
   end
 
+  @doc "Lists pending remote join requests for a locally authoritative channel.\n"
+  def list_pending_remote_join_requests(conversation_id) when is_integer(conversation_id) do
+    case remote_join_review_conversation(conversation_id) do
+      {:ok, _conversation} ->
+        local_domain = Federation.local_domain()
+
+        from(state in FederationMembershipState,
+          where: state.conversation_id == ^conversation_id and state.state == "invited",
+          where: state.origin_domain != ^local_domain,
+          preload: [:remote_actor],
+          order_by: [asc: state.inserted_at]
+        )
+        |> Repo.all()
+        |> Enum.filter(&pending_remote_join_request?/1)
+        |> Enum.map(&format_pending_remote_join_request/1)
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  def list_pending_remote_join_requests(_conversation_id), do: []
+
+  @doc "Approves a pending remote join request for a locally authoritative channel.\n"
+  def approve_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id)
+      when is_integer(conversation_id) and is_integer(remote_actor_id) and
+             is_integer(reviewer_user_id) do
+    review_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id, "accepted")
+  end
+
+  def approve_remote_join_request(_conversation_id, _remote_actor_id, _reviewer_user_id),
+    do: {:error, :not_found}
+
+  @doc "Declines a pending remote join request for a locally authoritative channel.\n"
+  def decline_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id)
+      when is_integer(conversation_id) and is_integer(remote_actor_id) and
+             is_integer(reviewer_user_id) do
+    review_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id, "declined")
+  end
+
+  def decline_remote_join_request(_conversation_id, _remote_actor_id, _reviewer_user_id),
+    do: {:error, :not_found}
+
   @doc "Promotes a member to admin role.\n"
   def promote_to_admin(conversation_id, user_id, promoter_id) do
     with {:ok, _conversation} <- get_conversation_basic(conversation_id),
@@ -713,6 +789,7 @@ defmodule Elektrine.Messaging.Conversations do
           |> case do
             {:ok, updated_member} ->
               _ = Federation.publish_membership_state(conversation_id, user_id, "active", "admin")
+              maybe_publish_role_assignment(conversation_id, user_id, "admin", promoter_id)
               {:ok, updated_member}
 
             error ->
@@ -751,6 +828,7 @@ defmodule Elektrine.Messaging.Conversations do
               _ =
                 Federation.publish_membership_state(conversation_id, user_id, "active", "member")
 
+              maybe_publish_role_assignment(conversation_id, user_id, "member", demoter_id)
               {:ok, updated_member}
 
             error ->
@@ -766,6 +844,10 @@ defmodule Elektrine.Messaging.Conversations do
 
   @doc "Updates a member's role in a conversation.\n"
   def update_member_role(conversation_id, user_id, new_role) do
+    update_member_role(conversation_id, user_id, new_role, nil)
+  end
+
+  def update_member_role(conversation_id, user_id, new_role, actor_user_id) do
     case get_conversation_member(conversation_id, user_id) do
       nil ->
         {:error, :member_not_found}
@@ -777,6 +859,7 @@ defmodule Elektrine.Messaging.Conversations do
         |> case do
           {:ok, updated_member} ->
             _ = Federation.publish_membership_state(conversation_id, user_id, "active", new_role)
+            maybe_publish_role_assignment(conversation_id, user_id, new_role, actor_user_id)
             {:ok, updated_member}
 
           error ->
@@ -787,13 +870,117 @@ defmodule Elektrine.Messaging.Conversations do
 
   @doc "Promotes a user to moderator.\n"
   def promote_to_moderator(conversation_id, user_id) do
-    update_member_role(conversation_id, user_id, "moderator")
+    update_member_role(conversation_id, user_id, "moderator", nil)
   end
 
   @doc "Demotes a moderator to member.\n"
   def demote_from_moderator(conversation_id, user_id) do
-    update_member_role(conversation_id, user_id, "member")
+    update_member_role(conversation_id, user_id, "member", nil)
   end
+
+  defp maybe_publish_role_assignment(_conversation_id, _user_id, _new_role, nil), do: :ok
+
+  defp maybe_publish_role_assignment(conversation_id, user_id, new_role, actor_user_id)
+       when is_integer(conversation_id) and is_integer(user_id) and is_binary(new_role) and
+              is_integer(actor_user_id) do
+    with %Conversation{type: "channel", server_id: server_id} <-
+           Repo.get(Conversation, conversation_id),
+         true <- is_integer(server_id),
+         %User{} = target_user <- Repo.get(User, user_id),
+         %User{} = actor_user <- Repo.get(User, actor_user_id),
+         %{} = role_definition <- builtin_room_role_definition(new_role) do
+      role_upsert_payload = %{"role" => role_definition}
+
+      role_assignment_payload = %{
+        "assignment" => %{
+          "role_id" => role_definition["id"],
+          "target" => %{
+            "type" => "member",
+            "id" => FederationUtils.sender_payload(target_user)["uri"]
+          },
+          "state" => "assigned"
+        }
+      }
+
+      _ =
+        Federation.publish_extension_event(
+          conversation_id,
+          actor_user.id,
+          "role.upsert",
+          role_upsert_payload
+        )
+
+      _ =
+        Federation.publish_extension_event(
+          conversation_id,
+          actor_user.id,
+          "role.assignment.upsert",
+          role_assignment_payload
+        )
+    end
+
+    :ok
+  end
+
+  defp maybe_publish_role_assignment(_conversation_id, _user_id, _new_role, _actor_user_id),
+    do: :ok
+
+  defp builtin_room_role_definition("owner") do
+    %{
+      "id" => "builtin:owner",
+      "name" => "Owner",
+      "permissions" => [
+        "manage_roles",
+        "manage_permissions",
+        "manage_moderation",
+        "invite_members"
+      ],
+      "position" => 100
+    }
+  end
+
+  defp builtin_room_role_definition("admin") do
+    %{
+      "id" => "builtin:admin",
+      "name" => "Admin",
+      "permissions" => [
+        "manage_roles",
+        "manage_permissions",
+        "manage_moderation",
+        "invite_members"
+      ],
+      "position" => 80
+    }
+  end
+
+  defp builtin_room_role_definition("moderator") do
+    %{
+      "id" => "builtin:moderator",
+      "name" => "Moderator",
+      "permissions" => ["manage_moderation", "invite_members"],
+      "position" => 60
+    }
+  end
+
+  defp builtin_room_role_definition("member") do
+    %{
+      "id" => "builtin:member",
+      "name" => "Member",
+      "permissions" => ["send_messages"],
+      "position" => 10
+    }
+  end
+
+  defp builtin_room_role_definition("readonly") do
+    %{
+      "id" => "builtin:readonly",
+      "name" => "Readonly",
+      "permissions" => ["read_messages"],
+      "position" => 0
+    }
+  end
+
+  defp builtin_room_role_definition(_role), do: nil
 
   @doc "Joins a public conversation (channel or group).\n"
   def join_conversation(conversation_id, user_id) do
@@ -803,6 +990,9 @@ defmodule Elektrine.Messaging.Conversations do
 
       {:ok, conversation} ->
         cond do
+          remote_mirror_channel_join?(conversation) ->
+            request_mirrored_channel_join(conversation, user_id)
+
           conversation.type == "channel" and not is_nil(conversation.server_id) ->
             {:error, :must_join_server}
 
@@ -983,6 +1173,326 @@ defmodule Elektrine.Messaging.Conversations do
     end
   end
 
+  defp maybe_publish_federation_membership(
+         true,
+         conversation_id,
+         user_id,
+         added_by_user_id,
+         role
+       ) do
+    maybe_publish_invite_acceptance(conversation_id, user_id, added_by_user_id, role)
+    _ = Federation.publish_membership_state(conversation_id, user_id, "active", role)
+    :ok
+  end
+
+  defp maybe_publish_federation_membership(false, _conversation_id, _user_id, _actor_id, _role),
+    do: :ok
+
+  defp remote_mirror_channel_join?(%Conversation{
+         type: "channel",
+         is_federated_mirror: true,
+         server_id: server_id
+       })
+       when is_integer(server_id),
+       do: true
+
+  defp remote_mirror_channel_join?(_conversation), do: false
+
+  defp request_mirrored_channel_join(%Conversation{} = conversation, user_id)
+       when is_integer(user_id) do
+    case get_conversation_member(conversation.id, user_id) do
+      %ConversationMember{} ->
+        {:error, :already_member}
+
+      nil ->
+        role = "member"
+
+        with false <- local_join_request_pending?(conversation.id, user_id),
+             %User{} = user <- Repo.get(User, user_id),
+             :ok <-
+               FederationState.persist_local_invite_projection(
+                 conversation.id,
+                 user.id,
+                 user.id,
+                 "pending",
+                 role,
+                 %{"source" => "remote_join_request"},
+                 %{local_domain: &Federation.local_domain/0}
+               ) do
+          _ = Federation.publish_membership_state(conversation.id, user.id, "invited", role)
+          {:ok, :pending}
+        else
+          true ->
+            {:ok, :pending}
+
+          nil ->
+            {:error, :not_found}
+
+          {:error, reason} ->
+            {:error, reason}
+
+          _ ->
+            {:error, :invalid_event_payload}
+        end
+    end
+  end
+
+  defp request_mirrored_channel_join(_conversation, _user_id),
+    do: {:error, :invalid_event_payload}
+
+  defp review_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id, decision)
+       when decision in ["accepted", "declined"] do
+    with {:ok, conversation} <- remote_join_review_conversation(conversation_id),
+         %User{} <- Repo.get(User, reviewer_user_id),
+         %FederationMembershipState{} = membership_state <-
+           pending_remote_join_membership_state(conversation_id, remote_actor_id),
+         %ActivityPubActor{} = remote_actor <- Repo.get(ActivityPubActor, remote_actor_id) do
+      timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+      membership_state_value = if decision == "accepted", do: "active", else: "left"
+
+      updated_metadata =
+        membership_state.metadata
+        |> normalize_remote_join_metadata()
+        |> Map.merge(%{
+          "join_request" => false,
+          "join_decision" => decision,
+          "reviewed_by_user_id" => reviewer_user_id,
+          "reviewed_at" => DateTime.to_iso8601(timestamp)
+        })
+
+      updated_joined_at =
+        if decision == "accepted" do
+          membership_state.joined_at_remote || timestamp
+        else
+          membership_state.joined_at_remote
+        end
+
+      case membership_state
+           |> FederationMembershipState.changeset(%{
+             state: membership_state_value,
+             joined_at_remote: updated_joined_at,
+             updated_at_remote: timestamp,
+             metadata: updated_metadata
+           })
+           |> Repo.update() do
+        {:ok, updated_membership_state} ->
+          _ = broadcast_remote_join_request_update(conversation.id, updated_membership_state)
+
+          _ =
+            Federation.publish_remote_invite_state(
+              conversation.id,
+              remote_join_actor_payload(remote_actor),
+              reviewer_user_id,
+              decision,
+              membership_state.role || "member",
+              outbound_remote_join_decision_metadata(updated_metadata)
+            )
+
+          {:ok, format_pending_remote_join_request(updated_membership_state)}
+
+        {:error, _changeset} ->
+          {:error, :update_failed}
+      end
+    else
+      {:error, reason} -> {:error, reason}
+      nil -> {:error, :not_found}
+      false -> {:error, :not_found}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp pending_remote_join_membership_state(conversation_id, remote_actor_id)
+       when is_integer(conversation_id) and is_integer(remote_actor_id) do
+    from(state in FederationMembershipState,
+      where:
+        state.conversation_id == ^conversation_id and state.remote_actor_id == ^remote_actor_id and
+          state.state == "invited",
+      preload: [:remote_actor]
+    )
+    |> Repo.one()
+    |> case do
+      %FederationMembershipState{} = membership_state ->
+        if pending_remote_join_request?(membership_state), do: membership_state, else: nil
+
+      nil ->
+        nil
+    end
+  end
+
+  defp pending_remote_join_membership_state(_conversation_id, _remote_actor_id), do: nil
+
+  defp remote_join_review_conversation(conversation_id) when is_integer(conversation_id) do
+    case Repo.get(Conversation, conversation_id) do
+      %Conversation{
+        type: "channel",
+        is_federated_mirror: false,
+        server_id: server_id
+      } = conversation
+      when is_integer(server_id) ->
+        {:ok, conversation}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  defp remote_join_review_conversation(_conversation_id), do: {:error, :not_found}
+
+  defp pending_remote_join_request?(%FederationMembershipState{metadata: metadata})
+       when is_map(metadata) do
+    metadata["join_request"] in [true, "true"]
+  end
+
+  defp pending_remote_join_request?(_membership_state), do: false
+
+  defp format_pending_remote_join_request(%FederationMembershipState{} = membership_state) do
+    actor = membership_state.remote_actor
+
+    handle =
+      case actor do
+        %ActivityPubActor{username: username, domain: domain}
+        when is_binary(username) and is_binary(domain) ->
+          "@#{username}@#{domain}"
+
+        _ ->
+          nil
+      end
+
+    display_name =
+      case actor do
+        %ActivityPubActor{display_name: display_name}
+        when is_binary(display_name) and display_name != "" ->
+          display_name
+
+        %ActivityPubActor{username: username} when is_binary(username) and username != "" ->
+          username
+
+        _ ->
+          handle || "remote user"
+      end
+
+    %{
+      remote_actor_id: membership_state.remote_actor_id,
+      actor_uri: actor && actor.uri,
+      origin_domain: membership_state.origin_domain,
+      role: membership_state.role,
+      state: membership_state.state,
+      handle: handle,
+      display_name: display_name,
+      display_label: remote_join_display_label(display_name, handle),
+      avatar_url: actor && actor.avatar_url,
+      requested_at: membership_state.inserted_at,
+      updated_at: membership_state.updated_at_remote || membership_state.updated_at,
+      metadata: membership_state.metadata || %{}
+    }
+  end
+
+  defp format_pending_remote_join_request(_membership_state), do: %{}
+
+  defp remote_join_display_label(display_name, handle)
+       when is_binary(display_name) and is_binary(handle) do
+    if String.trim(display_name) != "" and display_name != handle do
+      "#{display_name} (#{handle})"
+    else
+      handle
+    end
+  end
+
+  defp remote_join_display_label(display_name, _handle) when is_binary(display_name),
+    do: display_name
+
+  defp remote_join_display_label(_display_name, handle) when is_binary(handle), do: handle
+  defp remote_join_display_label(_display_name, _handle), do: "remote user"
+
+  defp normalize_remote_join_metadata(metadata) when is_map(metadata), do: metadata
+  defp normalize_remote_join_metadata(_metadata), do: %{}
+
+  defp outbound_remote_join_decision_metadata(metadata) when is_map(metadata) do
+    metadata
+    |> Map.drop(["reviewed_by_user_id", "reviewed_at"])
+    |> Map.put("source", "moderator_review")
+  end
+
+  defp outbound_remote_join_decision_metadata(_metadata), do: %{"source" => "moderator_review"}
+
+  defp remote_join_actor_payload(%ActivityPubActor{} = actor) do
+    %{
+      "uri" => actor.uri,
+      "username" => actor.username,
+      "domain" => actor.domain,
+      "handle" => "#{actor.username}@#{actor.domain}",
+      "display_name" => actor.display_name || actor.username
+    }
+    |> maybe_put_actor_avatar(actor.avatar_url)
+  end
+
+  defp remote_join_actor_payload(_actor), do: %{}
+
+  defp maybe_put_actor_avatar(payload, avatar_url)
+       when is_binary(avatar_url) and avatar_url != "" do
+    Map.put(payload, "avatar_url", avatar_url)
+  end
+
+  defp maybe_put_actor_avatar(payload, _avatar_url), do: payload
+
+  defp broadcast_remote_join_request_update(
+         conversation_id,
+         %FederationMembershipState{} = membership_state
+       )
+       when is_integer(conversation_id) do
+    case Repo.get(ActivityPubActor, membership_state.remote_actor_id) do
+      %ActivityPubActor{} = actor ->
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "conversation:#{conversation_id}",
+          {:federation_membership_update,
+           %{
+             conversation_id: conversation_id,
+             remote_actor_id: membership_state.remote_actor_id,
+             handle: "@#{actor.username}@#{actor.domain}",
+             role: membership_state.role,
+             state: membership_state.state,
+             joined_at: membership_state.joined_at_remote,
+             updated_at: membership_state.updated_at_remote,
+             avatar_url: actor.avatar_url
+           }}
+        )
+
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp broadcast_remote_join_request_update(_conversation_id, _membership_state), do: :ok
+
+  defp local_join_request_pending?(conversation_id, user_id)
+       when is_integer(conversation_id) and is_integer(user_id) do
+    case Repo.get(User, user_id) do
+      %User{} = user ->
+        target_uri = local_actor_uri(user)
+
+        Repo.exists?(
+          from(invite in FederationInviteState,
+            where:
+              invite.conversation_id == ^conversation_id and
+                invite.target_uri == ^target_uri and
+                invite.state == "pending"
+          )
+        )
+
+      _ ->
+        false
+    end
+  end
+
+  defp local_join_request_pending?(_conversation_id, _user_id), do: false
+
+  defp local_actor_uri(%User{username: username}) when is_binary(username) do
+    "#{ActivityPub.instance_url()}/users/#{username}"
+  end
+
   @doc "Checks if a user has any community memberships.\nFast check for loading skeleton optimization.\n"
   def user_has_communities?(user_id) do
     from(cm in ConversationMember,
@@ -1092,8 +1602,6 @@ defmodule Elektrine.Messaging.Conversations do
   end
 
   defp normalize_remote_dm_handle(_), do: {:error, :invalid_remote_handle}
-
-  defp remote_dm_source(handle), do: @remote_dm_source_prefix <> handle
 
   defp ensure_dm_creation_allowed(user_id) do
     if RateLimiter.can_create_dm?(user_id), do: :ok, else: {:error, :rate_limited}

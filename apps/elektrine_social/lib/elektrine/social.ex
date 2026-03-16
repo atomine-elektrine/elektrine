@@ -129,6 +129,23 @@ defmodule Elektrine.Social do
   end
 
   @doc """
+  Decrements the usage count for a hashtag without letting it go negative.
+  """
+  def decrement_hashtag_usage(hashtag_id) do
+    case Repo.get(Hashtag, hashtag_id) do
+      %Hashtag{use_count: count} when count > 0 ->
+        from(h in Hashtag, where: h.id == ^hashtag_id)
+        |> Repo.update_all(
+          inc: [use_count: -1],
+          set: [last_used_at: DateTime.utc_now()]
+        )
+
+      _ ->
+        {0, nil}
+    end
+  end
+
+  @doc """
   Gets a hashtag by its normalized name.
   """
   def get_hashtag_by_normalized_name(normalized_name) do
@@ -139,53 +156,61 @@ defmodule Elektrine.Social do
   Counts posts with a specific hashtag (for ActivityPub collections).
   """
   def count_hashtag_posts(hashtag_id, opts \\ []) do
-    visibility = Keyword.get(opts, :visibility)
-
-    query =
-      from(m in Message,
-        join: ph in "post_hashtags",
-        on: ph.message_id == m.id,
-        where: ph.hashtag_id == ^hashtag_id and is_nil(m.deleted_at)
-      )
-
-    query =
-      if visibility do
-        from(m in query, where: m.visibility == ^visibility)
-      else
-        query
-      end
-
-    Repo.aggregate(query, :count, :id)
+    hashtag_posts_query(hashtag_id, opts)
+    |> Repo.aggregate(:count, :id)
   end
 
   @doc """
   Lists posts with a specific hashtag (for ActivityPub collections).
   """
   def list_hashtag_posts(hashtag_id, opts \\ []) do
-    visibility = Keyword.get(opts, :visibility)
     limit = Keyword.get(opts, :limit, 20)
     offset = Keyword.get(opts, :offset, 0)
     preload = Keyword.get(opts, :preload, [])
 
     query =
-      from(m in Message,
-        join: ph in "post_hashtags",
-        on: ph.message_id == m.id,
-        where: ph.hashtag_id == ^hashtag_id and is_nil(m.deleted_at),
+      from(m in hashtag_posts_query(hashtag_id, opts),
         order_by: [desc: m.inserted_at],
         limit: ^limit,
         offset: ^offset
       )
 
-    query =
-      if visibility do
-        from(m in query, where: m.visibility == ^visibility)
-      else
-        query
-      end
-
-    Repo.all(query)
+    query
+    |> Repo.all()
     |> Repo.preload(preload)
+  end
+
+  defp hashtag_posts_query(hashtag_id, opts) do
+    visibility = Keyword.get(opts, :visibility)
+    exclude_drafts = Keyword.get(opts, :exclude_drafts, false)
+    activitypub_enabled_only = Keyword.get(opts, :activitypub_enabled_only, false)
+
+    Message
+    |> join(:inner, [m], ph in "post_hashtags", on: ph.message_id == m.id)
+    |> join(:inner, [m, ph], c in Conversation, on: c.id == m.conversation_id)
+    |> where([m, ph, _c], ph.hashtag_id == ^hashtag_id and is_nil(m.deleted_at))
+    |> where([_m, _ph, c], c.type != "community" or c.is_public == true)
+    |> maybe_filter_hashtag_post_visibility(visibility)
+    |> maybe_exclude_hashtag_drafts(exclude_drafts)
+    |> maybe_filter_activitypub_enabled_hashtag_posts(activitypub_enabled_only)
+  end
+
+  defp maybe_filter_hashtag_post_visibility(query, nil), do: query
+
+  defp maybe_filter_hashtag_post_visibility(query, visibility) do
+    from(m in query, where: m.visibility == ^visibility)
+  end
+
+  defp maybe_exclude_hashtag_drafts(query, false), do: query
+  defp maybe_exclude_hashtag_drafts(query, true), do: from(m in query, where: m.is_draft != true)
+
+  defp maybe_filter_activitypub_enabled_hashtag_posts(query, false), do: query
+
+  defp maybe_filter_activitypub_enabled_hashtag_posts(query, true) do
+    from([m, _ph, _c] in query,
+      join: u in User,
+      on: u.id == m.sender_id and u.activitypub_enabled == true
+    )
   end
 
   ## Timeline/Posts
@@ -1194,7 +1219,7 @@ defmodule Elektrine.Social do
       end
 
     base_query =
-      from(m in discussion_post_query(conversation_id),
+      from(m in discussion_post_query(conversation_id, opts),
         limit: ^limit,
         preload: ^preloads
       )
@@ -1218,22 +1243,51 @@ defmodule Elektrine.Social do
   @doc """
   Counts discussion posts in a community (for ActivityPub totalItems).
   """
-  def count_discussion_posts(conversation_id) do
-    from(m in discussion_post_query(conversation_id), select: count(m.id))
+  def count_discussion_posts(conversation_id, opts \\ []) do
+    from(m in discussion_post_query(conversation_id, opts), select: count(m.id))
     |> Repo.one() || 0
   end
 
-  defp discussion_post_query(conversation_id) do
-    from(m in Message,
-      where:
-        m.conversation_id == ^conversation_id and
-          (m.post_type in ^@discussion_post_types or is_nil(m.post_type)) and
-          is_nil(m.deleted_at) and
-          is_nil(m.reply_to_id) and
-          (is_nil(m.is_pinned) or m.is_pinned == false) and
-          (m.approval_status == "approved" or is_nil(m.approval_status))
+  defp discussion_post_query(conversation_id, opts) do
+    visibility = Keyword.get(opts, :visibility)
+    exclude_drafts = Keyword.get(opts, :exclude_drafts, false)
+    activitypub_enabled_only = Keyword.get(opts, :activitypub_enabled_only, false)
+
+    Message
+    |> where(
+      [m],
+      m.conversation_id == ^conversation_id and
+        (m.post_type in ^@discussion_post_types or is_nil(m.post_type)) and
+        is_nil(m.deleted_at) and
+        is_nil(m.reply_to_id) and
+        (is_nil(m.is_pinned) or m.is_pinned == false) and
+        (m.approval_status == "approved" or is_nil(m.approval_status))
+    )
+    |> maybe_filter_discussion_post_visibility(visibility)
+    |> maybe_exclude_draft_discussion_posts(exclude_drafts)
+    |> maybe_filter_activitypub_enabled_discussion_posts(activitypub_enabled_only)
+  end
+
+  defp maybe_filter_discussion_post_visibility(query, nil), do: query
+
+  defp maybe_filter_discussion_post_visibility(query, visibility) when is_binary(visibility) do
+    from(m in query, where: m.visibility == ^visibility)
+  end
+
+  defp maybe_filter_activitypub_enabled_discussion_posts(query, false), do: query
+
+  defp maybe_filter_activitypub_enabled_discussion_posts(query, true) do
+    from(m in query,
+      join: u in User,
+      on: u.id == m.sender_id and u.activitypub_enabled == true
     )
   end
+
+  defp maybe_exclude_draft_discussion_posts(query, true) do
+    from(m in query, where: m.is_draft != true)
+  end
+
+  defp maybe_exclude_draft_discussion_posts(query, _), do: query
 
   @doc """
   Gets related discussion posts from the same community.

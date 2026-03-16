@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.OnboardingLive do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.EmailAddresses
   alias Elektrine.Profiles
 
   @impl true
@@ -252,7 +253,8 @@ defmodule ElektrineWeb.OnboardingLive do
                     />
                     <label class="label">
                       <span class="label-text-alt">
-                        Your email address ({@current_user.username}@elektrine.com) and login credential
+                        Your email address ({EmailAddresses.primary_for_user(@current_user)}) and
+                        login credential
                       </span>
                     </label>
                   </div>

@@ -19,7 +19,8 @@ defmodule Elektrine.Messaging.ChatMessages do
     ConversationMember,
     Conversations,
     Federation,
-    FederationReadCursor
+    FederationReadCursor,
+    RoomACL
   }
 
   alias Elektrine.PubSubTopics
@@ -242,12 +243,14 @@ defmodule Elektrine.Messaging.ChatMessages do
   Creates a text message.
   """
   def create_text_message(conversation_id, sender_id, content, opts \\ []) do
-    reply_to_id = Keyword.get(opts, :reply_to_id)
-    encrypt? = should_encrypt?(conversation_id)
+    with :ok <- ensure_writable_conversation(conversation_id, sender_id) do
+      reply_to_id = Keyword.get(opts, :reply_to_id)
+      encrypt? = should_encrypt?(conversation_id)
 
-    ChatMessage.text_changeset(conversation_id, sender_id, content, reply_to_id, encrypt?)
-    |> Repo.insert()
-    |> handle_message_created(conversation_id)
+      ChatMessage.text_changeset(conversation_id, sender_id, content, reply_to_id, encrypt?)
+      |> Repo.insert()
+      |> handle_message_created(conversation_id)
+    end
   end
 
   @doc """
@@ -260,36 +263,42 @@ defmodule Elektrine.Messaging.ChatMessages do
         content \\ nil,
         media_metadata \\ %{}
       ) do
-    encrypt? = should_encrypt?(conversation_id)
+    with :ok <- ensure_writable_conversation(conversation_id, sender_id) do
+      encrypt? = should_encrypt?(conversation_id)
 
-    ChatMessage.media_changeset(
-      conversation_id,
-      sender_id,
-      media_urls,
-      content,
-      media_metadata,
-      encrypt?
-    )
-    |> Repo.insert()
-    |> handle_message_created(conversation_id)
+      ChatMessage.media_changeset(
+        conversation_id,
+        sender_id,
+        media_urls,
+        content,
+        media_metadata,
+        encrypt?
+      )
+      |> Repo.insert()
+      |> handle_message_created(conversation_id)
+    end
   end
 
   @doc """
   Creates a voice message.
   """
   def create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type) do
-    ChatMessage.voice_changeset(conversation_id, sender_id, audio_url, duration, mime_type)
-    |> Repo.insert()
-    |> handle_message_created(conversation_id)
+    with :ok <- ensure_writable_conversation(conversation_id, sender_id) do
+      ChatMessage.voice_changeset(conversation_id, sender_id, audio_url, duration, mime_type)
+      |> Repo.insert()
+      |> handle_message_created(conversation_id)
+    end
   end
 
   @doc """
   Creates a system message.
   """
   def create_system_message(conversation_id, content) do
-    ChatMessage.system_changeset(conversation_id, content)
-    |> Repo.insert()
-    |> handle_message_created(conversation_id)
+    with :ok <- ensure_writable_conversation(conversation_id) do
+      ChatMessage.system_changeset(conversation_id, content)
+      |> Repo.insert()
+      |> handle_message_created(conversation_id)
+    end
   end
 
   # Message editing
@@ -303,15 +312,23 @@ defmodule Elektrine.Messaging.ChatMessages do
         {:error, :not_found}
 
       message ->
-        if ChatMessage.can_edit?(message, user_id) do
-          encrypt? = should_encrypt?(message.conversation_id)
+        cond do
+          read_only_mirror_message?(message) ->
+            {:error, :read_only_mirror}
 
-          message
-          |> ChatMessage.edit_changeset(new_content, encrypt?)
-          |> Repo.update()
-          |> handle_message_updated()
-        else
-          {:error, :unauthorized}
+          unauthorized_write?(message.conversation_id, user_id) ->
+            {:error, :unauthorized}
+
+          ChatMessage.can_edit?(message, user_id) ->
+            encrypt? = should_encrypt?(message.conversation_id)
+
+            message
+            |> ChatMessage.edit_changeset(new_content, encrypt?)
+            |> Repo.update()
+            |> handle_message_updated()
+
+          true ->
+            {:error, :unauthorized}
         end
     end
   end
@@ -327,13 +344,21 @@ defmodule Elektrine.Messaging.ChatMessages do
         {:error, :not_found}
 
       message ->
-        if ChatMessage.can_delete?(message, user_id, is_admin) do
-          message
-          |> ChatMessage.delete_changeset()
-          |> Repo.update()
-          |> handle_message_deleted()
-        else
-          {:error, :unauthorized}
+        cond do
+          read_only_mirror_message?(message) ->
+            {:error, :read_only_mirror}
+
+          unauthorized_write?(message.conversation_id, user_id) ->
+            {:error, :unauthorized}
+
+          ChatMessage.can_delete?(message, user_id, is_admin) ->
+            message
+            |> ChatMessage.delete_changeset()
+            |> Repo.update()
+            |> handle_message_deleted()
+
+          true ->
+            {:error, :unauthorized}
         end
     end
   end
@@ -344,22 +369,30 @@ defmodule Elektrine.Messaging.ChatMessages do
   Adds a reaction to a message.
   """
   def add_reaction(message_id, user_id, emoji) do
-    %ChatMessageReaction{}
-    |> ChatMessageReaction.changeset(%{
-      chat_message_id: message_id,
-      user_id: user_id,
-      emoji: emoji
-    })
-    |> Repo.insert()
-    |> case do
-      {:ok, reaction} ->
-        reaction = Repo.preload(reaction, [:user, :remote_actor])
-        broadcast_reaction_added(message_id, reaction)
-        maybe_federate_reaction_added(message_id, reaction)
-        {:ok, reaction}
+    case get_message(message_id) do
+      nil ->
+        {:error, :not_found}
 
-      {:error, changeset} ->
-        {:error, changeset}
+      %ChatMessage{conversation_id: conversation_id} ->
+        with :ok <- ensure_writable_conversation(conversation_id, user_id) do
+          %ChatMessageReaction{}
+          |> ChatMessageReaction.changeset(%{
+            chat_message_id: message_id,
+            user_id: user_id,
+            emoji: emoji
+          })
+          |> Repo.insert()
+          |> case do
+            {:ok, reaction} ->
+              reaction = Repo.preload(reaction, [:user, :remote_actor])
+              broadcast_reaction_added(message_id, reaction)
+              maybe_federate_reaction_added(message_id, reaction)
+              {:ok, reaction}
+
+            {:error, changeset} ->
+              {:error, changeset}
+          end
+        end
     end
   end
 
@@ -367,18 +400,27 @@ defmodule Elektrine.Messaging.ChatMessages do
   Removes a reaction from a message.
   """
   def remove_reaction(message_id, user_id, emoji) do
-    from(r in ChatMessageReaction,
-      where: r.chat_message_id == ^message_id and r.user_id == ^user_id and r.emoji == ^emoji
-    )
-    |> Repo.delete_all()
-    |> case do
-      {count, _} when count > 0 ->
-        broadcast_reaction_removed(message_id, user_id, emoji)
-        maybe_federate_reaction_removed(message_id, user_id, emoji)
-        {:ok, count}
-
-      {0, _} ->
+    case get_message(message_id) do
+      nil ->
         {:error, :not_found}
+
+      %ChatMessage{conversation_id: conversation_id} ->
+        with :ok <- ensure_writable_conversation(conversation_id, user_id) do
+          from(r in ChatMessageReaction,
+            where:
+              r.chat_message_id == ^message_id and r.user_id == ^user_id and r.emoji == ^emoji
+          )
+          |> Repo.delete_all()
+          |> case do
+            {count, _} when count > 0 ->
+              broadcast_reaction_removed(message_id, user_id, emoji)
+              maybe_federate_reaction_removed(message_id, user_id, emoji)
+              {:ok, count}
+
+            {0, _} ->
+              {:error, :not_found}
+          end
+        end
     end
   end
 
@@ -400,52 +442,51 @@ defmodule Elektrine.Messaging.ChatMessages do
   Marks messages as read up to a certain message.
   """
   def mark_messages_read(conversation_id, user_id, up_to_message_id \\ nil) do
-    now = DateTime.utc_now()
+    with :ok <- ensure_participating_conversation(conversation_id, user_id) do
+      now = DateTime.utc_now()
 
-    # Get message IDs to mark as read
-    query =
-      from(m in ChatMessage,
-        left_join: h in ChatUserHiddenMessage,
-        on: h.chat_message_id == m.id and h.user_id == ^user_id,
-        where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
-        select: m.id
-      )
+      query =
+        from(m in ChatMessage,
+          left_join: h in ChatUserHiddenMessage,
+          on: h.chat_message_id == m.id and h.user_id == ^user_id,
+          where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
+          select: m.id
+        )
 
-    query =
-      if up_to_message_id do
-        from(m in query, where: m.id <= ^up_to_message_id)
-      else
-        query
+      query =
+        if up_to_message_id do
+          from(m in query, where: m.id <= ^up_to_message_id)
+        else
+          query
+        end
+
+      message_ids = Repo.all(query)
+
+      entries =
+        Enum.map(message_ids, fn msg_id ->
+          %{chat_message_id: msg_id, user_id: user_id, read_at: now}
+        end)
+
+      if entries != [] do
+        Repo.insert_all("chat_message_reads", entries, on_conflict: :nothing)
       end
 
-    message_ids = Repo.all(query)
+      latest_read_message_id = Enum.max(message_ids, fn -> nil end)
 
-    # Insert read receipts (ignore conflicts)
-    entries =
-      Enum.map(message_ids, fn msg_id ->
-        %{chat_message_id: msg_id, user_id: user_id, read_at: now}
-      end)
+      if is_integer(latest_read_message_id) and
+           publishable_read_cursor_conversation?(conversation_id) do
+        Federation.publish_read_receipt(conversation_id, user_id, latest_read_message_id, now)
+      end
 
-    if entries != [] do
-      Repo.insert_all("chat_message_reads", entries, on_conflict: :nothing)
+      from(cm in ConversationMember,
+        where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id
+      )
+      |> Repo.update_all(set: [last_read_at: now, last_read_message_id: nil])
+
+      Elektrine.AppCache.invalidate_chat_cache(user_id)
+
+      :ok
     end
-
-    latest_read_message_id = Enum.max(message_ids, fn -> nil end)
-
-    if is_integer(latest_read_message_id) do
-      Federation.publish_read_receipt(conversation_id, user_id, latest_read_message_id, now)
-    end
-
-    # Update conversation member's last_read_at
-    from(cm in ConversationMember,
-      where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id
-    )
-    |> Repo.update_all(set: [last_read_at: now, last_read_message_id: nil])
-
-    # Invalidate chat cache for this user
-    Elektrine.AppCache.invalidate_chat_cache(user_id)
-
-    :ok
   end
 
   @doc """
@@ -975,10 +1016,6 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp maybe_federate_message_created(conversation_id, message) do
     case Repo.get(Conversation, conversation_id) do
-      %Conversation{type: "channel", is_federated_mirror: true}
-      when is_integer(message.sender_id) ->
-        Federation.submit_mirror_message_created(message)
-
       %Conversation{type: "channel"} ->
         Federation.publish_message_created(message)
 
@@ -998,10 +1035,6 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp maybe_federate_message_updated(message) do
     case Repo.get(Conversation, message.conversation_id) do
-      %Conversation{type: "channel", is_federated_mirror: true}
-      when is_integer(message.sender_id) ->
-        Federation.submit_mirror_message_updated(message)
-
       %Conversation{type: "channel"} ->
         Federation.publish_message_updated(message)
 
@@ -1012,10 +1045,6 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp maybe_federate_message_deleted(message) do
     case Repo.get(Conversation, message.conversation_id) do
-      %Conversation{type: "channel", is_federated_mirror: true}
-      when is_integer(message.sender_id) ->
-        Federation.submit_mirror_message_deleted(message)
-
       %Conversation{type: "channel"} ->
         Federation.publish_message_deleted(message)
 
@@ -1028,10 +1057,6 @@ defmodule Elektrine.Messaging.ChatMessages do
     case get_message(message_id) do
       %ChatMessage{} = message ->
         case Repo.get(Conversation, message.conversation_id) do
-          %Conversation{type: "channel", is_federated_mirror: true}
-          when is_integer(reaction.user_id) ->
-            Federation.submit_mirror_reaction_added(message, reaction)
-
           %Conversation{type: "channel"} ->
             Federation.publish_reaction_added(message, reaction)
 
@@ -1048,9 +1073,6 @@ defmodule Elektrine.Messaging.ChatMessages do
     case get_message(message_id) do
       %ChatMessage{} = message ->
         case Repo.get(Conversation, message.conversation_id) do
-          %Conversation{type: "channel", is_federated_mirror: true} when is_integer(user_id) ->
-            Federation.submit_mirror_reaction_removed(message, user_id, emoji)
-
           %Conversation{type: "channel"} ->
             Federation.publish_reaction_removed(message, user_id, emoji)
 
@@ -1094,6 +1116,58 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp hydrate_remote_sender(message), do: message
+
+  defp ensure_writable_conversation(conversation_id, sender_id)
+       when is_integer(conversation_id) and is_integer(sender_id) do
+    RoomACL.authorize_local_user_action(conversation_id, sender_id, :write)
+  end
+
+  defp ensure_writable_conversation(_conversation_id, _sender_id), do: {:error, :unauthorized}
+
+  defp ensure_writable_conversation(conversation_id) when is_integer(conversation_id), do: :ok
+
+  defp ensure_writable_conversation(_conversation_id), do: :ok
+
+  defp ensure_participating_conversation(conversation_id, user_id)
+       when is_integer(conversation_id) and is_integer(user_id) do
+    RoomACL.authorize_local_user_action(conversation_id, user_id, :participate)
+  end
+
+  defp ensure_participating_conversation(_conversation_id, _user_id), do: {:error, :unauthorized}
+
+  defp unauthorized_write?(conversation_id, user_id)
+       when is_integer(conversation_id) and is_integer(user_id) do
+    ensure_writable_conversation(conversation_id, user_id) != :ok
+  end
+
+  defp unauthorized_write?(_conversation_id, _user_id), do: true
+
+  defp read_only_mirror_message?(%ChatMessage{
+         conversation_id: conversation_id,
+         sender_id: sender_id
+       }) do
+    read_only_mirror_conversation?(conversation_id) and is_nil(sender_id)
+  end
+
+  defp read_only_mirror_message?(_message), do: false
+
+  defp publishable_read_cursor_conversation?(conversation_id) when is_integer(conversation_id) do
+    case Repo.get(Conversation, conversation_id) do
+      %Conversation{type: "channel"} -> true
+      _ -> false
+    end
+  end
+
+  defp publishable_read_cursor_conversation?(_conversation_id), do: false
+
+  defp read_only_mirror_conversation?(conversation_id) when is_integer(conversation_id) do
+    match?(
+      %Conversation{type: "channel", is_federated_mirror: true},
+      Repo.get(Conversation, conversation_id)
+    )
+  end
+
+  defp read_only_mirror_conversation?(_conversation_id), do: false
 
   defp remote_sender_from_metadata(metadata) when is_map(metadata) do
     sender = metadata["remote_sender"] || metadata[:remote_sender]

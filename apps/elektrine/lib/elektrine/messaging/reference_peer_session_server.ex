@@ -455,7 +455,7 @@ defmodule Elektrine.Messaging.ReferencePeerSessionServer do
 
       subprotocol_requested? = requested_subprotocol?(headers)
 
-      if is_binary(websocket_key) and path == "/federation/messaging/session" do
+      if is_binary(websocket_key) and path == "/_arblarg/session" do
         {:ok,
          %{
            path: path,
