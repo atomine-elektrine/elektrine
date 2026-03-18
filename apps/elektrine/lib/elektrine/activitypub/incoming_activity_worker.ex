@@ -138,13 +138,9 @@ defmodule Elektrine.ActivityPub.IncomingActivityWorker do
         nil
 
       object_id ->
-        if String.contains?(object_id, "/users/") do
-          case Regex.run(~r{/users/([^/]+)/?}, object_id) do
-            [_, username] -> Elektrine.Accounts.get_user_by_username(username)
-            _ -> nil
-          end
-        else
-          nil
+        case Elektrine.ActivityPub.local_username_from_uri(object_id) do
+          {:ok, username} -> Elektrine.Accounts.get_user_by_username(username)
+          _ -> nil
         end
     end
   end

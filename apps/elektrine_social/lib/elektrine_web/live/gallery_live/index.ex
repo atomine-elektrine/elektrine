@@ -184,7 +184,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
         case Elektrine.Uploads.upload_gallery_photo(upload_struct, user_id) do
           {:ok, metadata} ->
             Logger.info("Image uploaded successfully: #{metadata.key}")
-            {:ok, metadata.key}
+            {:ok, metadata}
 
           {:error, reason} ->
             Logger.error("Image upload failed: #{inspect(reason)}")
@@ -197,13 +197,22 @@ defmodule ElektrineWeb.GalleryLive.Index do
     if Enum.empty?(uploaded_files) do
       {:noreply, put_flash(socket, :error, "Please select an image to upload")}
     else
-      image_url = hd(uploaded_files)
+      uploaded_urls =
+        uploaded_files
+        |> Enum.map(&Map.get(&1, :key))
+        |> Enum.filter(&is_binary/1)
+
+      image_url = hd(uploaded_urls)
+
+      media_metadata =
+        Social.merge_post_media_metadata(%{"attachments" => uploaded_files})
 
       case Social.create_timeline_post(
              user_id,
              socket.assigns.upload_description || "",
              visibility: socket.assigns.upload_visibility,
              media_urls: [image_url],
+             media_metadata: media_metadata,
              title: socket.assigns.upload_title,
              post_type: "gallery",
              category: socket.assigns.upload_category

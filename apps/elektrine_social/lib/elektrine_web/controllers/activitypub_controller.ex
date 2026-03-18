@@ -60,11 +60,12 @@ defmodule ElektrineWeb.ActivityPubController do
   @doc """
   Returns the actor document for a user.
   """
-  def actor(conn, %{"username" => username}) do
+  def actor(conn, %{"username" => identifier}) do
     # Override any Accept header issues - always return ActivityPub
     conn = put_resp_header(conn, "content-type", "application/activity+json; charset=utf-8")
+    requested_identifier = ActivityPub.actor_identifier(identifier)
 
-    case Accounts.get_user_by_username(username) do
+    case Accounts.get_user_by_activitypub_identifier(requested_identifier) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -75,8 +76,8 @@ defmodule ElektrineWeb.ActivityPubController do
           # Ensure user has ActivityPub keys (generate if needed)
           {:ok, user} = Elektrine.ActivityPub.KeyManager.ensure_user_has_keys(user)
 
-          # Preload profile to include bio and banner
-          user = Elektrine.Repo.preload(user, :profile)
+          # Preload profile links so actor attachments include exported profile fields.
+          user = Elektrine.Repo.preload(user, profile: :links)
 
           base_url = activitypub_base_url_for_conn(conn)
           canonical_base_url = ActivityPub.instance_url()
@@ -87,19 +88,14 @@ defmodule ElektrineWeb.ActivityPubController do
               domain -> ActivityPub.instance_url_for_domain(domain)
             end
 
-          legacy_actor_uri =
-            if is_binary(legacy_base_url) do
-              "#{legacy_base_url}/users/#{user.username}"
-            else
-              nil
-            end
-
-          canonical_actor_uri = "#{canonical_base_url}/users/#{user.username}"
-
           actor_opts =
-            %{base_url: base_url}
-            |> maybe_put_actor_moved_to(base_url, legacy_base_url, canonical_actor_uri)
-            |> maybe_put_actor_aliases(base_url, canonical_base_url, legacy_actor_uri)
+            actor_request_opts(
+              user,
+              requested_identifier,
+              base_url,
+              canonical_base_url,
+              legacy_base_url
+            )
 
           actor_data = Builder.build_actor(user, actor_opts)
 
@@ -183,7 +179,7 @@ defmodule ElektrineWeb.ActivityPubController do
     # Look up target user if specified (using cached version for performance)
     user =
       if username do
-        CachedAccounts.get_user_by_username(username)
+        CachedAccounts.get_user_by_activitypub_identifier(username)
       else
         nil
       end
@@ -388,33 +384,77 @@ defmodule ElektrineWeb.ActivityPubController do
     end
   end
 
-  defp maybe_put_actor_moved_to(opts, base_url, legacy_base_url, canonical_actor_uri)
-       when is_binary(legacy_base_url) and is_binary(canonical_actor_uri) do
-    if base_url == legacy_base_url do
-      Map.put(opts, :moved_to, canonical_actor_uri)
-    else
-      opts
+  defp actor_request_opts(
+         user,
+         requested_identifier,
+         base_url,
+         canonical_base_url,
+         legacy_base_url
+       ) do
+    canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
+    requested_actor_uri = ActivityPub.actor_uri(requested_identifier, base_url)
+
+    cond do
+      requested_actor_uri != canonical_actor_uri ->
+        %{
+          base_url: base_url,
+          actor_identifier: requested_identifier,
+          moved_to: canonical_actor_uri
+        }
+
+      true ->
+        aliases = actor_alias_uris(user, canonical_base_url, legacy_base_url)
+
+        if aliases == [] do
+          %{base_url: base_url}
+        else
+          %{base_url: base_url, also_known_as: aliases}
+        end
     end
   end
 
-  defp maybe_put_actor_moved_to(opts, _base_url, _legacy_base_url, _canonical_actor_uri), do: opts
+  defp actor_alias_uris(user, canonical_base_url, legacy_base_url) do
+    canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
 
-  defp maybe_put_actor_aliases(opts, base_url, canonical_base_url, legacy_actor_uri)
-       when is_binary(legacy_actor_uri) do
-    if base_url == canonical_base_url do
-      Map.put(opts, :also_known_as, [legacy_actor_uri])
+    [
+      username_alias_uri(user, canonical_base_url),
+      legacy_actor_uri(user, legacy_base_url),
+      legacy_username_alias_uri(user, legacy_base_url)
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(&1 == canonical_actor_uri))
+    |> Enum.uniq()
+  end
+
+  defp username_alias_uri(user, base_url) do
+    canonical_identifier = ActivityPub.actor_identifier(user)
+
+    if canonical_identifier == user.username do
+      nil
     else
-      opts
+      ActivityPub.actor_uri_by_username(user, base_url)
     end
   end
 
-  defp maybe_put_actor_aliases(opts, _base_url, _canonical_base_url, _legacy_actor_uri), do: opts
+  defp legacy_actor_uri(user, legacy_base_url) when is_binary(legacy_base_url) do
+    ActivityPub.actor_uri(user, legacy_base_url)
+  end
+
+  defp legacy_actor_uri(_user, _legacy_base_url), do: nil
+
+  defp legacy_username_alias_uri(user, legacy_base_url) when is_binary(legacy_base_url) do
+    username_alias_uri(user, legacy_base_url)
+  end
+
+  defp legacy_username_alias_uri(_user, _legacy_base_url), do: nil
 
   @doc """
   Returns the outbox collection for a user.
   """
-  def outbox(conn, %{"username" => username} = params) do
-    case Accounts.get_user_by_username(username) do
+  def outbox(conn, %{"username" => identifier} = params) do
+    requested_identifier = ActivityPub.actor_identifier(identifier)
+
+    case Accounts.get_user_by_activitypub_identifier(requested_identifier) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -423,7 +463,7 @@ defmodule ElektrineWeb.ActivityPubController do
       user ->
         if user.activitypub_enabled do
           page = params["page"]
-          render_outbox(conn, user, page)
+          render_outbox(conn, user, requested_identifier, page)
         else
           conn
           |> put_status(:not_found)
@@ -432,10 +472,10 @@ defmodule ElektrineWeb.ActivityPubController do
     end
   end
 
-  defp render_outbox(conn, user, nil) do
+  defp render_outbox(conn, user, requested_identifier, nil) do
     # Return the collection metadata
     base_url = activitypub_base_url_for_conn(conn)
-    outbox_url = "#{base_url}/users/#{user.username}/outbox"
+    outbox_url = ActivityPub.user_collection_uri(requested_identifier, "outbox", base_url)
     total_items = ActivityPub.count_outbox_activities(user.id)
     page_size = 20
     total_pages = max(1, div(total_items + page_size - 1, page_size))
@@ -454,7 +494,7 @@ defmodule ElektrineWeb.ActivityPubController do
     |> json(collection)
   end
 
-  defp render_outbox(conn, user, page) do
+  defp render_outbox(conn, user, requested_identifier, page) do
     # Return paginated activities
     page_num = parse_page_number(page)
     page_size = 20
@@ -470,7 +510,7 @@ defmodule ElektrineWeb.ActivityPubController do
     items = Enum.map(activities, & &1.data)
 
     base_url = activitypub_base_url_for_conn(conn)
-    outbox_url = "#{base_url}/users/#{user.username}/outbox"
+    outbox_url = ActivityPub.user_collection_uri(requested_identifier, "outbox", base_url)
 
     collection_page = %{
       "@context" => "https://www.w3.org/ns/activitystreams",
@@ -511,8 +551,10 @@ defmodule ElektrineWeb.ActivityPubController do
   @doc """
   Returns the followers collection for a user.
   """
-  def followers(conn, %{"username" => username}) do
-    case Accounts.get_user_by_username(username) do
+  def followers(conn, %{"username" => identifier}) do
+    requested_identifier = ActivityPub.actor_identifier(identifier)
+
+    case Accounts.get_user_by_activitypub_identifier(requested_identifier) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -521,7 +563,8 @@ defmodule ElektrineWeb.ActivityPubController do
       user ->
         if user.activitypub_enabled do
           base_url = activitypub_base_url_for_conn(conn)
-          followers_url = "#{base_url}/users/#{user.username}/followers"
+          followers_url =
+            ActivityPub.user_collection_uri(requested_identifier, "followers", base_url)
 
           # Return count but empty items for privacy (standard Mastodon behavior)
           follower_count = Elektrine.Profiles.get_follower_count(user.id)
@@ -548,8 +591,10 @@ defmodule ElektrineWeb.ActivityPubController do
   @doc """
   Returns the following collection for a user.
   """
-  def following(conn, %{"username" => username}) do
-    case Accounts.get_user_by_username(username) do
+  def following(conn, %{"username" => identifier}) do
+    requested_identifier = ActivityPub.actor_identifier(identifier)
+
+    case Accounts.get_user_by_activitypub_identifier(requested_identifier) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -558,7 +603,8 @@ defmodule ElektrineWeb.ActivityPubController do
       user ->
         if user.activitypub_enabled do
           base_url = activitypub_base_url_for_conn(conn)
-          following_url = "#{base_url}/users/#{user.username}/following"
+          following_url =
+            ActivityPub.user_collection_uri(requested_identifier, "following", base_url)
 
           # Return count but empty items for privacy (standard Mastodon behavior)
           following_count = Elektrine.Profiles.get_following_count(user.id)
@@ -585,8 +631,8 @@ defmodule ElektrineWeb.ActivityPubController do
   @doc """
   Returns an individual message/object.
   """
-  def object(conn, %{"username" => username, "id" => id}) do
-    case Accounts.get_user_by_username(username) do
+  def object(conn, %{"username" => identifier, "id" => id}) do
+    case Accounts.get_user_by_activitypub_identifier(identifier) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -1137,18 +1183,21 @@ defmodule ElektrineWeb.ActivityPubController do
   end
 
   defp user_status_uri_candidates(user, message) do
-    canonical_uri = "#{ActivityPub.instance_url()}/users/#{user.username}/statuses/#{message.id}"
+    base_urls =
+      [ActivityPub.instance_url()] ++
+        case Domains.activitypub_move_from_domain() do
+          legacy_domain when is_binary(legacy_domain) ->
+            [ActivityPub.instance_url_for_domain(legacy_domain)]
 
-    case Domains.activitypub_move_from_domain() do
-      legacy_domain when is_binary(legacy_domain) ->
-        legacy_uri =
-          "#{ActivityPub.instance_url_for_domain(legacy_domain)}/users/#{user.username}/statuses/#{message.id}"
+          _ ->
+            []
+        end
 
-        [canonical_uri, legacy_uri]
-
-      _ ->
-        [canonical_uri]
-    end
+    for base_url <- base_urls,
+        identifier <- ActivityPub.actor_identifiers(user),
+        uri = ActivityPub.user_status_uri(identifier, message.id, base_url),
+        uniq: true,
+        do: uri
   end
 
   defp latest_local_create_activity(message, user) do

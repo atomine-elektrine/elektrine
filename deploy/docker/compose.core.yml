@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: elektrine_db
+    environment:
+      POSTGRES_USER: elektrine
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: elektrine_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elektrine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        RELEASE_NAME: ${RELEASE_NAME:-elektrine}
+        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-chat,social,vault}
+    container_name: elektrine_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.production
+    environment:
+      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PHX_SERVER: "true"
+      MIX_ENV: prod
+      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,vault}
+    ports:
+      - "${APP_HTTP_BIND:-8080:8080}"
+    volumes:
+      - uploads:/app/uploads
+      - app_data:/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads:
+  app_data:
+
+networks:
+  elektrine_network:
+    driver: bridge

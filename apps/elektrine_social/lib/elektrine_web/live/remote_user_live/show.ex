@@ -69,6 +69,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       |> assign(:community_stats, %{members: 0, posts: 0})
       |> assign(:show_image_upload_modal, false)
       |> assign(:pending_media_urls, [])
+      |> assign(:pending_media_attachments, [])
       |> assign(:pending_media_alt_texts, %{})
       |> assign(:instance_info, nil)
 
@@ -2117,6 +2118,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
      |> assign(:post_title, "")
      |> assign(:post_content, "")
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      |> assign(:pending_media_alt_texts, %{})}
   end
 
@@ -2165,7 +2167,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
         case Elektrine.Uploads.upload_timeline_attachment(upload_struct, user.id) do
           {:ok, metadata} ->
-            {:ok, metadata.key}
+            {:ok, metadata}
 
           {:error, _reason} ->
             {:postpone, :error}
@@ -2175,12 +2177,18 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     if Enum.empty?(uploaded_files) do
       {:noreply, put_flash(socket, :error, "Please select files to upload")}
     else
+      uploaded_urls =
+        uploaded_files
+        |> Enum.map(&Map.get(&1, :key))
+        |> Enum.filter(&is_binary/1)
+
       {:noreply,
        socket
        |> assign(:show_image_upload_modal, false)
-       |> assign(:pending_media_urls, uploaded_files)
+       |> assign(:pending_media_urls, uploaded_urls)
+       |> assign(:pending_media_attachments, uploaded_files)
        |> assign(:pending_media_alt_texts, alt_texts)
-       |> put_flash(:info, "#{length(uploaded_files)} file(s) added")}
+       |> put_flash(:info, "#{length(uploaded_urls)} file(s) added")}
     end
   end
 
@@ -2188,6 +2196,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     {:noreply,
      socket
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      |> assign(:pending_media_alt_texts, %{})}
   end
 
@@ -2198,6 +2207,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       title = Map.get(params, "title", "")
       content = String.trim(content)
       media_urls = socket.assigns.pending_media_urls
+      media_attachments = socket.assigns.pending_media_attachments || []
       alt_texts = socket.assigns.pending_media_alt_texts
       has_media = !Enum.empty?(media_urls)
 
@@ -2217,11 +2227,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
         # Build media metadata with alt texts
         media_metadata =
-          if map_size(alt_texts) > 0 do
-            %{"alt_texts" => alt_texts}
-          else
-            %{}
-          end
+          Social.merge_post_media_metadata(%{"attachments" => media_attachments}, alt_texts)
 
         post_opts = [
           visibility: "public",
@@ -2250,6 +2256,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
              |> assign(:post_title, "")
              |> assign(:post_content, "")
              |> assign(:pending_media_urls, [])
+             |> assign(:pending_media_attachments, [])
              |> assign(:pending_media_alt_texts, %{})
              |> put_flash(
                :info,

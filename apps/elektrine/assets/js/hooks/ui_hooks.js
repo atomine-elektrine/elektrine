@@ -267,7 +267,8 @@ export const TimelineReply = {
     this.queuedAnchor = null
     this.prePatchAnchor = null
     this.prePatchScrollY = null
-    this.prePatchHadTimelineSkeleton = this.timelineSkeletonVisible()
+    this.prePatchHadFeedSkeleton = this.feedSkeletonVisible()
+    this.prePatchShouldPreserve = false
 
     this.handleQueuedClick = (event) => {
       const queuedBtn = event.target.closest('[data-load-queued-posts]')
@@ -308,10 +309,10 @@ export const TimelineReply = {
   },
 
   beforeUpdate() {
-    this.prePatchHadTimelineSkeleton = this.timelineSkeletonVisible()
-    // Capturing anchor geometry on every patch forces layout work.
-    // Only do it when skeleton transitions can change page height significantly.
-    if (this.prePatchHadTimelineSkeleton) {
+    this.prePatchHadFeedSkeleton = this.feedSkeletonVisible()
+    this.prePatchShouldPreserve = this.shouldPreserveFeedPatch()
+
+    if (this.prePatchShouldPreserve) {
       this.prePatchAnchor = this.findVisiblePostAnchor()
       this.prePatchScrollY = window.scrollY
     } else {
@@ -321,44 +322,33 @@ export const TimelineReply = {
   },
 
   updated() {
-    const hasTimelineSkeleton = this.timelineSkeletonVisible()
+    const hasFeedSkeleton = this.feedSkeletonVisible()
 
     if (this.queuedAnchor) {
-      const anchor = document.querySelector(`[data-post-id="${this.queuedAnchor.postId}"]`)
-
-      if (anchor) {
-        const newTop = anchor.getBoundingClientRect().top
-        const delta = newTop - this.queuedAnchor.top
-        if (delta !== 0) window.scrollBy(0, delta)
-      }
+      this.restoreAnchorPosition(this.queuedAnchor, null)
 
       this.queuedAnchor = null
       this.prePatchAnchor = null
       this.prePatchScrollY = null
-      this.prePatchHadTimelineSkeleton = hasTimelineSkeleton
+      this.prePatchHadFeedSkeleton = hasFeedSkeleton
+      this.prePatchShouldPreserve = false
       this.replyFocusPending = false
       return
     }
 
-    // Preserve viewport when transitioning between skeleton and loaded timeline content.
-    if (this.prePatchHadTimelineSkeleton !== hasTimelineSkeleton) {
-      if (this.prePatchAnchor?.postId) {
-        const anchor = document.querySelector(`[data-post-id="${this.prePatchAnchor.postId}"]`)
-        if (anchor) {
-          const newTop = anchor.getBoundingClientRect().top
-          const delta = newTop - this.prePatchAnchor.top
-          if (delta !== 0) window.scrollBy(0, delta)
-        } else if (typeof this.prePatchScrollY === 'number') {
-          window.scrollTo({ top: this.prePatchScrollY, behavior: "auto" })
-        }
-      } else if (typeof this.prePatchScrollY === 'number') {
-        window.scrollTo({ top: this.prePatchScrollY, behavior: "auto" })
-      }
+    if (this.prePatchShouldPreserve) {
+      this.restoreAnchorPosition(this.prePatchAnchor, this.prePatchScrollY)
+    } else if (
+      this.prePatchHadFeedSkeleton !== hasFeedSkeleton &&
+      typeof this.prePatchScrollY === 'number'
+    ) {
+      window.scrollTo({ top: this.prePatchScrollY, behavior: 'auto' })
     }
 
     this.prePatchAnchor = null
     this.prePatchScrollY = null
-    this.prePatchHadTimelineSkeleton = hasTimelineSkeleton
+    this.prePatchHadFeedSkeleton = hasFeedSkeleton
+    this.prePatchShouldPreserve = false
     this.replyFocusPending = false
   },
 
@@ -382,8 +372,43 @@ export const TimelineReply = {
     return null
   },
 
-  timelineSkeletonVisible() {
-    return this.el.querySelector('[data-timeline-loading-skeleton]') !== null
+  restoreAnchorPosition(anchorSnapshot, fallbackScrollY) {
+    if (anchorSnapshot?.postId) {
+      const anchor = this.findPostById(anchorSnapshot.postId)
+
+      if (anchor) {
+        const newTop = anchor.getBoundingClientRect().top
+        const delta = newTop - anchorSnapshot.top
+        if (delta !== 0) window.scrollBy(0, delta)
+        return
+      }
+    }
+
+    if (typeof fallbackScrollY === 'number') {
+      window.scrollTo({ top: fallbackScrollY, behavior: 'auto' })
+    }
+  },
+
+  findPostById(postId) {
+    if (!postId) return null
+
+    const escapedPostId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(postId) : postId
+    return this.el.querySelector(`[data-post-id="${escapedPostId}"]`)
+  },
+
+  shouldPreserveFeedPatch() {
+    if (this.timelineLoadMoreActive()) return false
+
+    return this.feedSkeletonVisible() || this.el.querySelector('[data-post-id]') !== null
+  },
+
+  feedSkeletonVisible() {
+    return this.el.querySelector('[data-feed-loading-skeleton], [data-timeline-loading-skeleton]') !== null
+  },
+
+  timelineLoadMoreActive() {
+    const infiniteScrollRoot = this.el.querySelector('#timeline-infinite-scroll')
+    return infiniteScrollRoot?.dataset?.loadingMore === 'true'
   },
 
   destroyed() {

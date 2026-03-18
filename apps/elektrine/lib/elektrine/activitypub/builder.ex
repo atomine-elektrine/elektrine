@@ -17,7 +17,8 @@ defmodule Elektrine.ActivityPub.Builder do
     base_url = Map.get(opts, :base_url, ActivityPub.instance_url())
     moved_to = Map.get(opts, :moved_to)
     also_known_as = Map.get(opts, :also_known_as, [])
-    actor_url = "#{base_url}/users/#{user.username}"
+    actor_identifier = Map.get(opts, :actor_identifier, ActivityPub.actor_identifier(user))
+    actor_url = ActivityPub.actor_uri(actor_identifier, base_url)
 
     %{
       "@context" => [
@@ -26,7 +27,7 @@ defmodule Elektrine.ActivityPub.Builder do
       ],
       "id" => actor_url,
       "type" => "Person",
-      "preferredUsername" => user.username,
+      "preferredUsername" => ActivityPub.actor_identifier(user),
       "name" => user.display_name || user.username,
       "summary" => build_user_summary(user),
       "url" => "#{base_url}/#{user.handle}",
@@ -48,6 +49,7 @@ defmodule Elektrine.ActivityPub.Builder do
         "sharedInbox" => "#{base_url}/inbox"
       }
     }
+    |> maybe_put("attachment", build_profile_attachments(user))
     |> maybe_put("movedTo", moved_to)
     |> maybe_put_list("alsoKnownAs", also_known_as)
   end
@@ -107,6 +109,69 @@ defmodule Elektrine.ActivityPub.Builder do
         end
     end
   end
+
+  defp build_profile_attachments(%User{profile: %Ecto.Association.NotLoaded{}}), do: nil
+  defp build_profile_attachments(%User{profile: nil}), do: nil
+
+  defp build_profile_attachments(%User{profile: profile}) do
+    case Map.get(profile, :links) do
+      %Ecto.Association.NotLoaded{} ->
+        nil
+
+      links when is_list(links) ->
+        links
+        |> Enum.filter(&profile_link_exportable?/1)
+        |> Enum.sort_by(&{Map.get(&1, :position) || 0, Map.get(&1, :id) || 0})
+        |> Enum.map(&build_profile_attachment/1)
+        |> case do
+          [] -> nil
+          attachments -> attachments
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp profile_link_exportable?(link) do
+    Map.get(link, :is_active, false) &&
+      present_text?(Map.get(link, :title)) &&
+      present_text?(Map.get(link, :url))
+  end
+
+  defp build_profile_attachment(link) do
+    %{
+      "type" => "PropertyValue",
+      "name" => String.trim(Map.get(link, :title)),
+      "value" => build_profile_attachment_value(String.trim(Map.get(link, :url)))
+    }
+  end
+
+  defp build_profile_attachment_value(url) do
+    escaped_url = escape_html(url)
+
+    rel =
+      if http_profile_link?(url) do
+        ~s( rel="me nofollow noopener noreferrer" target="_blank")
+      else
+        ~s( rel="nofollow noopener noreferrer")
+      end
+
+    ~s(<a href="#{escaped_url}"#{rel}>#{escaped_url}</a>)
+  end
+
+  defp escape_html(text) when is_binary(text) do
+    text
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
+
+  defp http_profile_link?(url) when is_binary(url) do
+    String.starts_with?(url, "http://") or String.starts_with?(url, "https://")
+  end
+
+  defp present_text?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_text?(_value), do: false
 
   defp absolutize_url(nil, _base_url), do: nil
 
@@ -201,7 +266,7 @@ defmodule Elektrine.ActivityPub.Builder do
       ) do
     community
     |> moderator_users()
-    |> Enum.map(&"#{base_url}/users/#{&1.username}")
+    |> Enum.map(&ActivityPub.actor_uri(&1, base_url))
   end
 
   defp moderator_users(%Conversation{} = community) do
@@ -231,7 +296,7 @@ defmodule Elektrine.ActivityPub.Builder do
     base_url = ActivityPub.instance_url()
 
     object_id =
-      message.activitypub_id || "#{base_url}/users/#{user.username}/statuses/#{message.id}"
+      message.activitypub_id || ActivityPub.user_status_uri(user, message.id, base_url)
 
     # Check if posting to a community - walk up reply chain if needed
     community_uri = get_community_uri_from_chain(message)
@@ -240,7 +305,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => object_id,
       "type" => "Note",
-      "attributedTo" => "#{base_url}/users/#{user.username}",
+      "attributedTo" => ActivityPub.actor_uri(user, base_url),
       "content" => format_content(message),
       "published" => format_datetime(message.inserted_at),
       "to" => build_to_addresses(message, user, community_uri),
@@ -293,7 +358,7 @@ defmodule Elektrine.ActivityPub.Builder do
 
         _ ->
           case post.sender do
-            %{username: username} -> "#{base_url}/users/#{username}"
+            %{username: _username} = author -> ActivityPub.actor_uri(author, base_url)
             _ -> community_actor_url
           end
       end
@@ -362,7 +427,7 @@ defmodule Elektrine.ActivityPub.Builder do
           ["https://www.w3.org/ns/activitystreams#Public"]
 
         "followers" ->
-          ["#{base_url}/users/#{user.username}/followers"]
+          [ActivityPub.user_collection_uri(user, "followers", base_url)]
 
         _ ->
           # Direct/conversation - send to specific recipients
@@ -384,7 +449,7 @@ defmodule Elektrine.ActivityPub.Builder do
       case message.visibility do
         "public" ->
           # CC to followers when posting publicly
-          ["#{base_url}/users/#{user.username}/followers"]
+          [ActivityPub.user_collection_uri(user, "followers", base_url)]
 
         _ ->
           []
@@ -566,7 +631,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Create",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "published" => format_datetime(message.inserted_at),
       "to" => note["to"],
       "cc" => note["cc"],
@@ -581,7 +646,7 @@ defmodule Elektrine.ActivityPub.Builder do
     base_url = ActivityPub.instance_url()
 
     object_id =
-      message.activitypub_id || "#{base_url}/users/#{user.username}/statuses/#{message.id}"
+      message.activitypub_id || ActivityPub.user_status_uri(user, message.id, base_url)
 
     community_uri = get_community_uri_from_chain(message)
 
@@ -589,7 +654,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => object_id,
       "type" => "Question",
-      "attributedTo" => "#{base_url}/users/#{user.username}",
+      "attributedTo" => ActivityPub.actor_uri(user, base_url),
       "name" => poll.question,
       "content" => poll_content(message, poll),
       "published" => format_datetime(message.inserted_at),
@@ -626,7 +691,7 @@ defmodule Elektrine.ActivityPub.Builder do
 
         _ ->
           case post.sender do
-            %{username: username} -> "#{base_url}/users/#{username}"
+            %{username: _username} = author -> ActivityPub.actor_uri(author, base_url)
             _ -> community_actor_url
           end
       end
@@ -776,7 +841,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Follow",
-      "actor" => "#{base_url}/users/#{follower.username}",
+      "actor" => ActivityPub.actor_uri(follower, base_url),
       "object" => target_uri,
       "to" => [target_uri],
       "published" => DateTime.utc_now() |> DateTime.to_iso8601()
@@ -815,7 +880,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Accept",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => follow_activity
     }
   end
@@ -831,7 +896,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Reject",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => follow_activity
     }
   end
@@ -847,10 +912,10 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Announce",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => object_uri,
       "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => ["#{base_url}/users/#{user.username}/followers"]
+      "cc" => [ActivityPub.user_collection_uri(user, "followers", base_url)]
     }
   end
 
@@ -865,7 +930,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Like",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => object_uri
     }
   end
@@ -881,7 +946,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Dislike",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => object_uri
     }
   end
@@ -897,7 +962,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "EmojiReact",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => object_uri,
       "content" => emoji
     }
@@ -914,7 +979,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Block",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => target_uri
     }
   end
@@ -930,7 +995,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Undo",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => original_activity
     }
   end
@@ -956,7 +1021,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Delete",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => tombstone
     }
     |> maybe_put_list("to", to)
@@ -1006,7 +1071,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Update",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => object
     }
     |> maybe_put_list("to", to)
@@ -1057,7 +1122,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => activity_id,
       "type" => "Flag",
-      "actor" => "#{base_url}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => objects
     }
 

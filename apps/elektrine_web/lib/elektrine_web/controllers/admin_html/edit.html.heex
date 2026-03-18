@@ -140,14 +140,15 @@
         <div class="mt-4">
           <label class="label">
             <span>Handle</span>
-            <span class="opacity-50">Social username</span>
+            <span class="opacity-50">Permanent public identifier</span>
           </label>
           <input
             type="text"
             name="user[handle]"
             value={@user.handle}
-            class="input w-full"
+            class="input w-full bg-base-200 text-base-content/70 cursor-not-allowed"
             placeholder="username"
+            disabled
           />
         </div>
 

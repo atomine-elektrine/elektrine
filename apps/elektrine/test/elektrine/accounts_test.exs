@@ -124,6 +124,13 @@ defmodule Elektrine.AccountsTest do
   end
 
   describe "ActivityPub actor updates" do
+    test "handle changes are rejected once set" do
+      user = AccountsFixtures.user_fixture(%{username: "stablehandleuser"})
+
+      assert {:error, changeset} = Accounts.update_user_handle(user, "newhandle")
+      assert "cannot be changed once set" in errors_on(changeset).handle
+    end
+
     test "avatar changes publish an Update to remote followers" do
       user = AccountsFixtures.user_fixture()
       remote_actor = remote_actor_fixture()
@@ -153,6 +160,31 @@ defmodule Elektrine.AccountsTest do
              ) == [remote_actor.inbox_url]
     end
 
+    test "actor updates use the canonical handle actor uri" do
+      user =
+        AccountsFixtures.user_fixture(%{username: "avatarhandleuser"})
+        |> set_handle!("avatar_handle")
+
+      remote_actor = remote_actor_fixture()
+
+      assert {:ok, _follow} = Profiles.create_remote_follow(remote_actor.id, user.id)
+
+      assert {:ok, updated_user} =
+               Accounts.update_user(user, %{
+                 avatar: "/uploads/avatars/new-avatar.jpg",
+                 avatar_size: 12_345
+               })
+
+      canonical_actor_uri = ActivityPub.actor_uri(updated_user)
+
+      assert %Activity{} =
+               Repo.get_by!(Activity,
+                 internal_user_id: user.id,
+                 activity_type: "Update",
+                 object_id: canonical_actor_uri
+               )
+    end
+
     test "non-actor settings do not publish an Update" do
       user = AccountsFixtures.user_fixture()
       remote_actor = remote_actor_fixture()
@@ -180,5 +212,11 @@ defmodule Elektrine.AccountsTest do
     %Actor{}
     |> Actor.changeset(Map.merge(defaults, attrs))
     |> Repo.insert!()
+  end
+
+  defp set_handle!(user, handle) do
+    user
+    |> Ecto.Changeset.change(handle: handle)
+    |> Repo.update!()
   end
 end

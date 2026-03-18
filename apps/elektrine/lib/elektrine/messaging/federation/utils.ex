@@ -2,6 +2,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
   @moduledoc false
 
   alias Elektrine.Messaging.ArblargSDK
+  alias Elektrine.Profiles
   alias Elektrine.Repo
 
   def next_outbound_sequence(stream_id) do
@@ -22,8 +23,8 @@ defmodule Elektrine.Messaging.Federation.Utils do
     "channel:" <> channel_federation_id(channel_id)
   end
 
-  def dm_stream_id(conversation_id) do
-    "dm:" <> dm_federation_id(conversation_id)
+  def dm_stream_id(conversation_id, opts \\ []) do
+    "dm:" <> dm_federation_id(conversation_id, opts)
   end
 
   def server_payload(server) do
@@ -113,16 +114,20 @@ defmodule Elektrine.Messaging.Federation.Utils do
     end
   end
 
-  def sender_payload(user) do
-    uri = "#{local_base_url()}/users/#{user.username}"
-    handle = "#{user.username}@#{local_domain()}"
+  def sender_payload(user, opts \\ [])
+
+  def sender_payload(user, opts) when is_list(opts) do
+    domain = sender_domain(opts)
+    base_url = base_url_for_domain(domain)
+    uri = "#{base_url}/users/#{user.username}"
+    handle = "#{user.username}@#{domain}"
 
     %{
       "id" => uri,
       "uri" => uri,
       "username" => user.username,
       "display_name" => user.display_name || user.username,
-      "domain" => local_domain(),
+      "domain" => domain,
       "handle" => handle
     }
   end
@@ -214,12 +219,12 @@ defmodule Elektrine.Messaging.Federation.Utils do
     "#{local_base_url()}/_arblarg/channels/#{channel_id}"
   end
 
-  def message_federation_id(message_id) do
-    "#{local_base_url()}/_arblarg/messages/#{message_id}"
+  def message_federation_id(message_id, opts \\ []) do
+    "#{base_url_for_domain(sender_domain(opts))}/_arblarg/messages/#{message_id}"
   end
 
-  def dm_federation_id(conversation_id) do
-    "#{local_base_url()}/_arblarg/dms/#{conversation_id}"
+  def dm_federation_id(conversation_id, opts \\ []) do
+    "#{base_url_for_domain(sender_domain(opts))}/_arblarg/dms/#{conversation_id}"
   end
 
   defp attachment_metadata_source(message) do
@@ -406,6 +411,15 @@ defmodule Elektrine.Messaging.Federation.Utils do
 
   def embedded_sender_payload(_metadata), do: nil
 
+  def preferred_dm_origin_domain_for_user(%{id: user_id}) when is_integer(user_id) do
+    case Profiles.preferred_verified_domain_for_user(user_id) do
+      %{domain: domain} when is_binary(domain) and domain != "" -> domain
+      _ -> local_domain()
+    end
+  end
+
+  def preferred_dm_origin_domain_for_user(_), do: local_domain()
+
   def infer_remote_server_id(payload) when is_map(payload) do
     payload_data = payload["payload"] || %{}
     refs = payload_data["refs"] || %{}
@@ -460,6 +474,30 @@ defmodule Elektrine.Messaging.Federation.Utils do
   end
 
   def infer_room_origin_domain(_payload), do: nil
+
+  defp sender_domain(opts) when is_list(opts) do
+    case Keyword.get(opts, :domain) do
+      domain when is_binary(domain) ->
+        trimmed = String.trim(domain)
+        if trimmed == "", do: local_domain(), else: String.downcase(trimmed)
+
+      _ ->
+        local_domain()
+    end
+  end
+
+  defp base_url_for_domain(domain) when is_binary(domain) do
+    case URI.parse(local_base_url()) do
+      %URI{} = uri ->
+        uri
+        |> Map.put(:host, domain)
+        |> URI.to_string()
+        |> String.trim_trailing("/")
+
+      _ ->
+        "https://#{domain}"
+    end
+  end
 
   def infer_remote_server_id_from_federation_id(federation_id) when is_binary(federation_id) do
     case extract_trailing_integer(federation_id) do

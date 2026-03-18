@@ -8,6 +8,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
   alias Elektrine.Accounts.User
   alias Elektrine.Messaging.{ChatMessage, ChatMessages, Conversation, ConversationMember}
   alias Elektrine.Notifications
+  alias Elektrine.Profiles
   alias Elektrine.Repo
 
   @remote_dm_source_prefix "arblarg:dm:"
@@ -38,12 +39,10 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
       when is_map(recipient_payload) and is_map(context) do
     with {:ok, recipient} <-
            normalize_dm_actor_payload(recipient_payload, call(context, :local_domain, [])),
-         true <- recipient.domain == call(context, :local_domain, []),
-         %User{} = local_user <- Accounts.get_user_by_username(recipient.username) do
+         {:ok, %User{} = local_user} <- resolve_local_recipient_user(recipient) do
       {:ok, local_user}
     else
-      false -> {:error, :invalid_event_payload}
-      nil -> {:error, :user_not_found}
+      {:error, :user_not_found} -> {:error, :user_not_found}
       _ -> {:error, :invalid_event_payload}
     end
   end
@@ -66,6 +65,28 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
   def resolve_remote_dm_sender(_sender_payload, _remote_domain),
     do: {:error, :invalid_event_payload}
+
+  defp resolve_local_recipient_user(%{domain: domain, username: username})
+       when is_binary(domain) and is_binary(username) do
+    normalized_domain = String.downcase(domain)
+
+    cond do
+      normalized_domain == String.downcase(Elektrine.Messaging.Federation.local_domain()) ->
+        case Accounts.get_user_by_username(username) do
+          %User{} = user -> {:ok, user}
+          _ -> {:error, :user_not_found}
+        end
+
+      true ->
+        case Profiles.get_verified_custom_domain(normalized_domain) do
+          %{user: %{username: ^username} = user} -> {:ok, user}
+          %{domain: ^normalized_domain} -> {:error, :user_not_found}
+          _ -> {:error, :invalid_event_payload}
+        end
+    end
+  end
+
+  defp resolve_local_recipient_user(_recipient), do: {:error, :invalid_event_payload}
 
   def ensure_remote_dm_conversation(%User{} = local_user, remote_sender)
       when is_map(remote_sender) do

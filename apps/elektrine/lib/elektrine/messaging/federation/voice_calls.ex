@@ -9,7 +9,9 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   alias Elektrine.Messaging.{Conversation, ConversationMember, FederationCallSession}
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Federation.DirectMessageState
+  alias Elektrine.Messaging.Federation.Utils
   alias Elektrine.PubSubTopics
+  alias Elektrine.Profiles
   alias Elektrine.Repo
 
   @active_statuses ~w(initiated ringing active)
@@ -25,13 +27,16 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
          true <- dm_membership_active?(conversation.id, local_user_id) or {:error, :not_member},
          %User{} = local_user <- Repo.get(User, local_user_id),
          {:ok, remote_recipient} <- DirectMessageState.normalize_remote_dm_handle(remote_handle),
-         true <- is_nil(local_user_busy_reason(local_user_id)) or {:error, :local_call_already_active},
+         true <-
+           is_nil(local_user_busy_reason(local_user_id)) or {:error, :local_call_already_active},
          false <- active_session_exists?(local_user_id, conversation_id) do
+      origin_domain = Utils.preferred_dm_origin_domain_for_user(local_user)
+
       attrs = %{
         conversation_id: conversation.id,
         local_user_id: local_user.id,
-        federated_call_id: federated_call_id(Federation.local_domain()),
-        origin_domain: Federation.local_domain(),
+        federated_call_id: federated_call_id(origin_domain),
+        origin_domain: origin_domain,
         remote_domain: remote_recipient.domain,
         remote_handle: remote_recipient.handle,
         remote_actor: DirectMessageState.dm_actor_payload(remote_recipient),
@@ -94,7 +99,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
 
   def accept_session(session_id, local_user_id)
       when is_integer(session_id) and is_integer(local_user_id) do
-    with %FederationCallSession{} = session <- get_session_for_local_user(session_id, local_user_id),
+    with %FederationCallSession{} = session <-
+           get_session_for_local_user(session_id, local_user_id),
          true <- session.status in ["initiated", "ringing"] do
       update_session(session, %{
         status: "active",
@@ -108,7 +114,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
 
   def reject_session(session_id, local_user_id, reason \\ nil)
       when is_integer(session_id) and is_integer(local_user_id) do
-    with %FederationCallSession{} = session <- get_session_for_local_user(session_id, local_user_id),
+    with %FederationCallSession{} = session <-
+           get_session_for_local_user(session_id, local_user_id),
          true <- session.status in ["initiated", "ringing"] do
       update_session(session, %{
         status: "rejected",
@@ -123,7 +130,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
 
   def end_session(session_id, local_user_id, reason \\ "ended")
       when is_integer(session_id) and is_integer(local_user_id) do
-    with %FederationCallSession{} = session <- get_session_for_local_user(session_id, local_user_id),
+    with %FederationCallSession{} = session <-
+           get_session_for_local_user(session_id, local_user_id),
          true <- session.status in @active_statuses do
       update_session(session, %{
         status: "ended",
@@ -138,7 +146,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
 
   def fail_session(session_id, local_user_id, reason \\ "failed")
       when is_integer(session_id) and is_integer(local_user_id) do
-    with %FederationCallSession{} = session <- get_session_for_local_user(session_id, local_user_id),
+    with %FederationCallSession{} = session <-
+           get_session_for_local_user(session_id, local_user_id),
          true <- session.status in @active_statuses do
       update_session(session, %{
         status: "failed",
@@ -171,53 +180,61 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
       if is_nil(existing_session) and local_user_busy_reason(local_user.id) do
         {:error, :busy}
       else
-      attrs = %{
-        conversation_id: conversation.id,
-        local_user_id: local_user.id,
-        federated_call_id: federated_call_id,
-        origin_domain: String.downcase(remote_domain),
-        remote_domain: String.downcase(remote_domain),
-        remote_handle: Map.get(remote_sender, :handle) || Map.get(remote_sender, "handle"),
-        remote_actor: DirectMessageState.dm_actor_payload(remote_sender),
-        call_type: call_type,
-        direction: "inbound",
-        status: "ringing",
-        started_at_remote: initiated_at,
-        metadata: metadata
-      }
+        attrs = %{
+          conversation_id: conversation.id,
+          local_user_id: local_user.id,
+          federated_call_id: federated_call_id,
+          origin_domain: String.downcase(remote_domain),
+          remote_domain: String.downcase(remote_domain),
+          remote_handle: Map.get(remote_sender, :handle) || Map.get(remote_sender, "handle"),
+          remote_actor: DirectMessageState.dm_actor_payload(remote_sender),
+          call_type: call_type,
+          direction: "inbound",
+          status: "ringing",
+          started_at_remote: initiated_at,
+          metadata: metadata
+        }
 
-      session =
-        case existing_session do
-          %FederationCallSession{} = existing ->
-            {:ok, updated} =
-              existing
-              |> FederationCallSession.changeset(attrs)
-              |> Repo.update()
+        session =
+          case existing_session do
+            %FederationCallSession{} = existing ->
+              {:ok, updated} =
+                existing
+                |> FederationCallSession.changeset(attrs)
+                |> Repo.update()
 
-            updated
+              updated
 
-          nil ->
-            {:ok, inserted} =
-              %FederationCallSession{}
-              |> FederationCallSession.changeset(attrs)
-              |> Repo.insert()
+            nil ->
+              {:ok, inserted} =
+                %FederationCallSession{}
+                |> FederationCallSession.changeset(attrs)
+                |> Repo.insert()
 
-            inserted
-        end
-        |> maybe_preload_session()
+              inserted
+          end
+          |> maybe_preload_session()
 
-      broadcast_incoming_call(session)
-      {:ok, session}
+        broadcast_incoming_call(session)
+        {:ok, session}
       end
     else
       {:error, :busy} ->
         {:error, :busy}
 
-      _ -> {:error, :invalid_event_payload}
+      _ ->
+        {:error, :invalid_event_payload}
     end
   end
 
-  def reject_inbound_invite(local_user, conversation, remote_sender, call_payload, remote_domain, reason)
+  def reject_inbound_invite(
+        local_user,
+        conversation,
+        remote_sender,
+        call_payload,
+        remote_domain,
+        reason
+      )
       when is_map(remote_sender) and is_map(call_payload) and is_binary(remote_domain) do
     with %User{} = local_user <- local_user,
          %Conversation{} = conversation <- conversation,
@@ -250,7 +267,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
                 federated_call_id: call_id,
                 origin_domain: String.downcase(remote_domain),
                 remote_domain: String.downcase(remote_domain),
-                remote_handle: Map.get(remote_sender, :handle) || Map.get(remote_sender, "handle"),
+                remote_handle:
+                  Map.get(remote_sender, :handle) || Map.get(remote_sender, "handle"),
                 remote_actor: DirectMessageState.dm_actor_payload(remote_sender),
                 call_type: call_type,
                 direction: "inbound",
@@ -346,7 +364,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   end
 
   def apply_remote_signal(dm_payload, call_id, actor_payload, signal, remote_domain)
-      when is_map(dm_payload) and is_binary(call_id) and is_map(signal) and is_binary(remote_domain) do
+      when is_map(dm_payload) and is_binary(call_id) and is_map(signal) and
+             is_binary(remote_domain) do
     with {:ok, local_user} <- resolve_local_dm_participant(dm_payload),
          %FederationCallSession{} = session <-
            Repo.get_by(FederationCallSession,
@@ -375,7 +394,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
 
   def mark_session_ringing(session_id, local_user_id)
       when is_integer(session_id) and is_integer(local_user_id) do
-    with %FederationCallSession{} = session <- get_session_for_local_user(session_id, local_user_id),
+    with %FederationCallSession{} = session <-
+           get_session_for_local_user(session_id, local_user_id),
          true <- session.status == "initiated" do
       update_session(session, %{status: "ringing"})
     else
@@ -389,7 +409,7 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
     local_user = session.local_user
     remote_user = actor_to_ui_user(session.remote_actor)
 
-    caller_is_local? = String.downcase(session.origin_domain) == String.downcase(Federation.local_domain())
+    caller_is_local? = local_origin_domain?(session.origin_domain, local_user)
 
     if caller_is_local? do
       %{
@@ -473,9 +493,21 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   defp local_actor_payload(actor) when is_map(actor) do
     actor_domain = normalize_optional_string(actor["domain"] || actor[:domain])
     username = normalize_optional_string(actor["username"] || actor[:username])
+    normalized_actor_domain = if is_binary(actor_domain), do: String.downcase(actor_domain)
 
-    if actor_domain == Federation.local_domain() and is_binary(username) do
-      Accounts.get_user_by_username(username)
+    cond do
+      normalized_actor_domain == String.downcase(Federation.local_domain()) and
+          is_binary(username) ->
+        Accounts.get_user_by_username(username)
+
+      is_binary(normalized_actor_domain) and is_binary(username) ->
+        case Profiles.get_verified_custom_domain(normalized_actor_domain) do
+          %{user: %{username: ^username} = user} -> user
+          _ -> nil
+        end
+
+      true ->
+        nil
     end
   end
 
@@ -501,7 +533,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
 
   defp dm_membership_active?(conversation_id, user_id) do
     from(cm in ConversationMember,
-      where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at),
+      where:
+        cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at),
       select: count(cm.id)
     )
     |> Repo.one() > 0
@@ -520,6 +553,15 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   defp federated_call_id(local_domain) when is_binary(local_domain) do
     "https://#{local_domain}/_arblarg/calls/#{Ecto.UUID.generate()}"
   end
+
+  defp local_origin_domain?(origin_domain, %User{} = local_user) when is_binary(origin_domain) do
+    normalized_origin = String.downcase(origin_domain)
+
+    normalized_origin == String.downcase(Federation.local_domain()) or
+      normalized_origin == String.downcase(Utils.preferred_dm_origin_domain_for_user(local_user))
+  end
+
+  defp local_origin_domain?(_, _), do: false
 
   defp parse_datetime(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do

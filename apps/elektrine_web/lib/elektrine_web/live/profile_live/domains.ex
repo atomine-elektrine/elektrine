@@ -98,7 +98,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
     ~H"""
     <.account_page
       title="Profile Domains"
-      subtitle="Connect a root domain directly to your profile page. These domains only affect the public web profile, not email or ActivityPub identity."
+      subtitle="Connect a root domain directly to your profile page. Verified domains also publish a followable ActivityPub alias for your username, while your canonical actor stays on the main instance domain."
       sidebar_link="profile-domains"
     >
       <div class="space-y-6">
@@ -149,7 +149,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
             </.form>
 
             <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
-              Add the verification TXT record first. After verification, point the domain's apex/root host to this app in your DNS provider or edge proxy. Optional
+              Add the verification TXT record first. After verification, point the domain's apex/root host at the stable routing hostname shown below using your DNS provider's alias/flattening feature or edge proxy. That keeps the domain portable if the underlying hosting IPs change. Optional
               <span class="font-mono">www</span>
               traffic will redirect to the bare domain.
             </div>
@@ -196,8 +196,38 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                             Public URL
                           </div>
-                          <div class="font-mono text-sm break-all text-base-content/85">
-                            {"https://#{custom_domain.domain}"}
+                          <div class="mt-1 flex items-start gap-2">
+                            <div class="font-mono text-sm break-all text-base-content/85 flex-1">
+                              {"https://#{custom_domain.domain}"}
+                            </div>
+                            <.copy_button
+                              id={"profile-domain-public-url-#{custom_domain.id}"}
+                              content={"https://#{custom_domain.domain}"}
+                              label="Copy public URL"
+                            />
+                          </div>
+                        </div>
+
+                        <div class="space-y-2">
+                          <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                            ActivityPub Alias
+                          </div>
+                          <div class="text-xs text-base-content/55">
+                            <%= if custom_domain.status == "verified" do %>
+                              Followable alias. Canonical actor stays on <span class="font-mono">{Domains.instance_domain()}</span>.
+                            <% else %>
+                              Becomes followable after verification. Canonical actor stays on <span class="font-mono">{Domains.instance_domain()}</span>.
+                            <% end %>
+                          </div>
+                          <div class="mt-1 flex items-start gap-2">
+                            <div class="font-mono text-sm break-all text-base-content/85 flex-1">
+                              {"@#{@user.username}@#{custom_domain.domain}"}
+                            </div>
+                            <.copy_button
+                              id={"profile-domain-activitypub-alias-#{custom_domain.id}"}
+                              content={"@#{@user.username}@#{custom_domain.domain}"}
+                              label="Copy ActivityPub alias"
+                            />
                           </div>
                         </div>
 
@@ -215,7 +245,10 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           </div>
 
                           <div class="divide-y divide-base-content/10 bg-base-100">
-                            <%= for record <- Profiles.dns_records_for_custom_domain(custom_domain) do %>
+                            <%= for {record, index} <-
+                                  Enum.with_index(
+                                    Profiles.dns_records_for_custom_domain(custom_domain)
+                                  ) do %>
                               <div class="grid gap-3 px-4 py-3 sm:grid-cols-[120px_minmax(0,0.9fr)_minmax(0,1.3fr)]">
                                 <div class="flex items-start sm:items-center">
                                   <span class="badge badge-outline badge-sm font-medium">
@@ -227,8 +260,15 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                                   <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
                                     Host
                                   </div>
-                                  <div class="mt-1 font-mono text-xs leading-5 break-all text-base-content/80">
-                                    {record.host}
+                                  <div class="mt-1 flex items-start gap-2">
+                                    <div class="font-mono text-xs leading-5 break-all text-base-content/80 flex-1">
+                                      {record.host}
+                                    </div>
+                                    <.copy_button
+                                      id={"profile-domain-#{custom_domain.id}-record-#{index}-host"}
+                                      content={record.host}
+                                      label={"Copy #{record.type} host"}
+                                    />
                                   </div>
                                 </div>
 
@@ -239,8 +279,15 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                                   <div class="mt-1 text-xs font-medium text-base-content/55">
                                     {record.label}
                                   </div>
-                                  <div class="mt-1 font-mono text-xs leading-5 break-all text-base-content/80">
-                                    {record.value}
+                                  <div class="mt-1 flex items-start gap-2">
+                                    <div class="font-mono text-xs leading-5 break-all text-base-content/80 flex-1">
+                                      {record.value}
+                                    </div>
+                                    <.copy_button
+                                      id={"profile-domain-#{custom_domain.id}-record-#{index}-value"}
+                                      content={record.value}
+                                      label={"Copy #{record.type} value"}
+                                    />
                                   </div>
                                 </div>
                               </div>
@@ -300,6 +347,26 @@ defmodule ElektrineWeb.ProfileLive.Domains do
     |> Enum.map(fn {field, {message, _opts}} -> "#{field} #{message}" end)
     |> List.first()
     |> Kernel.||("unknown error")
+  end
+
+  attr :id, :string, required: true
+  attr :content, :string, required: true
+  attr :label, :string, required: true
+
+  defp copy_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      phx-hook="CopyToClipboard"
+      data-content={@content}
+      class="btn btn-ghost btn-xs h-7 min-h-0 shrink-0 px-2 text-base-content/55 hover:text-base-content"
+      title={@label}
+      aria-label={@label}
+    >
+      <.icon name="hero-clipboard-document" class="h-4 w-4" />
+    </button>
+    """
   end
 
   defp domain_status_badge("verified"), do: "bg-success/15 text-success"

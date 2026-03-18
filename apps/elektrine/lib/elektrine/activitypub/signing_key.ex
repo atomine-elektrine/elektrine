@@ -126,13 +126,11 @@ defmodule Elektrine.ActivityPub.SigningKey do
 
   @doc "Generates the key_id for a local user.\nUses ActivityPub.instance_url() to ensure consistency with the actor document.\n"
   def local_key_id(%User{} = user) do
-    base_url = Elektrine.ActivityPub.instance_url()
-    "#{base_url}/users/#{user.username}#main-key"
+    Elektrine.ActivityPub.actor_key_id(user)
   end
 
-  def local_key_id(username) when is_binary(username) do
-    base_url = Elektrine.ActivityPub.instance_url()
-    "#{base_url}/users/#{username}#main-key"
+  def local_key_id(identifier) when is_binary(identifier) do
+    Elektrine.ActivityPub.actor_key_id(identifier)
   end
 
   @doc "Extracts the actor URI from a key_id.\n"

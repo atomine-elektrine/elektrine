@@ -18,7 +18,14 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
     "/socket",
     "/phoenix",
     "/profiles/",
-    "/uploads"
+    "/uploads",
+    "/_arblarg",
+    "/.well-known/_arblarg"
+  ]
+  @bypass_paths [
+    "/.well-known/webfinger",
+    "/.well-known/host-meta",
+    "/.well-known/atproto-did"
   ]
 
   def init(opts), do: opts
@@ -79,7 +86,7 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   end
 
   defp bypass_path?(path) when is_binary(path) do
-    Enum.any?(@bypass_prefixes, &String.starts_with?(path, &1))
+    path in @bypass_paths or Enum.any?(@bypass_prefixes, &String.starts_with?(path, &1))
   end
 
   defp bypass_path?(_), do: false

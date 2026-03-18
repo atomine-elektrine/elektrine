@@ -156,6 +156,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_length(:username, min: 2, max: 30)
     |> validate_format(:username, ~r/^[a-zA-Z0-9]+$/, message: "only letters and numbers allowed")
     |> validate_username_not_alias()
+    |> validate_username_not_matching_other_handle()
     |> validate_username_not_reserved()
     |> validate_username_case_conflicts()
     |> unique_constraint(:username,
@@ -187,6 +188,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_length(:username, min: 2, max: 30)
     |> validate_format(:username, ~r/^[a-zA-Z0-9]+$/, message: "only letters and numbers allowed")
     |> validate_username_not_alias()
+    |> validate_username_not_matching_other_handle()
     # Skip reserved username validation for admin-created users
     |> validate_username_case_conflicts()
     |> unique_constraint(:username,
@@ -456,6 +458,7 @@ defmodule Elektrine.Accounts.User do
     |> normalize_username()
     |> validate_length(:username, min: 2, max: 30)
     |> validate_format(:username, ~r/^[a-zA-Z0-9]+$/, message: "only letters and numbers allowed")
+    |> validate_handle_immutable()
     |> validate_handle()
     |> validate_length(:display_name, max: 100)
     |> validate_format(:recovery_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -469,6 +472,7 @@ defmodule Elektrine.Accounts.User do
     |> maybe_set_ban_timestamp()
     |> maybe_clear_suspension_data()
     |> validate_username_not_alias()
+    |> validate_username_not_matching_other_handle()
     |> unique_constraint(:handle,
       name: :users_handle_ci_unique,
       message: "this handle is already taken"
@@ -649,6 +653,32 @@ defmodule Elektrine.Accounts.User do
         add_error(changeset, :username, "this username conflicts with an existing email alias")
       else
         changeset
+      end
+    else
+      changeset
+    end
+  end
+
+  defp validate_username_not_matching_other_handle(changeset) do
+    username = get_field(changeset, :username)
+    user_id = get_field(changeset, :id)
+
+    if is_binary(username) and String.trim(username) != "" do
+      query =
+        from(u in Elektrine.Accounts.User,
+          where: fragment("lower(?)", u.handle) == ^String.downcase(username)
+        )
+
+      query =
+        if user_id do
+          from(u in query, where: u.id != ^user_id)
+        else
+          query
+        end
+
+      case Elektrine.Repo.one(query) do
+        nil -> changeset
+        _ -> add_error(changeset, :username, "conflicts with an existing handle")
       end
     else
       changeset
@@ -1040,8 +1070,8 @@ defmodule Elektrine.Accounts.User do
   def handle_changeset(user, attrs) do
     user
     |> cast(attrs, [:handle, :display_name])
+    |> validate_handle_immutable()
     |> validate_handle()
-    |> validate_handle_change_frequency()
     |> validate_display_name()
     |> unique_constraint(:handle,
       name: :users_handle_ci_unique,
@@ -1055,6 +1085,7 @@ defmodule Elektrine.Accounts.User do
   def admin_handle_changeset(user, attrs) do
     user
     |> cast(attrs, [:handle, :display_name, :unique_id])
+    |> validate_handle_immutable()
     |> validate_handle()
     |> validate_display_name()
     |> validate_unique_id()
@@ -1077,7 +1108,27 @@ defmodule Elektrine.Accounts.User do
       message: "can only contain letters, numbers, and underscores"
     )
     |> validate_handle_not_reserved()
+    |> validate_handle_not_matching_other_username()
     |> normalize_handle()
+  end
+
+  defp validate_handle_immutable(%Ecto.Changeset{} = changeset) do
+    current_handle = changeset.data.handle
+    new_handle = get_change(changeset, :handle)
+
+    cond do
+      not is_binary(new_handle) or String.trim(new_handle) == "" ->
+        changeset
+
+      not is_binary(current_handle) or String.trim(current_handle) == "" ->
+        changeset
+
+      String.downcase(String.trim(new_handle)) == String.downcase(String.trim(current_handle)) ->
+        changeset
+
+      true ->
+        add_error(changeset, :handle, "cannot be changed once set")
+    end
   end
 
   # Normalize handle to lowercase for uniqueness checks
@@ -1170,40 +1221,29 @@ defmodule Elektrine.Accounts.User do
     end
   end
 
-  # Validate handle change frequency (once per 30 days)
-  defp validate_handle_change_frequency(changeset) do
-    handle_changed_at = get_field(changeset, :handle_changed_at)
+  defp validate_handle_not_matching_other_username(changeset) do
+    handle = get_field(changeset, :handle)
+    user_id = get_field(changeset, :id)
 
-    if handle_changed_at && get_change(changeset, :handle) do
-      thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30 * 24 * 60 * 60, :second)
-
-      if DateTime.compare(handle_changed_at, thirty_days_ago) == :gt do
-        days_remaining = DateTime.diff(handle_changed_at, thirty_days_ago, :day)
-
-        add_error(
-          changeset,
-          :handle,
-          "can only be changed once every 30 days. #{days_remaining} days remaining"
+    if is_binary(handle) and String.trim(handle) != "" do
+      query =
+        from(u in Elektrine.Accounts.User,
+          where: fragment("lower(?)", u.username) == ^String.downcase(handle)
         )
-      else
-        # Update the change timestamp
-        put_change(
-          changeset,
-          :handle_changed_at,
-          DateTime.utc_now() |> DateTime.truncate(:second)
-        )
+
+      query =
+        if user_id do
+          from(u in query, where: u.id != ^user_id)
+        else
+          query
+        end
+
+      case Elektrine.Repo.one(query) do
+        nil -> changeset
+        _ -> add_error(changeset, :handle, "conflicts with an existing username")
       end
     else
-      # First time setting handle or no change
-      if get_change(changeset, :handle) do
-        put_change(
-          changeset,
-          :handle_changed_at,
-          DateTime.utc_now() |> DateTime.truncate(:second)
-        )
-      else
-        changeset
-      end
+      changeset
     end
   end
 

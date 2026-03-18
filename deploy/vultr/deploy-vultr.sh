@@ -1,6 +1,6 @@
 #!/bin/bash
 # Automated Elektrine deployment for Vultr with Docker and Let's Encrypt
-# Usage: curl -sSL https://raw.githubusercontent.com/yourusername/elektrine/main/deploy-vultr.sh | bash -s -- --domain elektrine.com --email admin@elektrine.com --repo https://github.com/yourusername/elektrine.git
+# Canonical location: deploy/vultr/deploy-vultr.sh
 
 set -e
 
@@ -9,6 +9,7 @@ DOMAIN=""
 EMAIL=""
 REPO_URL=""
 ENABLE_SSL=true
+COMPOSE_FILE="deploy/docker/compose.full.yml"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -114,23 +115,24 @@ PHX_HOST=$DOMAIN
 PRIMARY_DOMAIN=$DOMAIN
 SECRET_KEY_BASE=$SECRET_KEY_BASE
 LETS_ENCRYPT_ENABLED=$ENABLE_SSL
-ELEKTRINE_RELEASE_MODULES=all
-ELEKTRINE_ENABLED_MODULES=all
+SUPPORTED_DOMAINS=$DOMAIN
+INSTANCE_DOMAIN=$DOMAIN
+ELEKTRINE_RELEASE_MODULES=chat,social,vault
+ELEKTRINE_ENABLED_MODULES=chat,social,vault
 
-# Email Configuration
-EMAIL_SERVICE=haraka
-PHOENIX_API_KEY=
-HARAKA_HTTP_API_KEY=
-HARAKA_OUTBOUND_API_KEY=
-HARAKA_INBOUND_API_KEY=
-HARAKA_API_KEY=
-HARAKA_BASE_URL=https://mail.$DOMAIN
-HARAKA_INTERNAL_SIGNING_SECRET=
-POSTAL_API_KEY=
-POSTAL_API_KEY_ZORG=
-
-# VPN Configuration
-VPN_FLEET_REGISTRATION_KEY=
+# Optional add-ons
+# Email runs as a separate deployment. See docs/self-hosting/mail.md.
+# EMAIL_SERVICE=haraka
+# PHOENIX_API_KEY=
+# HARAKA_HTTP_API_KEY=
+# HARAKA_OUTBOUND_API_KEY=
+# HARAKA_INBOUND_API_KEY=
+# HARAKA_API_KEY=
+# HARAKA_BASE_URL=https://mail.$DOMAIN
+# HARAKA_INTERNAL_SIGNING_SECRET=
+#
+# VPN add-on.
+# VPN_FLEET_REGISTRATION_KEY=
 
 # Storage (Cloudflare R2)
 R2_ACCESS_KEY_ID=
@@ -139,8 +141,8 @@ R2_ENDPOINT=
 R2_BUCKET_NAME=
 
 # Security
-HCAPTCHA_SITE_KEY=
-HCAPTCHA_SECRET_KEY=
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
 
 # OAuth
 GITHUB_CLIENT_ID=
@@ -160,21 +162,21 @@ chmod 600 .env
 # Build and start services
 echo "🏗️ Building application..."
 cd app
-docker-compose build
+docker-compose -f "$COMPOSE_FILE" build
 
 echo "🗄️ Starting database..."
-docker-compose up -d postgres
+docker-compose -f "$COMPOSE_FILE" up -d postgres
 
 echo "⏳ Waiting for database..."
 for i in {1..30}; do
-    if docker-compose exec postgres pg_isready -U elektrine > /dev/null 2>&1; then
+    if docker-compose -f "$COMPOSE_FILE" exec postgres pg_isready -U elektrine > /dev/null 2>&1; then
         break
     fi
     sleep 2
 done
 
 echo "🔧 Running migrations..."
-docker-compose run --rm app bin/elektrine eval "Elektrine.Release.migrate()"
+docker-compose -f "$COMPOSE_FILE" run --rm app bin/elektrine eval "Elektrine.Release.migrate()"
 
 # Setup SSL if enabled
 if [ "$ENABLE_SSL" = true ]; then
@@ -186,7 +188,7 @@ if [ "$ENABLE_SSL" = true ]; then
     fi
 
     # Stop services for cert generation
-    docker-compose down
+    docker-compose -f "$COMPOSE_FILE" down
 
     # Get certificate
     certbot certonly \
@@ -213,7 +215,7 @@ After=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/elektrine/app
-ExecStart=/bin/bash -c 'docker-compose down && certbot renew && docker run --rm -v letsencrypt:/target -v /etc/letsencrypt:/source:ro alpine sh -c "cp -r /source/* /target/" && docker-compose up -d'
+ExecStart=/bin/bash -c 'docker-compose -f deploy/docker/compose.full.yml down && certbot renew && docker run --rm -v letsencrypt:/target -v /etc/letsencrypt:/source:ro alpine sh -c "cp -r /source/* /target/" && docker-compose -f deploy/docker/compose.full.yml up -d'
 EOF
 
     cat > /etc/systemd/system/certbot-renew.timer <<EOF
@@ -236,12 +238,12 @@ fi
 
 # Start all services
 echo "🚀 Starting services..."
-docker-compose up -d
+docker-compose -f "$COMPOSE_FILE" up -d
 
 # Health check
 echo "🏥 Checking health..."
 sleep 5
-if docker-compose ps | grep -q "Up"; then
+if docker-compose -f "$COMPOSE_FILE" ps | grep -q "Up"; then
     echo ""
     echo "✅ Deployment complete!"
     echo ""
@@ -254,10 +256,10 @@ if docker-compose ps | grep -q "Up"; then
     echo ""
     echo "📝 Commands:"
     echo "  cd /opt/elektrine/app"
-    echo "  docker-compose logs -f     # View logs"
-    echo "  docker-compose restart      # Restart"
-    echo "  docker-compose down         # Stop"
-    echo "  docker-compose up -d        # Start"
+    echo "  docker-compose -f $COMPOSE_FILE logs -f   # View logs"
+    echo "  docker-compose -f $COMPOSE_FILE restart   # Restart"
+    echo "  docker-compose -f $COMPOSE_FILE down      # Stop"
+    echo "  docker-compose -f $COMPOSE_FILE up -d     # Start"
 else
     echo "❌ Services failed to start. Check logs:"
     echo "  docker-compose logs"

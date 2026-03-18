@@ -5,6 +5,7 @@ defmodule Elektrine.Bluesky.Managed do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.User
+  alias Elektrine.Profiles
   alias Elektrine.Repo
   @default_timeout_ms 12_000
   @doc "Provisions Bluesky for a local user on a managed PDS.\n"
@@ -194,7 +195,7 @@ defmodule Elektrine.Bluesky.Managed do
 
   defp create_account(service_url, invite_code, user, password, handle_domain) do
     url = service_url <> "/xrpc/com.atproto.server.createAccount"
-    handle = "#{user.username}.#{handle_domain}"
+    handle = preferred_managed_handle(user, handle_domain)
     email = user.recovery_email || default_pds_email(user)
 
     payload = %{
@@ -334,7 +335,7 @@ defmodule Elektrine.Bluesky.Managed do
 
   defp reconnect_identifier(%User{} = user, handle_domain) do
     candidate =
-      [user.bluesky_did, user.bluesky_identifier, "#{user.username}.#{handle_domain}"]
+      [user.bluesky_did, user.bluesky_identifier, preferred_managed_handle(user, handle_domain)]
       |> Enum.find(fn value -> is_binary(value) and String.trim(value) != "" end)
 
     case candidate do
@@ -344,11 +345,24 @@ defmodule Elektrine.Bluesky.Managed do
   end
 
   defp fallback_handle("did:" <> _did, username, handle_domain) do
-    "#{username}.#{handle_domain}"
+    preferred_managed_handle(%User{username: username}, handle_domain)
   end
 
   defp fallback_handle(handle, _username, _handle_domain) do
     handle
+  end
+
+  defp preferred_managed_handle(%User{id: user_id, username: username}, handle_domain)
+       when is_integer(user_id) and is_binary(username) do
+    case Profiles.preferred_verified_domain_for_user(user_id) do
+      %{domain: domain} when is_binary(domain) and domain != "" -> domain
+      _ -> "#{username}.#{handle_domain}"
+    end
+  end
+
+  defp preferred_managed_handle(%User{username: username}, handle_domain)
+       when is_binary(username) do
+    "#{username}.#{handle_domain}"
   end
 
   defp create_reconnect_session(service_url, identifier, %User{} = user, current_password) do

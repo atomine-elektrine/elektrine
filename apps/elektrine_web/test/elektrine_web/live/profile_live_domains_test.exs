@@ -15,6 +15,8 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
 
     assert html =~ "Profile Domains"
     assert html =~ "Default Profile URL"
+    assert html =~ "Verified domains also publish a followable ActivityPub alias"
+    assert html =~ "That keeps the domain portable if the underlying hosting IPs change"
 
     unique = System.unique_integer([:positive])
 
@@ -27,6 +29,12 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
 
     assert html =~ "portfolio#{unique}.example.test"
     assert html =~ "Ownership verification"
+    assert html =~ "Copy public URL"
+    assert html =~ "ActivityPub Alias"
+    assert html =~ "@#{user.username}@portfolio#{unique}.example.test"
+    assert html =~ "Copy ActivityPub alias"
+    assert html =~ "Copy TXT host"
+    assert html =~ "Copy TXT value"
   end
 
   defp log_in_user(conn, user) do

@@ -1,17 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TEMPLATE_PATH="$ROOT_DIR/fly.toml"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TEMPLATE_PATH="$ROOT_DIR/deploy/fly/app.toml"
 REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
-OUTPUT_PATH="${OUTPUT_PATH:-$ROOT_DIR/fly.generated.toml}"
+OUTPUT_PATH="${OUTPUT_PATH:-$ROOT_DIR/deploy/fly/generated.toml}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/render_fly_toml.sh [--modules chat,social] [--output /tmp/elektrine.fly.toml]
+Usage: scripts/deploy/render_fly_toml.sh [--modules chat,social] [--output /tmp/elektrine.fly.toml]
 
 Renders a Fly config that matches the selected release modules.
 Email protocol service blocks are omitted when the email module is not selected.

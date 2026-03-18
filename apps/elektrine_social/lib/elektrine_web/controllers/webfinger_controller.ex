@@ -4,6 +4,7 @@ defmodule ElektrineWeb.WebFingerController do
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub
   alias Elektrine.Domains
+  alias Elektrine.Profiles
 
   @doc """
   WebFinger endpoint for user and community discovery.
@@ -15,8 +16,8 @@ defmodule ElektrineWeb.WebFingerController do
   """
   def webfinger(conn, %{"resource" => resource}) do
     case parse_resource(resource) do
-      {:ok, :user, username, requested_domain} ->
-        handle_user_lookup(conn, username, requested_domain)
+      {:ok, :user, identifier, requested_domain} ->
+        handle_user_lookup(conn, identifier, requested_domain)
 
       {:ok, :community, community_name, requested_domain} ->
         handle_community_lookup(conn, community_name, requested_domain)
@@ -40,7 +41,7 @@ defmodule ElektrineWeb.WebFingerController do
   Required by some older ActivityPub implementations.
   """
   def host_meta(conn, _params) do
-    base_url = ActivityPub.instance_url()
+    base_url = host_meta_base_url(conn)
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -62,10 +63,15 @@ defmodule ElektrineWeb.WebFingerController do
       [username_or_community, domain] ->
         requested_domain = normalize_domain(domain)
 
-        if Domains.local_activitypub_domain?(requested_domain) do
-          parse_local_acct_identifier(username_or_community, requested_domain)
-        else
-          {:error, :invalid_resource}
+        cond do
+          Domains.local_activitypub_domain?(requested_domain) ->
+            parse_local_acct_identifier(username_or_community, requested_domain)
+
+          custom_profile_alias_domain?(requested_domain) ->
+            parse_custom_profile_acct_identifier(username_or_community, requested_domain)
+
+          true ->
+            {:error, :invalid_resource}
         end
 
       _ ->
@@ -109,8 +115,21 @@ defmodule ElektrineWeb.WebFingerController do
 
   defp parse_local_acct_identifier(_, _), do: {:error, :invalid_resource}
 
-  defp handle_user_lookup(conn, username, requested_domain) do
-    case Accounts.get_user_by_username(username) do
+  defp parse_custom_profile_acct_identifier(username, requested_domain)
+       when is_binary(username) and username != "" do
+    if String.starts_with?(username, "!") do
+      {:error, :invalid_resource}
+    else
+      {:ok, :user, username, requested_domain}
+    end
+  end
+
+  defp parse_custom_profile_acct_identifier(_, _), do: {:error, :invalid_resource}
+
+  defp handle_user_lookup(conn, identifier, requested_domain) do
+    requested_identifier = ActivityPub.actor_identifier(identifier)
+
+    case Accounts.get_user_by_activitypub_identifier(requested_identifier) do
       nil ->
         conn
         |> put_status(:not_found)
@@ -118,8 +137,8 @@ defmodule ElektrineWeb.WebFingerController do
 
       user ->
         # Check if user has federation enabled
-        if user.activitypub_enabled do
-          render_webfinger(conn, user, requested_domain)
+        if user.activitypub_enabled and allowed_requested_user_domain?(user, requested_domain) do
+          render_webfinger(conn, user, requested_identifier, requested_domain)
         else
           conn
           |> put_status(:not_found)
@@ -146,12 +165,13 @@ defmodule ElektrineWeb.WebFingerController do
     end
   end
 
-  defp render_webfinger(conn, user, requested_domain) do
+  defp render_webfinger(conn, user, requested_identifier, requested_domain) do
     base_url = webfinger_base_url(requested_domain)
-    actor_url = "#{base_url}/users/#{user.username}"
-    profile_url = "#{base_url}/#{user.handle}"
+    canonical_actor_url = ActivityPub.actor_uri(user, ActivityPub.instance_url())
+    actor_url = webfinger_actor_url(user, requested_identifier, requested_domain)
+    profile_url = webfinger_profile_url(user, requested_domain)
     subject_domain = requested_domain || ActivityPub.instance_domain()
-    subject = "acct:#{user.username}@#{subject_domain}"
+    subject = "acct:#{requested_identifier}@#{subject_domain}"
 
     links = [
       %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: profile_url},
@@ -164,7 +184,10 @@ defmodule ElektrineWeb.WebFingerController do
       subscribe_link(base_url)
     ]
 
-    aliases = [actor_url, profile_url]
+    aliases =
+      [canonical_actor_url, actor_url, profile_url]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
 
     if wants_xml?(conn) do
       render_xrd(conn, subject, aliases, links)
@@ -235,7 +258,9 @@ defmodule ElektrineWeb.WebFingerController do
       Enum.map(links, fn link ->
         type_attr = if link[:type], do: " type=\"#{xml_escape(link.type)}\"", else: ""
         href_attr = if link[:href], do: " href=\"#{xml_escape(link.href)}\"", else: ""
-        template_attr = if link[:template], do: " template=\"#{xml_escape(link.template)}\"", else: ""
+
+        template_attr =
+          if link[:template], do: " template=\"#{xml_escape(link.template)}\"", else: ""
 
         "<Link rel=\"#{xml_escape(link.rel)}\"#{type_attr}#{href_attr}#{template_attr} />"
       end)
@@ -273,6 +298,27 @@ defmodule ElektrineWeb.WebFingerController do
     |> String.trim_leading("www.")
   end
 
+  defp custom_profile_alias_domain?(requested_domain) when is_binary(requested_domain) do
+    match?(%{domain: _}, Profiles.get_verified_custom_domain(requested_domain))
+  end
+
+  defp custom_profile_alias_domain?(_), do: false
+
+  defp allowed_requested_user_domain?(user, requested_domain) do
+    Domains.local_activitypub_domain?(requested_domain) or
+      match?(%{domain: _}, custom_profile_domain_for_user(user, requested_domain))
+  end
+
+  defp custom_profile_domain_for_user(%{id: user_id}, requested_domain)
+       when is_integer(user_id) and is_binary(requested_domain) do
+    case Profiles.get_verified_custom_domain(requested_domain) do
+      %{user_id: ^user_id} = custom_domain -> custom_domain
+      _ -> nil
+    end
+  end
+
+  defp custom_profile_domain_for_user(_, _), do: nil
+
   defp webfinger_base_url(requested_domain) do
     requested = normalize_domain(requested_domain || "")
     move_from_domain = Domains.activitypub_move_from_domain()
@@ -284,6 +330,47 @@ defmodule ElektrineWeb.WebFingerController do
 
       requested != "" and requested == canonical_domain ->
         ActivityPub.instance_url()
+
+      true ->
+        ActivityPub.instance_url()
+    end
+  end
+
+  defp webfinger_actor_url(user, requested_identifier, requested_domain) do
+    requested_domain = normalize_domain(requested_domain || "")
+    move_from_domain = Domains.activitypub_move_from_domain()
+
+    if requested_domain != "" and requested_domain == move_from_domain do
+      ActivityPub.actor_uri(
+        requested_identifier,
+        ActivityPub.instance_url_for_domain(requested_domain)
+      )
+    else
+      ActivityPub.actor_uri(user, ActivityPub.instance_url())
+    end
+  end
+
+  defp webfinger_profile_url(user, requested_domain) do
+    case custom_profile_domain_for_user(user, requested_domain) do
+      %{domain: domain} ->
+        ActivityPub.instance_url_for_domain(domain)
+
+      _ ->
+        handle =
+          if is_binary(user.handle) and user.handle != "", do: user.handle, else: user.username
+
+        "#{webfinger_base_url(requested_domain)}/#{handle}"
+    end
+  end
+
+  defp host_meta_base_url(conn) do
+    requested_host = normalize_domain(conn.host || "")
+
+    cond do
+      requested_host != "" and
+          (Domains.local_activitypub_domain?(requested_host) or
+             custom_profile_alias_domain?(requested_host)) ->
+        ActivityPub.instance_url_for_domain(requested_host)
 
       true ->
         ActivityPub.instance_url()

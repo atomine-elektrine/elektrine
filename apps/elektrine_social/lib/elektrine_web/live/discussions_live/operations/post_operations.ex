@@ -38,6 +38,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
      |> assign(:link_title, nil)
      |> assign(:new_post_content, "")
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      |> assign(:pending_media_alt_texts, %{})}
   end
 
@@ -120,7 +121,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
 
         case Elektrine.Uploads.upload_discussion_attachment(upload_struct, user.id) do
           {:ok, metadata} ->
-            {:ok, metadata.key}
+            {:ok, metadata}
 
           {:error, _reason} ->
             {:postpone, :error}
@@ -130,13 +131,19 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     if Enum.empty?(uploaded_files) do
       {:noreply, notify_error(socket, "Please select files to upload")}
     else
+      uploaded_urls =
+        uploaded_files
+        |> Enum.map(&Map.get(&1, :key))
+        |> Enum.filter(&is_binary/1)
+
       # Store uploaded URLs and alt texts - they'll be included when creating the post
       {:noreply,
        socket
        |> assign(:show_image_upload_modal, false)
-       |> assign(:pending_media_urls, uploaded_files)
+       |> assign(:pending_media_urls, uploaded_urls)
+       |> assign(:pending_media_attachments, uploaded_files)
        |> assign(:pending_media_alt_texts, alt_texts)
-       |> notify_info("#{length(uploaded_files)} file(s) added")}
+       |> notify_info("#{length(uploaded_urls)} file(s) added")}
     end
   end
 
@@ -145,6 +152,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     {:noreply,
      socket
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      |> assign(:pending_media_alt_texts, %{})}
   end
 
@@ -767,6 +775,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     # Optional caption
     content = params["content"] || ""
     media_urls = socket.assigns.pending_media_urls
+    media_attachments = socket.assigns.pending_media_attachments || []
     alt_texts = Map.get(socket.assigns, :pending_media_alt_texts, %{})
 
     cond do
@@ -786,13 +795,8 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
                skip_broadcast: true
              ) do
           {:ok, message} ->
-            # Build media metadata with alt texts
             media_metadata =
-              if map_size(alt_texts) > 0 do
-                %{"alt_texts" => alt_texts}
-              else
-                %{}
-              end
+              Social.merge_post_media_metadata(%{"attachments" => media_attachments}, alt_texts)
 
             # Update with media-specific attributes
             updated_attrs =
@@ -1165,6 +1169,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
      |> assign(:poll_options, ["", ""])
      # Reset uploaded media
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      # Reset alt texts
      |> assign(:pending_media_alt_texts, %{})
      |> put_flash(:info, success_message)}

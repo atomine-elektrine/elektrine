@@ -22,7 +22,7 @@ By contributing, you agree that your contributions are provided under that same 
 
 1. Install Elixir/Erlang and PostgreSQL.
 2. Clone the repo.
-3. Copy `.env.example` to `.env` and set local values.
+3. Copy `env/dev.env.example` to `.env` and set local values.
 4. Run setup:
 
 ```bash

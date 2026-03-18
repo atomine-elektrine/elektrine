@@ -130,6 +130,33 @@ defmodule Elektrine.Accounts do
   end
 
   @doc """
+  Gets a local user by the identifier used for ActivityPub actor URLs/WebFinger.
+
+  Handles are canonical for federation, but legacy username-based identifiers
+  still resolve for compatibility.
+  """
+  def get_user_by_activitypub_identifier(identifier) when is_binary(identifier) do
+    normalized_identifier =
+      identifier
+      |> String.trim()
+      |> String.trim_leading("@")
+      |> String.downcase()
+
+    cond do
+      normalized_identifier == "" ->
+        nil
+
+      user = get_user_by_handle(normalized_identifier) ->
+        user
+
+      true ->
+        get_user_by_username(normalized_identifier)
+    end
+  end
+
+  def get_user_by_activitypub_identifier(_), do: nil
+
+  @doc """
   Gets a user by username or handle (case-insensitive for handle).
   Useful for @mentions where users might use either.
   """

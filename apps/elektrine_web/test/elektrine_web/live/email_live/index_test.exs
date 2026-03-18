@@ -70,6 +70,24 @@ defmodule ElektrineWeb.EmailLive.IndexTest do
     refute html =~ "#{user.username}@#{pending_domain}"
   end
 
+  test "email settings aliases tab renders copy controls for custom domain records", %{conn: conn} do
+    unique_id = System.unique_integer([:positive])
+    user = AccountsFixtures.user_fixture(%{username: "copymail#{unique_id}"})
+    custom_domain = "mail#{unique_id}.copy-controls.test"
+
+    assert {:ok, _domain} = Email.create_custom_domain(user, %{"domain" => custom_domain})
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/settings?tab=aliases")
+
+    assert html =~ custom_domain
+    assert html =~ "Copy primary address"
+    assert html =~ "Copy TXT host"
+    assert html =~ "Copy TXT value"
+  end
+
   test "folder message links preserve the folder context", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = ensure_mailbox(user)

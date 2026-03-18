@@ -7,6 +7,7 @@ defmodule Elektrine.BlueskyManagedTest do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Bluesky.Managed
+  alias Elektrine.Profiles
   alias Elektrine.Repo
 
   defmodule MockHTTPClient do
@@ -151,6 +152,46 @@ defmodule Elektrine.BlueskyManagedTest do
     assert Enum.at(requests, 2).url =~ "/xrpc/com.atproto.server.createAccount"
     assert Enum.at(requests, 3).url =~ "/xrpc/com.atproto.server.createSession"
     assert Enum.at(requests, 4).url =~ "/xrpc/com.atproto.server.createAppPassword"
+  end
+
+  test "enable_for_user uses a verified custom profile domain as the managed handle" do
+    user = user_fixture()
+    custom_domain = verified_profile_custom_domain_fixture(user, "managedbskyalias.test")
+
+    MockHTTPClient.put_responses([
+      {:ok, %Finch.Response{status: 200, body: Jason.encode!(%{"code" => "invite-123"})}},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "did" => "did:plc:testdid",
+             "handle" => custom_domain.domain
+           })
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "accessJwt" => "jwt_token",
+             "did" => "did:plc:testdid",
+             "handle" => custom_domain.domain
+           })
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"name" => "elektrine", "password" => "app-password-1"})
+       }}
+    ])
+
+    assert {:ok, %{handle: handle}} = Managed.enable_for_user(user, valid_user_password())
+    assert handle == custom_domain.domain
+
+    requests = MockHTTPClient.requests()
+    create_account_request = Enum.at(requests, 1)
+    assert Jason.decode!(create_account_request.body)["handle"] == custom_domain.domain
   end
 
   test "returns invalid credentials for wrong password" do
@@ -425,5 +466,16 @@ defmodule Elektrine.BlueskyManagedTest do
     assert is_nil(updated_user.bluesky_did)
     assert is_nil(updated_user.bluesky_pds_url)
     assert is_nil(updated_user.bluesky_inbound_cursor)
+  end
+
+  defp verified_profile_custom_domain_fixture(user, domain) do
+    {:ok, custom_domain} = Profiles.create_custom_domain(user, %{"domain" => domain})
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(cd in Elektrine.Profiles.CustomDomain, where: cd.id == ^custom_domain.id)
+    |> Repo.update_all(set: [status: "verified", verified_at: now, last_checked_at: now])
+
+    Profiles.get_verified_custom_domain(domain)
   end
 end

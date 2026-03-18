@@ -2,6 +2,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Elektrine.SocialFixtures, only: [post_fixture: 1]
 
   alias Elektrine.{AccountsFixtures, Friends, Profiles, Social}
 
@@ -105,6 +106,70 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
     render_hook(view, "like_post", %{"message_id" => "abc"})
     assert render(view) =~ "Invalid post id"
+  end
+
+  test "overview renders a taller loading shell before feed hydration", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    html =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/overview")
+      |> html_response(200)
+
+    assert html =~ ~s(phx-hook="TimelineReply")
+    assert html =~ "space-y-4 min-h-[60vh]"
+    assert html =~ "data-feed-loading-skeleton"
+  end
+
+  test "overview uses a stream-backed feed container", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/overview")
+
+    assert has_element?(view, ~s(#overview-posts-stream[phx-update="stream"]))
+  end
+
+  test "overview feed stays capped to a dashboard-sized batch", %{conn: conn} do
+    previous = Application.get_env(:elektrine, :recommendations_enabled, true)
+    Application.put_env(:elektrine, :recommendations_enabled, false)
+    on_exit(fn -> Application.put_env(:elektrine, :recommendations_enabled, previous) end)
+
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    for index <- 1..25 do
+      post_fixture(%{
+        user: author,
+        content: "Overview batch token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
+        visibility: "public"
+      })
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/overview")
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        send(view.pid, :load_feed_data)
+        rendered = render(view)
+
+        if rendered =~ "Overview batch token 25" do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "20 posts"
+    assert html =~ "Overview batch token 25"
+    refute html =~ "Overview batch token 01"
   end
 
   test "unfollowing from overview does not crash when the follow exists", %{conn: conn} do
