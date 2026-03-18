@@ -306,7 +306,11 @@ defmodule Elektrine.Messaging.Federation.Validation do
         [get_in(data, ["dm", "sender"]), get_in(data, ["message", "sender"])]
 
       "dm.call.invite" ->
-        [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), get_in(data, ["call", "actor"])]
+        [
+          get_in(data, ["dm", "sender"]),
+          get_in(data, ["dm", "recipient"]),
+          get_in(data, ["call", "actor"])
+        ]
 
       "dm.call.accept" ->
         [get_in(data, ["dm", "sender"]), get_in(data, ["dm", "recipient"]), data["actor"]]

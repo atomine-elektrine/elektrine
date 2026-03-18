@@ -1,10 +1,10 @@
-<div class="admin-page">
-  <div class="mb-8">
+<div class="flex flex-col gap-4">
+  <div class="mb-4">
     <h1 class="text-3xl font-bold">Add VPN Server</h1>
     <p class="text-base-content/70 mt-2">Set up a new WireGuard server</p>
   </div>
 
-  <div class="alert alert-info mb-6">
+  <div class="alert alert-info mb-4">
     <.icon name="hero-information-circle" class="w-5 h-5" />
     <div>
       <h3 class="font-bold">Quick Setup (3 Steps)</h3>
@@ -16,7 +16,7 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-lg">
+  <div class="card shadow-sm">
     <div class="card-body">
       <.form :let={f} for={@changeset} action={~p"/pripyat/vpn/servers"} method="post">
         <div class="space-y-4">

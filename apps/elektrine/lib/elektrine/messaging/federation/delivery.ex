@@ -4,6 +4,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   import Ecto.Query, warn: false
 
   alias Elektrine.Messaging.ArblargSDK
+
   alias Elektrine.Messaging.{
     FederationOutboxEvent,
     FederationOutboxWorker,
@@ -156,7 +157,12 @@ defmodule Elektrine.Messaging.Federation.Delivery do
     case call(context, :outgoing_peer, [normalized_domain]) do
       nil ->
         batch_rows = outbox_batch_for_domain(outbox, normalized_domain, context)
-        Enum.each(batch_rows, &record_outbox_domain_failure(&1, normalized_domain, :unknown_peer, context))
+
+        Enum.each(
+          batch_rows,
+          &record_outbox_domain_failure(&1, normalized_domain, :unknown_peer, context)
+        )
+
         {:error, :unknown_peer}
 
       peer ->
@@ -221,7 +227,8 @@ defmodule Elektrine.Messaging.Federation.Delivery do
       results
       |> Enum.filter(&is_map/1)
       |> Map.new(fn result ->
-        {result["event_id"], call(context, :normalize_optional_string, [result["status"]]) || "missing"}
+        {result["event_id"],
+         call(context, :normalize_optional_string, [result["status"]]) || "missing"}
       end)
 
     failures =
@@ -315,7 +322,8 @@ defmodule Elektrine.Messaging.Federation.Delivery do
     Transport.event_transport_order(peer, call(context, :transport_profiles_document, []))
   end
 
-  defp event_transport_order(_peer, _context), do: ["events_batch_cbor", "events_batch_json", "events_json"]
+  defp event_transport_order(_peer, _context),
+    do: ["events_batch_cbor", "events_batch_json", "events_json"]
 
   defp ephemeral_transport_order(peer, context) when is_map(peer) do
     Transport.ephemeral_transport_order(peer, call(context, :transport_profiles_document, []))
@@ -326,7 +334,10 @@ defmodule Elektrine.Messaging.Federation.Delivery do
 
   defp split_supported_rows(batch_rows, peer) when is_list(batch_rows) and is_map(peer) do
     Enum.split_with(batch_rows, fn row ->
-      Transport.peer_supports_event_type?(peer, row.event_type || get_in(row.payload, ["event_type"]))
+      Transport.peer_supports_event_type?(
+        peer,
+        row.event_type || get_in(row.payload, ["event_type"])
+      )
     end)
   end
 
@@ -342,7 +353,11 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   end
 
   defp push_event_batch_via_transport(peer, events, "events_batch_cbor", context) do
-    if call(context, :peer_supports, [peer, "binary_event_batches", call(context, :peer_configured, [peer])]) &&
+    if call(context, :peer_supports, [
+         peer,
+         "binary_event_batches",
+         call(context, :peer_configured, [peer])
+       ]) &&
          call(context, :peer_supports, [peer, "batched_event_delivery", true]) &&
          is_binary(call(context, :outbound_events_batch_url, [peer])) do
       push_event_batch_request(peer, events, :cbor, context)
@@ -377,8 +392,16 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   end
 
   defp push_ephemeral_batch_via_transport(peer, items, "events_batch_cbor", context) do
-    if call(context, :peer_supports, [peer, "ephemeral_lane", call(context, :peer_configured, [peer])]) &&
-         call(context, :peer_supports, [peer, "binary_event_batches", call(context, :peer_configured, [peer])]) &&
+    if call(context, :peer_supports, [
+         peer,
+         "ephemeral_lane",
+         call(context, :peer_configured, [peer])
+       ]) &&
+         call(context, :peer_supports, [
+           peer,
+           "binary_event_batches",
+           call(context, :peer_configured, [peer])
+         ]) &&
          is_binary(call(context, :outbound_ephemeral_url, [peer])) do
       push_ephemeral_batch_request(peer, items, :cbor, context)
     else
@@ -387,7 +410,11 @@ defmodule Elektrine.Messaging.Federation.Delivery do
   end
 
   defp push_ephemeral_batch_via_transport(peer, items, "events_batch_json", context) do
-    if call(context, :peer_supports, [peer, "ephemeral_lane", call(context, :peer_configured, [peer])]) &&
+    if call(context, :peer_supports, [
+         peer,
+         "ephemeral_lane",
+         call(context, :peer_configured, [peer])
+       ]) &&
          is_binary(call(context, :outbound_ephemeral_url, [peer])) do
       push_ephemeral_batch_request(peer, items, :json, context)
     else
@@ -625,7 +652,8 @@ defmodule Elektrine.Messaging.Federation.Delivery do
     event_type = ArblargSDK.canonical_event_type(item["event_type"])
 
     with true <- event_type in ["presence.update", "typing.start", "typing.stop"],
-         stream_id when is_binary(stream_id) <- call(context, :ephemeral_stream_id, [event_type, payload]) do
+         stream_id when is_binary(stream_id) <-
+           call(context, :ephemeral_stream_id, [event_type, payload]) do
       sequence = call(context, :next_outbound_sequence, [stream_id])
       {:ok, call(context, :event_envelope, [event_type, stream_id, sequence, payload])}
     else

@@ -11,7 +11,8 @@ defmodule Elektrine.Calls.Transport do
     %{
       "mode" => transport_mode(config),
       "ice_servers" => ice_servers_for_user(user_id, call_id, opts),
-      "resume_window_seconds" => Keyword.get(config, :resume_window_seconds, @default_resume_window_seconds),
+      "resume_window_seconds" =>
+        Keyword.get(config, :resume_window_seconds, @default_resume_window_seconds),
       "sfu" => maybe_sfu_descriptor(config, user_id, call_id)
     }
   end
@@ -55,8 +56,7 @@ defmodule Elektrine.Calls.Transport do
 
         %{
           "endpoint" => endpoint,
-          "token" =>
-            Phoenix.Token.sign(ElektrineWeb.Endpoint, "webrtc_sfu", claims)
+          "token" => Phoenix.Token.sign(ElektrineWeb.Endpoint, "webrtc_sfu", claims)
         }
     end
   end

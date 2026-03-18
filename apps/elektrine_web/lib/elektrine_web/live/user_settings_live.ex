@@ -2001,7 +2001,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     case Integrations.user_settings_email_component() do
       nil ->
         ~H"""
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl">Email</h2>
             <p class="text-sm text-base-content/70">

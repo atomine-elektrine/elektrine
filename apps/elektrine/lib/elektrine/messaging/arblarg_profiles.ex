@@ -128,11 +128,13 @@ defmodule Elektrine.Messaging.ArblargProfiles do
                                  )
                                  |> Enum.map(& &1.urn)
 
-  @extension_definitions_by_event_type Enum.reduce(@extension_definitions, %{}, fn definition, acc ->
-                                     Enum.reduce(definition.events, acc, fn event_type, event_acc ->
-                                       Map.put(event_acc, event_type, definition)
-                                     end)
-                                   end)
+  @extension_definitions_by_event_type Enum.reduce(@extension_definitions, %{}, fn definition,
+                                                                                   acc ->
+                                         Enum.reduce(definition.events, acc, fn event_type,
+                                                                                event_acc ->
+                                           Map.put(event_acc, event_type, definition)
+                                         end)
+                                       end)
 
   def core_profile_id, do: @core_profile_id
   def core_profile_description, do: @core_profile_description

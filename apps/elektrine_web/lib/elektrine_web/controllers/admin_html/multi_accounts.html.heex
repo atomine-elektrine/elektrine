@@ -1,4 +1,4 @@
-<div class="admin-page">
+<div class="flex flex-col gap-4">
   <div class="mb-6 flex justify-between items-start">
     <div>
       <h1 class="text-2xl font-bold">Multi-Account Detection</h1>
@@ -12,7 +12,7 @@
   </div>
   
 <!-- Search Form -->
-  <div class="card glass-card shadow-xl mb-6">
+  <div class="card shadow-xl mb-6">
     <div class="card-body">
       <form method="get" action={~p"/pripyat/multi-accounts"} class="flex gap-4 items-end">
         <div class="flex-1">
@@ -54,7 +54,7 @@
   
 <!-- Registration IP Groups -->
   <%= if length(@multi_account_data.registration_ip_groups) > 0 do %>
-    <div class="card glass-card shadow-xl mb-6">
+    <div class="card shadow-xl mb-6">
       <div class="card-header">
         <div class="card-title">
           <.icon name="hero-user-plus" class="w-5 h-5 mr-2" /> Registration IP Address Groups
@@ -229,7 +229,7 @@
   
 <!-- No Results -->
   <%= if length(@multi_account_data.registration_ip_groups) == 0 do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card shadow-xl">
       <div class="card-body text-center">
         <%= if @search_query != "" do %>
           <.icon name="hero-magnifying-glass" class="w-16 h-16 text-gray-400 mx-auto mb-4" />

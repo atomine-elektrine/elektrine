@@ -1,5 +1,5 @@
-<div class="admin-page">
-  <div class="mb-8">
+<div class="flex flex-col gap-4">
+  <div class="mb-4">
     <h1 class="text-3xl font-bold">Edit VPN User Configuration</h1>
     <p class="text-base-content/70 mt-2">
       Manage quota and rate limit for
@@ -11,10 +11,10 @@
     </p>
   </div>
 
-  <div class="card glass-card shadow-lg">
+  <div class="card shadow-sm">
     <div class="card-body">
       <.form :let={_f} for={@changeset} action={~p"/pripyat/vpn/users/#{@config.id}"} method="put">
-        <div class="space-y-6">
+        <div class="space-y-4">
           <!-- Current Usage Stats -->
           <div class="bg-base-200 rounded-lg p-4">
             <h3 class="font-semibold mb-3">Current Usage</h3>

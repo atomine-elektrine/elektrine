@@ -26,17 +26,17 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
 
   """
   attr :active_tab, :string, required: true
-  attr :class, :string, default: "mb-4"
+  attr :class, :string, default: "mb-6"
   attr :current_user, :any, default: nil
 
   def z_nav(assigns) do
     assigns = assign(assigns, :items, nav_items())
 
     ~H"""
-    <nav aria-label="Primary modes" class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
+    <nav aria-label="Primary modes" class={["sticky top-14 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="rounded-2xl border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
-          <div class="overflow-x-auto px-2 py-2 sm:px-3">
+        <div class="card border border-base-300 bg-base-100 shadow-sm rounded-lg">
+          <div class="card-body overflow-x-auto px-2 py-2 sm:px-3">
             <div class="flex min-w-max items-center gap-1 sm:gap-2">
               <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
                 Modes

@@ -549,9 +549,7 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
       assert "applied" ==
                (conn
-                |> signed_federation_headers("POST", "/_arblarg/events",
-                  raw_body: bootstrap_body
-                )
+                |> signed_federation_headers("POST", "/_arblarg/events", raw_body: bootstrap_body)
                 |> put_req_header("content-type", "application/json")
                 |> post("/_arblarg/events", bootstrap_body)
                 |> json_response(200))["status"]
@@ -654,9 +652,7 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
       assert "applied" ==
                (conn
-                |> signed_federation_headers("POST", "/_arblarg/events",
-                  raw_body: bootstrap_body
-                )
+                |> signed_federation_headers("POST", "/_arblarg/events", raw_body: bootstrap_body)
                 |> put_req_header("content-type", "application/json")
                 |> post("/_arblarg/events", bootstrap_body)
                 |> json_response(200))["status"]

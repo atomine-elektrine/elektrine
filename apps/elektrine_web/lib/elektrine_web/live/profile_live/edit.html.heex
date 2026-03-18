@@ -10,10 +10,9 @@
     <div class="lg:col-span-1">
       <div
         id="profile-settings-container"
-        phx-hook="GlassCardContainer"
         class="sticky top-24 self-start"
       >
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-4">Sections</h3>
             <ul class="menu menu-compact w-full p-0 space-y-1">
@@ -62,7 +61,7 @@
     <div class="lg:col-span-3">
       <!-- Basic Info Tab -->
       <%= if @selected_tab == "basic" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -358,7 +357,7 @@
       <%= if @selected_tab == "appearance" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Color Palette Generator -->
-          <div class="card glass-card shadow-lg border-2 border-primary/20">
+          <div class="card shadow-lg border-2 border-primary/20">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -375,7 +374,7 @@
                     type="color"
                     name="base_color"
                     value={(@profile && @profile.accent_color) || "#8b5cf6"}
-                    class="w-24 h-24 border-0 rounded-xl cursor-pointer shadow-lg"
+                    class="w-24 h-24 border-0 rounded-lg cursor-pointer shadow-lg"
                   />
                   <div class="flex-1">
                     <p class="font-semibold text-lg">Base Color</p>
@@ -393,7 +392,7 @@
           </div>
           
 <!-- Colors & Theme -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -706,7 +705,7 @@
           
 <!-- Background Upload -->
           <%= if @profile && @profile.background_type in ["image", "video"] do %>
-            <div class="card glass-card shadow-lg">
+            <div class="card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
                   <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
@@ -801,7 +800,7 @@
           <% end %>
           
 <!-- Visual Effects -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -932,7 +931,7 @@
           </div>
           
 <!-- Typewriter Effect -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1027,7 +1026,7 @@
       
 <!-- Avatar Effects Tab -->
       <%= if @selected_tab == "avatar" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1109,7 +1108,7 @@
       
 <!-- Username Effects Tab -->
       <%= if @selected_tab == "username" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1360,7 +1359,7 @@
       <%= if @selected_tab == "links" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Link Display Style -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1457,7 +1456,7 @@
           </div>
           
 <!-- Add New Link -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1485,7 +1484,7 @@
                   
 <!-- Platform Selection Grid -->
                   <div class="space-y-2">
-                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
+                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-lg bg-base-50">
                       <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                         <% platform_color =
                           Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -1651,7 +1650,7 @@
           </div>
           
 <!-- Current Links -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1684,7 +1683,7 @@
                             
 <!-- Platform Selection Grid for Editing -->
                             <div class="space-y-2">
-                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
+                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-lg bg-base-50">
                                 <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                                   <% platform_color =
                                     Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -1996,7 +1995,7 @@
       <%= if @selected_tab == "widgets" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Add New Widget -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2073,7 +2072,7 @@
           </div>
           
 <!-- Current Widgets -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2154,7 +2153,7 @@
       
 <!-- Badges Tab -->
       <%= if @selected_tab == "badges" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2178,7 +2177,7 @@
                   to_b = max(0, round(b * 0.65))
                   from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
                   to_color = "rgb(#{to_r}, #{to_g}, #{to_b})" %>
-                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300 border border-base-300/50">
+                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-lg hover:bg-base-200 transition-all duration-300 border border-base-300/50">
                     <div class="flex items-center gap-3">
                       <span
                         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-semibold text-xs"
@@ -2230,7 +2229,7 @@
       <%= if @selected_tab == "advanced" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Text Fonts -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2389,7 +2388,7 @@
           </div>
           
 <!-- Cursor Effects -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2508,7 +2507,7 @@
           </div>
           
 <!-- Favicon -->
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2599,7 +2598,7 @@
 <!-- Static Site Tab -->
       <%= if @selected_tab == "static_site" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card glass-card shadow-lg">
+          <div class="card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2664,7 +2663,7 @@
           
 <!-- Static Site Upload (only shown when static mode is enabled) -->
           <%= if @profile && @profile.profile_mode == "static" do %>
-            <div class="card glass-card shadow-lg">
+            <div class="card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <div class="mb-6">
                   <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2694,7 +2693,7 @@
                 <div
                   id="static-site-dropzone"
                   phx-drop-target={@uploads.static_files.ref}
-                  class={"relative border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 #{if @drag_over, do: "border-primary bg-primary/10", else: "border-base-300 hover:border-primary/50"}"}
+                  class={"relative border-2 border-dashed rounded-lg p-8 text-center transition-all mb-4 #{if @drag_over, do: "border-primary bg-primary/10", else: "border-base-300 hover:border-primary/50"}"}
                   phx-hook="DragDrop"
                 >
                   <.icon

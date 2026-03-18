@@ -8,6 +8,7 @@ defmodule Elektrine.Calls.TransportTest do
 
     assert descriptor["mode"] in ["mesh", "sfu"]
     assert is_list(descriptor["ice_servers"])
+
     assert Enum.any?(descriptor["ice_servers"], fn server ->
              server["urls"] == ["stun:stun.l.google.com:19302"]
            end)

@@ -74,7 +74,8 @@ defmodule Elektrine.Messaging.Federation.DirectMessages do
           error -> normalize_event_error(error)
         end
 
-      error -> normalize_event_error(error)
+      error ->
+        normalize_event_error(error)
     end
   end
 

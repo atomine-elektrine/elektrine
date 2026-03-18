@@ -66,7 +66,7 @@
         role="tab"
         aria-selected={@current_view == "communities"}
         class={[
-          "rounded-2xl px-3 py-3 text-sm font-medium transition-all",
+          "rounded-lg px-3 py-3 text-sm font-medium transition-all",
           if(@current_view == "communities",
             do: "bg-secondary text-secondary-content shadow-lg",
             else: "bg-base-200/70 text-base-content/70"
@@ -84,7 +84,7 @@
         role="tab"
         aria-selected={@current_view == "feed"}
         class={[
-          "rounded-2xl px-3 py-3 text-sm font-medium transition-all relative",
+          "rounded-lg px-3 py-3 text-sm font-medium transition-all relative",
           if(@current_view == "feed",
             do: "bg-secondary text-secondary-content shadow-lg",
             else: "bg-base-200/70 text-base-content/70"
@@ -107,7 +107,7 @@
         role="tab"
         aria-selected={@current_view == "my_activity"}
         class={[
-          "rounded-2xl px-3 py-3 text-sm font-medium transition-all",
+          "rounded-lg px-3 py-3 text-sm font-medium transition-all",
           if(@current_view == "my_activity",
             do: "bg-secondary text-secondary-content shadow-lg",
             else: "bg-base-200/70 text-base-content/70"
@@ -260,7 +260,7 @@
                 <div class="card bg-base-200 border border-base-300">
                   <div class="card-body p-4">
                     <div class="flex items-start gap-3">
-                      <div class="w-12 h-12 bg-base-300 rounded-2xl"></div>
+                      <div class="w-12 h-12 bg-base-300 rounded-lg"></div>
                       <div class="flex-1">
                         <div class="h-4 bg-base-300 rounded w-40 mb-2"></div>
                         <div class="h-3 bg-base-300 rounded w-56 mb-2"></div>
@@ -296,7 +296,7 @@
                               >
                                 <div class="card-body p-4 gap-4">
                                   <div class="flex items-start gap-3">
-                                    <div class="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
+                                    <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
                                       {String.first(community.name) |> String.upcase()}
                                     </div>
                                     <div class="min-w-0 flex-1">
@@ -376,11 +376,11 @@
                                     <%= if actor.avatar_url do %>
                                       <img
                                         src={actor.avatar_url}
-                                        class="w-12 h-12 rounded-2xl object-cover flex-shrink-0"
+                                        class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                                         alt={actor.username}
                                       />
                                     <% else %>
-                                      <div class="w-12 h-12 rounded-2xl bg-info/10 text-info flex items-center justify-center flex-shrink-0">
+                                      <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
                                         <.icon name="hero-globe-alt" class="w-6 h-6" />
                                       </div>
                                     <% end %>
@@ -447,7 +447,7 @@
                           <% end %>
                         </div>
                       <% else %>
-                        <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-8 text-center">
+                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-8 text-center">
                           <.icon
                             name="hero-magnifying-glass"
                             class="w-12 h-12 mx-auto mb-3 opacity-30"
@@ -486,7 +486,7 @@
                               >
                                 <div class="card-body p-4">
                                   <div class="flex items-start gap-3">
-                                    <div class="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
+                                    <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
                                       {String.first(community.name) |> String.upcase()}
                                     </div>
                                     <div class="min-w-0 flex-1">
@@ -546,11 +546,11 @@
                                     <%= if community.avatar_url do %>
                                       <img
                                         src={community.avatar_url}
-                                        class="w-12 h-12 rounded-2xl object-cover flex-shrink-0"
+                                        class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                                         alt={community.username}
                                       />
                                     <% else %>
-                                      <div class="w-12 h-12 rounded-2xl bg-info/10 text-info flex items-center justify-center flex-shrink-0">
+                                      <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
                                         <.icon name="hero-globe-alt" class="w-6 h-6" />
                                       </div>
                                     <% end %>
@@ -611,8 +611,8 @@
                             <% end %>
                           </div>
                         <% else %>
-                          <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-8 text-center">
-                            <div class="w-16 h-16 rounded-3xl bg-secondary/10 text-secondary flex items-center justify-center mx-auto mb-4">
+                          <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-8 text-center">
+                            <div class="w-16 h-16 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center mx-auto mb-4">
                               <.icon name="hero-users" class="w-8 h-8" />
                             </div>
                             <h3 class="text-lg font-semibold">
@@ -624,7 +624,7 @@
                           </div>
                         <% end %>
                       <% else %>
-                        <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-8 text-center">
+                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-8 text-center">
                           <.icon
                             name="hero-lock-closed"
                             class="w-12 h-12 mx-auto mb-3 opacity-40"
@@ -648,7 +648,7 @@
                           <%= for card <- discover_cards do %>
                             <% community = card.community
                             joined? = MapSet.member?(@joined_community_ids, community.id) %>
-                            <article class="rounded-3xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                            <article class="rounded-lg border border-base-300 bg-base-100 p-5 shadow-sm">
                               <div class="flex flex-wrap items-center gap-2 mb-3">
                                 <%= for tag <- discovery_card_tags(card) do %>
                                   <span class="badge badge-secondary badge-sm">{tag}</span>
@@ -706,7 +706,7 @@
                           <% end %>
                         </div>
                       <% else %>
-                        <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-6 text-sm text-base-content/60">
+                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-6 text-sm text-base-content/60">
                           No new communities matched this category.
                         </div>
                       <% end %>
@@ -721,7 +721,7 @@
                             <% post = card.post %>
                             <.link
                               href={discussion_route(post)}
-                              class="block rounded-3xl border border-base-300 bg-base-100 p-5 shadow-sm hover:border-secondary/40 transition-colors"
+                              class="block rounded-lg border border-base-300 bg-base-100 p-5 shadow-sm hover:border-secondary/40 transition-colors"
                             >
                               <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60 mb-3">
                                 <%= for label <- active_thread_labels(card) do %>
@@ -755,7 +755,7 @@
                           <% end %>
                         </div>
                       <% else %>
-                        <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-6 text-sm text-base-content/60">
+                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-6 text-sm text-base-content/60">
                           No active threads yet for this view.
                         </div>
                       <% end %>
@@ -823,7 +823,7 @@
                         />
                       <% end %>
                     <% else %>
-                      <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
+                      <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
                         <.icon name="hero-inbox" class="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <h3 class="text-lg font-semibold">Your community feed is empty</h3>
                         <p class="text-sm text-base-content/60 mt-2">
@@ -839,7 +839,7 @@
                       </div>
                     <% end %>
                   <% else %>
-                    <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
+                    <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
                       <.icon name="hero-lock-closed" class="w-12 h-12 mx-auto mb-3 opacity-40" />
                       <h3 class="text-lg font-semibold">Sign in to build a personalized feed</h3>
                       <p class="text-sm text-base-content/60 mt-2">
@@ -872,7 +872,7 @@
                         <div class="card shadow-sm border bg-base-100/80 border-base-300 hover:border-base-content/20 transition-colors">
                           <div class="card-body p-4">
                             <div class="flex items-start gap-3">
-                              <div class={"w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 " <> if(post.reply_to_id, do: "bg-info/10 text-info", else: "bg-secondary/10 text-secondary")}>
+                              <div class={"w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 " <> if(post.reply_to_id, do: "bg-info/10 text-info", else: "bg-secondary/10 text-secondary")}>
                                 <%= if post.reply_to_id do %>
                                   <.icon name="hero-chat-bubble-left" class="w-5 h-5" />
                                 <% else %>
@@ -935,7 +935,7 @@
                         </div>
                       <% end %>
                     <% else %>
-                      <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
+                      <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
                         <.icon
                           name="hero-document-text"
                           class="w-12 h-12 mx-auto mb-3 opacity-40"
@@ -947,7 +947,7 @@
                       </div>
                     <% end %>
                   <% else %>
-                    <div class="rounded-3xl border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
+                    <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-10 text-center">
                       <.icon name="hero-lock-closed" class="w-12 h-12 mx-auto mb-3 opacity-40" />
                       <h3 class="text-lg font-semibold">Sign in to track your activity</h3>
                       <p class="text-sm text-base-content/60 mt-2">

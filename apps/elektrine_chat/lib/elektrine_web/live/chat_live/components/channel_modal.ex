@@ -8,7 +8,7 @@ defmodule ElektrineWeb.ChatLive.Components.ChannelModal do
     ~H"""
     <div class="modal modal-open">
       <div
-        class="modal-box card glass-card p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
+        class="modal-box card p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
         phx-click-away="close_modal"
         phx-target={@myself}
       >
@@ -54,11 +54,11 @@ defmodule ElektrineWeb.ChatLive.Components.ChannelModal do
               <div class="flex items-center gap-3">
                 <%= if @uploads.channel_avatar_upload.entries != [] do %>
                   <% entry = List.first(@uploads.channel_avatar_upload.entries) %>
-                  <div class="w-14 h-14 rounded-xl overflow-hidden bg-base-200 border border-base-300">
+                  <div class="w-14 h-14 rounded-lg overflow-hidden bg-base-200 border border-base-300">
                     <.live_img_preview entry={entry} class="w-full h-full object-cover" />
                   </div>
                 <% else %>
-                  <div class="w-14 h-14 rounded-xl bg-base-200 border border-dashed border-base-300 flex items-center justify-center">
+                  <div class="w-14 h-14 rounded-lg bg-base-200 border border-dashed border-base-300 flex items-center justify-center">
                     <.icon name="hero-photo" class="w-6 h-6 text-base-content/60" />
                   </div>
                 <% end %>

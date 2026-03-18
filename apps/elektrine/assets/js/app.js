@@ -32,7 +32,6 @@ import { initTabSwitcher } from "./tab_switcher"
 import "./hashtag_links" // self-initializes
 import { initCursorGlow, destroyCursorGlow } from "./cursor_glow"
 import { initBlinkenlights, checkBlinkenlights } from "./blinkenlights"
-import { initAllGlassCards } from "./glass_card"
 import { initMarkdownEditor } from "./markdown_editor"
 import { initLiveClock } from "./live_clock"
 import { initIpLookup } from "./ip_lookup"
@@ -487,7 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize UI modules
   initBlinkenlights()
-  initAllGlassCards()
   initMarkdownEditor()
   initLiveClock()
   initTaglineCycler()

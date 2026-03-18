@@ -10,6 +10,7 @@ defmodule Elektrine.Messaging.Federation.MirrorBroadcasts do
     Conversation,
     Server
   }
+
   alias Elektrine.PubSubTopics
   alias Elektrine.Repo
 
@@ -145,8 +146,13 @@ defmodule Elektrine.Messaging.Federation.MirrorBroadcasts do
     end
   end
 
-  def maybe_broadcast_mirror_reaction_removed(_message_id, _remote_actor_id, _emoji, _removed_count),
-    do: :ok
+  def maybe_broadcast_mirror_reaction_removed(
+        _message_id,
+        _remote_actor_id,
+        _emoji,
+        _removed_count
+      ),
+      do: :ok
 
   def broadcast_conversation_event(conversation_id, event) when is_integer(conversation_id) do
     topic = PubSubTopics.conversation(conversation_id)

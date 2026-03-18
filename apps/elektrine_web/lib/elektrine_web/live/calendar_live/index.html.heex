@@ -16,7 +16,7 @@
     
 <!-- Calendar Sidebar - Hidden on mobile unless toggled -->
     <div class={[
-      "w-full lg:w-64 xl:w-72 bg-base-200 rounded-xl shadow-lg border border-base-300 flex-col",
+      "w-full lg:w-64 xl:w-72 bg-base-200 rounded-lg shadow-lg border border-base-300 flex-col",
       if(@selected_event, do: "hidden lg:flex", else: "hidden lg:flex")
     ]}>
       <!-- Header -->
@@ -82,7 +82,7 @@
     </div>
     
 <!-- Main Content -->
-    <div class="flex-1 flex flex-col min-w-0 bg-base-200 rounded-xl shadow-lg border border-base-300 overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0 bg-base-200 rounded-lg shadow-lg border border-base-300 overflow-hidden">
       <!-- Calendar Header -->
       <div class="border-b border-base-300 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-1 sm:gap-2">
@@ -200,7 +200,7 @@
     
 <!-- Event Detail Sidebar -->
     <%= if @selected_event do %>
-      <div class="w-full lg:w-72 xl:w-80 bg-base-200 rounded-xl shadow-lg border border-base-300 overflow-y-auto flex-shrink-0">
+      <div class="w-full lg:w-72 xl:w-80 bg-base-200 rounded-lg shadow-lg border border-base-300 overflow-y-auto flex-shrink-0">
         <div class="p-4">
           <!-- Header -->
           <div class="flex items-start justify-between mb-4">

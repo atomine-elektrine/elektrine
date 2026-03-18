@@ -33,7 +33,7 @@ defmodule ElektrineWeb.UnsubscribeLive.Show do
 
   def render(assigns) do
     ~H"""
-    <div id="unsubscribe-card" phx-hook="GlassCard" class="card glass-card shadow-xl max-w-md mx-auto">
+    <div id="unsubscribe-card" class="card shadow-xl max-w-md mx-auto">
       <div class="card-body">
         <%= if @valid_token do %>
           <h1 class="text-center text-3xl font-bold mb-6">Unsubscribe</h1>

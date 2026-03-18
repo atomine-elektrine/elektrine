@@ -154,7 +154,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
           max_width="max-w-7xl"
         >
           <div class="grid gap-6 lg:grid-cols-2">
-            <div class="card glass-card border border-base-300 shadow-lg">
+            <div class="card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <%= if @vault_configured do %>
                   <h2 class="card-title mb-4 text-lg">Unlock Vault</h2>
@@ -227,7 +227,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
               </div>
             </div>
 
-            <div class="card glass-card border border-base-300 shadow-lg">
+            <div class="card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title mb-4 text-lg">Security Notes</h2>
                 <ul class="list-disc space-y-3 pl-5 text-sm text-base-content/70">
@@ -258,7 +258,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card glass-card border border-base-300 shadow-lg">
+          <div class="card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Add Entry</h2>
 
@@ -366,7 +366,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card glass-card border border-base-300 shadow-lg">
+          <div class="card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Saved Entries</h2>
 
@@ -534,7 +534,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     ~H"""
     <nav aria-label="Primary modes" class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="rounded-2xl border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
+        <div class="rounded-lg border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
           <div class="overflow-x-auto px-2 py-2 sm:px-3">
             <div class="flex min-w-max items-center gap-1 sm:gap-2">
               <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">

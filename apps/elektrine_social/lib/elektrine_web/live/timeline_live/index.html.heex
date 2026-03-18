@@ -67,7 +67,7 @@
     
 <!-- Collapsible filter panel -->
     <%= if @show_mobile_filters do %>
-      <div class="social-page-card bg-base-200/50 rounded-xl p-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
+      <div class="social-page-card bg-base-200/50 rounded-lg p-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
         <!-- Primary filters -->
         <div class="grid grid-cols-3 gap-2">
           <%= if @current_user do %>
@@ -75,7 +75,7 @@
               phx-click="set_filter"
               phx-value-filter="home"
               class={[
-                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
                 if(@current_filter == "home",
                   do: "bg-secondary text-secondary-content shadow-lg",
                   else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -91,7 +91,7 @@
               phx-click="set_filter"
               phx-value-filter="for_you"
               class={[
-                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
                 if(@current_filter == "for_you",
                   do: "bg-secondary text-secondary-content shadow-lg",
                   else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -108,7 +108,7 @@
             phx-click="set_filter"
             phx-value-filter="explore"
             class={[
-              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
               if(@current_filter == "explore",
                 do: "bg-secondary text-secondary-content shadow-lg",
                 else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -124,7 +124,7 @@
             phx-click="set_filter"
             phx-value-filter="local"
             class={[
-              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
               if(@current_filter == "local",
                 do: "bg-secondary text-secondary-content shadow-lg",
                 else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -140,7 +140,7 @@
             phx-click="set_filter"
             phx-value-filter="federated"
             class={[
-              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+              "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
               if(@current_filter == "federated",
                 do: "bg-secondary text-secondary-content shadow-lg",
                 else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -157,7 +157,7 @@
               phx-click="set_filter"
               phx-value-filter="saved"
               class={[
-                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
                 if(@current_filter == "saved",
                   do: "bg-secondary text-secondary-content shadow-lg",
                   else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -173,7 +173,7 @@
               phx-click="set_filter"
               phx-value-filter="rss"
               class={[
-                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-xl text-sm font-medium transition-all",
+                "filter-pill flex flex-col items-center justify-center py-3 px-2 rounded-lg text-sm font-medium transition-all",
                 if(@current_filter == "rss",
                   do: "bg-secondary text-secondary-content shadow-lg",
                   else: "bg-base-100 text-base-content/70 hover:bg-base-200"
@@ -1080,7 +1080,7 @@
           <!-- Loading Skeleton -->
           <%= if @loading_timeline do %>
             <div class="space-y-4 animate-pulse min-h-[70vh]" data-timeline-loading-skeleton>
-              <div class="rounded-xl border border-base-300 bg-base-100 p-3 text-sm text-base-content/70">
+              <div class="rounded-lg border border-base-300 bg-base-100 p-3 text-sm text-base-content/70">
                 Loading timeline updates...
               </div>
               <%= for _i <- 1..6 do %>
@@ -1267,7 +1267,7 @@
             <%= if length(@timeline_posts) >= 20 do %>
               <div class="py-4 timeline-load-more-zone">
                 <%= if @loading_more do %>
-                  <div class="h-16 rounded-xl border border-base-300 bg-base-100/70 flex items-center justify-center">
+                  <div class="h-16 rounded-lg border border-base-300 bg-base-100/70 flex items-center justify-center">
                     <div class="flex items-center gap-2 text-sm text-base-content/70">
                       <.spinner size="sm" />
                       <span>Loading more posts...</span>
@@ -1487,7 +1487,7 @@
       phx-click="close_quote_modal"
     >
       <div
-        class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        class="modal-box card max-w-xl w-full max-h-[90vh] overflow-y-auto"
         phx-click="stop_propagation"
         phx-window-keydown="close_quote_modal"
         phx-key="Escape"

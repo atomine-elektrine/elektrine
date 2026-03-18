@@ -27,7 +27,8 @@ defmodule Elektrine.Messaging.Federation.RequestAuth do
 
   def sign_payload(payload, signing_material), do: Auth.sign_payload(payload, signing_material)
 
-  def valid_timestamp?(timestamp), do: Auth.valid_timestamp?(timestamp, Runtime.clock_skew_seconds())
+  def valid_timestamp?(timestamp),
+    do: Auth.valid_timestamp?(timestamp, Runtime.clock_skew_seconds())
 
   def verify_signature(secret, domain, method, request_path, query_string, timestamp, signature)
       when is_binary(secret) and is_binary(signature) do

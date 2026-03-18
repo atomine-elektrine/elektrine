@@ -45,6 +45,18 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
              "nav a[href=\"/account/password-manager\"][aria-current=\"page\"]"
            )
 
+    assert has_element?(
+             view,
+             "a[href=\"/account/password-manager/extension/chromium/download\"]",
+             "Download Chromium ZIP"
+           )
+
+    assert has_element?(
+             view,
+             "a[href=\"/account/password-manager/extension/firefox/download\"]",
+             "Download Firefox XPI"
+           )
+
     render_submit(view, "create", %{
       "entry" => %{
         "title" => "GitHub",

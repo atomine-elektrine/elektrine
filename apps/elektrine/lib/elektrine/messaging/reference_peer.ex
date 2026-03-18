@@ -74,8 +74,7 @@ defmodule Elektrine.Messaging.ReferencePeer do
         "public_servers" => "#{base_url}/_arblarg/servers/public",
         "snapshot_template" => "#{base_url}/_arblarg/servers/{server_id}/snapshot",
         "schema_template" => "#{base_url}/_arblarg/{version}/schemas/{name}",
-        "schemas" =>
-          "#{base_url}/_arblarg/#{ReferencePeerProtocol.protocol_version()}/schemas"
+        "schemas" => "#{base_url}/_arblarg/#{ReferencePeerProtocol.protocol_version()}/schemas"
       },
       "features" => peer.features,
       "transport_profiles" => %{

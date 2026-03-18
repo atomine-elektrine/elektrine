@@ -82,7 +82,7 @@ defmodule Elektrine.Social.Recommendations do
 
   defp exploratory_candidate?(post, score) do
     score >= @min_score_threshold and
-      (((post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0) >= 2) or
+      ((post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0) >= 2 or
          (post.media_urls || []) != [])
   end
 

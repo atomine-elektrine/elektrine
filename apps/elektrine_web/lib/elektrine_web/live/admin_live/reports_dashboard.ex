@@ -34,7 +34,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="admin-page">
+    <div class="flex flex-col gap-4">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-warning/80">
@@ -129,7 +129,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         </button>
       </div>
 
-      <div class="card glass-card">
+      <div class="card">
         <div class="card-body gap-4">
           <div class="tabs tabs-boxed overflow-x-auto flex-nowrap">
             <button
@@ -216,7 +216,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         </div>
       </div>
 
-      <div class="card glass-card">
+      <div class="card">
         <div class="card-body p-0">
           <%= if @reports == [] do %>
             <div class="p-10 text-center">
@@ -520,7 +520,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
             <div class="max-h-[75vh] overflow-y-auto p-6 space-y-6">
               <div class="grid gap-4 lg:grid-cols-2">
-                <section class="rounded-xl border border-base-300 bg-base-200/50 p-4 space-y-4">
+                <section class="rounded-lg border border-base-300 bg-base-200/50 p-4 space-y-4">
                   <h3 class="font-semibold">Context</h3>
 
                   <div>
@@ -579,7 +579,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                   <% end %>
                 </section>
 
-                <section class="rounded-xl border border-base-300 bg-base-200/50 p-4 space-y-4">
+                <section class="rounded-lg border border-base-300 bg-base-200/50 p-4 space-y-4">
                   <h3 class="font-semibold">Reason and Resolution</h3>
 
                   <div>
@@ -620,7 +620,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
               </div>
 
               <%= if @selected_report.status in ["pending", "reviewing"] do %>
-                <section class="rounded-xl border border-base-300 bg-base-100 p-4">
+                <section class="rounded-lg border border-base-300 bg-base-100 p-4">
                   <h3 class="font-semibold mb-3">Take Action</h3>
                   <form phx-submit="update_report" class="space-y-4">
                     <input type="hidden" name="report_id" value={@selected_report.id} />

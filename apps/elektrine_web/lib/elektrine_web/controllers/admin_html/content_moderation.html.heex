@@ -1,4 +1,4 @@
-<div class="admin-page">
+<div class="flex flex-col gap-4">
   <% search_active = @search_query != "" %>
   <% current_page_count = length(@content) %>
   <% active_type_total =
@@ -26,7 +26,7 @@
     "/pripyat/content-moderation?type=#{@content_type}" <>
       if(search_active, do: "&search=#{URI.encode_www_form(@search_query)}", else: "") %>
 
-  <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+  <div class="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
     <div>
       <h1 class="text-2xl font-bold sm:text-3xl">Content Moderation</h1>
       <p class="mt-1 text-sm opacity-70 sm:text-base">
@@ -41,26 +41,26 @@
     </div>
   </div>
 
-  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+  <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">{content_label} Queue</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{active_type_total}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Results</div>
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{@total_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">{current_page_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Mode</div>
       <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">{content_label}</div>
     </div>
   </div>
 
-  <div class="mb-6 overflow-x-auto">
+  <div class="mb-4 overflow-x-auto">
     <div class="tabs tabs-boxed inline-flex min-w-full sm:min-w-0">
       <a
         href={~p"/pripyat/content-moderation?type=timeline"}
@@ -84,7 +84,7 @@
     </div>
   </div>
 
-  <div class="card glass-card mb-6 shadow-xl">
+  <div class="card mb-4 shadow-sm">
     <div class="card-body">
       <form
         method="get"
@@ -129,7 +129,7 @@
   </div>
 
   <%= if Enum.empty?(@content) do %>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
+    <div class="rounded-lg border border-base-300 bg-base-100 p-6 text-center shadow-sm">
       <.icon name="hero-shield-exclamation" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
       <h3 class="text-lg font-medium">No {String.downcase(content_label)} content found</h3>
       <p class="mt-1 text-sm opacity-70">
@@ -150,7 +150,7 @@
         <% conversation_name = if(item.conversation, do: item.conversation.name, else: nil) %>
         <% conversation_type = if(item.conversation, do: item.conversation.type, else: nil) %>
         <% media_count = if(is_list(item.media_urls), do: length(item.media_urls), else: 0) %>
-        <article class="rounded-box border border-base-300 bg-base-100/70 p-4 shadow-sm">
+        <article class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm">
           <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div class="min-w-0 flex-1">
               <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
