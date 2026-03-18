@@ -26,6 +26,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ImageOperations do
     {:noreply,
      socket
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      |> assign(:pending_media_alt_texts, %{})}
   end
 
@@ -142,7 +143,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ImageOperations do
 
         case Elektrine.Uploads.upload_timeline_attachment(upload_struct, user.id) do
           {:ok, metadata} ->
-            {:ok, metadata.key}
+            {:ok, metadata}
 
           {:error, _reason} ->
             {:postpone, :error}
@@ -152,12 +153,18 @@ defmodule ElektrineWeb.TimelineLive.Operations.ImageOperations do
     if Enum.empty?(uploaded_files) do
       {:noreply, put_flash(socket, :error, "Please select files to upload")}
     else
+      uploaded_urls =
+        uploaded_files
+        |> Enum.map(&Map.get(&1, :key))
+        |> Enum.filter(&is_binary/1)
+
       {:noreply,
        socket
        |> assign(:show_image_upload_modal, false)
-       |> assign(:pending_media_urls, uploaded_files)
+       |> assign(:pending_media_urls, uploaded_urls)
+       |> assign(:pending_media_attachments, uploaded_files)
        |> assign(:pending_media_alt_texts, alt_texts)
-       |> put_flash(:info, "#{length(uploaded_files)} file(s) added")}
+       |> put_flash(:info, "#{length(uploaded_urls)} file(s) added")}
     end
   end
 

@@ -75,7 +75,7 @@ WORKDIR /app
 COPY apps apps
 COPY release_builder release_builder
 COPY config/runtime.exs config/runtime.exs
-COPY --chmod=755 scripts/deploy_release.sh scripts/deploy_release.sh
+COPY --chmod=755 scripts/release/deploy_release.sh scripts/release/deploy_release.sh
 COPY scripts/lib scripts/lib
 
 # Install Node.js 20.x (required for Tailwind v4)
@@ -104,7 +104,7 @@ RUN for i in 1 2 3 4 5; do \
     done
 
 # Build the selected hoster release through release_builder/
-RUN ./scripts/deploy_release.sh --release-name ${RELEASE_NAME} --mix-env ${MIX_ENV}
+RUN ./scripts/release/deploy_release.sh --release-name ${RELEASE_NAME} --mix-env ${MIX_ENV}
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
@@ -127,7 +127,7 @@ RUN mkdir -p /data/tor/elektrine /data/tor/data /data/certs && \
     chown -R nobody:nogroup /data
 
 # Copy Tor config with proper permissions
-COPY --chmod=644 torrc /etc/tor/torrc
+COPY --chmod=644 deploy/onion/torrc /etc/tor/torrc
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
@@ -140,8 +140,8 @@ WORKDIR "/app"
 RUN chown nobody /app
 
 # Copy startup scripts
-COPY --chmod=755 start.sh /app/start.sh
-COPY --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chmod=755 deploy/docker/start.sh /app/start.sh
+COPY --chmod=755 deploy/docker/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # set runner ENV
 ENV MIX_ENV="prod"

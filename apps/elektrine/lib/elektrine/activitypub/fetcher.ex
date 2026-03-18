@@ -153,8 +153,8 @@ defmodule Elektrine.ActivityPub.Fetcher do
              limit: 1
            )
          ) do
-      %{activitypub_private_key: private_key, username: username} when is_binary(private_key) ->
-        key_id = "#{Elektrine.ActivityPub.instance_url()}/users/#{username}#main-key"
+      %{activitypub_private_key: private_key} = user when is_binary(private_key) ->
+        key_id = Elektrine.ActivityPub.actor_key_id(user)
         {:ok, {private_key, key_id}}
 
       _ ->

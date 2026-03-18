@@ -4,10 +4,12 @@ defmodule ElektrineWeb.MessagingFederationController do
   """
   use ElektrineWeb, :controller
 
+  alias Elektrine.Domains
   alias Elektrine.Constants
   alias Elektrine.Messaging
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation
+  alias Elektrine.Messaging.Federation.{Contexts, Discovery, Peers, Protocol, Runtime, Utils}
   alias Elektrine.Messaging.FederationSessionWebSock
   alias WebSockAdapter
 
@@ -19,7 +21,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   Public discovery metadata for cross-domain bootstrap.
   """
   def well_known(conn, _params) do
-    payload = Federation.local_discovery_document()
+    payload = local_discovery_document_for_request(conn)
 
     conn
     |> put_cache_headers(payload, @discovery_cache_control)
@@ -33,7 +35,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   """
   def well_known_versioned(conn, %{"version" => version}) do
     if version == ArblargSDK.protocol_version() do
-      payload = Federation.local_discovery_document(version)
+      payload = local_discovery_document_for_request(conn, version)
 
       conn
       |> put_cache_headers(payload, @discovery_cache_control)
@@ -125,6 +127,58 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   defp schema_name_from_params(%{"name" => name}) when is_binary(name), do: name
+
+  defp local_discovery_document_for_request(conn, version \\ ArblargSDK.protocol_version()) do
+    case custom_profile_origin_domain(conn) do
+      nil ->
+        Federation.local_discovery_document(version)
+
+      origin_domain ->
+        Protocol.local_discovery_document(version, custom_discovery_context(origin_domain))
+    end
+  end
+
+  defp custom_discovery_context(origin_domain) when is_binary(origin_domain) do
+    %{
+      local_domain: origin_domain,
+      identity: Runtime.local_identity_discovery_identity(),
+      base_url: base_url_for_origin_domain(origin_domain),
+      allow_insecure_transport: Runtime.allow_insecure_transport?(),
+      limits: Federation.discovery_limits_for_transport(),
+      cache_ttl_seconds: Runtime.discovery_ttl_seconds(),
+      official_relay_operator: Runtime.official_relay_operator(),
+      official_relays: Runtime.discovery_official_relays(),
+      clock_skew_seconds: Runtime.clock_skew_seconds(),
+      sign_fun: &Discovery.sign_discovery_document(&1, discovery_context())
+    }
+  end
+
+  defp discovery_context do
+    Contexts.discovery(%{
+      peers: &Peers.peers/0,
+      truncate: &Utils.truncate/1
+    })
+  end
+
+  defp custom_profile_origin_domain(conn) do
+    case Domains.profile_custom_domain_for_host(conn.host) do
+      %{domain: domain} when is_binary(domain) -> domain
+      _ -> nil
+    end
+  end
+
+  defp base_url_for_origin_domain(origin_domain) when is_binary(origin_domain) do
+    case URI.parse(Runtime.local_base_url()) do
+      %URI{} = uri ->
+        uri
+        |> Map.put(:host, origin_domain)
+        |> URI.to_string()
+        |> String.trim_trailing("/")
+
+      _ ->
+        "https://#{origin_domain}"
+    end
+  end
 
   defp put_cache_headers(conn, payload, cache_control) do
     encoded_payload = Jason.encode!(payload)

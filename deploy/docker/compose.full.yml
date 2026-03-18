@@ -21,8 +21,8 @@ services:
 
   app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
       args:
         RELEASE_NAME: ${RELEASE_NAME:-elektrine}
         ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
@@ -31,7 +31,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - .env.production
+      - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
       PHX_HOST: ${PHX_HOST:-elektrine.com}
@@ -61,7 +61,7 @@ services:
       app:
         condition: service_started
     env_file:
-      - .env.production
+      - ../../.env.production
     environment:
       ACME_EMAIL: ${CADDY_ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
@@ -70,7 +70,7 @@ services:
       - "${CADDY_HTTP_BIND:-80:80}"
       - "${CADDY_HTTPS_BIND:-443:443}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     networks:
       - elektrine_network

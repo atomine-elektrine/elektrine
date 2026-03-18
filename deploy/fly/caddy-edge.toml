@@ -12,7 +12,7 @@ kill_signal = "SIGTERM"
 
 [[files]]
   guest_path = "/etc/caddy/Caddyfile"
-  local_path = "Caddyfile"
+  local_path = "../caddy/Caddyfile"
 
 [[mounts]]
   source = "caddy_data"
@@ -27,6 +27,7 @@ kill_signal = "SIGTERM"
 
   [[services.ports]]
     port = 80
+    handlers = ["proxy_proto"]
 
   [[services.tcp_checks]]
     interval = "15s"
@@ -42,6 +43,7 @@ kill_signal = "SIGTERM"
 
   [[services.ports]]
     port = 443
+    handlers = ["proxy_proto"]
 
   [[services.tcp_checks]]
     interval = "15s"

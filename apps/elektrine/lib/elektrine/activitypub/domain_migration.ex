@@ -32,8 +32,8 @@ defmodule Elektrine.ActivityPub.DomainMigration do
 
       summary =
         Enum.reduce(users, initial_summary(from_domain, to_domain, dry_run), fn user, acc ->
-          old_actor_uri = "#{from_base_url}/users/#{user.username}"
-          new_actor_uri = "#{to_base_url}/users/#{user.username}"
+          old_actor_uri = ActivityPub.actor_uri(user, from_base_url)
+          new_actor_uri = ActivityPub.actor_uri(user, to_base_url)
           move_activity = Builder.build_move_activity(user, old_actor_uri, new_actor_uri)
           inboxes = Publisher.get_follower_inboxes(user.id) |> Enum.uniq()
 

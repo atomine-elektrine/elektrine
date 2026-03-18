@@ -140,6 +140,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
         visibility = socket.assigns.new_post_visibility
         media_urls = socket.assigns.pending_media_urls
+        media_metadata = pending_media_metadata(socket)
         alt_texts = socket.assigns.pending_media_alt_texts || %{}
         draft_id = socket.assigns[:editing_draft_id]
 
@@ -148,6 +149,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
           title: socket.assigns.new_post_title,
           visibility: visibility,
           media_urls: media_urls,
+          media_metadata: media_metadata,
           alt_texts: alt_texts,
           content_warning: socket.assigns.new_post_content_warning
         ]
@@ -227,8 +229,16 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
         end
 
       uploaded_files = socket.assigns.pending_media_urls
+      media_metadata = pending_media_metadata(socket)
       alt_texts = socket.assigns.pending_media_alt_texts || %{}
       post_opts = [visibility: visibility, media_urls: uploaded_files]
+
+      post_opts =
+        if map_size(media_metadata) == 0 do
+          post_opts
+        else
+          Keyword.put(post_opts, :media_metadata, media_metadata)
+        end
 
       post_opts =
         if title do
@@ -278,6 +288,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
            |> assign(:show_cw_input, false)
            |> assign(:show_post_composer, false)
            |> assign(:pending_media_urls, [])
+           |> assign(:pending_media_attachments, [])
            |> assign(:pending_media_alt_texts, %{})
            |> assign(:editing_draft_id, nil)
            |> assign(:draft_auto_saved, false)
@@ -480,6 +491,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       title = socket.assigns.new_post_title
       visibility = socket.assigns.new_post_visibility
       media_urls = socket.assigns.pending_media_urls
+      media_metadata = pending_media_metadata(socket)
       alt_texts = socket.assigns.pending_media_alt_texts || %{}
       content_warning = socket.assigns.new_post_content_warning
       draft_id = socket.assigns[:editing_draft_id]
@@ -489,6 +501,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
         title: title,
         visibility: visibility,
         media_urls: media_urls,
+        media_metadata: media_metadata,
         alt_texts: alt_texts,
         content_warning: content_warning
       ]
@@ -511,6 +524,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
            |> assign(:show_cw_input, false)
            |> assign(:show_post_composer, false)
            |> assign(:pending_media_urls, [])
+           |> assign(:pending_media_attachments, [])
            |> assign(:pending_media_alt_texts, %{})
            |> assign(:editing_draft_id, nil)
            |> update(:user_drafts, fn drafts -> [draft | drafts || []] end)
@@ -543,7 +557,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
          |> assign(:new_post_sensitive, draft.content_warning && draft.content_warning != "")
          |> assign(:show_cw_input, draft.content_warning && draft.content_warning != "")
          |> assign(:pending_media_urls, draft.media_urls || [])
-         |> assign(:pending_media_alt_texts, (draft.media_metadata || %{})["alt_texts"] || %{})
+         |> assign(:pending_media_attachments, draft_attachment_metadata(draft))
+         |> assign(:pending_media_alt_texts, draft_alt_texts(draft))
          |> assign(:editing_draft_id, draft.id)}
     end
   end
@@ -1020,5 +1035,33 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       end
 
     ~p"/timeline?#{params}"
+  end
+
+  defp pending_media_metadata(socket) do
+    case socket.assigns[:pending_media_attachments] || [] do
+      [] ->
+        %{}
+
+      attachments ->
+        %{"attachments" => attachments}
+    end
+  end
+
+  defp draft_attachment_metadata(draft) do
+    metadata = draft.media_metadata || %{}
+
+    case Map.get(metadata, "attachments") || Map.get(metadata, :attachments) do
+      attachments when is_list(attachments) -> attachments
+      _ -> []
+    end
+  end
+
+  defp draft_alt_texts(draft) do
+    metadata = draft.media_metadata || %{}
+
+    case Map.get(metadata, "alt_texts") || Map.get(metadata, :alt_texts) do
+      alt_texts when is_map(alt_texts) -> alt_texts
+      _ -> %{}
+    end
   end
 end

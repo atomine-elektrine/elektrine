@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIX_ENV="${MIX_ENV:-prod}"
 RELEASE_NAME="${RELEASE_NAME:-elektrine}"
 REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
@@ -11,7 +11,7 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/deploy_release.sh [--modules chat,email] [--release-name elektrine] [--mix-env prod]
+Usage: scripts/release/deploy_release.sh [--modules chat,email] [--release-name elektrine] [--mix-env prod]
 
 Builds a hoster release through release_builder/, never through the root umbrella.
 The release artifact is copied to _deploy_release/<release-name>/ for packaging.

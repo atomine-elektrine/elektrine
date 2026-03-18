@@ -1094,7 +1094,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   defp save_user_settings(socket, user_params_with_avatar) do
-    {handle_param, other_params} = Map.pop(user_params_with_avatar, "handle")
+    {_handle_param, other_params} = Map.pop(user_params_with_avatar, "handle")
 
     other_params_sanitized =
       Map.drop(other_params, [
@@ -1103,13 +1103,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         "bluesky_app_password",
         "bluesky_pds_url"
       ])
-
-    handle_result =
-      if handle_param && handle_param != socket.assigns.user.handle do
-        Accounts.update_user_handle(socket.assigns.user, handle_param)
-      else
-        {:ok, socket.assigns.user}
-      end
 
     checkbox_fields = checkbox_fields_for_tab(socket.assigns.selected_tab)
 
@@ -1143,8 +1136,8 @@ defmodule ElektrineWeb.UserSettingsLive do
         {:ok, socket.assigns.user}
       end
 
-    case {handle_result, other_result} do
-      {{:ok, _user1}, {:ok, _user2}} ->
+    case other_result do
+      {:ok, _updated_user} ->
         updated_user = Accounts.get_user!(socket.assigns.user.id)
         old_recovery_email = socket.assigns.user.recovery_email
 
@@ -1172,13 +1165,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:aliases, aliases)
          |> notify_info(message)}
 
-      {{:error, {:error, %Ecto.Changeset{} = changeset}}, _} ->
-        {:noreply,
-         socket
-         |> assign(:handle_changeset, changeset)
-         |> notify_error("Could not update handle: #{format_changeset_errors(changeset)}")}
-
-      {_, {:error, %Ecto.Changeset{} = changeset}} ->
+      {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :changeset, changeset)}
 
       _ ->

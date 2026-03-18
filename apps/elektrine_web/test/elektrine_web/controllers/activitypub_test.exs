@@ -8,6 +8,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
   alias Elektrine.Domains
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
+  alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Social
   alias Elektrine.SocialFixtures
@@ -48,6 +49,27 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "http://ostatus.org/schema/1.0/subscribe" and
                  link["template"] == "#{base_url}/authorize_interaction?uri={uri}"
+             end)
+    end
+
+    test "returns canonical handle self link for username aliases", %{conn: conn} do
+      user =
+        AccountsFixtures.user_fixture(%{username: "webfingeraliasuser"})
+        |> set_handle!("ap_handle")
+
+      domain = Elektrine.ActivityPub.instance_domain()
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{resource: "acct:#{user.username}@#{domain}"})
+
+      response = json_response(conn, 200)
+
+      assert response["subject"] == "acct:#{user.username}@#{domain}"
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "self" and link["href"] == ActivityPub.actor_uri(user)
              end)
     end
 
@@ -185,6 +207,49 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
              end)
     end
 
+    test "returns alias webfinger for a verified custom profile domain", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(%{username: "customdomainaliasuser"})
+      custom_domain = verified_profile_custom_domain_fixture(user, "customdomainalias.test")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{
+          resource: "acct:#{user.username}@#{custom_domain.domain}"
+        })
+
+      response = json_response(conn, 200)
+
+      assert response["subject"] == "acct:#{user.username}@#{custom_domain.domain}"
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "self" and
+                 link["href"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
+             end)
+
+      assert Enum.any?(response["links"], fn link ->
+               link["rel"] == "http://webfinger.net/rel/profile-page" and
+                 link["href"] == "https://#{custom_domain.domain}"
+             end)
+    end
+
+    test "does not resolve other users on someone else's custom profile domain", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(%{username: "customdomainowner"})
+      other_user = AccountsFixtures.user_fixture(%{username: "customdomainother"})
+      custom_domain = verified_profile_custom_domain_fixture(owner, "customdomainowner.test")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> put_req_header("accept", "application/jrd+json")
+        |> get("/.well-known/webfinger", %{
+          resource: "acct:#{other_user.username}@#{custom_domain.domain}"
+        })
+
+      assert conn.status == 404
+    end
+
     test "returns 404 for non-existent user", %{conn: conn} do
       domain = Elektrine.ActivityPub.instance_domain()
 
@@ -203,6 +268,23 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> get("/.well-known/webfinger")
 
       assert conn.status == 400
+    end
+  end
+
+  describe "GET /.well-known/host-meta" do
+    test "uses the custom profile domain host for verified alias domains", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(%{username: "customdomainhostmeta"})
+      custom_domain = verified_profile_custom_domain_fixture(user, "customhostmeta.test")
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain.domain)
+        |> get("/.well-known/host-meta")
+
+      body = response(conn, 200)
+
+      assert body =~
+               "template=\"https://#{custom_domain.domain}/.well-known/webfinger?resource={uri}\""
     end
   end
 
@@ -319,6 +401,92 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert response["preferredUsername"] == user.username
       assert response["inbox"]
       assert response["outbox"]
+    end
+
+    test "serves handle paths as canonical actors and username paths as moved aliases", %{conn: conn} do
+      user =
+        AccountsFixtures.user_fixture(%{username: "actoraliasuser"})
+        |> set_handle!("actor_handle")
+
+      canonical_conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.handle}")
+
+      canonical_response = json_response(canonical_conn, 200)
+      canonical_actor_uri = ActivityPub.actor_uri(user)
+      username_alias_uri = ActivityPub.actor_uri_by_username(user)
+
+      assert canonical_response["id"] == canonical_actor_uri
+      assert canonical_response["preferredUsername"] == user.handle
+      assert username_alias_uri in (canonical_response["alsoKnownAs"] || [])
+
+      alias_conn =
+        build_conn()
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      alias_response = json_response(alias_conn, 200)
+
+      assert alias_response["id"] == username_alias_uri
+      assert alias_response["preferredUsername"] == user.handle
+      assert alias_response["movedTo"] == canonical_actor_uri
+    end
+
+    test "exports active profile links as actor attachments", %{conn: conn, user: user} do
+      {:ok, profile} =
+        Profiles.create_user_profile(user.id, %{
+          display_name: "Actor Test",
+          description: "ActivityPub profile"
+        })
+
+      {:ok, _website_link} =
+        Profiles.create_profile_link(profile.id, %{
+          title: "Website",
+          url: "https://example.com",
+          position: 2,
+          is_active: true
+        })
+
+      {:ok, _email_link} =
+        Profiles.create_profile_link(profile.id, %{
+          title: "Email",
+          url: "mailto:test@example.com",
+          position: 1,
+          is_active: true
+        })
+
+      {:ok, _inactive_link} =
+        Profiles.create_profile_link(profile.id, %{
+          title: "Hidden",
+          url: "https://hidden.example.com",
+          position: 0,
+          is_active: false
+        })
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/activity+json")
+        |> get("/users/#{user.username}")
+
+      response = json_response(conn, 200)
+      attachments = response["attachment"]
+
+      assert is_list(attachments)
+      assert Enum.map(attachments, & &1["name"]) == ["Email", "Website"]
+      refute Enum.any?(attachments, &(&1["name"] == "Hidden"))
+
+      email_field = Enum.find(attachments, &(&1["name"] == "Email"))
+      assert email_field["type"] == "PropertyValue"
+      assert email_field["value"] =~ ~s(href="mailto:test@example.com")
+      assert email_field["value"] =~ ~s(rel="nofollow noopener noreferrer")
+      refute email_field["value"] =~ ~s(target="_blank")
+
+      website_field = Enum.find(attachments, &(&1["name"] == "Website"))
+      assert website_field["type"] == "PropertyValue"
+      assert website_field["value"] =~ ~s(href="https://example.com")
+      assert website_field["value"] =~ ~s(rel="me nofollow noopener noreferrer")
+      assert website_field["value"] =~ ~s(target="_blank")
     end
 
     test "returns 404 for non-existent user", %{conn: conn} do
@@ -1076,6 +1244,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
   describe "POST /c/:name/inbox" do
     setup do
+      reset_inbox_rate_limit!()
       unique = System.unique_integer([:positive])
       owner = AccountsFixtures.user_fixture(%{username: "communityinboxowner#{unique}"})
 
@@ -1339,15 +1508,16 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       community: community,
       remote_actor: remote_actor
     } do
-      missing_user_uri =
-        "#{ActivityPub.instance_url()}/users/missing-community-block-target-#{System.unique_integer([:positive])}"
+      missing_remote_target_uri =
+        "https://remote.example/users/missing-move-target-#{System.unique_integer([:positive])}"
 
       activity = %{
         "@context" => "https://www.w3.org/ns/activitystreams",
         "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
-        "type" => "Block",
+        "type" => "Move",
         "actor" => remote_actor.uri,
-        "object" => missing_user_uri
+        "object" => remote_actor.uri,
+        "target" => missing_remote_target_uri
       }
 
       conn =
@@ -1357,12 +1527,13 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> put_req_header("content-type", "application/activity+json")
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", activity)
 
-      assert json_response(conn, 503) == %{"error" => "Temporary processing failure"}
+      assert json_response(conn, 503) == %{"error" => "Failed to fetch referenced actor"}
     end
   end
 
   describe "POST /users/:username/inbox" do
     setup do
+      reset_inbox_rate_limit!()
       user = AccountsFixtures.user_fixture(%{username: "inboxtest"})
       %{user: user}
     end
@@ -1762,8 +1933,8 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
     post
     |> Ecto.Changeset.change(
-      activitypub_id: "#{ActivityPub.instance_url()}/users/#{user.username}/statuses/#{post.id}",
-      activitypub_url: "#{ActivityPub.instance_url()}/users/#{user.username}/statuses/#{post.id}"
+      activitypub_id: ActivityPub.user_status_uri(user, post.id),
+      activitypub_url: ActivityPub.user_status_uri(user, post.id)
     )
     |> Repo.update!()
     |> Repo.preload([:sender, :conversation])
@@ -1832,5 +2003,30 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
     |> Repo.insert!()
+  end
+
+  defp verified_profile_custom_domain_fixture(user, domain) do
+    {:ok, custom_domain} = Profiles.create_custom_domain(user, %{"domain" => domain})
+
+    custom_domain
+    |> Ecto.Changeset.change(
+      status: "verified",
+      verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    )
+    |> Repo.update!()
+    |> Repo.preload(:user)
+  end
+
+  defp set_handle!(user, handle) do
+    user
+    |> Ecto.Changeset.change(handle: handle)
+    |> Repo.update!()
+  end
+
+  defp reset_inbox_rate_limit! do
+    case :ets.whereis(:inbox_rate_limit) do
+      :undefined -> :ok
+      table -> :ets.delete_all_objects(table)
+    end
   end
 end

@@ -99,6 +99,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
       |> assign(:friend_ids, friend_ids)
       |> assign(:show_image_upload_modal, false)
       |> assign(:pending_media_urls, [])
+      |> assign(:pending_media_attachments, [])
       |> assign(:pending_media_alt_texts, %{})
       |> assign(:show_image_modal, false)
       |> assign(:modal_image_url, nil)

@@ -50,6 +50,7 @@ defmodule Elektrine.Social.Drafts do
     title = Keyword.get(opts, :title)
     visibility = Keyword.get(opts, :visibility, "followers")
     media_urls = Keyword.get(opts, :media_urls, [])
+    base_media_metadata = Keyword.get(opts, :media_metadata, %{})
     alt_texts = Keyword.get(opts, :alt_texts, %{})
     content_warning = Keyword.get(opts, :content_warning)
     category = Keyword.get(opts, :category)
@@ -57,10 +58,10 @@ defmodule Elektrine.Social.Drafts do
     timeline_conversation = Social.get_or_create_user_timeline(user_id)
 
     media_metadata =
-      if Enum.empty?(alt_texts) do
+      if Enum.empty?(media_urls) do
         %{}
       else
-        %{"alt_texts" => alt_texts}
+        Social.merge_post_media_metadata(base_media_metadata, alt_texts)
       end
 
     attrs = %{
@@ -97,15 +98,25 @@ defmodule Elektrine.Social.Drafts do
         title = Keyword.get(opts, :title, draft.title)
         visibility = Keyword.get(opts, :visibility, draft.visibility)
         media_urls = Keyword.get(opts, :media_urls, draft.media_urls)
-        alt_texts = Keyword.get(opts, :alt_texts, draft.media_metadata["alt_texts"] || %{})
+        base_media_metadata = Keyword.get(opts, :media_metadata, draft.media_metadata || %{})
+
+        alt_texts =
+          Keyword.get(
+            opts,
+            :alt_texts,
+            Map.get(draft.media_metadata || %{}, "alt_texts") ||
+              Map.get(draft.media_metadata || %{}, :alt_texts) ||
+              %{}
+          )
+
         content_warning = Keyword.get(opts, :content_warning, draft.content_warning)
         category = Keyword.get(opts, :category, draft.category)
 
         media_metadata =
-          if Enum.empty?(alt_texts) do
+          if Enum.empty?(media_urls) do
             %{}
           else
-            %{"alt_texts" => alt_texts}
+            Social.merge_post_media_metadata(base_media_metadata, alt_texts)
           end
 
         attrs = %{

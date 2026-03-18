@@ -224,21 +224,17 @@
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">{gettext("Handle")}</span>
-                    <%= if @user.handle_changed_at do %>
-                      <span class="label-text-alt text-xs text-warning">
-                        {gettext("Can change in %{days} days",
-                          days: days_until_can_change_handle(@user)
-                        )}
-                      </span>
-                    <% end %>
+                    <span class="label-text-alt text-xs text-base-content/50">
+                      {gettext("Cannot be changed")}
+                    </span>
                   </label>
                   <input
                     type="text"
                     name="user[handle]"
                     value={@user.handle}
                     placeholder="yourhandle"
-                    class="input input-bordered w-full"
-                    disabled={@user.handle_changed_at && days_until_can_change_handle(@user) > 0}
+                    class="input input-bordered w-full bg-base-200 text-base-content/70 cursor-not-allowed"
+                    disabled
                     pattern="[a-zA-Z0-9_]{1,20}"
                     maxlength="20"
                   />
@@ -246,7 +242,7 @@
                     <span class="text-xs text-base-content/60 block">
                       {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br />
                       {gettext("Mentions:")} @{@user.handle}<br />
-                      {gettext("1-20 chars, alphanumeric + underscore")}
+                      {gettext("Permanent public identifier for mentions and ActivityPub actor URLs.")}
                     </span>
                   </div>
                 </div>
@@ -1908,16 +1904,6 @@
                   "Manage your federated account bridge and cross-network connection status."
                 )}
               </p>
-
-              <div class="alert alert-info mt-4 text-xs sm:text-sm">
-                <.icon name="hero-information-circle" class="w-5 h-5" />
-                <span>
-                  {gettext(
-                    "Manage ActivityPub and Bluesky bridge behavior for your federated account."
-                  )}
-                </span>
-              </div>
-
               <div class="divider my-4">{gettext("ActivityPub")}</div>
               <.form
                 for={@changeset}

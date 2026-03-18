@@ -35,6 +35,9 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Platform.Integrations
 
+  @default_image_aspect_ratio {3, 2}
+  @default_video_aspect_ratio {16, 9}
+
   @doc """
   Renders a complete timeline post card.
 
@@ -159,7 +162,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     <div
       id={"#{@id_prefix}-entry-#{@post.id}"}
       class={[
-        "space-y-2",
+        "timeline-post-entry-stable space-y-2",
         if(@has_thread_context,
           do:
             "relative rounded-2xl border border-base-300/80 bg-gradient-to-br from-base-200/35 via-transparent to-base-100/30 p-2"
@@ -1954,7 +1957,14 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
   defp content_images(assigns) do
     image_urls = Elektrine.Messaging.Message.extract_image_urls(assigns.post.content)
-    assigns = assign(assigns, :image_urls, image_urls)
+
+    assigns =
+      assigns
+      |> assign(:image_urls, image_urls)
+      |> assign(
+        :content_image_frame_style,
+        media_frame_style(nil, nil, @default_image_aspect_ratio)
+      )
 
     ~H"""
     <%= if @image_urls != [] do %>
@@ -1968,14 +1978,15 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             phx-value-images={Jason.encode!(@image_urls)}
             phx-value-index={idx}
             phx-value-post_id={@post.id}
-            class="block w-full"
+            class="block w-full overflow-hidden rounded-lg bg-base-200/40"
+            style={@content_image_frame_style}
           >
             <img
               src={image_url}
               alt="Image preview"
-              class="max-w-full rounded-lg max-h-96 object-contain hover:opacity-90 transition-opacity cursor-pointer"
+              class="h-full w-full object-contain hover:opacity-90 transition-opacity cursor-pointer"
               loading="lazy"
-              onerror="this.style.display='none'"
+              onerror="this.closest('button').style.display='none'"
             />
           </button>
         <% end %>
@@ -1990,35 +2001,35 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :on_image_click, :string, default: "open_image_modal"
 
   defp media_attachments(assigns) do
-    media_urls = assigns.post.media_urls || []
-    full_media_urls = Enum.map(media_urls, &Elektrine.Uploads.attachment_url/1)
-
-    alt_texts =
-      if assigns.post.media_metadata && assigns.post.media_metadata["alt_texts"],
-        do: assigns.post.media_metadata["alt_texts"],
-        else: %{}
+    media_entries = build_media_entries(assigns.post)
+    full_media_urls = Enum.map(media_entries, & &1.full_url)
 
     assigns =
       assigns
-      |> assign(:media_urls, media_urls)
+      |> assign(:media_entries, media_entries)
       |> assign(:full_media_urls, full_media_urls)
-      |> assign(:alt_texts, alt_texts)
 
     ~H"""
-    <%= if @media_urls != [] do %>
+    <%= if @media_entries != [] do %>
       <div class="mt-3 grid grid-cols-1 gap-2" phx-click="stop_propagation">
-        <%= for {media_url, idx} <- Enum.with_index(@media_urls) do %>
-          <% full_url = Elektrine.Uploads.attachment_url(media_url)
-          alt_text = Map.get(@alt_texts, to_string(idx), "Posted media")
-          is_video = video_url?(full_url)
-          is_audio = audio_url?(full_url) %>
+        <%= for media_entry <- @media_entries do %>
           <%= cond do %>
-            <% is_video -> %>
-              <video src={full_url} controls preload="metadata" class="rounded-lg max-h-96 w-full">
-                Your browser does not support the video tag.
-              </video>
-            <% is_audio -> %>
-              <audio src={full_url} controls preload="metadata" class="w-full">
+            <% media_entry.is_video -> %>
+              <div
+                class="w-full overflow-hidden rounded-lg bg-base-200/40"
+                style={media_entry.frame_style}
+              >
+                <video
+                  src={media_entry.full_url}
+                  controls
+                  preload="metadata"
+                  class="h-full w-full object-contain"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            <% media_entry.is_audio -> %>
+              <audio src={media_entry.full_url} controls preload="metadata" class="w-full">
                 Your browser does not support the audio tag.
               </audio>
             <% true -> %>
@@ -2026,17 +2037,19 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                 type="button"
                 phx-click={@on_image_click}
                 phx-value-id={@post.id}
-                phx-value-url={full_url}
+                phx-value-url={media_entry.full_url}
                 phx-value-images={Jason.encode!(@full_media_urls)}
-                phx-value-index={idx}
+                phx-value-index={media_entry.index}
                 phx-value-post_id={@post.id}
-                class="block w-full"
+                class="block w-full overflow-hidden rounded-lg bg-base-200/40"
+                style={media_entry.frame_style}
               >
                 <img
-                  src={full_url}
-                  alt={alt_text}
-                  class="rounded-lg max-h-96 object-cover w-full cursor-pointer hover:opacity-90 transition-opacity"
+                  src={media_entry.full_url}
+                  alt={media_entry.alt_text}
+                  class="h-full w-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                   loading="lazy"
+                  onerror="this.closest('button').style.display='none'"
                 />
               </button>
           <% end %>
@@ -2102,6 +2115,141 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     <% end %>
     """
   end
+
+  defp build_media_entries(post) do
+    metadata = media_metadata(post)
+    alt_texts = media_alt_texts(metadata)
+    attachments = attachment_metadata(metadata)
+
+    (post.media_urls || [])
+    |> Enum.with_index()
+    |> Enum.reduce([], fn {media_url, index}, entries ->
+      case Elektrine.Uploads.attachment_url(media_url) do
+        full_url when is_binary(full_url) and full_url != "" ->
+          {width, height} = media_dimensions(metadata, attachments, index)
+          is_video = video_url?(full_url)
+          is_audio = audio_url?(full_url)
+
+          fallback_ratio =
+            if is_video, do: @default_video_aspect_ratio, else: @default_image_aspect_ratio
+
+          [
+            %{
+              alt_text:
+                Map.get(alt_texts, to_string(index)) ||
+                  attachment_alt_text(Enum.at(attachments, index)) ||
+                  "Posted media",
+              frame_style: media_frame_style(width, height, fallback_ratio),
+              full_url: full_url,
+              index: index,
+              is_audio: is_audio,
+              is_video: is_video
+            }
+            | entries
+          ]
+
+        _ ->
+          entries
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp media_metadata(post) do
+    Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+  end
+
+  defp media_alt_texts(metadata) when is_map(metadata) do
+    case Map.get(metadata, "alt_texts") || Map.get(metadata, :alt_texts) do
+      alt_texts when is_map(alt_texts) -> alt_texts
+      _ -> %{}
+    end
+  end
+
+  defp media_alt_texts(_metadata), do: %{}
+
+  defp attachment_metadata(metadata) when is_map(metadata) do
+    case Map.get(metadata, "attachments") || Map.get(metadata, :attachments) do
+      attachments when is_list(attachments) ->
+        Enum.filter(attachments, &is_map/1)
+
+      _ ->
+        []
+    end
+  end
+
+  defp attachment_metadata(_metadata), do: []
+
+  defp media_dimensions(metadata, attachments, index) do
+    attachment = Enum.at(attachments, index)
+
+    width =
+      attachment_dimension(attachment, "width") ||
+        legacy_media_dimension(metadata, "widths", index)
+
+    height =
+      attachment_dimension(attachment, "height") ||
+        legacy_media_dimension(metadata, "heights", index)
+
+    {width, height}
+  end
+
+  defp attachment_dimension(attachment, key) when is_map(attachment) do
+    atom_key =
+      case key do
+        "width" -> :width
+        "height" -> :height
+      end
+
+    positive_integer(Map.get(attachment, key) || Map.get(attachment, atom_key))
+  end
+
+  defp attachment_dimension(_attachment, _key), do: nil
+
+  defp attachment_alt_text(attachment) when is_map(attachment) do
+    case Map.get(attachment, "alt_text") || Map.get(attachment, :alt_text) do
+      alt_text when is_binary(alt_text) and alt_text != "" -> alt_text
+      _ -> nil
+    end
+  end
+
+  defp attachment_alt_text(_attachment), do: nil
+
+  defp legacy_media_dimension(metadata, key, index) when is_map(metadata) do
+    atom_key =
+      case key do
+        "widths" -> :widths
+        "heights" -> :heights
+      end
+
+    case Map.get(metadata, key) || Map.get(metadata, atom_key) do
+      values when is_map(values) ->
+        positive_integer(Map.get(values, to_string(index)) || Map.get(values, index))
+
+      values when is_list(values) ->
+        positive_integer(Enum.at(values, index))
+
+      _ ->
+        nil
+    end
+  end
+
+  defp legacy_media_dimension(_metadata, _key, _index), do: nil
+
+  defp media_frame_style(width, height, fallback_ratio) do
+    {aspect_width, aspect_height} =
+      case {positive_integer(width), positive_integer(height)} do
+        {nil, nil} -> fallback_ratio
+        {nil, _} -> fallback_ratio
+        {_, nil} -> fallback_ratio
+        {valid_width, valid_height} -> {valid_width, valid_height}
+      end
+
+    "aspect-ratio: #{aspect_width} / #{aspect_height};"
+  end
+
+  defp positive_integer(value) when is_integer(value) and value > 0, do: value
+  defp positive_integer(_value), do: nil
 
   # Post footer with actions
   attr :post, :map, required: true

@@ -183,13 +183,7 @@ defmodule Elektrine.Uploads do
 
         case upload_result do
           {:ok, key} ->
-            {:ok,
-             %{
-               key: key,
-               filename: upload.filename,
-               content_type: upload.content_type,
-               size: file_size
-             }}
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
 
           error ->
             error
@@ -224,13 +218,7 @@ defmodule Elektrine.Uploads do
 
         case upload_result do
           {:ok, key} ->
-            {:ok,
-             %{
-               key: key,
-               filename: upload.filename,
-               content_type: upload.content_type,
-               size: file_size
-             }}
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
 
           error ->
             error
@@ -266,13 +254,7 @@ defmodule Elektrine.Uploads do
 
         case upload_result do
           {:ok, key} ->
-            {:ok,
-             %{
-               key: key,
-               filename: upload.filename,
-               content_type: upload.content_type,
-               size: file_size
-             }}
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
 
           error ->
             error
@@ -312,13 +294,7 @@ defmodule Elektrine.Uploads do
 
         case upload_result do
           {:ok, key} ->
-            {:ok,
-             %{
-               key: key,
-               filename: upload.filename,
-               content_type: upload.content_type,
-               size: file_size
-             }}
+            {:ok, build_upload_result_metadata(upload, upload_to_use.path, key, file_size)}
 
           error ->
             error
@@ -435,6 +411,42 @@ defmodule Elektrine.Uploads do
       {:error, reason} -> {:error, "Upload failed: #{inspect(reason)}"}
     end
   end
+
+  defp build_upload_result_metadata(upload, upload_path, key, file_size) do
+    %{
+      key: key,
+      filename: upload.filename,
+      content_type: upload.content_type,
+      size: file_size
+    }
+    |> maybe_put_image_dimensions(upload_path, upload.content_type)
+  end
+
+  defp maybe_put_image_dimensions(metadata, upload_path, content_type) do
+    case image_dimensions(upload_path, content_type) do
+      {width, height} when is_integer(width) and is_integer(height) ->
+        metadata
+        |> Map.put(:width, width)
+        |> Map.put(:height, height)
+
+      _ ->
+        metadata
+    end
+  end
+
+  defp image_dimensions(path, content_type)
+       when is_binary(path) and is_binary(content_type) do
+    if image_content_type?(content_type) and image_open_available?() do
+      image = Image.open!(path)
+      {Image.width(image), Image.height(image)}
+    else
+      nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp image_dimensions(_path, _content_type), do: nil
 
   @doc "Uploads a discussion post attachment.\n"
   def upload_discussion_attachment(%Plug.Upload{} = upload, user_id) do

@@ -13,7 +13,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
   import ElektrineWeb.Components.Platform.ZNav
-  import ElektrineWeb.Components.Social.TimelinePost
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)
@@ -24,6 +23,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @dashboard_load_timeout_ms 10_000
   @session_rerank_delay_ms 1200
   @session_interest_dwell_ms 10_000
+  @overview_feed_limit 20
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -79,7 +79,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:modal_post, nil)
        |> assign(:show_quote_modal, false)
        |> assign(:quote_target_post, nil)
-       |> assign(:quote_content, "")}
+       |> assign(:quote_content, "")
+       |> stream(:overview_posts, [], reset: true)}
     else
       {:ok,
        socket
@@ -94,15 +95,15 @@ defmodule ElektrineWeb.OverviewLive.Index do
     attention_filter = normalize_attention_filter(params["attention"])
 
     socket =
+      socket
+      |> assign(:filter, filter)
+      |> assign(:attention_filter, attention_filter)
+
+    socket =
       if socket.assigns.data_loaded do
-        socket
-        |> assign(:filter, filter)
-        |> assign(:attention_filter, attention_filter)
-        |> assign(:filtered_all_posts, base_posts_for_filter(filter, socket.assigns))
+        assign_overview_posts_for_current_filter(socket)
       else
         socket
-        |> assign(:filter, filter)
-        |> assign(:attention_filter, attention_filter)
       end
 
     {:noreply, socket}
@@ -155,7 +156,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  socket
                  |> update(:user_likes, &Map.put(&1, message_id, false))
                  |> update(:all_posts, update_likes_fn)
-                 |> update(:filtered_all_posts, update_likes_fn)}
+                 |> update(:filtered_all_posts, update_likes_fn)
+                 |> sync_overview_posts_stream()}
 
               {:error, _} ->
                 {:noreply, put_flash(socket, :error, "Failed to unlike post")}
@@ -168,6 +170,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  |> update(:user_likes, &Map.put(&1, message_id, true))
                  |> update(:all_posts, update_likes_fn)
                  |> update(:filtered_all_posts, update_likes_fn)
+                 |> sync_overview_posts_stream()
                  |> note_positive_signal(post)
                  |> schedule_feed_rerank(250)}
 
@@ -221,7 +224,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  socket
                  |> update(:user_boosts, &Map.put(&1, message_id, false))
                  |> update(:all_posts, update_boosts_fn)
-                 |> update(:filtered_all_posts, update_boosts_fn)}
+                 |> update(:filtered_all_posts, update_boosts_fn)
+                 |> sync_overview_posts_stream()}
 
               {:error, _} ->
                 {:noreply, put_flash(socket, :error, "Failed to unboost post")}
@@ -234,6 +238,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  |> update(:user_boosts, &Map.put(&1, message_id, true))
                  |> update(:all_posts, update_boosts_fn)
                  |> update(:filtered_all_posts, update_boosts_fn)
+                 |> sync_overview_posts_stream()
                  |> note_positive_signal(post)
                  |> schedule_feed_rerank(350)}
 
@@ -263,12 +268,14 @@ defmodule ElektrineWeb.OverviewLive.Index do
               {:noreply,
                socket
                |> update(:user_saves, &Map.put(&1, message_id, true))
+               |> sync_overview_posts_stream()
                |> put_flash(:info, "Saved")}
 
             {:error, _} ->
               {:noreply,
                socket
                |> update(:user_saves, &Map.put(&1, message_id, true))
+               |> sync_overview_posts_stream()
                |> put_flash(:info, "Already saved")}
           end
 
@@ -289,6 +296,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
               {:noreply,
                socket
                |> update(:user_saves, &Map.put(&1, message_id, false))
+               |> sync_overview_posts_stream()
                |> put_flash(:info, "Removed from saved")}
 
             {:error, _} ->
@@ -327,7 +335,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
                     :remove
                   )
 
-                {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                {:noreply,
+                 socket
+                 |> assign(:post_reactions, updated_reactions)
+                 |> sync_overview_posts_stream()}
 
               {:error, _} ->
                 {:noreply, socket}
@@ -345,7 +356,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
                     :add
                   )
 
-                {:noreply, assign(socket, :post_reactions, updated_reactions)}
+                {:noreply,
+                 socket
+                 |> assign(:post_reactions, updated_reactions)
+                 |> sync_overview_posts_stream()}
 
               {:error, :rate_limited} ->
                 {:noreply, put_flash(socket, :error, "Slow down! You're reacting too fast")}
@@ -708,6 +722,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                    |> update(:filtered_all_posts, fn posts ->
                      Enum.reject(posts, &(&1.id == message_id))
                    end)
+                   |> sync_overview_posts_stream()
                    |> put_flash(:info, "Post deleted")}
 
                 {:error, _} ->
@@ -740,10 +755,16 @@ defmodule ElektrineWeb.OverviewLive.Index do
         if is_following do
           case Integrations.social_unfollow_user(current_user.id, user_id) do
             {:ok, :unfollowed} ->
-              {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))}
+              {:noreply,
+               socket
+               |> update(:user_follows, &Map.put(&1, {:local, user_id}, false))
+               |> sync_overview_posts_stream()}
 
             {:ok, :not_following} ->
-              {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))}
+              {:noreply,
+               socket
+               |> update(:user_follows, &Map.put(&1, {:local, user_id}, false))
+               |> sync_overview_posts_stream()}
 
             {:error, _} ->
               {:noreply, put_flash(socket, :error, "Failed to unfollow user")}
@@ -751,7 +772,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
         else
           case Integrations.social_follow_user(current_user.id, user_id) do
             {:ok, _} ->
-              {:noreply, update(socket, :user_follows, &Map.put(&1, {:local, user_id}, true))}
+              {:noreply,
+               socket
+               |> update(:user_follows, &Map.put(&1, {:local, user_id}, true))
+               |> sync_overview_posts_stream()}
 
             {:error, _} ->
               {:noreply, put_flash(socket, :error, "Failed to follow user")}
@@ -772,7 +796,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
         if is_following do
           case Elektrine.Profiles.unfollow_remote_actor(current_user.id, actor_id) do
             {:ok, _} ->
-              {:noreply, update(socket, :user_follows, &Map.put(&1, {:remote, actor_id}, false))}
+              {:noreply,
+               socket
+               |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, false))
+               |> sync_overview_posts_stream()}
 
             {:error, _} ->
               {:noreply, put_flash(socket, :error, "Failed to unfollow")}
@@ -783,7 +810,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
               {:noreply,
                socket
                |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, true))
-               |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, true))}
+               |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, true))
+               |> sync_overview_posts_stream()}
 
             {:error, _} ->
               {:noreply, put_flash(socket, :error, "Failed to follow")}
@@ -1046,7 +1074,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
       end)
     end
 
-    {:noreply, socket |> update(:all_posts, update_fn) |> update(:filtered_all_posts, update_fn)}
+    {:noreply,
+     socket
+     |> update(:all_posts, update_fn)
+     |> update(:filtered_all_posts, update_fn)
+     |> sync_overview_posts_stream()}
   end
 
   def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
@@ -1083,7 +1115,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
      socket
      |> update(:all_posts, update_fn)
      |> update(:filtered_all_posts, update_fn)
-     |> assign(:modal_post, updated_modal_post)}
+     |> assign(:modal_post, updated_modal_post)
+     |> sync_overview_posts_stream()}
   end
 
   def handle_info(:load_dashboard_data, socket) do
@@ -1115,7 +1148,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
       load_with_timeout(
         :for_you_feed,
         fn ->
-          Integrations.overview_for_you_feed(user.id, limit: 50, session_context: session_context)
+          Integrations.overview_for_you_feed(
+            user.id,
+            limit: @overview_feed_limit,
+            session_context: session_context
+          )
           |> build_feed_state(user.id)
         end,
         @feed_load_timeout_ms
@@ -1130,7 +1167,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
           load_with_timeout(
             :public_feed_fallback,
             fn ->
-              Integrations.overview_public_timeline(user_id: user.id, limit: 50)
+              Integrations.overview_public_timeline(
+                user_id: user.id,
+                limit: @overview_feed_limit
+              )
               |> build_feed_state(user.id)
             end,
             5000
@@ -1156,6 +1196,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
              |> assign(:post_reactions, %{})
              |> assign(:loading_feed, false)
              |> assign(:data_loaded, true)
+             |> stream(:overview_posts, [], reset: true)
              |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")}
         end
     end
@@ -1175,7 +1216,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                fn ->
                  Integrations.overview_for_you_feed(
                    socket.assigns.current_user.id,
-                   limit: 50,
+                   limit: @overview_feed_limit,
                    session_context: socket.assigns[:session_context] || %{}
                  )
                  |> build_feed_state(socket.assigns.current_user.id)
@@ -2072,18 +2113,24 @@ defmodule ElektrineWeb.OverviewLive.Index do
     socket =
       socket
       |> register_post_state(post)
-      |> update(:all_posts, fn posts ->
-        [post | Enum.reject(posts, &(&1.id == post.id))]
-      end)
+      |> update(:all_posts, &prepend_and_cap_overview_posts(&1, post))
 
-    case filtered_posts([post], socket.assigns.filter, socket.assigns) do
-      [] ->
+    case socket.assigns.filter do
+      "my_posts" ->
+        current_user = socket.assigns[:current_user]
+
+        if current_user && post.sender_id == current_user.id do
+          socket
+          |> update(:filtered_all_posts, &prepend_and_cap_overview_posts(&1, post))
+          |> sync_overview_posts_stream()
+        else
+          socket
+        end
+
+      _ ->
         socket
-
-      [_ | _] = visible_posts ->
-        update(socket, :filtered_all_posts, fn posts ->
-          visible_posts ++ Enum.reject(posts, &(&1.id == post.id))
-        end)
+        |> assign(:filtered_all_posts, socket.assigns.all_posts)
+        |> sync_overview_posts_stream()
     end
   end
 
@@ -2135,15 +2182,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp assign_feed_data(socket, feed_data) do
-    posts =
-      base_posts_for_filter(socket.assigns.filter, %{
-        socket.assigns
-        | all_posts: feed_data.all_posts
-      })
-
     socket
-    |> assign(:all_posts, feed_data.all_posts)
-    |> assign(:filtered_all_posts, posts)
+    |> assign(:all_posts, cap_overview_posts(feed_data.all_posts))
     |> assign(:user_likes, feed_data.user_likes)
     |> assign(:user_boosts, feed_data.user_boosts)
     |> assign(:user_saves, feed_data.user_saves)
@@ -2152,9 +2192,42 @@ defmodule ElektrineWeb.OverviewLive.Index do
     |> assign(:post_reactions, feed_data.post_reactions)
     |> assign(:loading_feed, false)
     |> assign(:data_loaded, true)
+    |> assign_overview_posts_for_current_filter()
+  end
+
+  defp assign_overview_posts_for_current_filter(socket) do
+    base_posts =
+      socket.assigns.filter
+      |> base_posts_for_filter(socket.assigns)
+      |> cap_overview_posts()
+
+    socket
+    |> assign(:filtered_all_posts, base_posts)
+    |> sync_overview_posts_stream()
+  end
+
+  defp sync_overview_posts_stream(socket) do
+    visible_posts =
+      socket.assigns.filtered_all_posts
+      |> filtered_posts(socket.assigns.filter, socket.assigns)
+      |> cap_overview_posts()
+
+    stream(socket, :overview_posts, visible_posts, reset: true)
+  end
+
+  defp cap_overview_posts(posts) when is_list(posts) do
+    Enum.take(posts, @overview_feed_limit)
+  end
+
+  defp cap_overview_posts(_posts), do: []
+
+  defp prepend_and_cap_overview_posts(posts, post) when is_list(posts) do
+    updated_posts = [post | Enum.reject(posts, &(&1.id == post.id))]
+    cap_overview_posts(updated_posts)
   end
 
   defp build_feed_state(all_posts, user_id) do
+    all_posts = cap_overview_posts(all_posts)
     user_likes = get_user_likes_map(user_id, all_posts)
     user_boosts = get_user_boosts_map(user_id, all_posts)
     user_saves = get_user_saves(user_id, all_posts)
@@ -2321,6 +2394,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> update(:user_saves, &Map.delete(&1, normalized_post_id))
       |> update(:post_reactions, &Map.delete(&1, normalized_post_id))
       |> maybe_clear_modal_post(normalized_post_id)
+      |> sync_overview_posts_stream()
     end
   end
 
@@ -2424,6 +2498,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     |> update(:all_posts, update_fn)
     |> update(:filtered_all_posts, update_fn)
     |> assign(:modal_post, updated_modal_post)
+    |> sync_overview_posts_stream()
   end
 
   defp reload_overview_post(message_id) when is_integer(message_id) do
@@ -2628,7 +2703,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
         m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
           is_nil(m.deleted_at),
       order_by: [desc: m.inserted_at],
-      limit: 50,
+      limit: @overview_feed_limit,
       preload: [sender: [:profile], conversation: [], link_preview: [], hashtags: []]
     )
     |> Elektrine.Repo.all()

@@ -94,13 +94,14 @@ defmodule Elektrine.Messaging.Federation.Builders do
          true <- conversation.type == "dm",
          true <- is_integer(message.sender_id),
          %User{} = sender <- message.sender,
+         origin_domain = preferred_dm_origin_domain_for_user(sender),
          conversation_handle when is_binary(conversation_handle) <-
            DirectMessageState.remote_dm_handle_from_source(conversation.federated_source),
          true <- conversation_handle == recipient.handle do
-      stream_id = dm_stream_id(conversation.id)
+      stream_id = dm_stream_id(conversation.id, domain: origin_domain)
       sequence = next_outbound_sequence(stream_id)
-      dm_id = dm_federation_id(conversation.id)
-      sender_data = sender_payload(sender)
+      dm_id = dm_federation_id(conversation.id, domain: origin_domain)
+      sender_data = sender_payload(sender, domain: origin_domain)
 
       {:ok,
        event_envelope(
@@ -114,7 +115,9 @@ defmodule Elektrine.Messaging.Federation.Builders do
              "recipient" => DirectMessageState.dm_actor_payload(recipient)
            },
            "message" => %{
-             "id" => message.federated_source || message_federation_id(message.id),
+             "id" =>
+               message.federated_source ||
+                 message_federation_id(message.id, domain: origin_domain),
              "dm_id" => dm_id,
              "content" => message.content || "",
              "message_type" => message.message_type || "text",
@@ -124,7 +127,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
              "sender" => sender_data
            }
          },
-         context
+         context,
+         origin_domain: origin_domain
        )}
     else
       nil -> {:error, :not_found}
@@ -138,7 +142,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
     with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
          %Conversation{} = conversation <- session.conversation,
          %User{} = local_user <- session.local_user do
-      stream_id = dm_stream_id(conversation.id)
+      origin_domain = dm_event_origin_domain(session, local_user)
+      stream_id = dm_stream_id(conversation.id, domain: origin_domain)
       sequence = next_outbound_sequence(stream_id)
       dm_payload = dm_call_context_payload(session, local_user)
 
@@ -148,15 +153,22 @@ defmodule Elektrine.Messaging.Federation.Builders do
           "id" => session.federated_call_id,
           "dm_id" => dm_payload["id"],
           "call_type" => session.call_type,
-          "actor" => sender_payload(local_user),
+          "actor" => sender_payload(local_user, domain: origin_domain),
           "initiated_at" => format_created_at(session.inserted_at),
           "metadata" => session.metadata || %{}
         }
       }
 
       with :ok <- ArblargSDK.validate_event_payload(@dm_call_invite_event_type, payload) do
-        {:ok, event_envelope(@dm_call_invite_event_type, stream_id, sequence, payload, context),
-         [session.remote_domain]}
+        {:ok,
+         event_envelope(
+           @dm_call_invite_event_type,
+           stream_id,
+           sequence,
+           payload,
+           context,
+           origin_domain: origin_domain
+         ), [session.remote_domain]}
       end
     else
       _ -> {:error, :not_found}
@@ -165,38 +177,62 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   def build_dm_call_accept_event(session_id, context)
       when is_integer(session_id) and is_map(context) do
-    build_dm_call_terminal_event(session_id, @dm_call_accept_event_type, %{
-      "accepted_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
-    }, context)
+    build_dm_call_terminal_event(
+      session_id,
+      @dm_call_accept_event_type,
+      %{
+        "accepted_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      },
+      context
+    )
   end
 
   def build_dm_call_reject_event(session_id, context)
       when is_integer(session_id) and is_map(context) do
-    build_dm_call_terminal_event(session_id, @dm_call_reject_event_type, %{
-      "rejected_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
-      "reason" => get_in(VoiceCalls.get_session(session_id) || %{}, [:metadata, "reason"])
-    }, context)
+    build_dm_call_terminal_event(
+      session_id,
+      @dm_call_reject_event_type,
+      %{
+        "rejected_at" =>
+          DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "reason" => get_in(VoiceCalls.get_session(session_id) || %{}, [:metadata, "reason"])
+      },
+      context
+    )
   end
 
   def build_dm_call_end_event(session_id, context)
       when is_integer(session_id) and is_map(context) do
-    build_dm_call_terminal_event(session_id, @dm_call_end_event_type, %{
-      "ended_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
-      "reason" => get_in(VoiceCalls.get_session(session_id) || %{}, [:metadata, "reason"])
-    }, context)
+    build_dm_call_terminal_event(
+      session_id,
+      @dm_call_end_event_type,
+      %{
+        "ended_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
+        "reason" => get_in(VoiceCalls.get_session(session_id) || %{}, [:metadata, "reason"])
+      },
+      context
+    )
   end
 
-  def build_dm_call_signal_ephemeral_item(session_id, actor_user_id, kind, signal_payload, context)
+  def build_dm_call_signal_ephemeral_item(
+        session_id,
+        actor_user_id,
+        kind,
+        signal_payload,
+        context
+      )
       when is_integer(session_id) and is_integer(actor_user_id) and is_binary(kind) and
              is_map(signal_payload) and is_map(context) do
     with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
          %Conversation{} = _conversation <- session.conversation,
          %User{} = local_user <- session.local_user,
          true <- local_user.id == actor_user_id do
+      origin_domain = dm_event_origin_domain(session, local_user)
+
       payload = %{
         "dm" => dm_call_context_payload(session, local_user),
         "call_id" => session.federated_call_id,
-        "actor" => sender_payload(local_user),
+        "actor" => sender_payload(local_user, domain: origin_domain),
         "sent_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
         "signal" => %{
           "kind" => kind,
@@ -205,7 +241,10 @@ defmodule Elektrine.Messaging.Federation.Builders do
       }
 
       with :ok <- ArblargSDK.validate_event_payload(@dm_call_signal_event_type, payload) do
-        {:ok, ephemeral_item(@dm_call_signal_event_type, payload, context), [session.remote_domain]}
+        {:ok,
+         ephemeral_item(@dm_call_signal_event_type, payload, context,
+           origin_domain: origin_domain
+         ), [session.remote_domain]}
       end
     else
       false -> {:error, :unauthorized}
@@ -756,7 +795,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
     end
   end
 
-  def event_envelope(event_type, stream_id, sequence, data, context)
+  def event_envelope(event_type, stream_id, sequence, data, context, opts \\ [])
       when is_binary(event_type) and is_binary(stream_id) and is_integer(sequence) and
              is_map(data) and is_map(context) do
     unsigned = %{
@@ -766,7 +805,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
       "protocol_version" => ArblargSDK.protocol_version(),
       "event_id" => Ecto.UUID.generate(),
       "event_type" => event_type,
-      "origin_domain" => call(context, :local_domain, []),
+      "origin_domain" => Keyword.get(opts, :origin_domain, call(context, :local_domain, [])),
       "stream_id" => stream_id,
       "sequence" => sequence,
       "sent_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
@@ -788,11 +827,11 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   def active_server_ids_for_user(_user_id), do: []
 
-  defp ephemeral_item(event_type, payload, context)
+  defp ephemeral_item(event_type, payload, context, opts \\ [])
        when is_binary(event_type) and is_map(payload) and is_map(context) do
     %{
       "event_type" => event_type,
-      "origin_domain" => call(context, :local_domain, []),
+      "origin_domain" => Keyword.get(opts, :origin_domain, call(context, :local_domain, [])),
       "sent_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
       "payload" => payload
     }
@@ -839,7 +878,8 @@ defmodule Elektrine.Messaging.Federation.Builders do
     with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
          %Conversation{} = conversation <- session.conversation,
          %User{} = local_user <- session.local_user do
-      stream_id = dm_stream_id(conversation.id)
+      origin_domain = dm_event_origin_domain(session, local_user)
+      stream_id = dm_stream_id(conversation.id, domain: origin_domain)
       sequence = next_outbound_sequence(stream_id)
       dm_payload = dm_call_context_payload(session, local_user)
 
@@ -847,14 +887,24 @@ defmodule Elektrine.Messaging.Federation.Builders do
         %{
           "dm" => dm_payload,
           "call_id" => session.federated_call_id,
-          "actor" => sender_payload(local_user),
+          "actor" => sender_payload(local_user, domain: origin_domain),
           "metadata" => session.metadata || %{}
         }
-        |> Map.merge(Enum.reject(extra_fields, fn {_key, value} -> is_nil(value) end) |> Map.new())
+        |> Map.merge(
+          Enum.reject(extra_fields, fn {_key, value} -> is_nil(value) end)
+          |> Map.new()
+        )
 
       with :ok <- ArblargSDK.validate_event_payload(event_type, payload) do
-        {:ok, event_envelope(event_type, stream_id, sequence, payload, context),
-         [session.remote_domain]}
+        {:ok,
+         event_envelope(
+           event_type,
+           stream_id,
+           sequence,
+           payload,
+           context,
+           origin_domain: origin_domain
+         ), [session.remote_domain]}
       end
     else
       _ -> {:error, :not_found}
@@ -862,23 +912,37 @@ defmodule Elektrine.Messaging.Federation.Builders do
   end
 
   defp dm_call_context_payload(%FederationCallSession{} = session, %User{} = local_user) do
-    local_actor = sender_payload(local_user)
-    local_domain = Elektrine.Messaging.Federation.local_domain()
+    origin_domain = dm_event_origin_domain(session, local_user)
+    local_actor = sender_payload(local_user, domain: origin_domain)
 
-    if String.downcase(session.origin_domain || "") == String.downcase(local_domain) do
+    if local_dm_origin_domain?(session.origin_domain, local_user) do
       %{
-        "id" => dm_federation_id(session.conversation_id),
+        "id" => dm_federation_id(session.conversation_id, domain: origin_domain),
         "sender" => local_actor,
         "recipient" => normalize_remote_actor_payload(session.remote_actor, session.remote_handle)
       }
     else
       %{
-        "id" => dm_federation_id(session.conversation_id),
+        "id" => dm_federation_id(session.conversation_id, domain: origin_domain),
         "sender" => normalize_remote_actor_payload(session.remote_actor, session.remote_handle),
         "recipient" => local_actor
       }
     end
   end
+
+  defp dm_event_origin_domain(%FederationCallSession{}, %User{} = local_user) do
+    preferred_dm_origin_domain_for_user(local_user)
+  end
+
+  defp local_dm_origin_domain?(origin_domain, %User{} = local_user)
+       when is_binary(origin_domain) do
+    normalized_origin = String.downcase(origin_domain)
+
+    normalized_origin == String.downcase(Elektrine.Messaging.Federation.local_domain()) or
+      normalized_origin == String.downcase(preferred_dm_origin_domain_for_user(local_user))
+  end
+
+  defp local_dm_origin_domain?(_, _), do: false
 
   defp normalize_remote_actor_payload(actor, remote_handle) when is_map(actor) do
     base =

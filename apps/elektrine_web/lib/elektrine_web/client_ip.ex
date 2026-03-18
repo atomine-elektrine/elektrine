@@ -71,13 +71,16 @@ defmodule ElektrineWeb.ClientIP do
         nil
 
       value ->
-        value
-        |> String.split(",")
-        |> Enum.map(&parse_ip_string/1)
-        |> Enum.find_value(fn
-          {:ok, ip} -> ip
-          _ -> nil
-        end)
+        parsed_ips =
+          value
+          |> String.split(",")
+          |> Enum.map(&parse_ip_string/1)
+          |> Enum.flat_map(fn
+            {:ok, ip} -> [ip]
+            _ -> []
+          end)
+
+        Enum.find(parsed_ips, &public_client_ip_candidate?/1) || List.first(parsed_ips)
     end
   end
 
@@ -237,6 +240,32 @@ defmodule ElektrineWeb.ClientIP do
   defp ip_to_int({a, b, c, d, e, f, g, h}) do
     Enum.reduce([a, b, c, d, e, f, g, h], 0, fn part, acc -> (acc <<< 16) + part end)
   end
+
+  defp public_client_ip_candidate?(ip) do
+    case maybe_unwrap_mapped_ipv4(ip) do
+      {10, _, _, _} -> false
+      {a, b, _, _} when a == 100 and b >= 64 and b <= 127 -> false
+      {127, _, _, _} -> false
+      {169, 254, _, _} -> false
+      {172, b, _, _} when b >= 16 and b <= 31 -> false
+      {192, 168, _, _} -> false
+      {0, 0, 0, 0} -> false
+      {0, 0, 0, 1} -> false
+      {_, _, _, _} -> true
+      {0, 0, 0, 0, 0, 0, 0, 0} -> false
+      {0, 0, 0, 0, 0, 0, 0, 1} -> false
+      {a, _, _, _, _, _, _, _} when (a &&& 0xFE00) == 0xFC00 -> false
+      {a, _, _, _, _, _, _, _} when (a &&& 0xFFC0) == 0xFE80 -> false
+      {_, _, _, _, _, _, _, _} -> true
+      _ -> false
+    end
+  end
+
+  defp maybe_unwrap_mapped_ipv4({0, 0, 0, 0, 0, 0xFFFF, g, h}) do
+    {g >>> 8, g &&& 0xFF, h >>> 8, h &&& 0xFF}
+  end
+
+  defp maybe_unwrap_mapped_ipv4(ip), do: ip
 
   defp format_ip(nil), do: "unknown"
   defp format_ip(ip) when is_tuple(ip), do: ip |> :inet.ntoa() |> to_string()

@@ -22,6 +22,7 @@ defmodule Elektrine.Messaging.Conversations do
   alias Elektrine.Messaging.Federation.DirectMessageState
   alias Elektrine.Messaging.Federation.State, as: FederationState
   alias Elektrine.Messaging.Federation.Utils, as: FederationUtils
+  alias Elektrine.Profiles
 
   alias Elektrine.Accounts.User
   @doc "Returns the list of conversations for a user.\n"
@@ -1608,13 +1609,11 @@ defmodule Elektrine.Messaging.Conversations do
   end
 
   defp ensure_remote_recipient_domain(_local_user_id, recipient) do
-    if local_domain?(recipient.domain) do
-      case Accounts.get_user_by_username(recipient.username) do
-        nil -> {:error, :user_not_found}
-        user -> {:redirect_local_dm, user.id}
-      end
-    else
-      :ok
+    case local_recipient_user(recipient) do
+      %User{} = user -> {:redirect_local_dm, user.id}
+      :local_domain -> {:error, :user_not_found}
+      :local_custom_domain -> {:error, :user_not_found}
+      _ -> :ok
     end
   end
 
@@ -1623,6 +1622,25 @@ defmodule Elektrine.Messaging.Conversations do
   end
 
   defp local_domain?(_), do: false
+
+  defp local_recipient_user(%{domain: domain, username: username})
+       when is_binary(domain) and is_binary(username) do
+    normalized_domain = String.downcase(domain)
+
+    cond do
+      local_domain?(normalized_domain) ->
+        Accounts.get_user_by_username(username) || :local_domain
+
+      true ->
+        case Profiles.get_verified_custom_domain(normalized_domain) do
+          %{user: %{username: ^username} = user} -> user
+          %{domain: ^normalized_domain} -> :local_custom_domain
+          _ -> nil
+        end
+    end
+  end
+
+  defp local_recipient_user(_recipient), do: nil
 
   defp remote_dm_display_name(attrs, recipient) when is_map(attrs) do
     display_name =

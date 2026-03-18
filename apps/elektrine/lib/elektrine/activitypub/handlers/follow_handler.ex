@@ -347,7 +347,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
   end
 
   defp send_accept(user, remote_actor, follow_id, object_uri) when is_binary(follow_id) do
-    target_uri = object_uri || "#{ActivityPub.instance_url()}/users/#{user.username}"
+    target_uri = object_uri || ActivityPub.actor_uri(user)
 
     accept_activity =
       Builder.build_accept_activity(user, %{

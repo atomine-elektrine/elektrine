@@ -47,6 +47,12 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
 
+  pipeline :well_known_text do
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.TorAware)
+    plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
+  end
+
   pipeline :api_rate_limited do
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end
@@ -442,6 +448,12 @@ defmodule ElektrineWeb.Router do
     pipe_through(:jmap_discovery)
 
     get("/jmap", SessionController, :session)
+  end
+
+  scope "/.well-known", ElektrineWeb do
+    pipe_through(:well_known_text)
+
+    get("/atproto-did", BlueskyIdentityController, :well_known_did)
   end
 
   # JMAP API (RFC 8620, RFC 8621)

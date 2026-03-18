@@ -92,7 +92,7 @@ defmodule Elektrine.ActivityPub.Outbox do
       "@context" => "https://www.w3.org/ns/activitystreams",
       "id" => "#{question["id"]}/activity",
       "type" => "Create",
-      "actor" => "#{ActivityPub.instance_url()}/users/#{user.username}",
+      "actor" => ActivityPub.actor_uri(user),
       "published" => Builder.format_datetime(message.inserted_at),
       "to" => question["to"],
       "cc" => question["cc"],
@@ -391,7 +391,7 @@ defmodule Elektrine.ActivityPub.Outbox do
         "@context" => "https://www.w3.org/ns/activitystreams",
         "id" => activity_id,
         "type" => "EmojiReact",
-        "actor" => "#{base_url}/users/#{user.username}",
+        "actor" => ActivityPub.actor_uri(user, base_url),
         "object" => message.activitypub_id,
         "content" => emoji
       }
@@ -479,8 +479,8 @@ defmodule Elektrine.ActivityPub.Outbox do
     user = Accounts.get_user!(user_id)
 
     if user.activitypub_enabled do
-      # Need to load profile
-      user = Elektrine.Repo.preload(user, :profile)
+      # Keep exported actor fields in sync with the profile shown over HTTP.
+      user = Elektrine.Repo.preload(user, profile: :links)
 
       # Build updated actor
       actor = Builder.build_actor(user)
@@ -636,7 +636,7 @@ defmodule Elektrine.ActivityPub.Outbox do
          sender_id when not is_nil(sender_id) <- message.sender_id,
          %{} = user <- activitypub_user(sender_id),
          {:ok, community_actor} <- ActivityPub.get_or_create_community_actor(community.id) do
-      author_uri = "#{ActivityPub.instance_url()}/users/#{user.username}"
+      author_uri = ActivityPub.actor_uri(user)
       community_object = build_community_post_object(message, community, author_uri)
       create_activity = latest_local_community_create_activity(message, community_actor.uri)
 
@@ -664,7 +664,7 @@ defmodule Elektrine.ActivityPub.Outbox do
         build_community_post_object(
           message,
           community,
-          "#{ActivityPub.instance_url()}/users/#{user.username}"
+          ActivityPub.actor_uri(user)
         )
         |> preserve_original_object_routing(create_activity)
 
@@ -740,7 +740,7 @@ defmodule Elektrine.ActivityPub.Outbox do
         build_community_post_object(
           message,
           community,
-          "#{ActivityPub.instance_url()}/users/#{user.username}"
+          ActivityPub.actor_uri(user)
         )
 
       create_activity = Builder.build_community_create_activity(message, community, page_object)
@@ -784,11 +784,12 @@ defmodule Elektrine.ActivityPub.Outbox do
       # Build vote Note object
       vote_object = %{
         "@context" => "https://www.w3.org/ns/activitystreams",
-        "id" => "#{base_url}/users/#{user.username}/votes/#{:erlang.unique_integer([:positive])}",
+        "id" =>
+          "#{ActivityPub.actor_uri(user, base_url)}/votes/#{:erlang.unique_integer([:positive])}",
         "type" => "Note",
         "name" => option_name,
         "inReplyTo" => poll_id,
-        "attributedTo" => "#{base_url}/users/#{user.username}",
+        "attributedTo" => ActivityPub.actor_uri(user, base_url),
         "to" => [remote_actor.uri],
         "cc" => []
       }
@@ -798,7 +799,7 @@ defmodule Elektrine.ActivityPub.Outbox do
         "@context" => "https://www.w3.org/ns/activitystreams",
         "id" => "#{vote_object["id"]}/activity",
         "type" => "Create",
-        "actor" => "#{base_url}/users/#{user.username}",
+        "actor" => ActivityPub.actor_uri(user, base_url),
         "to" => [remote_actor.uri],
         "cc" => [],
         "object" => vote_object
@@ -830,11 +831,11 @@ defmodule Elektrine.ActivityPub.Outbox do
         # Build vote Note object
         vote_object = %{
           "@context" => "https://www.w3.org/ns/activitystreams",
-          "id" => "#{base_url}/users/#{user.username}/votes/#{poll.id}/#{option.id}",
+          "id" => "#{ActivityPub.actor_uri(user, base_url)}/votes/#{poll.id}/#{option.id}",
           "type" => "Note",
           "name" => option.option_text,
           "inReplyTo" => message.activitypub_id,
-          "attributedTo" => "#{base_url}/users/#{user.username}",
+          "attributedTo" => ActivityPub.actor_uri(user, base_url),
           "to" => [remote_actor.uri],
           "cc" => []
         }
@@ -844,7 +845,7 @@ defmodule Elektrine.ActivityPub.Outbox do
           "@context" => "https://www.w3.org/ns/activitystreams",
           "id" => "#{vote_object["id"]}/activity",
           "type" => "Create",
-          "actor" => "#{base_url}/users/#{user.username}",
+          "actor" => ActivityPub.actor_uri(user, base_url),
           "to" => [remote_actor.uri],
           "cc" => [],
           "object" => vote_object
@@ -1019,7 +1020,7 @@ defmodule Elektrine.ActivityPub.Outbox do
         "@context" => "https://www.w3.org/ns/activitystreams",
         "id" => "#{note["id"]}/activity",
         "type" => "Create",
-        "actor" => "#{ActivityPub.instance_url()}/users/#{user.username}",
+        "actor" => ActivityPub.actor_uri(user),
         "published" => Builder.format_datetime(message.inserted_at),
         "to" => note["to"],
         "cc" => note["cc"],

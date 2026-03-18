@@ -71,6 +71,118 @@ defmodule Elektrine.ActivityPub do
   end
 
   @doc """
+  Returns the canonical local ActivityPub identifier for a user.
+  """
+  def actor_identifier(%User{handle: handle, username: username}) do
+    if is_binary(handle) and String.trim(handle) != "", do: handle, else: username
+  end
+
+  def actor_identifier(%{handle: handle, username: username}) do
+    if is_binary(handle) and String.trim(handle) != "", do: handle, else: username
+  end
+
+  def actor_identifier(identifier) when is_binary(identifier) do
+    identifier
+    |> String.trim()
+    |> String.trim_leading("@")
+    |> String.downcase()
+  end
+
+  def actor_identifier(_), do: nil
+
+  @doc """
+  Returns all local actor identifiers that should resolve for a user.
+
+  The handle is canonical. The username remains as a compatibility alias.
+  """
+  def actor_identifiers(%User{} = user) do
+    [actor_identifier(user), user.username]
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Returns the local ActivityPub actor URI for a user or explicit identifier.
+  """
+  def actor_uri(user_or_identifier, base_url \\ instance_url())
+
+  def actor_uri(%User{} = user, base_url) do
+    actor_uri(actor_identifier(user), base_url)
+  end
+
+  def actor_uri(identifier, base_url) when is_binary(identifier) and is_binary(base_url) do
+    "#{String.trim_trailing(base_url, "/")}/users/#{actor_identifier(identifier)}"
+  end
+
+  def actor_uri(_, _), do: nil
+
+  @doc """
+  Returns the legacy username-based actor URI for a local user.
+  """
+  def actor_uri_by_username(user_or_identifier, base_url \\ instance_url())
+
+  def actor_uri_by_username(%User{username: username}, base_url) when is_binary(username) do
+    actor_uri(username, base_url)
+  end
+
+  def actor_uri_by_username(_, _), do: nil
+
+  @doc """
+  Returns the local ActivityPub key id for a user or explicit identifier.
+  """
+  def actor_key_id(user_or_identifier, base_url \\ instance_url())
+
+  def actor_key_id(%User{} = user, base_url) do
+    "#{actor_uri(user, base_url)}#main-key"
+  end
+
+  def actor_key_id(identifier, base_url) when is_binary(identifier) and is_binary(base_url) do
+    "#{actor_uri(identifier, base_url)}#main-key"
+  end
+
+  def actor_key_id(_, _), do: nil
+
+  @doc """
+  Returns a local actor collection URI for a user.
+  """
+  def user_collection_uri(user_or_identifier, collection, base_url \\ instance_url())
+
+  def user_collection_uri(%User{} = user, collection, base_url)
+      when collection in ["inbox", "outbox", "followers", "following"] do
+    "#{actor_uri(user, base_url)}/#{collection}"
+  end
+
+  def user_collection_uri(identifier, collection, base_url)
+      when is_binary(identifier) and collection in ["inbox", "outbox", "followers", "following"] do
+    "#{actor_uri(identifier, base_url)}/#{collection}"
+  end
+
+  def user_collection_uri(%User{} = user, collection, base_url) when is_atom(collection) do
+    user_collection_uri(user, Atom.to_string(collection), base_url)
+  end
+
+  def user_collection_uri(identifier, collection, base_url)
+      when is_binary(identifier) and is_atom(collection) do
+    user_collection_uri(identifier, Atom.to_string(collection), base_url)
+  end
+
+  def user_collection_uri(_, _, _), do: nil
+
+  @doc """
+  Returns the local ActivityPub object URI for a user's status.
+  """
+  def user_status_uri(user_or_identifier, message_id, base_url \\ instance_url())
+
+  def user_status_uri(%User{} = user, message_id, base_url) do
+    "#{actor_uri(user, base_url)}/statuses/#{message_id}"
+  end
+
+  def user_status_uri(identifier, message_id, base_url)
+      when is_binary(identifier) and is_binary(base_url) do
+    "#{actor_uri(identifier, base_url)}/statuses/#{message_id}"
+  end
+
+  @doc """
   Returns the canonical ActivityPub slug for a local community.
   """
   def community_slug(name) when is_binary(name) do
@@ -170,7 +282,7 @@ defmodule Elektrine.ActivityPub do
   end
 
   @doc """
-  Returns local actor URI prefixes used to detect local `/users/:username` actor URLs.
+  Returns local actor URI prefixes used to detect local `/users/:identifier` actor URLs.
   """
   def local_actor_prefixes do
     domains = Elektrine.Domains.activitypub_domains()
@@ -185,7 +297,9 @@ defmodule Elektrine.ActivityPub do
   end
 
   @doc """
-  Extracts a local username from a local actor/profile URI.
+  Resolves a local actor/profile URI to the owning user's username.
+
+  Canonical actor URLs use handles, but legacy username-based URLs still resolve.
   """
   def local_username_from_uri(uri) when is_binary(uri) do
     normalized_uri = String.trim(uri)
@@ -196,9 +310,15 @@ defmodule Elektrine.ActivityPub do
       case URI.parse(normalized_uri) do
         %URI{host: host, path: path} when is_binary(host) and is_binary(path) ->
           if Elektrine.Domains.local_activitypub_domain?(String.downcase(host)) do
-            case extract_local_username_from_path(path) do
-              nil -> {:error, :not_local}
-              username -> {:ok, username}
+            case extract_local_identifier_from_path(path) do
+              nil ->
+                {:error, :not_local}
+
+              identifier ->
+                case Elektrine.Accounts.get_user_by_activitypub_identifier(identifier) do
+                  %User{username: username} -> {:ok, username}
+                  _ -> {:ok, actor_identifier(identifier)}
+                end
             end
           else
             {:error, :not_local}
@@ -212,13 +332,13 @@ defmodule Elektrine.ActivityPub do
 
   def local_username_from_uri(_), do: {:error, :invalid_uri}
 
-  defp extract_local_username_from_path(path) when is_binary(path) do
+  defp extract_local_identifier_from_path(path) when is_binary(path) do
     case path |> String.trim_leading("/") |> String.split("/", trim: true) do
-      ["users", username | _] when username != "" ->
-        username
+      ["users", identifier | _] when identifier != "" ->
+        identifier
 
-      [<<"@", username::binary>> | _] when username != "" ->
-        username
+      [<<"@", identifier::binary>> | _] when identifier != "" ->
+        identifier
 
       _ ->
         nil

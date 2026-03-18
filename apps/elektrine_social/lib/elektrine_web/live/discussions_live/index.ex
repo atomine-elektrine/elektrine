@@ -75,6 +75,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> assign(:remote_user_loading, false)
       |> assign(:show_image_upload_modal, false)
       |> assign(:pending_media_urls, [])
+      |> assign(:pending_media_attachments, [])
       |> assign(:pending_media_alt_texts, %{})
       |> assign(:loading_communities, true)
       |> assign(:has_community_data, Messaging.has_any_communities?())
@@ -527,6 +528,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:quick_post_title, "")
      |> assign(:quick_post_community_id, nil)
      |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
      |> assign(:pending_media_alt_texts, %{})}
   end
 
@@ -563,7 +565,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         }
 
         case Elektrine.Uploads.upload_discussion_attachment(upload_struct, user.id) do
-          {:ok, metadata} -> {:ok, metadata.key}
+          {:ok, metadata} -> {:ok, metadata}
           {:error, _reason} -> {:postpone, :error}
         end
       end)
@@ -571,17 +573,27 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     if Enum.empty?(uploaded_files) do
       {:noreply, put_flash(socket, :error, "Please select files to upload")}
     else
+      uploaded_urls =
+        uploaded_files
+        |> Enum.map(&Map.get(&1, :key))
+        |> Enum.filter(&is_binary/1)
+
       {:noreply,
        socket
        |> assign(:show_image_upload_modal, false)
-       |> assign(:pending_media_urls, uploaded_files)
+       |> assign(:pending_media_urls, uploaded_urls)
+       |> assign(:pending_media_attachments, uploaded_files)
        |> assign(:pending_media_alt_texts, alt_texts)
-       |> put_flash(:info, "#{length(uploaded_files)} file(s) added")}
+       |> put_flash(:info, "#{length(uploaded_urls)} file(s) added")}
     end
   end
 
   def handle_event("clear_pending_images", _params, socket) do
-    {:noreply, socket |> assign(:pending_media_urls, []) |> assign(:pending_media_alt_texts, %{})}
+    {:noreply,
+     socket
+     |> assign(:pending_media_urls, [])
+     |> assign(:pending_media_attachments, [])
+     |> assign(:pending_media_alt_texts, %{})}
   end
 
   def handle_event("navigate_to_profile", params, socket) do
@@ -868,6 +880,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       title = params["title"]
       content = params["content"]
       media_urls = socket.assigns.pending_media_urls
+      media_attachments = socket.assigns.pending_media_attachments || []
       alt_texts = socket.assigns.pending_media_alt_texts
       content_empty = String.trim(content || "") == ""
       has_media = !Enum.empty?(media_urls)
@@ -882,6 +895,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
               title,
               content,
               media_urls,
+              media_attachments,
               alt_texts,
               has_media,
               socket
@@ -893,6 +907,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
               title,
               content,
               media_urls,
+              media_attachments,
               alt_texts,
               has_media,
               socket
@@ -988,6 +1003,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
          title,
          content,
          media_urls,
+         media_attachments,
          alt_texts,
          has_media,
          socket
@@ -999,11 +1015,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
          ) do
       {:ok, message} ->
         media_metadata =
-          if map_size(alt_texts) > 0 do
-            %{"alt_texts" => alt_texts}
-          else
-            %{}
-          end
+          Social.merge_post_media_metadata(%{"attachments" => media_attachments}, alt_texts)
 
         update_attrs = %{post_type: "discussion", title: title, visibility: "public"}
 
@@ -1047,6 +1059,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
          |> assign(:quick_post_content, "")
          |> assign(:quick_post_title, "")
          |> assign(:pending_media_urls, [])
+         |> assign(:pending_media_attachments, [])
          |> assign(:pending_media_alt_texts, %{})
          |> notify_info("Discussion created!")
          |> push_navigate(to: ~p"/communities/#{community_name}/post/#{slug}")}
@@ -1061,6 +1074,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
          title,
          content,
          media_urls,
+         media_attachments,
          alt_texts,
          has_media,
          socket
@@ -1078,11 +1092,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         end
 
       media_metadata =
-        if map_size(alt_texts) > 0 do
-          %{"alt_texts" => alt_texts}
-        else
-          %{}
-        end
+        Social.merge_post_media_metadata(%{"attachments" => media_attachments}, alt_texts)
 
       post_opts = [visibility: "public", community_actor_uri: remote_actor.uri]
 
@@ -1107,6 +1117,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
            |> assign(:quick_post_content, "")
            |> assign(:quick_post_title, "")
            |> assign(:pending_media_urls, [])
+           |> assign(:pending_media_attachments, [])
            |> assign(:pending_media_alt_texts, %{})
            |> notify_info(
              "Post created! It will be federated to #{remote_actor.display_name || remote_actor.username}"

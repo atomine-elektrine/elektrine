@@ -8,10 +8,11 @@ primary_region = 'ord'
 kill_signal = 'SIGTERM'
 
 [build]
+  dockerfile = "../docker/Dockerfile"
   [build.args]
     ELEKTRINE_RELEASE_MODULES = 'all'
 
-# Module-aware Fly deploys should go through scripts/fly_deploy.sh, which
+# Module-aware Fly deploys should go through scripts/deploy/fly_deploy.sh, which
 # rewrites this config for the selected release module set.
 
 [processes]

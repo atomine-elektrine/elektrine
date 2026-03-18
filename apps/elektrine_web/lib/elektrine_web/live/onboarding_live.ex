@@ -64,61 +64,31 @@ defmodule ElektrineWeb.OnboardingLive do
 
   @impl true
   def handle_event("save_profile", _params, socket) do
-    # Use values from socket assigns (updated via phx-keyup)
     bio = socket.assigns.bio
-    handle = String.trim(socket.assigns.handle || "")
 
-    # Always update handle if it has a value (even if not "changed" by user)
-    result =
-      if handle != "" && handle != socket.assigns.current_user.handle do
-        socket.assigns.current_user
-        |> Elektrine.Accounts.User.handle_changeset(%{handle: handle})
-        |> Elektrine.Repo.update()
+    fresh_user = Elektrine.Repo.get!(Elektrine.Accounts.User, socket.assigns.current_user.id)
+
+    bio_result =
+      if bio != "" do
+        Profiles.upsert_user_profile(fresh_user.id, %{description: bio})
       else
-        {:ok, socket.assigns.current_user}
+        {:ok, nil}
       end
 
-    case result do
-      {:ok, updated_user} ->
-        # Reload user to get fresh handle for navbar
-        fresh_user = Elektrine.Repo.get!(Elektrine.Accounts.User, updated_user.id)
+    case bio_result do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:current_user, fresh_user)
+         |> put_flash(:info, "Profile saved!")
+         |> assign(:step, 3)}
 
-        # Update user profile description (the field is called description, not bio)
-        bio_result =
-          if bio != "" do
-            Profiles.upsert_user_profile(fresh_user.id, %{description: bio})
-          else
-            # Skip if bio is empty
-            {:ok, nil}
-          end
-
-        case bio_result do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign(:current_user, fresh_user)
-             |> put_flash(:info, "Profile saved!")
-             |> assign(:step, 3)}
-
-          {:error, _} ->
-            # Handle and user updated, but bio failed - still proceed
-            {:noreply,
-             socket
-             |> assign(:current_user, fresh_user)
-             |> put_flash(:info, "Profile saved!")
-             |> assign(:step, 3)}
-        end
-
-      {:error, changeset} ->
-        errors = changeset.errors
-
-        error_msg =
-          case Keyword.get(errors, :handle) do
-            {msg, _} -> msg
-            _ -> "Invalid handle"
-          end
-
-        {:noreply, assign(socket, :handle_error, error_msg)}
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> assign(:current_user, fresh_user)
+         |> put_flash(:info, "Profile saved!")
+         |> assign(:step, 3)}
     end
   end
 
@@ -265,38 +235,16 @@ defmodule ElektrineWeb.OnboardingLive do
                     </label>
                     <input
                       type="text"
-                      name="handle"
-                      value={@handle}
-                      placeholder={@current_user.username}
-                      class={"input input-bordered w-full #{if @handle_error, do: "input-error"}"}
-                      phx-keyup="update_handle"
-                      phx-debounce="300"
+                      value={@current_user.handle}
+                      class="input input-bordered w-full bg-base-200 text-base-content/70 cursor-not-allowed"
+                      disabled
                       maxlength="20"
                     />
-                    <%= if @handle_error do %>
-                      <label class="label">
-                        <span class="label-text-alt text-error">{@handle_error}</span>
-                      </label>
-                    <% else %>
-                      <label class="label">
-                        <span class="label-text-alt">
-                          Your public handle will be @{@handle || @current_user.username} - what others see
-                        </span>
-                      </label>
-                    <% end %>
-                    <%= if !@handle_changed do %>
-                      <div class="alert alert-warning mt-2">
-                        <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
-                        <div class="text-sm">
-                          <p class="font-medium mb-1">Username vs Handle:</p>
-                          <p>• Username = Email address and login</p>
-                          <p>• Handle = What others see and mention</p>
-                          <p class="mt-2">
-                            Customize your handle now or it will default to your username
-                          </p>
-                        </div>
-                      </div>
-                    <% end %>
+                    <label class="label">
+                      <span class="label-text-alt">
+                        Your permanent public handle and ActivityPub identifier: @{@current_user.handle}
+                      </span>
+                    </label>
                   </div>
 
                   <div class="form-control w-full">

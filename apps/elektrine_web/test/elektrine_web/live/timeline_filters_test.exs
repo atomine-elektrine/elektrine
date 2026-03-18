@@ -170,6 +170,63 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert has_element?(view, ~s(input[name="reply_to_id"][value="#{reply.id}"]))
   end
 
+  test "timeline reserves image space from attachment metadata", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Metadata-backed media post",
+        visibility: "public",
+        media_urls: ["timeline-attachments/test-image.png"]
+      )
+
+    from(m in Message, where: m.id == ^post.id)
+    |> Repo.update_all(
+      set: [
+        media_metadata: %{
+          "attachments" => [
+            %{
+              "url" => "timeline-attachments/test-image.png",
+              "mime_type" => "image/png",
+              "width" => 640,
+              "height" => 480
+            }
+          ]
+        }
+      ]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=explore&view=all")
+
+    html =
+      Enum.reduce_while(1..40, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "Metadata-backed media post" &&
+             has_element?(
+               view,
+               ~s(button[phx-value-url="/uploads/timeline-attachments/test-image.png"][style*="aspect-ratio"])
+             ) do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Metadata-backed media post"
+
+    assert has_element?(
+             view,
+             ~s(button[phx-value-url="/uploads/timeline-attachments/test-image.png"][style*="aspect-ratio"])
+           )
+
+    assert html =~ ~r/aspect-ratio:\s*640\s*\/\s*480/
+  end
+
   test "saving a timeline post immediately flips the bookmark button to solid", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

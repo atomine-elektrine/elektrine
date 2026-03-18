@@ -60,7 +60,7 @@ defmodule Elektrine.ActivityPub.Publisher do
       case ActivityPub.create_activity(%{
              activity_id: activity["id"],
              activity_type: activity["type"],
-             actor_uri: "#{ActivityPub.instance_url()}/users/#{user.username}",
+             actor_uri: ActivityPub.actor_uri(user),
              object_id: get_object_id(activity),
              data: activity,
              local: true,
@@ -223,7 +223,7 @@ defmodule Elektrine.ActivityPub.Publisher do
         _ -> ActivityPub.instance_url()
       end
 
-    key_id = "#{key_id_base}/users/#{user.username}#main-key"
+    key_id = ActivityPub.actor_key_id(user, key_id_base)
     {user.activitypub_private_key, key_id}
   end
 

@@ -1601,24 +1601,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   end
 
   defp extract_local_username_from_uri(uri) when is_binary(uri) do
-    Elektrine.ActivityPub.local_actor_prefixes()
-    |> Enum.find_value({:error, :not_local}, fn prefix ->
-      if String.starts_with?(uri, prefix) do
-        username =
-          uri
-          |> String.replace_prefix(prefix, "")
-          |> String.split(["/", "?", "#"], parts: 2)
-          |> List.first()
-
-        if is_binary(username) and username != "" do
-          {:ok, username}
-        else
-          {:error, :not_local}
-        end
-      else
-        nil
-      end
-    end)
+    Elektrine.ActivityPub.local_username_from_uri(uri)
   end
 
   defp extract_local_username_from_uri(_), do: {:error, :invalid_uri}

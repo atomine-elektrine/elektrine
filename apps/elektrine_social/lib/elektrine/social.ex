@@ -222,6 +222,7 @@ defmodule Elektrine.Social do
     visibility = Keyword.get(opts, :visibility, "followers")
     media_urls = Keyword.get(opts, :media_urls, [])
     alt_texts = Keyword.get(opts, :alt_texts, %{})
+    media_metadata = Keyword.get(opts, :media_metadata, %{})
     title = Keyword.get(opts, :title)
     post_type = Keyword.get(opts, :post_type, "post")
     category = Keyword.get(opts, :category)
@@ -254,6 +255,7 @@ defmodule Elektrine.Social do
           link_preview_id: link_preview_id,
           validated_title: validated_title,
           auto_title: auto_title,
+          base_media_metadata: media_metadata,
           alt_texts: alt_texts,
           community_actor_uri: community_actor_uri,
           category: category
@@ -722,13 +724,151 @@ defmodule Elektrine.Social do
     [user_id | following] |> Enum.uniq()
   end
 
-  defp build_media_metadata(alt_texts, community_actor_uri) do
-    %{}
+  def merge_post_media_metadata(
+        base_metadata \\ %{},
+        alt_texts \\ %{},
+        community_actor_uri \\ nil
+      )
+
+  def merge_post_media_metadata(base_metadata, alt_texts, community_actor_uri) do
+    base_metadata
+    |> normalize_media_metadata()
+    |> maybe_merge_attachment_alt_texts(alt_texts)
     |> maybe_put_alt_texts(alt_texts)
     |> maybe_put_community_actor_uri(community_actor_uri)
   end
 
+  defp build_media_metadata(base_metadata, alt_texts, community_actor_uri) do
+    merge_post_media_metadata(base_metadata, alt_texts, community_actor_uri)
+  end
+
+  defp normalize_media_metadata(metadata) when is_map(metadata) do
+    Enum.reduce(metadata, %{}, fn {key, value}, acc ->
+      normalized_key = to_string(key)
+
+      normalized_value =
+        if normalized_key == "attachments" do
+          normalize_media_attachments(value)
+        else
+          value
+        end
+
+      Map.put(acc, normalized_key, normalized_value)
+    end)
+  end
+
+  defp normalize_media_metadata(_metadata), do: %{}
+
+  defp normalize_media_attachments(attachments) when is_list(attachments) do
+    attachments
+    |> Enum.map(&normalize_media_attachment/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_media_attachments(_attachments), do: []
+
+  defp normalize_media_attachment(attachment) when is_map(attachment) do
+    normalized =
+      Enum.reduce(attachment, %{}, fn {key, value}, acc ->
+        if is_nil(value) do
+          acc
+        else
+          Map.put(acc, to_string(key), value)
+        end
+      end)
+
+    url = normalized["url"] || normalized["key"]
+    mime_type = normalized["mime_type"] || normalized["content_type"]
+
+    if is_binary(url) and is_binary(mime_type) do
+      %{}
+      |> maybe_put_media_attachment_text("id", normalized["id"] || media_attachment_id(url))
+      |> maybe_put_media_attachment_text("url", url)
+      |> maybe_put_media_attachment_text("mime_type", mime_type)
+      |> maybe_put_media_attachment_text("filename", normalized["filename"])
+      |> maybe_put_media_attachment_text("alt_text", normalized["alt_text"])
+      |> maybe_put_media_attachment_text(
+        "authorization",
+        normalized["authorization"] || "public"
+      )
+      |> maybe_put_media_attachment_text("retention", normalized["retention"] || "origin")
+      |> maybe_put_media_attachment_integer(
+        "byte_size",
+        normalized["byte_size"] || normalized["size"]
+      )
+      |> maybe_put_media_attachment_integer("width", normalized["width"])
+      |> maybe_put_media_attachment_integer("height", normalized["height"])
+      |> maybe_put_media_attachment_integer("duration_ms", normalized["duration_ms"])
+    end
+  end
+
+  defp normalize_media_attachment(_attachment), do: nil
+
+  defp media_attachment_id(url) when is_binary(url) do
+    encoded_hash =
+      :crypto.hash(:sha256, url)
+      |> Base.url_encode64(padding: false)
+
+    "attachment-#{encoded_hash}"
+  end
+
+  defp maybe_put_media_attachment_text(map, _key, nil), do: map
+
+  defp maybe_put_media_attachment_text(map, key, value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: map, else: Map.put(map, key, trimmed)
+  end
+
+  defp maybe_put_media_attachment_text(map, _key, _value), do: map
+
+  defp maybe_put_media_attachment_integer(map, key, value)
+       when is_integer(value) and value >= 0 do
+    Map.put(map, key, value)
+  end
+
+  defp maybe_put_media_attachment_integer(map, _key, _value), do: map
+
+  defp maybe_merge_attachment_alt_texts(metadata, nil), do: metadata
+
+  defp maybe_merge_attachment_alt_texts(metadata, alt_texts)
+       when is_map(metadata) and is_map(alt_texts) and map_size(alt_texts) > 0 do
+    case Map.get(metadata, "attachments") do
+      attachments when is_list(attachments) ->
+        merged_attachments =
+          attachments
+          |> Enum.with_index()
+          |> Enum.map(fn {attachment, index} ->
+            attachment
+            |> normalize_media_metadata()
+            |> maybe_put_attachment_alt_text(Map.get(alt_texts, to_string(index)))
+          end)
+
+        Map.put(metadata, "attachments", merged_attachments)
+
+      _ ->
+        metadata
+    end
+  end
+
+  defp maybe_merge_attachment_alt_texts(metadata, _alt_texts), do: metadata
+
+  defp maybe_put_attachment_alt_text(attachment, nil), do: attachment
+
+  defp maybe_put_attachment_alt_text(attachment, alt_text)
+       when is_map(attachment) and is_binary(alt_text) do
+    trimmed = String.trim(alt_text)
+
+    if trimmed == "" do
+      attachment
+    else
+      Map.put(attachment, "alt_text", trimmed)
+    end
+  end
+
+  defp maybe_put_attachment_alt_text(attachment, _alt_text), do: attachment
+
   defp maybe_put_alt_texts(metadata, nil), do: metadata
+  defp maybe_put_alt_texts(metadata, alt_texts) when not is_map(alt_texts), do: metadata
   defp maybe_put_alt_texts(metadata, alt_texts) when map_size(alt_texts) == 0, do: metadata
   defp maybe_put_alt_texts(metadata, alt_texts), do: Map.put(metadata, "alt_texts", alt_texts)
 
@@ -794,13 +934,14 @@ defmodule Elektrine.Social do
          link_preview_id: link_preview_id,
          validated_title: validated_title,
          auto_title: auto_title,
+         base_media_metadata: base_media_metadata,
          alt_texts: alt_texts,
          community_actor_uri: community_actor_uri,
          category: category
        }) do
     final_title = validated_title || auto_title
     is_auto_title = is_nil(validated_title) and not is_nil(auto_title)
-    media_metadata = build_media_metadata(alt_texts, community_actor_uri)
+    media_metadata = build_media_metadata(base_media_metadata, alt_texts, community_actor_uri)
 
     %{
       conversation_id: conversation_id,

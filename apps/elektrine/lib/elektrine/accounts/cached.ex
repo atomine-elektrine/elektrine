@@ -34,6 +34,18 @@ defmodule Elektrine.Accounts.Cached do
   end
 
   @doc """
+  Gets cached user data by ActivityPub identifier (handle canonical, username alias).
+  """
+  def get_user_by_activitypub_identifier(identifier) do
+    {:ok, user} =
+      AppCache.get_system_config("user_by_activitypub_identifier:#{identifier}", fn ->
+        Accounts.get_user_by_activitypub_identifier(identifier)
+      end)
+
+    user
+  end
+
+  @doc """
   Gets cached user preferences/settings.
   """
   def get_user_preferences(user_id) do

@@ -1709,8 +1709,15 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       <div class="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                         Primary Address
                       </div>
-                      <div class="mt-1 font-mono text-sm text-base-content/80 break-all">
-                        {@current_user.username}@{custom_domain.domain}
+                      <div class="mt-1 flex items-start gap-2">
+                        <div class="font-mono text-sm text-base-content/80 break-all flex-1">
+                          {@current_user.username}@{custom_domain.domain}
+                        </div>
+                        <.copy_button
+                          id={"email-domain-primary-address-#{custom_domain.id}"}
+                          content={"#{@current_user.username}@#{custom_domain.domain}"}
+                          label="Copy primary address"
+                        />
                       </div>
 
                       <div class="mt-2 text-xs text-base-content/55">
@@ -1736,7 +1743,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       </div>
 
                       <div class="divide-y divide-base-content/10 bg-base-100">
-                        <%= for record <- Email.dns_records_for_custom_domain(custom_domain) do %>
+                        <%= for {record, index} <-
+                              Enum.with_index(Email.dns_records_for_custom_domain(custom_domain)) do %>
                           <div class="grid gap-3 px-4 py-3 sm:grid-cols-[88px_minmax(0,0.9fr)_minmax(0,1.4fr)]">
                             <div class="flex items-start sm:items-center">
                               <span class="badge badge-outline badge-sm font-medium">
@@ -1748,8 +1756,15 @@ defmodule ElektrineWeb.EmailLive.Settings do
                               <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
                                 Host
                               </div>
-                              <div class="mt-1 font-mono text-xs leading-5 text-base-content/80 break-all">
-                                {record.host}
+                              <div class="mt-1 flex items-start gap-2">
+                                <div class="font-mono text-xs leading-5 text-base-content/80 break-all flex-1">
+                                  {record.host}
+                                </div>
+                                <.copy_button
+                                  id={"email-domain-#{custom_domain.id}-record-#{index}-host"}
+                                  content={record.host}
+                                  label={"Copy #{record.type} host"}
+                                />
                               </div>
                             </div>
 
@@ -1765,8 +1780,15 @@ defmodule ElektrineWeb.EmailLive.Settings do
                               <div class="mt-1 text-xs font-medium text-base-content/55">
                                 {record.label}
                               </div>
-                              <div class="mt-1 font-mono text-xs leading-5 text-base-content/80 break-all">
-                                {record.value}
+                              <div class="mt-1 flex items-start gap-2">
+                                <div class="font-mono text-xs leading-5 text-base-content/80 break-all flex-1">
+                                  {record.value}
+                                </div>
+                                <.copy_button
+                                  id={"email-domain-#{custom_domain.id}-record-#{index}-value"}
+                                  content={record.value}
+                                  label={"Copy #{record.type} value"}
+                                />
                               </div>
                             </div>
                           </div>
@@ -2368,6 +2390,26 @@ defmodule ElektrineWeb.EmailLive.Settings do
   defp status_color("processing"), do: "info"
   defp status_color("failed"), do: "error"
   defp status_color(_), do: "ghost"
+
+  attr :id, :string, required: true
+  attr :content, :string, required: true
+  attr :label, :string, required: true
+
+  defp copy_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      phx-hook="CopyToClipboard"
+      data-content={@content}
+      class="btn btn-ghost btn-xs h-7 min-h-0 shrink-0 px-2 text-base-content/55 hover:text-base-content"
+      title={@label}
+      aria-label={@label}
+    >
+      <.icon name="hero-clipboard-document" class="h-4 w-4" />
+    </button>
+    """
+  end
 
   defp custom_domain_status_badge("verified"), do: "badge-success text-success-content"
   defp custom_domain_status_badge(_), do: "badge-warning text-warning-content"

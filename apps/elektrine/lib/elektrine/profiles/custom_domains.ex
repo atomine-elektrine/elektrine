@@ -96,6 +96,29 @@ defmodule Elektrine.Profiles.CustomDomains do
 
   def get_verified_custom_domain_for_host(_), do: nil
 
+  def verified_domains_for_user(%User{id: user_id}), do: verified_domains_for_user(user_id)
+
+  def verified_domains_for_user(user_id) when is_integer(user_id) do
+    CustomDomain
+    |> where(user_id: ^user_id, status: ^@verified_status)
+    |> order_by([d], asc: d.domain)
+    |> Repo.all()
+  end
+
+  def verified_domains_for_user(_), do: []
+
+  def preferred_verified_domain_for_user(%User{id: user_id}),
+    do: preferred_verified_domain_for_user(user_id)
+
+  def preferred_verified_domain_for_user(user_id) when is_integer(user_id) do
+    case verified_domains_for_user(user_id) do
+      [%CustomDomain{} = custom_domain] -> custom_domain
+      _ -> nil
+    end
+  end
+
+  def preferred_verified_domain_for_user(_), do: nil
+
   def create_custom_domain(%User{id: user_id}, attrs), do: create_custom_domain(user_id, attrs)
 
   def create_custom_domain(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
@@ -196,70 +219,22 @@ defmodule Elektrine.Profiles.CustomDomains do
   end
 
   defp routing_dns_records_for_custom_domain(domain) do
-    edge_ipv4 = Elektrine.Domains.profile_custom_domain_edge_ipv4()
-    edge_ipv6 = Elektrine.Domains.profile_custom_domain_edge_ipv6()
-    edge_target = Elektrine.Domains.profile_custom_domain_edge_target()
-
-    configured_records =
-      []
-      |> maybe_add_edge_ip_record("A", domain, edge_ipv4)
-      |> maybe_add_edge_ip_record("AAAA", domain, edge_ipv6)
-      |> maybe_add_edge_target_record(domain, edge_target)
-
-    apex_records =
-      if configured_records == [] do
-        [
-          %{
-            type: "ALIAS/CNAME",
-            host: domain,
-            value: Elektrine.Domains.primary_profile_domain(),
-            label:
-              "Point the root domain at your profile edge hostname using your DNS provider's apex alias/flattening option",
-            priority: nil
-          }
-        ]
-      else
-        configured_records
-      end
-
-    apex_records ++
+    [
+      %{
+        type: "ALIAS/CNAME",
+        host: domain,
+        value: Elektrine.Domains.profile_custom_domain_routing_target(),
+        label:
+          "Stable routing target for the root domain. Use your DNS provider's apex alias/flattening option or edge proxy.",
+        priority: nil
+      }
+    ] ++
       [
         %{
           type: "CNAME",
           host: "www.#{domain}",
           value: domain,
           label: "Optional www redirect target",
-          priority: nil
-        }
-      ]
-  end
-
-  defp maybe_add_edge_ip_record(records, _type, _domain, nil), do: records
-
-  defp maybe_add_edge_ip_record(records, type, domain, value) do
-    records ++
-      [
-        %{
-          type: type,
-          host: domain,
-          value: value,
-          label: "Point the root domain at your profile edge IP",
-          priority: nil
-        }
-      ]
-  end
-
-  defp maybe_add_edge_target_record(records, _domain, nil), do: records
-
-  defp maybe_add_edge_target_record(records, domain, target) do
-    records ++
-      [
-        %{
-          type: "ALIAS/CNAME",
-          host: domain,
-          value: target,
-          label:
-            "If your DNS provider supports apex alias/flattening, point the root domain at your profile edge hostname",
           priority: nil
         }
       ]

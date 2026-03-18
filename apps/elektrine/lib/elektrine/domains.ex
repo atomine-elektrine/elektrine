@@ -77,6 +77,16 @@ defmodule Elektrine.Domains do
   end
 
   @doc """
+  Stable hostname target for onboarding custom profile domains.
+
+  Falls back to the primary profile domain when no dedicated edge hostname is
+  configured.
+  """
+  def profile_custom_domain_routing_target do
+    profile_custom_domain_edge_target() || primary_profile_domain()
+  end
+
+  @doc """
   Optional IPv4 address for custom profile domain onboarding.
   """
   def profile_custom_domain_edge_ipv4 do
