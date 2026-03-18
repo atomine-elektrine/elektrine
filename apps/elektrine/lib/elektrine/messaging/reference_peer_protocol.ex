@@ -406,7 +406,8 @@ defmodule Elektrine.Messaging.ReferencePeerProtocol do
     end
   end
 
-  defp canonical_content_digest(content_digest), do: canonical_content_digest(to_string(content_digest))
+  defp canonical_content_digest(content_digest),
+    do: canonical_content_digest(to_string(content_digest))
 
   defp normalize_private_key(key) when is_binary(key) and byte_size(key) == 32,
     do: {:ok, key}

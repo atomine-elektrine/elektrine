@@ -165,7 +165,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         "timeline-post-entry-stable space-y-2",
         if(@has_thread_context,
           do:
-            "relative rounded-2xl border border-base-300/80 bg-gradient-to-br from-base-200/35 via-transparent to-base-100/30 p-2"
+            "relative rounded-lg border border-base-300/80 bg-gradient-to-br from-base-200/35 via-transparent to-base-100/30 p-2"
         )
       ]}
     >
@@ -197,7 +197,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       <div
         id={"#{@id_prefix}-card-#{@post.id}"}
         class={[
-          "card glass-card timeline-post-card shadow-sm max-w-full cursor-pointer hover:shadow-md transition-shadow",
+          "card timeline-post-card shadow-sm max-w-full cursor-pointer hover:shadow-md transition-shadow",
           if(@has_thread_context, do: "ml-6 border border-primary/25"),
           if(@is_reply,
             do: "border-l-4 border-l-error bg-error/5 border-t border-r border-b border-base-300",
@@ -687,7 +687,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             <span class={"absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full ring-2 ring-base-100 #{colors.dot}"}>
             </span>
 
-            <div class={["rounded-2xl border shadow-sm overflow-hidden", colors.card]}>
+            <div class={["rounded-lg border shadow-sm overflow-hidden", colors.card]}>
               <%= if is_clickable do %>
                 <div
                   role="button"
@@ -2547,7 +2547,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     ~H"""
     <article
       id={@unique_id}
-      class="card glass-card timeline-post-card border border-base-300 rounded-lg overflow-visible hover:shadow-md transition-all relative z-0"
+      class="card timeline-post-card border border-base-300 rounded-lg overflow-visible hover:shadow-md transition-all relative z-0"
       data-post-id={@post.id}
       data-source={@source}
       phx-hook="PostClick"

@@ -13,8 +13,7 @@
     <div class="flex-1 min-w-0 overflow-hidden">
       <div
         id="search-email-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box"
+        class="card shadow-lg rounded-box"
       >
         <div class="card-body p-6">
           <!-- Header -->
@@ -109,7 +108,7 @@
                   <%= for message <- @search_results.messages do %>
                     <div
                       id={"message-#{message.id}"}
-                      class={"card glass-card border hover:border-primary/40 hover:shadow-md transition-[border-color,box-shadow] #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
+                      class={"card border hover:border-primary/40 hover:shadow-md transition-[border-color,box-shadow] #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
                     >
                       <div class="card-body p-4">
                         <div class="flex items-center justify-between">

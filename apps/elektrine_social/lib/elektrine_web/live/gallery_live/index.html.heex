@@ -374,7 +374,7 @@
         </div>
       <% else %>
         <%= if image_posts == [] do %>
-          <div class="rounded-[2rem] border border-dashed border-base-300 bg-base-200/40 px-6 py-16 text-center">
+          <div class="rounded-lg border border-dashed border-base-300 bg-base-100 px-6 py-16 text-center shadow-sm">
             <.icon name="hero-photo" class="w-16 h-16 opacity-20 mx-auto mb-4" />
             <h3 class="text-xl font-semibold">{empty_title}</h3>
             <p class="text-sm text-base-content/60 mt-2 max-w-md mx-auto">{empty_copy}</p>
@@ -554,7 +554,7 @@
             </label>
             <label
               for={@uploads.gallery_image.ref}
-              class="block border-2 border-dashed border-base-300 rounded-2xl p-8 text-center cursor-pointer hover:border-secondary transition-colors"
+              class="block border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors"
             >
               <.live_file_input upload={@uploads.gallery_image} class="hidden" />
               <%= if Enum.empty?(@uploads.gallery_image.entries) do %>

@@ -96,10 +96,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
   @durable_extension_event_types @roles_event_types ++
                                    @permissions_event_types ++
                                    @threads_event_types ++
-                                   @moderation_event_types ++ @dm_event_types ++
+                                   @moderation_event_types ++
+                                   @dm_event_types ++
                                    Enum.take(@voice_event_types, 4)
 
-  @extension_event_types @durable_extension_event_types ++ @presence_event_types ++
+  @extension_event_types @durable_extension_event_types ++
+                           @presence_event_types ++
                            [@voice_dm_call_signal_event_type]
 
   @durable_event_types [@bootstrap_server_upsert_event_type] ++
@@ -2160,7 +2162,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
          (is_integer(candidate["sdpMLineIndex"]) and candidate["sdpMLineIndex"] >= 0 and
             candidate["sdpMLineIndex"] <= 1024)) and
       (is_nil(candidate["usernameFragment"]) or
-         (is_binary(candidate["usernameFragment"]) and byte_size(candidate["usernameFragment"]) <= 256))
+         (is_binary(candidate["usernameFragment"]) and
+            byte_size(candidate["usernameFragment"]) <= 256))
   end
 
   defp valid_dm_call_signal_payload?(_kind, _payload), do: false

@@ -11,14 +11,17 @@ defmodule Elektrine.Messaging.Federation.Inbound do
   def normalize_incoming_batch_payload(%{"events" => events} = payload, context)
       when is_list(events) and is_map(context) do
     if length(events) <= call(context, :incoming_batch_limit, []) do
-      batch_id = call(context, :normalize_optional_string, [payload["batch_id"]]) || Ecto.UUID.generate()
+      batch_id =
+        call(context, :normalize_optional_string, [payload["batch_id"]]) || Ecto.UUID.generate()
+
       {:ok, batch_id, events}
     else
       {:error, :batch_limit_exceeded}
     end
   end
 
-  def normalize_incoming_batch_payload(events, context) when is_list(events) and is_map(context) do
+  def normalize_incoming_batch_payload(events, context)
+      when is_list(events) and is_map(context) do
     if length(events) <= call(context, :incoming_batch_limit, []) do
       {:ok, Ecto.UUID.generate(), events}
     else
@@ -31,7 +34,9 @@ defmodule Elektrine.Messaging.Federation.Inbound do
   def normalize_incoming_ephemeral_payload(%{"items" => items} = payload, context)
       when is_list(items) and is_map(context) do
     if length(items) <= call(context, :incoming_ephemeral_limit, []) do
-      batch_id = call(context, :normalize_optional_string, [payload["batch_id"]]) || Ecto.UUID.generate()
+      batch_id =
+        call(context, :normalize_optional_string, [payload["batch_id"]]) || Ecto.UUID.generate()
+
       {:ok, batch_id, items}
     else
       {:error, :ephemeral_limit_exceeded}
@@ -78,7 +83,10 @@ defmodule Elektrine.Messaging.Federation.Inbound do
       !is_binary(stream_id) ->
         {:error, :invalid_payload}
 
-      Enum.any?(events, &(call(context, :normalize_optional_string, [&1["stream_id"]]) != stream_id)) ->
+      Enum.any?(
+        events,
+        &(call(context, :normalize_optional_string, [&1["stream_id"]]) != stream_id)
+      ) ->
         {:error, :invalid_payload}
 
       true ->
@@ -157,7 +165,10 @@ defmodule Elektrine.Messaging.Federation.Inbound do
         !is_binary(item["event_type"]) ->
           {:error, :invalid_payload}
 
-        call(context, :normalize_optional_string, [item["origin_domain"]]) not in [nil, remote_domain] ->
+        call(context, :normalize_optional_string, [item["origin_domain"]]) not in [
+          nil,
+          remote_domain
+        ] ->
           {:error, :origin_domain_mismatch}
 
         event_type not in [

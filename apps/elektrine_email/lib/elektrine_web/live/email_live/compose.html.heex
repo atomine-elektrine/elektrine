@@ -18,7 +18,7 @@
     
 <!-- Main content -->
     <div class="flex-1 min-w-0 overflow-hidden">
-      <div id="compose-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-box">
+      <div id="compose-card" class="card shadow-lg rounded-box">
         <div class="card-body p-6">
           <!-- Header -->
           <div class="flex items-center space-x-3 mb-6">
@@ -95,7 +95,7 @@
           <%= if @original_message && private_message?(@original_message) do %>
             <div
               id="private-mailbox-compose"
-              class="rounded-2xl border border-info/30 bg-info/10 p-4 mb-6"
+              class="rounded-lg border border-info/30 bg-info/10 p-4 mb-6"
               phx-hook="PrivateMailboxCompose"
               data-private-mailbox-id={@mailbox.id}
               data-private-compose-mode={@mode}
@@ -486,7 +486,7 @@
                 />
               </div>
 
-              <div class="rounded-xl border border-base-300 bg-base-200/40 p-4 space-y-3">
+              <div class="rounded-lg border border-base-300 bg-base-200/40 p-4 space-y-3">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div class="space-y-1">
                     <div class="flex items-center gap-2">

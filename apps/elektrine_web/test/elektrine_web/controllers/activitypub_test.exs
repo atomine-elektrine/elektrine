@@ -403,7 +403,9 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert response["outbox"]
     end
 
-    test "serves handle paths as canonical actors and username paths as moved aliases", %{conn: conn} do
+    test "serves handle paths as canonical actors and username paths as moved aliases", %{
+      conn: conn
+    } do
       user =
         AccountsFixtures.user_fixture(%{username: "actoraliasuser"})
         |> set_handle!("actor_handle")

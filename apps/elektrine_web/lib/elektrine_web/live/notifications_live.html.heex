@@ -115,7 +115,7 @@
       <%= if @loading_notifications do %>
         <div class="space-y-3">
           <%= for _i <- 1..4 do %>
-            <div class="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm animate-pulse">
+            <div class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm animate-pulse">
               <div class="flex gap-3">
                 <div class="h-10 w-10 rounded-lg bg-base-300"></div>
                 <div class="flex-1 space-y-2">
@@ -129,7 +129,7 @@
         </div>
       <% else %>
         <%= if Enum.empty?(@filtered_notifications) do %>
-          <div class="rounded-xl border border-dashed border-base-300 bg-base-100 p-8 text-center shadow-sm">
+          <div class="rounded-lg border border-dashed border-base-300 bg-base-100 p-8 text-center shadow-sm">
             <.icon name="hero-bell-slash" class="mx-auto mb-3 h-10 w-10 opacity-50" />
             <p class="text-sm font-medium">
               <%= cond do %>

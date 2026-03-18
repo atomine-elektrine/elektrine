@@ -230,7 +230,7 @@ defmodule Elektrine.Email.PGP do
   defp split_recipient_string(value) when is_binary(value) do
     value
     |> String.split(",", trim: true)
-    |> Enum.map(&(String.downcase(String.trim(&1))))
+    |> Enum.map(&String.downcase(String.trim(&1)))
   end
 
   @doc "Performs a Web Key Directory (WKD) lookup for an email address.\nImplements the advanced method as per draft-koch-openpgp-webkey-service.\n"

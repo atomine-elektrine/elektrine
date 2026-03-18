@@ -1,3 +1,4 @@
 [tools]
 elixir = "latest"
-erlang = "28.3"
+erlang = "latest"
+node = "22"

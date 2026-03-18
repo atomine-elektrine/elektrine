@@ -172,7 +172,7 @@
       <div
         class={
           if is_default_profile do
-            "w-full max-w-full sm:max-w-[680px] relative overflow-visible rounded-none sm:rounded-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)] social-page-card border border-base-300 shadow-xl"
+            "w-full max-w-full sm:max-w-[680px] relative overflow-visible rounded-none sm:rounded-lg pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)] social-page-card border border-base-300 shadow-xl"
           else
             "w-full max-w-full sm:max-w-[580px] relative overflow-visible rounded-none sm:rounded-t-2xl pt-4 sm:pt-6 px-4 pb-4 sm:pb-6 sm:px-6 sm:mt-10 min-h-screen sm:min-h-[calc(100vh-2.5rem)]"
           end
@@ -1160,7 +1160,7 @@
             <div class="mb-6">
               <%= if @discord_data do %>
                 <!-- Real Discord Data -->
-                <div class="flex items-center justify-center space-x-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                <div class="flex items-center justify-center space-x-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
                   <div class="relative">
                     <img
                       src={@discord_data.avatar}
@@ -1238,7 +1238,7 @@
 <!-- Music Player -->
           <%= if @profile && @profile.music_url do %>
             <div class="mb-6">
-              <div class="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
+              <div class="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-4">
                 <div class="flex items-center mb-3">
                   <div
                     class="h-4 w-4 mr-2"
@@ -1375,7 +1375,7 @@
                           <% widget_discord_data =
                             Elektrine.Discord.get_user_presence(widget.content) %>
                           <%= if widget_discord_data do %>
-                            <div class="flex items-center space-x-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <div class="flex items-center space-x-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
                               <div class="relative">
                                 <img
                                   src={widget_discord_data.avatar}

@@ -307,7 +307,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
 
   def email_tab(assigns) do
     ~H"""
-    <div class="card glass-card shadow-lg">
+    <div class="card shadow-lg">
       <div class="card-body p-4 sm:p-6">
         <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
           <.icon name="hero-envelope" class="w-5 h-5" /> {gettext("Email Settings")}
@@ -391,9 +391,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
             ><%= Ecto.Changeset.get_field(@changeset, :email_signature) %></textarea>
             <div class="label">
               <span class="text-xs text-base-content/60">
-                {gettext(
-                  "Automatically appended to all outgoing emails with '-- ' separator"
-                )}
+                {gettext("Automatically appended to all outgoing emails with '-- ' separator")}
               </span>
             </div>
           </div>
@@ -410,7 +408,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
     <div
       id="private-mailbox-settings"
       phx-hook="MailboxPrivateStorage"
-      class="card glass-card shadow-lg"
+      class="card shadow-lg"
       data-private-mailbox-configured={to_string(@private_mailbox_configured)}
       data-private-mailbox-enabled={to_string(@private_mailbox_enabled)}
       data-private-mailbox-unlock-mode={@private_mailbox_unlock_mode}
@@ -446,7 +444,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
 
         <%= if @primary_mailbox do %>
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mt-4">
-            <div class="rounded-xl border border-base-300 bg-base-200/40 p-4 space-y-4">
+            <div class="rounded-lg border border-base-300 bg-base-200/40 p-4 space-y-4">
               <%= if @private_mailbox_configured do %>
                 <div>
                   <h4 class="font-semibold text-sm">{gettext("Unlock Mailbox")}</h4>
@@ -492,7 +490,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
                 </div>
 
                 <div
-                  class="hidden rounded-xl border border-success/30 bg-success/10 p-3"
+                  class="hidden rounded-lg border border-success/30 bg-success/10 p-3"
                   data-private-mailbox-unlocked-content
                 >
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -633,13 +631,11 @@ defmodule ElektrineWeb.UserSettingsEmail do
               <% end %>
             </div>
 
-            <div class="rounded-xl border border-base-300 bg-base-200/40 p-4">
+            <div class="rounded-lg border border-base-300 bg-base-200/40 p-4">
               <h4 class="font-semibold text-sm mb-3">{gettext("What is protected")}</h4>
               <ul class="list-disc list-inside space-y-2 text-xs sm:text-sm text-base-content/70">
                 <li>
-                  {gettext(
-                    "Stored message subjects, bodies, and attachments are encrypted at rest."
-                  )}
+                  {gettext("Stored message subjects, bodies, and attachments are encrypted at rest.")}
                 </li>
                 <li>
                   {gettext(
@@ -647,9 +643,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
                   )}
                 </li>
                 <li>
-                  {gettext(
-                    "Search previews stay generic until you unlock the mailbox in this tab."
-                  )}
+                  {gettext("Search previews stay generic until you unlock the mailbox in this tab.")}
                 </li>
                 <li>
                   {gettext(
@@ -670,7 +664,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
       </div>
     </div>
 
-    <div class="card glass-card shadow-lg">
+    <div class="card shadow-lg">
       <div class="card-body p-4 sm:p-6">
         <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
           <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("PGP Encryption")}
@@ -786,9 +780,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
                   {gettext("When you send an email, we check if the recipient has a PGP key")}
                 </li>
                 <li>
-                  {gettext(
-                    "Keys are discovered via WKD (Web Key Directory) or your contacts"
-                  )}
+                  {gettext("Keys are discovered via WKD (Web Key Directory) or your contacts")}
                 </li>
                 <li>
                   {gettext("If a key is found, the email body is encrypted automatically")}
@@ -801,7 +793,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
     </div>
 
     <%= if @loading_email do %>
-      <div class="card glass-card shadow-lg">
+      <div class="card shadow-lg">
         <div class="card-body p-4 sm:p-6">
           <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
             <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Email Subscription Preferences")}
@@ -816,7 +808,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
       </div>
     <% else %>
       <%= if !Enum.empty?(@user_emails) do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
               <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Email Subscription Preferences")}
@@ -869,7 +861,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
           </div>
         </div>
       <% else %>
-        <div class="card glass-card shadow-lg">
+        <div class="card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="alert alert-warning">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />

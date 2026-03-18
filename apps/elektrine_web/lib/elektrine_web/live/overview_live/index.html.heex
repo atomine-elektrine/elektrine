@@ -350,7 +350,7 @@
           <!-- Loading skeleton for feed -->
           <div class="space-y-4 min-h-[60vh]" data-feed-loading-skeleton>
             <%= for _i <- 1..5 do %>
-              <div class="card glass-card shadow-lg animate-pulse">
+              <div class="card shadow-lg animate-pulse">
                 <div class="card-body">
                   <div class="flex items-start gap-3">
                     <div class="w-10 h-10 rounded-full bg-base-300"></div>
@@ -392,7 +392,7 @@
           </div>
 
           <%= if Enum.empty?(posts) do %>
-            <div class="card glass-card shadow-lg">
+            <div class="card shadow-lg">
               <div class="card-body text-center py-12">
                 <%= case @filter do %>
                   <% "my_posts" -> %>
@@ -412,7 +412,7 @@
     <%= if @show_quote_modal && @quote_target_post do %>
       <div class="modal modal-open p-4" phx-click="close_quote_modal">
         <div
-          class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
+          class="modal-box card max-w-xl w-full max-h-[90vh] overflow-y-auto"
           phx-click="stop_propagation"
           phx-window-keydown="close_quote_modal"
           phx-key="Escape"
@@ -484,7 +484,7 @@
 <!-- Right Sidebar - Stats -->
     <div class="hidden lg:block w-72 xl:w-80 flex-shrink-0">
       <!-- Personal Stats -->
-      <div class="card glass-card shadow-lg border border-base-300 mb-4">
+      <div class="card shadow-lg border border-base-300 mb-4">
         <div class="card-body p-4">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
             <.icon name="hero-chart-bar" class="w-5 h-5" /> Your Activity

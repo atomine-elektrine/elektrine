@@ -278,7 +278,8 @@ defmodule Elektrine.Messaging.Federation.Transport do
         true
 
       true ->
-        case get_in(extension, ["conformance", "status"]) || get_in(extension, [:conformance, :status]) do
+        case get_in(extension, ["conformance", "status"]) ||
+               get_in(extension, [:conformance, :status]) do
           nil -> true
           status when status in ["passing", "supported", "compatible"] -> true
           _ -> false

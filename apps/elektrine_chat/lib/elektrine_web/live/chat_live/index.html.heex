@@ -26,13 +26,13 @@
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
   <div id="call-receiver" phx-hook="CallReceiver" class="hidden"></div>
 
-  <div class="flex flex-row gap-0 sm:gap-2 xl:gap-6 h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-12rem)]">
+  <div class="flex flex-row gap-0 sm:gap-4 xl:gap-6 h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-12rem)]">
     <!-- Server Rail -->
-    <div class="hidden md:flex w-16 lg:w-20 flex-shrink-0 card glass-card shadow-lg border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
+    <div class="hidden md:flex w-16 lg:w-20 flex-shrink-0 card shadow-lg border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
       <div class="flex flex-col items-center gap-1">
         <button
           phx-click="show_browse_modal"
-          class="w-12 h-12 rounded-xl bg-base-200 text-base-content border border-base-300 flex items-center justify-center shadow-sm hover:bg-base-300 transition"
+          class="w-12 h-12 rounded-lg bg-base-200 text-base-content border border-base-300 flex items-center justify-center shadow-sm hover:bg-base-300 transition"
           title="Browse servers and groups"
         >
           <.icon name="hero-globe-alt-solid" class="w-6 h-6" />
@@ -44,7 +44,7 @@
       <div class="flex flex-col items-center gap-1">
         <button
           phx-click="show_create_server"
-          class="w-12 h-12 rounded-xl bg-base-200 text-base-content border border-base-300 flex items-center justify-center shadow-sm hover:bg-base-300 transition"
+          class="w-12 h-12 rounded-lg bg-base-200 text-base-content border border-base-300 flex items-center justify-center shadow-sm hover:bg-base-300 transition"
           title="Create a server"
         >
           <.icon name="hero-plus" class="w-6 h-6" />
@@ -64,9 +64,9 @@
           class={[
             "group relative w-12 h-12 flex items-center justify-center text-sm font-semibold overflow-hidden transition-all duration-150",
             if(server_selected,
-              do: "rounded-xl bg-secondary text-secondary-content",
+              do: "rounded-lg bg-secondary text-secondary-content",
               else:
-                "rounded-full bg-base-200 text-base-content hover:bg-secondary hover:text-secondary-content hover:rounded-xl"
+                "rounded-full bg-base-200 text-base-content hover:bg-secondary hover:text-secondary-content hover:rounded-lg"
             )
           ]}
           title={server.name}
@@ -88,9 +88,9 @@
 <!-- Left Sidebar - Conversations List -->
     <div class={[
       if(@conversation.selected, do: "hidden sm:flex", else: "flex"),
-      "w-full sm:w-[320px] sm:min-w-[320px] lg:w-[360px] lg:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-3 h-full max-h-full"
+      "w-full sm:w-[320px] sm:min-w-[320px] lg:w-[360px] lg:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-4 h-full max-h-full"
     ]}>
-      <div class="card glass-card shadow-lg border border-base-300 flex flex-col overflow-hidden">
+      <div class="card shadow-lg border border-base-300 flex flex-col overflow-hidden">
         <!-- Header with Search -->
         <div class="flex-shrink-0 p-3 border-b border-base-300">
           <div class="flex items-center gap-2">
@@ -236,7 +236,7 @@
         </div>
       </div>
 
-      <div class="card glass-card shadow-lg border border-base-300 flex flex-1 min-h-0 flex-col overflow-hidden">
+      <div class="card shadow-lg border border-base-300 flex flex-1 min-h-0 flex-col overflow-hidden">
         <!-- Conversations List -->
         <div class="flex-1 min-h-0 overflow-y-auto overflow-x-visible">
           
@@ -610,7 +610,7 @@
 <!-- Center - Chat Messages -->
     <div class={[
       if(@conversation.selected, do: "flex", else: "hidden sm:flex"),
-      "flex-1 card glass-card shadow-lg border sm:border-l-0 border-base-300 flex-col h-full max-h-full overflow-hidden"
+      "flex-1 card shadow-lg border sm:border-l-0 border-base-300 flex-col h-full max-h-full overflow-hidden"
     ]}>
       <%= if @conversation.selected do %>
         <!-- Chat Header -->
@@ -1611,7 +1611,7 @@
                     <textarea
                       name="message"
                       placeholder="Message... (/help)"
-                      class="flex-1 min-w-0 text-sm px-4 py-2.5 resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors"
+                      class="flex-1 min-w-0 text-sm px-4 py-2.5 resize-none rounded-lg border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors"
                       autocomplete="off"
                       phx-change="update_message"
                       phx-blur="stop_typing"
@@ -2070,7 +2070,7 @@
   <%= if @ui.show_new_chat do %>
     <div class="modal modal-open">
       <div
-        class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+        class="modal-box card p-6 max-w-md w-full mx-4"
         phx-click-away="toggle_new_chat"
       >
         <div class="flex justify-between items-center mb-4">

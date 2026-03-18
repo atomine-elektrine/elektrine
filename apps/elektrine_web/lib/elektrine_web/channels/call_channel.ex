@@ -138,7 +138,13 @@ defmodule ElektrineWeb.CallChannel do
 
           :federated ->
             _ = VoiceCalls.mark_session_ringing(socket.assigns.call_id, socket.assigns.user_id)
-            Federation.publish_dm_call_signal(socket.assigns.call_id, socket.assigns.user_id, "offer", sdp)
+
+            Federation.publish_dm_call_signal(
+              socket.assigns.call_id,
+              socket.assigns.user_id,
+              "offer",
+              sdp
+            )
         end
 
         {:reply, :ok, socket}
@@ -259,9 +265,18 @@ defmodule ElektrineWeb.CallChannel do
           end
 
         :federated ->
-          case VoiceCalls.get_session_for_local_user(socket.assigns.call_id, socket.assigns.user_id) do
+          case VoiceCalls.get_session_for_local_user(
+                 socket.assigns.call_id,
+                 socket.assigns.user_id
+               ) do
             %{status: status} when status in ["initiated", "ringing", "active"] ->
-              _ = VoiceCalls.end_session(socket.assigns.call_id, socket.assigns.user_id, "disconnected")
+              _ =
+                VoiceCalls.end_session(
+                  socket.assigns.call_id,
+                  socket.assigns.user_id,
+                  "disconnected"
+                )
+
               Federation.publish_dm_call_end(socket.assigns.call_id)
 
             _ ->

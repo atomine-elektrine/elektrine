@@ -374,6 +374,7 @@ defmodule Elektrine.Messaging.Federation.Config do
     base_url = value_from(peer, :base_url)
     shared_secret = value_from(peer, :shared_secret)
     keys = normalize_peer_keys(value_from(peer, :keys, []), shared_secret)
+
     compatibility_claims =
       normalize_peer_compatibility_claims(value_from(peer, :compatibility_claims, []))
 

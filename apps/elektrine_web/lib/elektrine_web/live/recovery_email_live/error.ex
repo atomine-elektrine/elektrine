@@ -17,8 +17,7 @@ defmodule ElektrineWeb.RecoveryEmailLive.Error do
     ~H"""
     <div
       id="recovery-error-card"
-      phx-hook="GlassCard"
-      class="card glass-card shadow-xl max-w-md mx-auto"
+      class="card shadow-xl max-w-md mx-auto"
     >
       <div class="card-body text-center">
         <div class="flex justify-center mb-4">

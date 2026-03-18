@@ -28,8 +28,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
     >
       <div
         id="2fa-manage-card"
-        phx-hook="GlassCard"
-        class="card glass-card border border-base-300 shadow-xl"
+        class="card border border-base-300 shadow-xl"
       >
         <div class="card-body">
           <div class="flex items-center gap-4 mb-6">

@@ -58,7 +58,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
               phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
               phx-key="escape"
               phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-              class="modal-box card glass-card relative hidden p-8 sm:p-10 transition"
+              class="modal-box card relative hidden p-8 sm:p-10 transition"
             >
               <div class="absolute top-4 right-4">
                 <button

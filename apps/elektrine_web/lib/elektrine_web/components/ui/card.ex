@@ -42,7 +42,7 @@ defmodule ElektrineWeb.Components.UI.Card do
 
   def card(assigns) do
     ~H"""
-    <div class={["card glass-card shadow-lg border border-base-300", @class]} {@rest}>
+    <div class={["card shadow-lg border border-base-300", @class]} {@rest}>
       <div class="card-body">
         <%= if @title != [] do %>
           <h2 class="card-title text-base-content">{render_slot(@title)}</h2>

@@ -563,6 +563,7 @@ defmodule ElektrineWeb.ActivityPubController do
       user ->
         if user.activitypub_enabled do
           base_url = activitypub_base_url_for_conn(conn)
+
           followers_url =
             ActivityPub.user_collection_uri(requested_identifier, "followers", base_url)
 
@@ -603,6 +604,7 @@ defmodule ElektrineWeb.ActivityPubController do
       user ->
         if user.activitypub_enabled do
           base_url = activitypub_base_url_for_conn(conn)
+
           following_url =
             ActivityPub.user_collection_uri(requested_identifier, "following", base_url)
 

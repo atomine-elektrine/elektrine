@@ -37,8 +37,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
     >
       <div
         id="passkey-manage-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-xl border border-base-300"
+        class="card shadow-xl border border-base-300"
       >
         <div class="card-body">
           <div class="flex items-center justify-between mb-6">

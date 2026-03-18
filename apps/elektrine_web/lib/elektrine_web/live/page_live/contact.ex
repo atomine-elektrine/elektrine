@@ -15,7 +15,7 @@ defmodule ElektrineWeb.PageLive.Contact do
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
         <.z_nav active_tab="" class="mb-6" current_user={@current_user} />
 
-        <div id="contact-card" phx-hook="GlassCard" class="card glass-card shadow-xl">
+        <div id="contact-card" class="card shadow-xl">
           <div class="card-body">
             <h1 class="card-title text-3xl mb-6">Contact</h1>
 

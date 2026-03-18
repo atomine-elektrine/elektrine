@@ -176,7 +176,10 @@ defmodule ElektrineWeb.ListLiveTest do
     author = AccountsFixtures.user_fixture()
 
     list = list_fixture(viewer, members: [author])
-    {:ok, post} = Social.create_timeline_post(author.id, "List unlike target", visibility: "public")
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "List unlike target", visibility: "public")
+
     {:ok, _like} = Social.like_post(viewer.id, post.id)
 
     {:ok, view, html} =

@@ -46,6 +46,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
     test "update_mailbox_email keeps username in sync for cross-domain lookup", %{user: user} do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
       new_email = "renamed@elektrine.com"
+
       alternate_domain =
         Elektrine.Domains.supported_email_domains()
         |> Enum.reject(&(&1 == Elektrine.Domains.primary_email_domain()))
@@ -66,6 +67,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
       renamed_user = %{user | username: "renamed"}
       new_email = "renamed@elektrine.com"
+
       alternate_domain =
         Elektrine.Domains.supported_email_domains()
         |> Enum.reject(&(&1 == Elektrine.Domains.primary_email_domain()))

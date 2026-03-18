@@ -33,8 +33,7 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
     ~H"""
     <div
       id="password-reset-card"
-      phx-hook="GlassCard"
-      class="card glass-card shadow-xl max-w-md mx-auto"
+      class="card shadow-xl max-w-md mx-auto"
     >
       <div class="card-body">
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Reset Password")}</h1>

@@ -63,7 +63,8 @@ defmodule Elektrine.Messaging.Federation.Publisher do
   def publish_dm_call_invite(session_id, context)
       when is_integer(session_id) and is_map(context) do
     if enabled?(context) do
-      with {:ok, event, target_domains} <- call(context, :build_dm_call_invite_event, [session_id]) do
+      with {:ok, event, target_domains} <-
+             call(context, :build_dm_call_invite_event, [session_id]) do
         enqueue_outbox_event(context, event, target_domains)
       end
     end
@@ -74,7 +75,8 @@ defmodule Elektrine.Messaging.Federation.Publisher do
   def publish_dm_call_accept(session_id, context)
       when is_integer(session_id) and is_map(context) do
     if enabled?(context) do
-      with {:ok, event, target_domains} <- call(context, :build_dm_call_accept_event, [session_id]) do
+      with {:ok, event, target_domains} <-
+             call(context, :build_dm_call_accept_event, [session_id]) do
         enqueue_outbox_event(context, event, target_domains)
       end
     end
@@ -85,7 +87,8 @@ defmodule Elektrine.Messaging.Federation.Publisher do
   def publish_dm_call_reject(session_id, context)
       when is_integer(session_id) and is_map(context) do
     if enabled?(context) do
-      with {:ok, event, target_domains} <- call(context, :build_dm_call_reject_event, [session_id]) do
+      with {:ok, event, target_domains} <-
+             call(context, :build_dm_call_reject_event, [session_id]) do
         enqueue_outbox_event(context, event, target_domains)
       end
     end

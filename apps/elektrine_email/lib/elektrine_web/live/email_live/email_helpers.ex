@@ -476,8 +476,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
       <div class="lg:hidden">
         <div
           id={"mobile-email-sidebar-card-#{@mailbox.id}"}
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg rounded-box"
+          class="card shadow-lg rounded-box"
         >
           <div class="card-body p-4 space-y-4">
             <div class="flex items-start justify-between gap-3">
@@ -524,7 +523,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
             </div>
 
             <%= if @storage_info do %>
-              <div class="rounded-xl border border-base-300/60 bg-base-100/60 p-3">
+              <div class="rounded-lg border border-base-300/60 bg-base-100/60 p-3">
                 <div class="flex items-center justify-between gap-2 text-xs mb-2">
                   <span class="font-medium uppercase tracking-wide text-base-content/60">
                     {gettext("Storage")}
@@ -766,8 +765,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
         <!-- Mailbox Info Card -->
         <div
           id={"mailbox-info-card-#{@mailbox.id}"}
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg mb-6 rounded-box"
+          class="card shadow-lg mb-6 rounded-box"
         >
           <div class="card-body p-6">
             <div class="flex-1 min-w-0">
@@ -872,8 +870,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     <!-- Navigation Menu -->
         <div
           id={"nav-menu-card-#{@mailbox.id}"}
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg rounded-box"
+          class="card shadow-lg rounded-box"
         >
           <div class="card-body p-3">
             <ul class="menu menu-lg rounded-box w-full">

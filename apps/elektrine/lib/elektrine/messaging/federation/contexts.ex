@@ -427,7 +427,8 @@ defmodule Elektrine.Messaging.Federation.Contexts do
       resolve_local_dm_recipient: fn recipient_payload ->
         DirectMessageState.resolve_local_dm_recipient(recipient_payload, direct_message_state())
       end,
-      resolve_local_dm_participant: &Elektrine.Messaging.Federation.VoiceCalls.resolve_local_dm_participant/1,
+      resolve_local_dm_participant:
+        &Elektrine.Messaging.Federation.VoiceCalls.resolve_local_dm_participant/1,
       resolve_remote_dm_sender: &DirectMessageState.resolve_remote_dm_sender/2,
       ensure_remote_dm_conversation: &DirectMessageState.ensure_remote_dm_conversation/2,
       upsert_remote_dm_message: fn conversation, message_payload, remote_domain, remote_sender ->
@@ -455,14 +456,10 @@ defmodule Elektrine.Messaging.Federation.Contexts do
         &Elektrine.Messaging.Federation.VoiceCalls.ensure_inbound_session/5,
       reject_inbound_call_invite:
         &Elektrine.Messaging.Federation.VoiceCalls.reject_inbound_invite/6,
-      apply_remote_call_accept:
-        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_accept/5,
-      apply_remote_call_reject:
-        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_reject/6,
-      apply_remote_call_end:
-        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_end/6,
-      apply_remote_call_signal:
-        &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_signal/5
+      apply_remote_call_accept: &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_accept/5,
+      apply_remote_call_reject: &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_reject/6,
+      apply_remote_call_end: &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_end/6,
+      apply_remote_call_signal: &Elektrine.Messaging.Federation.VoiceCalls.apply_remote_signal/5
     }
   end
 

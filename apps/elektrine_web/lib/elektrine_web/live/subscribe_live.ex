@@ -245,7 +245,7 @@ defmodule ElektrineWeb.SubscribeLive do
     assigns = assign(assigns, :one_time_product, Product.one_time?(assigns.product))
 
     ~H"""
-    <div class="card glass-card shadow-lg border border-base-300 max-w-lg mx-auto">
+    <div class="card shadow-lg border border-base-300 max-w-lg mx-auto">
       <div class="card-body text-center">
         <div class="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4">
           <.icon name="hero-check-circle" class="w-8 h-8 text-success" />
@@ -341,7 +341,7 @@ defmodule ElektrineWeb.SubscribeLive do
 
       ~H"""
       <div class="max-w-xl mx-auto">
-        <div class="card glass-card shadow-lg border-2 border-primary">
+        <div class="card shadow-lg border-2 border-primary">
           <div class="card-body">
             <h3 class="text-xl font-semibold text-base-content">One-time Purchase</h3>
             <div class="my-4">
@@ -420,7 +420,7 @@ defmodule ElektrineWeb.SubscribeLive do
 
       ~H"""
       <div class="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-        <div class="card glass-card shadow-lg border border-base-300 hover:border-secondary/50 transition-colors">
+        <div class="card shadow-lg border border-base-300 hover:border-secondary/50 transition-colors">
           <div class="card-body">
             <h3 class="text-xl font-semibold text-base-content">Monthly</h3>
             <div class="my-4">
@@ -464,7 +464,7 @@ defmodule ElektrineWeb.SubscribeLive do
           </div>
         </div>
 
-        <div class="card glass-card shadow-lg border-2 border-secondary relative">
+        <div class="card shadow-lg border-2 border-secondary relative">
           <%= if @savings_percent && @savings_percent > 0 do %>
             <div class="absolute -top-3 left-1/2 -translate-x-1/2">
               <span class="badge badge-secondary">Save {@savings_percent}%</span>

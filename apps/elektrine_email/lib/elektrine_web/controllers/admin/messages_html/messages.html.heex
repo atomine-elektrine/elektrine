@@ -1,4 +1,4 @@
-<div class="admin-page overflow-x-hidden">
+<div class="flex flex-col gap-4 overflow-x-hidden">
   <% search_active = @search_query != "" %>
   <% status_filter = assigns[:status_filter] || "received" %>
   <% show_domain_stats = assigns[:show_domain_stats] || false %>
@@ -19,7 +19,7 @@
   <% received_tab_params = base_params |> Map.put("status", "received") |> Map.put("page", 1) %>
   <% sent_tab_params = base_params |> Map.put("status", "sent") |> Map.put("page", 1) %>
 
-  <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold sm:text-3xl">Message Console</h1>
       <p class="mt-1 text-sm opacity-70 sm:text-base">
@@ -31,7 +31,7 @@
     </div>
   </div>
 
-  <div class="mb-6">
+  <div class="mb-4">
     <div class="join">
       <.link
         href={~p"/pripyat/messages?#{received_tab_params}"}
@@ -56,30 +56,30 @@
     </div>
   </div>
 
-  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+  <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{page_results_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Received</div>
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">
         {length(received_messages)}
       </div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Sent</div>
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">
         {length(sent_messages)}
       </div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Total Matches</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{@total_count}</div>
     </div>
   </div>
 
-  <div class="card glass-card mb-6 shadow-xl">
+  <div class="card mb-4 shadow-sm">
     <div class="card-body">
       <form
         method="get"
@@ -126,7 +126,7 @@
     </div>
   </div>
 
-  <div class="card glass-card mb-6 shadow-xl">
+  <div class="card mb-4 shadow-sm">
     <div class="card-body">
       <div class="mb-4 flex items-start justify-between gap-3">
         <div>
@@ -187,7 +187,7 @@
   </div>
 
   <%= if length(received_messages) > 0 do %>
-    <div class="card glass-card mb-6 shadow-xl">
+    <div class="card mb-4 shadow-sm">
       <div class="card-body p-4 sm:p-5">
         <h3 class="card-title mb-3 text-base sm:text-lg">
           <.icon name="hero-arrow-down-tray" class="mr-2 h-5 w-5" />
@@ -347,7 +347,7 @@
   <% end %>
 
   <%= if length(sent_messages) > 0 do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card shadow-sm">
       <div class="card-body p-4 sm:p-5">
         <h3 class="card-title mb-3 text-base sm:text-lg">
           <.icon name="hero-arrow-up-tray" class="mr-2 h-5 w-5" />
@@ -507,8 +507,8 @@
   <% end %>
 
   <%= if page_results_count == 0 do %>
-    <div class="card glass-card mt-6 shadow-xl">
-      <div class="card-body py-10 text-center">
+    <div class="card mt-4 shadow-sm">
+      <div class="card-body py-8 text-center">
         <.icon name="hero-inbox" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
         <h3 class="text-lg font-medium">No messages found</h3>
         <p class="mt-2 text-sm opacity-70">

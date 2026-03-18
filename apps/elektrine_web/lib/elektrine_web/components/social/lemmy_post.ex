@@ -134,7 +134,7 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
     ~H"""
     <article
       id={@unique_id}
-      class="card glass-card border border-base-300 rounded-lg overflow-hidden hover:shadow-md transition-all relative z-0"
+      class="card border border-base-300 rounded-lg overflow-hidden hover:shadow-md transition-all relative z-0"
       data-post-id={@post.id}
       data-source={@source}
       phx-hook="PostClick"

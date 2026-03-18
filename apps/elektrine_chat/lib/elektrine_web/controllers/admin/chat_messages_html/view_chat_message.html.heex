@@ -1,4 +1,4 @@
-<div class="admin-page">
+<div class="flex flex-col gap-4">
   <div class="mb-6 flex justify-between items-start">
     <div>
       <h1 class="text-2xl font-bold">Arblarg Chat Message</h1>
@@ -20,7 +20,7 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl mb-6">
+  <div class="card shadow-xl mb-6">
     <div class="card-body">
       <h2 class="text-lg font-semibold mb-4">Message Info</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -82,7 +82,7 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl mb-6">
+  <div class="card shadow-xl mb-6">
     <div class="card-body">
       <h2 class="text-lg font-semibold mb-4">Content</h2>
       <%= if @message.content && String.trim(@message.content) != "" do %>
@@ -97,7 +97,7 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card shadow-xl">
     <div class="card-body">
       <h2 class="text-lg font-semibold mb-4">Media & Metadata</h2>
 

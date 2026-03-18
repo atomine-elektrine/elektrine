@@ -692,7 +692,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 </div>
               </div>
               <article class={[
-                "flex-1 rounded-xl border border-base-300 border-l-4 bg-base-200/50 p-3",
+                "flex-1 rounded-lg border border-base-300 border-l-4 bg-base-200/50 p-3",
                 color.border
               ]}>
                 <div class="flex items-start gap-2 min-w-0">

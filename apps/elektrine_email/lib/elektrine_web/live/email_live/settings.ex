@@ -951,8 +951,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
         <div class="flex-1 min-w-0">
           <div
             id="email-settings-card"
-            phx-hook="GlassCard"
-            class="card glass-card shadow-lg rounded-box"
+            class="card shadow-lg rounded-box"
           >
             <div class="card-body p-3 sm:p-6">
               <!-- Header -->
@@ -1644,7 +1643,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
 
       <form
         phx-submit="create_custom_domain"
-        class="mb-8 overflow-hidden rounded-2xl border border-base-content/10 bg-base-100 shadow-sm"
+        class="mb-8 overflow-hidden rounded-lg border border-base-content/10 bg-base-100 shadow-sm"
       >
         <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
@@ -1680,7 +1679,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
 
         <%= if Enum.empty?(@custom_domains) do %>
           <div class="px-5 py-10 sm:px-6">
-            <div class="rounded-2xl border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
+            <div class="rounded-lg border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
               <div class="text-sm font-medium text-base-content/75">No custom domains added yet</div>
               <div class="mt-1 text-xs text-base-content/50">
                 Add one above to generate the DNS records and verification target.
@@ -1730,12 +1729,12 @@ defmodule ElektrineWeb.EmailLive.Settings do
                     </div>
 
                     <%= if custom_domain.last_error && String.trim(custom_domain.last_error) != "" do %>
-                      <div class="mt-3 rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
+                      <div class="mt-3 rounded-lg border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
                         {custom_domain.last_error}
                       </div>
                     <% end %>
 
-                    <div class="mt-4 overflow-hidden rounded-2xl border border-base-content/10">
+                    <div class="mt-4 overflow-hidden rounded-lg border border-base-content/10">
                       <div class="border-b border-base-content/10 bg-base-200/35 px-4 py-3">
                         <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                           DNS Records
@@ -2019,7 +2018,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           </div>
         <% end %>
         <%= if Enum.empty?(@aliases) do %>
-          <div class="text-center py-12 bg-base-200/30 rounded-xl border border-dashed border-base-content/20">
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
             <.icon name="hero-at-symbol" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
             <p class="text-base-content/50">No aliases created yet</p>
             <p class="text-sm text-base-content/40 mt-1">Create your first alias above</p>

@@ -1,4 +1,4 @@
-<div class="admin-page">
+<div class="flex flex-col gap-4">
   <% search_active = @search_query != "" %>
   <% page_results_count = length(@forwarded_messages) %>
   <% total_hops_on_page =
@@ -15,7 +15,7 @@
         length(message.forwarding_chain["hops"]) > 0
     end) %>
 
-  <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold sm:text-3xl">Forwarded Messages</h1>
       <p class="mt-1 text-sm opacity-70 sm:text-base">
@@ -27,26 +27,26 @@
     </div>
   </div>
 
-  <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+  <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{page_results_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Total Matches</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{@total_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Avg Hops</div>
       <div class="mt-1 text-xl font-semibold text-primary sm:text-2xl">{average_hops}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Path Details</div>
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{chain_detail_count}</div>
     </div>
   </div>
 
-  <div class="card glass-card mb-6 shadow-xl">
+  <div class="card mb-4 shadow-sm">
     <div class="card-body">
       <form
         method="get"
@@ -90,7 +90,7 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card shadow-sm">
     <div class="card-body p-3 sm:p-6">
       <%= if @total_count > 0 do %>
         <div class="mb-4 flex items-start justify-between gap-3">
@@ -111,7 +111,7 @@
                 is_list(message.forwarding_chain["hops"]) &&
                 length(message.forwarding_chain["hops"]) > 0 %>
 
-            <article class="rounded-xl border border-base-300 bg-base-200/60 p-4 shadow-sm">
+            <article class="rounded-lg border border-base-300 bg-base-200/60 p-4 shadow-sm">
               <div class="mb-3 flex items-start justify-between gap-3">
                 <div class="min-w-0 flex-1">
                   <div class="text-xs uppercase tracking-wide opacity-60">From</div>

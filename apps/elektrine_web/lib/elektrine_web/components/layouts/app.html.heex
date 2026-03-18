@@ -30,7 +30,7 @@
         </div>
         <ul
           tabindex="0"
-          class="menu dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-xl w-52 border border-base-300/50"
+          class="menu dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-lg w-52 border border-base-300/50"
         >
           <%= if @current_user do %>
             <li>
@@ -105,7 +105,7 @@
           </div>
           <div
             tabindex="0"
-            class="dropdown-content z-[100] mt-3 w-80 rounded-2xl border border-base-300/70 bg-base-100/95 p-2 shadow-xl backdrop-blur-sm"
+            class="dropdown-content z-[100] mt-3 w-80 rounded-lg border border-base-300/70 bg-base-100/95 p-2 shadow-xl backdrop-blur-sm"
           >
             <div class="px-3 py-2">
               <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/50">
@@ -119,7 +119,7 @@
               <%= for item <- global_composer_items() do %>
                 <a
                   href={item.href}
-                  class="flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-base-200/80"
+                  class="flex items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-base-200/80"
                 >
                   <div class="mt-0.5 rounded-lg border border-base-300 bg-base-200 p-2">
                     <.icon name={item.icon} class="h-4 w-4" />

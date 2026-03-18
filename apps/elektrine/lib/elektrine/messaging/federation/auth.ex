@@ -252,7 +252,8 @@ defmodule Elektrine.Messaging.Federation.Auth do
     end
   end
 
-  def outbound_signing_material(_peer, context), do: call(context, :local_event_signing_material, [])
+  def outbound_signing_material(_peer, context),
+    do: call(context, :local_event_signing_material, [])
 
   defp verify_signature_with_peer(
          peer,
@@ -366,7 +367,8 @@ defmodule Elektrine.Messaging.Federation.Auth do
     end
   end
 
-  defp canonical_content_digest(content_digest), do: canonical_content_digest(to_string(content_digest))
+  defp canonical_content_digest(content_digest),
+    do: canonical_content_digest(to_string(content_digest))
 
   defp normalize_optional_string(value) when is_binary(value) do
     case String.trim(value) do

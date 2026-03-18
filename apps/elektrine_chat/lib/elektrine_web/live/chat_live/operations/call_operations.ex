@@ -203,7 +203,8 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
        when is_integer(conversation_id) do
     caller_id = socket.assigns.current_user.id
 
-    with {:ok, session} <- VoiceCalls.start_outbound_session(caller_id, conversation_id, call_type),
+    with {:ok, session} <-
+           VoiceCalls.start_outbound_session(caller_id, conversation_id, call_type),
          :ok <- Federation.publish_dm_call_invite(session.id) do
       full_call = VoiceCalls.ui_call(session)
       transport = call_transport(full_call.id, socket)
@@ -269,6 +270,7 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
             full_call =
               socket.assigns.call.incoming_call || socket.assigns.call.active_call ||
                 Calls.get_call_with_users(call.id)
+
             transport = call_transport(call_id, socket)
 
             {:noreply,
@@ -335,10 +337,17 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
     incoming_call = socket.assigns.call.incoming_call
 
     cond do
-      is_map(active_call) and active_call.id == call_id -> active_call[:source] || :local
-      is_map(incoming_call) and incoming_call.id == call_id -> incoming_call[:source] || :local
-      match?(%{source: :federated}, active_call) or match?(%{source: :federated}, incoming_call) -> :federated
-      true -> :local
+      is_map(active_call) and active_call.id == call_id ->
+        active_call[:source] || :local
+
+      is_map(incoming_call) and incoming_call.id == call_id ->
+        incoming_call[:source] || :local
+
+      match?(%{source: :federated}, active_call) or match?(%{source: :federated}, incoming_call) ->
+        :federated
+
+      true ->
+        :local
     end
   end
 

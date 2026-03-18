@@ -486,7 +486,7 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp group_card_class(group) do
     [
-      "rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm transition-colors",
+      "rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm transition-colors",
       if(group.unread_count > 0,
         do: "border-l-4 border-l-primary hover:bg-base-200/40",
         else: "hover:bg-base-200/20"

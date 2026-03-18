@@ -1,4 +1,4 @@
-<div class="admin-page">
+<div class="flex flex-col gap-4">
   <div class="mb-6">
     <h1 class="text-2xl font-bold">Community Management</h1>
     <p class="text-base-content/70">Manage discussion communities and their members</p>
@@ -40,7 +40,7 @@
   </div>
   
 <!-- Search and Filters -->
-  <div class="card glass-card shadow-xl mb-6">
+  <div class="card shadow-xl mb-6">
     <div class="card-body">
       <form method="get" action={~p"/pripyat/communities"} class="space-y-4">
         <!-- Search Box -->
@@ -132,7 +132,7 @@
   
 <!-- Communities Table -->
   <%= if Enum.empty?(@communities) do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card shadow-xl">
       <div class="card-body text-center py-12">
         <.icon name="hero-magnifying-glass" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
         <h3 class="text-lg font-semibold">No Communities Found</h3>
@@ -146,7 +146,7 @@
       </div>
     </div>
   <% else %>
-    <div class="card glass-card shadow-xl">
+    <div class="card shadow-xl">
       <div class="card-body p-3 sm:p-6">
         <div class="overflow-x-auto">
           <table class="table table-zebra">
