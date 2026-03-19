@@ -345,7 +345,14 @@
       </div>
       
 <!-- Unified Feed -->
-      <div class="space-y-4">
+      <div
+        class="space-y-4"
+        phx-hook="InfiniteScroll"
+        id="overview-infinite-scroll"
+        data-offset="500"
+        data-no-more={@no_more_posts}
+        data-loading-more={@loading_more}
+      >
         <%= if @loading_feed do %>
           <!-- Loading skeleton for feed -->
           <div class="space-y-4 min-h-[60vh]" data-feed-loading-skeleton>
@@ -369,9 +376,9 @@
             <% end %>
           </div>
         <% else %>
-          <div id="overview-posts-stream" phx-update="stream" class="space-y-4">
-            <%= for {stream_id, post} <- @streams.overview_posts do %>
-              <div id={stream_id} class="timeline-post-entry-stable">
+          <div id="overview-posts-list" class="space-y-4">
+            <%= for post <- @visible_overview_posts do %>
+              <div id={"overview-post-#{post.id}"} class="timeline-post-entry-stable">
                 <.live_component
                   module={ElektrineWeb.Components.Social.OverviewStreamPost}
                   id={"overview-stream-post-#{post.id}"}
@@ -389,6 +396,25 @@
                 />
               </div>
             <% end %>
+          </div>
+
+          <div
+            :if={!@no_more_posts}
+            class="flex justify-center py-2"
+            data-infinite-scroll-sentinel
+          >
+            <button
+              type="button"
+              phx-click="load-more"
+              class="btn btn-ghost btn-sm"
+              disabled={@loading_more}
+            >
+              <%= if @loading_more do %>
+                <.spinner size="sm" class="mr-2" /> Loading more
+              <% else %>
+                Load more
+              <% end %>
+            </button>
           </div>
 
           <%= if Enum.empty?(posts) do %>

@@ -24,6 +24,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @session_rerank_delay_ms 1200
   @session_interest_dwell_ms 10_000
   @overview_feed_limit 20
+  @overview_feed_step 20
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -70,6 +71,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:dashboard, default_dashboard())
        |> assign(:dashboard_last_refreshed_at, nil)
        |> assign(:data_loaded, false)
+       |> assign(:visible_post_limit, @overview_feed_limit)
+       |> assign(:visible_overview_posts, [])
+       |> assign(:loading_more, false)
+       |> assign(:no_more_posts, false)
        |> assign(:session_context, default_session_context())
        |> assign(:feed_rerank_ref, nil)
        |> assign(:show_image_modal, false)
@@ -79,8 +84,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:modal_post, nil)
        |> assign(:show_quote_modal, false)
        |> assign(:quote_target_post, nil)
-       |> assign(:quote_content, "")
-       |> stream(:overview_posts, [], reset: true)}
+       |> assign(:quote_content, "")}
     else
       {:ok,
        socket
@@ -125,6 +129,23 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     {:noreply,
      push_patch(socket, to: ~p"/overview?#{[filter: socket.assigns.filter, attention: filter]}")}
+  end
+
+  def handle_event("load-more", _params, socket) do
+    if socket.assigns.loading_feed or socket.assigns.loading_more or socket.assigns.no_more_posts do
+      {:noreply, socket}
+    else
+      next_limit = socket.assigns.visible_post_limit + @overview_feed_step
+
+      {:noreply,
+       socket
+       |> assign(:loading_more, true)
+       |> assign(:visible_post_limit, next_limit)
+       |> then(fn updated_socket ->
+         send(self(), {:load_more_feed, next_limit})
+         updated_socket
+       end)}
+    end
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
@@ -889,7 +910,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
           socket
           |> note_view_signal(post_id, params["dwell_time_ms"])
           |> maybe_note_dwell_interest(post_id, params["dwell_time_ms"])
-          |> schedule_feed_rerank()
         else
           socket
         end
@@ -925,7 +945,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
             acc
           end
         end)
-        |> schedule_feed_rerank()
       else
         socket
       end
@@ -947,7 +966,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
           socket
           |> note_dismissal_signal(post_id)
-          |> schedule_feed_rerank()
         else
           socket
         end
@@ -996,7 +1014,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           )
     }
 
-    {:noreply, socket |> assign(:session_context, session_context) |> schedule_feed_rerank()}
+    {:noreply, assign(socket, :session_context, session_context)}
   end
 
   def handle_event("", _params, socket) do
@@ -1141,65 +1159,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   def handle_info(:load_feed_data, socket) do
-    user = socket.assigns.current_user
-    session_context = socket.assigns[:session_context] || %{}
+    {:noreply, load_feed_data(socket, socket.assigns.visible_post_limit)}
+  end
 
-    personalized_result =
-      load_with_timeout(
-        :for_you_feed,
-        fn ->
-          Integrations.overview_for_you_feed(
-            user.id,
-            limit: @overview_feed_limit,
-            session_context: session_context
-          )
-          |> build_feed_state(user.id)
-        end,
-        @feed_load_timeout_ms
-      )
-
-    case personalized_result do
-      {:ok, feed_data} ->
-        {:noreply, assign_feed_data(socket, feed_data)}
-
-      {:error, _reason} ->
-        fallback_result =
-          load_with_timeout(
-            :public_feed_fallback,
-            fn ->
-              Integrations.overview_public_timeline(
-                user_id: user.id,
-                limit: @overview_feed_limit
-              )
-              |> build_feed_state(user.id)
-            end,
-            5000
-          )
-
-        case fallback_result do
-          {:ok, feed_data} ->
-            {:noreply,
-             socket
-             |> assign_feed_data(feed_data)
-             |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")}
-
-          {:error, _fallback_reason} ->
-            {:noreply,
-             socket
-             |> assign(:all_posts, [])
-             |> assign(:filtered_all_posts, [])
-             |> assign(:user_likes, %{})
-             |> assign(:user_boosts, %{})
-             |> assign(:user_saves, %{})
-             |> assign(:user_follows, %{})
-             |> assign(:pending_follows, %{})
-             |> assign(:post_reactions, %{})
-             |> assign(:loading_feed, false)
-             |> assign(:data_loaded, true)
-             |> stream(:overview_posts, [], reset: true)
-             |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")}
-        end
-    end
+  def handle_info({:load_more_feed, limit}, socket) do
+    {:noreply, load_feed_data(socket, limit)}
   end
 
   def handle_info(:refresh_feed_ranking, socket) do
@@ -1214,7 +1178,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
              fn ->
                Integrations.overview_for_you_feed(
                  socket.assigns.current_user.id,
-                 limit: @overview_feed_limit,
+                 limit: socket.assigns.visible_post_limit,
                  session_context: socket.assigns[:session_context] || %{}
                )
                |> build_feed_state(socket.assigns.current_user.id)
@@ -2181,7 +2145,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp assign_feed_data(socket, feed_data) do
     socket
-    |> assign(:all_posts, cap_overview_posts(feed_data.all_posts))
+    |> assign(:all_posts, feed_data.all_posts || [])
     |> assign(:user_likes, feed_data.user_likes)
     |> assign(:user_boosts, feed_data.user_boosts)
     |> assign(:user_saves, feed_data.user_saves)
@@ -2194,10 +2158,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp assign_overview_posts_for_current_filter(socket) do
-    base_posts =
-      socket.assigns.filter
-      |> base_posts_for_filter(socket.assigns)
-      |> cap_overview_posts()
+    base_posts = socket.assigns.filter |> base_posts_for_filter(socket.assigns)
 
     socket
     |> assign(:filtered_all_posts, base_posts)
@@ -2205,12 +2166,79 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp sync_overview_posts_stream(socket) do
-    visible_posts =
+    filtered_posts_for_view =
       socket.assigns.filtered_all_posts
       |> filtered_posts(socket.assigns.filter, socket.assigns)
-      |> cap_overview_posts()
 
-    stream(socket, :overview_posts, visible_posts, reset: true)
+    visible_posts = Enum.take(filtered_posts_for_view, socket.assigns.visible_post_limit)
+    no_more_posts = length(filtered_posts_for_view) < socket.assigns.visible_post_limit
+
+    socket
+    |> assign(:visible_overview_posts, visible_posts)
+    |> assign(:loading_more, false)
+    |> assign(:no_more_posts, no_more_posts)
+  end
+
+  defp load_feed_data(socket, limit) do
+    user = socket.assigns.current_user
+    session_context = socket.assigns[:session_context] || %{}
+
+    personalized_result =
+      load_with_timeout(
+        :for_you_feed,
+        fn ->
+          Integrations.overview_for_you_feed(
+            user.id,
+            limit: limit,
+            session_context: session_context
+          )
+          |> build_feed_state(user.id)
+        end,
+        @feed_load_timeout_ms
+      )
+
+    case personalized_result do
+      {:ok, feed_data} ->
+        assign_feed_data(socket, feed_data)
+
+      {:error, _reason} ->
+        fallback_result =
+          load_with_timeout(
+            :public_feed_fallback,
+            fn ->
+              Integrations.overview_public_timeline(
+                user_id: user.id,
+                limit: limit
+              )
+              |> build_feed_state(user.id)
+            end,
+            5000
+          )
+
+        case fallback_result do
+          {:ok, feed_data} ->
+            socket
+            |> assign_feed_data(feed_data)
+            |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")
+
+          {:error, _fallback_reason} ->
+            socket
+            |> assign(:all_posts, [])
+            |> assign(:filtered_all_posts, [])
+            |> assign(:visible_overview_posts, [])
+            |> assign(:user_likes, %{})
+            |> assign(:user_boosts, %{})
+            |> assign(:user_saves, %{})
+            |> assign(:user_follows, %{})
+            |> assign(:pending_follows, %{})
+            |> assign(:post_reactions, %{})
+            |> assign(:loading_feed, false)
+            |> assign(:loading_more, false)
+            |> assign(:no_more_posts, true)
+            |> assign(:data_loaded, true)
+            |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")
+        end
+    end
   end
 
   defp cap_overview_posts(posts) when is_list(posts) do
