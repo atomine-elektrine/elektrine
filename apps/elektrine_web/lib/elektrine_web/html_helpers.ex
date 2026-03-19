@@ -564,7 +564,9 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   def render_remote_post_content(content, instance_domain) when is_binary(content) do
     content
+    |> normalize_remote_post_markup()
     |> HtmlSanitizeEx.Scrubber.scrub(ElektrineWeb.Scrubbers.RemoteContent)
+    |> render_markdown_images()
     |> strip_mastodon_link_spans()
     |> rewrite_hashtag_links_to_local()
     |> rewrite_mention_links_to_local(instance_domain)
@@ -578,6 +580,37 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   def render_remote_post_content(_, _instance_domain) do
     ""
+  end
+
+  defp normalize_remote_post_markup(content) when is_binary(content) do
+    cond do
+      String.trim(content) == "" ->
+        ""
+
+      looks_like_html?(content) ->
+        content
+
+      likely_markdown?(content) ->
+        Earmark.as_html!(content)
+
+      true ->
+        content
+    end
+  rescue
+    _ -> content
+  end
+
+  defp normalize_remote_post_markup(content), do: content
+
+  defp looks_like_html?(content) when is_binary(content) do
+    Regex.match?(~r/<\/?[a-z][^>]*>/i, content)
+  end
+
+  defp likely_markdown?(content) when is_binary(content) do
+    Regex.match?(
+      ~r/!\[[^\]]*\]\([^\)]+\)|\[[^\]]+\]\([^\)]+\)|^\s{0,3}>\s|^\s{0,3}(?:[-*+] |\d+\. )|`[^`]+`|\*\*[^*]+\*\*/m,
+      content
+    )
   end
 
   defp add_paragraph_spacing(html) when is_binary(html) do

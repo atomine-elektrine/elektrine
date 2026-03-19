@@ -15,7 +15,7 @@ defmodule ElektrineWeb.ChatLive.Index do
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Components.Social.ContentJourney
   import ElektrineWeb.Components.Chat.Call
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.Live.NotificationHelpers
   import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1, render_custom_emojis: 1]
@@ -1290,7 +1290,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_server_modal do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card p-6 max-w-md w-full mx-4"
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
           phx-click-away="hide_create_server"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1334,11 +1334,11 @@ defmodule ElektrineWeb.ChatLive.Index do
               <div class="flex items-center gap-3">
                 <%= if @uploads.server_icon_upload.entries != [] do %>
                   <% entry = List.first(@uploads.server_icon_upload.entries) %>
-                  <div class="w-14 h-14 rounded-lg overflow-hidden bg-base-200 border border-base-300">
+                  <div class="w-14 h-14 rounded-xl overflow-hidden bg-base-200 border border-base-300">
                     <.live_img_preview entry={entry} class="w-full h-full object-cover" />
                   </div>
                 <% else %>
-                  <div class="w-14 h-14 rounded-lg bg-base-200 border border-dashed border-base-300 flex items-center justify-center">
+                  <div class="w-14 h-14 rounded-xl bg-base-200 border border-dashed border-base-300 flex items-center justify-center">
                     <.icon name="hero-photo" class="w-6 h-6 text-base-content/60" />
                   </div>
                 <% end %>
@@ -1406,7 +1406,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_settings_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card p-6 max-w-md w-full mx-4"
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
           phx-click-away="hide_settings"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1533,7 +1533,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_edit_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card p-6 max-w-md w-full mx-4"
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
           phx-click-away="hide_edit_conversation"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1656,7 +1656,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_add_members_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card p-6 max-w-md w-full mx-4"
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
           phx-click-away="hide_add_members"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1783,7 +1783,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_message_search_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card p-6 max-w-lg w-full mx-4"
+          class="modal-box card glass-card p-6 max-w-lg w-full mx-4"
           phx-click-away="hide_message_search"
         >
           <div class="flex justify-between items-center mb-6">
@@ -2029,7 +2029,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_profile_modal && @profile_user do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card p-6 max-w-md w-full mx-4"
+          class="modal-box card glass-card p-6 max-w-md w-full mx-4"
           phx-click-away="hide_profile_modal"
         >
           <div class="flex justify-between items-center mb-6">
@@ -2139,7 +2139,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_browse_modal do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card w-[95vw] max-w-6xl mx-4 max-h-[85vh] overflow-hidden"
+          class="modal-box card glass-card w-[95vw] max-w-6xl mx-4 max-h-[85vh] overflow-hidden"
           phx-click-away="hide_browse_modal"
         >
           <div class="flex items-center justify-between p-4 border-b border-base-300">
@@ -2292,7 +2292,7 @@ defmodule ElektrineWeb.ChatLive.Index do
         phx-click="hide_member_management"
       >
         <div
-          class="card bg-base-100 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+          class="card glass-card bg-base-100 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
           phx-click="ignore"
         >
           <div class="p-6 border-b border-base-300">
@@ -2411,7 +2411,7 @@ defmodule ElektrineWeb.ChatLive.Index do
         phx-click="hide_moderation_log"
       >
         <div
-          class="card bg-base-100 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
+          class="card glass-card bg-base-100 rounded-xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
           phx-click="ignore"
         >
           <div class="p-6 border-b border-base-300">
@@ -3143,10 +3143,7 @@ defmodule ElektrineWeb.ChatLive.Index do
         {:federated, federated}
 
       {%{} = local, %{} = federated} ->
-        if DateTime.compare(naive_or_utc(local.updated_at), naive_or_utc(federated.updated_at)) in [
-             :gt,
-             :eq
-           ] do
+        if DateTime.compare(naive_or_utc(local.updated_at), naive_or_utc(federated.updated_at)) in [:gt, :eq] do
           {:local, local}
         else
           {:federated, federated}

@@ -187,7 +187,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col gap-4">
+    <div class="admin-page">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-secondary/80">
@@ -224,7 +224,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       
     <!-- Stats -->
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div class="card shadow">
+        <div class="card glass-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-signal" class="w-4 h-4 text-primary opacity-70" />
@@ -233,7 +233,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             <div class="text-xl font-bold">{@stats.total}</div>
           </div>
         </div>
-        <div class="card shadow">
+        <div class="card glass-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-check-circle" class="w-4 h-4 text-success opacity-70" />
@@ -242,7 +242,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             <div class="text-xl font-bold text-success">{@stats.active}</div>
           </div>
         </div>
-        <div class="card shadow">
+        <div class="card glass-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-clock" class="w-4 h-4 text-warning opacity-70" />
@@ -263,7 +263,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             </div>
           </div>
         </div>
-        <div class="card shadow">
+        <div class="card glass-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-error opacity-70" />
@@ -288,7 +288,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Subscriptions Table -->
-      <div class="card">
+      <div class="card glass-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-signal" class="w-5 h-5" /> Relay Subscriptions
@@ -423,7 +423,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Popular Relays -->
-      <div class="card">
+      <div class="card glass-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-2">
             <.icon name="hero-star" class="w-5 h-5" /> Popular Relays

@@ -6,7 +6,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
   import ElektrineWeb.Components.Social.PostActions
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.Live.NotificationHelpers
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.HtmlHelpers
 

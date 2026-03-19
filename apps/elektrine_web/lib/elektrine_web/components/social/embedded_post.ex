@@ -48,7 +48,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
       phx-value-url={if @is_federated_link, do: @shared_message.activitypub_url, else: @post_url}
       phx-capture-click="stop_event"
       class={[
-        "card border transition-colors cursor-pointer",
+        "card glass-card border transition-colors cursor-pointer",
         if(@is_federated_link,
           do: "border-purple-300 hover:border-purple-500",
           else: "border-base-300 hover:border-primary/50"

@@ -28,30 +28,59 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   end
 
   describe "static site serving" do
-    test "serves index.html for profile root", %{
-      conn: conn,
-      user: user,
-      html_content: html_content
-    } do
-      conn = get(conn, "/#{user.handle}")
+    test "redirects app-host profile roots to username subdomains", %{user: user} do
+      conn =
+        Plug.Test.conn(:get, "/#{user.handle}")
+        |> Map.put(:host, "example.com")
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
 
-      assert conn.status == 200
-      assert conn.resp_body == html_content
-      assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
-      [csp] = get_resp_header(conn, "content-security-policy")
-      assert csp =~ "script-src *"
-      assert csp =~ "'unsafe-inline'"
+      assert conn.status == 302
+      assert get_resp_header(conn, "location") == ["https://#{user.handle}.example.com/"]
     end
 
-    test "serves static assets", %{user: user, css_content: css_content} do
-      # Test the plug directly to avoid process isolation issues
+    test "serves index.html on username subdomains", %{user: user, html_content: html_content} do
       conn =
-        Plug.Test.conn(:get, "/#{user.handle}/style.css")
+        Plug.Test.conn(:get, "/")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
         |> ElektrineWeb.Plugs.StaticSitePlug.call([])
 
       assert conn.status == 200
-      assert conn.resp_body == css_content
-      assert {"content-type", "text/css; charset=utf-8"} in conn.resp_headers
+      assert conn.resp_body == html_content
+      assert {"content-type", "text/html; charset=utf-8"} in conn.resp_headers
+      [csp] = get_resp_header(conn, "content-security-policy")
+      assert csp =~ "script-src 'self' https: http: 'unsafe-inline'"
+      refute csp =~ "unsafe-eval"
+      assert csp =~ "object-src 'none'"
+      assert csp =~ "frame-ancestors 'none'"
+      assert get_resp_header(conn, "x-frame-options") == ["DENY"]
+      assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+    end
+
+    test "serves svg assets with restrictive svg csp", %{user: user} do
+      svg = ~s(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>)
+
+      {:ok, _} = StaticSites.upload_file(user, "icon.svg", svg, "image/svg+xml")
+
+      conn =
+        Plug.Test.conn(:get, "/icon.svg")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body == svg
+      [csp] = get_resp_header(conn, "content-security-policy")
+      assert csp =~ "sandbox"
+      assert get_resp_header(conn, "x-frame-options") == ["DENY"]
+    end
+
+    test "redirects app-host static assets to username subdomains", %{user: user} do
+      conn =
+        Plug.Test.conn(:get, "/#{user.handle}/style.css")
+        |> Map.put(:host, "example.com")
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 302
+      assert get_resp_header(conn, "location") == ["https://#{user.handle}.example.com/style.css"]
     end
 
     test "serves static assets on subdomains when subdomain_handle is assigned", %{
@@ -145,12 +174,14 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert conn.status == nil
     end
 
-    test "returns 404 for non-existent assets", %{conn: conn, user: user} do
-      conn = get(conn, "/#{user.handle}/nonexistent.js")
+    test "falls through for unknown app-host asset paths", %{user: user} do
+      conn =
+        Plug.Test.conn(:get, "/#{user.handle}/nonexistent.js")
+        |> Map.put(:host, "example.com")
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
 
-      # Should fall through to normal routing (404)
-      # May hit LiveView fallback
-      assert conn.status in [404, 200]
+      refute conn.halted
+      assert conn.status == nil
     end
 
     test "blocks path traversal attempts", %{conn: conn, user: user} do

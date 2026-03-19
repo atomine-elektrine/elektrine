@@ -129,6 +129,46 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
     refute html =~ "Continue 1 nested reply on origin thread"
   end
 
+  test "renders markdown embeds inside remote comment content" do
+    comments = [
+      %{
+        reply: %{
+          "id" => "https://lemmy.world/comment/markdown-1",
+          "attributedTo" => "https://lemmy.world/u/lemmy_bob",
+          "content" =>
+            "![](https://lemmy.world/pictrs/image/example.png)\n\n> quoted text\n\n[TEE](https://en.wikipedia.org/wiki/Trusted_execution_environment)",
+          "published" => "2025-01-01T00:00:00Z",
+          "likes" => %{"totalItems" => 0},
+          "_lemmy" => %{"creator_name" => "Lemmy Bob"}
+        },
+        depth: 0,
+        children: []
+      }
+    ]
+
+    assigns = %{
+      __changed__: %{},
+      community_actor: %{domain: "lemmy.world"},
+      remote_actor: %{domain: "lemmy.world"},
+      post_interactions: %{},
+      lemmy_comment_counts: %{},
+      post: %{"id" => "https://lemmy.world/post/1"},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.render_threaded_comments(comments)
+      |> rendered_to_string()
+
+    assert html =~ ~s(src="https://lemmy.world/pictrs/image/example.png")
+    assert html =~ "<blockquote>"
+    assert html =~ ~s(href="https://en.wikipedia.org/wiki/Trusted_execution_environment")
+    assert html =~ ">TEE<"
+  end
+
   test "navigates embedded local post URLs" do
     socket = %Phoenix.LiveView.Socket{assigns: %{}}
 

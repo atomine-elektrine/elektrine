@@ -422,7 +422,7 @@ defmodule Elektrine.Accounts.Moderation do
 
         mailbox ->
           # Calculate the new email address based on current username
-          domain = Application.get_env(:elektrine, :email)[:domain] || "elektrine.com"
+          domain = Elektrine.Domains.primary_email_domain()
           new_email = "#{user.username}@#{domain}"
 
           # Only process if the email is different

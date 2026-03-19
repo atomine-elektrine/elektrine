@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.Plugs.FlyRedirect do
   @moduledoc """
-  Redirects all requests from *.fly.dev domains to elektrine.com.
+  Optionally redirects all requests from `*.fly.dev` domains to a configured host.
   """
 
   import Plug.Conn
@@ -12,12 +12,15 @@ defmodule ElektrineWeb.Plugs.FlyRedirect do
 
   @impl Plug
   def call(conn, _opts) do
-    if String.ends_with?(conn.host, ".fly.dev") do
+    redirect_host = Application.get_env(:elektrine, :fly_redirect_host)
+
+    if is_binary(redirect_host) and redirect_host != "" and
+         String.ends_with?(conn.host, ".fly.dev") do
       # Preserve the path and query string
       destination =
         case conn.query_string do
-          "" -> "https://elektrine.com#{conn.request_path}"
-          qs -> "https://elektrine.com#{conn.request_path}?#{qs}"
+          "" -> "https://#{redirect_host}#{conn.request_path}"
+          qs -> "https://#{redirect_host}#{conn.request_path}?#{qs}"
         end
 
       conn

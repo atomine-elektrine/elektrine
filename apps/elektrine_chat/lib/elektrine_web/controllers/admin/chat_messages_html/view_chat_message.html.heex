@@ -1,9 +1,12 @@
-<div class="flex flex-col gap-4">
-  <div class="mb-6 flex justify-between items-start">
+<div class="admin-page">
+  <div class="flex justify-between items-start gap-4">
     <div>
-      <h1 class="text-2xl font-bold">Arblarg Chat Message</h1>
-      <p class="opacity-70 mt-2">
-        Detailed admin view of a single Arblarg protocol message.
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+        Chat Admin
+      </p>
+      <h1 class="mt-2 text-2xl font-bold">Chat Message</h1>
+      <p class="mt-2 text-sm text-base-content/70 sm:text-base">
+        Inspect a single message, its delivery metadata, and raw payload for moderation or debugging work.
       </p>
     </div>
     <div class="flex gap-2">
@@ -20,7 +23,7 @@
     </div>
   </div>
 
-  <div class="card shadow-xl mb-6">
+  <div class="card glass-card shadow-xl mb-6">
     <div class="card-body">
       <h2 class="text-lg font-semibold mb-4">Message Info</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -82,7 +85,7 @@
     </div>
   </div>
 
-  <div class="card shadow-xl mb-6">
+  <div class="card glass-card shadow-xl mb-6">
     <div class="card-body">
       <h2 class="text-lg font-semibold mb-4">Content</h2>
       <%= if @message.content && String.trim(@message.content) != "" do %>
@@ -97,7 +100,7 @@
     </div>
   </div>
 
-  <div class="card shadow-xl">
+  <div class="card glass-card shadow-xl">
     <div class="card-body">
       <h2 class="text-lg font-semibold mb-4">Media & Metadata</h2>
 

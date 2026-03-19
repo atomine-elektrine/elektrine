@@ -9,7 +9,7 @@ defmodule Elektrine.EmailFixtures do
   @mailbox_module :"Elixir.Elektrine.Email.Mailbox"
   @mailbox_adapter_module :"Elixir.Elektrine.Email.MailboxAdapter"
 
-  def unique_email, do: "user#{System.unique_integer([:positive])}@elektrine.com"
+  def unique_email, do: "user#{System.unique_integer([:positive])}@example.com"
 
   def valid_mailbox_attributes(attrs \\ %{}) do
     email = attrs[:email] || unique_email()
@@ -35,7 +35,7 @@ defmodule Elektrine.EmailFixtures do
   def message_fixture(attrs \\ %{}) do
     defaults = %{
       from: "sender@example.com",
-      to: "recipient@elektrine.com",
+      to: "recipient@example.com",
       subject: "Test Subject #{System.unique_integer([:positive])}",
       text_body: "Test body content",
       html_body: "<p>Test body content</p>",

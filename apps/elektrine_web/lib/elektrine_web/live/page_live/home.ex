@@ -55,7 +55,7 @@ defmodule ElektrineWeb.PageLive.Home do
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "Elektrine",
-        "url": "https://elektrine.com"
+        "url": "#{Domains.public_base_url()}"
       }
     </script>
 

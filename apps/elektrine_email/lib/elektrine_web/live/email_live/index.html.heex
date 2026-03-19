@@ -33,7 +33,7 @@
     
 <!-- Main content -->
     <div class="flex-1 min-w-0 overflow-visible">
-      <div id="email-main-card" class="card shadow-lg rounded-box">
+      <div id="email-main-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-lg">
         <div class="card-body p-3 sm:p-6">
           <!-- Header with tab content -->
           <%= if @current_tab == "search" do %>

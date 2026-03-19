@@ -3,6 +3,7 @@ defmodule Elektrine.SMTP.Server do
   use GenServer
   require Logger
   alias Elektrine.Constants
+  alias Elektrine.Domains
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
   alias Elektrine.ProxyProtocol
@@ -210,7 +211,7 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp handle_ehlo(_domain, state) do
-    send_response(state.socket, "250-elektrine.com")
+    send_response(state.socket, "250-#{Domains.mail_hostname()}")
     send_response(state.socket, "250-SIZE 52428800")
     send_response(state.socket, "250-8BITMIME")
     send_response(state.socket, "250-AUTH PLAIN LOGIN")
@@ -219,7 +220,7 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp handle_helo(_domain, state) do
-    send_response(state.socket, "250 elektrine.com")
+    send_response(state.socket, "250 #{Domains.mail_hostname()}")
     {:continue, %{state | state: :ready}}
   end
 

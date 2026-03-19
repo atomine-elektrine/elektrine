@@ -19,7 +19,7 @@ defmodule Elektrine.EmailAliasTest do
 
     test "list_aliases/1 returns all aliases for a user", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -28,12 +28,12 @@ defmodule Elektrine.EmailAliasTest do
 
       aliases = Email.list_aliases(user.id)
       assert length(aliases) == 1
-      assert hd(aliases).alias_email == "tester@elektrine.com"
+      assert hd(aliases).alias_email == "tester@example.com"
     end
 
     test "get_alias/2 returns alias for specific user", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -42,7 +42,7 @@ defmodule Elektrine.EmailAliasTest do
 
       found_alias = Email.get_alias(alias.id, user.id)
       assert found_alias.id == alias.id
-      assert found_alias.alias_email == "tester@elektrine.com"
+      assert found_alias.alias_email == "tester@example.com"
     end
 
     test "get_alias/2 returns nil for wrong user", %{user: user} do
@@ -54,7 +54,7 @@ defmodule Elektrine.EmailAliasTest do
         })
 
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -67,7 +67,7 @@ defmodule Elektrine.EmailAliasTest do
 
     test "get_alias_by_email/1 returns enabled alias", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id,
         enabled: true
@@ -75,15 +75,15 @@ defmodule Elektrine.EmailAliasTest do
 
       {:ok, _alias} = Email.create_alias(alias_attrs)
 
-      found_alias = Email.get_alias_by_email("tester@elektrine.com")
-      assert found_alias.alias_email == "tester@elektrine.com"
+      found_alias = Email.get_alias_by_email("tester@example.com")
+      assert found_alias.alias_email == "tester@example.com"
     end
 
     test "get_alias_by_email/1 returns alias for disabled alias (does not filter by enabled)", %{
       user: user
     } do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id,
         enabled: false
@@ -91,21 +91,21 @@ defmodule Elektrine.EmailAliasTest do
 
       {:ok, _alias} = Email.create_alias(alias_attrs)
 
-      found_alias = Email.get_alias_by_email("tester@elektrine.com")
-      assert found_alias.alias_email == "tester@elektrine.com"
+      found_alias = Email.get_alias_by_email("tester@example.com")
+      assert found_alias.alias_email == "tester@example.com"
       assert found_alias.enabled == false
     end
 
     test "create_alias/1 creates an alias with valid data", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id,
         description: "Test alias"
       }
 
       assert {:ok, alias} = Email.create_alias(alias_attrs)
-      assert alias.alias_email == "tester@elektrine.com"
+      assert alias.alias_email == "tester@example.com"
       assert alias.target_email == "user@example.com"
       assert alias.user_id == user.id
       assert alias.enabled == true
@@ -121,7 +121,7 @@ defmodule Elektrine.EmailAliasTest do
 
       {:ok, _existing} =
         Email.create_alias(%{
-          alias_email: "#{username}@elektrine.net",
+          alias_email: "#{username}@example.net",
           target_email: "existing@example.com",
           user_id: user.id
         })
@@ -133,13 +133,13 @@ defmodule Elektrine.EmailAliasTest do
                  target_email: "new@example.com"
                })
 
-      assert Email.get_alias_by_email("#{username}@elektrine.com") == nil
-      assert %Alias{} = Email.get_alias_by_email("#{username}@elektrine.net")
+      assert Email.get_alias_by_email("#{username}@example.com") == nil
+      assert %Alias{} = Email.get_alias_by_email("#{username}@example.net")
     end
 
     test "update_alias/2 updates alias with valid data", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -160,7 +160,7 @@ defmodule Elektrine.EmailAliasTest do
 
     test "update_alias/2 returns error changeset with invalid data", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -172,7 +172,7 @@ defmodule Elektrine.EmailAliasTest do
 
     test "delete_alias/1 deletes the alias", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -185,7 +185,7 @@ defmodule Elektrine.EmailAliasTest do
 
     test "change_alias/1 returns an alias changeset", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -197,7 +197,7 @@ defmodule Elektrine.EmailAliasTest do
 
     test "resolve_alias/1 returns target email for alias", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id,
         enabled: true
@@ -205,16 +205,16 @@ defmodule Elektrine.EmailAliasTest do
 
       {:ok, _alias} = Email.create_alias(alias_attrs)
 
-      assert Email.resolve_alias("tester@elektrine.com") == "user@example.com"
+      assert Email.resolve_alias("tester@example.com") == "user@example.com"
     end
 
     test "resolve_alias/1 returns nil for non-existent alias" do
-      assert Email.resolve_alias("nonexistent@elektrine.com") == nil
+      assert Email.resolve_alias("nonexistent@example.com") == nil
     end
 
     test "resolve_alias/1 returns :no_forward for disabled alias", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "user@example.com",
         user_id: user.id,
         enabled: false
@@ -222,24 +222,24 @@ defmodule Elektrine.EmailAliasTest do
 
       {:ok, _alias} = Email.create_alias(alias_attrs)
 
-      assert Email.resolve_alias("tester@elektrine.com") == :no_forward
+      assert Email.resolve_alias("tester@example.com") == :no_forward
     end
 
     test "resolve_alias/1 returns :no_forward for alias without target", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         user_id: user.id,
         enabled: true
       }
 
       {:ok, _alias} = Email.create_alias(alias_attrs)
 
-      assert Email.resolve_alias("tester@elektrine.com") == :no_forward
+      assert Email.resolve_alias("tester@example.com") == :no_forward
     end
 
     test "resolve_alias/1 returns :no_forward for alias with empty target", %{user: user} do
       alias_attrs = %{
-        alias_email: "tester@elektrine.com",
+        alias_email: "tester@example.com",
         target_email: "",
         user_id: user.id,
         enabled: true
@@ -247,7 +247,7 @@ defmodule Elektrine.EmailAliasTest do
 
       {:ok, _alias} = Email.create_alias(alias_attrs)
 
-      assert Email.resolve_alias("tester@elektrine.com") == :no_forward
+      assert Email.resolve_alias("tester@example.com") == :no_forward
     end
 
     test "create_alias/1 fails with invalid domain", %{user: user} do
@@ -267,18 +267,18 @@ defmodule Elektrine.EmailAliasTest do
     end
 
     test "create_alias/1 succeeds with allowed domains", %{user: user} do
-      # Test elektrine.com
+      # Test example.com
       alias_attrs_1 = %{
-        alias_email: "test1@elektrine.com",
+        alias_email: "test1@example.com",
         target_email: "user@example.com",
         user_id: user.id
       }
 
       assert {:ok, _alias} = Email.create_alias(alias_attrs_1)
 
-      # Test elektrine.net
+      # Test example.net
       alias_attrs_2 = %{
-        alias_email: "test2@elektrine.net",
+        alias_email: "test2@example.net",
         target_email: "user@example.com",
         user_id: user.id
       }
@@ -296,7 +296,7 @@ defmodule Elektrine.EmailAliasTest do
 
       # Create alias for first user
       alias_attrs = %{
-        alias_email: "shared@elektrine.com",
+        alias_email: "shared@example.com",
         target_email: "user1@example.com",
         user_id: user.id
       }
@@ -305,7 +305,7 @@ defmodule Elektrine.EmailAliasTest do
 
       # Try to create same alias for second user
       alias_attrs_2 = %{
-        alias_email: "shared@elektrine.com",
+        alias_email: "shared@example.com",
         target_email: "user2@example.com",
         user_id: other_user.id
       }

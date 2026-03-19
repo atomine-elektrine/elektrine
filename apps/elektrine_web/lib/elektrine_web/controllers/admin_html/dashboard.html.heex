@@ -1,6 +1,6 @@
-<div class="space-y-6">
-  <section class="card shadow-xl border border-base-300">
-    <div class="flex flex-col gap-6 px-5 py-6 sm:px-6 sm:py-6 xl:flex-row xl:items-end xl:justify-between">
+<div class="space-y-6 sm:space-y-8">
+  <section class="card glass-card shadow-xl border border-base-300">
+    <div class="flex flex-col gap-8 px-5 py-6 sm:px-8 sm:py-8 xl:flex-row xl:items-end xl:justify-between">
       <div class="max-w-3xl">
         <div class="text-[11px] font-semibold uppercase tracking-[0.32em] text-info/80">
           Overview
@@ -192,7 +192,7 @@
   </section>
 
   <section class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-    <div class="card shadow-xl border border-base-300">
+    <div class="card glass-card shadow-xl border border-base-300">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="flex items-center justify-between gap-4">
           <div>
@@ -293,7 +293,7 @@
       </div>
     </div>
 
-    <div class="card shadow-xl border border-base-300">
+    <div class="card glass-card shadow-xl border border-base-300">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Queues
@@ -302,7 +302,7 @@
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Pending Reports</div>
           <div class="mt-2 text-3xl font-semibold text-warning">{@stats.pending_reports}</div>
           <.link
@@ -313,7 +313,7 @@
           </.link>
         </div>
 
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Deletion Requests</div>
           <div class="mt-2 text-3xl font-semibold text-error">{@stats.pending_deletions}</div>
           <.link
@@ -324,7 +324,7 @@
           </.link>
         </div>
 
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Invite Codes</div>
           <div class="mt-2 text-3xl font-semibold text-info">{@stats.invite_codes_active}</div>
           <.link
@@ -335,7 +335,7 @@
           </.link>
         </div>
 
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Announcements</div>
           <div class="mt-2 text-3xl font-semibold text-secondary">
             {@stats.active_announcements}
@@ -352,7 +352,7 @@
   </section>
 
   <section class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-    <div class="card shadow-xl border border-base-300">
+    <div class="card glass-card shadow-xl border border-base-300">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="flex items-center justify-between gap-4">
           <div>
@@ -368,7 +368,7 @@
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Last 24 Hours
           </div>
@@ -376,7 +376,7 @@
             {@stats.active_users.last_24_hours}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Last 7 Days
           </div>
@@ -384,7 +384,7 @@
             {@stats.active_users.last_7_days}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Last 30 Days
           </div>
@@ -392,7 +392,7 @@
             {@stats.active_users.last_30_days}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Never Active
           </div>
@@ -404,7 +404,7 @@
 
       <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
         <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">IMAP Users</div>
             <div class="mt-2 text-2xl font-semibold text-primary">{@stats.imap_users}</div>
             <.link
@@ -414,7 +414,7 @@
               View list →
             </.link>
           </div>
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">POP3 Users</div>
             <div class="mt-2 text-2xl font-semibold text-success">{@stats.pop3_users}</div>
             <.link
@@ -429,7 +429,7 @@
     </div>
 
     <%= if @email_available do %>
-      <div class="card shadow-xl border border-base-300">
+      <div class="card glass-card shadow-xl border border-base-300">
         <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
           <div class="flex items-center justify-between gap-4">
             <div>
@@ -445,25 +445,25 @@
         </div>
 
         <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Verified</div>
             <div class="mt-2 text-3xl font-semibold text-success">
               {@stats.custom_domains.verified}
             </div>
           </div>
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Pending</div>
             <div class="mt-2 text-3xl font-semibold text-secondary">
               {@stats.custom_domains.pending}
             </div>
           </div>
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Attention</div>
             <div class="mt-2 text-3xl font-semibold text-warning">
               {@stats.custom_domains.attention}
             </div>
           </div>
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="text-sm text-base-content/60">Preferred</div>
             <div class="mt-2 text-3xl font-semibold text-info">
               {@stats.custom_domains.preferred}
@@ -480,13 +480,13 @@
           </div>
 
           <%= if Enum.empty?(@stats.custom_domains.recent_domains) do %>
-            <div class="mt-4 rounded-lg border border-dashed border-base-content/15 bg-base-200/25 px-4 py-8 text-center text-sm text-base-content/55">
+            <div class="mt-4 rounded-2xl border border-dashed border-base-content/15 bg-base-200/25 px-4 py-8 text-center text-sm text-base-content/55">
               No custom domains yet.
             </div>
           <% else %>
             <div class="mt-4 space-y-3">
               <%= for custom_domain <- @stats.custom_domains.recent_domains do %>
-                <div class="flex flex-col gap-3 rounded-lg border border-base-content/10 bg-base-200/25 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 rounded-2xl border border-base-content/10 bg-base-200/25 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       <div class="truncate font-semibold">{custom_domain.domain}</div>
@@ -529,7 +529,7 @@
   </section>
 
   <section class="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-    <div class="card shadow-xl border border-base-300">
+    <div class="card glass-card shadow-xl border border-base-300">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Security
@@ -538,7 +538,7 @@
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-6">
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">2FA Users</div>
           <div class="mt-2 text-3xl font-semibold text-accent">{@stats.two_factor_users}</div>
           <.link
@@ -549,7 +549,7 @@
           </.link>
         </div>
 
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
           <div class="text-sm text-base-content/60">Active Subscriptions</div>
           <div class="mt-2 text-3xl font-semibold text-cyan-500">
             {@stats.subscriptions.active_subscriptions}
@@ -564,7 +564,7 @@
       </div>
     </div>
 
-    <div class="card shadow-xl border border-base-300">
+    <div class="card glass-card shadow-xl border border-base-300">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="flex items-center justify-between gap-4">
           <div>
@@ -591,7 +591,7 @@
       </div>
 
       <div class="grid gap-3 px-5 py-5 sm:grid-cols-5 sm:px-6">
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Remote Actors
           </div>
@@ -599,7 +599,7 @@
             {@stats.federation.remote_actors}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Unique Domains
           </div>
@@ -607,7 +607,7 @@
             {@stats.federation.unique_domains}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Blocked Instances
           </div>
@@ -615,7 +615,7 @@
             {@stats.federation.blocked_instances}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Active Relays
           </div>
@@ -623,7 +623,7 @@
             {@stats.federation.active_relays}
           </div>
         </div>
-        <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4 sm:col-span-1">
           <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Pending Relays
           </div>
@@ -635,7 +635,7 @@
 
       <div class="border-t border-base-content/10 px-5 py-5 sm:px-6">
         <div class="grid gap-4 md:grid-cols-2">
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">Arblarg Messaging</h3>
               <.link
@@ -673,7 +673,7 @@
             </div>
           </div>
 
-          <div class="rounded-lg border border-base-content/10 bg-base-200/35 p-4">
+          <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">Bluesky Bridge</h3>
               <.link navigate={~p"/pripyat/bluesky-bridge"} class="link link-primary text-xs">
@@ -710,7 +710,7 @@
     </div>
   </section>
 
-  <section class="card shadow-xl border border-base-300">
+  <section class="card glass-card shadow-xl border border-base-300">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <div class="flex items-center justify-between gap-4">
         <div>
@@ -734,7 +734,7 @@
                 <td>
                   <div class="flex items-center gap-3">
                     <div class="avatar">
-                      <div class="h-10 w-10 rounded-lg bg-info/85 text-info-content">
+                      <div class="h-10 w-10 rounded-2xl bg-info/85 text-info-content">
                         <span class="flex h-full items-center justify-center text-sm font-bold">
                           {String.first(user.username) |> String.upcase()}
                         </span>

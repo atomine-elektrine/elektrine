@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.ProfileLive.Edit do
   use ElektrineWeb, :live_view
   alias Elektrine.Constants
+  alias Elektrine.Domains
   alias Elektrine.Profiles
   alias Elektrine.StaticSites
   alias ElektrineWeb.Platform.Integrations
@@ -56,6 +57,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:page_title, "Customize Profile")
      |> assign(:user, user)
      |> assign(:profile, profile)
+     |> assign(:static_site_url, Domains.profile_url_for_handle(user.handle || user.username))
      |> assign(:user_badges, user_badges)
      |> assign(:editing_link_id, nil)
      |> assign(:editing_link_data, %{})
@@ -943,12 +945,14 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       [{:success, count}] ->
         static_site_files = StaticSites.list_files(user.id)
         static_site_storage = StaticSites.total_storage_used(user.id)
+        profile = ensure_static_profile_mode(user.id)
 
         {:noreply,
          socket
+         |> assign(:profile, profile)
          |> assign(:static_site_files, static_site_files)
          |> assign(:static_site_storage, static_site_storage)
-         |> notify_info("Uploaded #{count} files successfully")}
+         |> notify_info("Site published. Uploaded #{count} files successfully")}
 
       [{:error, :storage_limit_exceeded}] ->
         {:noreply, notify_error(socket, "Storage limit exceeded (50MB max)")}
@@ -1028,18 +1032,25 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     static_site_files = StaticSites.list_files(user.id)
     static_site_storage = StaticSites.total_storage_used(user.id)
 
+    profile =
+      if success_count > 0, do: ensure_static_profile_mode(user.id), else: socket.assigns.profile
+
     socket =
       socket
+      |> assign(:profile, profile)
       |> assign(:static_site_files, static_site_files)
       |> assign(:static_site_storage, static_site_storage)
 
     cond do
       success_count > 0 and error_count == 0 ->
-        {:noreply, notify_info(socket, "Uploaded #{success_count} file(s)")}
+        {:noreply, notify_info(socket, "Site updated. Uploaded #{success_count} file(s)")}
 
       success_count > 0 and error_count > 0 ->
         {:noreply,
-         notify_info(socket, "Uploaded #{success_count} file(s), #{error_count} failed")}
+         notify_info(
+           socket,
+           "Site updated. Uploaded #{success_count} file(s), #{error_count} failed"
+         )}
 
       true ->
         {:noreply, notify_error(socket, "Failed to upload files")}
@@ -1057,6 +1068,11 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   def handle_event("drop", _params, socket) do
     {:noreply, assign(socket, :drag_over, false)}
+  end
+
+  defp ensure_static_profile_mode(user_id) do
+    _ = StaticSites.enable_static_mode(user_id)
+    Profiles.get_user_profile(user_id)
   end
 
   # Code editor handlers
@@ -1497,8 +1513,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   defp format_bytes(_), do: "0 B"
 
-  defp humanize_error(:too_large), do: "File is too large (max 50MB)"
-  defp humanize_error(:not_accepted), do: "File type not accepted. Only ZIP files are allowed."
+  defp humanize_error(:too_large), do: "File is too large for this upload"
+  defp humanize_error(:not_accepted), do: "This file type is not supported for this upload"
   defp humanize_error(:too_many_files), do: "Only one file can be uploaded at a time"
   defp humanize_error(err), do: "Upload error: #{inspect(err)}"
 
@@ -1510,16 +1526,5 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   defp profile_tabs do
     @profile_tabs
-  end
-
-  defp profile_tab_link_class(selected_tab, tab_id) do
-    base =
-      "text-sm rounded-lg flex items-center gap-2 px-3 py-2 border transition-all duration-200"
-
-    if selected_tab == tab_id do
-      "#{base} border-primary/35 bg-base-200/70 text-base-content font-medium"
-    else
-      "#{base} border-transparent text-base-content/80 hover:text-base-content hover:bg-base-200/60 hover:border-base-300"
-    end
   end
 end

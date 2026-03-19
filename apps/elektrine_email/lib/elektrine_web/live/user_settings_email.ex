@@ -23,6 +23,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
     |> assign(:user_emails, [])
     |> assign(:lists, [])
     |> assign(:lists_by_type, %{})
+    |> assign(:has_subscribable_lists, false)
     |> assign(:unsubscribe_status, %{})
     |> assign(:private_mailbox_configured, false)
     |> assign(:private_mailbox_enabled, false)
@@ -52,8 +53,8 @@ defmodule ElektrineWeb.UserSettingsEmail do
 
   def load_email_data(socket) do
     user = socket.assigns.user
-    lists_task = Task.async(fn -> ListTypes.subscribable_lists() end)
-    lists_by_type_task = Task.async(fn -> ListTypes.lists_by_type() end)
+    lists_task = Task.async(fn -> ListTypes.active_lists() end)
+    lists_by_type_task = Task.async(fn -> ListTypes.active_lists_by_type() end)
     mailboxes_task = Task.async(fn -> Email.get_user_mailboxes(user.id) end)
     aliases_task = Task.async(fn -> Email.list_aliases(user.id) end)
     lists = Task.await(lists_task)
@@ -72,6 +73,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
     socket
     |> assign(:lists, lists)
     |> assign(:lists_by_type, lists_by_type)
+    |> assign(:has_subscribable_lists, Enum.any?(lists, & &1.can_unsubscribe))
     |> assign(:mailboxes, mailboxes)
     |> assign(:primary_mailbox, primary_mailbox)
     |> assign(:aliases, aliases)
@@ -307,7 +309,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
 
   def email_tab(assigns) do
     ~H"""
-    <div class="card shadow-lg">
+    <div class="card glass-card shadow-lg">
       <div class="card-body p-4 sm:p-6">
         <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
           <.icon name="hero-envelope" class="w-5 h-5" /> {gettext("Email Settings")}
@@ -408,7 +410,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
     <div
       id="private-mailbox-settings"
       phx-hook="MailboxPrivateStorage"
-      class="card shadow-lg"
+      class="card glass-card shadow-lg"
       data-private-mailbox-configured={to_string(@private_mailbox_configured)}
       data-private-mailbox-enabled={to_string(@private_mailbox_enabled)}
       data-private-mailbox-unlock-mode={@private_mailbox_unlock_mode}
@@ -664,7 +666,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
       </div>
     </div>
 
-    <div class="card shadow-lg">
+    <div class="card glass-card shadow-lg">
       <div class="card-body p-4 sm:p-6">
         <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
           <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("PGP Encryption")}
@@ -793,7 +795,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
     </div>
 
     <%= if @loading_email do %>
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body p-4 sm:p-6">
           <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
             <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Email Subscription Preferences")}
@@ -808,7 +810,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
       </div>
     <% else %>
       <%= if !Enum.empty?(@user_emails) do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-4">
               <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Email Subscription Preferences")}
@@ -816,9 +818,20 @@ defmodule ElektrineWeb.UserSettingsEmail do
 
             <p class="text-xs sm:text-sm text-base-content/70 mb-4">
               {gettext(
-                "Manage subscription preferences for all your email addresses. Transactional emails cannot be unsubscribed."
+                "Manage optional email categories when available. Required account and security emails are shown for reference."
               )}
             </p>
+
+            <%= if !@has_subscribable_lists do %>
+              <div class="alert alert-info mb-4">
+                <.icon name="hero-information-circle" class="w-5 h-5" />
+                <span class="text-sm">
+                  {gettext(
+                    "There are currently no optional platform email categories to unsubscribe from."
+                  )}
+                </span>
+              </div>
+            <% end %>
 
             <div class="space-y-2">
               <%= for list <- @lists do %>
@@ -861,7 +874,7 @@ defmodule ElektrineWeb.UserSettingsEmail do
           </div>
         </div>
       <% else %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="alert alert-warning">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />

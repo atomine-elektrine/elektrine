@@ -33,8 +33,15 @@ defmodule ElektrineWeb.CaddyTLSController do
     domain
     |> normalize_domain()
     |> case do
-      nil -> nil
-      normalized_domain -> Profiles.get_verified_custom_domain_for_host(normalized_domain)
+      nil ->
+        nil
+
+      normalized_domain ->
+        if built_in_domain?(normalized_domain) do
+          normalized_domain
+        else
+          Profiles.get_verified_custom_domain_for_host(normalized_domain)
+        end
     end
   end
 
@@ -51,5 +58,24 @@ defmodule ElektrineWeb.CaddyTLSController do
       "" -> nil
       value -> value
     end
+  end
+
+  defp built_in_domain?(host) do
+    email_supported_domains =
+      Application.get_env(:elektrine, :email, [])
+      |> Keyword.get(:supported_domains, [])
+
+    exact_domains =
+      [Application.get_env(:elektrine, :primary_domain)] ++
+        email_supported_domains ++
+        ["www." <> to_string(Application.get_env(:elektrine, :primary_domain, ""))]
+
+    profile_base_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+    host in Enum.reject(exact_domains, &is_nil/1) or
+      Enum.any?(profile_base_domains, fn base_domain ->
+        base_domain = to_string(base_domain)
+        String.ends_with?(host, "." <> base_domain)
+      end)
   end
 end

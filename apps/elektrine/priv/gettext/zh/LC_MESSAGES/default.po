@@ -658,8 +658,8 @@ msgstr "您确定要删除此别名吗？此操作无法撤销。"
 
 #: lib/elektrine_web/live/email_live/home.html.heex:430
 #, elixir-autogen, elixir-format
-msgid "Create additional email addresses on @elektrine.com, @elektrine.net, or @elektrine.org that can forward to specific destinations or deliver to your main mailbox"
-msgstr "在 @elektrine.com、@elektrine.net 或 @elektrine.org 上创建其他电子邮件地址，可转发到特定邮箱地或发送到您的主邮箱"
+msgid "Create additional email addresses on @example.com, @example.net, or @example.org that can forward to specific destinations or deliver to your main mailbox"
+msgstr "在 @example.com、@example.net 或 @example.org 上创建其他电子邮件地址，可转发到特定邮箱地或发送到您的主邮箱"
 
 #: lib/elektrine_web/live/email_live/home.html.heex:524
 #, elixir-autogen, elixir-format
@@ -1562,8 +1562,8 @@ msgstr "原子数"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:100
 #, elixir-autogen, elixir-format
-msgid "Available on @elektrine.com, @elektrine.net, and @elektrine.org"
-msgstr "@elektrine.com、@elektrine.net 和 @elektrine.org 均可用"
+msgid "Available on @example.com, @example.net, and @example.org"
+msgstr "@example.com、@example.net 和 @example.org 均可用"
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:577
 #, elixir-autogen, elixir-format

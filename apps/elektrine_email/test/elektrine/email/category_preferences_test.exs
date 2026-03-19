@@ -62,7 +62,7 @@ defmodule Elektrine.Email.CategoryPreferencesTest do
       message = %{
         "subject" => "Small update",
         "from" => "Digest Bot <digest@updates.example.com>",
-        "to" => "user@elektrine.com",
+        "to" => "user@example.com",
         "text_body" => "Hello there",
         "html_body" => "",
         "metadata" => %{"headers" => %{}}

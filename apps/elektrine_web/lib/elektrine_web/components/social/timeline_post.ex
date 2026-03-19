@@ -197,7 +197,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       <div
         id={"#{@id_prefix}-card-#{@post.id}"}
         class={[
-          "card timeline-post-card shadow-sm max-w-full cursor-pointer hover:shadow-md transition-shadow",
+          "card glass-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer hover:shadow-md transition-shadow",
           if(@has_thread_context, do: "ml-6 border border-primary/25"),
           if(@is_reply,
             do: "border-l-4 border-l-error bg-error/5 border-t border-r border-b border-base-300",
@@ -2547,7 +2547,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     ~H"""
     <article
       id={@unique_id}
-      class="card timeline-post-card border border-base-300 rounded-lg overflow-visible hover:shadow-md transition-all relative z-0"
+      class="card glass-card timeline-post-card border border-base-300 rounded-lg overflow-visible hover:shadow-md transition-all relative z-0"
       data-post-id={@post.id}
       data-source={@source}
       phx-hook="PostClick"

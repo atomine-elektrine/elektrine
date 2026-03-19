@@ -70,7 +70,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
       <div class="space-y-4 sm:space-y-6">
         <div
           id="step1-card"
-          class="card border border-base-300 shadow-lg"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
         >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
@@ -123,7 +124,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
 
         <div
           id="step2-card"
-          class="card border border-base-300 shadow-lg"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
         >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
@@ -194,7 +196,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
 
         <div
           id="step3-card"
-          class="card border border-base-300 shadow-lg"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
         >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
@@ -226,7 +229,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
 
         <div
           id="step4-card"
-          class="card border border-base-300 shadow-lg"
+          phx-hook="GlassCard"
+          class="card glass-card border border-base-300 shadow-lg"
         >
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">

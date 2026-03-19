@@ -138,6 +138,27 @@ first_present_env = fn env_names ->
   end)
 end
 
+umami_enabled = parse_bool_env.("UMAMI_ENABLED", true)
+
+umami_script_url =
+  case System.get_env("UMAMI_SCRIPT_URL") do
+    nil -> "https://cloud.umami.is/script.js"
+    "" -> "https://cloud.umami.is/script.js"
+    value -> value
+  end
+
+umami_website_id =
+  case System.get_env("UMAMI_WEBSITE_ID") do
+    nil -> nil
+    "" -> nil
+    value -> value
+  end
+
+config :elektrine, :umami,
+  enabled: umami_enabled,
+  script_url: umami_script_url,
+  website_id: umami_website_id
+
 config :elektrine, :runtime_components,
   web: parse_bool_env.("ELEKTRINE_ENABLE_WEB", true),
   jobs: parse_bool_env.("ELEKTRINE_ENABLE_JOBS", true),
@@ -320,14 +341,30 @@ email_auto_suppression_enabled =
 config :elektrine, :email_auto_suppression, email_auto_suppression_enabled
 
 # Configure Haraka HTTP API adapter if EMAIL_SERVICE is set to haraka (any environment)
+runtime_primary_domain =
+  System.get_env("PRIMARY_DOMAIN") ||
+    Application.get_env(:elektrine, :primary_domain, "example.com")
+
+runtime_email_domain =
+  System.get_env("EMAIL_DOMAIN") ||
+    Application.get_env(:elektrine, :email, []) |> Keyword.get(:domain, runtime_primary_domain)
+
+config(
+  :elektrine,
+  :fly_redirect_host,
+  case System.get_env("FLY_REDIRECT_HOST") do
+    nil -> nil
+    "" -> nil
+    value -> String.trim(value)
+  end
+)
+
 if System.get_env("EMAIL_SERVICE") == "haraka" do
   config :elektrine, Elektrine.Mailer,
     adapter: Elektrine.Email.HarakaAdapter,
     api_key:
       first_present_env.(["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY"]),
-    base_url:
-      first_present_env.(["HARAKA_BASE_URL"]) ||
-        "https://mail.#{System.get_env("PRIMARY_DOMAIN") || System.get_env("EMAIL_DOMAIN") || "elektrine.com"}",
+    base_url: first_present_env.(["HARAKA_BASE_URL"]) || "https://mail.#{runtime_email_domain}",
     timeout: 30_000
 
   # Enable API client for Haraka
@@ -615,18 +652,28 @@ if config_env() == :prod do
     |> Enum.uniq()
   end
 
-  default_supported_domains = ["elektrine.com", "elektrine.net", "elektrine.org", "z.org"]
+  primary_domain_env = System.get_env("PRIMARY_DOMAIN")
 
   primary_domain =
-    System.get_env("PRIMARY_DOMAIN")
-    |> case do
-      nil -> System.get_env("EMAIL_DOMAIN")
-      value -> value
+    case primary_domain_env do
+      nil ->
+        raise """
+        environment variable PRIMARY_DOMAIN is missing.
+        Set PRIMARY_DOMAIN to the main public domain for this instance, for example: example.com
+        """
+
+      value ->
+        normalize_domain.(value)
     end
-    |> case do
-      nil -> "elektrine.com"
+
+  email_domain =
+    case System.get_env("EMAIL_DOMAIN") do
+      nil -> primary_domain
+      "" -> primary_domain
       value -> normalize_domain.(value)
     end
+
+  default_supported_domains = [email_domain]
 
   supported_domains_env =
     System.get_env("SUPPORTED_DOMAINS") || System.get_env("EMAIL_SUPPORTED_DOMAINS")
@@ -635,10 +682,10 @@ if config_env() == :prod do
     ([primary_domain] ++ parse_domain_list.(supported_domains_env, default_supported_domains))
     |> Enum.uniq()
 
-  profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS") || supported_domains_env
+  profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS")
 
   profile_base_domains =
-    parse_domain_list.(profile_domains_env, supported_email_domains)
+    parse_domain_list.(profile_domains_env, [primary_domain])
 
   host = System.get_env("PHX_HOST") || primary_domain
   host_domain = normalize_domain.(host)
@@ -727,7 +774,7 @@ if config_env() == :prod do
     end
 
   config :elektrine, :email,
-    domain: primary_domain,
+    domain: email_domain,
     allow_insecure_receiver_webhook: false,
     supported_domains: supported_email_domains,
     custom_domain_mx_host: custom_domain_mx_host,
@@ -798,11 +845,14 @@ if config_env() == :prod do
         "//*.#{domain}"
       ]
     end)
-    |> Kernel.++([
-      "//*.onion",
-      "https://elektrine.fly.dev",
-      "//*.fly.dev"
-    ])
+    |> Kernel.++(["//*.onion", "//*.fly.dev"])
+    |> Kernel.++(
+      case System.get_env("FLY_APP_NAME") do
+        nil -> []
+        "" -> []
+        app_name -> ["https://#{app_name}.fly.dev"]
+      end
+    )
     |> Enum.uniq()
 
   endpoint_config = [

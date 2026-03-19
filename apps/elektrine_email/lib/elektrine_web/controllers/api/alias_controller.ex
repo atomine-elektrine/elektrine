@@ -4,6 +4,7 @@ defmodule ElektrineWeb.API.AliasController do
   """
   use ElektrineEmailWeb, :controller
 
+  alias Elektrine.Domains
   alias Elektrine.Email.Alias
   alias Elektrine.Email.Aliases
 
@@ -66,7 +67,7 @@ defmodule ElektrineWeb.API.AliasController do
     else
       attrs = %{
         username: Map.get(alias_params, "username"),
-        domain: Map.get(alias_params, "domain", "elektrine.com"),
+        domain: Map.get(alias_params, "domain", Domains.primary_email_domain()),
         user_id: user.id,
         target_email: Map.get(alias_params, "target_email"),
         description: Map.get(alias_params, "description")

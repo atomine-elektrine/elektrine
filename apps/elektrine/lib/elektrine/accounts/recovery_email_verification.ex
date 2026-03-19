@@ -93,6 +93,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
          |> subject(subject)
          |> html_body(html_body)
          |> text_body(text_body)
+         |> header("List-Id", EmailAddresses.list_id("elektrine-account"))
          |> Elektrine.Mailer.deliver() do
       {:ok, result} ->
         Logger.info(

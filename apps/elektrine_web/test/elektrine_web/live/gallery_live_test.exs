@@ -175,7 +175,7 @@ defmodule ElektrineWeb.GalleryLiveTest do
   end
 
   test "remote gallery posts do not render profile URLs as creator names", %{conn: conn} do
-    bad_display_name = "https://elektrine.com/remote/zero@strelizia.net"
+    bad_display_name = "https://example.com/remote/zero@strelizia.net"
 
     photo =
       remote_gallery_post_fixture(

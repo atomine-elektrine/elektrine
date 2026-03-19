@@ -2,7 +2,7 @@ defmodule ElektrineWeb.ListLive.Show do
   use ElektrineSocialWeb, :live_view
   require Logger
   alias Elektrine.Social
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Live.Helpers.PostStateHelpers

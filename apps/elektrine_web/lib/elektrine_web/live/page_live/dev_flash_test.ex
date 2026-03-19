@@ -17,7 +17,7 @@ defmodule ElektrineWeb.PageLive.DevFlashTest do
     ~H"""
     <div class="min-h-screen">
       <div class="container mx-auto px-4 py-10 max-w-3xl">
-        <div class="card shadow-xl">
+        <div class="card glass-card shadow-xl">
           <div class="card-body gap-6">
             <h1 class="text-3xl font-bold">Flash Test Page</h1>
             <p class="opacity-80">

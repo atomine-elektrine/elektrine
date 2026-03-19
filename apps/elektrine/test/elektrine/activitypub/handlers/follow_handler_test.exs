@@ -124,7 +124,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
 
       Application.put_env(:elektrine, :profile_base_domains, [
         ActivityPub.instance_domain(),
-        "z.org"
+        "z.example.com"
       ])
 
       remote_actor =
@@ -134,7 +134,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandlerTest do
           inbox_url: "https://remote.server/users/legacy-domain-follower/inbox"
         })
 
-      legacy_base_url = ActivityPub.instance_url_for_domain("z.org")
+      legacy_base_url = ActivityPub.instance_url_for_domain("z.example.com")
 
       activity = %{
         "type" => "Follow",

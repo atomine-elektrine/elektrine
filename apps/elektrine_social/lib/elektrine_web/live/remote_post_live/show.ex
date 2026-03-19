@@ -10,7 +10,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.RemotePostLive.{Interactions, SurfaceHelpers, Threading}
 
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.Loaders.Skeleton

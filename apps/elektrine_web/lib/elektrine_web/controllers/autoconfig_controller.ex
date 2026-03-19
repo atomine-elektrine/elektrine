@@ -8,6 +8,8 @@ defmodule ElektrineWeb.AutoconfigController do
   """
   use ElektrineWeb, :controller
 
+  alias Elektrine.Domains
+
   @doc """
   Mozilla Autoconfig format for Thunderbird, Apple Mail, etc.
   GET /.well-known/autoconfig/mail/config-v1.1.xml
@@ -15,17 +17,18 @@ defmodule ElektrineWeb.AutoconfigController do
   """
   def mozilla_autoconfig(conn, _params) do
     domain = get_domain(conn)
+    xml_domain = xml_escape(domain)
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <clientConfig version="1.1">
-      <emailProvider id="#{domain}">
-        <domain>#{domain}</domain>
+      <emailProvider id="#{xml_domain}">
+        <domain>#{xml_domain}</domain>
         <displayName>Elektrine Mail</displayName>
         <displayShortName>Elektrine</displayShortName>
 
         <incomingServer type="imap">
-          <hostname>#{domain}</hostname>
+          <hostname>#{xml_domain}</hostname>
           <port>993</port>
           <socketType>SSL</socketType>
           <authentication>password-cleartext</authentication>
@@ -33,7 +36,7 @@ defmodule ElektrineWeb.AutoconfigController do
         </incomingServer>
 
         <outgoingServer type="smtp">
-          <hostname>#{domain}</hostname>
+          <hostname>#{xml_domain}</hostname>
           <port>465</port>
           <socketType>SSL</socketType>
           <authentication>password-cleartext</authentication>
@@ -55,8 +58,10 @@ defmodule ElektrineWeb.AutoconfigController do
   def microsoft_autodiscover(conn, _params) do
     # Parse email from request body
     {:ok, body, conn} = read_body(conn)
-    email = extract_email_from_autodiscover(body)
+    email = sanitize_email(extract_email_from_autodiscover(body))
     domain = get_domain(conn)
+    xml_domain = xml_escape(domain)
+    xml_email = xml_escape(email)
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -67,19 +72,19 @@ defmodule ElektrineWeb.AutoconfigController do
           <Action>settings</Action>
           <Protocol>
             <Type>IMAP</Type>
-            <Server>#{domain}</Server>
+            <Server>#{xml_domain}</Server>
             <Port>993</Port>
             <SSL>on</SSL>
             <AuthRequired>on</AuthRequired>
-            <LoginName>#{email}</LoginName>
+            <LoginName>#{xml_email}</LoginName>
           </Protocol>
           <Protocol>
             <Type>SMTP</Type>
-            <Server>#{domain}</Server>
+            <Server>#{xml_domain}</Server>
             <Port>465</Port>
             <SSL>on</SSL>
             <AuthRequired>on</AuthRequired>
-            <LoginName>#{email}</LoginName>
+            <LoginName>#{xml_email}</LoginName>
           </Protocol>
         </Account>
       </Response>
@@ -97,12 +102,16 @@ defmodule ElektrineWeb.AutoconfigController do
   This provides a downloadable .mobileconfig for iOS/macOS.
   """
   def apple_mobileconfig(conn, params) do
-    email = params["email"] || ""
-    username = params["username"] || String.split(email, "@") |> List.first() || ""
+    email = sanitize_email(params["email"] || "")
+    username = sanitize_username(params["username"] || List.first(String.split(email, "@")) || "")
     domain = get_domain(conn)
     uuid1 = Ecto.UUID.generate()
     uuid2 = Ecto.UUID.generate()
     uuid3 = Ecto.UUID.generate()
+
+    plist_email = xml_escape(email)
+    plist_username = xml_escape(username)
+    plist_domain = xml_escape(domain)
 
     # Mobileconfig is a plist XML format
     plist = """
@@ -116,31 +125,31 @@ defmodule ElektrineWeb.AutoconfigController do
           <key>EmailAccountDescription</key>
           <string>Elektrine Mail</string>
           <key>EmailAccountName</key>
-          <string>#{username}</string>
+          <string>#{plist_username}</string>
           <key>EmailAccountType</key>
           <string>EmailTypeIMAP</string>
           <key>EmailAddress</key>
-          <string>#{email}</string>
+          <string>#{plist_email}</string>
           <key>IncomingMailServerAuthentication</key>
           <string>EmailAuthPassword</string>
           <key>IncomingMailServerHostName</key>
-          <string>#{domain}</string>
+          <string>#{plist_domain}</string>
           <key>IncomingMailServerPortNumber</key>
           <integer>993</integer>
           <key>IncomingMailServerUseSSL</key>
           <true/>
           <key>IncomingMailServerUsername</key>
-          <string>#{email}</string>
+          <string>#{plist_email}</string>
           <key>OutgoingMailServerAuthentication</key>
           <string>EmailAuthPassword</string>
           <key>OutgoingMailServerHostName</key>
-          <string>#{domain}</string>
+          <string>#{plist_domain}</string>
           <key>OutgoingMailServerPortNumber</key>
           <integer>465</integer>
           <key>OutgoingMailServerUseSSL</key>
           <true/>
           <key>OutgoingMailServerUsername</key>
-          <string>#{email}</string>
+          <string>#{plist_email}</string>
           <key>OutgoingPasswordSameAsIncomingPassword</key>
           <true/>
           <key>PayloadDescription</key>
@@ -187,11 +196,15 @@ defmodule ElektrineWeb.AutoconfigController do
   end
 
   defp get_domain(conn) do
-    host = conn.host || "elektrine.com"
-    # Strip autoconfig. or autodiscover. prefix if present
+    host = conn.host || Domains.primary_email_domain()
+
     host
+    |> String.downcase()
     |> String.replace(~r/^autoconfig\./, "")
     |> String.replace(~r/^autodiscover\./, "")
+    |> then(fn domain ->
+      if Domains.local_email_domain?(domain), do: domain, else: Domains.primary_email_domain()
+    end)
   end
 
   defp extract_email_from_autodiscover(body) do
@@ -200,4 +213,36 @@ defmodule ElektrineWeb.AutoconfigController do
       _ -> ""
     end
   end
+
+  defp sanitize_email(value) when is_binary(value) do
+    value = String.trim(value)
+
+    if Regex.match?(~r/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/u, value) do
+      value
+    else
+      ""
+    end
+  end
+
+  defp sanitize_email(_), do: ""
+
+  defp sanitize_username(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.replace(~r/[^[:alnum:]_.+\- ]/u, "")
+    |> String.slice(0, 128)
+  end
+
+  defp sanitize_username(_), do: ""
+
+  defp xml_escape(value) when is_binary(value) do
+    value
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
+    |> String.replace("'", "&apos;")
+  end
+
+  defp xml_escape(value), do: value |> to_string() |> xml_escape()
 end

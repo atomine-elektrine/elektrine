@@ -656,7 +656,7 @@ msgstr ""
 
 #: lib/elektrine_web/live/email_live/home.html.heex:430
 #, elixir-autogen, elixir-format
-msgid "Create additional email addresses on @elektrine.com, @elektrine.net, or @elektrine.org that can forward to specific destinations or deliver to your main mailbox"
+msgid "Create additional email addresses on @example.com, @example.net, or @example.org that can forward to specific destinations or deliver to your main mailbox"
 msgstr ""
 
 #: lib/elektrine_web/live/email_live/home.html.heex:524
@@ -1565,7 +1565,7 @@ msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:100
 #, elixir-autogen, elixir-format
-msgid "Available on @elektrine.com, @elektrine.net, and @elektrine.org"
+msgid "Available on @example.com, @example.net, and @example.org"
 msgstr ""
 
 #: lib/elektrine_web/controllers/page_html/home.html.heex:577

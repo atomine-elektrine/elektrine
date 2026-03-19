@@ -314,7 +314,7 @@ defmodule Elektrine.Calendar.ICalendarTest do
 
       assert {:ok, icalendar} = ICalendar.generate(event)
       assert String.contains?(icalendar, "UID:")
-      assert String.contains?(icalendar, "@elektrine.com")
+      assert String.contains?(icalendar, "@example.com")
     end
   end
 
@@ -324,7 +324,7 @@ defmodule Elektrine.Calendar.ICalendarTest do
       uid2 = ICalendar.generate_uid()
 
       assert uid1 != uid2
-      assert String.ends_with?(uid1, "@elektrine.com")
+      assert String.ends_with?(uid1, "@example.com")
     end
   end
 

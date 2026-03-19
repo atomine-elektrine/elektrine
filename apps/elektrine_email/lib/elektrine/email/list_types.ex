@@ -117,12 +117,36 @@ defmodule Elektrine.Email.ListTypes do
     ]
   end
 
+  @active_list_ids MapSet.new([
+                     "elektrine-password-reset",
+                     "elektrine-account",
+                     "elektrine-security"
+                   ])
+
+  @doc """
+  Returns email lists that are currently used by platform-generated email flows.
+  """
+  @spec active_lists() :: [list_info()]
+  def active_lists do
+    all_lists()
+    |> Enum.filter(&MapSet.member?(@active_list_ids, &1.id))
+  end
+
+  @doc """
+  Returns active lists grouped by type.
+  """
+  @spec active_lists_by_type() :: %{list_type() => [list_info()]}
+  def active_lists_by_type do
+    active_lists()
+    |> Enum.group_by(& &1.type)
+  end
+
   @doc """
   Returns lists that can be unsubscribed from.
   """
   @spec subscribable_lists() :: [list_info()]
   def subscribable_lists do
-    all_lists()
+    active_lists()
     |> Enum.filter(& &1.can_unsubscribe)
   end
 

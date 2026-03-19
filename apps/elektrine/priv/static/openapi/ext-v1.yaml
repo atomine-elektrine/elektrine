@@ -4,7 +4,7 @@ info:
   version: "1.0.0"
   description: Versioned external API for PAT-based integrations.
 servers:
-  - url: https://elektrine.com
+  - url: https://example.com
 security:
   - bearerAuth: []
 paths:

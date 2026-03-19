@@ -3,7 +3,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
   alias Elektrine.{Messaging, Social}
   alias Elektrine.PubSubTopics
   import Phoenix.HTML, only: [raw: 1]
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   import ElektrineWeb.Live.NotificationHelpers

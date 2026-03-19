@@ -37,9 +37,9 @@ defmodule Elektrine.Messaging.SlashCommandsTest do
     test "builds invite links with conversation hash" do
       conversation = %{id: 42, hash: "abc123"}
 
-      assert {:send, "https://elektrine.net/chat/join/abc123"} =
+      assert {:send, "https://example.net/chat/join/abc123"} =
                SlashCommands.process("/invite",
-                 endpoint_url: "https://elektrine.net",
+                 endpoint_url: "https://example.net",
                  conversation: conversation
                )
     end

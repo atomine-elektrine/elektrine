@@ -59,11 +59,11 @@ defmodule Elektrine.Email.SuppressionsTest do
       result =
         Suppressions.filter_suppressed_recipients(user.id, [
           "blocked@example.com",
-          "friend@elektrine.com"
+          "friend@example.com"
         ])
 
       assert result.suppressed == ["blocked@example.com"]
-      assert result.allowed == ["friend@elektrine.com"]
+      assert result.allowed == ["friend@example.com"]
       assert result.reasons["blocked@example.com"] == "hard_bounce"
     end
   end

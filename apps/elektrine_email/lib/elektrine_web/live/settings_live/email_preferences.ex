@@ -21,11 +21,8 @@ defmodule ElektrineWeb.SettingsLive.EmailPreferences do
       (Enum.map(mailboxes, & &1.email) ++ Enum.map(aliases, & &1.email))
       |> Enum.uniq()
 
-    # Get subscribable lists
-    lists = ListTypes.subscribable_lists()
-
-    # Get lists grouped by type
-    lists_by_type = ListTypes.lists_by_type()
+    lists = ListTypes.active_lists()
+    lists_by_type = ListTypes.active_lists_by_type()
 
     # Get current unsubscribe status for each email/list combination (single batch query)
     list_ids = Enum.map(lists, & &1.id)
@@ -37,6 +34,7 @@ defmodule ElektrineWeb.SettingsLive.EmailPreferences do
      |> assign(:user_emails, user_emails)
      |> assign(:lists, lists)
      |> assign(:lists_by_type, lists_by_type)
+     |> assign(:has_subscribable_lists, Enum.any?(lists, & &1.can_unsubscribe))
      |> assign(:unsubscribe_status, unsubscribe_status)}
   end
 

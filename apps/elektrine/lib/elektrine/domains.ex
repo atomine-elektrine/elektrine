@@ -3,7 +3,7 @@ defmodule Elektrine.Domains do
   Centralized helpers for local app domains.
   """
 
-  @default_primary_domain "elektrine.com"
+  @default_primary_domain "example.com"
 
   @doc """
   Primary email domain (usually the main app domain).
@@ -66,6 +66,76 @@ defmodule Elektrine.Domains do
   end
 
   @doc """
+  Preferred built-in profile domain for user-facing URLs.
+
+  Falls back to the shortest configured profile base domain so vanity domains like
+  `z.org` can be preferred over longer primary domains without changing the
+  canonical instance domain.
+  """
+  def default_profile_domain do
+    configured_profile_base_domains()
+    |> Enum.sort_by(fn domain -> {String.length(domain), domain} end)
+    |> List.first()
+    |> case do
+      nil -> primary_profile_domain()
+      domain -> domain
+    end
+  end
+
+  @doc """
+  Preferred built-in profile URL for a handle.
+  """
+  def default_profile_url_for_handle(handle) when is_binary(handle) do
+    normalized_handle = String.trim(handle)
+
+    if normalized_handle == "" do
+      nil
+    else
+      "https://#{normalized_handle}.#{default_profile_domain()}"
+    end
+  end
+
+  def default_profile_url_for_handle(_), do: nil
+
+  @doc """
+  All built-in profile URLs for a handle across configured profile base domains.
+  """
+  def profile_urls_for_handle(handle) when is_binary(handle) do
+    normalized_handle = String.trim(handle)
+
+    if normalized_handle == "" do
+      []
+    else
+      configured_profile_base_domains()
+      |> Enum.map(&"https://#{normalized_handle}.#{&1}")
+      |> Enum.uniq()
+    end
+  end
+
+  def profile_urls_for_handle(_), do: []
+
+  @doc """
+  Public HTTPS base URL for the main site.
+  """
+  def public_base_url do
+    "https://" <> primary_profile_domain()
+  end
+
+  @doc """
+  Public HTTPS base URL for mail-facing services.
+  """
+  def mail_base_url do
+    "https://mail." <> primary_email_domain()
+  end
+
+  @doc """
+  Hostname advertised by SMTP and other mail protocols.
+  """
+  def mail_hostname do
+    primary_email_domain()
+  end
+
+  @doc """
   Optional DNS target hostname to show when onboarding custom profile domains.
 
   Set this to the hostname of your external profile edge, such as a dedicated
@@ -73,7 +143,7 @@ defmodule Elektrine.Domains do
   """
   def profile_custom_domain_edge_target do
     System.get_env("PROFILE_CUSTOM_DOMAIN_EDGE_TARGET")
-    |> normalize_domain(nil)
+    |> normalize_domain(default_profile_custom_domain_edge_target())
   end
 
   @doc """
@@ -84,6 +154,10 @@ defmodule Elektrine.Domains do
   """
   def profile_custom_domain_routing_target do
     profile_custom_domain_edge_target() || primary_profile_domain()
+  end
+
+  defp default_profile_custom_domain_edge_target do
+    "edge." <> primary_profile_domain()
   end
 
   @doc """

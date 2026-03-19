@@ -34,13 +34,13 @@ services:
       - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
-      PHX_HOST: ${PHX_HOST:-elektrine.com}
+      PHX_HOST: ${PHX_HOST:-example.com}
       PHX_SERVER: "true"
       MIX_ENV: prod
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       LETS_ENCRYPT_ENABLED: ${LETS_ENCRYPT_ENABLED:-false}
-      LETS_ENCRYPT_CERT_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/fullchain.pem
-      LETS_ENCRYPT_KEY_PATH: /etc/letsencrypt/live/${PHX_HOST:-elektrine.com}/privkey.pem
+      LETS_ENCRYPT_CERT_PATH: /etc/letsencrypt/live/${PHX_HOST:-example.com}/fullchain.pem
+      LETS_ENCRYPT_KEY_PATH: /etc/letsencrypt/live/${PHX_HOST:-example.com}/privkey.pem
     ports:
       - "${APP_HTTP_BIND:-80:8080}"
       - "${APP_HTTPS_BIND:-443:8443}"

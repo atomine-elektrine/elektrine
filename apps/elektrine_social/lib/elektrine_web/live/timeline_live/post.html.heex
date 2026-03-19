@@ -1,6 +1,6 @@
 <div class="social-page-wrap">
   <!-- Z Platform Navigation -->
-  <.z_nav active_tab="timeline" class="mb-3 sm:mb-4" current_user={@current_user} />
+  <.e_nav active_tab="timeline" class="mb-3 sm:mb-4" current_user={@current_user} />
   
 <!-- Back Button -->
   <div class="social-page-toolbar">
@@ -766,7 +766,7 @@
       phx-click="close_quote_modal"
     >
       <div
-        class="modal-box card max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        class="modal-box card glass-card rounded-lg max-w-xl w-full max-h-[90vh] overflow-y-auto"
         phx-click="stop_propagation"
         phx-window-keydown="close_quote_modal"
         phx-key="Escape"

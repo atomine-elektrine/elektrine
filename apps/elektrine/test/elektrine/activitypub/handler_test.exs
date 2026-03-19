@@ -150,13 +150,13 @@ defmodule Elektrine.ActivityPub.HandlerTest do
   end
 
   describe "extract_local_mentions/1" do
-    test "extracts username from elektrine.net mention" do
+    test "extracts username from example.net mention" do
       object = %{
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://elektrine.net/users/testuser",
-            "name" => "@testuser@elektrine.net"
+            "href" => "https://example.net/users/testuser",
+            "name" => "@testuser@example.net"
           }
         ]
       }
@@ -165,13 +165,13 @@ defmodule Elektrine.ActivityPub.HandlerTest do
       assert result == ["testuser"]
     end
 
-    test "extracts username from elektrine.com mention" do
+    test "extracts username from example.com mention" do
       object = %{
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://elektrine.com/users/testuser",
-            "name" => "@testuser@elektrine.com"
+            "href" => "https://example.com/users/testuser",
+            "name" => "@testuser@example.com"
           }
         ]
       }
@@ -200,13 +200,13 @@ defmodule Elektrine.ActivityPub.HandlerTest do
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://elektrine.net/users/alice",
-            "name" => "@alice@elektrine.net"
+            "href" => "https://example.net/users/alice",
+            "name" => "@alice@example.net"
           },
           %{
             "type" => "Mention",
-            "href" => "https://elektrine.com/users/bob",
-            "name" => "@bob@elektrine.com"
+            "href" => "https://example.com/users/bob",
+            "name" => "@bob@example.com"
           },
           %{
             "type" => "Mention",
@@ -215,7 +215,7 @@ defmodule Elektrine.ActivityPub.HandlerTest do
           },
           %{
             "type" => "Hashtag",
-            "href" => "https://elektrine.net/tags/test",
+            "href" => "https://example.net/tags/test",
             "name" => "#test"
           }
         ]

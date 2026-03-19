@@ -58,7 +58,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
               phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
               phx-key="escape"
               phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-              class="modal-box card relative hidden p-8 sm:p-10 transition"
+              class="modal-box card glass-card relative hidden p-8 sm:p-10 transition"
             >
               <div class="absolute top-4 right-4">
                 <button
@@ -104,7 +104,11 @@ defmodule ElektrineWeb.Components.UI.Modal do
 
     ~H"""
     <div id={@id} data-modal={@data_modal} class={["modal", @open && "modal-open"]}>
-      <div class={["modal-box", @max_width, @box_class]}>
+      <div class={[
+        "modal-box bg-base-100/95 text-base-content border border-base-300 shadow-2xl backdrop-blur-md",
+        @max_width,
+        @box_class
+      ]}>
         <div :if={@title || @show_close_button} class={@header_class}>
           <h2 :if={@title} class={@title_class}>{@title}</h2>
           <button

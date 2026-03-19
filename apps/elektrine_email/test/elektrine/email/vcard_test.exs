@@ -269,13 +269,13 @@ defmodule Elektrine.Email.VCardTest do
       uid2 = VCard.generate_uid()
 
       assert uid1 != uid2
-      assert String.ends_with?(uid1, "@elektrine.com")
-      assert String.ends_with?(uid2, "@elektrine.com")
+      assert String.ends_with?(uid1, "@example.com")
+      assert String.ends_with?(uid2, "@example.com")
     end
 
     test "generates valid UUID format" do
       uid = VCard.generate_uid()
-      # Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx@elektrine.com
+      # Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx@example.com
       assert String.match?(
                uid,
                ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@elektrine\.com$/

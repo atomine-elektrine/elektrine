@@ -95,14 +95,19 @@ config :elektrine, Oban,
 config :elixir, :time_zone_database, Calendar.UTCOnlyTimeZoneDatabase
 
 primary_domain =
-  (System.get_env("PRIMARY_DOMAIN") || System.get_env("EMAIL_DOMAIN") || "elektrine.com")
+  (System.get_env("PRIMARY_DOMAIN") || "elektrine.com")
+  |> String.trim()
+  |> String.downcase()
+
+email_domain =
+  (System.get_env("EMAIL_DOMAIN") || primary_domain)
   |> String.trim()
   |> String.downcase()
 
 supported_domains_env =
   System.get_env("SUPPORTED_DOMAINS") || System.get_env("EMAIL_SUPPORTED_DOMAINS")
 
-default_supported_domains = ["elektrine.com", "elektrine.net", "elektrine.org", "z.org"]
+default_supported_domains = [email_domain]
 
 normalize_domains = fn domains ->
   domains
@@ -125,12 +130,12 @@ supported_email_domains =
   ([primary_domain] ++ configured_supported_domains)
   |> normalize_domains.()
 
-profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS") || supported_domains_env
+profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS")
 
 profile_base_domains =
   case profile_domains_env do
     nil ->
-      supported_email_domains
+      [primary_domain]
 
     value ->
       ([primary_domain] ++ String.split(value, ",", trim: true))
@@ -145,7 +150,7 @@ profile_host_scope =
 
 # Configure email settings
 config :elektrine, :email,
-  domain: primary_domain,
+  domain: email_domain,
   # Legacy receiver webhook auth fallback:
   # keep permissive in dev/test, fail-closed in prod unless explicitly configured.
   allow_insecure_receiver_webhook: config_env() != :prod,

@@ -12,7 +12,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)

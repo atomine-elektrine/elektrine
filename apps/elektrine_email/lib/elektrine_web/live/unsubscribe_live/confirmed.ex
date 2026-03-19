@@ -17,7 +17,8 @@ defmodule ElektrineWeb.UnsubscribeLive.Confirmed do
     ~H"""
     <div
       id="unsubscribe-confirmed-card"
-      class="card shadow-xl max-w-md mx-auto"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
     >
       <div class="card-body">
         <div class="text-center mb-4">

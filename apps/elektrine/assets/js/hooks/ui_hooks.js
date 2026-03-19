@@ -623,6 +623,218 @@ export const DetailsPreserve = {
   }
 }
 
+// Apple-like glass card effect that follows cursor
+export const GlassCard = {
+  mounted() {
+    this.initGlassEffect(this.el)
+  },
+
+  beforeUpdate() {
+    // Save current position before DOM update
+    this._savedX = this.el._lastX
+    this._savedY = this.el._lastY
+  },
+
+  updated() {
+    // Re-init if element lost its listeners
+    if (!this.el._glassCardInit) {
+      this.initGlassEffect(this.el)
+    }
+
+    // Restore CSS properties after DOM update (LiveView may have reset inline styles)
+    if (this._savedX && this._savedY) {
+      this.el.style.setProperty('--mouse-x', `${this._savedX}px`)
+      this.el.style.setProperty('--mouse-y', `${this._savedY}px`)
+      this.el._lastX = this._savedX
+      this.el._lastY = this._savedY
+    }
+  },
+
+  initGlassEffect(element) {
+    if (element._glassCardInit) return
+
+    // Use requestAnimationFrame to throttle updates and prevent layout thrashing
+    element._rafId = null
+    element._lastX = 0
+    element._lastY = 0
+    element._paused = false
+
+    element._handleMouseMove = (e) => {
+      // Skip if paused (during click/collapse) or already waiting for animation frame
+      if (element._paused || element._rafId) return
+
+      element._rafId = requestAnimationFrame(() => {
+        const rect = element.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const y = e.clientY - rect.top
+
+        // Only update if position changed significantly (reduces repaints)
+        if (Math.abs(x - element._lastX) > 1 || Math.abs(y - element._lastY) > 1) {
+          element.style.setProperty('--mouse-x', `${x}px`)
+          element.style.setProperty('--mouse-y', `${y}px`)
+          element._lastX = x
+          element._lastY = y
+        }
+
+        element._rafId = null
+      })
+    }
+
+    element._handleMouseLeave = () => {
+      // Cancel any pending animation frame
+      if (element._rafId) {
+        cancelAnimationFrame(element._rafId)
+        element._rafId = null
+      }
+      element.style.setProperty('--mouse-x', '-1000px')
+      element.style.setProperty('--mouse-y', '-1000px')
+      element._lastX = 0
+      element._lastY = 0
+    }
+
+    // Pause tracking during clicks to prevent glitches when collapsible elements change size
+    element._handleClick = () => {
+      element._paused = true
+      // Resume tracking after collapse animation completes
+      setTimeout(() => {
+        element._paused = false
+      }, 350)
+    }
+
+    element.addEventListener('mousemove', element._handleMouseMove, { passive: true })
+    element.addEventListener('mouseleave', element._handleMouseLeave, { passive: true })
+    element.addEventListener('click', element._handleClick, { capture: true, passive: true })
+    element._glassCardInit = true
+  },
+
+  destroyed() {
+    if (this.el._rafId) {
+      cancelAnimationFrame(this.el._rafId)
+    }
+    if (this.el._handleMouseMove) {
+      this.el.removeEventListener('mousemove', this.el._handleMouseMove)
+    }
+    if (this.el._handleMouseLeave) {
+      this.el.removeEventListener('mouseleave', this.el._handleMouseLeave)
+    }
+    if (this.el._handleClick) {
+      this.el.removeEventListener('click', this.el._handleClick, { capture: true })
+    }
+    this.el._glassCardInit = false
+  }
+}
+
+// Container hook that initializes glass effect on all child .glass-card elements
+export const GlassCardContainer = {
+  mounted() {
+    this.initAllCards()
+  },
+
+  beforeUpdate() {
+    // Save positions of all cards before DOM update
+    this._savedPositions = new Map()
+    const cards = this.el.querySelectorAll('.glass-card')
+    cards.forEach((card, index) => {
+      if (card._lastX || card._lastY) {
+        this._savedPositions.set(index, { x: card._lastX, y: card._lastY })
+      }
+    })
+  },
+
+  updated() {
+    this.initAllCards()
+
+    // Restore positions after DOM update
+    if (this._savedPositions && this._savedPositions.size > 0) {
+      const cards = this.el.querySelectorAll('.glass-card')
+      cards.forEach((card, index) => {
+        const saved = this._savedPositions.get(index)
+        if (saved && (saved.x || saved.y)) {
+          card.style.setProperty('--mouse-x', `${saved.x}px`)
+          card.style.setProperty('--mouse-y', `${saved.y}px`)
+          card._lastX = saved.x
+          card._lastY = saved.y
+        }
+      })
+    }
+  },
+
+  initAllCards() {
+    const cards = this.el.querySelectorAll('.glass-card')
+    cards.forEach(card => {
+      if (card._glassCardInit) return
+
+      // Use requestAnimationFrame to throttle updates
+      card._rafId = null
+      card._lastX = 0
+      card._lastY = 0
+      card._paused = false
+
+      card._handleMouseMove = (e) => {
+        if (card._paused || card._rafId) return
+
+        card._rafId = requestAnimationFrame(() => {
+          const rect = card.getBoundingClientRect()
+          const x = e.clientX - rect.left
+          const y = e.clientY - rect.top
+
+          if (Math.abs(x - card._lastX) > 1 || Math.abs(y - card._lastY) > 1) {
+            card.style.setProperty('--mouse-x', `${x}px`)
+            card.style.setProperty('--mouse-y', `${y}px`)
+            card._lastX = x
+            card._lastY = y
+          }
+
+          card._rafId = null
+        })
+      }
+
+      card._handleMouseLeave = () => {
+        if (card._rafId) {
+          cancelAnimationFrame(card._rafId)
+          card._rafId = null
+        }
+        card.style.setProperty('--mouse-x', '-1000px')
+        card.style.setProperty('--mouse-y', '-1000px')
+        card._lastX = 0
+        card._lastY = 0
+      }
+
+      // Pause tracking during clicks to prevent glitches when collapsible elements change size
+      card._handleClick = () => {
+        card._paused = true
+        setTimeout(() => {
+          card._paused = false
+        }, 350)
+      }
+
+      card.addEventListener('mousemove', card._handleMouseMove, { passive: true })
+      card.addEventListener('mouseleave', card._handleMouseLeave, { passive: true })
+      card.addEventListener('click', card._handleClick, { capture: true, passive: true })
+      card._glassCardInit = true
+    })
+  },
+
+  destroyed() {
+    const cards = this.el.querySelectorAll('.glass-card')
+    cards.forEach(card => {
+      if (card._rafId) {
+        cancelAnimationFrame(card._rafId)
+      }
+      if (card._handleMouseMove) {
+        card.removeEventListener('mousemove', card._handleMouseMove)
+      }
+      if (card._handleMouseLeave) {
+        card.removeEventListener('mouseleave', card._handleMouseLeave)
+      }
+      if (card._handleClick) {
+        card.removeEventListener('click', card._handleClick, { capture: true })
+      }
+      card._glassCardInit = false
+    })
+  }
+}
+
 // Scroll to top button that appears when scrolled down
 export const ScrollToTop = {
   mounted() {

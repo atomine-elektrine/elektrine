@@ -26,12 +26,12 @@ defmodule ElektrineWeb.MatrixWellKnownControllerTest do
     end
 
     test "returns configured delegation override", %{conn: conn} do
-      System.put_env("MATRIX_SERVER_DELEGATION", "matrix.elektrine.net:8448")
+      System.put_env("MATRIX_SERVER_DELEGATION", "matrix.example.net:8448")
 
       conn = get(conn, "/.well-known/matrix/server")
       response = json_response(conn, 200)
 
-      assert response["m.server"] == "matrix.elektrine.net:8448"
+      assert response["m.server"] == "matrix.example.net:8448"
     end
   end
 
@@ -49,12 +49,12 @@ defmodule ElektrineWeb.MatrixWellKnownControllerTest do
     end
 
     test "returns configured client base URL override", %{conn: conn} do
-      System.put_env("MATRIX_CLIENT_BASE_URL", "https://matrix.elektrine.net")
+      System.put_env("MATRIX_CLIENT_BASE_URL", "https://matrix.example.net")
 
       conn = get(conn, "/.well-known/matrix/client")
       response = json_response(conn, 200)
 
-      assert response["m.homeserver"]["base_url"] == "https://matrix.elektrine.net"
+      assert response["m.homeserver"]["base_url"] == "https://matrix.example.net"
       assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
     end
   end

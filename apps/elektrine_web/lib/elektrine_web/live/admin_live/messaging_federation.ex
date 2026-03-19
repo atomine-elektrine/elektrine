@@ -188,7 +188,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col gap-4">
+    <div class="admin-page">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
@@ -246,7 +246,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         </div>
       </div>
 
-      <div class="card shadow">
+      <div class="card glass-card shadow">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-no-symbol" class="w-5 h-5" /> Block Peer for Arblarg Messaging
@@ -280,7 +280,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         </div>
       </div>
 
-      <div class="card shadow">
+      <div class="card glass-card shadow">
         <div class="card-body p-4 sm:p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 class="card-title text-base sm:text-lg">

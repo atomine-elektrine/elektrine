@@ -87,7 +87,7 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     user = user_fixture(%{username: "conflictingprofiledomain"})
 
     assert {:error, changeset} =
-             Profiles.create_custom_domain(user, %{"domain" => "foo.elektrine.com"})
+             Profiles.create_custom_domain(user, %{"domain" => "foo.example.com"})
 
     assert "conflicts with an existing profile host" in errors_on(changeset).domain
   end

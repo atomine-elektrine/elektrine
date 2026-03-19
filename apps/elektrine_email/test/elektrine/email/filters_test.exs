@@ -947,7 +947,7 @@ defmodule Elektrine.Email.FiltersTest do
     default_attrs = %{
       message_id: "filter-test-#{System.unique_integer([:positive])}",
       from: "sender@example.com",
-      to: "user@elektrine.com",
+      to: "user@example.com",
       subject: "Filter Test Message",
       text_body: "Test body",
       status: "received",

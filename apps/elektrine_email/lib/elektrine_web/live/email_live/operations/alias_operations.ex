@@ -8,6 +8,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
 
+  alias Elektrine.Domains
   alias Elektrine.Email
   alias ElektrineWeb.UserErrorHelpers
 
@@ -16,8 +17,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
 
     # Extract username and domain
     username = alias_params["username"]
-    # Default to elektrine.com if not specified
-    domain = alias_params["domain"] || "elektrine.com"
+    domain = alias_params["domain"] || Domains.primary_email_domain()
 
     if username && String.trim(username) != "" do
       # Use single-domain creation

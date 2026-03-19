@@ -1,4 +1,4 @@
-<div class="flex flex-col gap-4">
+<div class="admin-page">
   <% search_active = @search_query != "" %>
   <% conversation_type_filter = assigns[:conversation_type_filter] || "all" %>
   <% protocol_filter = assigns[:protocol_filter] || "all" %>
@@ -27,29 +27,29 @@
   </div>
 
   <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{page_results_count}</div>
     </div>
-    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Local</div>
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{stats.local}</div>
     </div>
-    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Federated</div>
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">{stats.federated}</div>
     </div>
-    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Mirrored</div>
       <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">{stats.mirrored}</div>
     </div>
-    <div class="rounded-lg border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Total Matches</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{@total_count}</div>
     </div>
   </div>
 
-  <div class="card mb-6 shadow-xl">
+  <div class="card glass-card mb-6 shadow-xl">
     <div class="card-body">
       <form
         method="get"
@@ -117,7 +117,7 @@
   </div>
 
   <%= if @messages == [] do %>
-    <div class="rounded-lg border border-base-300 bg-base-200/60 p-8 text-center">
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
       <.icon
         name="hero-chat-bubble-left-right"
         class="mx-auto mb-3 h-10 w-10 text-base-content/30"
@@ -128,7 +128,7 @@
       </p>
     </div>
   <% else %>
-    <div class="card mb-6 shadow-xl">
+    <div class="card glass-card mb-6 shadow-xl">
       <div class="card-body">
         <div class="hidden overflow-x-auto lg:block">
           <table class="table table-zebra w-full">

@@ -202,7 +202,7 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
       # Verify mailbox was created
       mailbox = Elektrine.Email.get_user_mailbox(user.id)
       assert mailbox
-      assert String.contains?(mailbox.email, "@elektrine.com")
+      assert String.contains?(mailbox.email, "@example.com")
 
       # Storage is now tracked on User, not Mailbox
       assert user.storage_used_bytes == 0

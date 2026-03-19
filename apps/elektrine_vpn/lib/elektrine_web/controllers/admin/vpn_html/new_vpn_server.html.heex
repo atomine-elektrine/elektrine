@@ -1,13 +1,18 @@
-<div class="flex flex-col gap-4">
-  <div class="mb-4">
-    <h1 class="text-3xl font-bold">Add VPN Server</h1>
-    <p class="text-base-content/70 mt-2">Set up a new WireGuard server</p>
+<div class="admin-page">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+      VPN Admin
+    </p>
+    <h1 class="mt-2 text-3xl font-bold">Create VPN Server</h1>
+    <p class="mt-2 text-sm text-base-content/70 sm:text-base">
+      Register a new WireGuard server so it can issue configs, report usage, and accept managed clients.
+    </p>
   </div>
 
-  <div class="alert alert-info mb-4">
+  <div class="alert alert-info mb-6">
     <.icon name="hero-information-circle" class="w-5 h-5" />
     <div>
-      <h3 class="font-bold">Quick Setup (3 Steps)</h3>
+      <h3 class="font-bold">Deployment Checklist</h3>
       <div class="text-sm mt-1">
         <p>1. Fill in details below and enter "AUTO" for public key</p>
         <p>2. Copy the API key shown after creation</p>
@@ -16,7 +21,7 @@
     </div>
   </div>
 
-  <div class="card shadow-sm">
+  <div class="card glass-card shadow-lg">
     <div class="card-body">
       <.form :let={f} for={@changeset} action={~p"/pripyat/vpn/servers"} method="post">
         <div class="space-y-4">

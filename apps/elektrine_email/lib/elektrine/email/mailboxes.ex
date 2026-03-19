@@ -7,6 +7,7 @@ defmodule Elektrine.Email.Mailboxes do
   import Ecto.Query, warn: false
   require Logger
   alias Ecto.Multi
+  alias Elektrine.Domains
   alias Elektrine.Email.{CustomDomains, Mailbox, Message}
   alias Elektrine.Repo
 
@@ -109,7 +110,7 @@ defmodule Elektrine.Email.Mailboxes do
 
       mailbox ->
         # Check if mailbox email matches current username
-        domain = Application.get_env(:elektrine, :email)[:domain] || "elektrine.com"
+        domain = Domains.primary_email_domain()
         expected_email = "#{user.username}@#{domain}"
 
         if mailbox.email != expected_email do

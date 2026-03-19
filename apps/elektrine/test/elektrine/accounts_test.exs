@@ -90,7 +90,7 @@ defmodule Elektrine.AccountsTest do
         # User creation should have created a mailbox
         mailbox = Elektrine.Repo.get_by(Elektrine.Email.Mailbox, user_id: user.id)
         assert mailbox
-        assert mailbox.email == "testdel@elektrine.com"
+        assert mailbox.email == "testdel@example.com"
 
         # Create a message in the mailbox
         {:ok, message} =
@@ -99,7 +99,7 @@ defmodule Elektrine.AccountsTest do
             mailbox_id: mailbox.id,
             message_id: "test-message-#{System.unique_integer()}",
             from: "sender@example.com",
-            to: "testdel@elektrine.com",
+            to: "testdel@example.com",
             subject: "Test message",
             text_body: "Test content"
           })

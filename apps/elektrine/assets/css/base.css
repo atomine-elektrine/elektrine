@@ -293,6 +293,30 @@ body[data-grid="orange"], body.grid-orange {
   --grid-glow-x-color: rgba(249, 115, 22, 0.12);
 }
 
+/* Apple-like glass card effect */
+.glass-card {
+  position: relative;
+  isolation: isolate;
+  background: oklch(var(--b2) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--bc) / 0.1);
+  border-radius: 0.5rem;
+  /* GPU acceleration for smooth glow animation */
+  transform: translateZ(0);
+}
+
+/* Sticky glass-cards need different containment to work properly */
+.glass-card.sticky {
+  contain: none;
+}
+
+/* Ensure card content is above the glow effects */
+.glass-card > .card-body {
+  position: relative;
+  z-index: 1;
+}
+
 .admin-layout {
   color-scheme: dark;
 }
@@ -313,6 +337,28 @@ body[data-grid="orange"], body.grid-orange {
 .admin-navbar .navbar-end,
 .admin-navbar .dropdown {
   overflow: visible !important;
+}
+
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .admin-page {
+    gap: 2rem;
+  }
+}
+
+.admin-page > :first-child {
+  margin-bottom: 0 !important;
+}
+
+.admin-page > .card.glass-card,
+.admin-page > section.card.glass-card {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 .admin-layout .dropdown-content,

@@ -51,6 +51,8 @@ import {
   DetailsPreserve,
   ScrollToTop,
   ScrollToBottom,
+  GlassCard,
+  GlassCardContainer,
   StopPropagation,
   Tilt3D,
   ImageFallback
@@ -174,6 +176,8 @@ export const Hooks = {
   DetailsPreserve,
   ScrollToTop,
   ScrollToBottom,
+  GlassCard,
+  GlassCardContainer,
   StopPropagation,
   Tilt3D,
   ImageFallback,

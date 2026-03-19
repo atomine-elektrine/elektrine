@@ -1,7 +1,10 @@
 <div
   id="settings-container"
+  phx-hook="GlassCardContainer"
   class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
 >
+  <ElektrineWeb.Components.Platform.ENav.e_nav active_tab="account" current_user={@current_user} />
+
   <div class="mb-6 sm:mb-8">
     <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
       {gettext("Account Settings")}
@@ -15,7 +18,7 @@
     <!-- Sidebar Navigation -->
     <div class="lg:col-span-1">
       <div class="sticky top-24 self-start">
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
             <ul class="menu menu-compact w-full p-0 space-y-1">
@@ -58,7 +61,7 @@
       <!-- Profile Tab -->
       <%= if @selected_tab == "profile" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
                 <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
@@ -156,7 +159,7 @@
                       <%= if avatar_entry do %>
                         <div
                           id="avatar-upload-status"
-                          class="rounded-lg border border-base-300 bg-base-200/80 p-3 space-y-2"
+                          class="rounded-xl border border-base-300 bg-base-200/80 p-3 space-y-2"
                         >
                           <div class="flex items-start gap-3">
                             <div class="min-w-0 flex-1">
@@ -328,7 +331,7 @@
             </div>
           </div>
 
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6 space-y-4">
               <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -550,7 +553,7 @@
       <%= if @selected_tab == "security" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Password Section -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-key" class="w-5 h-5" /> {gettext("Password")}
@@ -570,7 +573,7 @@
           </div>
           
 <!-- Two-Factor Authentication Section -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext(
@@ -615,7 +618,7 @@
           </div>
           
 <!-- Passkeys Section -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-finger-print" class="w-5 h-5" />
@@ -641,7 +644,7 @@
           <%= if tab_enabled?("email") do %>
             <!-- Email Sending Status Section -->
             <%= if @loading_security do %>
-              <div class="card shadow-lg">
+              <div class="card glass-card shadow-lg">
                 <div class="card-body p-4 sm:p-6">
                   <div class="animate-pulse space-y-4">
                     <div class="h-4 bg-base-300 rounded w-1/3"></div>
@@ -651,7 +654,7 @@
               </div>
             <% end %>
             <%= if !@loading_security && @email_restriction_status.restricted do %>
-              <div class="card shadow-lg border-2 border-warning">
+              <div class="card glass-card shadow-lg border-2 border-warning">
                 <div class="card-body p-4 sm:p-6">
                   <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                     <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
@@ -712,7 +715,7 @@
 
           <%= if tab_enabled?("email") do %>
             <!-- App Passwords Section -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                   <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
@@ -733,7 +736,7 @@
           <% end %>
 
           <%= if tab_enabled?("password-manager") do %>
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                   <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Password Manager")}
@@ -766,7 +769,7 @@
           data-vault-configured={to_string(@password_manager_vault_configured)}
           data-vault-verifier={encode_payload(@password_manager_vault_verifier)}
         >
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
@@ -787,7 +790,7 @@
           </div>
 
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <%= if @password_manager_vault_configured do %>
                   <h3 class="card-title text-base sm:text-lg mb-4">
@@ -871,7 +874,7 @@
               </div>
             </div>
 
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h3 class="card-title text-base sm:text-lg mb-4">
                   {gettext("Vault Security")}
@@ -909,7 +912,7 @@
             </div>
           </div>
 
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg mb-4">
                 {gettext("Add Vault Entry")}
@@ -1010,7 +1013,7 @@
             </div>
           </div>
 
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg mb-4">{gettext("Saved Entries")}</h3>
 
@@ -1152,7 +1155,7 @@
       
 <!-- Privacy Tab -->
       <%= if @selected_tab == "privacy" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Privacy Settings")}
@@ -1558,7 +1561,7 @@
       
 <!-- Preferences Tab -->
       <%= if @selected_tab == "preferences" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Preferences")}
@@ -1753,7 +1756,7 @@
       
 <!-- Notifications Tab -->
       <%= if @selected_tab == "notifications" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Notifications")}
@@ -1895,7 +1898,7 @@
 <!-- Federation Tab -->
       <%= if @selected_tab == "federation" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-globe-alt" class="w-5 h-5" /> {gettext("Federation")}
@@ -1955,7 +1958,7 @@
               <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %>
               <% bluesky_profile_url = bluesky_profile_url(@user) %>
 
-              <div class="rounded-lg border border-base-300 bg-base-200/50 p-4 sm:p-5 space-y-4">
+              <div class="rounded-xl border border-base-300 bg-base-200/50 p-4 sm:p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 class="text-sm sm:text-base font-semibold flex items-center gap-2">
                     <.icon name="hero-link" class="w-4 h-4" /> {gettext("Managed Bluesky")}
@@ -2062,7 +2065,7 @@
 
           <%= if @bluesky_managed_enabled do %>
             <% managed_linked = @user.bluesky_enabled && @user.bluesky_app_password %>
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6 space-y-4">
                 <h3 class="card-title text-base sm:text-lg flex flex-wrap items-center gap-2 leading-tight">
                   <.icon name="hero-link" class="w-5 h-5 shrink-0" /> {gettext(
@@ -2085,7 +2088,7 @@
                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <form
                       phx-submit="reconnect_bluesky_managed"
-                      class="space-y-3 min-w-0 rounded-lg border border-base-300/70 bg-base-200/30 p-4"
+                      class="space-y-3 min-w-0 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
                     >
                       <label class="label py-0">
                         <span class="label-text font-medium whitespace-normal break-words leading-snug">
@@ -2117,7 +2120,7 @@
 
                     <form
                       phx-submit="disconnect_bluesky_managed"
-                      class="space-y-3 min-w-0 rounded-lg border border-base-300/70 bg-base-200/30 p-4"
+                      class="space-y-3 min-w-0 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
                     >
                       <label class="label py-0">
                         <span class="label-text font-medium whitespace-normal break-words leading-snug">
@@ -2155,7 +2158,7 @@
                   </p>
                   <form
                     phx-submit="enable_bluesky_managed"
-                    class="space-y-4 rounded-lg border border-base-300/70 bg-base-200/30 p-4"
+                    class="space-y-4 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
                   >
                     <div>
                       <label class="label py-0">
@@ -2198,7 +2201,7 @@
       <%= if @selected_tab == "timeline" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- RSS Feeds Card -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-2">
                 <.icon name="hero-rss" class="w-5 h-5" /> {gettext("RSS Feeds")}
@@ -2349,7 +2352,7 @@
         <div class="space-y-6">
           <%= if @loading_developer do %>
             <!-- Loading skeleton for API Tokens -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
@@ -2365,7 +2368,7 @@
               </div>
             </div>
             <!-- Loading skeleton for Data Export -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
                   <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
@@ -2379,7 +2382,7 @@
             </div>
           <% else %>
             <!-- API Tokens Section -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
@@ -2505,7 +2508,7 @@
                   </p>
                   <code class="block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
                     curl -H "Authorization: Bearer ekt_xxxxx" \<br />
-                    &nbsp;&nbsp;"https://elektrine.com/api/ext/v1/search?q=inbox"
+                    &nbsp;&nbsp;{"#{Elektrine.Domains.public_base_url()}/api/ext/v1/search?q=inbox"}
                   </code>
                   <p class="mt-2">
                     {gettext(
@@ -2522,7 +2525,7 @@
             </div>
             
 <!-- Data Export Section -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
                   <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
@@ -2616,7 +2619,7 @@
             </div>
             
 <!-- Webhooks Section -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
@@ -2834,7 +2837,7 @@
             </div>
             
 <!-- API Info Section -->
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
                   <.icon name="hero-document-text" class="w-5 h-5" />

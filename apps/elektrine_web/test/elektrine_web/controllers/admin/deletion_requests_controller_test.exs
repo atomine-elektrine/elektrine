@@ -80,7 +80,7 @@ defmodule ElektrineWeb.Admin.DeletionRequestsControllerTest do
   end
 
   defp with_elektrine_host(conn) do
-    Map.put(conn, :host, "elektrine.com")
+    Map.put(conn, :host, "example.com")
   end
 
   defp log_in_as(conn, user) do
