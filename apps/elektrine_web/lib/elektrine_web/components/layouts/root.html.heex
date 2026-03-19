@@ -49,9 +49,14 @@
     />
 
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <% umami = umami_config() %>
     <%= unless via_tor_request?(assigns) do %>
       <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer>
       </script>
+      <%= if umami.enabled && is_binary(umami.website_id) && umami.website_id != "" do %>
+        <script defer src={umami.script_url} data-website-id={umami.website_id}>
+        </script>
+      <% end %>
     <% end %>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>

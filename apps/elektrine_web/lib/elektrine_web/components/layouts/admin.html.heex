@@ -25,7 +25,7 @@
           <div
             tabindex="0"
             role="button"
-            class="btn btn-ghost btn-square lg:hidden flex-shrink-0"
+            class="btn btn-ghost btn-circle lg:hidden flex-shrink-0"
           >
             <.icon name="hero-bars-3" class="h-6 w-6" />
           </div>
@@ -71,7 +71,11 @@
         <ul class="menu menu-horizontal px-1 gap-1 whitespace-nowrap">
           <%= for section <- admin_nav_sections() do %>
             <li class="dropdown">
-              <div tabindex="0" role="button" class="btn btn-ghost btn-sm rounded-lg">
+              <div
+                tabindex="0"
+                role="button"
+                class="btn btn-ghost rounded-full"
+              >
                 {section.label} <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
               </div>
               <ul
@@ -97,7 +101,7 @@
         <%= if @current_user do %>
           <.link
             href={~p"/overview"}
-            class="btn btn-ghost btn-sm hidden md:inline-flex flex-shrink-0 gap-2"
+            class="btn btn-ghost rounded-full hidden md:inline-flex flex-shrink-0 gap-2 px-4"
             title="Exit Admin"
           >
             <.icon name="hero-arrow-left" class="w-4 h-4" />
@@ -119,7 +123,7 @@
                 </span>
               </span>
             <% end %>
-            <div class="btn btn-ghost btn-circle btn-sm flex items-center justify-center">
+            <div class="btn btn-ghost btn-circle flex items-center justify-center">
               <%= if assigns[:notification_count] && @notification_count > 0 do %>
                 <.icon name="hero-bell-alert" class="w-5 h-5" />
               <% else %>

@@ -2,13 +2,14 @@
   <!-- Elektrine Platform Navigation -->
   <.elektrine_nav active_tab="vpn" />
 
-  <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
+  <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
     <!-- Sidebar -->
-    <div class="order-2 lg:order-1 w-full lg:w-72 xl:w-80 flex-shrink-0 flex flex-col gap-6">
+    <div class="order-2 lg:order-1 w-full lg:w-72 xl:w-80 flex-shrink-0 flex flex-col">
       <!-- Available Servers Card -->
       <div
         id="vpn-servers-card"
-        class="card shadow-lg rounded-box"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box"
       >
         <div class="card-body p-3">
           <h3 class="font-semibold text-sm mb-3">
@@ -94,7 +95,8 @@
 
       <div
         id="vpn-info-card"
-        class="card shadow-lg rounded-box"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box mt-3"
       >
         <div class="card-body p-4">
           <div class="flex-1 min-w-0">
@@ -118,7 +120,8 @@
 <!-- How to Use Section -->
       <div
         id="vpn-instructions-card"
-        class="card shadow-lg rounded-box"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box mt-3"
       >
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-3">{gettext("Setup Instructions")}</h3>
@@ -156,7 +159,8 @@
     <div class="order-1 lg:order-2 flex-1 min-w-0">
       <div
         id="vpn-configs-card"
-        class="card shadow-lg rounded-box"
+        phx-hook="GlassCard"
+        class="card glass-card shadow-lg rounded-box"
       >
         <div class="card-body p-3 sm:p-6">
           <!-- Header -->

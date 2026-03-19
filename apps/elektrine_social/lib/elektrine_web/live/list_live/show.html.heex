@@ -1,9 +1,9 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-  <.z_nav active_tab="lists" current_user={@current_user} />
+  <.e_nav active_tab="lists" current_user={@current_user} />
 
   <div class="flex flex-col sm:flex-row gap-4">
     <!-- Sidebar - List Members -->
-    <div class="w-full sm:w-80 flex-shrink-0 card shadow-lg border border-base-300">
+    <div class="w-full sm:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300">
       <div class="card-body p-4">
         <.link href={~p"/lists"} class="btn btn-ghost btn-sm mb-4">
           <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Lists
@@ -240,7 +240,7 @@
     
 <!-- Main Content - List Timeline -->
     <div class="flex-1">
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body p-4">
           <h2 class="text-xl font-semibold mb-4">Timeline</h2>
 
@@ -250,7 +250,7 @@
                 <%= if post.sender || post.remote_actor do %>
                   <div
                     class={[
-                      "card shadow-sm border border-base-300"
+                      "card glass-card shadow-sm border border-base-300"
                     ]}
                     data-post-id={post.id}
                   >

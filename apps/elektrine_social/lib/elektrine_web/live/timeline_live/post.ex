@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.TimelineLive.Post do
   use ElektrineSocialWeb, :live_view
   import ElektrineWeb.Components.Social.ContentJourney
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.User.Avatar

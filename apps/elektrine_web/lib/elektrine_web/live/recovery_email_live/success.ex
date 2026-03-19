@@ -17,7 +17,8 @@ defmodule ElektrineWeb.RecoveryEmailLive.Success do
     ~H"""
     <div
       id="recovery-success-card"
-      class="card shadow-xl max-w-md mx-auto"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
     >
       <div class="card-body text-center">
         <div class="flex justify-center mb-4">

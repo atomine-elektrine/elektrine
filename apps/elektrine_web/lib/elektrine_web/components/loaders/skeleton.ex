@@ -7,7 +7,7 @@ defmodule ElektrineWeb.Components.Loaders.Skeleton do
   """
   def post_skeleton(assigns) do
     ~H"""
-    <div class="card shadow-sm border border-base-300 p-4">
+    <div class="card glass-card shadow-sm border border-base-300 p-4">
       <!-- Header -->
       <div class="flex items-center gap-3 mb-3">
         <div class="skeleton w-10 h-10 rounded-lg"></div>
@@ -100,7 +100,7 @@ defmodule ElektrineWeb.Components.Loaders.Skeleton do
   """
   def discussion_skeleton(assigns) do
     ~H"""
-    <div class="card shadow-sm border border-base-200">
+    <div class="card glass-card shadow-sm border border-base-200">
       <div class="card-body p-4">
         <div class="flex gap-4">
           <!-- Vote column -->

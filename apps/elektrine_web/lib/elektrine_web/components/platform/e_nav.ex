@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.Components.Platform.ZNav do
+defmodule ElektrineWeb.Components.Platform.ENav do
   @moduledoc """
   Provides unified product navigation components.
   """
@@ -20,43 +20,80 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
 
   ## Examples
 
-      <.z_nav active_tab="chat" />
-      <.z_nav active_tab="timeline" />
-      <.z_nav active_tab="discussions" />
+      <.e_nav active_tab="chat" />
+      <.e_nav active_tab="timeline" />
+      <.e_nav active_tab="discussions" />
 
   """
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-6"
   attr :current_user, :any, default: nil
 
-  def z_nav(assigns) do
-    assigns = assign(assigns, :items, nav_items())
+  def z_nav(assigns), do: e_nav(assigns)
+
+  def e_nav(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:class, fn -> "mb-6" end)
+      |> assign_new(:current_user, fn -> nil end)
+
+    assigns =
+      assigns
+      |> assign(:items, nav_items())
+      |> assign(:secondary_items, secondary_items(assigns.current_user))
 
     ~H"""
     <nav aria-label="Primary modes" class={["sticky top-14 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="card border border-base-300 bg-base-100 shadow-sm rounded-lg">
-          <div class="card-body overflow-x-auto px-2 py-2 sm:px-3">
-            <div class="flex min-w-max items-center gap-1 sm:gap-2">
-              <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                Modes
-              </div>
+          <div class="card-body px-2 py-2 sm:px-3 space-y-2">
+            <div class="overflow-x-auto">
+              <div class="flex min-w-max items-center gap-1 sm:gap-2">
+                <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
+                  Modes
+                </div>
 
-              <%= for item <- @items do %>
-                <.link
-                  href={item.href}
-                  aria-current={if @active_tab == item.id, do: "page", else: "false"}
-                  class={tab_class(@active_tab, item.id)}
-                  title={item.label}
-                >
-                  <.icon
-                    name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
-                    class={icon_class(@active_tab, item.id)}
-                  />
-                  <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
-                </.link>
-              <% end %>
+                <%= for item <- @items do %>
+                  <.link
+                    href={item.href}
+                    aria-current={if @active_tab == item.id, do: "page", else: "false"}
+                    class={tab_class(@active_tab, item.id)}
+                    title={item.label}
+                  >
+                    <.icon
+                      name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
+                      class={icon_class(@active_tab, item.id)}
+                    />
+                    <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
+                  </.link>
+                <% end %>
+              </div>
             </div>
+
+            <%= if @secondary_items != [] do %>
+              <div class="overflow-x-auto border-t border-base-300/80 pt-2">
+                <div class="flex min-w-max items-center gap-1 sm:gap-2">
+                  <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
+                    Account
+                  </div>
+
+                  <%= for item <- @secondary_items do %>
+                    <.link
+                      href={item.href}
+                      aria-current={if @active_tab == item.id, do: "page", else: "false"}
+                      class={secondary_tab_class(@active_tab, item.id)}
+                      title={item.label}
+                    >
+                      <.icon
+                        name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
+                        class={icon_class(@active_tab, item.id)}
+                      />
+                      <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
+                    </.link>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
           </div>
         </div>
       </div>
@@ -158,6 +195,48 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
     |> Enum.filter(&module_visible?/1)
   end
 
+  defp secondary_items(nil), do: []
+
+  defp secondary_items(_current_user) do
+    [
+      %{
+        id: "account",
+        label: gettext("Account"),
+        href: ~p"/account",
+        icon: "hero-cog-6-tooth",
+        active_icon: "hero-cog-6-tooth-solid"
+      },
+      %{
+        id: "profile",
+        label: gettext("Profile"),
+        href: ~p"/account/profile/edit",
+        icon: "hero-user-circle",
+        active_icon: "hero-user-circle-solid"
+      },
+      %{
+        id: "profile-analytics",
+        label: gettext("Analytics"),
+        href: ~p"/account/profile/analytics",
+        icon: "hero-chart-bar",
+        active_icon: "hero-chart-bar-solid"
+      },
+      %{
+        id: "profile-domains",
+        label: gettext("Domains"),
+        href: ~p"/account/profile/domains",
+        icon: "hero-globe-alt",
+        active_icon: "hero-globe-alt-solid"
+      },
+      %{
+        id: "storage",
+        label: gettext("Storage"),
+        href: ~p"/account/storage",
+        icon: "hero-circle-stack",
+        active_icon: "hero-circle-stack-solid"
+      }
+    ]
+  end
+
   defp module_visible?(%{platform_module: nil}), do: true
   defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
 
@@ -167,6 +246,16 @@ defmodule ElektrineWeb.Components.Platform.ZNav do
       if(active_tab == tab_id,
         do: "bg-base-200 text-base-content",
         else: "text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
+      )
+    ]
+  end
+
+  defp secondary_tab_class(active_tab, tab_id) do
+    [
+      "group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+      if(active_tab == tab_id,
+        do: "bg-primary/10 text-base-content",
+        else: "text-base-content/65 hover:bg-base-200/80 hover:text-base-content"
       )
     ]
   end

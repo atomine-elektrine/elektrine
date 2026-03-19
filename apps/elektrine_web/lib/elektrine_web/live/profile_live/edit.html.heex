@@ -3,65 +3,25 @@
   subtitle={
     "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}"
   }
-  sidebar_link="profile"
+  nav_tab="profile"
+  current_user={@current_user}
 >
-  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-    <!-- Sidebar Navigation -->
-    <div class="lg:col-span-1">
-      <div
-        id="profile-settings-container"
-        class="sticky top-24 self-start"
-      >
-        <div class="card shadow-lg">
-          <div class="card-body p-4">
-            <h3 class="font-semibold text-sm mb-4">Sections</h3>
-            <ul class="menu menu-compact w-full p-0 space-y-1">
-              <%= for {tab_id, tab_icon, tab_label} <- profile_tabs() do %>
-                <li>
-                  <a
-                    phx-click="change_tab"
-                    phx-value-tab={tab_id}
-                    class={profile_tab_link_class(@selected_tab, tab_id)}
-                  >
-                    <.icon name={tab_icon} class="w-4 h-4" /> {tab_label}
-                  </a>
-                </li>
-              <% end %>
-            </ul>
-
-            <div class="divider my-4"></div>
-
-            <div class="space-y-2">
-              <.link
-                href={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
-                target="_blank"
-                class="btn btn-ghost btn-sm w-full justify-start"
-              >
-                <.icon name="hero-eye" class="w-4 h-4" /> View Profile
-              </.link>
-              <.link
-                href={~p"/account/profile/analytics"}
-                class="btn btn-ghost btn-sm w-full justify-start"
-              >
-                <.icon name="hero-chart-bar" class="w-4 h-4" /> Analytics
-              </.link>
-              <.link
-                href={~p"/account/profile/domains"}
-                class="btn btn-ghost btn-sm w-full justify-start"
-              >
-                <.icon name="hero-globe-alt" class="w-4 h-4" /> Profile Domains
-              </.link>
-            </div>
-          </div>
-        </div>
-      </div>
+  <:sidebar>
+    <div id="profile-settings-container" phx-hook="GlassCardContainer">
+      <.profile_settings_sidebar
+        selected_page="profile"
+        selected_section={@selected_tab}
+        sections={profile_tabs()}
+        profile_url={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
+      />
     </div>
-    
-<!-- Main Content -->
-    <div class="lg:col-span-3">
+  </:sidebar>
+
+  <div class="space-y-4 sm:space-y-6">
+    <div>
       <!-- Basic Info Tab -->
       <%= if @selected_tab == "basic" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -357,7 +317,7 @@
       <%= if @selected_tab == "appearance" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Color Palette Generator -->
-          <div class="card shadow-lg border-2 border-primary/20">
+          <div class="card glass-card shadow-lg border-2 border-primary/20">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -374,7 +334,7 @@
                     type="color"
                     name="base_color"
                     value={(@profile && @profile.accent_color) || "#8b5cf6"}
-                    class="w-24 h-24 border-0 rounded-lg cursor-pointer shadow-lg"
+                    class="w-24 h-24 border-0 rounded-xl cursor-pointer shadow-lg"
                   />
                   <div class="flex-1">
                     <p class="font-semibold text-lg">Base Color</p>
@@ -392,7 +352,7 @@
           </div>
           
 <!-- Colors & Theme -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -705,7 +665,7 @@
           
 <!-- Background Upload -->
           <%= if @profile && @profile.background_type in ["image", "video"] do %>
-            <div class="card shadow-lg">
+            <div class="card glass-card shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
                   <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
@@ -800,7 +760,7 @@
           <% end %>
           
 <!-- Visual Effects -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -931,7 +891,7 @@
           </div>
           
 <!-- Typewriter Effect -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1026,7 +986,7 @@
       
 <!-- Avatar Effects Tab -->
       <%= if @selected_tab == "avatar" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1108,7 +1068,7 @@
       
 <!-- Username Effects Tab -->
       <%= if @selected_tab == "username" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1359,7 +1319,7 @@
       <%= if @selected_tab == "links" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Link Display Style -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1456,7 +1416,7 @@
           </div>
           
 <!-- Add New Link -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1484,7 +1444,7 @@
                   
 <!-- Platform Selection Grid -->
                   <div class="space-y-2">
-                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-lg bg-base-50">
+                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
                       <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                         <% platform_color =
                           Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -1650,7 +1610,7 @@
           </div>
           
 <!-- Current Links -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1683,7 +1643,7 @@
                             
 <!-- Platform Selection Grid for Editing -->
                             <div class="space-y-2">
-                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-lg bg-base-50">
+                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
                                 <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                                   <% platform_color =
                                     Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -1995,7 +1955,7 @@
       <%= if @selected_tab == "widgets" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Add New Widget -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2072,7 +2032,7 @@
           </div>
           
 <!-- Current Widgets -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2153,7 +2113,7 @@
       
 <!-- Badges Tab -->
       <%= if @selected_tab == "badges" do %>
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2177,7 +2137,7 @@
                   to_b = max(0, round(b * 0.65))
                   from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
                   to_color = "rgb(#{to_r}, #{to_g}, #{to_b})" %>
-                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-lg hover:bg-base-200 transition-all duration-300 border border-base-300/50">
+                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300 border border-base-300/50">
                     <div class="flex items-center gap-3">
                       <span
                         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-semibold text-xs"
@@ -2229,7 +2189,7 @@
       <%= if @selected_tab == "advanced" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Text Fonts -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2388,7 +2348,7 @@
           </div>
           
 <!-- Cursor Effects -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2507,7 +2467,7 @@
           </div>
           
 <!-- Favicon -->
-          <div class="card shadow-lg">
+          <div class="card glass-card shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2597,169 +2557,215 @@
       
 <!-- Static Site Tab -->
       <%= if @selected_tab == "static_site" do %>
+        <% static_mode = @profile && @profile.profile_mode == "static" %>
+        <% static_file_count = length(@static_site_files || []) %>
+        <% has_static_files = static_file_count > 0 %>
+        <% has_homepage =
+          Enum.any?(@static_site_files || [], &(&1.path in ["index.html", "index.htm"])) %>
+
         <div class="space-y-4 sm:space-y-6">
-          <div class="card shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <div class="mb-6">
-                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
-                  <.icon name="hero-code-bracket" class="w-6 h-6" /> Profile Mode
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6 space-y-5">
+              <div class="space-y-1.5">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+                  <.icon name="hero-code-bracket-square" class="h-4 w-4" /> Static Site Hosting
+                </div>
+                <h2 class="text-xl sm:text-2xl font-semibold">
+                  Publish a profile site
                 </h2>
-                <p class="text-sm text-base-content/60">
-                  Choose between the visual profile builder or host your own custom static site
+                <p class="text-sm text-base-content/65 sm:text-base">
+                  Upload a ZIP and publish to your profile URL.
                 </p>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Builder Mode -->
-                <div
-                  phx-click="set_profile_mode"
-                  phx-value-mode="builder"
-                  class={"card cursor-pointer transition-all hover:shadow-lg #{if (@profile && @profile.profile_mode) != "static", do: "ring-2 ring-primary bg-primary/5", else: "bg-base-200 hover:bg-base-300"}"}
-                >
-                  <div class="card-body p-4">
-                    <div class="flex items-start gap-3">
-                      <div class={"w-10 h-10 rounded-lg flex items-center justify-center #{if (@profile && @profile.profile_mode) != "static", do: "bg-primary text-primary-content", else: "bg-base-300"}"}>
-                        <.icon name="hero-paint-brush" class="w-5 h-5" />
+              <div class="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
+                <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-4 sm:p-5 space-y-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                      <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                        Live URL
                       </div>
-                      <div class="flex-1">
-                        <h3 class="font-semibold">Profile Builder</h3>
-                        <p class="text-xs text-base-content/60 mt-1">
-                          Use the visual editor to customize your profile with links, widgets, themes, and more
-                        </p>
+                      <div class="mt-2 break-all font-mono text-sm text-base-content/85">
+                        {@static_site_url}
                       </div>
-                      <%= if (@profile && @profile.profile_mode) != "static" do %>
-                        <.icon name="hero-check-circle-solid" class="w-5 h-5 text-primary" />
-                      <% end %>
+                    </div>
+                    <span class={[
+                      "badge border-0 font-medium whitespace-nowrap",
+                      if(static_mode, do: "badge-secondary", else: "badge-ghost")
+                    ]}>
+                      {if static_mode, do: "Static mode live", else: "Builder mode active"}
+                    </span>
+                  </div>
+
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div class="rounded-lg border border-base-content/10 bg-base-100/70 px-4 py-3">
+                      <div class="text-xs uppercase tracking-wide text-base-content/50">
+                        Homepage
+                      </div>
+                      <div class="mt-1 text-sm font-medium">
+                        {cond do
+                          has_homepage -> "index.html ready"
+                          has_static_files -> "Homepage missing"
+                          true -> "Nothing published yet"
+                        end}
+                      </div>
+                    </div>
+                    <div class="rounded-lg border border-base-content/10 bg-base-100/70 px-4 py-3">
+                      <div class="text-xs uppercase tracking-wide text-base-content/50">
+                        Files
+                      </div>
+                      <div class="mt-1 text-sm font-medium">{static_file_count}</div>
+                    </div>
+                    <div class="rounded-lg border border-base-content/10 bg-base-100/70 px-4 py-3">
+                      <div class="text-xs uppercase tracking-wide text-base-content/50">
+                        Storage
+                      </div>
+                      <div class="mt-1 text-sm font-medium">
+                        {format_bytes(@static_site_storage || 0)} / 1 GB
+                      </div>
                     </div>
                   </div>
+
+                  <div class="flex flex-wrap gap-2">
+                    <a
+                      href={@static_site_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="btn btn-primary btn-sm"
+                    >
+                      <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" /> Visit Site
+                    </a>
+                    <.link navigate={~p"/account/profile/domains"} class="btn btn-ghost btn-sm">
+                      <.icon name="hero-globe-alt" class="h-4 w-4" /> Custom Domains
+                    </.link>
+                  </div>
                 </div>
-                
-<!-- Static Site Mode -->
-                <div
-                  phx-click="set_profile_mode"
-                  phx-value-mode="static"
-                  class={"card cursor-pointer transition-all hover:shadow-lg #{if (@profile && @profile.profile_mode) == "static", do: "ring-2 ring-primary bg-primary/5", else: "bg-base-200 hover:bg-base-300"}"}
-                >
-                  <div class="card-body p-4">
-                    <div class="flex items-start gap-3">
-                      <div class={"w-10 h-10 rounded-lg flex items-center justify-center #{if (@profile && @profile.profile_mode) == "static", do: "bg-primary text-primary-content", else: "bg-base-300"}"}>
-                        <.icon name="hero-code-bracket" class="w-5 h-5" />
+
+                <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-4 sm:p-5 space-y-3">
+                  <div>
+                    <h3 class="text-base font-semibold">Publishing Mode</h3>
+                    <p class="mt-1 text-sm text-base-content/65">
+                      Uploading files switches this profile to static mode automatically.
+                    </p>
+                  </div>
+
+                  <div class="grid gap-3">
+                    <button
+                      type="button"
+                      phx-click="set_profile_mode"
+                      phx-value-mode="builder"
+                      class={[
+                        "rounded-lg border text-left transition-colors px-4 py-3",
+                        if(!static_mode,
+                          do: "border-primary/30 bg-primary/10",
+                          else:
+                            "border-base-content/10 bg-base-100/70 hover:border-base-content/20"
+                        )
+                      ]}
+                    >
+                      <div class="flex items-start gap-3">
+                        <div class={[
+                          "flex h-10 w-10 items-center justify-center rounded-lg",
+                          if(!static_mode,
+                            do: "bg-primary text-primary-content",
+                            else: "bg-base-200"
+                          )
+                        ]}>
+                          <.icon name="hero-paint-brush" class="h-5 w-5" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="font-medium">Profile Builder</div>
+                          <div class="mt-1 text-xs text-base-content/60">
+                            Use Elektrine blocks, links, widgets, and theme controls.
+                          </div>
+                        </div>
                       </div>
-                      <div class="flex-1">
-                        <h3 class="font-semibold">Custom Static Site</h3>
-                        <p class="text-xs text-base-content/60 mt-1">
-                          Upload your own HTML, CSS, and JavaScript files for complete control
-                        </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      phx-click="set_profile_mode"
+                      phx-value-mode="static"
+                      class={[
+                        "rounded-lg border text-left transition-colors px-4 py-3",
+                        if(static_mode,
+                          do: "border-primary/30 bg-primary/10",
+                          else:
+                            "border-base-content/10 bg-base-100/70 hover:border-base-content/20"
+                        )
+                      ]}
+                    >
+                      <div class="flex items-start gap-3">
+                        <div class={[
+                          "flex h-10 w-10 items-center justify-center rounded-lg",
+                          if(static_mode,
+                            do: "bg-primary text-primary-content",
+                            else: "bg-base-200"
+                          )
+                        ]}>
+                          <.icon name="hero-code-bracket" class="h-5 w-5" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                          <div class="font-medium">Custom Static Site</div>
+                          <div class="mt-1 text-xs text-base-content/60">
+                            Publish your own HTML, CSS, JavaScript, images, and fonts.
+                          </div>
+                        </div>
                       </div>
-                      <%= if (@profile && @profile.profile_mode) == "static" do %>
-                        <.icon name="hero-check-circle-solid" class="w-5 h-5 text-primary" />
-                      <% end %>
-                    </div>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          
-<!-- Static Site Upload (only shown when static mode is enabled) -->
-          <%= if @profile && @profile.profile_mode == "static" do %>
-            <div class="card shadow-lg">
-              <div class="card-body p-4 sm:p-6">
-                <div class="mb-6">
-                  <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
-                    <.icon name="hero-arrow-up-tray" class="w-6 h-6" /> Upload Static Site
-                  </h2>
-                  <p class="text-sm text-base-content/60">
-                    Upload files individually or as a ZIP. Drag and drop supported.
-                  </p>
-                </div>
-                
-<!-- Storage Usage -->
-                <div class="mb-6">
-                  <div class="flex justify-between text-sm mb-2">
-                    <span class="text-base-content/70">Storage used</span>
-                    <span class="font-mono">
-                      {format_bytes(@static_site_storage || 0)} / 1 GB
-                    </span>
+
+          <div class="card glass-card shadow-lg">
+            <div class="card-body p-4 sm:p-6 space-y-4">
+              <div class="space-y-1.5">
+                <h3 class="text-lg sm:text-xl font-semibold">Upload</h3>
+                <p class="text-sm text-base-content/65">
+                  Use a ZIP with a root <span class="font-mono text-base-content/85">index.html</span>.
+                </p>
+              </div>
+
+              <div class="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(240px,1fr)]">
+                <div class="rounded-lg border border-base-content/10 bg-base-100/70 p-4 sm:p-5 space-y-4">
+                  <div class="flex items-center gap-2 text-sm font-semibold">
+                    <.icon name="hero-archive-box" class="h-5 w-5 text-primary" /> ZIP upload
                   </div>
-                  <progress
-                    class="progress progress-primary w-full"
-                    value={@static_site_storage || 0}
-                    max={1_000_000_000}
-                  />
-                </div>
-                
-<!-- Drag & Drop Zone -->
-                <div
-                  id="static-site-dropzone"
-                  phx-drop-target={@uploads.static_files.ref}
-                  class={"relative border-2 border-dashed rounded-lg p-8 text-center transition-all mb-4 #{if @drag_over, do: "border-primary bg-primary/10", else: "border-base-300 hover:border-primary/50"}"}
-                  phx-hook="DragDrop"
-                >
-                  <.icon
-                    name="hero-cloud-arrow-up"
-                    class="w-12 h-12 mx-auto text-base-content/30 mb-4"
-                  />
-                  <p class="font-medium">Drag and drop files here</p>
-                  <p class="text-sm text-base-content/60 mt-1">or click to browse</p>
-                  <.live_file_input
-                    upload={@uploads.static_files}
-                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                </div>
-                
-<!-- Upload Progress for Individual Files -->
-                <%= for entry <- @uploads.static_files.entries do %>
-                  <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg mb-2">
-                    <.icon name="hero-document" class="w-5 h-5 flex-shrink-0" />
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium truncate">{entry.client_name}</p>
-                      <progress
-                        class="progress progress-primary w-full h-2 mt-1"
-                        value={entry.progress}
-                        max="100"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      phx-click="cancel_static_file_upload"
-                      phx-value-ref={entry.ref}
-                      class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
-                    >
-                      <.icon name="hero-x-mark" class="w-4 h-4" />
-                    </button>
-                  </div>
-                <% end %>
-                
-<!-- Upload Errors for Individual Files -->
-                <%= for err <- upload_errors(@uploads.static_files) do %>
-                  <div class="alert alert-error mb-2">
-                    <.icon name="hero-exclamation-circle" class="w-5 h-5" />
-                    <span>{humanize_error(err)}</span>
-                  </div>
-                <% end %>
-                
-<!-- ZIP Upload Section -->
-                <div class="collapse collapse-arrow bg-base-200 mb-4">
-                  <input type="checkbox" />
-                  <div class="collapse-title font-medium">
-                    <.icon name="hero-archive-box" class="w-5 h-5 inline mr-2" />
-                    Upload ZIP Archive
-                  </div>
-                  <div class="collapse-content">
-                    <.form
-                      for={%{}}
-                      phx-submit="upload_static_site"
-                      phx-change="validate_static_site_upload"
-                      class="space-y-3 pt-2"
-                    >
-                      <%= for entry <- @uploads.static_site.entries do %>
-                        <div class="flex items-center gap-2 p-2 bg-base-300 rounded-lg">
-                          <.icon name="hero-archive-box" class="w-5 h-5 flex-shrink-0" />
-                          <div class="flex-1 min-w-0">
-                            <p class="text-sm truncate">{entry.client_name}</p>
+
+                  <.form
+                    for={%{}}
+                    phx-submit="upload_static_site"
+                    phx-change="validate_static_site_upload"
+                    class="space-y-4"
+                  >
+                    <label class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
+                      <.icon name="hero-cloud-arrow-up" class="h-12 w-12 text-base-content/35" />
+                      <span class="mt-3 text-base font-medium">
+                        Drop a ZIP here or choose a file
+                      </span>
+                      <span class="mt-1 text-sm text-base-content/60">
+                        The ZIP should contain <span class="font-mono">index.html</span>
+                        at the root.
+                      </span>
+                      <span class="mt-3 inline-flex items-center gap-2 rounded-lg bg-base-100 px-4 py-2 text-sm font-medium shadow-sm">
+                        <.icon name="hero-folder-plus" class="h-4 w-4" /> Choose ZIP
+                      </span>
+                      <.live_file_input upload={@uploads.static_site} class="hidden" />
+                    </label>
+
+                    <%= for entry <- @uploads.static_site.entries do %>
+                      <div class="rounded-lg border border-base-content/10 bg-base-200/40 p-3">
+                        <div class="flex items-center gap-3">
+                          <.icon
+                            name="hero-archive-box"
+                            class="h-5 w-5 flex-shrink-0 text-primary"
+                          />
+                          <div class="min-w-0 flex-1">
+                            <div class="truncate text-sm font-medium">{entry.client_name}</div>
                             <progress
-                              class="progress progress-primary w-full h-1.5 mt-1"
+                              class="progress progress-primary mt-2 h-2 w-full"
                               value={entry.progress}
                               max="100"
                             />
@@ -2768,39 +2774,178 @@
                             type="button"
                             phx-click="cancel_static_site_upload"
                             phx-value-ref={entry.ref}
-                            class="btn btn-ghost btn-xs btn-circle"
+                            class="btn btn-ghost btn-xs btn-circle flex-shrink-0"
                           >
-                            <.icon name="hero-x-mark" class="w-3 h-3" />
+                            <.icon name="hero-x-mark" class="h-3 w-3" />
                           </button>
                         </div>
-                      <% end %>
+                      </div>
+                    <% end %>
 
-                      <label class="btn btn-outline btn-sm w-full">
-                        <.icon name="hero-folder-plus" class="w-4 h-4 mr-1" /> Choose ZIP
-                        <.live_file_input upload={@uploads.static_site} class="hidden" />
-                      </label>
+                    <%= for err <- upload_errors(@uploads.static_site) do %>
+                      <div class="alert alert-error">
+                        <.icon name="hero-exclamation-circle" class="h-5 w-5" />
+                        <span>{humanize_error(err)}</span>
+                      </div>
+                    <% end %>
 
-                      <button
-                        type="submit"
-                        class="btn btn-primary btn-sm w-full"
-                        disabled={@uploads.static_site.entries == []}
-                      >
-                        Extract and Deploy
-                      </button>
-                    </.form>
+                    <button
+                      type="submit"
+                      class="btn btn-primary w-full sm:w-auto"
+                      disabled={@uploads.static_site.entries == []}
+                    >
+                      <.icon name="hero-rocket-launch" class="h-4 w-4" /> Publish ZIP
+                    </button>
+                  </.form>
+                </div>
+
+                <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-4 sm:p-5 space-y-4">
+                  <div class="rounded-lg border border-base-content/10 bg-base-100/70 px-4 py-3 text-sm text-base-content/70">
+                    Publish from ZIP first. Use the file manager only if you need to tweak files afterward.
+                  </div>
+
+                  <div>
+                    <div class="mb-2 flex justify-between text-sm">
+                      <span class="text-base-content/70">Storage used</span>
+                      <span class="font-mono text-base-content/85">
+                        {format_bytes(@static_site_storage || 0)} / 1 GB
+                      </span>
+                    </div>
+                    <progress
+                      class="progress progress-primary w-full"
+                      value={@static_site_storage || 0}
+                      max={1_000_000_000}
+                    />
                   </div>
                 </div>
+              </div>
 
-                <div class="text-xs text-base-content/50">
-                  Supported: HTML, CSS, JS, JSON, images (PNG, JPG, GIF, WebP, SVG), fonts (WOFF, WOFF2, TTF, OTF)
+              <%= if has_static_files and !has_homepage do %>
+                <div class="alert alert-warning">
+                  <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
+                  <span>
+                    Your uploaded files do not include a root
+                    <span class="font-mono">index.html</span>
+                    yet, so the site may not load as expected.
+                  </span>
                 </div>
-                
-<!-- Current Files -->
-                <%= if @static_site_files && length(@static_site_files) > 0 do %>
-                  <div class="divider">Current Files ({length(@static_site_files)})</div>
-                  <div class="max-h-80 overflow-y-auto bg-base-200 rounded-lg p-3 font-mono text-sm">
-                    <div class="flex items-center gap-2 text-primary font-semibold mb-2">
-                      <.icon name="hero-folder-open" class="w-4 h-4" />
+              <% end %>
+            </div>
+          </div>
+
+          <details class="card glass-card shadow-lg group open:shadow-lg">
+            <summary class="cursor-pointer list-none p-4 sm:p-6">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h3 class="text-lg font-semibold">Site files</h3>
+                  <p class="mt-1 text-sm text-base-content/65">
+                    Upload, edit, and delete the files published on your profile site.
+                  </p>
+                </div>
+                <span class="btn btn-ghost btn-sm pointer-events-none">
+                  Expand
+                </span>
+              </div>
+            </summary>
+
+            <div class="px-4 pb-4 sm:px-6 sm:pb-6 space-y-5">
+              <div class="rounded-lg border border-base-content/10 bg-base-100/70 p-4 sm:p-5 space-y-4">
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <.icon name="hero-document-plus" class="h-5 w-5 text-primary" />
+                  Upload individual files
+                </div>
+
+                <.form
+                  for={%{}}
+                  phx-submit="upload_static_files"
+                  phx-change="validate_static_files"
+                  class="space-y-4"
+                >
+                  <div
+                    id="static-site-dropzone"
+                    phx-drop-target={@uploads.static_files.ref}
+                    class={[
+                      "relative rounded-lg border-2 border-dashed p-8 text-center transition-colors",
+                      if(@drag_over,
+                        do: "border-primary bg-primary/10",
+                        else: "border-base-content/15 bg-base-200/20 hover:border-primary/40"
+                      )
+                    ]}
+                    phx-hook="DragDrop"
+                  >
+                    <.icon
+                      name="hero-cloud-arrow-up"
+                      class="mx-auto h-10 w-10 text-base-content/35"
+                    />
+                    <p class="mt-3 font-medium">Drop files here or browse</p>
+                    <p class="mt-1 text-sm text-base-content/60">
+                      HTML, CSS, JS, JSON, text, images, and common web fonts are supported.
+                    </p>
+                    <.live_file_input
+                      upload={@uploads.static_files}
+                      class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </div>
+
+                  <%= for entry <- @uploads.static_files.entries do %>
+                    <div class="rounded-lg border border-base-content/10 bg-base-200/40 p-3">
+                      <div class="flex items-center gap-3">
+                        <.icon
+                          name="hero-document"
+                          class="h-5 w-5 flex-shrink-0 text-base-content/65"
+                        />
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate text-sm font-medium">{entry.client_name}</div>
+                          <progress
+                            class="progress progress-primary mt-2 h-2 w-full"
+                            value={entry.progress}
+                            max="100"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          phx-click="cancel_static_file_upload"
+                          phx-value-ref={entry.ref}
+                          class="btn btn-ghost btn-xs btn-circle flex-shrink-0"
+                        >
+                          <.icon name="hero-x-mark" class="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <%= for err <- upload_errors(@uploads.static_files) do %>
+                    <div class="alert alert-error">
+                      <.icon name="hero-exclamation-circle" class="h-5 w-5" />
+                      <span>{humanize_error(err)}</span>
+                    </div>
+                  <% end %>
+
+                  <button
+                    type="submit"
+                    class="btn btn-secondary"
+                    disabled={@uploads.static_files.entries == []}
+                  >
+                    <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Upload Files
+                  </button>
+                </.form>
+              </div>
+
+              <div class="rounded-lg border border-base-content/10 bg-base-100/70 p-4 sm:p-5 space-y-4">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 class="font-semibold">Current files</h4>
+                    <p class="mt-1 text-sm text-base-content/65">
+                      Edit text-based files in place or remove assets you no longer need.
+                    </p>
+                  </div>
+                  <div class="text-sm text-base-content/60">{static_file_count} file(s)</div>
+                </div>
+
+                <%= if has_static_files do %>
+                  <div class="max-h-80 overflow-y-auto rounded-lg bg-base-200/50 p-3 font-mono text-sm">
+                    <div class="mb-2 flex items-center gap-2 font-semibold text-primary">
+                      <.icon name="hero-folder-open" class="h-4 w-4" />
                       <span>/</span>
                     </div>
                     <%= for file <- @static_site_files do %>
@@ -2822,66 +2967,66 @@
                           String.ends_with?(filename, ".svg") or
                           String.ends_with?(filename, ".ico") %>
                       <% is_editable = is_html or is_css or is_js or is_json or is_text %>
-                      <div class="flex items-center group hover:bg-base-300 rounded px-1 py-0.5">
+                      <div class="group flex items-center rounded px-1 py-1 hover:bg-base-300/70">
                         <div
-                          class="flex items-center gap-1 flex-1 min-w-0"
+                          class="flex min-w-0 flex-1 items-center gap-2"
                           style={"padding-left: #{(depth + 1) * 16}px"}
                         >
                           <%= cond do %>
                             <% is_html -> %>
                               <.icon
                                 name="hero-document-text"
-                                class="w-4 h-4 text-orange-500 flex-shrink-0"
+                                class="h-4 w-4 flex-shrink-0 text-orange-500"
                               />
                             <% is_css -> %>
                               <.icon
                                 name="hero-paint-brush"
-                                class="w-4 h-4 text-blue-500 flex-shrink-0"
+                                class="h-4 w-4 flex-shrink-0 text-blue-500"
                               />
                             <% is_js -> %>
                               <.icon
                                 name="hero-code-bracket"
-                                class="w-4 h-4 text-yellow-500 flex-shrink-0"
+                                class="h-4 w-4 flex-shrink-0 text-yellow-500"
                               />
                             <% is_json -> %>
                               <.icon
                                 name="hero-document-text"
-                                class="w-4 h-4 text-purple-500 flex-shrink-0"
+                                class="h-4 w-4 flex-shrink-0 text-purple-500"
                               />
                             <% is_image -> %>
                               <.icon
                                 name="hero-photo"
-                                class="w-4 h-4 text-green-500 flex-shrink-0"
+                                class="h-4 w-4 flex-shrink-0 text-green-500"
                               />
                             <% true -> %>
                               <.icon
                                 name="hero-document"
-                                class="w-4 h-4 text-base-content/50 flex-shrink-0"
+                                class="h-4 w-4 flex-shrink-0 text-base-content/50"
                               />
                           <% end %>
                           <span class="truncate">{filename}</span>
-                          <span class="text-xs text-base-content/50 ml-auto flex-shrink-0">
+                          <span class="ml-auto flex-shrink-0 text-xs text-base-content/50">
                             {format_bytes(file.size)}
                           </span>
                         </div>
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+                        <div class="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <%= if is_editable do %>
                             <button
                               phx-click="edit_file"
                               phx-value-path={file.path}
-                              class="btn btn-ghost btn-xs text-info flex-shrink-0"
+                              class="btn btn-ghost btn-xs text-info"
                               title="Edit file"
                             >
-                              <.icon name="hero-pencil" class="w-3 h-3" />
+                              <.icon name="hero-pencil" class="h-3 w-3" />
                             </button>
                           <% end %>
                           <button
                             phx-click="delete_static_file"
                             phx-value-path={file.path}
-                            class="btn btn-ghost btn-xs text-error flex-shrink-0"
+                            class="btn btn-ghost btn-xs text-error"
                             title="Delete file"
                           >
-                            <.icon name="hero-trash" class="w-3 h-3" />
+                            <.icon name="hero-trash" class="h-3 w-3" />
                           </button>
                         </div>
                       </div>
@@ -2890,15 +3035,19 @@
 
                   <button
                     phx-click="delete_all_static_files"
-                    class="btn btn-error btn-outline btn-sm w-full mt-4"
+                    class="btn btn-error btn-outline btn-sm w-full sm:w-auto"
                     data-confirm="Are you sure? This will delete all your static site files."
                   >
-                    <.icon name="hero-trash" class="w-4 h-4" /> Delete All Files
+                    <.icon name="hero-trash" class="h-4 w-4" /> Delete All Files
                   </button>
+                <% else %>
+                  <div class="rounded-lg border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center text-sm text-base-content/60">
+                    No files uploaded yet. Publish a ZIP above to get your site live quickly.
+                  </div>
                 <% end %>
               </div>
             </div>
-          <% end %>
+          </details>
         </div>
       <% end %>
     </div>

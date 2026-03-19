@@ -27,7 +27,7 @@ defmodule ElektrineWeb.UserErrorHelpersTest do
 
       changeset =
         Alias.changeset(%Alias{}, %{
-          alias_email: "abc@elektrine.com",
+          alias_email: "abc@example.com",
           user_id: user.id
         })
 

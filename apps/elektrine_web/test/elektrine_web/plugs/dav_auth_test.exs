@@ -145,7 +145,7 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
     test "authenticates with email format username" do
       user = create_test_user()
       token = create_app_password(user)
-      email = "#{user.username}@elektrine.com"
+      email = "#{user.username}@example.com"
       auth = basic_auth_header(email, token)
 
       conn =

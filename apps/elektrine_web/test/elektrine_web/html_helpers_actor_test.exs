@@ -31,7 +31,7 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
   test "actor_display_name_text falls back from url-like display names to username" do
     actor = %{
-      display_name: "https://elektrine.com/remote/zero@strelizia.net",
+      display_name: "https://example.com/remote/zero@strelizia.net",
       username: "zero",
       domain: "strelizia.net"
     }

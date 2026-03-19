@@ -21,7 +21,7 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
         |> AdminSecurity.initialize_admin_session(admin, auth_method: :passkey)
         |> Plug.Conn.put_req_header(
           "referer",
-          "https://elektrine.com/pripyat/users/#{user.id}/edit"
+          "https://example.com/pripyat/users/#{user.id}/edit"
         )
 
       action_grant = AdminSecurity.issue_action_grant(conn, admin, "POST", request_path)
@@ -77,7 +77,7 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
   end
 
   defp with_elektrine_host(conn) do
-    Map.put(conn, :host, "elektrine.com")
+    Map.put(conn, :host, "example.com")
   end
 
   defp log_in_as(conn, user) do

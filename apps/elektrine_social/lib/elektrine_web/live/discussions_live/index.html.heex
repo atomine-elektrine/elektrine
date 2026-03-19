@@ -1,5 +1,5 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-  <.z_nav active_tab="discussions" current_user={@current_user} />
+  <.e_nav active_tab="discussions" current_user={@current_user} />
   <% category_pills = [
     {"all", "All"},
     {"programming", "Programming"},
@@ -462,8 +462,8 @@
                       <% end %>
                     </section>
                   <% else %>
-                    <section class="space-y-4">
-                      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <section class="space-y-3">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <h2 class="text-xl font-semibold">Joined</h2>
                         <%= if @current_user && length(@filtered_community_posts) > 0 do %>
                           <button
@@ -478,20 +478,22 @@
 
                       <%= if @current_user do %>
                         <%= if joined_count > 0 do %>
-                          <div class="grid gap-4 md:grid-cols-2">
+                          <div class="grid gap-3 xl:grid-cols-2">
                             <%= for community <- @filtered_communities do %>
                               <.link
                                 href={community_route(community)}
                                 class="card border border-base-300 bg-base-100/80 hover:border-secondary/40 transition-colors group"
                               >
-                                <div class="card-body p-4">
-                                  <div class="flex items-start gap-3">
-                                    <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
+                                <div class="card-body p-3.5">
+                                  <div class="flex items-start gap-2.5">
+                                    <div class="w-10 h-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-base flex-shrink-0">
                                       {String.first(community.name) |> String.upcase()}
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                      <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-semibold truncate">{community.name}</h3>
+                                      <div class="flex items-center gap-1.5 flex-wrap">
+                                        <h3 class="font-semibold truncate text-sm">
+                                          {community.name}
+                                        </h3>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(community)}
                                         </span>
@@ -501,18 +503,18 @@
                                             else: "Local"}
                                         </span>
                                       </div>
-                                      <p class="text-xs text-base-content/50 mt-1">
+                                      <p class="text-[11px] text-base-content/50 mt-0.5">
                                         {community_address(community)}
                                       </p>
                                       <%= if community.description do %>
-                                        <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
+                                        <p class="text-xs text-base-content/70 mt-1.5 line-clamp-2 leading-5">
                                           {community.description}
                                         </p>
                                       <% end %>
                                     </div>
                                   </div>
-                                  <div class="flex items-center justify-between gap-3 mt-3">
-                                    <div class="flex flex-wrap gap-3 text-xs text-base-content/60">
+                                  <div class="flex items-center justify-between gap-2 mt-2.5">
+                                    <div class="flex flex-wrap gap-2 text-[11px] text-base-content/60">
                                       <span class="flex items-center gap-1">
                                         <.icon name="hero-users" class="w-3.5 h-3.5" />
                                         {format_compact_number(community.member_count || 0)} members
@@ -526,7 +528,7 @@
                                       id={"joined-leave-community-#{community.id}"}
                                       phx-click="leave_community"
                                       phx-value-community_id={community.id}
-                                      class="btn btn-ghost btn-sm"
+                                      class="btn btn-ghost btn-xs"
                                       phx-hook="StopPropagation"
                                     >
                                       Leave
@@ -541,22 +543,22 @@
                                 href={community_route(community)}
                                 class="card border border-base-300 bg-base-100/80 hover:border-info/40 transition-colors group"
                               >
-                                <div class="card-body p-4">
-                                  <div class="flex items-start gap-3">
+                                <div class="card-body p-3.5">
+                                  <div class="flex items-start gap-2.5">
                                     <%= if community.avatar_url do %>
                                       <img
                                         src={community.avatar_url}
-                                        class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                                        class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                                         alt={community.username}
                                       />
                                     <% else %>
-                                      <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                                        <.icon name="hero-globe-alt" class="w-6 h-6" />
+                                      <div class="w-10 h-10 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
+                                        <.icon name="hero-globe-alt" class="w-5 h-5" />
                                       </div>
                                     <% end %>
                                     <div class="min-w-0 flex-1">
-                                      <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-semibold truncate">
+                                      <div class="flex items-center gap-1.5 flex-wrap">
+                                        <h3 class="font-semibold truncate text-sm">
                                           {raw(
                                             ElektrineWeb.HtmlHelpers.render_actor_display_name(
                                               community
@@ -570,11 +572,11 @@
                                           Federated
                                         </span>
                                       </div>
-                                      <p class="text-xs text-base-content/50 mt-1">
+                                      <p class="text-[11px] text-base-content/50 mt-0.5">
                                         {community_address(community)}
                                       </p>
                                       <%= if community.summary do %>
-                                        <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
+                                        <p class="text-xs text-base-content/70 mt-1.5 line-clamp-2 leading-5">
                                           {raw(
                                             ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
                                               community.summary,
@@ -585,8 +587,8 @@
                                       <% end %>
                                     </div>
                                   </div>
-                                  <div class="flex items-center justify-between gap-3 mt-3">
-                                    <div class="flex flex-wrap gap-3 text-xs text-base-content/60">
+                                  <div class="flex items-center justify-between gap-2 mt-2.5">
+                                    <div class="flex flex-wrap gap-2 text-[11px] text-base-content/60">
                                       <span class="flex items-center gap-1">
                                         <.icon name="hero-globe-alt" class="w-3.5 h-3.5" />
                                         Followed remotely
@@ -597,7 +599,7 @@
                                       id={"joined-unfollow-community-#{community.id}"}
                                       phx-click="unfollow_remote_community"
                                       phx-value-actor_id={community.id}
-                                      class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                                      class="btn btn-ghost btn-xs transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
                                       phx-hook="StopPropagation"
                                     >
                                       <span class="phx-click-loading:hidden">Unfollow</span>
@@ -640,16 +642,16 @@
                       <% end %>
                     </section>
 
-                    <section class="space-y-4">
+                    <section class="space-y-3">
                       <h2 class="text-xl font-semibold">Discover</h2>
 
                       <%= if discover_cards != [] do %>
-                        <div class="grid gap-4 lg:grid-cols-2">
+                        <div class="grid gap-3 xl:grid-cols-2">
                           <%= for card <- discover_cards do %>
                             <% community = card.community
                             joined? = MapSet.member?(@joined_community_ids, community.id) %>
-                            <article class="rounded-lg border border-base-300 bg-base-100 p-5 shadow-sm">
-                              <div class="flex flex-wrap items-center gap-2 mb-3">
+                            <article class="rounded-lg border border-base-300 bg-base-100 p-3.5 shadow-sm">
+                              <div class="mb-2 flex flex-wrap items-center gap-1.5">
                                 <%= for tag <- discovery_card_tags(card) do %>
                                   <span class="badge badge-secondary badge-sm">{tag}</span>
                                 <% end %>
@@ -662,28 +664,28 @@
                                 href={community_route(community)}
                                 class="block hover:text-secondary transition-colors"
                               >
-                                <h3 class="text-lg font-semibold leading-snug break-words text-base-content">
+                                <h3 class="text-sm font-semibold leading-snug break-words text-base-content sm:text-base">
                                   {raw(community_display_name_markup(community))}
                                 </h3>
-                                <p class="mt-1 text-xs text-base-content/50 break-all">
+                                <p class="mt-0.5 text-[11px] text-base-content/50 break-all">
                                   {community_address(community)}
                                 </p>
                                 <%= if community.description do %>
-                                  <p class="mt-3 text-sm text-base-content/70 line-clamp-2">
+                                  <p class="mt-1.5 text-xs text-base-content/70 line-clamp-2 leading-5 sm:text-sm">
                                     {community.description}
                                   </p>
                                 <% end %>
                               </.link>
 
-                              <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-base-content/60">
+                              <div class="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-base-content/60 sm:text-xs">
                                 <%= for item <- discovery_card_meta_markup(card) do %>
                                   <span>{raw(item)}</span>
                                 <% end %>
                               </div>
 
-                              <div class="mt-5 flex items-center justify-end">
+                              <div class="mt-3 flex items-center justify-end">
                                 <%= if joined? do %>
-                                  <span class="badge badge-secondary">Joined</span>
+                                  <span class="badge badge-secondary badge-sm">Joined</span>
                                 <% else %>
                                   <%= if @current_user do %>
                                     <button
@@ -691,12 +693,12 @@
                                       id={"discover-join-community-#{community.id}"}
                                       phx-click="join_community"
                                       phx-value-community_id={community.id}
-                                      class="btn btn-secondary btn-sm"
+                                      class="btn btn-secondary btn-xs"
                                     >
                                       Join
                                     </button>
                                   <% else %>
-                                    <.link href={~p"/login"} class="btn btn-ghost btn-sm">
+                                    <.link href={~p"/login"} class="btn btn-ghost btn-xs">
                                       Sign in
                                     </.link>
                                   <% end %>
@@ -712,18 +714,18 @@
                       <% end %>
                     </section>
 
-                    <section class="space-y-4">
+                    <section class="space-y-3">
                       <h2 class="text-xl font-semibold">Active Threads</h2>
 
                       <%= if active_thread_cards != [] do %>
-                        <div class="grid gap-4 lg:grid-cols-2">
+                        <div class="grid gap-3 xl:grid-cols-2">
                           <%= for card <- active_thread_cards do %>
                             <% post = card.post %>
                             <.link
                               href={discussion_route(post)}
-                              class="block rounded-lg border border-base-300 bg-base-100 p-5 shadow-sm hover:border-secondary/40 transition-colors"
+                              class="block rounded-lg border border-base-300 bg-base-100 p-3.5 shadow-sm hover:border-secondary/40 transition-colors"
                             >
-                              <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60 mb-3">
+                              <div class="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-base-content/60 sm:text-xs">
                                 <%= for label <- active_thread_labels(card) do %>
                                   <span class={[
                                     "badge badge-sm",
@@ -737,15 +739,15 @@
                                 <% end %>
                                 <span>{discussion_community_label(post)}</span>
                               </div>
-                              <h4 class="font-semibold line-clamp-2 text-base">
+                              <h4 class="line-clamp-2 text-sm font-semibold sm:text-base">
                                 {discussion_title(post)}
                               </h4>
                               <%= if PostUtilities.plain_text_preview(post.content, 140) != "" do %>
-                                <p class="mt-2 text-sm text-base-content/70 line-clamp-2">
+                                <p class="mt-1.5 line-clamp-2 text-xs text-base-content/70 sm:text-sm leading-5">
                                   {PostUtilities.plain_text_preview(post.content, 140)}
                                 </p>
                               <% end %>
-                              <div class="mt-4 flex items-center justify-between gap-3 text-xs text-base-content/60">
+                              <div class="mt-2.5 flex items-center justify-between gap-3 text-[11px] text-base-content/60 sm:text-xs">
                                 <span>{active_thread_metric(card)}</span>
                                 <span>
                                   {Elektrine.Social.time_ago_in_words(post.inserted_at)}
@@ -965,15 +967,15 @@
     
 <!-- Right Sidebar - Cross-Context Integration & Suggestions (Hidden on mobile) -->
     <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
-      <div class="space-y-4">
+      <div class="space-y-3">
         <!-- Quick Post Creator or Login Prompt -->
         <%= if @current_user do %>
           <div class="card border border-base-300 bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <h3 class="font-semibold mb-3">Quick Post</h3>
+            <div class="card-body p-3.5">
+              <h3 class="mb-2 text-sm font-semibold">Quick Post</h3>
 
               <%= if @show_quick_post do %>
-                <.form for={%{}} phx-submit="create_quick_discussion" class="space-y-3">
+                <.form for={%{}} phx-submit="create_quick_discussion" class="space-y-2.5">
                   <select
                     name="community_id"
                     class="select select-bordered select-sm w-full"
@@ -1013,8 +1015,8 @@
                     name="content"
                     placeholder="What's on your mind?"
                     class="textarea textarea-bordered textarea-sm w-full resize-y overflow-y-auto leading-tight"
-                    style="min-height: 3rem; max-height: 15rem;"
-                    rows="3"
+                    style="min-height: 2.5rem; max-height: 12rem;"
+                    rows="2"
                     phx-hook="AutoExpandTextarea"
                     phx-update="ignore"
                     id="quick-post-textarea"
@@ -1022,7 +1024,7 @@
                   
 <!-- Media Preview -->
                   <%= if !Enum.empty?(@pending_media_urls) do %>
-                    <div class="flex items-center gap-2 p-2 bg-base-200 rounded-lg">
+                    <div class="flex items-center gap-2 rounded-lg bg-base-200 p-2">
                       <.icon name="hero-photo" class="w-4 h-4 text-secondary" />
                       <span class="text-xs">{length(@pending_media_urls)} file(s)</span>
                       <button
@@ -1072,8 +1074,8 @@
         <% else %>
           <!-- Login prompt for Quick Discussion -->
           <div class="card border border-base-300 bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <h3 class="font-semibold mb-3">Join the Community</h3>
+            <div class="card-body p-3.5">
+              <h3 class="mb-2 text-sm font-semibold">Join the Community</h3>
               <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-1" />
                 {gettext("Sign In")}

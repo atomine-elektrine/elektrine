@@ -10,12 +10,12 @@ defmodule Elektrine.Email.InboundRoutingTest do
   describe "resolve_recipient_mailbox/2" do
     test "prefers rcpt_to for mailing list style deliveries" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "routeuser@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "routeuser@example.com"})
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
                  "debian-user@lists.debian.org",
-                 "routeuser@elektrine.com"
+                 "routeuser@example.com"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -23,12 +23,12 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
     test "resolves plus addressing to the base mailbox" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "plusroute@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "plusroute@example.com"})
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
                  "news@lists.example.org",
-                 "plusroute+tag@elektrine.com"
+                 "plusroute+tag@example.com"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -36,12 +36,12 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
     test "resolves supported cross-domain recipient to the same mailbox" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "crossroute@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "crossroute@example.com"})
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
-                 "crossroute@elektrine.com",
-                 "crossroute@elektrine.com"
+                 "crossroute@example.com",
+                 "crossroute@example.com"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -50,12 +50,12 @@ defmodule Elektrine.Email.InboundRoutingTest do
     test "returns forwarding tuple for aliases with external targets" do
       user = user_fixture()
       local_part = "aliasroute#{System.unique_integer([:positive])}"
-      alias_email = "#{local_part}@elektrine.com"
+      alias_email = "#{local_part}@example.com"
 
       assert {:ok, _alias} =
                Email.create_alias(%{
                  username: local_part,
-                 domain: "elektrine.com",
+                 domain: "example.com",
                  target_email: "target@example.net",
                  user_id: user.id
                })
@@ -92,24 +92,24 @@ defmodule Elektrine.Email.InboundRoutingTest do
   describe "validate_mailbox_route/3" do
     test "accepts supported cross-domain recipient for mailbox" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@example.com"})
 
       assert :ok =
                InboundRouting.validate_mailbox_route(
                  "list@lists.example.org",
-                 "owner@elektrine.com",
+                 "owner@example.com",
                  mailbox
                )
     end
 
     test "rejects mismatched recipient to mailbox routing" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@example.com"})
 
       assert {:error, reason} =
                InboundRouting.validate_mailbox_route(
-                 "other@elektrine.com",
-                 "other@elektrine.com",
+                 "other@example.com",
+                 "other@example.com",
                  mailbox
                )
 
@@ -119,9 +119,9 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
   describe "routing classification" do
     test "outbound_email?/2 identifies local -> external envelopes" do
-      assert InboundRouting.outbound_email?("user@elektrine.com", "friend@example.com")
-      refute InboundRouting.outbound_email?("user@elektrine.com", "friend@elektrine.com")
-      refute InboundRouting.outbound_email?("sender@example.com", "user@elektrine.com")
+      assert InboundRouting.outbound_email?("user@example.com", "friend@example.com")
+      refute InboundRouting.outbound_email?("user@example.com", "friend@example.com")
+      refute InboundRouting.outbound_email?("sender@example.com", "user@example.com")
     end
 
     test "loopback_email?/3 detects recent sent-message loopbacks" do

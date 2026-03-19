@@ -1,6 +1,6 @@
 <div class="social-page-wrap">
   <!-- Z Platform Navigation -->
-  <.z_nav active_tab="timeline" current_user={@current_user} />
+  <.e_nav active_tab="timeline" current_user={@current_user} />
   
 <!-- Back Buttons -->
   <div class="social-page-toolbar">
@@ -1134,12 +1134,17 @@
                         end
 
                       loaded_reply_count = max(reply_count, length(@replies)) %>
+                      <% is_saved =
+                        if @local_message,
+                          do: detail_message_saved?(@user_saves, @local_message),
+                          else: Map.get(@user_saves, @post["id"], false) %>
                       <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-base-300">
                         <.post_actions
                           post_id={@post["id"]}
                           current_user={@current_user}
                           is_liked={is_liked}
                           is_boosted={is_boosted}
+                          is_saved={is_saved}
                           like_count={like_count}
                           comment_count={loaded_reply_count}
                           boost_count={boost_count}

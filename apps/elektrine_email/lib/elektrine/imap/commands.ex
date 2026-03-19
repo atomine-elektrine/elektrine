@@ -2,6 +2,7 @@ defmodule Elektrine.IMAP.Commands do
   @moduledoc "IMAP command processing and handling.\nImplements all IMAP4rev1 commands and extensions (IDLE, UIDPLUS, etc).\n"
   require Logger
   alias Elektrine.Constants
+  alias Elektrine.Domains
   alias Elektrine.Email.AttachmentStorage
   alias Elektrine.IMAP.{Helpers, Response}
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
@@ -521,7 +522,7 @@ defmodule Elektrine.IMAP.Commands do
   defp handle_id(tag, _args, state) do
     Helpers.send_response(
       state.socket,
-      "* ID (\"name\" \"Elektrine\" \"version\" \"1.0\" \"vendor\" \"Elektrine\" \"support-url\" \"https://elektrine.com\")"
+      "* ID (\"name\" \"Elektrine\" \"version\" \"1.0\" \"vendor\" \"Elektrine\" \"support-url\" \"#{Domains.public_base_url()}\")"
     )
 
     Helpers.send_response(state.socket, "#{tag} OK ID completed")

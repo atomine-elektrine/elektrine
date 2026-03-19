@@ -154,11 +154,16 @@ defmodule Elektrine.Email.HarakaAdapter do
   end
 
   defp normalize_base_url(base_url) do
+    legacy_base_url = "https://haraka." <> Elektrine.Domains.primary_email_domain()
+
     base_url
     |> String.trim_trailing("/")
     |> case do
-      "https://haraka.elektrine.com" -> default_base_url()
-      normalized -> normalized
+      normalized when normalized == legacy_base_url ->
+        default_base_url()
+
+      normalized ->
+        normalized
     end
   end
 

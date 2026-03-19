@@ -278,7 +278,7 @@ defmodule Elektrine.Email.DKIM do
 
   defp default_mail_host do
     email_config()
-    |> Keyword.get(:domain, "elektrine.com")
+    |> Keyword.get(:domain, Elektrine.Domains.primary_email_domain())
   end
 
   defp email_config do

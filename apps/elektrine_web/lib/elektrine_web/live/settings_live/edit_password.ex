@@ -26,7 +26,8 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
     >
       <div
         id="edit-password-card"
-        class="card border border-base-300 shadow-xl"
+        phx-hook="GlassCard"
+        class="card glass-card border border-base-300 shadow-xl"
       >
         <div class="card-body">
           <.simple_form

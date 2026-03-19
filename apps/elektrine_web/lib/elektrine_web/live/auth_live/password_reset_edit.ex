@@ -31,7 +31,8 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
     ~H"""
     <div
       id="password-reset-edit-card"
-      class="card shadow-xl max-w-md mx-auto"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
     >
       <div class="card-body">
         <%= if @valid_token do %>

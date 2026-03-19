@@ -1,6 +1,6 @@
-<div class="space-y-4 sm:space-y-6">
-  <section class="card shadow-sm border border-base-300">
-    <div class="flex flex-col gap-4 px-5 py-5 sm:px-6 sm:py-6 lg:flex-row lg:items-end lg:justify-between">
+<div class="space-y-6 sm:space-y-8">
+  <section class="card glass-card shadow-xl border border-base-300">
+    <div class="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
       <div class="max-w-3xl">
         <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
           Email Infrastructure
@@ -77,7 +77,7 @@
     </div>
   </section>
 
-  <section class="card shadow-sm border border-base-300">
+  <section class="card glass-card shadow-xl border border-base-300">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <form method="get" action={~p"/pripyat/custom-domains"} class="flex-1">
@@ -153,7 +153,7 @@
 
     <div class="px-5 py-5 sm:px-6">
       <%= if @total_count == 0 do %>
-        <div class="rounded-lg border border-dashed border-base-300 bg-base-100 px-6 py-8 text-center shadow-sm">
+        <div class="rounded-box border border-dashed border-base-300 bg-base-200/40 px-6 py-12 text-center">
           <.icon name="hero-globe-alt" class="mx-auto h-12 w-12 text-base-content/25" />
           <h2 class="mt-4 text-lg font-semibold">No custom domains found</h2>
           <p class="mt-2 text-sm text-base-content/60">
@@ -201,7 +201,7 @@
                         </summary>
                         <div class="space-y-3 border-t border-base-content/10 px-4 py-4">
                           <%= for record <- Elektrine.Email.dns_records_for_custom_domain(custom_domain) do %>
-                            <div class="rounded-lg border border-base-content/10 bg-base-100 px-3 py-3">
+                            <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3">
                               <div class="flex flex-wrap items-center gap-2">
                                 <span class="badge badge-outline badge-sm">{record.type}</span>
                                 <span class="text-xs font-medium text-base-content/55">
@@ -274,7 +274,7 @@
                         </span>
                       </div>
                       <%= if custom_domain_error_summary(custom_domain) do %>
-                        <div class="rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning-content/80">
+                        <div class="rounded-xl border border-warning/20 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning-content/80">
                           {custom_domain_error_summary(custom_domain)}
                         </div>
                       <% end %>
@@ -429,19 +429,19 @@
               </div>
 
               <%= if custom_domain_error_summary(custom_domain) do %>
-                <div class="mt-4 rounded-lg border border-warning/20 bg-warning/5 px-4 py-3 text-sm leading-6 text-base-content/75">
+                <div class="mt-4 rounded-2xl border border-warning/20 bg-warning/5 px-4 py-3 text-sm leading-6 text-base-content/75">
                   {custom_domain_error_summary(custom_domain)}
                 </div>
               <% end %>
 
-              <details class="mt-4 rounded-lg border border-base-content/10 bg-base-200/30">
+              <details class="mt-4 rounded-2xl border border-base-content/10 bg-base-200/30">
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-base-content/75">
                   <span>DNS Blueprint</span>
                   <.icon name="hero-chevron-down" class="h-4 w-4" />
                 </summary>
                 <div class="space-y-3 border-t border-base-content/10 px-4 py-4">
                   <%= for record <- Elektrine.Email.dns_records_for_custom_domain(custom_domain) do %>
-                    <div class="rounded-lg border border-base-content/10 bg-base-100 px-3 py-3">
+                    <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3">
                       <div class="flex flex-wrap items-center gap-2">
                         <span class="badge badge-outline badge-sm">{record.type}</span>
                         <span class="text-xs font-medium text-base-content/55">

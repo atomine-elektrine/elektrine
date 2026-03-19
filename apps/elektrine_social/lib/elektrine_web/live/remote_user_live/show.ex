@@ -11,7 +11,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.RemotePostLive.SurfaceHelpers
 
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Components.Loaders.Skeleton

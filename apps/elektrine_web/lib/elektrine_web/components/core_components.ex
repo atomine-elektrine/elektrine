@@ -124,16 +124,21 @@ defmodule ElektrineWeb.CoreComponents do
   attr :subtitle, :string, default: nil
   attr :sidebar_tab, :string, default: nil
   attr :sidebar_link, :string, default: nil
+  attr :nav_tab, :string, default: "account"
+  attr :current_user, :any, default: nil
   attr :max_width, :string, default: nil
   attr :class, :string, default: nil
+  slot :sidebar
   slot :inner_block, required: true
 
   def account_page(assigns) do
-    has_sidebar = assigns.sidebar_tab || assigns.sidebar_link
-    assigns = assign(assigns, :has_sidebar, has_sidebar)
-
     ~H"""
     <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+      <ElektrineWeb.Components.Platform.ENav.e_nav
+        active_tab={@nav_tab}
+        current_user={@current_user}
+      />
+
       <div class="mb-6 sm:mb-8">
         <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
           {gettext("Account Settings")}
@@ -143,16 +148,19 @@ defmodule ElektrineWeb.CoreComponents do
         </p>
       </div>
 
-      <div class={["grid grid-cols-1 gap-4 sm:gap-6", @has_sidebar && "lg:grid-cols-4 lg:gap-8"]}>
-        <div :if={@has_sidebar} class="lg:col-span-1">
-          <.account_settings_sidebar selected_tab={@sidebar_tab} selected_link={@sidebar_link} />
+      <div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-4 lg:gap-8">
+        <div class="lg:col-span-1">
+          <%= if @sidebar != [] do %>
+            {render_slot(@sidebar)}
+          <% else %>
+            <.account_settings_sidebar
+              :if={@sidebar_tab || @sidebar_link}
+              selected_tab={@sidebar_tab}
+              selected_link={@sidebar_link}
+            />
+          <% end %>
         </div>
-        <section class={[
-          "w-full space-y-6 sm:space-y-8",
-          @has_sidebar && "lg:col-span-3",
-          @max_width,
-          @class
-        ]}>
+        <section class={["w-full space-y-6 sm:space-y-8 lg:col-span-3", @max_width, @class]}>
           <header class="space-y-3">
             <h2 class="text-2xl font-bold text-base-content sm:text-3xl">{@title}</h2>
             <p :if={@subtitle} class="text-base-content/70">{@subtitle}</p>
@@ -172,7 +180,7 @@ defmodule ElektrineWeb.CoreComponents do
 
     ~H"""
     <div class="sticky top-24 self-start">
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
           <ul class="menu menu-compact w-full p-0 space-y-1">
@@ -210,6 +218,64 @@ defmodule ElektrineWeb.CoreComponents do
               <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
             </.link>
           </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :selected_page, :string, required: true
+  attr :selected_section, :string, default: nil
+  attr :sections, :list, default: []
+  attr :profile_url, :string, default: nil
+
+  def profile_settings_sidebar(assigns) do
+    ~H"""
+    <div class="sticky top-24 self-start">
+      <div class="card glass-card shadow-lg">
+        <div class="card-body p-4">
+          <h3 class="font-semibold text-sm mb-4">Profile</h3>
+
+          <ul class="menu menu-compact w-full p-0 space-y-1">
+            <li>
+              <.link navigate="/account" class={profile_utility_link_class()}>
+                <.icon name="hero-arrow-left" class="w-4 h-4" /> {gettext("Back to Settings")}
+              </.link>
+            </li>
+          </ul>
+
+          <div :if={@profile_url} class="divider my-4"></div>
+
+          <ul :if={@profile_url} class="menu menu-compact w-full p-0 space-y-1">
+            <li :if={@profile_url}>
+              <.link
+                href={@profile_url}
+                target="_blank"
+                class={profile_utility_link_class()}
+              >
+                <.icon name="hero-eye" class="w-4 h-4" /> {gettext("View Profile")}
+              </.link>
+            </li>
+          </ul>
+
+          <div :if={@sections != []} class="divider my-4"></div>
+
+          <h4 :if={@sections != []} class="font-semibold text-sm mb-4">Sections</h4>
+
+          <ul :if={@sections != []} class="menu menu-compact w-full p-0 space-y-1">
+            <%= for {section_id, section_icon, section_label} <- @sections do %>
+              <li>
+                <button
+                  type="button"
+                  phx-click="change_tab"
+                  phx-value-tab={section_id}
+                  class={account_setting_secondary_link_class(@selected_section, section_id)}
+                >
+                  <.icon name={section_icon} class="w-4 h-4" /> {section_label}
+                </button>
+              </li>
+            <% end %>
+          </ul>
         </div>
       </div>
     </div>
@@ -262,7 +328,7 @@ defmodule ElektrineWeb.CoreComponents do
 
       _ ->
         if active? do
-          "#{base} border-primary/30 bg-primary/10 text-primary shadow-sm"
+          "#{base} border-primary/40 bg-transparent text-primary shadow-sm"
         else
           "#{base} border-transparent text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
         end
@@ -274,13 +340,18 @@ defmodule ElektrineWeb.CoreComponents do
   defp account_setting_enabled?(_tab), do: true
 
   defp account_setting_secondary_link_class(selected_link, link_id) do
-    base = "btn btn-ghost btn-sm w-full justify-start border transition-all duration-200"
+    base =
+      "text-sm rounded-lg flex items-center gap-2 px-3 py-2 border transition-all duration-200"
 
     if selected_link == link_id do
-      "#{base} border-primary/30 bg-primary/10 text-primary shadow-sm"
+      "#{base} border-primary/35 bg-base-200/70 text-base-content font-medium"
     else
-      "#{base} border-transparent"
+      "#{base} border-transparent text-base-content/80 hover:text-base-content hover:bg-base-200/60 hover:border-base-300"
     end
+  end
+
+  defp profile_utility_link_class do
+    "btn btn-ghost btn-sm w-full justify-start border transition-all duration-200 border-transparent"
   end
 
   @doc """

@@ -33,7 +33,7 @@ defmodule ElektrineWeb.FeatureCase do
 
         default_attrs = %{
           username: "testuser#{unique_id}",
-          email: "test#{unique_id}@elektrine.net",
+          email: "test#{unique_id}@example.net",
           password: @default_password,
           password_confirmation: @default_password,
           handle: "testuser#{unique_id}"

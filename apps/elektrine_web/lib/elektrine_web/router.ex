@@ -3,7 +3,7 @@ defmodule ElektrineWeb.Router do
 
   import ElektrineWeb.UserAuth
 
-  @default_profile_host_scope "*.#{Application.compile_env(:elektrine, :primary_domain, "elektrine.com")}"
+  @default_profile_host_scope "*.#{Application.compile_env(:elektrine, :primary_domain, "example.com")}"
 
   pipeline :browser do
     plug(:accepts, ["html"])
@@ -689,7 +689,7 @@ defmodule ElektrineWeb.Router do
     post("/action/finish", Admin.SecurityController, :finish_action)
   end
 
-  # Admin routes - require admin privileges and elektrine.com domain
+  # Admin routes - require admin privileges and an approved local instance domain
   scope "/pripyat", ElektrineWeb do
     pipe_through([
       :browser,
@@ -1355,7 +1355,7 @@ defmodule ElektrineWeb.Router do
   # Enable LiveDashboard and Swoosh mailbox preview
   import Phoenix.LiveDashboard.Router
 
-  # LiveDashboard for admins in production - require elektrine.com domain
+  # LiveDashboard for admins in production - require an approved local instance domain
   scope "/pripyat" do
     pipe_through([:browser, :require_admin_access, ElektrineWeb.Plugs.RequireElektrineDomain])
 
@@ -1498,6 +1498,12 @@ defmodule ElektrineWeb.Router do
 
       # Settings
       live("/account/app-passwords", SettingsLive.AppPasswords)
+
+      get(
+        "/account/password-manager/extension/:browser/download",
+        PasswordManagerExtensionController,
+        :download
+      )
 
       scope "/", alias: false do
         live("/account/password-manager", ElektrinePasswordManagerWeb.VaultLive, :index)

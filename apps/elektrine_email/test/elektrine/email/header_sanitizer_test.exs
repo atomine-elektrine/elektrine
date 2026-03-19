@@ -240,8 +240,8 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
 
   describe "check_local_domain_spoofing/2" do
     test "detects spoofing from external sender claiming local domain" do
-      # External sender claiming to be from elektrine.com
-      from = "admin@elektrine.com"
+      # External sender claiming to be from example.com
+      from = "admin@example.com"
       # No authenticated user (nil)
       result = HeaderSanitizer.check_local_domain_spoofing(from, nil)
 
@@ -249,7 +249,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
     end
 
     test "allows authenticated local users" do
-      from = "user@elektrine.com"
+      from = "user@example.com"
       # Simulating authenticated user context
       result = HeaderSanitizer.check_local_domain_spoofing(from, %{authenticated: true})
 
@@ -268,7 +268,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
     test "detects backscatter patterns" do
       bounce_params = %{
         from: "mailer-daemon@external.com",
-        to: "user@elektrine.com",
+        to: "user@example.com",
         subject: "Delivery Status Notification (Failure)"
       }
 
@@ -281,7 +281,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
     test "allows legitimate emails" do
       params = %{
         from: "colleague@company.com",
-        to: "user@elektrine.com",
+        to: "user@example.com",
         subject: "Meeting tomorrow"
       }
 
@@ -295,7 +295,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
     test "detects multiple From headers in raw email" do
       raw_email = """
       From: legitimate@example.com
-      To: user@elektrine.com
+      To: user@example.com
       From: attacker@evil.com
       Subject: Test
       """
@@ -308,7 +308,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
     test "allows single From header" do
       raw_email = """
       From: sender@example.com
-      To: user@elektrine.com
+      To: user@example.com
       Subject: Test
       """
 

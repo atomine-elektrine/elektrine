@@ -5,7 +5,7 @@ defmodule ElektrineWeb.FriendsLive do
   alias Elektrine.Messaging
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.Presence.Helpers
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Live.NotificationHelpers
 
   @friend_status_filters ~w(all active offline)

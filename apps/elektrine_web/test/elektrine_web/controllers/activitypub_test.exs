@@ -156,7 +156,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
       end)
 
-      Application.put_env(:elektrine, :profile_base_domains, [instance_domain, "z.org"])
+      Application.put_env(:elektrine, :profile_base_domains, [instance_domain, "z.example.com"])
 
       requested_domain =
         Domains.activitypub_domains()
@@ -189,18 +189,18 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         end
       end)
 
-      Application.put_env(:elektrine, :profile_base_domains, [instance_domain, "z.org"])
-      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.org")
+      Application.put_env(:elektrine, :profile_base_domains, [instance_domain, "z.example.com"])
+      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.example.com")
 
       conn =
         conn
         |> put_req_header("accept", "application/jrd+json")
-        |> get("/.well-known/webfinger", %{resource: "acct:#{user.username}@z.org"})
+        |> get("/.well-known/webfinger", %{resource: "acct:#{user.username}@z.example.com"})
 
       response = json_response(conn, 200)
-      assert response["subject"] == "acct:#{user.username}@z.org"
+      assert response["subject"] == "acct:#{user.username}@z.example.com"
 
-      legacy_actor_url = "#{ActivityPub.instance_url_for_domain("z.org")}/users/#{user.username}"
+      legacy_actor_url = "#{ActivityPub.instance_url_for_domain("z.example.com")}/users/#{user.username}"
 
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "self" and link["href"] == legacy_actor_url
@@ -510,17 +510,17 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         end
       end)
 
-      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.org")
+      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.example.com")
 
       conn =
-        %{conn | host: "z.org"}
+        %{conn | host: "z.example.com"}
         |> put_req_header("accept", "application/activity+json")
         |> get("/users/#{user.username}")
 
       response = json_response(conn, 200)
 
       assert response["id"] ==
-               "#{ActivityPub.instance_url_for_domain("z.org")}/users/#{user.username}"
+               "#{ActivityPub.instance_url_for_domain("z.example.com")}/users/#{user.username}"
 
       assert response["movedTo"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
     end
@@ -538,7 +538,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         end
       end)
 
-      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.org")
+      System.put_env("ACTIVITYPUB_MOVE_FROM_DOMAIN", "z.example.com")
 
       conn =
         conn
@@ -549,7 +549,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert response["id"] == "#{ActivityPub.instance_url()}/users/#{user.username}"
       assert is_list(response["alsoKnownAs"])
 
-      assert "#{ActivityPub.instance_url_for_domain("z.org")}/users/#{user.username}" in response[
+      assert "#{ActivityPub.instance_url_for_domain("z.example.com")}/users/#{user.username}" in response[
                "alsoKnownAs"
              ]
     end

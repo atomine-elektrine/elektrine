@@ -125,6 +125,7 @@ defmodule Elektrine.SecurityAlerts do
       |> subject(alert_subject)
       |> html_body(spoofing_alert_html(user, spoofed_address, recipient_address, subject))
       |> text_body(spoofing_alert_text(user, spoofed_address, recipient_address, subject))
+      |> header("List-Id", EmailAddresses.list_id("elektrine-security"))
 
     case Elektrine.Mailer.deliver(email) do
       {:ok, _} ->

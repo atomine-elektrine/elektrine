@@ -82,7 +82,15 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       assert updated_user.recovery_email_verification_token != nil
       assert String.length(updated_user.recovery_email_verification_token) == 64
       assert updated_user.recovery_email_verification_sent_at != nil
-      refute updated_user.recovery_email_verification_token == extract_verification_token()
+      assert_received {:email, email}
+
+      assert Map.get(email.headers, "List-Id") ==
+               Elektrine.EmailAddresses.list_id("elektrine-account")
+
+      [_, delivered_token] =
+        Regex.run(~r{/verify-recovery-email\?token=([A-Za-z0-9_-]+)}, email.text_body)
+
+      refute updated_user.recovery_email_verification_token == delivered_token
     end
 
     test "returns error and restores previous verification state when email delivery fails", %{

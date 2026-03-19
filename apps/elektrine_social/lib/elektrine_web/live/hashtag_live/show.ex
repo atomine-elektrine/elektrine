@@ -5,7 +5,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
   alias Elektrine.Social
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.TimelinePost
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @impl true

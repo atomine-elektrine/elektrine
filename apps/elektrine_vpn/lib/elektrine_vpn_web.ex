@@ -96,7 +96,7 @@ defmodule ElektrineVPNWeb do
       import ElektrineWeb.Components.User.Avatar
       import ElektrineWeb.Components.Loaders.Skeleton
       import ElektrineWeb.Components.UI.ImageModal
-      import ElektrineWeb.Components.Platform.ZNav
+      import ElektrineWeb.Components.Platform.ENav
       import ElektrineWeb.Components.Social.PostActions
       import ElektrineWeb.Components.Social.PostReactions
       import ElektrineWeb.Components.Social.FediverseFollow

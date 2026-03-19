@@ -1946,6 +1946,7 @@ defmodule Elektrine.Email.Sender do
     |> Swoosh.Email.subject("VPN Bandwidth Warning - #{threshold}% Used")
     |> Swoosh.Email.text_body(text_body)
     |> Swoosh.Email.html_body(html_body)
+    |> Swoosh.Email.header("List-Id", EmailAddresses.list_id("elektrine-account"))
     |> Elektrine.Mailer.deliver()
   end
 
@@ -2081,6 +2082,7 @@ defmodule Elektrine.Email.Sender do
     |> Swoosh.Email.subject("VPN Service Suspended - Quota Exceeded")
     |> Swoosh.Email.text_body(text_body)
     |> Swoosh.Email.html_body(html_body)
+    |> Swoosh.Email.header("List-Id", EmailAddresses.list_id("elektrine-account"))
     |> Elektrine.Mailer.deliver()
   end
 

@@ -1,4 +1,18 @@
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<.account_page
+  title="Profile Analytics"
+  subtitle="Insights into who's viewing your profile"
+  nav_tab="profile-analytics"
+  current_user={@current_user}
+>
+  <:sidebar>
+    <.profile_settings_sidebar
+      selected_page="profile-analytics"
+      profile_url={
+        Elektrine.Domains.profile_url_for_handle(@current_user.handle || @current_user.username)
+      }
+    />
+  </:sidebar>
+
   <div class="mb-6 flex items-center justify-between">
     <div>
       <h1 class="text-2xl sm:text-3xl font-bold text-base-content">Profile Analytics</h1>
@@ -11,7 +25,7 @@
   
 <!-- Overview Stats -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="card shadow-lg">
+    <div class="card glass-card shadow-lg">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
@@ -25,7 +39,7 @@
       </div>
     </div>
 
-    <div class="card shadow-lg">
+    <div class="card glass-card shadow-lg">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
@@ -39,7 +53,7 @@
       </div>
     </div>
 
-    <div class="card shadow-lg">
+    <div class="card glass-card shadow-lg">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
@@ -53,7 +67,7 @@
       </div>
     </div>
 
-    <div class="card shadow-lg">
+    <div class="card glass-card shadow-lg">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
@@ -72,7 +86,7 @@
     <!-- Left Column - Charts and Timeline -->
     <div class="lg:col-span-2 space-y-6">
       <!-- Views Over Time Chart -->
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-chart-bar" class="w-5 h-5 mr-2" /> Views Over Time
@@ -130,7 +144,7 @@
       </div>
       
 <!-- Visitor Breakdown -->
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-user-group" class="w-5 h-5 mr-2" /> Visitor Types
@@ -171,7 +185,7 @@
       </div>
       
 <!-- Top Referrers -->
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-arrow-top-right-on-square" class="w-5 h-5 mr-2" /> Top Referrers
@@ -204,7 +218,7 @@
 <!-- Right Column - Recent Activity and Link Performance -->
     <div class="space-y-6">
       <!-- Most Clicked Links -->
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-cursor-arrow-rays" class="w-5 h-5 mr-2" /> Link Performance
@@ -232,7 +246,7 @@
       </div>
       
 <!-- Recent Viewers -->
-      <div class="card shadow-lg">
+      <div class="card glass-card shadow-lg">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-clock" class="w-5 h-5 mr-2" /> Recent Visitors
@@ -275,4 +289,4 @@
       </div>
     </div>
   </div>
-</div>
+</.account_page>

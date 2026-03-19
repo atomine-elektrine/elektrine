@@ -26,7 +26,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
   import ElektrineWeb.Components.Social.ContentJourney
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.User.UsernameEffects
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.Components.Social.PostActions
   import ElektrineWeb.HtmlHelpers
@@ -844,7 +844,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <!-- Ban Status -->
             <div class={[
-              "card border-2",
+              "card glass-card border-2",
               if(mod_data[:ban], do: "border-error", else: "border-base-300")
             ]}>
               <div class="card-body p-4">
@@ -890,7 +890,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
             
     <!-- Timeout Status -->
             <div class={[
-              "card border-2",
+              "card glass-card border-2",
               if(mod_data[:timeout], do: "border-warning", else: "border-base-300")
             ]}>
               <div class="card-body p-4">
@@ -933,7 +933,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           
     <!-- Warnings -->
           <div class={[
-            "card border-2 mb-4",
+            "card glass-card border-2 mb-4",
             if(mod_data[:warning_count] && mod_data[:warning_count] > 0,
               do: "border-info",
               else: "border-base-300"
@@ -988,7 +988,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           </div>
           
     <!-- Moderator Notes Preview -->
-          <div class="card border-2 border-base-300 mb-4">
+          <div class="card glass-card border-2 border-base-300 mb-4">
             <div class="card-body p-4">
               <h4 class="font-semibold flex items-center gap-2 mb-3">
                 <.icon name="hero-document-text" class="w-4 h-4" />
@@ -1098,7 +1098,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           <div class="space-y-3 max-h-64 overflow-y-auto">
             <%= if Map.get(@user_notes, @note_target_user.id, []) != [] do %>
               <%= for note <- Map.get(@user_notes, @note_target_user.id, []) do %>
-                <div class={"card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
+                <div class={"card glass-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
                   <%= if note.is_important do %>
                     <div class="badge badge-warning badge-sm mb-3">Important</div>
                   <% end %>

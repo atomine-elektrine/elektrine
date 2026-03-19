@@ -204,14 +204,14 @@ defmodule Elektrine.Email.SenderValidationTest do
     } do
       email_params = %{
         from: mailbox.email,
-        to: "missingkey#{System.unique_integer([:positive])}@elektrine.com",
+        to: "missingkey#{System.unique_integer([:positive])}@example.com",
         subject: "Protected",
         text_body: "This should require encryption",
         encryption_mode: "require"
       }
 
       assert {:error, {:missing_pgp_keys, [missing]}} = Sender.send_email(user.id, email_params)
-      assert String.contains?(missing, "@elektrine.com")
+      assert String.contains?(missing, "@example.com")
     end
 
     test "required encryption rejects attachments until full attachment encryption exists", %{
@@ -220,7 +220,7 @@ defmodule Elektrine.Email.SenderValidationTest do
     } do
       email_params = %{
         from: mailbox.email,
-        to: "recipient#{System.unique_integer([:positive])}@elektrine.com",
+        to: "recipient#{System.unique_integer([:positive])}@example.com",
         subject: "Protected with attachment",
         text_body: "Body",
         encryption_mode: "require",

@@ -47,11 +47,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
       email_service = env_value(env, "EMAIL_SERVICE")
 
       errors
-      |> require_any(
-        env,
-        ["PRIMARY_DOMAIN", "EMAIL_DOMAIN"],
-        "email module requires PRIMARY_DOMAIN or EMAIL_DOMAIN"
-      )
+      |> require_any(env, ["PRIMARY_DOMAIN"], "email module requires PRIMARY_DOMAIN")
       |> require_present(email_service, "email module requires EMAIL_SERVICE=haraka")
       |> require_supported_email_service(email_service)
       |> maybe_validate_haraka(email_service, env)

@@ -125,7 +125,7 @@ defmodule ElektrineWeb.AuthLive.Register do
 
   def render(assigns) do
     ~H"""
-    <div id="register-card" class="card shadow-xl max-w-md mx-auto">
+    <div id="register-card" phx-hook="GlassCard" class="card glass-card shadow-xl max-w-md mx-auto">
       <div class="card-body">
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Register")}</h1>
 

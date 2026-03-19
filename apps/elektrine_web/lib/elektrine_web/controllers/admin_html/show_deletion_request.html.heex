@@ -1,12 +1,20 @@
-<div class="flex flex-col gap-4">
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold">Account Deletion Request</h1>
+<div class="admin-page">
+  <div class="flex justify-between items-start gap-4">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+        Account Admin
+      </p>
+      <h1 class="mt-2 text-2xl font-bold">Deletion Request</h1>
+      <p class="mt-2 text-sm text-base-content/70 sm:text-base">
+        Review the request details, user context, and moderation notes before approving or denying account removal.
+      </p>
+    </div>
     <.link href={~p"/pripyat/deletion-requests"} class="btn btn-ghost">
       ← Back to Requests
     </.link>
   </div>
 
-  <div class="card shadow-xl">
+  <div class="card glass-card shadow-xl">
     <div class="card-body">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Request Details -->

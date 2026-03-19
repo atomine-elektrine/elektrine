@@ -101,7 +101,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       sidebar_tab="security"
     >
       <!-- Information Card -->
-      <div class="card border border-base-300 shadow-lg">
+      <div class="card glass-card border border-base-300 shadow-lg">
         <div class="card-body p-4 sm:p-6">
           <div class="flex items-start gap-3">
             <.icon name="hero-information-circle" class="w-5 h-5 text-info mt-0.5" />
@@ -181,7 +181,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
 
       <div class="grid gap-6 lg:grid-cols-2">
         <!-- Create New App Password -->
-        <div class="card border border-base-300 shadow-lg">
+        <div class="card glass-card border border-base-300 shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg mb-4">Create App Password</h2>
             <.form id="create-app-password-form" for={@form} phx-submit="create">
@@ -230,7 +230,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
         </div>
         
     <!-- Usage Instructions -->
-        <div class="card border border-base-300 shadow-lg">
+        <div class="card glass-card border border-base-300 shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg mb-4">How to Use</h2>
             <div class="space-y-3 text-sm text-base-content/70">
@@ -256,7 +256,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       </div>
       
     <!-- Existing App Passwords -->
-      <div class="card border border-base-300 shadow-lg">
+      <div class="card glass-card border border-base-300 shadow-lg">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-lg mb-4">Existing App Passwords</h2>
 

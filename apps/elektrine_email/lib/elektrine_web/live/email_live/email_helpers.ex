@@ -476,7 +476,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
       <div class="lg:hidden">
         <div
           id={"mobile-email-sidebar-card-#{@mailbox.id}"}
-          class="card shadow-lg rounded-box"
+          phx-hook="GlassCard"
+          class="card glass-card shadow-lg rounded-lg"
         >
           <div class="card-body p-4 space-y-4">
             <div class="flex items-start justify-between gap-3">
@@ -765,7 +766,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
         <!-- Mailbox Info Card -->
         <div
           id={"mailbox-info-card-#{@mailbox.id}"}
-          class="card shadow-lg mb-6 rounded-box"
+          phx-hook="GlassCard"
+          class="card glass-card shadow-lg mb-6 rounded-lg"
         >
           <div class="card-body p-6">
             <div class="flex-1 min-w-0">
@@ -870,7 +872,8 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     <!-- Navigation Menu -->
         <div
           id={"nav-menu-card-#{@mailbox.id}"}
-          class="card shadow-lg rounded-box"
+          phx-hook="GlassCard"
+          class="card glass-card shadow-lg rounded-lg"
         >
           <div class="card-body p-3">
             <ul class="menu menu-lg rounded-box w-full">

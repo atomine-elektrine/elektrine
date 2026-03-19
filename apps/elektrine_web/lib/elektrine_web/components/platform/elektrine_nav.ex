@@ -3,7 +3,7 @@ defmodule ElektrineWeb.Components.Platform.ElektrineNav do
   Compatibility wrapper for the unified product navigation.
   """
   use Phoenix.Component
-  alias ElektrineWeb.Components.Platform.ZNav
+  alias ElektrineWeb.Components.Platform.ENav
 
   @doc """
   Renders the unified product navigation tabs.
@@ -14,8 +14,10 @@ defmodule ElektrineWeb.Components.Platform.ElektrineNav do
 
   """
   attr :active_tab, :string, default: "email"
+  attr :class, :string, default: "mb-6"
+  attr :current_user, :any, default: nil
 
   def elektrine_nav(assigns) do
-    ZNav.z_nav(assigns)
+    ENav.e_nav(assigns)
   end
 end

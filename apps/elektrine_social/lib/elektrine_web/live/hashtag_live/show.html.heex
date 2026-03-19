@@ -1,6 +1,6 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
   <!-- Z Platform Navigation -->
-  <.z_nav active_tab="timeline" current_user={@current_user} />
+  <.e_nav active_tab="timeline" current_user={@current_user} />
   
 <!-- Trending Hashtags Marquee -->
   <%= if @trending_hashtags && length(@trending_hashtags) > 0 do %>
@@ -35,7 +35,7 @@
 
   <div class="flex flex-col sm:flex-row gap-0 sm:gap-2 lg:gap-6 min-h-[calc(100vh-16rem)]">
     <!-- Left Sidebar (Hidden on mobile) -->
-    <div class="hidden sm:flex w-32 md:w-48 lg:w-80 flex-shrink-0 card shadow-lg border border-base-300 flex-col h-full">
+    <div class="hidden sm:flex w-32 md:w-48 lg:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 flex-col h-full">
       <div class="p-4">
         <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start mb-6">
           <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
@@ -67,7 +67,7 @@
     <div class="flex-1 min-w-0 max-w-full sm:max-w-full">
       <div class="overflow-y-auto h-full">
         <!-- Hashtag Header -->
-        <div class="card shadow-lg border border-base-300 mb-6">
+        <div class="card glass-card shadow-lg border border-base-300 mb-6">
           <div class="card-body p-6">
             <div class="flex items-center gap-4">
               <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
@@ -157,7 +157,7 @@
         <%= if @show_quote_modal && @quote_target_post do %>
           <div class="modal modal-open p-4" phx-click="close_quote_modal">
             <div
-              class="modal-box card max-w-xl w-full max-h-[90vh] overflow-y-auto"
+              class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
               phx-click="stop_propagation"
               phx-window-keydown="close_quote_modal"
               phx-key="Escape"
@@ -232,7 +232,7 @@
     <!-- End Main Content -->
 
     <!-- Right Sidebar (Hidden on mobile) -->
-    <div class="hidden lg:flex w-16 sm:w-20 lg:w-80 flex-shrink-0 card shadow-lg border border-base-300 p-2 lg:p-4 flex-col h-full">
+    <div class="hidden lg:flex w-16 sm:w-20 lg:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 p-2 lg:p-4 flex-col h-full">
       <h3 class="font-semibold mb-4">Related</h3>
       <div class="space-y-2">
         <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start">

@@ -32,6 +32,16 @@ defmodule ElektrineWeb.Layouts do
     _ -> []
   end
 
+  def umami_config do
+    config = Application.get_env(:elektrine, :umami, [])
+
+    %{
+      enabled: Keyword.get(config, :enabled, true),
+      script_url: Keyword.get(config, :script_url, "https://cloud.umami.is/script.js"),
+      website_id: Keyword.get(config, :website_id)
+    }
+  end
+
   @doc ~s|Builds the page title.\n|
   def build_page_title(assigns) do
     assigns[:page_title] || inferred_page_title(assigns) || "Elektrine"

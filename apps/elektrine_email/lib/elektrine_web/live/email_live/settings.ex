@@ -951,7 +951,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
         <div class="flex-1 min-w-0">
           <div
             id="email-settings-card"
-            class="card shadow-lg rounded-box"
+            phx-hook="GlassCard"
+            class="card glass-card shadow-lg rounded-lg"
           >
             <div class="card-body p-3 sm:p-6">
               <!-- Header -->

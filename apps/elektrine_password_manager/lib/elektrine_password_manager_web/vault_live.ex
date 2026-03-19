@@ -139,7 +139,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.z_nav active_tab="password_manager" current_user={@current_user} class="mb-6" />
+      <.e_nav active_tab="password_manager" current_user={@current_user} class="mb-6" />
 
       <div
         id="password-vault-live"
@@ -154,7 +154,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
           max_width="max-w-7xl"
         >
           <div class="grid gap-6 lg:grid-cols-2">
-            <div class="card border border-base-300 shadow-lg">
+            <div class="card glass-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <%= if @vault_configured do %>
                   <h2 class="card-title mb-4 text-lg">Unlock Vault</h2>
@@ -227,7 +227,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
               </div>
             </div>
 
-            <div class="card border border-base-300 shadow-lg">
+            <div class="card glass-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title mb-4 text-lg">Security Notes</h2>
                 <ul class="list-disc space-y-3 pl-5 text-sm text-base-content/70">
@@ -258,7 +258,35 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card border border-base-300 shadow-lg">
+          <div class="card glass-card border border-base-300 shadow-lg">
+            <div class="card-body p-4 sm:p-6">
+              <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="space-y-2">
+                  <h2 class="card-title text-lg">Browser Extensions</h2>
+                  <p class="text-sm text-base-content/70">
+                    Download the Elektrine Vault extension for your browser and connect it to this account.
+                  </p>
+                </div>
+
+                <div class="flex flex-col gap-2 sm:flex-row">
+                  <a
+                    href="/account/password-manager/extension/chromium/download"
+                    class="btn btn-primary btn-sm"
+                  >
+                    Download Chromium ZIP
+                  </a>
+                  <a
+                    href="/account/password-manager/extension/firefox/download"
+                    class="btn btn-outline btn-sm"
+                  >
+                    Download Firefox XPI
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Add Entry</h2>
 
@@ -366,7 +394,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card border border-base-300 shadow-lg">
+          <div class="card glass-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Saved Entries</h2>
 
@@ -518,44 +546,72 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     """
   end
 
-  # Keep this aligned with ElektrineWeb.Components.Platform.ZNav. The extracted
+  # Keep this aligned with ElektrineWeb.Components.Platform.ENav. The extracted
   # password manager app cannot import that component directly without creating
   # a compile-time dependency on elektrine_web.
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-4"
   attr :current_user, :any, default: nil
 
-  def z_nav(assigns) do
+  def e_nav(assigns) do
     assigns =
       assigns
       |> assign(:items, nav_items())
       |> assign(:section_label, if(assigns.current_user, do: "Modes", else: "Browse"))
+      |> assign(:secondary_items, secondary_items(assigns.current_user))
 
     ~H"""
     <nav aria-label="Primary modes" class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="rounded-lg border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
-          <div class="overflow-x-auto px-2 py-2 sm:px-3">
-            <div class="flex min-w-max items-center gap-1 sm:gap-2">
-              <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                {@section_label}
-              </div>
+        <div class="rounded-2xl border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
+          <div class="px-2 py-2 sm:px-3 space-y-2">
+            <div class="overflow-x-auto">
+              <div class="flex min-w-max items-center gap-1 sm:gap-2">
+                <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
+                  {@section_label}
+                </div>
 
-              <%= for item <- @items do %>
-                <.link
-                  href={item.href}
-                  aria-current={if @active_tab == item.id, do: "page", else: "false"}
-                  class={tab_class(@active_tab, item.id)}
-                  title={item.label}
-                >
-                  <.icon
-                    name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
-                    class={icon_class(@active_tab, item.id)}
-                  />
-                  <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
-                </.link>
-              <% end %>
+                <%= for item <- @items do %>
+                  <.link
+                    href={item.href}
+                    aria-current={if @active_tab == item.id, do: "page", else: "false"}
+                    class={tab_class(@active_tab, item.id)}
+                    title={item.label}
+                  >
+                    <.icon
+                      name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
+                      class={icon_class(@active_tab, item.id)}
+                    />
+                    <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
+                  </.link>
+                <% end %>
+              </div>
             </div>
+
+            <%= if @secondary_items != [] do %>
+              <div class="overflow-x-auto border-t border-base-300/80 pt-2">
+                <div class="flex min-w-max items-center gap-1 sm:gap-2">
+                  <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
+                    Account
+                  </div>
+
+                  <%= for item <- @secondary_items do %>
+                    <.link
+                      href={item.href}
+                      aria-current={if @active_tab == item.id, do: "page", else: "false"}
+                      class={secondary_tab_class(@active_tab, item.id)}
+                      title={item.label}
+                    >
+                      <.icon
+                        name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
+                        class={icon_class(@active_tab, item.id)}
+                      />
+                      <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
+                    </.link>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
           </div>
         </div>
       </div>
@@ -687,6 +743,34 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     |> Enum.filter(&module_visible?/1)
   end
 
+  defp secondary_items(nil), do: []
+
+  defp secondary_items(_current_user) do
+    [
+      %{
+        id: "account",
+        label: "Account",
+        href: "/account",
+        icon: "hero-cog-6-tooth",
+        active_icon: "hero-cog-6-tooth-solid"
+      },
+      %{
+        id: "profile",
+        label: "Profile",
+        href: "/account/profile/edit",
+        icon: "hero-user-circle",
+        active_icon: "hero-user-circle-solid"
+      },
+      %{
+        id: "storage",
+        label: "Storage",
+        href: "/account/storage",
+        icon: "hero-circle-stack",
+        active_icon: "hero-circle-stack-solid"
+      }
+    ]
+  end
+
   defp module_visible?(%{platform_module: nil}), do: true
   defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
 
@@ -696,6 +780,16 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
       if(active_tab == tab_id,
         do: "bg-base-200 text-base-content",
         else: "text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
+      )
+    ]
+  end
+
+  defp secondary_tab_class(active_tab, tab_id) do
+    [
+      "group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+      if(active_tab == tab_id,
+        do: "bg-primary/10 text-base-content",
+        else: "text-base-content/65 hover:bg-base-200/80 hover:text-base-content"
       )
     ]
   end

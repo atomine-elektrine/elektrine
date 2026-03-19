@@ -250,25 +250,32 @@ defmodule ElektrineWeb.ProfileController do
 
   # sobelow_skip ["XSS.SendResp"]
   defp render_static_site(conn, profile) do
+    user = Accounts.get_user!(profile.user_id)
+    handle = conn.assigns[:subdomain_handle] || user.handle || user.username
+
     # Serve static site index.html
-    case StaticSites.get_file(profile.user_id, "index.html") do
-      nil ->
-        # No index.html, fall back to builder profile
-        render_builder_profile(conn, profile)
+    if Elektrine.Domains.app_host?(conn.host) and is_binary(handle) and handle != "" and
+         conn.assigns[:subdomain_handle] != handle do
+      redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
+    else
+      case StaticSites.get_file(profile.user_id, "index.html") do
+        nil ->
+          # No index.html, fall back to builder profile
+          render_builder_profile(conn, profile)
 
-      file ->
-        case StaticSites.get_file_content(file) do
-          {:ok, content} ->
-            conn
-            |> put_resp_content_type("text/html")
-            |> put_resp_header("x-content-type-options", "nosniff")
-            |> put_resp_header("x-frame-options", "SAMEORIGIN")
-            |> send_resp(200, content)
+        file ->
+          case StaticSites.get_file_content(file) do
+            {:ok, content} ->
+              conn
+              |> put_resp_content_type("text/html")
+              |> ElektrineWeb.Plugs.StaticSitePlug.put_static_html_headers()
+              |> send_resp(200, content)
 
-          {:error, _} ->
-            # Error fetching content, fall back to builder
-            render_builder_profile(conn, profile)
-        end
+            {:error, _} ->
+              # Error fetching content, fall back to builder
+              render_builder_profile(conn, profile)
+          end
+      end
     end
   end
 

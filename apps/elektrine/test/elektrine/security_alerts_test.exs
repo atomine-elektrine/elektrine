@@ -3,6 +3,7 @@ defmodule Elektrine.SecurityAlertsTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Email
+  alias Elektrine.EmailAddresses
   alias Elektrine.SecurityAlerts
 
   defmodule FailingMailerAdapter do
@@ -41,7 +42,7 @@ defmodule Elektrine.SecurityAlertsTest do
       assert {:ok, _deleted_mailbox} = Email.delete_mailbox(mailbox)
     end
 
-    spoofed_address = "spoof#{System.unique_integer([:positive])}@elektrine.com"
+    spoofed_address = "spoof#{System.unique_integer([:positive])}@example.com"
 
     assert {:ok, _alias} =
              Email.create_alias(%{
@@ -63,5 +64,42 @@ defmodule Elektrine.SecurityAlertsTest do
                "victim@example.net",
                "Test subject"
              )
+  end
+
+  test "sends recovery-email spoofing alerts with security list id header" do
+    {:ok, user} =
+      Accounts.create_user(%{
+        username: "spoofok#{System.unique_integer([:positive])}",
+        password: "Test123456!",
+        password_confirmation: "Test123456!"
+      })
+
+    user =
+      user
+      |> Ecto.Changeset.change(%{
+        recovery_email: "alerts#{System.unique_integer([:positive])}@example.com"
+      })
+      |> Elektrine.Repo.update!()
+
+    spoofed_address = "spoof#{System.unique_integer([:positive])}@example.com"
+
+    assert {:ok, _alias} =
+             Email.create_alias(%{
+               alias_email: spoofed_address,
+               user_id: user.id,
+               enabled: true
+             })
+
+    assert {:ok, :sent} =
+             SecurityAlerts.send_spoofing_alert(
+               spoofed_address,
+               "victim@example.net",
+               "Test subject"
+             )
+
+    assert_received {:email, email}
+
+    assert Map.get(email.headers, "List-Id") ==
+             EmailAddresses.list_id("elektrine-security")
   end
 end

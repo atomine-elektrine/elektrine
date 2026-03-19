@@ -11,8 +11,20 @@ defmodule ElektrineWeb.ProfileLive.Domains do
      socket
      |> assign(:page_title, "Profile Domains")
      |> assign(:user, user)
-     |> assign(:default_profile_url, Domains.profile_url_for_handle(user.handle || user.username))
+     |> assign(
+       :default_profile_url,
+       Domains.default_profile_url_for_handle(user.handle || user.username)
+     )
+     |> assign(:alternate_profile_urls, alternate_profile_urls(user))
      |> assign(:custom_domains, Profiles.list_user_custom_domains(user.id))}
+  end
+
+  defp alternate_profile_urls(user) do
+    handle = user.handle || user.username
+    default_url = Domains.default_profile_url_for_handle(handle)
+
+    Domains.profile_urls_for_handle(handle)
+    |> Enum.reject(&(&1 == default_url))
   end
 
   @impl true
@@ -99,10 +111,20 @@ defmodule ElektrineWeb.ProfileLive.Domains do
     <.account_page
       title="Profile Domains"
       subtitle="Connect a root domain directly to your profile page. Verified domains also publish a followable ActivityPub alias for your username, while your canonical actor stays on the main instance domain."
-      sidebar_link="profile-domains"
+      nav_tab="profile-domains"
+      current_user={@current_user}
     >
+      <:sidebar>
+        <.profile_settings_sidebar
+          selected_page="profile-domains"
+          profile_url={
+            Elektrine.Domains.profile_url_for_handle(@current_user.handle || @current_user.username)
+          }
+        />
+      </:sidebar>
+
       <div class="space-y-6">
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body space-y-4">
             <div>
               <h3 class="text-lg font-semibold">Default Profile URL</h3>
@@ -111,7 +133,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
               </p>
             </div>
 
-            <div class="rounded-lg border border-base-content/10 bg-base-200/30 px-4 py-3">
+            <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
               <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Built-in URL
               </div>
@@ -119,10 +141,23 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                 {@default_profile_url}
               </div>
             </div>
+
+            <%= if @alternate_profile_urls != [] do %>
+              <div class="rounded-2xl border border-base-content/10 bg-base-100/60 px-4 py-3 space-y-2">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Other Built-in URLs
+                </div>
+                <div class="space-y-1.5 font-mono text-sm text-base-content/75">
+                  <%= for url <- @alternate_profile_urls do %>
+                    <div class="break-all">{url}</div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
           </div>
         </div>
 
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body space-y-5">
             <div class="space-y-2">
               <h3 class="text-lg font-semibold">Add Profile Domain</h3>
@@ -148,7 +183,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
               </div>
             </.form>
 
-            <div class="rounded-lg border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
+            <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm text-base-content/75">
               Add the verification TXT record first. After verification, point the domain's apex/root host at the stable routing hostname shown below using your DNS provider's alias/flattening feature or edge proxy. That keeps the domain portable if the underlying hosting IPs change. Optional
               <span class="font-mono">www</span>
               traffic will redirect to the bare domain.
@@ -156,7 +191,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
           </div>
         </div>
 
-        <div class="card shadow-lg">
+        <div class="card glass-card shadow-lg">
           <div class="card-body p-0">
             <div class="border-b border-base-content/10 px-5 py-4">
               <h3 class="text-lg font-semibold">Connected Domains</h3>
@@ -167,7 +202,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
             <%= if Enum.empty?(@custom_domains) do %>
               <div class="px-5 py-10">
-                <div class="rounded-lg border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
+                <div class="rounded-2xl border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
                   <div class="text-sm font-medium text-base-content/75">
                     No profile domains added yet
                   </div>
@@ -232,12 +267,12 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                         </div>
 
                         <%= if custom_domain.last_error && String.trim(custom_domain.last_error) != "" do %>
-                          <div class="rounded-lg border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
+                          <div class="rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
                             {custom_domain.last_error}
                           </div>
                         <% end %>
 
-                        <div class="overflow-hidden rounded-lg border border-base-content/10">
+                        <div class="overflow-hidden rounded-2xl border border-base-content/10">
                           <div class="border-b border-base-content/10 bg-base-200/35 px-4 py-3">
                             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               DNS Records

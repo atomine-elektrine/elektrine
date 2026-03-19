@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.NotificationsLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.User.Avatar
 
   @state_filters %{"all" => :all, "unread" => :unread, "unseen" => :unseen}

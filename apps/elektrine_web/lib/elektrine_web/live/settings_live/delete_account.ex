@@ -11,7 +11,8 @@ defmodule ElektrineWeb.SettingsLive.DeleteAccount do
     ~H"""
     <div
       id="delete-account-card"
-      class="card shadow-xl max-w-md mx-auto"
+      phx-hook="GlassCard"
+      class="card glass-card shadow-xl max-w-md mx-auto"
     >
       <div class="card-body">
         <h1 class="text-2xl font-bold mb-6 text-error">Delete Account</h1>

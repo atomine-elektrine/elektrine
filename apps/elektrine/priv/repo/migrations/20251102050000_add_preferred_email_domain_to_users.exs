@@ -3,7 +3,7 @@ defmodule Elektrine.Repo.Migrations.AddPreferredEmailDomainToUsers do
 
   def change do
     alter table(:users) do
-      add :preferred_email_domain, :string, default: "elektrine.com"
+      add :preferred_email_domain, :string, default: "example.com"
     end
   end
 end

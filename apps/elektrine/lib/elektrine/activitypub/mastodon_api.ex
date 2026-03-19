@@ -7,6 +7,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   """
 
   require Logger
+  alias Elektrine.Domains
 
   @doc """
   Fetch status counts (favourites, reblogs, replies) from a Mastodon-compatible instance.
@@ -367,7 +368,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   defp build_headers do
     [
       {"Accept", "application/json"},
-      {"User-Agent", "Elektrine/1.0 (ActivityPub; +https://elektrine.com)"}
+      {"User-Agent", "Elektrine/1.0 (ActivityPub; +#{Domains.public_base_url()})"}
     ]
   end
 

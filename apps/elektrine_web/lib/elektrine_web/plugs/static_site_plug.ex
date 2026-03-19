@@ -15,36 +15,55 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     font/woff font/woff2 font/ttf font/otf application/font-woff application/font-woff2
   )
 
-  # Content Security Policy for static site HTML
-  # Intentionally permissive: static sites are user-controlled content and often depend on
-  # third-party scripts/widgets/CDNs. We still keep frame-ancestors locked to 'self' so other
-  # sites cannot iframe user pages by default.
+  # Content Security Policy for static site HTML.
+  # Keep user-controlled pages flexible, but isolate them from the main app and remove the
+  # riskiest browser features like object/embed and eval.
   @html_csp [
-              "default-src * data: blob:",
-              # Allow inline scripts/styles since users control their own content.
-              # Allow any origin so static sites can use arbitrary CDNs/widgets.
-              "script-src * 'unsafe-inline' 'unsafe-eval' data: blob:",
-              "style-src * 'unsafe-inline'",
-              # Allow external images and data URIs
-              "img-src * data: blob:",
-              # Allow fonts from anywhere and data URIs
-              "font-src * data:",
-              # Allow XHR/fetch/WebSocket-style connections
-              "connect-src *",
-              # Allow media from anywhere
-              "media-src * data: blob:",
-              # Allow third-party form handlers (Netlify Forms, Formspree, etc.)
-              "form-action *",
-              # Prevent framing by other sites
-              "frame-ancestors 'self'",
-              # Allow iframes from anywhere (common for embeds/widgets)
-              "frame-src *",
-              # Restrict base URI (prevents <base href> from rewriting relative URLs unexpectedly)
-              "base-uri 'self'"
+              "default-src 'self' https: http: data: blob:",
+              "script-src 'self' https: http: 'unsafe-inline' data: blob:",
+              "style-src 'self' https: http: 'unsafe-inline'",
+              "img-src 'self' https: http: data: blob:",
+              "font-src 'self' https: http: data:",
+              "connect-src 'self' https: http: wss: ws:",
+              "media-src 'self' https: http: data: blob:",
+              "form-action 'self' https: http:",
+              "frame-src 'self' https: http:",
+              "worker-src 'self' blob:",
+              "manifest-src 'self' https: http: data: blob:",
+              "base-uri 'self'",
+              "object-src 'none'",
+              "frame-ancestors 'none'"
             ]
             |> Enum.join("; ")
 
+  @svg_csp "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+
   def init(opts), do: opts
+
+  def html_csp, do: @html_csp
+
+  def put_static_html_headers(conn) do
+    conn
+    |> put_resp_header("content-security-policy", @html_csp)
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> put_resp_header("x-frame-options", "DENY")
+    |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
+    |> put_resp_header("cross-origin-opener-policy", "same-origin")
+    |> put_resp_header("cross-origin-resource-policy", "cross-origin")
+    |> put_resp_header(
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+    )
+  end
+
+  def put_static_asset_headers(conn, content_type) do
+    conn
+    |> put_resp_header("cache-control", "public, max-age=86400")
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> put_resp_header("x-frame-options", "DENY")
+    |> put_resp_header("cross-origin-resource-policy", "cross-origin")
+    |> maybe_put_svg_csp(content_type)
+  end
 
   # Subdomain static site asset serving (e.g., https://handle.example.com/1.jpg)
   # ProfileSubdomain assigns :subdomain_handle for static-mode profiles.
@@ -115,10 +134,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         # Serve the static site with security headers including CSP
         conn
         |> put_resp_content_type("text/html")
-        |> put_resp_header("content-security-policy", @html_csp)
-        |> put_resp_header("x-content-type-options", "nosniff")
-        |> put_resp_header("x-frame-options", "SAMEORIGIN")
-        |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
+        |> put_static_html_headers()
         |> send_resp(200, content)
         |> halt()
       end
@@ -167,9 +183,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
         conn
         |> put_resp_content_type(safe_content_type)
-        |> put_resp_header("cache-control", "public, max-age=86400")
-        |> put_resp_header("x-content-type-options", "nosniff")
-        |> put_resp_header("x-frame-options", "SAMEORIGIN")
+        |> put_static_asset_headers(safe_content_type)
         |> send_resp(200, content)
         |> halt()
       end
@@ -232,6 +246,12 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
       "application/octet-stream"
     end
   end
+
+  defp maybe_put_svg_csp(conn, "image/svg+xml") do
+    put_resp_header(conn, "content-security-policy", @svg_csp)
+  end
+
+  defp maybe_put_svg_csp(conn, _content_type), do: conn
 
   # Paths that should never be treated as profile handles
   @reserved_paths ~w(

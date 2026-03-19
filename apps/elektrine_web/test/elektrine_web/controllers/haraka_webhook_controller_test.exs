@@ -69,7 +69,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> get(~p"/api/haraka/domains")
 
       assert %{"domains" => domains} = json_response(conn, 200)
-      assert "elektrine.com" in domains
+      assert "example.com" in domains
     end
   end
 
@@ -77,7 +77,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     setup do
       # Create a user with a mailbox
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "testuser@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "testuser@example.com"})
 
       {:ok, user: user, mailbox: mailbox}
     end
@@ -88,11 +88,11 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     } do
       # Simulates a Debian mailing list email where:
       # - To: debian-user@lists.debian.org (the mailing list)
-      # - rcpt_to: testuser@elektrine.com (actual recipient)
+      # - rcpt_to: testuser@example.com (actual recipient)
       params = %{
         "from" => "sender@example.com",
         "to" => "debian-user@lists.debian.org",
-        "rcpt_to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Test mailing list message",
         "text_body" => "This is a test message from a mailing list",
         "html_body" => "<p>This is a test message from a mailing list</p>",
@@ -118,8 +118,8 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       # Normal direct email where To header has the local address
       params = %{
         "from" => "sender@example.com",
-        "to" => "testuser@elektrine.com",
-        "rcpt_to" => "testuser@elektrine.com",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Direct email test",
         "text_body" => "This is a direct email",
         "message_id" => "test-direct-#{System.system_time(:millisecond)}"
@@ -140,8 +140,8 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
          %{conn: conn, mailbox: mailbox} do
       base_params = %{
         "from" => "sender@example.com",
-        "to" => "testuser@elektrine.com",
-        "rcpt_to" => "testuser@elektrine.com",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Repeated status update"
       }
 
@@ -184,8 +184,8 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
          %{conn: conn, mailbox: mailbox} do
       params = %{
         "from" => "sender@example.com",
-        "to" => "testuser@elektrine.com",
-        "rcpt_to" => "testuser@elektrine.com",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "xiha711@gmail.com çå®å¨æé",
         "headers" => %{
           "Subject" => "=?UTF-8?B?eGloYTcxMUBnbWFpbC5jb20g55qE5a6J5YWo5o+Q6YaS?="
@@ -218,7 +218,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "support@company.com",
         "to" => "team@company.com",
-        "rcpt_to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Important update",
         "text_body" => "This is important information",
         "message_id" => "test-team-#{System.system_time(:millisecond)}"
@@ -253,7 +253,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "list1@lists.example.org, list2@other.org",
-        "rcpt_to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Multi-recipient test",
         "text_body" => "Test content",
         "message_id" => "test-multi-#{System.system_time(:millisecond)}"
@@ -330,15 +330,15 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert message.subject == "Custom domain delivery"
     end
 
-    test "handles elektrine.net domain in rcpt_to for mailing lists", %{conn: conn} do
-      # Create a elektrine.net mailbox
+    test "handles example.net domain in rcpt_to for mailing lists", %{conn: conn} do
+      # Create a example.net mailbox
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "zorguser@elektrine.net"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "zorguser@example.net"})
 
       params = %{
         "from" => "sender@lists.debian.org",
         "to" => "debian-announce@lists.debian.org",
-        "rcpt_to" => "zorguser@elektrine.net",
+        "rcpt_to" => "zorguser@example.net",
         "subject" => "Debian announcement",
         "text_body" => "Important announcement",
         "message_id" => "test-zorg-#{System.system_time(:millisecond)}"
@@ -360,7 +360,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "Debian Users <debian-user@lists.debian.org>",
-        "rcpt_to" => "testuser@elektrine.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Formatted To header test",
         "text_body" => "Test content",
         "message_id" => "test-formatted-#{System.system_time(:millisecond)}"
@@ -406,8 +406,8 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
 
       params = %{
         "from" => "sender@example.com",
-        "to" => "testuser@elektrine.com",
-        "rcpt_to" => "testuser@elektrine.com",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
         "subject" => "Re: Thread header test",
         "text_body" => "Threaded response",
         "message_id" => "threading-#{System.system_time(:millisecond)}",
@@ -502,7 +502,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   describe "verify_recipient endpoint" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "existing@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "existing@example.com"})
       {:ok, mailbox: mailbox}
     end
 
@@ -510,29 +510,29 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       conn =
         conn
         |> auth_conn()
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@elektrine.com"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@example.com"})
 
-      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@elektrine.com"}
+      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@example.com"}
     end
 
     test "returns exists: true for supported cross-domain mailbox", %{conn: conn} do
       conn =
         conn
         |> auth_conn()
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@elektrine.net"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "existing@example.net"})
 
-      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@elektrine.net"}
+      assert json_response(conn, 200) == %{"exists" => true, "email" => "existing@example.net"}
     end
 
     test "returns exists: false for non-existing mailbox", %{conn: conn} do
       conn =
         conn
         |> auth_conn()
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "nonexistent@elektrine.com"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "nonexistent@example.com"})
 
       assert json_response(conn, 404) == %{
                "exists" => false,
-               "email" => "nonexistent@elektrine.com"
+               "email" => "nonexistent@example.com"
              }
     end
 
@@ -540,7 +540,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "test@elektrine.com"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "test@example.com"})
 
       assert json_response(conn, 401)["error"] == "Unauthorized"
     end
@@ -556,7 +556,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       end)
 
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "asyncuser@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "asyncuser@example.com"})
       {:ok, mailbox: mailbox}
     end
 
@@ -567,7 +567,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "dev-list@lists.example.org",
-        "rcpt_to" => "asyncuser@elektrine.net",
+        "rcpt_to" => "asyncuser@example.net",
         "subject" => "Async ingest metadata test",
         "text_body" => "payload body",
         "message_id" => "async-metadata-#{System.system_time(:millisecond)}"
@@ -594,7 +594,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
 
       assert length(messages) == 1
       [message] = messages
-      assert message.metadata["envelope_rcpt_to"] == "asyncuser@elektrine.net"
+      assert message.metadata["envelope_rcpt_to"] == "asyncuser@example.net"
       assert message.metadata["ingest_mode"] == "async"
       assert is_binary(message.metadata["ingest_idempotency_key"])
     end
@@ -605,7 +605,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "updates@lists.example.org",
-        "rcpt_to" => "asyncuser@elektrine.net",
+        "rcpt_to" => "asyncuser@example.net",
         "subject" => "Duplicate async payload",
         "text_body" => "same body",
         "message_id" => "async-dup-#{unique_suffix}"
@@ -664,7 +664,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/haraka/inbound", %{
           "from" => "test@example.com",
-          "to" => "user@elektrine.com",
+          "to" => "user@example.com",
           "subject" => "Test"
         })
 
@@ -677,7 +677,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/haraka/inbound", %{
           "from" => "test@example.com",
-          "to" => "user@elektrine.com",
+          "to" => "user@example.com",
           "subject" => "Test"
         })
 
@@ -691,8 +691,8 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
         |> put_req_header("content-length", "not-a-number")
         |> post(~p"/api/haraka/inbound", %{
           "from" => "sender@example.com",
-          "to" => "user@elektrine.com",
-          "rcpt_to" => "user@elektrine.com",
+          "to" => "user@example.com",
+          "rcpt_to" => "user@example.com",
           "subject" => "Test"
         })
 
@@ -754,12 +754,12 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
 
     test "allows local-domain sender with authenticated submission marker", %{conn: conn} do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "recipient@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "recipient@example.com"})
 
       params = %{
-        "from" => "trusted@elektrine.com",
-        "to" => "recipient@elektrine.com",
-        "rcpt_to" => "recipient@elektrine.com",
+        "from" => "trusted@example.com",
+        "to" => "recipient@example.com",
+        "rcpt_to" => "recipient@example.com",
         "subject" => "Authenticated local delivery",
         "text_body" => "hello",
         "authenticated" => true,
@@ -777,17 +777,17 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   end
 
   describe "cross-domain mailing lists" do
-    test "delivers mailing list email to elektrine.com user from elektrine.net rcpt_to format", %{
+    test "delivers mailing list email to example.com user from example.net rcpt_to format", %{
       conn: conn
     } do
-      # User has elektrine.com mailbox but could receive via elektrine.net address
+      # User has example.com mailbox but could receive via example.net address
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "crossdomain@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "crossdomain@example.com"})
 
       params = %{
         "from" => "list-owner@lists.example.org",
         "to" => "discussion@lists.example.org",
-        "rcpt_to" => "crossdomain@elektrine.net",
+        "rcpt_to" => "crossdomain@example.net",
         "subject" => "Cross domain test",
         "text_body" => "Testing cross domain delivery",
         "message_id" => "test-cross-#{System.system_time(:millisecond)}"
@@ -810,18 +810,18 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       assert length(messages) == 1
     end
 
-    test "verify endpoint accepts elektrine.net address for elektrine.com mailbox", %{conn: conn} do
+    test "verify endpoint accepts example.net address for example.com mailbox", %{conn: conn} do
       user = user_fixture()
-      _mailbox = mailbox_fixture(%{user_id: user.id, email: "crossverify@elektrine.com"})
+      _mailbox = mailbox_fixture(%{user_id: user.id, email: "crossverify@example.com"})
 
       conn =
         conn
         |> auth_conn()
-        |> post(~p"/api/haraka/verify-recipient", %{"email" => "crossverify@elektrine.net"})
+        |> post(~p"/api/haraka/verify-recipient", %{"email" => "crossverify@example.net"})
 
       assert json_response(conn, 200) == %{
                "exists" => true,
-               "email" => "crossverify@elektrine.net"
+               "email" => "crossverify@example.net"
              }
     end
   end
@@ -899,7 +899,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   describe "edge cases for mailing lists" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "edgecase@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "edgecase@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -907,7 +907,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@example.com",
         "to" => "",
-        "rcpt_to" => "edgecase@elektrine.com",
+        "rcpt_to" => "edgecase@example.com",
         "subject" => "Empty to header test",
         "text_body" => "Test content",
         "message_id" => "test-empty-to-#{System.system_time(:millisecond)}"
@@ -933,7 +933,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     test "handles nil to header with valid rcpt_to", %{conn: conn, mailbox: mailbox} do
       params = %{
         "from" => "sender@example.com",
-        "rcpt_to" => "edgecase@elektrine.com",
+        "rcpt_to" => "edgecase@example.com",
         "subject" => "Nil to header test",
         "text_body" => "Test content",
         "message_id" => "test-nil-to-#{System.system_time(:millisecond)}"
@@ -961,7 +961,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "author@personal.com",
         "to" => "tech-list@lists.example.org",
-        "rcpt_to" => "edgecase@elektrine.com",
+        "rcpt_to" => "edgecase@example.com",
         "reply_to" => "tech-list@lists.example.org",
         "subject" => "Re: Technical discussion",
         "text_body" => "My response to the thread",
@@ -989,7 +989,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "user@example.com",
         "to" => "linux-kernel@vger.kernel.org",
-        "rcpt_to" => "edgecase@elektrine.com",
+        "rcpt_to" => "edgecase@example.com",
         "subject" => "[PATCH] Fix something",
         "text_body" => "Patch content here",
         "list_id" => "<linux-kernel.vger.kernel.org>",
@@ -1017,7 +1017,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
   describe "plus addressing with mailing lists" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "plususer@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "plususer@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -1028,7 +1028,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       params = %{
         "from" => "sender@lists.example.org",
         "to" => "list@lists.example.org",
-        "rcpt_to" => "plususer+listname@elektrine.com",
+        "rcpt_to" => "plususer+listname@example.com",
         "subject" => "Plus addressing test",
         "text_body" => "Test content",
         "message_id" => "test-plus-#{System.system_time(:millisecond)}"
@@ -1056,8 +1056,8 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       response = json_response(conn, 200)
       assert is_list(response["domains"])
       # Should include built-in domains
-      assert "elektrine.com" in response["domains"]
-      assert "elektrine.net" in response["domains"]
+      assert "example.com" in response["domains"]
+      assert "example.net" in response["domains"]
     end
 
     test "includes verified custom domains", %{conn: conn} do

@@ -9,7 +9,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   alias Elektrine.{Messaging, Profiles, Repo, Social}
   alias Elektrine.Social.Recommendations
   alias ElektrineWeb.Components.Social.PostUtilities
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.Social.LemmyPost
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
   @community_feed_rerank_delay_ms 1200

@@ -2,7 +2,7 @@ defmodule ElektrineWeb.SearchLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Search
   alias Elektrine.Search.RateLimiter, as: SearchRateLimiter
-  import ElektrineWeb.Components.Platform.ZNav
+  import ElektrineWeb.Components.Platform.ENav
 
   @impl true
   def mount(_params, _session, socket) do
@@ -196,7 +196,7 @@ defmodule ElektrineWeb.SearchLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.z_nav active_tab="search" current_user={@current_user} />
+      <.e_nav active_tab="search" current_user={@current_user} />
 
       <div class="space-y-4">
         <div class="card bg-base-100 shadow-sm border border-base-300">
@@ -213,8 +213,8 @@ defmodule ElektrineWeb.SearchLive do
 
             <div class="relative" phx-click-away="clear_suggestions">
               <form phx-submit="search" class="w-full">
-                <div class="join w-full">
-                  <label class="input input-bordered join-item flex-1 flex items-center gap-2">
+                <div class="join flex w-full">
+                  <label class="input input-bordered join-item rounded-l-full rounded-r-none flex-1 flex items-center gap-2">
                     <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
                     <input
                       type="text"
@@ -227,7 +227,12 @@ defmodule ElektrineWeb.SearchLive do
                       autocomplete="off"
                     />
                   </label>
-                  <button type="submit" class="btn btn-neutral join-item">Go</button>
+                  <button
+                    type="submit"
+                    class="btn btn-neutral join-item rounded-l-none rounded-r-full px-6"
+                  >
+                    Go
+                  </button>
                 </div>
               </form>
 
@@ -253,20 +258,32 @@ defmodule ElektrineWeb.SearchLive do
             </div>
 
             <div class="flex flex-wrap gap-2">
-              <button class="btn btn-xs btn-ghost" phx-click="search" phx-value-query=">compose email">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query=">compose email"
+              >
                 Compose Email
               </button>
-              <button class="btn btn-xs btn-ghost" phx-click="search" phx-value-query=">open chat">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query=">open chat"
+              >
                 Open Chat
               </button>
               <button
-                class="btn btn-xs btn-ghost"
+                class="btn btn-sm btn-ghost rounded-full"
                 phx-click="search"
                 phx-value-query=">open notifications"
               >
                 Notifications
               </button>
-              <button class="btn btn-xs btn-ghost" phx-click="search" phx-value-query="settings">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query="settings"
+              >
                 Settings
               </button>
             </div>
@@ -297,7 +314,7 @@ defmodule ElektrineWeb.SearchLive do
                   phx-click="filter_results"
                   phx-value-type="all"
                   class={[
-                    "btn btn-xs",
+                    "btn btn-sm rounded-full",
                     if(@active_filter == "all", do: "btn-neutral", else: "btn-ghost")
                   ]}
                 >
@@ -308,7 +325,7 @@ defmodule ElektrineWeb.SearchLive do
                     phx-click="filter_results"
                     phx-value-type={type}
                     class={[
-                      "btn btn-xs",
+                      "btn btn-sm rounded-full",
                       if(@active_filter == type, do: "btn-neutral", else: "btn-ghost")
                     ]}
                   >
@@ -361,16 +378,32 @@ defmodule ElektrineWeb.SearchLive do
               Search everything or start a command with `>`.
             </p>
             <div class="flex flex-wrap justify-center gap-2">
-              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="@">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query="@"
+              >
                 People
               </button>
-              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="email">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query="email"
+              >
                 Emails
               </button>
-              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query="community">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query="community"
+              >
                 Communities
               </button>
-              <button class="btn btn-sm btn-ghost" phx-click="search" phx-value-query=">compose email">
+              <button
+                class="btn btn-sm btn-ghost rounded-full"
+                phx-click="search"
+                phx-value-query=">compose email"
+              >
                 Actions
               </button>
             </div>

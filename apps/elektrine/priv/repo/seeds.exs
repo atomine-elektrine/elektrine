@@ -144,7 +144,7 @@ if Mix.env() == :dev do
   # Create mailboxes for both users if they don't exist
   _admin_mailbox =
     if admin_user do
-      admin_email = "#{admin_user.username}@elektrine.com"
+      admin_email = "#{admin_user.username}@example.com"
 
       case get_mailbox_by_email.(admin_email) do
         nil ->
@@ -162,12 +162,12 @@ if Mix.env() == :dev do
     end
 
   test_mailbox =
-    case get_mailbox_by_email.("testuser@elektrine.com") do
+    case get_mailbox_by_email.("testuser@example.com") do
       nil ->
         {:ok, mailbox} =
-          Email.create_mailbox(%{email: "testuser@elektrine.com", user_id: test_user.id})
+          Email.create_mailbox(%{email: "testuser@example.com", user_id: test_user.id})
 
-        IO.puts("✓ Created test mailbox: testuser@elektrine.com")
+        IO.puts("✓ Created test mailbox: testuser@example.com")
         mailbox
 
       existing ->
@@ -273,7 +273,7 @@ if Mix.env() == :dev do
       seed_key: "inbox-planning-meeting",
       mailbox_id: test_mailbox.id,
       from: "sarah@company.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       cc: "ops@company.com, design@agency.com",
       subject: "Q4 Planning Meeting Tomorrow",
       text_body:
@@ -291,7 +291,7 @@ if Mix.env() == :dev do
       seed_key: "inbox-contract-review",
       mailbox_id: test_mailbox.id,
       from: "john.doe@business.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Project Documents - Please Review",
       text_body: """
       Hi there,
@@ -354,7 +354,7 @@ if Mix.env() == :dev do
       seed_key: "thread-launch-blockers-root",
       mailbox_id: test_mailbox.id,
       from: "nina@company.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Q2 launch blockers before Thursday",
       text_body: """
       Hey,
@@ -383,7 +383,7 @@ if Mix.env() == :dev do
       seed_key: "thread-launch-blockers-followup",
       mailbox_id: test_mailbox.id,
       from: "nina@company.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Re: Q2 launch blockers before Thursday",
       text_body:
         "Thanks. The customer comms outline is enough. Can you add one note on rollback ownership before tomorrow morning?",
@@ -399,7 +399,7 @@ if Mix.env() == :dev do
       seed_key: "inbox-plaintext-notes",
       mailbox_id: test_mailbox.id,
       from: "alice@example.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Simple plaintext message",
       text_body: """
       Hello! This is a simple plaintext email with no HTML formatting.
@@ -427,7 +427,7 @@ if Mix.env() == :dev do
       seed_key: "digest-tech-roundup",
       mailbox_id: test_mailbox.id,
       from: "newsletter@techblog.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Weekly Tech Digest - AI Breakthroughs & More",
       text_body:
         "This week in tech: new AI models, startup funding rounds, and the latest gadget reviews.",
@@ -487,7 +487,7 @@ if Mix.env() == :dev do
       seed_key: "digest-retail-sale",
       mailbox_id: test_mailbox.id,
       from: "deals@retailstore.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Weekend Sale - Up to 70% Off",
       text_body:
         "Don't miss our biggest sale of the month. Smart home gear, headphones, and travel accessories are all discounted.",
@@ -522,7 +522,7 @@ if Mix.env() == :dev do
       seed_key: "digest-social-updates",
       mailbox_id: test_mailbox.id,
       from: "updates@socialmedia.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "You have 5 new notifications",
       text_body:
         "Check out what's happening in your network. 3 likes, 1 comment, and 1 new follower.",
@@ -538,7 +538,7 @@ if Mix.env() == :dev do
       seed_key: "digest-community-plaintext",
       mailbox_id: test_mailbox.id,
       from: "newsletter@community.org",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Weekly community update",
       text_body: """
       WEEKLY COMMUNITY NEWSLETTER
@@ -568,7 +568,7 @@ if Mix.env() == :dev do
       seed_key: "ledger-bank-statement",
       mailbox_id: test_mailbox.id,
       from: "security@bank.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Your Account Statement is Ready",
       text_body:
         "Your monthly account statement is now available for download in your online banking portal.",
@@ -592,7 +592,7 @@ if Mix.env() == :dev do
       seed_key: "ledger-cloud-invoice",
       mailbox_id: test_mailbox.id,
       from: "billing@cloudvendor.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Invoice #48291 for March",
       text_body:
         "Your March invoice is attached. Total due: $429.33. Auto-pay will run in 3 days.",
@@ -638,7 +638,7 @@ if Mix.env() == :dev do
       seed_key: "ledger-flight-confirmation",
       mailbox_id: test_mailbox.id,
       from: "travel@airline.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Flight Confirmation - NYC to LA",
       text_body:
         "Your flight is confirmed. Flight AA123 on June 15th, departing at 8:00 AM from JFK.",
@@ -654,7 +654,7 @@ if Mix.env() == :dev do
       seed_key: "ledger-domain-renewal",
       mailbox_id: test_mailbox.id,
       from: "receipts@registrar.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Receipt for domain renewal",
       text_body:
         "Your domain renewal for elektrine.dev has been processed successfully. Total charged: $18.99.",
@@ -673,7 +673,7 @@ if Mix.env() == :dev do
       seed_key: "stack-design-feedback",
       mailbox_id: test_mailbox.id,
       from: "pm@client.org",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Need your eyes on the onboarding redesign",
       text_body:
         "Could you take a pass through the new onboarding flow when you have 20 minutes? The edge cases are in the attached notes.",
@@ -690,7 +690,7 @@ if Mix.env() == :dev do
       seed_key: "stack-rfp-brief",
       mailbox_id: test_mailbox.id,
       from: "procurement@enterprise.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "RFP response draft for review",
       text_body:
         "The draft RFP response is attached. I mainly need a gut check on scope, risk, and where we are promising too much.",
@@ -718,7 +718,7 @@ if Mix.env() == :dev do
       seed_key: "stack-founder-update",
       mailbox_id: test_mailbox.id,
       from: "founder@startup.io",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Async update before Monday",
       text_body:
         "No immediate action needed. Parking this here until after the retrospective because it will be easier to answer with the final numbers.",
@@ -738,7 +738,7 @@ if Mix.env() == :dev do
       seed_key: "boomerang-vendor-contract",
       mailbox_id: test_mailbox.id,
       from: "procurement@vendor.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Reminder: vendor contract redlines",
       text_body:
         "Pinging this back up in a couple of days once legal has reviewed the draft. No need to answer immediately.",
@@ -756,7 +756,7 @@ if Mix.env() == :dev do
       seed_key: "boomerang-school-form",
       mailbox_id: test_mailbox.id,
       from: "teacher@school.org",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Field trip form still needed",
       text_body:
         "This got snoozed for later, but the due date has already passed. Good sample for the overdue boomerang state.",
@@ -773,7 +773,7 @@ if Mix.env() == :dev do
       seed_key: "boomerang-recruiter-followup",
       mailbox_id: test_mailbox.id,
       from: "recruiter@company.dev",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Checking back on next week",
       text_body:
         "You asked to see this again later today after calendar cleanup. Following up here.",
@@ -791,7 +791,7 @@ if Mix.env() == :dev do
     %{
       seed_key: "thread-launch-blockers-reply",
       mailbox_id: test_mailbox.id,
-      from: "testuser@elektrine.com",
+      from: "testuser@example.com",
       to: "nina@company.com",
       cc: "product@company.com",
       subject: "Re: Q2 launch blockers before Thursday",
@@ -808,7 +808,7 @@ if Mix.env() == :dev do
     %{
       seed_key: "sent-budget-proposal",
       mailbox_id: test_mailbox.id,
-      from: "testuser@elektrine.com",
+      from: "testuser@example.com",
       to: "colleague@work.com",
       subject: "Re: Budget Proposal Review",
       text_body:
@@ -820,7 +820,7 @@ if Mix.env() == :dev do
           "filename" => "budget-proposal-v3.pdf",
           "content_type" => "application/pdf",
           "size" => 154_280,
-          "content_id" => "budget-v3@elektrine.com"
+          "content_id" => "budget-v3@example.com"
         }
       },
       status: "sent",
@@ -830,7 +830,7 @@ if Mix.env() == :dev do
     %{
       seed_key: "sent-dinner-plans",
       mailbox_id: test_mailbox.id,
-      from: "testuser@elektrine.com",
+      from: "testuser@example.com",
       to: "friend@gmail.com",
       bcc: "partner@example.com",
       subject: "Dinner plans for Saturday?",
@@ -848,10 +848,10 @@ if Mix.env() == :dev do
     %{
       seed_key: "draft-launch-plan",
       mailbox_id: test_mailbox.id,
-      from: "testuser@elektrine.com",
+      from: "testuser@example.com",
       to: "leadership@company.com",
       cc: "ops@company.com",
-      bcc: "archive@elektrine.com",
+      bcc: "archive@example.com",
       subject: "Draft: launch plan risks",
       text_body: """
       Draft outline:
@@ -867,7 +867,7 @@ if Mix.env() == :dev do
     %{
       seed_key: "draft-weekend-note",
       mailbox_id: test_mailbox.id,
-      from: "testuser@elektrine.com",
+      from: "testuser@example.com",
       subject: "Weekend notes",
       text_body: """
       Quick scratch draft:
@@ -885,7 +885,7 @@ if Mix.env() == :dev do
       seed_key: "archive-benefits",
       mailbox_id: test_mailbox.id,
       from: "hr@oldcompany.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Final Paycheck and Benefits Information",
       text_body:
         "Please find attached your final paycheck details and information about continuing your benefits.",
@@ -901,7 +901,7 @@ if Mix.env() == :dev do
       seed_key: "archive-travel-receipt",
       mailbox_id: test_mailbox.id,
       from: "travel@airline.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Trip receipt for Seattle itinerary",
       text_body: "This trip receipt is archived but still useful for expense reports and audits.",
       html_body:
@@ -917,7 +917,7 @@ if Mix.env() == :dev do
       seed_key: "archive-newsletter",
       mailbox_id: test_mailbox.id,
       from: "newsletter@designweekly.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Design Weekly archive issue",
       text_body:
         "Old newsletter issue kept around for reference while refreshing the design system.",
@@ -937,7 +937,7 @@ if Mix.env() == :dev do
       seed_key: "trash-rsvp",
       mailbox_id: test_mailbox.id,
       from: "events@conference.io",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Last call for RSVP",
       text_body:
         "This is a plain deleted message so the trash tab has a non-spam, non-draft example.",
@@ -953,7 +953,7 @@ if Mix.env() == :dev do
       seed_key: "trash-boomerang-renewal",
       mailbox_id: test_mailbox.id,
       from: "subscriptions@app.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "Renewal reminder",
       text_body:
         "Deleted boomerang sample. Trash should still show this even though reply_later_at is set.",
@@ -973,7 +973,7 @@ if Mix.env() == :dev do
       seed_key: "spam-lottery",
       mailbox_id: test_mailbox.id,
       from: "winner@lottery.fake",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "CONGRATULATIONS! You've Won $1,000,000!",
       text_body:
         "You are the lucky winner of our international lottery! Send us your bank details to claim your prize.",
@@ -989,7 +989,7 @@ if Mix.env() == :dev do
       seed_key: "spam-phishing",
       mailbox_id: test_mailbox.id,
       from: "urgent@phishing.com",
-      to: "testuser@elektrine.com",
+      to: "testuser@example.com",
       subject: "URGENT: Verify Your Account Now!",
       text_body:
         "Your account will be suspended unless you click this link and verify your information immediately.",
@@ -2172,12 +2172,12 @@ if Mix.env() == :dev do
   IO.puts("Available accounts:")
 
   if admin_user do
-    IO.puts("  Admin: #{admin_user.username} (#{admin_user.username}@elektrine.com)")
+    IO.puts("  Admin: #{admin_user.username} (#{admin_user.username}@example.com)")
   else
     IO.puts("  Admin: [FAILED TO CREATE]")
   end
 
-  IO.puts("  Test User: testuser (testuser@elektrine.com)")
+  IO.puts("  Test User: testuser (testuser@example.com)")
 
   Enum.each(demo_user_specs, fn %{username: username} ->
     IO.puts("  Demo: #{username} (#{username}@#{local_mail_domain})")

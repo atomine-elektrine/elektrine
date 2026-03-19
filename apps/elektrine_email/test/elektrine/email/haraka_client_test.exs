@@ -59,7 +59,7 @@ defmodule Elektrine.Email.HarakaClientTest do
 
     assert {:ok, %{message_id: "queued-message"}} =
              HarakaClient.send_email(%{
-               from: "sender@elektrine.com",
+               from: "sender@example.com",
                to: "dest@example.net",
                subject: "Test",
                text_body: "Hello"
@@ -79,14 +79,14 @@ defmodule Elektrine.Email.HarakaClientTest do
 
     assert {:ok, %{message_id: "queued-message"}} =
              HarakaClient.send_email(%{
-               from: "sender@elektrine.com",
+               from: "sender@example.com",
                to: "dest@example.net",
                subject: "Test",
                text_body: "Hello"
              })
 
     [request] = MockHarakaHTTPClient.requests()
-    assert request.url == "https://mail.elektrine.com/api/v1/send"
+    assert request.url == "https://mail.example.com/api/v1/send"
   end
 
   test "uses HARAKA_HTTP_API_KEY as the outbound API key alias" do
@@ -95,7 +95,7 @@ defmodule Elektrine.Email.HarakaClientTest do
 
     assert {:ok, %{message_id: "queued-message"}} =
              HarakaClient.send_email(%{
-               from: "sender@elektrine.com",
+               from: "sender@example.com",
                to: "dest@example.net",
                subject: "Test",
                text_body: "Hello"
@@ -111,19 +111,19 @@ defmodule Elektrine.Email.HarakaClientTest do
   test "rewrites the legacy haraka host to the mail subdomain" do
     Application.put_env(:elektrine, Elektrine.Mailer,
       api_key: "mailer-api-key",
-      base_url: "https://haraka.elektrine.com"
+      base_url: "https://haraka.example.com"
     )
 
     assert {:ok, %{message_id: "queued-message"}} =
              HarakaClient.send_email(%{
-               from: "sender@elektrine.com",
+               from: "sender@example.com",
                to: "dest@example.net",
                subject: "Test",
                text_body: "Hello"
              })
 
     [request] = MockHarakaHTTPClient.requests()
-    assert request.url == "https://mail.elektrine.com/api/v1/send"
+    assert request.url == "https://mail.example.com/api/v1/send"
   end
 
   test "base64-encodes raw attachment binaries before JSON encoding" do
@@ -136,7 +136,7 @@ defmodule Elektrine.Email.HarakaClientTest do
 
     assert {:ok, %{message_id: "queued-message"}} =
              HarakaClient.send_email(%{
-               from: "sender@elektrine.com",
+               from: "sender@example.com",
                to: "dest@example.net",
                subject: "Attachment test",
                text_body: "Hello",

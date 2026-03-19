@@ -27,7 +27,7 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
     {:ok, admin_user} = Accounts.admin_update_user(user, %{is_admin: true})
 
     conn =
-      %{conn | host: "elektrine.com"}
+      %{conn | host: "example.com"}
 
     {:ok, view, _html} =
       conn
@@ -64,7 +64,7 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
     {:ok, admin_user} = Accounts.admin_update_user(user, %{is_admin: true})
 
     conn =
-      %{conn | host: "elektrine.com"}
+      %{conn | host: "example.com"}
 
     {:ok, view, _html} =
       conn
@@ -97,7 +97,7 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
     {:ok, admin_user} = Accounts.admin_update_user(user, %{is_admin: true})
 
     conn =
-      %{conn | host: "elektrine.com"}
+      %{conn | host: "example.com"}
 
     {:ok, view, _html} =
       conn

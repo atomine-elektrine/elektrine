@@ -14,7 +14,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "message flag updates" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "test@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "test@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -89,7 +89,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "folder operations" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "foldertest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "foldertest@example.com"})
       {:ok, folder} = CustomFolders.create_folder(%{user_id: user.id, name: "Test Folder"})
       {:ok, user: user, mailbox: mailbox, folder: folder}
     end
@@ -154,13 +154,13 @@ defmodule Elektrine.Email.MessageOperationsTest do
       folder: folder,
       user: user
     } do
-      own_mailbox = mailbox_fixture(%{user_id: user.id, email: "ownfolder@elektrine.com"})
+      own_mailbox = mailbox_fixture(%{user_id: user.id, email: "ownfolder@example.com"})
       own_message = create_test_message(own_mailbox.id, %{folder_id: folder.id})
 
       other_user = user_fixture()
 
       other_mailbox =
-        mailbox_fixture(%{user_id: other_user.id, email: "otherfolder@elektrine.com"})
+        mailbox_fixture(%{user_id: other_user.id, email: "otherfolder@example.com"})
 
       other_message = create_test_message(other_mailbox.id, %{folder_id: folder.id})
 
@@ -174,7 +174,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "cache invalidation regressions" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "cachetest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "cachetest@example.com"})
       {:ok, folder} = CustomFolders.create_folder(%{user_id: user.id, name: "Cache Folder"})
       {:ok, user: user, mailbox: mailbox, folder: folder}
     end
@@ -228,7 +228,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "label operations" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "labeltest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "labeltest@example.com"})
       {:ok, label} = Labels.create_label(%{user_id: user.id, name: "Important", color: "#ef4444"})
       {:ok, user: user, mailbox: mailbox, label: label}
     end
@@ -273,7 +273,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "category operations" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "categorytest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "categorytest@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -369,7 +369,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "pagination edge cases" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "paginationtest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "paginationtest@example.com"})
 
       # Create 25 messages
       messages =
@@ -430,7 +430,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "message filtering edge cases" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "filtertest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "filtertest@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -486,7 +486,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "unread count edge cases" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "unreadtest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "unreadtest@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -543,7 +543,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
 
     test "returns zero for empty mailbox" do
       user = user_fixture()
-      empty_mailbox = mailbox_fixture(%{user_id: user.id, email: "empty@elektrine.com"})
+      empty_mailbox = mailbox_fixture(%{user_id: user.id, email: "empty@example.com"})
 
       count = Messages.unread_inbox_count(empty_mailbox.id)
 
@@ -563,7 +563,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   describe "threading" do
     setup do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "threadtest@elektrine.com"})
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "threadtest@example.com"})
       {:ok, user: user, mailbox: mailbox}
     end
 
@@ -649,7 +649,7 @@ defmodule Elektrine.Email.MessageOperationsTest do
   defp create_test_message(mailbox_id, attrs) do
     default_attrs = %{
       from: "sender@example.com",
-      to: "recipient@elektrine.com",
+      to: "recipient@example.com",
       subject: "Test Subject #{System.unique_integer([:positive])}",
       text_body: "Test body",
       message_id: "test-#{System.unique_integer([:positive])}@example.com",
