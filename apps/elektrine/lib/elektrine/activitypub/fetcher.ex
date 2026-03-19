@@ -11,6 +11,8 @@ defmodule Elektrine.ActivityPub.Fetcher do
   alias Elektrine.HTTP.Backoff
   alias Elektrine.Security.URLValidator
 
+  @max_activitypub_body_bytes 2 * 1024 * 1024
+
   @doc """
   Fetches an actor document from a remote instance.
   Uses signed fetch if configured.
@@ -226,7 +228,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
   end
 
   defp request_opts(opts) do
-    [recv_timeout: 5_000, timeout: 5_000]
+    [recv_timeout: 5_000, timeout: 5_000, max_body_bytes: @max_activitypub_body_bytes]
     |> Keyword.merge(Keyword.take(opts, [:request_fun]))
   end
 

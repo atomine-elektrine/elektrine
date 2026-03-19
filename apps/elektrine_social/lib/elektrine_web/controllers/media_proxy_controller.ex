@@ -11,6 +11,7 @@ defmodule ElektrineWeb.MediaProxyController do
   require Logger
 
   alias Elektrine.MediaProxy
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Security.URLValidator
 
   # Maximum file size to proxy (50MB)
@@ -54,7 +55,11 @@ defmodule ElektrineWeb.MediaProxyController do
 
     request = Finch.build(:get, url, headers)
 
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 30_000) do
+    case SafeFetch.request(request, Elektrine.Finch,
+           receive_timeout: 30_000,
+           pool_timeout: 30_000,
+           max_body_bytes: @max_file_size
+         ) do
       {:ok, %Finch.Response{status: status, headers: resp_headers, body: body}}
       when status in 200..299 ->
         proxy_response(conn, body, resp_headers, url)
@@ -71,6 +76,9 @@ defmodule ElektrineWeb.MediaProxyController do
       {:ok, %Finch.Response{status: status}} ->
         Logger.warning("MediaProxy: Got #{status} for #{url}")
         send_error(conn, 502, "Upstream error")
+
+      {:error, :too_large} ->
+        send_error(conn, 413, "File too large")
 
       {:error, reason} ->
         Logger.warning("MediaProxy: Failed to fetch #{url}: #{inspect(reason)}")

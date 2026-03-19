@@ -1,7 +1,10 @@
 defmodule Elektrine.Social.LinkPreviewFetcher do
   @moduledoc "Fetches link previews by extracting Open Graph and meta tags from URLs.\n"
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
+
+  @max_preview_bytes 1_000_000
   @doc "Extracts URLs from text content.\n"
   def extract_urls(content) do
     url_regex = ~r/https?:\/\/[^\s<>"{}|\\^`\[\]]+/i
@@ -100,13 +103,20 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
   defp fetch_url_metadata_internal(url) do
     request = Finch.build(:get, url)
 
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 5000) do
+    case SafeFetch.request(request, Elektrine.Finch,
+           receive_timeout: 5000,
+           pool_timeout: 5000,
+           max_body_bytes: @max_preview_bytes
+         ) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         metadata = parse_html_metadata(body, url)
         {:ok, metadata}
 
       {:ok, %Finch.Response{status: status}} ->
         {:error, "HTTP #{status}"}
+
+      {:error, :too_large} ->
+        {:error, "response_too_large"}
 
       {:error, reason} ->
         {:error, reason}
