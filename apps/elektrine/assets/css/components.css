@@ -766,6 +766,16 @@
   animation: modal-pop 0.2s ease-out;
 }
 
+.admin-layout .modal-box,
+.admin-page .modal-box {
+  background: oklch(var(--b1) / 0.95);
+  color: oklch(var(--bc));
+  border: 1px solid oklch(var(--bc) / 0.12) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 60px -18px rgba(0, 0, 0, 0.55) !important;
+}
+
 @keyframes modal-pop {
   from {
     opacity: 0;
