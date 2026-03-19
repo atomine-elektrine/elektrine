@@ -55,6 +55,7 @@ defmodule ElektrineWeb.Components.Social.TimelineStreamPost do
           reactions={Map.get(@post_reactions, @post.id, [])}
           replies={Map.get(@post_replies, @post.id, [])}
           resolve_reply_refs={true}
+          show_thread_context={false}
           show_ancestor_actions={true}
           on_image_click="open_image_modal"
           source="timeline"
@@ -80,6 +81,7 @@ defmodule ElektrineWeb.Components.Social.TimelineStreamPost do
           post_replies={@post_replies}
           reactions={Map.get(@post_reactions, @post.id, [])}
           resolve_reply_refs={true}
+          show_thread_context={false}
           show_ancestor_actions={true}
           on_image_click="open_image_modal"
           source="timeline"

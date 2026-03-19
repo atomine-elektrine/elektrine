@@ -109,6 +109,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   attr :show_ancestor_actions, :boolean, default: false
   attr :show_quote_button, :boolean, default: true
   attr :show_save_button, :boolean, default: true
+  attr :show_thread_context, :boolean, default: true
 
   def timeline_post(assigns) do
     # Dispatch based on layout variant
@@ -154,7 +155,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       |> assign(:is_gallery_post, is_gallery_post)
       |> assign(:click_event, click_event)
       |> assign(:reply_ancestors, reply_ancestors)
-      |> assign(:has_thread_context, reply_ancestors != [])
+      |> assign(:has_thread_context, assigns.show_thread_context && reply_ancestors != [])
       |> assign(:display_like_count, display_like_count)
       |> assign(:display_comment_count, display_comment_count)
 

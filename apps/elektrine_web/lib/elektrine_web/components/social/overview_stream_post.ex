@@ -30,6 +30,7 @@ defmodule ElektrineWeb.Components.Social.OverviewStreamPost do
         post_reactions_map={@post_reactions}
         reactions={Map.get(@post_reactions, @post.id, [])}
         resolve_reply_refs={true}
+        show_thread_context={false}
         on_image_click="open_image_modal"
         source="overview"
       />
