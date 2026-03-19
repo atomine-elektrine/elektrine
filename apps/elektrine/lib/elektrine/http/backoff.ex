@@ -2,6 +2,7 @@ defmodule Elektrine.HTTP.Backoff do
   @moduledoc "HTTP client-side backoff handling for respecting remote server rate limits.\n\nThis module tracks rate-limited hosts and prevents hammering servers that\nhave returned 429 (Too Many Requests) or 503 (Service Unavailable) responses.\n\nBased on Akkoma's implementation for federation compatibility.\n\n## Usage\n\n    # Wrap HTTP requests\n    case Elektrine.HTTP.Backoff.get(url) do\n      {:ok, response} -> handle_response(response)\n      {:error, :backoff} -> # Host is rate-limited, try later\n      {:error, reason} -> # Other error\n    end\n\n    # Or check before making request\n    if Elektrine.HTTP.Backoff.should_backoff?(host) do\n      {:error, :rate_limited}\n    else\n      make_request(url)\n    end\n"
   use GenServer
   require Logger
+  alias Elektrine.HTTP.SafeFetch
   @table :http_backoff_cache
   @default_backoff_seconds 300
   @max_backoff_seconds 3600
@@ -110,11 +111,13 @@ defmodule Elektrine.HTTP.Backoff do
   defp do_request(method, url, body, headers, opts) do
     timeout = Keyword.get(opts, :timeout, 15_000)
     recv_timeout = Keyword.get(opts, :recv_timeout, 15_000)
+    max_body_bytes = Keyword.get(opts, :max_body_bytes)
     request = Finch.build(method, url, headers, body)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: recv_timeout,
-           pool_timeout: timeout
+           pool_timeout: timeout,
+           max_body_bytes: max_body_bytes
          ) do
       {:ok, response} -> {:ok, response}
       {:error, reason} -> {:error, reason}

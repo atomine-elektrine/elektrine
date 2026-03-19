@@ -1070,11 +1070,6 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     {:noreply, assign(socket, :drag_over, false)}
   end
 
-  defp ensure_static_profile_mode(user_id) do
-    _ = StaticSites.enable_static_mode(user_id)
-    Profiles.get_user_profile(user_id)
-  end
-
   # Code editor handlers
   def handle_event("edit_file", %{"path" => path}, socket) do
     user = socket.assigns.user
@@ -1151,6 +1146,11 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       {:error, _reason} ->
         {:noreply, notify_error(socket, "Failed to create file")}
     end
+  end
+
+  defp ensure_static_profile_mode(user_id) do
+    _ = StaticSites.enable_static_mode(user_id)
+    Profiles.get_user_profile(user_id)
   end
 
   # Helper functions for username intensity parsing
