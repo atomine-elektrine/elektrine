@@ -8,8 +8,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
 
   import Ecto.Query
   import Swoosh.Email, except: [from: 2]
-  alias Elektrine.EmailAddresses
   alias Elektrine.Accounts.User
+  alias Elektrine.EmailAddresses
   alias Elektrine.Repo
   require Logger
 

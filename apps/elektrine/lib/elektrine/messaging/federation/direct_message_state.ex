@@ -70,19 +70,17 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
        when is_binary(domain) and is_binary(username) do
     normalized_domain = String.downcase(domain)
 
-    cond do
-      normalized_domain == String.downcase(Elektrine.Messaging.Federation.local_domain()) ->
-        case Accounts.get_user_by_username(username) do
-          %User{} = user -> {:ok, user}
-          _ -> {:error, :user_not_found}
-        end
-
-      true ->
-        case Profiles.get_verified_custom_domain(normalized_domain) do
-          %{user: %{username: ^username} = user} -> {:ok, user}
-          %{domain: ^normalized_domain} -> {:error, :user_not_found}
-          _ -> {:error, :invalid_event_payload}
-        end
+    if normalized_domain == String.downcase(Elektrine.Messaging.Federation.local_domain()) do
+      case Accounts.get_user_by_username(username) do
+        %User{} = user -> {:ok, user}
+        _ -> {:error, :user_not_found}
+      end
+    else
+      case Profiles.get_verified_custom_domain(normalized_domain) do
+        %{user: %{username: ^username} = user} -> {:ok, user}
+        %{domain: ^normalized_domain} -> {:error, :user_not_found}
+        _ -> {:error, :invalid_event_payload}
+      end
     end
   end
 

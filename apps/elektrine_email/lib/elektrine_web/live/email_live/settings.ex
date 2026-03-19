@@ -936,7 +936,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <.elektrine_nav active_tab="email" />
+      <.elektrine_nav active_tab="email" current_user={@current_user} />
 
       <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
         <.sidebar

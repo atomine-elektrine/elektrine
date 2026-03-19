@@ -354,9 +354,7 @@ defmodule Elektrine.Search do
 
   # Search email messages and mailboxes
   defp search_emails(user, search_term, limit) do
-    if not Elektrine.Platform.Modules.compiled?(:email) do
-      []
-    else
+    if Elektrine.Platform.Modules.compiled?(:email) do
       keywords = Elektrine.Encryption.extract_keywords(search_term)
 
       messages =
@@ -412,13 +410,13 @@ defmodule Elektrine.Search do
         |> Repo.all()
 
       messages ++ mailboxes
+    else
+      []
     end
   end
 
   defp search_files(user, search_term, limit) do
-    if not Elektrine.Platform.Modules.compiled?(:email) do
-      []
-    else
+    if Elektrine.Platform.Modules.compiled?(:email) do
       from(m in Elektrine.Email.Message,
         join: mb in Elektrine.Email.Mailbox,
         on: m.mailbox_id == mb.id,
@@ -463,6 +461,8 @@ defmodule Elektrine.Search do
           relevance: result.relevance
         }
       end)
+    else
+      []
     end
   end
 

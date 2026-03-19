@@ -10,8 +10,8 @@ defmodule ElektrineWeb.MediaProxyController do
 
   require Logger
 
-  alias Elektrine.MediaProxy
   alias Elektrine.HTTP.SafeFetch
+  alias Elektrine.MediaProxy
   alias Elektrine.Security.URLValidator
 
   # Maximum file size to proxy (50MB)

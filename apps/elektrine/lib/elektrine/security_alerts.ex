@@ -8,8 +8,8 @@ defmodule Elektrine.SecurityAlerts do
   import Swoosh.Email
 
   alias Elektrine.Accounts
-  alias Elektrine.EmailAddresses
   alias Elektrine.Email.MailboxAdapter
+  alias Elektrine.EmailAddresses
   alias Elektrine.Platform.Modules
 
   # Rate limit: 1 alert per type per user per hour

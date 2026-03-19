@@ -1,11 +1,11 @@
 defmodule ElektrineWeb.RemoteUserLive.Show do
   use ElektrineSocialWeb, :live_view
 
-  alias Elektrine.ActorPaths
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.ActivityPub.LemmyApi
+  alias Elektrine.ActorPaths
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.{Repo, Social}
   alias ElektrineWeb.Live.PostInteractions

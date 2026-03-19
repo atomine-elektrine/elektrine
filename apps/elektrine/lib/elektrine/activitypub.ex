@@ -854,38 +854,36 @@ defmodule Elektrine.ActivityPub do
     canonical_actor_uri = normalize_activitypub_ref(actor_uri)
     canonical_object_id = normalize_activitypub_ref(object_id)
 
-    cond do
-      is_nil(canonical_actor_uri) or is_nil(canonical_object_id) ->
-        {:error, :invalid_delete_receipt}
+    if is_nil(canonical_actor_uri) or is_nil(canonical_object_id) do
+      {:error, :invalid_delete_receipt}
+    else
+      existing_receipt =
+        from(a in Activity,
+          where:
+            a.local == false and a.activity_type == "Delete" and
+              a.actor_uri == ^canonical_actor_uri and a.object_id == ^canonical_object_id,
+          limit: 1
+        )
+        |> Repo.one()
 
-      true ->
-        existing_receipt =
-          from(a in Activity,
-            where:
-              a.local == false and a.activity_type == "Delete" and
-                a.actor_uri == ^canonical_actor_uri and a.object_id == ^canonical_object_id,
-            limit: 1
-          )
-          |> Repo.one()
+      if existing_receipt do
+        {:ok, existing_receipt}
+      else
+        activity_id =
+          Map.get(activity, "id") ||
+            delete_receipt_activity_id(canonical_actor_uri, canonical_object_id)
 
-        if existing_receipt do
-          {:ok, existing_receipt}
-        else
-          activity_id =
-            Map.get(activity, "id") ||
-              delete_receipt_activity_id(canonical_actor_uri, canonical_object_id)
-
-          create_activity(%{
-            activity_id: activity_id,
-            activity_type: "Delete",
-            actor_uri: canonical_actor_uri,
-            object_id: canonical_object_id,
-            data: activity,
-            local: false,
-            processed: true,
-            processed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-          })
-        end
+        create_activity(%{
+          activity_id: activity_id,
+          activity_type: "Delete",
+          actor_uri: canonical_actor_uri,
+          object_id: canonical_object_id,
+          data: activity,
+          local: false,
+          processed: true,
+          processed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+      end
     end
   end
 

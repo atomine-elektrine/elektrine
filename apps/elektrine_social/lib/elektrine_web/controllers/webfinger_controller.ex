@@ -366,14 +366,12 @@ defmodule ElektrineWeb.WebFingerController do
   defp host_meta_base_url(conn) do
     requested_host = normalize_domain(conn.host || "")
 
-    cond do
-      requested_host != "" and
-          (Domains.local_activitypub_domain?(requested_host) or
-             custom_profile_alias_domain?(requested_host)) ->
-        ActivityPub.instance_url_for_domain(requested_host)
-
-      true ->
-        ActivityPub.instance_url()
+    if requested_host != "" and
+         (Domains.local_activitypub_domain?(requested_host) or
+            custom_profile_alias_domain?(requested_host)) do
+      ActivityPub.instance_url_for_domain(requested_host)
+    else
+      ActivityPub.instance_url()
     end
   end
 

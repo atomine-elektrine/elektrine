@@ -19,7 +19,6 @@ defmodule Elektrine.Email.Sender do
   """
 
   alias Elektrine.Email
-  alias Elektrine.EmailAddresses
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.ListTypes
@@ -29,6 +28,7 @@ defmodule Elektrine.Email.Sender do
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.Suppressions
   alias Elektrine.Email.Unsubscribes
+  alias Elektrine.EmailAddresses
   alias Elektrine.Mailer
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events

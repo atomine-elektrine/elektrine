@@ -14,8 +14,8 @@ defmodule Elektrine.Messaging.Federation.State do
     FederationExtensionEvent,
     FederationInviteState,
     FederationMembershipState,
-    FederationRoomPresenceState,
-    FederationReadCursor
+    FederationReadCursor,
+    FederationRoomPresenceState
   }
 
   alias Elektrine.Profiles.Follow

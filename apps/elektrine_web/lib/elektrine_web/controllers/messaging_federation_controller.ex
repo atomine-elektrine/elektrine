@@ -4,8 +4,8 @@ defmodule ElektrineWeb.MessagingFederationController do
   """
   use ElektrineWeb, :controller
 
-  alias Elektrine.Domains
   alias Elektrine.Constants
+  alias Elektrine.Domains
   alias Elektrine.Messaging
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation

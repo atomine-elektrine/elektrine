@@ -78,14 +78,12 @@ defmodule Elektrine.Messaging.Federation.Visibility do
       %Server{is_federated_mirror: true, origin_domain: origin_domain}
       when is_binary(origin_domain) ->
         (active_membership_origin_domains(conversation.id) ++ [normalize_domain(origin_domain)])
-        |> Enum.reject(&is_nil/1)
-        |> Enum.reject(&(&1 == local_domain()))
+        |> Enum.reject(&(is_nil(&1) or &1 == local_domain()))
         |> Enum.uniq()
 
       %Server{} ->
         active_membership_origin_domains(conversation.id)
-        |> Enum.reject(&is_nil/1)
-        |> Enum.reject(&(&1 == local_domain()))
+        |> Enum.reject(&(is_nil(&1) or &1 == local_domain()))
         |> Enum.uniq()
 
       _ ->
@@ -124,9 +122,8 @@ defmodule Elektrine.Messaging.Federation.Visibility do
              "typing.start",
              "typing.stop"
            ] ->
-        with %Conversation{} = conversation <- conversation_for_event_payload(payload) do
-          target_domains_for_room(conversation)
-        else
+        case conversation_for_event_payload(payload) do
+          %Conversation{} = conversation -> target_domains_for_room(conversation)
           _ -> nil
         end
 

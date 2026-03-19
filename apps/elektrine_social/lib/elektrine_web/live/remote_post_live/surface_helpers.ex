@@ -3,8 +3,8 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
   import Ecto.Query
 
-  alias Elektrine.ActorPaths
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
+  alias Elektrine.ActorPaths
   alias Elektrine.Messaging
   alias Elektrine.Repo
   alias Elektrine.Social

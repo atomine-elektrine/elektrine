@@ -1,8 +1,8 @@
 defmodule Elektrine.Email.VCard do
   @moduledoc "vCard parser and generator for CardDAV support.\nSupports vCard 3.0 (RFC 2426) and vCard 4.0 (RFC 6350).\n"
 
-  alias Elektrine.EmailAddresses
   alias Elektrine.Email.Contact
+  alias Elektrine.EmailAddresses
   @doc "Parse a vCard string into a map of contact fields.\n"
   def parse(vcard_string) when is_binary(vcard_string) do
     if String.contains?(String.upcase(vcard_string), "BEGIN:VCARD") do

@@ -883,27 +883,64 @@
                 <% end %>
                 
 <!-- Follow Button -->
-                <button
-                  phx-click="toggle_follow"
-                  data-action="toggle-follow"
-                  data-following={@is_following}
-                  class={
-                    "btn btn-sm sm:btn-md transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 #{if @is_following, do: "btn-outline", else: ""}"
-                  }
-                  style={
-                    if @is_following,
-                      do: "border-color: var(--profile-accent); color: var(--profile-accent);",
-                      else: "background-color: var(--profile-accent); color: #{btn_text_color};"
-                  }
-                >
-                  <span class="phx-click-loading:hidden">
-                    {if @is_following, do: "Following", else: "Follow"}
-                  </span>
-                  <span class="hidden phx-click-loading:inline-flex items-center">
-                    <.spinner size="sm" class="mr-1" />
-                    {if @is_following, do: "Unfollowing...", else: "Following..."}
-                  </span>
-                </button>
+                <%= if assigns[:socket] do %>
+                  <button
+                    phx-click="toggle_follow"
+                    type="button"
+                    data-action="toggle-follow"
+                    data-following={@is_following}
+                    class={
+                      "btn btn-sm sm:btn-md transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 #{if @is_following, do: "btn-outline", else: ""}"
+                    }
+                    style={
+                      if @is_following,
+                        do: "border-color: var(--profile-accent); color: var(--profile-accent);",
+                        else: "background-color: var(--profile-accent); color: #{btn_text_color};"
+                    }
+                  >
+                    <span class="phx-click-loading:hidden">
+                      {if @is_following, do: "Following", else: "Follow"}
+                    </span>
+                    <span class="hidden phx-click-loading:inline-flex items-center">
+                      <.spinner size="sm" class="mr-1" />
+                      {if @is_following, do: "Unfollowing...", else: "Following..."}
+                    </span>
+                  </button>
+                <% else %>
+                  <form
+                    action={~p"/profiles/#{@user.handle || @user.username}/follow"}
+                    method="post"
+                    class="inline"
+                  >
+                    <%= if @is_following do %>
+                      <input type="hidden" name="_method" value="delete" />
+                    <% end %>
+
+                    <input
+                      type="hidden"
+                      name="_csrf_token"
+                      value={Plug.CSRFProtection.get_csrf_token()}
+                    />
+
+                    <button
+                      type="submit"
+                      data-action="toggle-follow"
+                      data-following={@is_following}
+                      class={
+                        "btn btn-sm sm:btn-md transition-all duration-150 #{if @is_following, do: "btn-outline", else: ""}"
+                      }
+                      style={
+                        if @is_following,
+                          do:
+                            "border-color: var(--profile-accent); color: var(--profile-accent);",
+                          else:
+                            "background-color: var(--profile-accent); color: #{btn_text_color};"
+                      }
+                    >
+                      {if @is_following, do: "Following", else: "Follow"}
+                    </button>
+                  </form>
+                <% end %>
                 
 <!-- Report Button -->
                 <%= if !@profile_static do %>

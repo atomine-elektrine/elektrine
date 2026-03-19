@@ -198,7 +198,7 @@ defmodule ElektrineWeb.SubscribeLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pb-8">
-      <.elektrine_nav active_tab={@product.slug} />
+      <.elektrine_nav active_tab={@product.slug} current_user={@current_user} />
 
       <div class="text-center mb-12">
         <h1 class="text-4xl font-bold text-base-content mb-4">

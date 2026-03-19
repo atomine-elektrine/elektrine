@@ -14,25 +14,26 @@ defmodule ElektrineWeb.CallChannel do
   def join("call:" <> call_id_param, _params, socket) do
     user_id = socket.assigns.user_id
 
-    with {:ok, call_id} <- parse_call_id(call_id_param) do
-      case Calls.get_call_with_users(call_id) do
-        nil ->
-          join_federated_call(call_id, user_id, socket)
+    case parse_call_id(call_id_param) do
+      {:ok, call_id} ->
+        case Calls.get_call_with_users(call_id) do
+          nil ->
+            join_federated_call(call_id, user_id, socket)
 
-        call ->
-          if call.caller_id == user_id or call.callee_id == user_id do
-            socket =
-              socket
-              |> assign(:call_id, call_id)
-              |> assign(:call_source, :local)
+          call ->
+            if call.caller_id == user_id or call.callee_id == user_id do
+              socket =
+                socket
+                |> assign(:call_id, call_id)
+                |> assign(:call_source, :local)
 
-            send(self(), :after_join)
-            {:ok, socket}
-          else
-            {:error, %{reason: "unauthorized"}}
-          end
-      end
-    else
+              send(self(), :after_join)
+              {:ok, socket}
+            else
+              {:error, %{reason: "unauthorized"}}
+            end
+        end
+
       :error ->
         {:error, %{reason: "call_not_found"}}
     end

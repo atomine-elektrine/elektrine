@@ -10,8 +10,8 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.AnnounceHandler
-  alias Elektrine.Messaging.FederatedBoost
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.FederatedBoost
   alias Elektrine.Repo
 
   describe "handle/3 - Announce activity" do

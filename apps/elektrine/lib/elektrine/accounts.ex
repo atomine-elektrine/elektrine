@@ -1229,9 +1229,8 @@ defmodule Elektrine.Accounts do
         nil -> user
       end
 
-    with :ok <- ensure_self_service_invite_capacity(repo, user.id),
-         :ok <- ensure_self_service_monthly_generation_capacity(repo, user) do
-      :ok
+    with :ok <- ensure_self_service_invite_capacity(repo, user.id) do
+      ensure_self_service_monthly_generation_capacity(repo, user)
     end
   end
 

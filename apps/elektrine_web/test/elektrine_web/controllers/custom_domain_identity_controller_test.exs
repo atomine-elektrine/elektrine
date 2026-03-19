@@ -4,9 +4,9 @@ defmodule ElektrineWeb.CustomDomainIdentityControllerTest do
   import Ecto.Query
   import Elektrine.AccountsFixtures
 
+  alias Elektrine.Accounts.User
   alias Elektrine.Profiles
   alias Elektrine.Repo
-  alias Elektrine.Accounts.User
 
   describe "GET /.well-known/atproto-did" do
     test "returns the Bluesky DID for a verified custom profile domain", %{conn: conn} do

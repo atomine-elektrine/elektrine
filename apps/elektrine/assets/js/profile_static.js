@@ -550,18 +550,28 @@ function setupFollowButton(container, handle, accentColor) {
     try {
       const result = await apiRequest(`/profiles/${handle}/follow`, method)
       if (!result) return
-      
-      updateFollowButton(button, !isFollowing, accentColor)
+
+      const nextIsFollowing =
+        result.status === "followed" ? true : result.status === "unfollowed" ? false : !isFollowing
+
+      updateFollowButton(button, nextIsFollowing, accentColor)
 
       // Update follower count display
       const countEl = followersButton?.querySelector("span.font-bold")
       if (countEl && currentUserId !== profileUserId) {
         const count = parseInt(countEl.textContent, 10)
         if (!Number.isNaN(count)) {
-          countEl.textContent = isFollowing ? count - 1 : count + 1
+          if (nextIsFollowing !== isFollowing) {
+            countEl.textContent = nextIsFollowing ? count + 1 : count - 1
+          }
         }
       }
     } catch (error) {
+      if (method === "POST" && /has already been taken/i.test(error.message)) {
+        updateFollowButton(button, true, accentColor)
+        return
+      }
+
       console.error("Follow action failed:", error)
     }
   })
