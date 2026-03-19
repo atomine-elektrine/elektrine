@@ -14,19 +14,19 @@ defmodule Elektrine.Messaging.FederationTest do
     Conversation,
     ConversationMember,
     Federation,
-    FederationAccountPresenceState,
     Federation.Builders,
+    Federation.Transport,
+    Federation.Visibility,
+    FederationAccountPresenceState,
     FederationDiscoveredPeer,
     FederationEvent,
     FederationExtensionEvent,
     FederationInviteState,
     FederationMembershipState,
     FederationOutboxEvent,
+    FederationReadCursor,
     FederationRoomPresenceState,
     FederationStreamPosition,
-    Federation.Transport,
-    Federation.Visibility,
-    FederationReadCursor,
     Server
   }
 

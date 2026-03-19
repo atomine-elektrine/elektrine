@@ -3,8 +3,8 @@ defmodule Elektrine.Notifications.FederationNotifications do
   Handles notifications for ActivityPub federation events.
   """
 
-  alias Elektrine.ActorPaths
   alias Elektrine.ActivityPub
+  alias Elektrine.ActorPaths
   alias Elektrine.Notifications
 
   @doc """

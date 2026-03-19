@@ -10,10 +10,10 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.LikeHandler
+  alias Elektrine.Messaging
   alias Elektrine.Messaging.FederatedDislike
   alias Elektrine.Messaging.FederatedLike
   alias Elektrine.Messaging.MessageReaction
-  alias Elektrine.Messaging
   alias Elektrine.Repo
 
   describe "handle/3 - Like activity" do

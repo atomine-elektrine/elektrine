@@ -29,12 +29,10 @@ defmodule ElektrineWeb.ClientIP do
         header_ip(conn, "fly-client-ip")
       end
 
-    cond do
-      trusted_remote? ->
-        forwarded_ip(conn) || fly_client_ip || remote_ip
-
-      true ->
-        remote_ip
+    if trusted_remote? do
+      forwarded_ip(conn) || fly_client_ip || remote_ip
+    else
+      remote_ip
     end
   end
 

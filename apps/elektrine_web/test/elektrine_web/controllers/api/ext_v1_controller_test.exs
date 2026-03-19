@@ -6,12 +6,12 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   import Elektrine.SocialFixtures
 
   alias Elektrine.Calendar, as: CalendarContext
-  alias Elektrine.PasswordManager
   alias Elektrine.Developer
   alias Elektrine.Email
   alias Elektrine.Email.Contacts
   alias Elektrine.Messaging
   alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.PasswordManager
   alias Elektrine.Repo
   alias Elektrine.Social
   alias ElektrineWeb.Plugs.APIAuth

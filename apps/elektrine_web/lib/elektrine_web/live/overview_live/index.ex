@@ -1205,30 +1205,28 @@ defmodule ElektrineWeb.OverviewLive.Index do
   def handle_info(:refresh_feed_ranking, socket) do
     socket = assign(socket, :feed_rerank_ref, nil)
 
-    cond do
-      is_nil(socket.assigns[:current_user]) or socket.assigns.loading_feed or
-          !socket.assigns.data_loaded ->
-        {:noreply, socket}
+    if is_nil(socket.assigns[:current_user]) or socket.assigns.loading_feed or
+         !socket.assigns.data_loaded do
+      {:noreply, socket}
+    else
+      case load_with_timeout(
+             :for_you_feed_rerank,
+             fn ->
+               Integrations.overview_for_you_feed(
+                 socket.assigns.current_user.id,
+                 limit: @overview_feed_limit,
+                 session_context: socket.assigns[:session_context] || %{}
+               )
+               |> build_feed_state(socket.assigns.current_user.id)
+             end,
+             4000
+           ) do
+        {:ok, feed_data} ->
+          {:noreply, assign_feed_data(socket, feed_data)}
 
-      true ->
-        case load_with_timeout(
-               :for_you_feed_rerank,
-               fn ->
-                 Integrations.overview_for_you_feed(
-                   socket.assigns.current_user.id,
-                   limit: @overview_feed_limit,
-                   session_context: socket.assigns[:session_context] || %{}
-                 )
-                 |> build_feed_state(socket.assigns.current_user.id)
-               end,
-               4000
-             ) do
-          {:ok, feed_data} ->
-            {:noreply, assign_feed_data(socket, feed_data)}
-
-          {:error, _reason} ->
-            {:noreply, socket}
-        end
+        {:error, _reason} ->
+          {:noreply, socket}
+      end
     end
   end
 

@@ -394,22 +394,20 @@ defmodule ElektrineWeb.ActivityPubController do
     canonical_actor_uri = ActivityPub.actor_uri(user, canonical_base_url)
     requested_actor_uri = ActivityPub.actor_uri(requested_identifier, base_url)
 
-    cond do
-      requested_actor_uri != canonical_actor_uri ->
-        %{
-          base_url: base_url,
-          actor_identifier: requested_identifier,
-          moved_to: canonical_actor_uri
-        }
+    if requested_actor_uri != canonical_actor_uri do
+      %{
+        base_url: base_url,
+        actor_identifier: requested_identifier,
+        moved_to: canonical_actor_uri
+      }
+    else
+      aliases = actor_alias_uris(user, canonical_base_url, legacy_base_url)
 
-      true ->
-        aliases = actor_alias_uris(user, canonical_base_url, legacy_base_url)
-
-        if aliases == [] do
-          %{base_url: base_url}
-        else
-          %{base_url: base_url, also_known_as: aliases}
-        end
+      if aliases == [] do
+        %{base_url: base_url}
+      else
+        %{base_url: base_url, also_known_as: aliases}
+      end
     end
   end
 
@@ -421,8 +419,7 @@ defmodule ElektrineWeb.ActivityPubController do
       legacy_actor_uri(user, legacy_base_url),
       legacy_username_alias_uri(user, legacy_base_url)
     ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(&(&1 == canonical_actor_uri))
+    |> Enum.reject(&(is_nil(&1) or &1 == canonical_actor_uri))
     |> Enum.uniq()
   end
 

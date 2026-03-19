@@ -7,8 +7,8 @@ defmodule ElektrineWeb.ProfileControllerTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Profiles
-  alias Elektrine.Repo
   alias Elektrine.Profiles.CustomDomain
+  alias Elektrine.Repo
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -166,6 +166,42 @@ defmodule ElektrineWeb.ProfileControllerTest do
       assert json_response(conn, 200)["status"] == "unfollowed"
 
       # Verify the follow relationship is removed
+      refute Profiles.following?(follower.id, target_user.id)
+    end
+  end
+
+  describe "profile HTML follow actions" do
+    test "HTML follow redirects unauthenticated users to login", %{conn: conn, user: user} do
+      conn = post(conn, "/profiles/#{user.handle}/follow")
+
+      assert redirected_to(conn) == "/login"
+      assert get_session(conn, :user_return_to) == "/#{user.handle}"
+    end
+
+    test "HTML follow redirects back to the profile", %{conn: conn, user: target_user} do
+      follower = AccountsFixtures.user_fixture()
+
+      conn =
+        conn
+        |> log_in_user(follower)
+        |> post("/profiles/#{target_user.handle}/follow")
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+      assert get_flash(conn, :info) == "Followed @#{target_user.handle}"
+      assert Profiles.following?(follower.id, target_user.id)
+    end
+
+    test "HTML unfollow redirects back to the profile", %{conn: conn, user: target_user} do
+      follower = AccountsFixtures.user_fixture()
+      Profiles.follow_user(follower.id, target_user.id)
+
+      conn =
+        conn
+        |> log_in_user(follower)
+        |> delete("/profiles/#{target_user.handle}/follow")
+
+      assert redirected_to(conn) == "/#{target_user.handle}"
+      assert get_flash(conn, :info) == "Unfollowed @#{target_user.handle}"
       refute Profiles.following?(follower.id, target_user.id)
     end
   end

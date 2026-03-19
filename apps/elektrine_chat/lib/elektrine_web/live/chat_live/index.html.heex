@@ -26,7 +26,7 @@
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
   <div id="call-receiver" phx-hook="CallReceiver" class="hidden"></div>
 
-  <div class="flex flex-row gap-0 sm:gap-2 xl:gap-6 h-[calc(100vh-7.5rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-12rem)]">
+  <div class="flex flex-row gap-0 sm:gap-2 xl:gap-6 h-[calc(100vh-10.5rem)] sm:h-[calc(100vh-13rem)] lg:h-[calc(100vh-15rem)]">
     <!-- Server Rail -->
     <div class="hidden md:flex w-16 lg:w-20 flex-shrink-0 card glass-card shadow-lg border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
       <div class="flex flex-col items-center gap-1">
@@ -2070,7 +2070,7 @@
   <%= if @ui.show_new_chat do %>
     <div class="modal modal-open">
       <div
-        class="modal-box card glass-card p-6 max-w-md w-full mx-4"
+        class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4"
         phx-click-away="toggle_new_chat"
       >
         <div class="flex justify-between items-center mb-4">

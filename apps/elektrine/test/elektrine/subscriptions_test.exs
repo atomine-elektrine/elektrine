@@ -419,7 +419,7 @@ defmodule Elektrine.SubscriptionsTest do
     endpoint = Module.concat([ElektrineWeb, Endpoint])
 
     if Code.ensure_loaded?(endpoint) do
-      apply(endpoint, :url, [])
+      endpoint.url()
     else
       "https://#{Elektrine.Domains.instance_domain()}"
     end

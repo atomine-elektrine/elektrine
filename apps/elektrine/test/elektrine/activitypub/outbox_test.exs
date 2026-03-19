@@ -7,8 +7,8 @@ defmodule Elektrine.ActivityPub.OutboxTest do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Actor, Builder, Delivery, Outbox}
   alias Elektrine.Messaging
-  alias Elektrine.SocialFixtures
   alias Elektrine.Social
+  alias Elektrine.SocialFixtures
 
   # Create a mock user struct for testing builders
   defp mock_user(username \\ "testuser") do

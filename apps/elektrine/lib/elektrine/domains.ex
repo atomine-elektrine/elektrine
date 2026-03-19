@@ -457,15 +457,13 @@ defmodule Elektrine.Domains do
   def main_domain_url_from_host(host, scheme \\ "https")
 
   def main_domain_url_from_host(host, scheme) when is_binary(host) and is_binary(scheme) do
-    cond do
-      match?(%{domain: _}, profile_custom_domain_for_host(host)) ->
-        "#{scheme}://#{primary_profile_domain()}"
-
-      true ->
-        case profile_base_domain_for_host(host) do
-          nil -> ""
-          domain -> "#{scheme}://#{domain}"
-        end
+    if match?(%{domain: _}, profile_custom_domain_for_host(host)) do
+      "#{scheme}://#{primary_profile_domain()}"
+    else
+      case profile_base_domain_for_host(host) do
+        nil -> ""
+        domain -> "#{scheme}://#{domain}"
+      end
     end
   end
 

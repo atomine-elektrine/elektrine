@@ -605,15 +605,13 @@ defmodule Elektrine.Messaging.Federation.Validation do
              payload,
              remote_domain,
              context
-           ),
-         :ok <-
-           validate_origin_owned_identifiers_in_event_data(
-             event_type,
-             payload,
-             remote_domain,
-             context
            ) do
-      :ok
+      validate_origin_owned_identifiers_in_event_data(
+        event_type,
+        payload,
+        remote_domain,
+        context
+      )
     end
   end
 

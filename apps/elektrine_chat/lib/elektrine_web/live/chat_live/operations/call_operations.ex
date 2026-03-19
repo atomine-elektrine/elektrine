@@ -14,19 +14,21 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
         %{"call_type" => call_type, "conversation_id" => conversation_id_str} = params,
         socket
       ) do
-    with {:ok, conversation_id} <- parse_optional_integer(conversation_id_str) do
-      case remote_call_target(params, conversation_id, socket) do
-        {:remote, remote_handle, remote_conversation_id} ->
-          initiate_federated_call(socket, remote_handle, remote_conversation_id, call_type)
+    case parse_optional_integer(conversation_id_str) do
+      {:ok, conversation_id} ->
+        case remote_call_target(params, conversation_id, socket) do
+          {:remote, remote_handle, remote_conversation_id} ->
+            initiate_federated_call(socket, remote_handle, remote_conversation_id, call_type)
 
-        :local ->
-          initiate_local_call(socket, params, conversation_id, call_type)
+          :local ->
+            initiate_local_call(socket, params, conversation_id, call_type)
 
-        {:error, :invalid_remote_handle} ->
-          {:noreply, notify_error(socket, "Invalid remote call target")}
-      end
-    else
-      {:error, :invalid_integer} -> {:noreply, notify_error(socket, "Invalid call request")}
+          {:error, :invalid_remote_handle} ->
+            {:noreply, notify_error(socket, "Invalid remote call target")}
+        end
+
+      {:error, :invalid_integer} ->
+        {:noreply, notify_error(socket, "Invalid call request")}
     end
   end
 
@@ -142,58 +144,59 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
   end
 
   defp initiate_local_call(socket, params, conversation_id, call_type) do
-    with {:ok, callee_id} <- parse_integer(params["user_id"]) do
-      caller_id = socket.assigns.current_user.id
+    case parse_integer(params["user_id"]) do
+      {:ok, callee_id} ->
+        caller_id = socket.assigns.current_user.id
 
-      case VoiceCalls.local_user_busy_reason(caller_id) do
-        :federated_call_active ->
-          {:noreply, notify_error(socket, "You're already in another call")}
+        case VoiceCalls.local_user_busy_reason(caller_id) do
+          :federated_call_active ->
+            {:noreply, notify_error(socket, "You're already in another call")}
 
-        _ ->
-          case Calls.initiate_call(caller_id, callee_id, call_type, conversation_id) do
-            {:ok, call} ->
-              full_call = Calls.get_call_with_users(call.id) || call
-              transport = call_transport(full_call.id, socket)
+          _ ->
+            case Calls.initiate_call(caller_id, callee_id, call_type, conversation_id) do
+              {:ok, call} ->
+                full_call = Calls.get_call_with_users(call.id) || call
+                transport = call_transport(full_call.id, socket)
 
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "user:#{full_call.callee_id}",
-                {:incoming_call, full_call}
-              )
+                Phoenix.PubSub.broadcast(
+                  Elektrine.PubSub,
+                  "user:#{full_call.callee_id}",
+                  {:incoming_call, full_call}
+                )
 
-              {:noreply,
-               socket
-               |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-               |> assign(:call, call_state_for(socket.assigns.call, full_call, "calling"))
-               |> push_event("start_call", %{
-                 call_id: full_call.id,
-                 call_type: full_call.call_type,
-                 ice_servers: transport["ice_servers"],
-                 transport: transport,
-                 user_token: user_token(socket),
-                 user_id: caller_id
-               })}
+                {:noreply,
+                 socket
+                 |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
+                 |> assign(:call, call_state_for(socket.assigns.call, full_call, "calling"))
+                 |> push_event("start_call", %{
+                   call_id: full_call.id,
+                   call_type: full_call.call_type,
+                   ice_servers: transport["ice_servers"],
+                   transport: transport,
+                   user_token: user_token(socket),
+                   user_id: caller_id
+                 })}
 
-            {:error, :caller_already_in_call} ->
-              {:noreply, notify_error(socket, "You're already in a call")}
+              {:error, :caller_already_in_call} ->
+                {:noreply, notify_error(socket, "You're already in a call")}
 
-            {:error, :callee_already_in_call} ->
-              {:noreply, notify_error(socket, "This user is already in another call")}
+              {:error, :callee_already_in_call} ->
+                {:noreply, notify_error(socket, "This user is already in another call")}
 
-            {:error, :rate_limit_exceeded} ->
-              {:noreply,
-               notify_error(socket, "You're starting calls too quickly. Try again shortly.")}
+              {:error, :rate_limit_exceeded} ->
+                {:noreply,
+                 notify_error(socket, "You're starting calls too quickly. Try again shortly.")}
 
-            {:error, :invalid_conversation} ->
-              {:noreply,
-               notify_error(socket, "Call can only be started from your shared DM conversation")}
+              {:error, :invalid_conversation} ->
+                {:noreply,
+                 notify_error(socket, "Call can only be started from your shared DM conversation")}
 
-            {:error, reason} ->
-              error_msg = Elektrine.Privacy.privacy_error_message(reason)
-              {:noreply, notify_error(socket, error_msg)}
-          end
-      end
-    else
+              {:error, reason} ->
+                error_msg = Elektrine.Privacy.privacy_error_message(reason)
+                {:noreply, notify_error(socket, error_msg)}
+            end
+        end
+
       {:error, :invalid_integer} ->
         {:noreply, notify_error(socket, "Invalid call request")}
     end
@@ -243,23 +246,24 @@ defmodule ElektrineWeb.ChatLive.Operations.CallOperations do
   defp answer_call(socket, call_id) do
     case current_call_source(socket, call_id) do
       :federated ->
-        with {:ok, session} <- VoiceCalls.accept_session(call_id, socket.assigns.current_user.id) do
-          full_call = socket.assigns.call.incoming_call || VoiceCalls.ui_call(session)
-          transport = call_transport(call_id, socket)
+        case VoiceCalls.accept_session(call_id, socket.assigns.current_user.id) do
+          {:ok, session} ->
+            full_call = socket.assigns.call.incoming_call || VoiceCalls.ui_call(session)
+            transport = call_transport(call_id, socket)
 
-          {:noreply,
-           socket
-           |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
-           |> assign(:call, call_state_for(socket.assigns.call, full_call, "connecting"))
-           |> push_event("stop_ringtone", %{})
-           |> push_event("answer_call", %{
-             call_id: call_id,
-             ice_servers: transport["ice_servers"],
-             transport: transport,
-             user_token: user_token(socket),
-             user_id: socket.assigns.current_user.id
-           })}
-        else
+            {:noreply,
+             socket
+             |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
+             |> assign(:call, call_state_for(socket.assigns.call, full_call, "connecting"))
+             |> push_event("stop_ringtone", %{})
+             |> push_event("answer_call", %{
+               call_id: call_id,
+               ice_servers: transport["ice_servers"],
+               transport: transport,
+               user_token: user_token(socket),
+               user_id: socket.assigns.current_user.id
+             })}
+
           {:error, _reason} ->
             {:noreply, notify_error(socket, "Failed to answer call")}
         end

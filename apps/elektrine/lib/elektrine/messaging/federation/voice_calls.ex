@@ -10,8 +10,8 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Federation.DirectMessageState
   alias Elektrine.Messaging.Federation.Utils
-  alias Elektrine.PubSubTopics
   alias Elektrine.Profiles
+  alias Elektrine.PubSubTopics
   alias Elektrine.Repo
 
   @active_statuses ~w(initiated ringing active)

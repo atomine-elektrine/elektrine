@@ -1,9 +1,9 @@
 defmodule ElektrineWeb.HtmlHelpersActorTest do
   use Elektrine.DataCase, async: true
 
+  alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.Emojis.CustomEmoji
-  alias Elektrine.AccountsFixtures
   alias ElektrineWeb.HtmlHelpers
 
   test "render_actor_display_name renders custom emojis for remote actors" do

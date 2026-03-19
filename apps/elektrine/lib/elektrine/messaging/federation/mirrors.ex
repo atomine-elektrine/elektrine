@@ -250,35 +250,40 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
       when is_map(context) and is_binary(remote_domain) do
     federation_id = payload["id"]
 
-    with true <- is_binary(federation_id) do
-      case Repo.get_by(ChatMessage, conversation_id: channel.id, federated_source: federation_id) do
-        %ChatMessage{} = existing ->
-          attachments = call(context, :normalize_message_attachments, [payload])
+    case is_binary(federation_id) do
+      true ->
+        case Repo.get_by(ChatMessage,
+               conversation_id: channel.id,
+               federated_source: federation_id
+             ) do
+          %ChatMessage{} = existing ->
+            attachments = call(context, :normalize_message_attachments, [payload])
 
-          media_metadata =
-            call(context, :attachment_storage_metadata, [attachments])
-            |> Map.put("remote_sender", payload["sender"] || %{})
+            media_metadata =
+              call(context, :attachment_storage_metadata, [attachments])
+              |> Map.put("remote_sender", payload["sender"] || %{})
 
-          attrs = %{
-            content: payload["content"],
-            message_type: normalize_message_type(payload["message_type"]),
-            media_urls: Enum.map(attachments, & &1["url"]),
-            media_metadata: media_metadata,
-            edited_at: parse_datetime(payload["edited_at"]) || DateTime.utc_now()
-          }
+            attrs = %{
+              content: payload["content"],
+              message_type: normalize_message_type(payload["message_type"]),
+              media_urls: Enum.map(attachments, & &1["url"]),
+              media_metadata: media_metadata,
+              edited_at: parse_datetime(payload["edited_at"]) || DateTime.utc_now()
+            }
 
-          existing
-          |> ChatMessage.changeset(attrs)
-          |> Repo.update()
+            existing
+            |> ChatMessage.changeset(attrs)
+            |> Repo.update()
 
-        nil when channel.is_federated_mirror == true ->
-          upsert_mirror_message(channel, payload, remote_domain, context)
+          nil when channel.is_federated_mirror == true ->
+            upsert_mirror_message(channel, payload, remote_domain, context)
 
-        nil ->
-          {:error, :not_found}
-      end
-    else
-      _ -> {:error, :invalid_event_payload}
+          nil ->
+            {:error, :not_found}
+        end
+
+      false ->
+        {:error, :invalid_event_payload}
     end
   end
 

@@ -317,6 +317,11 @@ body[data-grid="orange"], body.grid-orange {
   z-index: 1;
 }
 
+.modal .glass-card,
+.modal-box.glass-card {
+  background: oklch(var(--b1) / 0.96);
+}
+
 .admin-layout {
   color-scheme: dark;
 }

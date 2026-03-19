@@ -2,8 +2,8 @@ defmodule Elektrine.AccountsTest do
   use Elektrine.DataCase
 
   alias Elektrine.Accounts
-  alias Elektrine.AccountsFixtures
   alias Elektrine.Accounts.User
+  alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Activity, Actor, Delivery}
   alias Elektrine.Profiles

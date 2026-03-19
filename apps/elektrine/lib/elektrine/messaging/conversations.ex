@@ -9,9 +9,9 @@ defmodule Elektrine.Messaging.Conversations do
     ChatUserHiddenMessage,
     Conversation,
     ConversationMember,
+    Federation,
     FederationInviteState,
     FederationMembershipState,
-    Federation,
     Message,
     RateLimiter,
     UserHiddenMessage
@@ -1627,16 +1627,14 @@ defmodule Elektrine.Messaging.Conversations do
        when is_binary(domain) and is_binary(username) do
     normalized_domain = String.downcase(domain)
 
-    cond do
-      local_domain?(normalized_domain) ->
-        Accounts.get_user_by_username(username) || :local_domain
-
-      true ->
-        case Profiles.get_verified_custom_domain(normalized_domain) do
-          %{user: %{username: ^username} = user} -> user
-          %{domain: ^normalized_domain} -> :local_custom_domain
-          _ -> nil
-        end
+    if local_domain?(normalized_domain) do
+      Accounts.get_user_by_username(username) || :local_domain
+    else
+      case Profiles.get_verified_custom_domain(normalized_domain) do
+        %{user: %{username: ^username} = user} -> user
+        %{domain: ^normalized_domain} -> :local_custom_domain
+        _ -> nil
+      end
     end
   end
 

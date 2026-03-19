@@ -4,8 +4,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   import Ecto.Query, warn: false
 
   alias Elektrine.Accounts
-  alias Elektrine.ActivityPub
   alias Elektrine.Accounts.User
+  alias Elektrine.ActivityPub
 
   alias Elektrine.Messaging.{
     CommunityBan,
@@ -394,16 +394,14 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                updated_at,
                remote_domain,
                ttl_ms
-             ]),
-           :ok <-
-             call(context, :maybe_broadcast_room_presence_update, [
-               channel.id,
-               remote_actor_id,
-               status,
-               activities,
-               updated_at
              ]) do
-        :ok
+        call(context, :maybe_broadcast_room_presence_update, [
+          channel.id,
+          remote_actor_id,
+          status,
+          activities,
+          updated_at
+        ])
       end
     else
       subscriber_user_ids = call(context, :local_presence_subscriber_user_ids, [remote_actor_id])
@@ -418,17 +416,15 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                remote_domain,
                ttl_ms
              ]),
-           server_ids <- call(context, :server_ids_for_remote_actor, [remote_actor_id]),
-           :ok <-
-             call(context, :maybe_broadcast_presence_update, [
-               subscriber_user_ids,
-               server_ids,
-               remote_actor_id,
-               status,
-               activities,
-               updated_at
-             ]) do
-        :ok
+           server_ids <- call(context, :server_ids_for_remote_actor, [remote_actor_id]) do
+        call(context, :maybe_broadcast_presence_update, [
+          subscriber_user_ids,
+          server_ids,
+          remote_actor_id,
+          status,
+          activities,
+          updated_at
+        ])
       end
     end
   end
@@ -510,14 +506,12 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                  actor_payload: get_actor_payload(invite_payload),
                  actor_remote_id: remote_actor_id,
                  metadata: invite_payload["metadata"] || %{}
-               ),
-             :ok <-
-               maybe_broadcast_optional_membership_state(
-                 mirror_channel.id,
-                 membership_state,
-                 context
                ) do
-          :ok
+          maybe_broadcast_optional_membership_state(
+            mirror_channel.id,
+            membership_state,
+            context
+          )
         end
 
       nil ->
@@ -539,13 +533,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                    "actor_remote_id" => remote_actor_id,
                    "metadata" => invite_payload["metadata"] || %{}
                  }
-               ]),
-             :ok <-
-               call(context, :maybe_broadcast_membership_state, [
-                 mirror_channel.id,
-                 membership_state
                ]) do
-          :ok
+          call(context, :maybe_broadcast_membership_state, [mirror_channel.id, membership_state])
         end
     end
   end
@@ -584,14 +573,12 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                  reason: ban_payload["reason"],
                  expires_at: ban_payload["expires_at"],
                  metadata: ban_payload["metadata"] || %{}
-               ),
-             :ok <-
-               maybe_broadcast_optional_membership_state(
-                 mirror_channel.id,
-                 membership_state,
-                 context
                ) do
-          :ok
+          maybe_broadcast_optional_membership_state(
+            mirror_channel.id,
+            membership_state,
+            context
+          )
         end
 
       nil ->
@@ -615,13 +602,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                    "actor_remote_id" => remote_actor_id,
                    "metadata" => ban_payload["metadata"] || %{}
                  }
-               ]),
-             :ok <-
-               call(context, :maybe_broadcast_membership_state, [
-                 mirror_channel.id,
-                 membership_state
                ]) do
-          :ok
+          call(context, :maybe_broadcast_membership_state, [mirror_channel.id, membership_state])
         end
     end
   end
@@ -696,9 +678,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                joined_at,
                updated_at,
                metadata
-             ]),
-           :ok <- call(context, :maybe_broadcast_membership_state, [channel.id, membership_state]) do
-        :ok
+             ]) do
+        call(context, :maybe_broadcast_membership_state, [channel.id, membership_state])
       end
     else
       apply_participant_membership_projection(
@@ -757,10 +738,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                  joined_at,
                  updated_at,
                  metadata
-               ]),
-             :ok <-
-               call(context, :maybe_broadcast_membership_state, [channel.id, membership_state]) do
-          :ok
+               ]) do
+          call(context, :maybe_broadcast_membership_state, [channel.id, membership_state])
         end
     end
   end
@@ -809,10 +788,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                  joined_at,
                  updated_at,
                  metadata
-               ]),
-             :ok <-
-               call(context, :maybe_broadcast_membership_state, [channel.id, membership_state]) do
-          :ok
+               ]) do
+          call(context, :maybe_broadcast_membership_state, [channel.id, membership_state])
         end
 
       state == "active" ->
@@ -829,10 +806,8 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
                  joined_at,
                  updated_at,
                  metadata
-               ]),
-             :ok <-
-               call(context, :maybe_broadcast_membership_state, [channel.id, membership_state]) do
-          :ok
+               ]) do
+          call(context, :maybe_broadcast_membership_state, [channel.id, membership_state])
         end
 
       state == "invited" ->

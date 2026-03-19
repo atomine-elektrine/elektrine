@@ -2185,10 +2185,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
 
   defp validate_stream_binding(event_type, stream_id, payload)
        when event_type in @channel_scoped_durable_event_types and is_map(payload) do
-    with {:ok, channel_id} <- context_identifier(payload, "channel") do
-      validate_exact_stream_binding(stream_id, "channel", channel_id)
-    else
-      :error -> {:error, :invalid_event_payload}
+    case context_identifier(payload, "channel") do
+      {:ok, channel_id} ->
+        validate_exact_stream_binding(stream_id, "channel", channel_id)
+
+      :error ->
+        {:error, :invalid_event_payload}
     end
   end
 

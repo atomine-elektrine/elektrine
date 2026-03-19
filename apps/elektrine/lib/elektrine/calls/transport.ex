@@ -110,8 +110,7 @@ defmodule Elektrine.Calls.Transport do
       uri when is_binary(uri) -> String.trim(uri)
       _ -> nil
     end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reject(&(&1 == ""))
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
   end
 
   defp normalize_turn_uris(uri) when is_binary(uri), do: [String.trim(uri)]

@@ -380,24 +380,16 @@ defmodule ElektrineWeb.ProfileController do
     with {:ok, current_user} <- require_current_user(conn),
          user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
          {:ok, _follow} <- Profiles.follow_user(current_user.id, user.id) do
-      conn
-      |> put_status(:ok)
-      |> json(%{status: "followed"})
+      respond_follow_action(conn, handle, :ok, :followed)
     else
       {:error, :unauthenticated, _conn} ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "Authentication required"})
+        respond_follow_action(conn, handle, :unauthorized, {:error, "Authentication required"})
 
       nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "User not found"})
+        respond_follow_action(conn, handle, :not_found, {:error, "User not found"})
 
       {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: inspect(reason)})
+        respond_follow_action(conn, handle, :unprocessable_entity, {:error, inspect(reason)})
     end
   end
 
@@ -406,24 +398,76 @@ defmodule ElektrineWeb.ProfileController do
          user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle) do
       Profiles.unfollow_user(current_user.id, user.id)
 
-      conn
-      |> put_status(:ok)
-      |> json(%{status: "unfollowed"})
+      respond_follow_action(conn, handle, :ok, :unfollowed)
     else
       {:error, :unauthenticated, _conn} ->
-        conn
-        |> put_status(:unauthorized)
-        |> json(%{error: "Authentication required"})
+        respond_follow_action(conn, handle, :unauthorized, {:error, "Authentication required"})
 
       nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "User not found"})
+        respond_follow_action(conn, handle, :not_found, {:error, "User not found"})
 
       {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: inspect(reason)})
+        respond_follow_action(conn, handle, :unprocessable_entity, {:error, inspect(reason)})
+    end
+  end
+
+  defp respond_follow_action(conn, handle, status, result) do
+    if browser_follow_request?(conn) do
+      conn = fetch_flash(conn, [])
+
+      case result do
+        :followed ->
+          conn
+          |> put_flash(:info, "Followed @#{handle}")
+          |> redirect(to: profile_return_path(conn, handle))
+
+        :unfollowed ->
+          conn
+          |> put_flash(:info, "Unfollowed @#{handle}")
+          |> redirect(to: profile_return_path(conn, handle))
+
+        {:error, "Authentication required"} ->
+          conn
+          |> put_session(:user_return_to, profile_return_path(conn, handle))
+          |> redirect(to: ~p"/login")
+
+        {:error, message} ->
+          conn
+          |> put_flash(:error, message)
+          |> redirect(to: profile_return_path(conn, handle))
+      end
+    else
+      case result do
+        :followed ->
+          conn
+          |> put_status(status)
+          |> json(%{status: "followed"})
+
+        :unfollowed ->
+          conn
+          |> put_status(status)
+          |> json(%{status: "unfollowed"})
+
+        {:error, message} ->
+          conn
+          |> put_status(status)
+          |> json(%{error: message})
+      end
+    end
+  end
+
+  defp browser_follow_request?(conn) do
+    headers =
+      [get_req_header(conn, "accept"), get_req_header(conn, "content-type")] |> List.flatten()
+
+    Enum.all?(headers, fn header -> not String.contains?(header, "application/json") end)
+  end
+
+  defp profile_return_path(conn, handle) do
+    cond do
+      is_binary(conn.assigns[:profile_custom_domain]) -> "/"
+      is_binary(conn.assigns[:subdomain_handle]) and conn.assigns[:subdomain_handle] != "" -> "/"
+      true -> "/#{handle}"
     end
   end
 
@@ -627,22 +671,20 @@ defmodule ElektrineWeb.ProfileController do
   defp get_base_url(conn) do
     host = String.downcase(conn.host || "")
 
-    cond do
-      is_binary(conn.assigns[:profile_custom_domain]) ->
-        "https://#{Domains.primary_profile_domain()}"
+    if is_binary(conn.assigns[:profile_custom_domain]) do
+      "https://#{Domains.primary_profile_domain()}"
+    else
+      case Domains.profile_base_domain_for_host(host) do
+        nil ->
+          ""
 
-      true ->
-        case Domains.profile_base_domain_for_host(host) do
-          nil ->
+        domain ->
+          if host == domain or host == "www." <> domain do
             ""
-
-          domain ->
-            if host == domain or host == "www." <> domain do
-              ""
-            else
-              "https://#{domain}"
-            end
-        end
+          else
+            "https://#{domain}"
+          end
+      end
     end
   end
 

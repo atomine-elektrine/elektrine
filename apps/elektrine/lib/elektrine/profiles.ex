@@ -426,6 +426,12 @@ defmodule Elektrine.Profiles do
 
         {:ok, follow}
 
+      {:error, %Ecto.Changeset{errors: [follower_id: {"has already been taken", _}]}} ->
+        case Repo.get_by(Follow, follower_id: follower_id, followed_id: followed_id) do
+          nil -> result
+          follow -> {:ok, follow}
+        end
+
       error ->
         error
     end

@@ -5,9 +5,9 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
     @moduletag skip: "requires :elektrine_social"
   end
 
+  alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.{CreateHandler, DeleteHandler}
-  alias Elektrine.ActivityPub
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
