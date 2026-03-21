@@ -356,6 +356,23 @@ div.message-selected:hover {
   contain-intrinsic-size: 720px;
 }
 
+.overview-post-entry {
+  content-visibility: visible;
+  contain: none;
+  overflow: visible;
+}
+
+.overview-post-entry {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+
+.overview-post-entry:hover,
+.overview-post-entry:focus-within {
+  z-index: 220;
+}
+
 .timeline-feed-region,
 .timeline-load-more-zone {
   overflow-anchor: none;

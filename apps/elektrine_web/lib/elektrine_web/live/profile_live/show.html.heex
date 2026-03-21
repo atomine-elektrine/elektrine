@@ -842,7 +842,7 @@
                       phx-click="unfriend_user"
                       phx-value-user_id={@user.id}
                       data-action="unfriend"
-                      class="btn btn-outline btn-sm sm:btn-md"
+                      class="btn btn-outline btn-sm sm:btn-md rounded-full"
                       style="border-color: var(--profile-accent); color: var(--profile-accent);"
                       title="Remove friend"
                     >
@@ -853,7 +853,7 @@
                       phx-click="accept_friend_request"
                       phx-value-user_id={@user.id}
                       data-action="accept-friend-request"
-                      class="btn btn-sm sm:btn-md"
+                      class="btn btn-sm sm:btn-md rounded-full"
                       style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
                       title="Accept friend request"
                     >
@@ -864,7 +864,7 @@
                       phx-click="cancel_friend_request"
                       phx-value-user_id={@user.id}
                       data-action="cancel-friend-request"
-                      class="btn btn-ghost btn-sm sm:btn-md opacity-60"
+                      class="btn btn-ghost btn-sm sm:btn-md rounded-full opacity-60"
                       title="Cancel friend request"
                     >
                       <.icon name="hero-clock" class="w-4 h-4" /> Pending
@@ -874,7 +874,7 @@
                       phx-click="send_friend_request"
                       phx-value-user_id={@user.id}
                       data-action="send-friend-request"
-                      class="btn btn-sm sm:btn-md"
+                      class="btn btn-sm sm:btn-md rounded-full"
                       style={"background-color: var(--profile-accent); color: #{btn_text_color};"}
                       title="Send friend request"
                     >
@@ -890,7 +890,7 @@
                     data-action="toggle-follow"
                     data-following={@is_following}
                     class={
-                      "btn btn-sm sm:btn-md transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 #{if @is_following, do: "btn-outline", else: ""}"
+                        "btn btn-sm sm:btn-md rounded-full transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 #{if @is_following, do: "btn-outline", else: ""}"
                     }
                     style={
                       if @is_following,
@@ -927,7 +927,7 @@
                       data-action="toggle-follow"
                       data-following={@is_following}
                       class={
-                        "btn btn-sm sm:btn-md transition-all duration-150 #{if @is_following, do: "btn-outline", else: ""}"
+                        "btn btn-sm sm:btn-md rounded-full transition-all duration-150 #{if @is_following, do: "btn-outline", else: ""}"
                       }
                       style={
                         if @is_following,
@@ -948,7 +948,7 @@
                     phx-click="show_report_modal"
                     phx-value-type="user"
                     phx-value-id={@user.id}
-                    class="btn btn-ghost btn-sm sm:btn-md text-error hover:bg-error/10"
+                    class="btn btn-ghost btn-sm sm:btn-md rounded-full text-error hover:bg-error/10"
                     title="Report this user"
                   >
                     <.icon name="hero-flag" class="w-4 h-4" />

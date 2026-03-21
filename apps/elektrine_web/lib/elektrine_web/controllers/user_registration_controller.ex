@@ -65,7 +65,7 @@ defmodule ElektrineWeb.UserRegistrationController do
           user_params_with_ip =
             registration_user_params(user_params, registration_ip, via_tor)
 
-          case Accounts.register_user_with_invite(user_params_with_ip) do
+          case Accounts.register_user_with_access(user_params_with_ip) do
             {:ok, user} ->
               UserAuth.log_in_user(conn, user, %{}, flash: {:info, "User created successfully."})
 
@@ -141,7 +141,9 @@ defmodule ElektrineWeb.UserRegistrationController do
     %{
       "via_tor" => conn.assigns[:via_tor] || false,
       "registration_form" => registration_form_data(changeset),
-      "registration_errors" => registration_error_data(changeset)
+      "registration_errors" => registration_error_data(changeset),
+      "registration_access_token" =>
+        get_in(changeset.params || %{}, ["registration_access_token"])
     }
   end
 

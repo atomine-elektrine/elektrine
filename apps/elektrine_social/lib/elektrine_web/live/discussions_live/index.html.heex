@@ -145,7 +145,7 @@
               phx-click="set_view"
               phx-value-view="communities"
               class={[
-                "btn btn-sm w-full justify-start",
+                "btn btn-sm rounded-full w-full justify-start",
                 if(@current_view == "communities", do: "btn-secondary", else: "btn-ghost")
               ]}
             >
@@ -155,7 +155,7 @@
               phx-click="set_view"
               phx-value-view="feed"
               class={[
-                "btn btn-sm w-full justify-start",
+                "btn btn-sm rounded-full w-full justify-start",
                 if(@current_view == "feed", do: "btn-secondary", else: "btn-ghost")
               ]}
             >
@@ -170,7 +170,7 @@
               phx-click="set_view"
               phx-value-view="my_activity"
               class={[
-                "btn btn-sm w-full justify-start",
+                "btn btn-sm rounded-full w-full justify-start",
                 if(@current_view == "my_activity", do: "btn-secondary", else: "btn-ghost")
               ]}
             >
@@ -234,20 +234,16 @@
                   </div>
                 </.form>
 
-                <div class="flex flex-wrap gap-2">
-                  <%= for {value, label} <- category_pills do %>
-                    <button
-                      phx-click="filter_by_category"
-                      phx-value-category={value}
-                      class={[
-                        "btn btn-sm rounded-full",
-                        if(@selected_category == value, do: "btn-secondary", else: "btn-ghost")
-                      ]}
-                    >
-                      {label}
-                    </button>
-                  <% end %>
-                </div>
+                <.pill_switcher
+                  event="filter_by_category"
+                  param="category"
+                  active={@selected_category}
+                  options={
+                    Enum.map(category_pills, fn {value, label} ->
+                      %{value: value, label: label}
+                    end)
+                  }
+                />
               </div>
             <% end %>
           </div>
@@ -772,7 +768,7 @@
                       phx-click="set_feed_sort"
                       phx-value-sort="hot"
                       class={[
-                        "btn btn-xs",
+                        "btn btn-xs rounded-full",
                         if(@feed_sort == "hot", do: "btn-secondary", else: "btn-ghost")
                       ]}
                     >
@@ -782,7 +778,7 @@
                       phx-click="set_feed_sort"
                       phx-value-sort="new"
                       class={[
-                        "btn btn-xs",
+                        "btn btn-xs rounded-full",
                         if(@feed_sort == "new", do: "btn-secondary", else: "btn-ghost")
                       ]}
                     >
@@ -792,7 +788,7 @@
                       phx-click="set_feed_sort"
                       phx-value-sort="top"
                       class={[
-                        "btn btn-xs",
+                        "btn btn-xs rounded-full",
                         if(@feed_sort == "top", do: "btn-secondary", else: "btn-ghost")
                       ]}
                     >
@@ -802,7 +798,7 @@
                       phx-click="set_feed_sort"
                       phx-value-sort="comments"
                       class={[
-                        "btn btn-xs",
+                        "btn btn-xs rounded-full",
                         if(@feed_sort == "comments", do: "btn-secondary", else: "btn-ghost")
                       ]}
                     >

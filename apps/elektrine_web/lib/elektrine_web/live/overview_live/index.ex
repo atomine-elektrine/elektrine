@@ -2169,6 +2169,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     filtered_posts_for_view =
       socket.assigns.filtered_all_posts
       |> filtered_posts(socket.assigns.filter, socket.assigns)
+      |> maybe_group_reply_chains(socket)
 
     visible_posts = Enum.take(filtered_posts_for_view, socket.assigns.visible_post_limit)
     no_more_posts = length(filtered_posts_for_view) < socket.assigns.visible_post_limit
@@ -2178,6 +2179,99 @@ defmodule ElektrineWeb.OverviewLive.Index do
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, no_more_posts)
   end
+
+  defp maybe_group_reply_chains(posts, socket) when is_list(posts) do
+    if socket.assigns.filter in [nil, "for_you", "timeline"] do
+      group_reply_chains(posts)
+    else
+      posts
+    end
+  end
+
+  defp maybe_group_reply_chains(posts, _socket), do: posts
+
+  defp group_reply_chains(posts) when is_list(posts) do
+    ids_in_feed = MapSet.new(Enum.map(posts, & &1.id))
+
+    local_parent_ids =
+      posts
+      |> Enum.map(&Map.get(&1, :reply_to_id))
+      |> Enum.filter(&is_integer/1)
+      |> MapSet.new()
+
+    remote_parent_refs =
+      posts
+      |> Enum.map(&normalized_in_reply_to/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    thread_keys_by_id =
+      posts
+      |> Enum.reduce(%{}, fn post, acc ->
+        Map.put(
+          acc,
+          post.id,
+          thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs)
+        )
+      end)
+
+    posts
+    |> Enum.group_by(fn post -> Map.get(thread_keys_by_id, post.id, {:post, post.id}) end)
+    |> Enum.map(fn {_group_key, grouped_posts} -> choose_thread_representative(grouped_posts) end)
+    |> Enum.sort_by(&timeline_sort_key/1, :desc)
+  end
+
+  defp group_reply_chains(posts), do: posts
+
+  defp choose_thread_representative([post]), do: post
+
+  defp choose_thread_representative(grouped_posts) do
+    Enum.max_by(grouped_posts, &timeline_sort_key/1, fn -> List.first(grouped_posts) end)
+  end
+
+  defp timeline_sort_key(post) do
+    {Map.get(post, :inserted_at), Map.get(post, :id, 0)}
+  end
+
+  defp thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs) do
+    cond do
+      is_integer(Map.get(post, :reply_to_id)) and MapSet.member?(ids_in_feed, post.reply_to_id) ->
+        {:local_thread, post.reply_to_id}
+
+      is_binary(normalized_in_reply_to(post)) ->
+        {:remote_thread, normalized_in_reply_to(post)}
+
+      MapSet.member?(local_parent_ids, post.id) ->
+        {:local_thread, post.id}
+
+      matched_ref = Enum.find(thread_self_refs(post), &MapSet.member?(remote_parent_refs, &1)) ->
+        {:remote_thread, matched_ref}
+
+      true ->
+        {:post, post.id}
+    end
+  end
+
+  defp thread_self_refs(post) do
+    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)]
+    |> Enum.map(&normalize_thread_ref/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp normalized_in_reply_to(post) do
+    post
+    |> Map.get(:media_metadata, %{})
+    |> get_in(["inReplyTo"])
+    |> normalize_thread_ref()
+  end
+
+  defp normalize_thread_ref(value) when is_binary(value) do
+    value = String.trim(value)
+    if value == "", do: nil, else: value
+  end
+
+  defp normalize_thread_ref(_), do: nil
 
   defp load_feed_data(socket, limit) do
     user = socket.assigns.current_user

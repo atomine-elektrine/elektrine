@@ -31,7 +31,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
       </div>
 
       <%= if @dropdown_open do %>
-        <div class="fixed sm:absolute right-0 sm:right-0 mt-2 z-50 bg-base-100 rounded-box w-full sm:w-96 max-w-md shadow-2xl border border-base-300 max-h-[80vh] sm:max-h-[600px] flex flex-col">
+        <.floating_panel class="fixed sm:absolute right-0 sm:right-0 mt-2 z-50 rounded-box w-full sm:w-96 max-w-md max-h-[80vh] sm:max-h-[600px] flex flex-col">
           <div class="p-3 sm:p-4 border-b border-base-300 flex-shrink-0">
             <div class="flex items-center justify-between gap-2">
               <h3 class="font-semibold text-base sm:text-lg">{gettext("Notifications")}</h3>
@@ -146,7 +146,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
               </button>
             </div>
           <% end %>
-        </div>
+        </.floating_panel>
       <% end %>
     </div>
     """

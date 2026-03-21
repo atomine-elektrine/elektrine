@@ -237,7 +237,7 @@ defmodule ElektrineWeb.SearchLive do
               </form>
 
               <%= if @show_suggestions and @suggestions != [] do %>
-                <div class="mt-2 rounded-lg border border-base-300 bg-base-100 shadow-md overflow-hidden max-h-80 overflow-y-auto">
+                <.floating_panel class="mt-2 overflow-hidden max-h-80 overflow-y-auto">
                   <%= for suggestion <- @suggestions do %>
                     <button
                       type="button"
@@ -253,7 +253,7 @@ defmodule ElektrineWeb.SearchLive do
                       </div>
                     </button>
                   <% end %>
-                </div>
+                </.floating_panel>
               <% end %>
             </div>
 
@@ -308,106 +308,89 @@ defmodule ElektrineWeb.SearchLive do
           </div>
 
           <%= if @results != [] do %>
-            <div class="rounded-lg border border-base-300 bg-base-100 p-2">
-              <div class="flex flex-wrap gap-2">
-                <button
-                  phx-click="filter_results"
-                  phx-value-type="all"
-                  class={[
-                    "btn btn-sm rounded-full",
-                    if(@active_filter == "all", do: "btn-neutral", else: "btn-ghost")
+            <.floating_panel>
+              <div class="card-body p-2">
+                <.pill_switcher
+                  event="filter_results"
+                  param="type"
+                  active={@active_filter}
+                  options={[
+                    %{value: "all", label: "All", count: length(@results)}
+                    | Enum.map(get_available_types(@results), fn type ->
+                        %{
+                          value: type,
+                          label: format_result_type(type),
+                          count: count_by_type(@results, type)
+                        }
+                      end)
                   ]}
-                >
-                  All ({length(@results)})
-                </button>
-                <%= for type <- get_available_types(@results) do %>
-                  <button
-                    phx-click="filter_results"
-                    phx-value-type={type}
-                    class={[
-                      "btn btn-sm rounded-full",
-                      if(@active_filter == type, do: "btn-neutral", else: "btn-ghost")
-                    ]}
-                  >
-                    {format_result_type(type)} ({count_by_type(@results, type)})
-                  </button>
-                <% end %>
+                />
               </div>
-            </div>
+            </.floating_panel>
 
-            <div class="rounded-lg border border-base-300 bg-base-100 divide-y divide-base-200">
-              <%= for result <- @filtered_results do %>
-                <.link
-                  navigate={result.url}
-                  class="flex items-start justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
-                >
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class={"badge badge-sm " <> type_badge_class(result.type)}>
-                        {format_result_type(result.type)}
-                      </span>
-                      <%= if result.type == "federated" && result[:actor_domain] do %>
-                        <span class="badge badge-ghost badge-sm">{result.actor_domain}</span>
+            <.floating_panel class="overflow-hidden">
+              <div class="divide-y divide-base-200">
+                <%= for result <- @filtered_results do %>
+                  <.link
+                    navigate={result.url}
+                    class="flex items-start justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
+                  >
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class={"badge badge-sm " <> type_badge_class(result.type)}>
+                          {format_result_type(result.type)}
+                        </span>
+                        <%= if result.type == "federated" && result[:actor_domain] do %>
+                          <span class="badge badge-ghost badge-sm">{result.actor_domain}</span>
+                        <% end %>
+                      </div>
+                      <p class="font-medium truncate">{result.title}</p>
+                      <%= if result.content do %>
+                        <p class="text-sm opacity-70 truncate">{result.content}</p>
                       <% end %>
                     </div>
-                    <p class="font-medium truncate">{result.title}</p>
-                    <%= if result.content do %>
-                      <p class="text-sm opacity-70 truncate">{result.content}</p>
-                    <% end %>
-                  </div>
-                  <div class="text-xs opacity-60 whitespace-nowrap">
-                    {format_relative_time(result.updated_at)}
-                  </div>
-                </.link>
-              <% end %>
-            </div>
+                    <div class="text-xs opacity-60 whitespace-nowrap">
+                      {format_relative_time(result.updated_at)}
+                    </div>
+                  </.link>
+                <% end %>
+              </div>
+            </.floating_panel>
           <% else %>
-            <div class="rounded-lg border border-base-300 bg-base-100 p-10 text-center">
-              <.icon name="hero-magnifying-glass" class="h-10 w-10 mx-auto opacity-30 mb-3" />
-              <p class="font-medium">No matches found</p>
-              <p class="text-sm opacity-70">Try a broader query or use `>` for commands.</p>
-            </div>
+            <.floating_panel>
+              <.empty_state
+                icon="hero-magnifying-glass"
+                title="No matches found"
+                description="Try a broader query or use `>` for commands."
+                size="sm"
+              />
+            </.floating_panel>
           <% end %>
         <% end %>
 
         <%= if @query == "" and not @loading do %>
-          <div class="rounded-lg border border-base-300 bg-base-100 p-8 text-center">
-            <.icon name="hero-command-line" class="h-10 w-10 mx-auto opacity-40 mb-3" />
-            <h2 class="text-lg font-semibold mb-2">Global Search</h2>
-            <p class="text-sm opacity-70 mb-5">
-              Search everything or start a command with `>`.
-            </p>
-            <div class="flex flex-wrap justify-center gap-2">
-              <button
-                class="btn btn-sm btn-ghost rounded-full"
-                phx-click="search"
-                phx-value-query="@"
-              >
-                People
-              </button>
-              <button
-                class="btn btn-sm btn-ghost rounded-full"
-                phx-click="search"
-                phx-value-query="email"
-              >
-                Emails
-              </button>
-              <button
-                class="btn btn-sm btn-ghost rounded-full"
-                phx-click="search"
-                phx-value-query="community"
-              >
-                Communities
-              </button>
-              <button
-                class="btn btn-sm btn-ghost rounded-full"
-                phx-click="search"
-                phx-value-query=">compose email"
-              >
-                Actions
-              </button>
-            </div>
-          </div>
+          <.floating_panel>
+            <.empty_state
+              icon="hero-command-line"
+              title="Global Search"
+              description="Search everything or start a command with `>`."
+              size="sm"
+            >
+              <:actions>
+                <.pill_switcher
+                  event="search"
+                  param="query"
+                  active={nil}
+                  options={[
+                    %{value: "@", label: "People"},
+                    %{value: "email", label: "Emails"},
+                    %{value: "community", label: "Communities"},
+                    %{value: ">compose email", label: "Actions"}
+                  ]}
+                />
+              </:actions>
+            </.empty_state>
+          </.floating_panel>
         <% end %>
       </div>
     </div>

@@ -293,7 +293,7 @@ body[data-grid="orange"], body.grid-orange {
   --grid-glow-x-color: rgba(249, 115, 22, 0.12);
 }
 
-/* Apple-like glass card effect */
+/* Glass card effect */
 .glass-card {
   position: relative;
   isolation: isolate;
@@ -320,6 +320,38 @@ body[data-grid="orange"], body.grid-orange {
 .modal .glass-card,
 .modal-box.glass-card {
   background: oklch(var(--b1) / 0.96);
+}
+
+.glass-floating {
+  position: relative;
+  isolation: isolate;
+  background: oklch(var(--b1) / 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--bc) / 0.12);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 60px -18px rgba(0, 0, 0, 0.45);
+}
+
+.dropdown-floating {
+  background: oklch(var(--b1) / 0.95) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--bc) / 0.12) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 60px -18px rgba(0, 0, 0, 0.45) !important;
+}
+
+.dropdown-content {
+  background: oklch(var(--b1) / 0.95) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(var(--bc) / 0.12) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 60px -18px rgba(0, 0, 0, 0.45) !important;
 }
 
 .admin-layout {

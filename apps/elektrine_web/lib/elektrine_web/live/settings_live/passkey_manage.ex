@@ -41,42 +41,39 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
         class="card glass-card shadow-xl border border-base-300"
       >
         <div class="card-body">
-          <div class="flex items-center justify-between mb-6">
-            <div class="flex items-center gap-4">
-              <.icon name="hero-finger-print" class="w-12 h-12 text-primary" />
-              <div>
-                <h2 class="text-xl font-bold">{gettext("Your Passkeys")}</h2>
-                <p class="text-base-content/70">
-                  {@passkey_count} / {@max_passkeys} {gettext("registered")}
-                </p>
-              </div>
-            </div>
-
-            <%= if @passkey_count < @max_passkeys do %>
-              <button
-                id="add-passkey-btn"
-                phx-hook="PasskeyRegister"
-                phx-click="start_registration"
-                disabled={@registering}
-                class="btn btn-primary"
-              >
-                <%= if @registering do %>
-                  <.spinner size="sm" />
-                  {gettext("Registering...")}
-                <% else %>
-                  <.icon name="hero-plus" class="w-4 h-4" />
-                  {gettext("Add Passkey")}
-                <% end %>
-              </button>
-            <% else %>
-              <div class="tooltip" data-tip={gettext("Maximum passkeys reached")}>
-                <button class="btn btn-primary" disabled>
-                  <.icon name="hero-plus" class="w-4 h-4" />
-                  {gettext("Add Passkey")}
+          <.section_header
+            title={gettext("Your Passkeys")}
+            description={
+              gettext("%{count} / %{max} registered", count: @passkey_count, max: @max_passkeys)
+            }
+          >
+            <:actions>
+              <%= if @passkey_count < @max_passkeys do %>
+                <button
+                  id="add-passkey-btn"
+                  phx-hook="PasskeyRegister"
+                  phx-click="start_registration"
+                  disabled={@registering}
+                  class="btn btn-primary"
+                >
+                  <%= if @registering do %>
+                    <.spinner size="sm" />
+                    {gettext("Registering...")}
+                  <% else %>
+                    <.icon name="hero-plus" class="w-4 h-4" />
+                    {gettext("Add Passkey")}
+                  <% end %>
                 </button>
-              </div>
-            <% end %>
-          </div>
+              <% else %>
+                <div class="tooltip" data-tip={gettext("Maximum passkeys reached")}>
+                  <button class="btn btn-primary" disabled>
+                    <.icon name="hero-plus" class="w-4 h-4" />
+                    {gettext("Add Passkey")}
+                  </button>
+                </div>
+              <% end %>
+            </:actions>
+          </.section_header>
 
           <%= if @error do %>
             <div class="alert alert-error mb-4">
@@ -91,15 +88,16 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
           <div class="divider"></div>
 
           <%= if @passkeys == [] do %>
-            <div class="text-center py-8">
-              <.icon name="hero-key" class="w-16 h-16 mx-auto text-base-content/30 mb-4" />
-              <h3 class="text-lg font-semibold mb-2">{gettext("No passkeys registered")}</h3>
-              <p class="text-base-content/70 max-w-md mx-auto">
-                {gettext(
+            <.empty_state
+              icon="hero-key"
+              title={gettext("No passkeys registered")}
+              description={
+                gettext(
                   "Add a passkey to sign in faster and more securely using your device's biometrics or a security key."
-                )}
-              </p>
-            </div>
+                )
+              }
+              size="sm"
+            />
           <% else %>
             <div class="space-y-3">
               <%= for passkey <- @passkeys do %>

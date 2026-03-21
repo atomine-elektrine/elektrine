@@ -375,10 +375,17 @@ defmodule ElektrineWeb.Layouts do
     end
   end
 
-  @doc ~s|Returns a random hard-stop gradient for the footer wordmark.\n|
-  def footer_wordmark_style do
-    colors = Enum.take_random(@footer_wordmark_palette, 4)
-    angle = Enum.random(0..359)
+  @doc ~s|Returns a stable hard-stop gradient for the footer wordmark.\n|
+  def footer_wordmark_style(assigns \\ %{}) do
+    seed = footer_wordmark_seed(assigns)
+    band_count = 2 + rem(seed, 3)
+
+    colors =
+      @footer_wordmark_palette
+      |> Enum.sort_by(&:erlang.phash2({seed, &1}))
+      |> Enum.take(band_count)
+
+    angle = rem(seed, 360)
     band_size = div(100, length(colors))
 
     stops =
@@ -391,6 +398,25 @@ defmodule ElektrineWeb.Layouts do
       end)
 
     "background-image: linear-gradient(#{angle}deg, #{stops});"
+  end
+
+  defp footer_wordmark_seed(assigns) do
+    host =
+      cond do
+        assigns[:conn] && is_binary(assigns.conn.host) ->
+          assigns.conn.host
+
+        assigns[:socket] ->
+          case assigns.socket do
+            %{host_uri: %URI{host: host}} when is_binary(host) -> host
+            _ -> "elektrine"
+          end
+
+        true ->
+          "elektrine"
+      end
+
+    :erlang.phash2({host, get_current_path(assigns)})
   end
 
   @doc ~s|Gets the CSS class for status indicator based on user status.\n|

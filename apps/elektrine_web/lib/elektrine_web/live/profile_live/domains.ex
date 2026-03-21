@@ -126,12 +126,11 @@ defmodule ElektrineWeb.ProfileLive.Domains do
       <div class="space-y-6">
         <div class="card glass-card shadow-lg">
           <div class="card-body space-y-4">
-            <div>
-              <h3 class="text-lg font-semibold">Default Profile URL</h3>
-              <p class="text-sm text-base-content/70 mt-1">
-                Your built-in profile URL stays available even if you add custom domains.
-              </p>
-            </div>
+            <.section_header
+              title="Default Profile URL"
+              description="Your built-in profile URL stays available even if you add custom domains."
+              align="start"
+            />
 
             <div class="rounded-2xl border border-base-content/10 bg-base-200/30 px-4 py-3">
               <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
@@ -159,13 +158,11 @@ defmodule ElektrineWeb.ProfileLive.Domains do
 
         <div class="card glass-card shadow-lg">
           <div class="card-body space-y-5">
-            <div class="space-y-2">
-              <h3 class="text-lg font-semibold">Add Profile Domain</h3>
-              <p class="text-sm text-base-content/70">
-                Use the bare root domain, like <span class="font-mono">example.com</span>. Once verified,
-                that domain will serve your profile directly at <span class="font-mono">/</span>.
-              </p>
-            </div>
+            <.section_header
+              title="Add Profile Domain"
+              description="Use the bare root domain, like example.com. Once verified, that domain will serve your profile directly at /."
+              align="start"
+            />
 
             <.form for={%{}} phx-submit="create_custom_domain" class="space-y-3">
               <label class="label pb-1">

@@ -86,13 +86,16 @@
       <!-- Calendar Header -->
       <div class="border-b border-base-300 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-1 sm:gap-2">
-          <button phx-click="prev_month" class="btn btn-ghost btn-sm btn-square">
+          <button phx-click="prev_month" class="btn btn-ghost btn-sm rounded-full">
             <.icon name="hero-chevron-left" class="w-5 h-5" />
           </button>
-          <button phx-click="next_month" class="btn btn-ghost btn-sm btn-square">
+          <button phx-click="next_month" class="btn btn-ghost btn-sm rounded-full">
             <.icon name="hero-chevron-right" class="w-5 h-5" />
           </button>
-          <button phx-click="today" class="btn btn-ghost btn-sm hidden sm:inline-flex">
+          <button
+            phx-click="today"
+            class="btn btn-ghost btn-sm rounded-full hidden sm:inline-flex"
+          >
             {gettext("Today")}
           </button>
         </div>

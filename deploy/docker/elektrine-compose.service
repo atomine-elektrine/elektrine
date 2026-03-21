@@ -1,0 +1,16 @@
+[Unit]
+Description=Elektrine Docker Compose stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/elektrine/app
+ExecStart=/usr/bin/docker compose --profile caddy -f deploy/docker/compose.full.yml up -d --build
+ExecStop=/usr/bin/docker compose -f deploy/docker/compose.full.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -623,7 +623,7 @@ export const DetailsPreserve = {
   }
 }
 
-// Apple-like glass card effect that follows cursor
+// Glass card effect that follows cursor
 export const GlassCard = {
   mounted() {
     this.initGlassEffect(this.el)

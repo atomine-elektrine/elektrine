@@ -55,6 +55,8 @@ defmodule ElektrineWeb.Components.UI.Dropdown do
   slot :trigger, required: true, doc: "Dropdown trigger button/element"
   slot :menu, required: true, doc: "Dropdown menu content"
 
+  attr :menu_class, :string, default: nil, doc: "Additional classes for dropdown menu shell"
+
   def dropdown(assigns) do
     ~H"""
     <div class={["dropdown", @class]} {@rest}>
@@ -63,7 +65,7 @@ defmodule ElektrineWeb.Components.UI.Dropdown do
       </div>
       <ul
         tabindex="0"
-        class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300"
+        class={["dropdown-content dropdown-floating z-30 menu p-2 rounded-box w-52", @menu_class]}
       >
         {render_slot(@menu)}
       </ul>

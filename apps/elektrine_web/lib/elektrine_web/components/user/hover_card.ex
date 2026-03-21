@@ -52,7 +52,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
           card_position_classes(@card_position)
         ]}
       >
-        <div class="bg-base-100 border border-base-300 rounded-lg shadow-2xl p-4 w-72 mt-2">
+        <.floating_panel class="p-4 w-72 mt-2">
           <%= if @user do %>
             <.local_user_card
               user={@user}
@@ -70,7 +70,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
               hover_id={@hover_id}
             />
           <% end %>
-        </div>
+        </.floating_panel>
       </div>
     </div>
     """

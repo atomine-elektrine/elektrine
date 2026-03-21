@@ -151,31 +151,6 @@ Bluesky support is part of the social stack.
   passwords, and store the linkage. Without managed mode, users connect their
   own Bluesky identifier and app password.
 
-## Production configuration
-
-Base production settings still include `DATABASE_URL`, `SECRET_KEY_BASE`,
-`PHX_HOST`, and the relevant domain configuration.
-
-Module-specific validation also fails fast at boot:
-
-- `email` needs `PRIMARY_DOMAIN` or `EMAIL_DOMAIN`
-- `email` currently expects `EMAIL_SERVICE=haraka`
-- Haraka-backed email needs `HARAKA_BASE_URL`
-- Haraka-backed email needs one outbound API key:
-  `HARAKA_HTTP_API_KEY`, `HARAKA_OUTBOUND_API_KEY`, or `HARAKA_API_KEY`
-- Haraka-backed email needs one inbound webhook key:
-  `PHOENIX_API_KEY`, `HARAKA_INBOUND_API_KEY`, or `HARAKA_API_KEY`
-- `vpn` needs `VPN_FLEET_REGISTRATION_KEY`
-
-Bluesky is optional. Main settings:
-
-- `BLUESKY_ENABLED` for outbound mirroring
-- `BLUESKY_INBOUND_ENABLED` for notification and feed polling
-- `BLUESKY_SERVICE_URL` for the ATProto service or PDS target
-- `BLUESKY_MANAGED_ENABLED`, `BLUESKY_MANAGED_SERVICE_URL`,
-  `BLUESKY_MANAGED_DOMAIN`, and `BLUESKY_MANAGED_ADMIN_PASSWORD` for managed
-  account provisioning
-
 ## License
 
 This repository is AGPL-3.0-only unless a file says otherwise.

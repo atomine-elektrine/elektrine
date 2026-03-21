@@ -9,7 +9,6 @@ defmodule Elektrine.Subscriptions do
   import Ecto.Query
   alias Ecto.Changeset
   require Logger
-  alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
   alias Elektrine.Subscriptions.{Product, RegistrationCheckout, Subscription}
@@ -332,6 +331,24 @@ defmodule Elektrine.Subscriptions do
   end
 
   @doc """
+  Get a registration checkout by access token.
+  """
+  def get_registration_checkout_by_token(lookup_token) when is_binary(lookup_token) do
+    lookup_token = String.trim(lookup_token)
+
+    if lookup_token == "" do
+      nil
+    else
+      from(c in RegistrationCheckout, where: c.lookup_token == ^lookup_token)
+      |> Repo.one()
+      |> case do
+        %RegistrationCheckout{} = checkout -> Repo.preload(checkout, :invite_code)
+        nil -> nil
+      end
+    end
+  end
+
+  @doc """
   Create a Stripe Customer Portal session for managing subscriptions.
   Returns {:ok, portal_session} or {:error, reason}.
   """
@@ -501,20 +518,14 @@ defmodule Elektrine.Subscriptions do
           |> Repo.one()
           |> Repo.preload(:invite_code)
 
-        case checkout.invite_code do
-          %Accounts.InviteCode{} ->
+        case checkout.status do
+          "fulfilled" ->
             checkout
 
-          nil ->
-            with {:ok, invite_code} <-
-                   Accounts.create_invite_code(%{
-                     max_uses: 1,
-                     note: paid_registration_invite_note(checkout.stripe_checkout_session_id)
-                   }),
-                 {:ok, updated_checkout} <-
+          _ ->
+            with {:ok, updated_checkout} <-
                    checkout
                    |> RegistrationCheckout.fulfill_changeset(%{
-                     invite_code_id: invite_code.id,
                      stripe_customer_id: stripe_field(session, :customer),
                      stripe_payment_intent_id: stripe_field(session, :payment_intent),
                      customer_email: registration_customer_email(session),
@@ -1198,10 +1209,6 @@ defmodule Elektrine.Subscriptions do
       session
       |> stripe_field(:customer_details)
       |> stripe_field(:email)
-  end
-
-  defp paid_registration_invite_note(session_id) do
-    "Paid registration checkout #{session_id}"
   end
 
   defp generate_lookup_token do

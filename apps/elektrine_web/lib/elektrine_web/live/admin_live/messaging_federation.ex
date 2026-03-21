@@ -189,32 +189,28 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
-            Network Controls
-          </div>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight">Arblarg Messaging Federation</h1>
-          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
-            Manage signed Arblarg chat federation, including configured peers, discovery metadata,
-            and per-direction runtime overrides.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-globe-alt" class="w-4 h-4" />
-            <span class="ml-1">ActivityPub Policies</span>
-          </.link>
-          <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-link" class="w-4 h-4" />
-            <span class="ml-1">Bluesky Bridge</span>
-          </.link>
-          <button phx-click="refresh" class="btn btn-sm btn-ghost">
-            <.icon name="hero-arrow-path" class="w-4 h-4" />
-            <span class="ml-1">Refresh</span>
-          </button>
-        </div>
-      </div>
+      <.section_header
+        eyebrow="Network Controls"
+        title="Arblarg Messaging Federation"
+        description="Manage signed Arblarg chat federation, including configured peers, discovery metadata, and per-direction runtime overrides."
+      >
+        <:actions>
+          <.action_toolbar>
+            <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-globe-alt" class="w-4 h-4" />
+              <span class="ml-1">ActivityPub Policies</span>
+            </.link>
+            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-link" class="w-4 h-4" />
+              <span class="ml-1">Bluesky Bridge</span>
+            </.link>
+            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+              <.icon name="hero-arrow-path" class="w-4 h-4" />
+              <span class="ml-1">Refresh</span>
+            </button>
+          </.action_toolbar>
+        </:actions>
+      </.section_header>
 
       <div class="alert bg-base-200 border border-base-300">
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />

@@ -260,17 +260,12 @@
             </table>
           </div>
         <% else %>
-          <div class="text-center py-8">
-            <div class="p-4 bg-base-200 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-              <.icon name="hero-magnifying-glass" class="w-10 h-10 text-base-content/40" />
-            </div>
-            <h3 class="text-lg font-medium text-base-content/70 mb-2">
-              No accounts found
-            </h3>
-            <p class="text-base-content/50">
-              Try a different search term or search type.
-            </p>
-          </div>
+          <.empty_state
+            icon="hero-magnifying-glass"
+            title="No accounts found"
+            description="Try a different search term or search type."
+            size="sm"
+          />
         <% end %>
       </div>
     </div>

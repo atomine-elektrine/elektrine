@@ -26,20 +26,20 @@
     "/pripyat/content-moderation?type=#{@content_type}" <>
       if(search_active, do: "&search=#{URI.encode_www_form(@search_query)}", else: "") %>
 
-  <div class="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-    <div>
-      <h1 class="text-2xl font-bold sm:text-3xl">Content Moderation</h1>
-      <p class="mt-1 text-sm opacity-70 sm:text-base">
-        Review user-generated timeline posts, discussions, and chat messages.
-      </p>
-    </div>
-    <div class="flex items-center gap-2 text-xs sm:text-sm">
-      <.link href={~p"/pripyat/reports"} class="btn btn-sm btn-ghost">
-        <.icon name="hero-flag" class="w-4 h-4" /> Reports
-      </.link>
-      <span class="badge badge-outline">Page {@current_page} / {@total_pages}</span>
-    </div>
-  </div>
+  <.section_header
+    title="Content Moderation"
+    description="Review user-generated timeline posts, discussions, and chat messages."
+    class="mb-6"
+  >
+    <:actions>
+      <.action_toolbar class="text-xs sm:text-sm">
+        <.link href={~p"/pripyat/reports"} class="btn btn-sm btn-ghost">
+          <.icon name="hero-flag" class="w-4 h-4" /> Reports
+        </.link>
+        <span class="badge badge-outline">Page {@current_page} / {@total_pages}</span>
+      </.action_toolbar>
+    </:actions>
+  </.section_header>
 
   <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">

@@ -15,8 +15,10 @@ defmodule Elektrine.Subscriptions.RegistrationCheckout do
     field :customer_email, :string
     field :status, :string, default: "pending"
     field :fulfilled_at, :utc_datetime
+    field :redeemed_at, :utc_datetime
 
     belongs_to :invite_code, Elektrine.Accounts.InviteCode
+    belongs_to :redeemed_by_user, Elektrine.Accounts.User
 
     timestamps(type: :utc_datetime)
   end
@@ -32,7 +34,9 @@ defmodule Elektrine.Subscriptions.RegistrationCheckout do
       :customer_email,
       :status,
       :fulfilled_at,
-      :invite_code_id
+      :invite_code_id,
+      :redeemed_at,
+      :redeemed_by_user_id
     ])
     |> validate_required([:stripe_checkout_session_id, :lookup_token, :product_slug, :status])
     |> validate_inclusion(:status, @statuses)
@@ -48,9 +52,11 @@ defmodule Elektrine.Subscriptions.RegistrationCheckout do
       :customer_email,
       :status,
       :fulfilled_at,
-      :invite_code_id
+      :invite_code_id,
+      :redeemed_at,
+      :redeemed_by_user_id
     ])
-    |> validate_required([:status, :invite_code_id])
+    |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)
   end
 end
