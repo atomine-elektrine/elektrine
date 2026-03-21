@@ -208,31 +208,28 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-info/80">
-            Bridge Status
-          </div>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight">Bluesky Bridge</h1>
-          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
-            Monitor ATProto cross-posting, inbound sync health, and outbound mirror queue pressure.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-            <span class="ml-1">Arblarg Messaging</span>
-          </.link>
-          <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-globe-alt" class="w-4 h-4" />
-            <span class="ml-1">ActivityPub Policies</span>
-          </.link>
-          <button phx-click="refresh" class="btn btn-sm btn-ghost">
-            <.icon name="hero-arrow-path" class="w-4 h-4" />
-            <span class="ml-1">Refresh</span>
-          </button>
-        </div>
-      </div>
+      <.section_header
+        eyebrow="Bridge Status"
+        title="Bluesky Bridge"
+        description="Monitor ATProto cross-posting, inbound sync health, and outbound mirror queue pressure."
+      >
+        <:actions>
+          <.action_toolbar>
+            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+              <span class="ml-1">Arblarg Messaging</span>
+            </.link>
+            <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-globe-alt" class="w-4 h-4" />
+              <span class="ml-1">ActivityPub Policies</span>
+            </.link>
+            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+              <.icon name="hero-arrow-path" class="w-4 h-4" />
+              <span class="ml-1">Refresh</span>
+            </button>
+          </.action_toolbar>
+        </:actions>
+      </.section_header>
 
       <div class="alert bg-base-200 border border-base-300">
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />

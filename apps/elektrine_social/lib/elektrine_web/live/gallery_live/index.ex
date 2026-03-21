@@ -4,7 +4,10 @@ defmodule ElektrineWeb.GalleryLive.Index do
   alias Elektrine.PubSubTopics
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
+
+  import ElektrineWeb.HtmlHelpers,
+    only: [actor_display_name_text: 1, plain_text_content: 1, render_display_name_with_emojis: 2]
+
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   import ElektrineWeb.Live.NotificationHelpers
   @impl true
@@ -1377,10 +1380,10 @@ defmodule ElektrineWeb.GalleryLive.Index do
   defp gallery_creator_name(post) do
     cond do
       post.sender && Ecto.assoc_loaded?(post.sender) ->
-        post.sender.display_name || post.sender.username
+        actor_display_name_text(post.sender)
 
       post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
-        gallery_remote_actor_name(post.remote_actor)
+        actor_display_name_text(post.remote_actor)
 
       true ->
         nil
@@ -1420,31 +1423,6 @@ defmodule ElektrineWeb.GalleryLive.Index do
     end
   end
 
-  defp gallery_remote_actor_name(remote_actor) do
-    display_name = normalize_gallery_text(remote_actor.display_name)
-    username = normalize_gallery_text(remote_actor.username)
-
-    cond do
-      display_name && !url_like_gallery_name?(display_name) ->
-        display_name
-
-      username ->
-        username
-
-      true ->
-        display_name
-    end
-  end
-
-  defp normalize_gallery_text(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp normalize_gallery_text(_), do: nil
-
   defp gallery_creator_domain(post) do
     if post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) do
       post.remote_actor.domain
@@ -1452,24 +1430,6 @@ defmodule ElektrineWeb.GalleryLive.Index do
       nil
     end
   end
-
-  defp url_like_gallery_name?(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    case URI.parse(trimmed) do
-      %URI{scheme: scheme, host: host}
-      when is_binary(scheme) and scheme != "" and is_binary(host) and host != "" ->
-        true
-
-      %URI{path: path} when is_binary(path) ->
-        String.starts_with?(path, "/remote/")
-
-      _ ->
-        false
-    end
-  end
-
-  defp url_like_gallery_name?(_), do: false
 
   defp gallery_display_title(post) do
     title = gallery_plain_text(post.title)
@@ -1497,15 +1457,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
   defp gallery_plain_text(""), do: ""
 
   defp gallery_plain_text(text) when is_binary(text) do
-    text
-    |> String.replace(~r/<br\s*\/?>/i, " ")
-    |> String.replace(~r/<\/p>/i, " ")
-    |> String.replace(~r/<p[^>]*>/i, " ")
-    |> String.replace(~r/<[^>]*>/, " ")
-    |> String.replace(~r/<\/?[A-Za-z][^>]*\z/, " ")
-    |> HtmlEntities.decode()
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
+    plain_text_content(text)
   end
 
   defp gallery_plain_text(_), do: ""

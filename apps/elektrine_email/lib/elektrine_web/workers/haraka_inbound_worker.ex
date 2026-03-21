@@ -165,6 +165,8 @@ defmodule ElektrineWeb.HarakaInboundWorker do
   defp find_existing_job(idempotency_key) do
     import Ecto.Query, only: [from: 2]
 
+    started_at = System.monotonic_time(:millisecond)
+
     query =
       from(j in Oban.Job,
         where:
@@ -176,6 +178,15 @@ defmodule ElektrineWeb.HarakaInboundWorker do
         limit: 1
       )
 
-    Elektrine.Repo.one(query)
+    job = Elektrine.Repo.one(query)
+
+    Events.db_hot_path(
+      :haraka_inbound,
+      :find_existing_job,
+      System.monotonic_time(:millisecond) - started_at,
+      %{duplicate_found: not is_nil(job)}
+    )
+
+    job
   end
 end

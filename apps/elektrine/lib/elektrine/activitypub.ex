@@ -28,6 +28,7 @@ defmodule Elektrine.ActivityPub do
   alias Elektrine.Async
   alias Elektrine.Messaging.{Conversation, Conversations}
   alias Elektrine.Security.URLValidator
+  alias Elektrine.Telemetry.Events
   @public_audience_uri "https://www.w3.org/ns/activitystreams#Public"
 
   @doc """
@@ -1087,16 +1088,27 @@ defmodule Elektrine.ActivityPub do
   Gets delivery IDs that are pending and ready to be retried.
   """
   def get_retryable_delivery_ids(limit \\ 500) do
+    started_at = System.monotonic_time(:millisecond)
     now = DateTime.utc_now()
 
-    Delivery
-    |> where([d], d.status == "pending")
-    |> where([d], is_nil(d.next_retry_at) or d.next_retry_at <= ^now)
-    |> where([d], d.attempts < 10)
-    |> order_by([d], asc: d.updated_at)
-    |> limit(^limit)
-    |> select([d], d.id)
-    |> Repo.all()
+    delivery_ids =
+      Delivery
+      |> where([d], d.status == "pending")
+      |> where([d], is_nil(d.next_retry_at) or d.next_retry_at <= ^now)
+      |> where([d], d.attempts < 10)
+      |> order_by([d], asc: d.updated_at)
+      |> limit(^limit)
+      |> select([d], d.id)
+      |> Repo.all()
+
+    Events.db_hot_path(
+      :activitypub,
+      :get_retryable_delivery_ids,
+      System.monotonic_time(:millisecond) - started_at,
+      %{limit: limit, result_count: length(delivery_ids)}
+    )
+
+    delivery_ids
   end
 
   @doc """

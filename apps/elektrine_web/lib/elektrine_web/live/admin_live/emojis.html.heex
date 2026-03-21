@@ -1,14 +1,18 @@
 <div class="flex flex-col gap-4 max-w-6xl mx-auto">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-    <div>
-      <h1 class="text-2xl font-bold">Custom Emoji Management</h1>
-      <p class="text-sm text-base-content/60">{@total_count} emoji(s) total</p>
-    </div>
-    <.link patch={~p"/pripyat/emojis/new"} class="btn btn-secondary">
-      <.icon name="hero-plus" class="w-5 h-5 mr-2" /> Add Emoji
-    </.link>
-  </div>
+  <.section_header
+    title="Custom Emoji Management"
+    description={"#{@total_count} emoji(s) total"}
+    class="mb-6"
+  >
+    <:actions>
+      <.action_toolbar>
+        <.link patch={~p"/pripyat/emojis/new"} class="btn btn-secondary">
+          <.icon name="hero-plus" class="w-5 h-5 mr-2" /> Add Emoji
+        </.link>
+      </.action_toolbar>
+    </:actions>
+  </.section_header>
   
 <!-- Search and Filter -->
   <div class="flex flex-col sm:flex-row gap-4 mb-6">
@@ -252,13 +256,18 @@
   
 <!-- Empty State -->
   <%= if Enum.empty?(@emojis) do %>
-    <div class="text-center py-12">
-      <.icon name="hero-face-smile" class="w-12 h-12 mx-auto text-base-content/30" />
-      <p class="text-base-content/60 mt-4">No emojis found</p>
-      <.link patch={~p"/pripyat/emojis/new"} class="btn btn-secondary btn-sm mt-4">
-        Add your first emoji
-      </.link>
-    </div>
+    <.empty_state
+      icon="hero-face-smile"
+      title="No emojis found"
+      description="Add your first emoji."
+      size="sm"
+    >
+      <:actions>
+        <.link patch={~p"/pripyat/emojis/new"} class="btn btn-secondary btn-sm mt-2">
+          Add your first emoji
+        </.link>
+      </:actions>
+    </.empty_state>
   <% end %>
   
 <!-- Load More -->

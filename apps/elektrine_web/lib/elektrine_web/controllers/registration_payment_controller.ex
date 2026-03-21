@@ -25,7 +25,7 @@ defmodule ElektrineWeb.RegistrationPaymentController do
       page_title: "Registration Payment",
       checkout: checkout,
       invite_code: checkout && checkout.invite_code,
-      pending: is_nil(checkout) or is_nil(checkout.invite_code_id)
+      pending: is_nil(checkout) or checkout.status != "fulfilled"
     )
   end
 

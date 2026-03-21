@@ -188,39 +188,35 @@ defmodule ElektrineWeb.AdminLive.Relays do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-secondary/80">
-            Network Controls
-          </div>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight">ActivityPub Relays</h1>
-          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
-            Subscribe to relays, monitor subscription state, and seed discovery across the broader
-            fediverse.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-globe-alt" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">ActivityPub Policies</span>
-          </.link>
-          <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
-          </.link>
-          <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-link" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
-          </.link>
-          <button phx-click="show_add_modal" class="btn btn-sm btn-primary">
-            <.icon name="hero-plus" class="w-4 h-4" />
-            <span class="ml-1">Subscribe</span>
-          </button>
-          <button phx-click="refresh" class="btn btn-sm btn-ghost">
-            <.icon name="hero-arrow-path" class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <.section_header
+        eyebrow="Network Controls"
+        title="ActivityPub Relays"
+        description="Subscribe to relays, monitor subscription state, and seed discovery across the broader fediverse."
+      >
+        <:actions>
+          <.action_toolbar>
+            <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-globe-alt" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">ActivityPub Policies</span>
+            </.link>
+            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
+            </.link>
+            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-link" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
+            </.link>
+            <button phx-click="show_add_modal" class="btn btn-sm btn-primary">
+              <.icon name="hero-plus" class="w-4 h-4" />
+              <span class="ml-1">Subscribe</span>
+            </button>
+            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+              <.icon name="hero-arrow-path" class="w-4 h-4" />
+            </button>
+          </.action_toolbar>
+        </:actions>
+      </.section_header>
       
     <!-- Stats -->
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">

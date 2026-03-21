@@ -494,40 +494,36 @@ defmodule ElektrineWeb.AdminLive.Federation do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">
-            Federation Policy
-          </div>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight">ActivityPub Federation</h1>
-          <p class="mt-3 max-w-3xl text-sm leading-6 text-base-content/70 sm:text-base">
-            Moderate remote ActivityPub instances, actors, and activity flow without touching
-            Arblarg chat peering or Bluesky bridge credentials.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
-          </.link>
-          <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-link" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
-          </.link>
-          <.link navigate={~p"/pripyat/relays"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-signal" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">ActivityPub Relays</span>
-          </.link>
-          <button phx-click="show_add_block_modal" class="btn btn-sm btn-secondary">
-            <.icon name="hero-plus" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Add Policy</span>
-          </button>
-          <button phx-click="refresh" class="btn btn-sm btn-ghost">
-            <.icon name="hero-arrow-path" class="w-4 h-4" />
-            <span class="hidden sm:inline ml-1">Refresh</span>
-          </button>
-        </div>
-      </div>
+      <.section_header
+        eyebrow="Federation Policy"
+        title="ActivityPub Federation"
+        description="Moderate remote ActivityPub instances, actors, and activity flow without touching Arblarg chat peering or Bluesky bridge credentials."
+      >
+        <:actions>
+          <.action_toolbar>
+            <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
+            </.link>
+            <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-link" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Bluesky Bridge</span>
+            </.link>
+            <.link navigate={~p"/pripyat/relays"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-signal" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">ActivityPub Relays</span>
+            </.link>
+            <button phx-click="show_add_block_modal" class="btn btn-sm btn-secondary">
+              <.icon name="hero-plus" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Add Policy</span>
+            </button>
+            <button phx-click="refresh" class="btn btn-sm btn-ghost">
+              <.icon name="hero-arrow-path" class="w-4 h-4" />
+              <span class="hidden sm:inline ml-1">Refresh</span>
+            </button>
+          </.action_toolbar>
+        </:actions>
+      </.section_header>
 
       <div class="alert bg-base-200 border border-base-300">
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />

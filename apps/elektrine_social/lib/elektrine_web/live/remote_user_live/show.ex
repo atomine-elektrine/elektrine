@@ -2424,6 +2424,8 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
   # Sorting functions for Lemmy-style post sorting
   def sort_posts(posts, sort_by) when is_list(posts) do
+    posts = group_reply_chains(posts)
+
     case sort_by do
       "hot" -> sort_by_hot(posts)
       "top" -> sort_by_top(posts)
@@ -2523,6 +2525,100 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         0
     end
   end
+
+  defp group_reply_chains(posts) when is_list(posts) do
+    ids_in_feed = MapSet.new(Enum.map(posts, &post_group_id/1))
+
+    local_parent_ids =
+      posts
+      |> Enum.map(&Map.get(&1, :reply_to_id))
+      |> Enum.filter(&is_integer/1)
+      |> MapSet.new()
+
+    remote_parent_refs =
+      posts
+      |> Enum.map(&normalized_in_reply_to/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    thread_keys_by_id =
+      Enum.reduce(posts, %{}, fn post, acc ->
+        Map.put(
+          acc,
+          post_group_id(post),
+          thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs)
+        )
+      end)
+
+    posts
+    |> Enum.group_by(fn post ->
+      Map.get(thread_keys_by_id, post_group_id(post), {:post, post_group_id(post)})
+    end)
+    |> Enum.map(fn {_key, grouped_posts} -> choose_thread_representative(grouped_posts) end)
+  end
+
+  defp group_reply_chains(posts), do: posts
+
+  defp choose_thread_representative([post]), do: post
+
+  defp choose_thread_representative(grouped_posts) do
+    Enum.max_by(grouped_posts, &get_post_timestamp/1, fn -> List.first(grouped_posts) end)
+  end
+
+  defp thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs) do
+    cond do
+      is_integer(Map.get(post, :reply_to_id)) and MapSet.member?(ids_in_feed, post.reply_to_id) ->
+        {:local_thread, post.reply_to_id}
+
+      is_binary(normalized_in_reply_to(post)) ->
+        {:remote_thread, normalized_in_reply_to(post)}
+
+      MapSet.member?(local_parent_ids, Map.get(post, :id)) ->
+        {:local_thread, post.id}
+
+      matched_ref = Enum.find(thread_self_refs(post), &MapSet.member?(remote_parent_refs, &1)) ->
+        {:remote_thread, matched_ref}
+
+      true ->
+        {:post, post_group_id(post)}
+    end
+  end
+
+  defp thread_self_refs(post) do
+    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url), post["id"]]
+    |> Enum.map(&normalize_thread_ref/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp normalized_in_reply_to(post) do
+    cond do
+      is_map_key(post, :media_metadata) ->
+        post
+        |> Map.get(:media_metadata, %{})
+        |> get_in(["inReplyTo"])
+        |> normalize_thread_ref()
+
+      is_map(post) ->
+        normalize_thread_ref(post["inReplyTo"])
+
+      true ->
+        nil
+    end
+  end
+
+  defp normalize_thread_ref(value) when is_binary(value) do
+    value = String.trim(value)
+    if value == "", do: nil, else: value
+  end
+
+  defp normalize_thread_ref(_), do: nil
+
+  defp post_group_id(post) when is_map(post) do
+    Map.get(post, :id) || post["id"]
+  end
+
+  defp post_group_id(_post), do: nil
 
   defp get_post_activity(post) when is_map(post) do
     cond do

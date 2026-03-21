@@ -5,6 +5,7 @@ defmodule Elektrine.Email.CustomFolders do
   import Ecto.Query
   alias Elektrine.Email.{Folder, Mailbox, Message}
   alias Elektrine.Repo
+  alias Elektrine.Telemetry.Events
 
   @max_folders_per_user 25
 
@@ -117,44 +118,62 @@ defmodule Elektrine.Email.CustomFolders do
   Lists messages in a folder.
   """
   def list_folder_messages(folder_id, user_id, page \\ 1, per_page \\ 20) do
+    started_at = System.monotonic_time(:millisecond)
     folder = get_folder(folder_id, user_id)
 
-    if folder do
-      offset = (page - 1) * per_page
+    result =
+      if folder do
+        offset = (page - 1) * per_page
 
-      messages =
-        Message
-        |> join(:inner, [m], mb in Mailbox, on: mb.id == m.mailbox_id)
-        |> where(
-          [m, mb],
-          m.folder_id == ^folder_id and m.deleted == false and mb.user_id == ^user_id
-        )
-        |> order_by(desc: :inserted_at)
-        |> limit(^per_page)
-        |> offset(^offset)
-        |> Repo.all()
+        messages =
+          Message
+          |> join(:inner, [m], mb in Mailbox, on: mb.id == m.mailbox_id)
+          |> where(
+            [m, mb],
+            m.folder_id == ^folder_id and m.deleted == false and mb.user_id == ^user_id
+          )
+          |> order_by(desc: :inserted_at)
+          |> limit(^per_page)
+          |> offset(^offset)
+          |> Repo.all()
 
-      total =
-        Message
-        |> join(:inner, [m], mb in Mailbox, on: mb.id == m.mailbox_id)
-        |> where(
-          [m, mb],
-          m.folder_id == ^folder_id and m.deleted == false and mb.user_id == ^user_id
-        )
-        |> select(count())
-        |> Repo.one()
+        total =
+          Message
+          |> join(:inner, [m], mb in Mailbox, on: mb.id == m.mailbox_id)
+          |> where(
+            [m, mb],
+            m.folder_id == ^folder_id and m.deleted == false and mb.user_id == ^user_id
+          )
+          |> select(count())
+          |> Repo.one()
 
-      %{
-        messages: messages,
-        total: total,
-        page: page,
-        per_page: per_page,
-        has_next: offset + per_page < total,
-        has_prev: page > 1
-      }
-    else
-      %{messages: [], total: 0, page: page, per_page: per_page, has_next: false, has_prev: false}
-    end
+        %{
+          messages: messages,
+          total: total,
+          page: page,
+          per_page: per_page,
+          has_next: offset + per_page < total,
+          has_prev: page > 1
+        }
+      else
+        %{
+          messages: [],
+          total: 0,
+          page: page,
+          per_page: per_page,
+          has_next: false,
+          has_prev: false
+        }
+      end
+
+    Events.db_hot_path(
+      :email_custom_folders,
+      :list_folder_messages,
+      System.monotonic_time(:millisecond) - started_at,
+      %{folder_id: folder_id, user_id: user_id, page: page}
+    )
+
+    result
   end
 
   defp validate_folder_for_message_owner(_message, nil), do: :ok

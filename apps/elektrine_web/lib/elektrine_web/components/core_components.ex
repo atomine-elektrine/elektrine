@@ -35,10 +35,15 @@ defmodule ElektrineWeb.CoreComponents do
   alias ElektrineWeb.Components.UI.Card
   alias ElektrineWeb.Components.UI.Dropdown
   alias ElektrineWeb.Components.UI.EmptyState
+  alias ElektrineWeb.Components.UI.FloatingPanel
   alias ElektrineWeb.Components.UI.Form
   alias ElektrineWeb.Components.UI.Icon
   alias ElektrineWeb.Components.UI.Loading
   alias ElektrineWeb.Components.UI.Modal
+  alias ElektrineWeb.Components.UI.PillSwitcher
+  alias ElektrineWeb.Components.UI.SectionHeader
+  alias ElektrineWeb.Components.UI.StatsRow
+  alias ElektrineWeb.Components.UI.ActionToolbar
   alias ElektrineWeb.Components.UI.Table
 
   # Layout Components
@@ -62,6 +67,15 @@ defmodule ElektrineWeb.CoreComponents do
 
   # Button component
   defdelegate button(assigns), to: Button
+
+  # Floating panel component
+  defdelegate floating_panel(assigns), to: FloatingPanel
+
+  # Reusable page UI primitives
+  defdelegate section_header(assigns), to: SectionHeader
+  defdelegate pill_switcher(assigns), to: PillSwitcher
+  defdelegate stats_row(assigns), to: StatsRow
+  defdelegate action_toolbar(assigns), to: ActionToolbar
 
   # Form components
   defdelegate simple_form(assigns), to: Form

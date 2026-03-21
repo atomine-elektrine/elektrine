@@ -28,12 +28,9 @@ function resolveHeroiconsDir() {
 export default {
   content: [
     "./js/**/*.js",
-    // Umbrella apps now split LiveView templates across multiple app folders.
-    "../../*/lib/elektrine_web.ex",
-    "../../*/lib/elektrine_web/**/*.*ex",
-    // Legacy non-umbrella fallback paths
-    "../lib/elektrine_web.ex",
-    "../lib/elektrine_web/**/*.*ex"
+    // Umbrella apps split UI templates and some icon definitions across app folders.
+    "../../*/lib/**/*.ex",
+    "../../*/lib/**/*.heex"
   ],
   theme: {
     extend: {

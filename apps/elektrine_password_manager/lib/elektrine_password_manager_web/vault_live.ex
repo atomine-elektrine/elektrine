@@ -9,6 +9,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   alias Elektrine.PasswordManager.Payloads
   alias Elektrine.PasswordManager.VaultEntry
   alias Elektrine.Platform.Modules
+  alias Elektrine.Platform.ENavComponent
 
   @impl true
   def mount(_params, _session, socket) do
@@ -546,9 +547,8 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     """
   end
 
-  # Keep this aligned with ElektrineWeb.Components.Platform.ENav. The extracted
-  # password manager app cannot import that component directly without creating
-  # a compile-time dependency on elektrine_web.
+  # Keep rendering local, but pull shared nav definitions from the base app so
+  # all pages stay in sync.
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-4"
   attr :current_user, :any, default: nil
@@ -557,75 +557,9 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     assigns =
       assigns
       |> assign(:items, nav_items())
-      |> assign(:section_label, if(assigns.current_user, do: "Modes", else: "Browse"))
       |> assign(:secondary_items, secondary_items(assigns.current_user))
 
-    ~H"""
-    <nav aria-label="Primary modes" class={["sticky top-16 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}>
-      <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="rounded-2xl border border-base-300 bg-base-100/95 shadow-sm backdrop-blur-sm">
-          <div class="px-2 py-2 sm:px-3 space-y-2">
-            <div class="overflow-x-auto">
-              <div class="flex min-w-max items-center gap-1 sm:gap-2">
-                <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                  {@section_label}
-                </div>
-
-                <%= for item <- @items do %>
-                  <.link
-                    href={item.href}
-                    aria-current={if @active_tab == item.id, do: "page", else: "false"}
-                    class={tab_class(@active_tab, item.id)}
-                    title={item.label}
-                  >
-                    <.icon
-                      name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
-                      class={icon_class(@active_tab, item.id)}
-                    />
-                    <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
-                  </.link>
-                <% end %>
-              </div>
-            </div>
-
-            <%= if @secondary_items != [] do %>
-              <div class="overflow-x-auto border-t border-base-300/80 pt-2">
-                <div class="flex min-w-max items-center gap-1 sm:gap-2">
-                  <div class="hidden pr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 lg:block">
-                    Account
-                  </div>
-
-                  <%= for item <- @secondary_items do %>
-                    <.link
-                      href={item.href}
-                      aria-current={if @active_tab == item.id, do: "page", else: "false"}
-                      class={secondary_tab_class(@active_tab, item.id)}
-                      title={item.label}
-                    >
-                      <.icon
-                        name={if @active_tab == item.id, do: item.active_icon, else: item.icon}
-                        class={icon_class(@active_tab, item.id)}
-                      />
-                      <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
-                    </.link>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </nav>
-    """
-  end
-
-  attr :name, :string, required: true
-  attr :class, :string, default: nil
-
-  defp icon(%{name: "hero-" <> _} = assigns) do
-    ~H"""
-    <span class={["ui-icon", @name, @class]} />
-    """
+    ENavComponent.render(assigns)
   end
 
   defp entry_form(user_id, attrs \\ %{}, action \\ nil) do
@@ -649,160 +583,14 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     end
   end
 
-  defp nav_items do
-    [
-      %{
-        id: "overview",
-        label: "Overview",
-        href: "/overview",
-        platform_module: nil,
-        icon: "hero-squares-2x2",
-        active_icon: "hero-squares-2x2-solid"
-      },
-      %{
-        id: "search",
-        label: "Search",
-        href: "/search",
-        platform_module: nil,
-        icon: "hero-magnifying-glass",
-        active_icon: "hero-magnifying-glass"
-      },
-      %{
-        id: "chat",
-        label: "Chat",
-        href: "/chat",
-        platform_module: :chat,
-        icon: "hero-chat-bubble-left-right",
-        active_icon: "hero-chat-bubble-left-right-solid"
-      },
-      %{
-        id: "timeline",
-        label: "Timeline",
-        href: "/timeline",
-        platform_module: :social,
-        icon: "hero-rectangle-stack",
-        active_icon: "hero-rectangle-stack-solid"
-      },
-      %{
-        id: "discussions",
-        label: "Communities",
-        href: "/communities",
-        platform_module: :social,
-        icon: "hero-chat-bubble-bottom-center-text",
-        active_icon: "hero-chat-bubble-bottom-center-text-solid"
-      },
-      %{
-        id: "gallery",
-        label: "Gallery",
-        href: "/gallery",
-        platform_module: :social,
-        icon: "hero-photo",
-        active_icon: "hero-photo-solid"
-      },
-      %{
-        id: "lists",
-        label: "Lists",
-        href: "/lists",
-        platform_module: :social,
-        icon: "hero-queue-list",
-        active_icon: "hero-queue-list-solid"
-      },
-      %{
-        id: "friends",
-        label: "Friends",
-        href: "/friends",
-        platform_module: :chat,
-        icon: "hero-user-group",
-        active_icon: "hero-user-group-solid"
-      },
-      %{
-        id: "email",
-        label: "Email",
-        href: "/email",
-        platform_module: :email,
-        icon: "hero-envelope",
-        active_icon: "hero-envelope-solid"
-      },
-      %{
-        id: "password_manager",
-        label: "Vault",
-        href: "/account/password-manager",
-        platform_module: :vault,
-        icon: "hero-key",
-        active_icon: "hero-key-solid"
-      },
-      %{
-        id: "vpn",
-        label: "VPN",
-        href: "/vpn",
-        platform_module: :vpn,
-        icon: "hero-shield-check",
-        active_icon: "hero-shield-check-solid"
-      }
-    ]
-    |> Enum.filter(&module_visible?/1)
-  end
+  defp nav_items, do: Elektrine.Platform.ENav.primary_items() |> Enum.filter(&module_visible?/1)
 
   defp secondary_items(nil), do: []
 
-  defp secondary_items(_current_user) do
-    [
-      %{
-        id: "account",
-        label: "Account",
-        href: "/account",
-        icon: "hero-cog-6-tooth",
-        active_icon: "hero-cog-6-tooth-solid"
-      },
-      %{
-        id: "profile",
-        label: "Profile",
-        href: "/account/profile/edit",
-        icon: "hero-user-circle",
-        active_icon: "hero-user-circle-solid"
-      },
-      %{
-        id: "storage",
-        label: "Storage",
-        href: "/account/storage",
-        icon: "hero-circle-stack",
-        active_icon: "hero-circle-stack-solid"
-      }
-    ]
-  end
+  defp secondary_items(_current_user), do: Elektrine.Platform.ENav.secondary_items()
 
   defp module_visible?(%{platform_module: nil}), do: true
   defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
-
-  defp tab_class(active_tab, tab_id) do
-    [
-      "group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
-      if(active_tab == tab_id,
-        do: "bg-base-200 text-base-content",
-        else: "text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
-      )
-    ]
-  end
-
-  defp secondary_tab_class(active_tab, tab_id) do
-    [
-      "group flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
-      if(active_tab == tab_id,
-        do: "bg-primary/10 text-base-content",
-        else: "text-base-content/65 hover:bg-base-200/80 hover:text-base-content"
-      )
-    ]
-  end
-
-  defp icon_class(active_tab, tab_id) do
-    [
-      "h-4 w-4 shrink-0 transition-colors",
-      if(active_tab == tab_id,
-        do: "text-primary",
-        else: "text-base-content/60 group-hover:text-base-content/85"
-      )
-    ]
-  end
 
   defp translate_error({message, opts}) do
     Regex.replace(~r"%{(\w+)}", message, fn _, key ->

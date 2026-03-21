@@ -13,6 +13,7 @@ defmodule ElektrineWeb.AuthLive.Register do
     changeset = registration_changeset(session, params)
     invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
     via_tor = via_tor_request?(socket, session)
+    registration_access = registration_access(session, params)
 
     registration_payment_product =
       if invite_codes_enabled, do: Subscriptions.get_active_registration_product(), else: nil
@@ -38,6 +39,7 @@ defmodule ElektrineWeb.AuthLive.Register do
         changeset: changeset,
         invite_codes_enabled: invite_codes_enabled,
         via_tor: via_tor,
+        registration_access: registration_access,
         registration_payment_product: registration_payment_product,
         registration_payment_price: format_registration_price(registration_payment_product),
         turnstile_site_key: site_key,
@@ -50,6 +52,7 @@ defmodule ElektrineWeb.AuthLive.Register do
   defp registration_changeset(session, params) do
     form_data = Map.get(session, "registration_form", %{})
     form_data = maybe_put_prefilled_invite_code(form_data, params)
+    form_data = maybe_put_prefilled_registration_access(form_data, session, params)
     validation_errors = Map.get(session, "registration_errors", %{})
 
     changeset =
@@ -59,6 +62,7 @@ defmodule ElektrineWeb.AuthLive.Register do
         :password,
         :password_confirmation,
         :invite_code,
+        :registration_access_token,
         :registration_ip,
         :registered_via_onion
       ])
@@ -92,6 +96,7 @@ defmodule ElektrineWeb.AuthLive.Register do
   defp registration_field("password"), do: :password
   defp registration_field("password_confirmation"), do: :password_confirmation
   defp registration_field("invite_code"), do: :invite_code
+  defp registration_field("registration_access_token"), do: :registration_access_token
   defp registration_field("agree_to_terms"), do: :agree_to_terms
   defp registration_field("captcha"), do: :captcha
   defp registration_field(field) when is_binary(field), do: String.to_existing_atom(field)
@@ -117,6 +122,47 @@ defmodule ElektrineWeb.AuthLive.Register do
 
   defp maybe_put_prefilled_invite_code(form_data, _params), do: form_data
 
+  defp maybe_put_prefilled_registration_access(form_data, session, params) do
+    access_token = params["access"] || session["registration_access_token"]
+
+    cond do
+      !is_binary(access_token) -> form_data
+      String.trim(access_token) == "" -> form_data
+      Map.get(form_data, "registration_access_token") -> form_data
+      true -> Map.put(form_data, "registration_access_token", String.trim(access_token))
+    end
+  end
+
+  defp registration_access(session, params) do
+    access_token = params["access"] || session["registration_access_token"]
+
+    case access_token do
+      token when is_binary(token) ->
+        lookup_token = String.trim(token)
+
+        if lookup_token == "" do
+          nil
+        else
+          case Subscriptions.get_registration_checkout_by_token(lookup_token) do
+            %{status: "fulfilled", redeemed_at: nil} = checkout ->
+              %{status: :ready, token: lookup_token, checkout: checkout}
+
+            %{status: "fulfilled"} ->
+              %{status: :used, token: lookup_token}
+
+            %{} ->
+              %{status: :pending, token: lookup_token}
+
+            nil ->
+              nil
+          end
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   defp format_registration_price(%Product{} = product) do
     Product.format_price(product.one_time_price_cents, product.currency)
   end
@@ -128,6 +174,22 @@ defmodule ElektrineWeb.AuthLive.Register do
     <div id="register-card" phx-hook="GlassCard" class="card glass-card shadow-xl max-w-md mx-auto">
       <div class="card-body">
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Register")}</h1>
+
+        <%= if @registration_access && @registration_access.status == :pending do %>
+          <div class="alert alert-info mb-4">
+            <.icon name="hero-arrow-path" class="w-5 h-5" />
+            <span>
+              {gettext("Your payment is still being confirmed. Refresh this page in a moment.")}
+            </span>
+          </div>
+        <% end %>
+
+        <%= if @registration_access && @registration_access.status == :used do %>
+          <div class="alert alert-warning mb-4">
+            <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+            <span>{gettext("This paid registration link has already been used.")}</span>
+          </div>
+        <% end %>
 
         <.simple_form
           :let={f}
@@ -172,13 +234,29 @@ defmodule ElektrineWeb.AuthLive.Register do
           />
 
           <%= if @invite_codes_enabled do %>
-            <.input
-              field={f[:invite_code]}
-              type="text"
-              label={gettext("Invite Code")}
-              placeholder={gettext("Enter your invite code")}
-              required
-            />
+            <%= if @registration_access && @registration_access.status == :ready do %>
+              <input
+                type="hidden"
+                name="user[registration_access_token]"
+                value={@registration_access.token}
+              />
+
+              <div class="alert alert-success mb-4">
+                <.icon name="hero-check-circle" class="w-5 h-5" />
+                <span>
+                  {gettext(
+                    "Paid access verified. You can create your account without an invite code."
+                  )}
+                </span>
+              </div>
+            <% else %>
+              <.input
+                field={f[:invite_code]}
+                type="text"
+                label={gettext("Invite Code")}
+                placeholder={gettext("Enter your invite code")}
+              />
+            <% end %>
           <% end %>
 
           <div class="form-control my-4">
@@ -284,9 +362,9 @@ defmodule ElektrineWeb.AuthLive.Register do
           <div class="rounded-box border border-base-300 bg-base-200/50 p-4 mt-4">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <div class="font-medium">{gettext("Need an invite code?")}</div>
+                <div class="font-medium">{gettext("No invite?")}</div>
                 <div class="text-sm opacity-70">
-                  {gettext("Pay once to get a single-use invite for registration.")}
+                  {gettext("Pay once to unlock registration without an invite code.")}
                 </div>
               </div>
               <%= if @registration_payment_price do %>
@@ -298,7 +376,7 @@ defmodule ElektrineWeb.AuthLive.Register do
 
             <.form for={%{}} action={~p"/register/purchase"} method="post" class="mt-3">
               <button type="submit" class="btn btn-outline btn-sm w-full">
-                {gettext("Buy Invite")}
+                {gettext("Pay One-Time Fee")}
               </button>
             </.form>
           </div>

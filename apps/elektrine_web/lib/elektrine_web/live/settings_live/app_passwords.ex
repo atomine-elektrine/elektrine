@@ -261,13 +261,12 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
           <h2 class="card-title text-lg mb-4">Existing App Passwords</h2>
 
           <%= if @app_passwords == [] do %>
-            <div class="text-center py-8">
-              <.icon name="hero-key" class="w-12 h-12 mx-auto text-base-content/20 mb-3" />
-              <p class="text-sm text-base-content/60">No app passwords created yet</p>
-              <p class="text-xs text-base-content/40 mt-1">
-                Create one above to connect your email client
-              </p>
-            </div>
+            <.empty_state
+              icon="hero-key"
+              title="No app passwords created yet"
+              description="Create one above to connect your email client"
+              size="sm"
+            />
           <% else %>
             <div class="overflow-x-auto">
               <table class="table">

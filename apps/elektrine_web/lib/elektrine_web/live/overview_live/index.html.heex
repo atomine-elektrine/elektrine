@@ -378,7 +378,10 @@
         <% else %>
           <div id="overview-posts-list" class="space-y-4">
             <%= for post <- @visible_overview_posts do %>
-              <div id={"overview-post-#{post.id}"} class="timeline-post-entry-stable">
+              <div
+                id={"overview-post-#{post.id}"}
+                class="timeline-post-entry-stable overview-post-entry"
+              >
                 <.live_component
                   module={ElektrineWeb.Components.Social.OverviewStreamPost}
                   id={"overview-stream-post-#{post.id}"}

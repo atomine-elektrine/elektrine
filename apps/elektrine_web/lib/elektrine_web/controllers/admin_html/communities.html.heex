@@ -1,43 +1,20 @@
 <div class="admin-page">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold">Community Management</h1>
-    <p class="text-base-content/70">Manage discussion communities and their members</p>
-  </div>
+  <.section_header
+    title="Community Management"
+    description="Manage discussion communities and their members."
+    class="mb-6"
+  />
   
 <!-- Stats Cards -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="stat bg-base-200 shadow rounded-lg">
-      <div class="stat-figure text-primary">
-        <.icon name="hero-user-group" class="w-8 h-8" />
-      </div>
-      <div class="stat-title text-xs">Total Communities</div>
-      <div class="stat-value text-2xl">{@stats.total}</div>
-    </div>
-
-    <div class="stat bg-base-200 shadow rounded-lg">
-      <div class="stat-figure text-success">
-        <.icon name="hero-globe-alt" class="w-8 h-8" />
-      </div>
-      <div class="stat-title text-xs">Public</div>
-      <div class="stat-value text-2xl text-success">{@stats.public}</div>
-    </div>
-
-    <div class="stat bg-base-200 shadow rounded-lg">
-      <div class="stat-figure text-warning">
-        <.icon name="hero-lock-closed" class="w-8 h-8" />
-      </div>
-      <div class="stat-title text-xs">Private</div>
-      <div class="stat-value text-2xl text-warning">{@stats.private}</div>
-    </div>
-
-    <div class="stat bg-base-200 shadow rounded-lg">
-      <div class="stat-figure text-accent">
-        <.icon name="hero-fire" class="w-8 h-8" />
-      </div>
-      <div class="stat-title text-xs">Active (7d)</div>
-      <div class="stat-value text-2xl text-accent">{@stats.active_7d}</div>
-    </div>
-  </div>
+  <.stats_row
+    class="mb-6 lg:grid-cols-4"
+    stats={[
+      %{label: "Total Communities", value: @stats.total},
+      %{label: "Public", value: @stats.public},
+      %{label: "Private", value: @stats.private},
+      %{label: "Active (7d)", value: @stats.active_7d}
+    ]}
+  />
   
 <!-- Search and Filters -->
   <div class="card glass-card shadow-xl mb-6">

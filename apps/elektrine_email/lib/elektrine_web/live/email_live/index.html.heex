@@ -290,7 +290,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=inbox"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "inbox",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -306,7 +306,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=unread"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "unread",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -319,7 +319,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=read"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "read",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -332,7 +332,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=digest"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "digest",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -348,7 +348,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=ledger"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "ledger",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -364,7 +364,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=stack"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "stack",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -380,7 +380,7 @@
                   <.link
                     patch={~p"/email?tab=inbox&filter=boomerang"}
                     class={[
-                      "btn btn-sm whitespace-nowrap",
+                      "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "boomerang",
                         do: "btn-secondary font-semibold shadow-sm",
                         else: "btn-ghost text-base-content/80 hover:text-secondary"
@@ -656,13 +656,16 @@
               <div class="flex-1 flex flex-col min-w-0 bg-base-200 rounded-lg shadow-lg border border-base-300 overflow-hidden">
                 <div class="border-b border-base-300 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
                   <div class="flex items-center gap-1 sm:gap-2">
-                    <button phx-click="prev_month" class="btn btn-ghost btn-sm btn-square">
+                    <button phx-click="prev_month" class="btn btn-ghost btn-sm rounded-full">
                       <.icon name="hero-chevron-left" class="w-5 h-5" />
                     </button>
-                    <button phx-click="next_month" class="btn btn-ghost btn-sm btn-square">
+                    <button phx-click="next_month" class="btn btn-ghost btn-sm rounded-full">
                       <.icon name="hero-chevron-right" class="w-5 h-5" />
                     </button>
-                    <button phx-click="today" class="btn btn-ghost btn-sm hidden sm:inline-flex">
+                    <button
+                      phx-click="today"
+                      class="btn btn-ghost btn-sm rounded-full hidden sm:inline-flex"
+                    >
                       {gettext("Today")}
                     </button>
                   </div>

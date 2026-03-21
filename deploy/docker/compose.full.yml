@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -37,15 +35,39 @@ services:
       PHX_HOST: ${PHX_HOST:-example.com}
       PHX_SERVER: "true"
       MIX_ENV: prod
+      ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
-      LETS_ENCRYPT_ENABLED: ${LETS_ENCRYPT_ENABLED:-false}
-      LETS_ENCRYPT_CERT_PATH: /etc/letsencrypt/live/${PHX_HOST:-example.com}/fullchain.pem
-      LETS_ENCRYPT_KEY_PATH: /etc/letsencrypt/live/${PHX_HOST:-example.com}/privkey.pem
     ports:
-      - "${APP_HTTP_BIND:-80:8080}"
-      - "${APP_HTTPS_BIND:-443:8443}"
+      - "${SMTP_TLS_BIND:-465:2587}"
+      - "${IMAP_TLS_BIND:-993:2143}"
+      - "${POP3_TLS_BIND:-995:2110}"
     volumes:
-      - letsencrypt:/etc/letsencrypt:ro
+      - uploads:/app/uploads
+      - app_data:/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        RELEASE_NAME: ${RELEASE_NAME:-elektrine}
+        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
+    container_name: elektrine_worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.production
+    environment:
+      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      PHX_HOST: ${PHX_HOST:-example.com}
+      MIX_ENV: prod
+      ELEKTRINE_RUNTIME_ROLE: worker
+      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
+    volumes:
       - uploads:/app/uploads
       - app_data:/data
     networks:
@@ -70,7 +92,7 @@ services:
       - "${CADDY_HTTP_BIND:-80:80}"
       - "${CADDY_HTTPS_BIND:-443:443}"
     volumes:
-      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../caddy/Caddyfile.baremetal:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     networks:
       - elektrine_network
@@ -106,7 +128,6 @@ services:
 
 volumes:
   postgres_data:
-  letsencrypt:
   uploads:
   app_data:
   caddy_data:

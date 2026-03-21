@@ -1,7 +1,7 @@
 /**
  * Glass Card Effect
  *
- * Apple-like glass effect with gradient glow following cursor.
+ * Glass effect with gradient glow following cursor.
  * Works for both LiveView (via hooks) and regular pages (via vanilla JS).
  */
 

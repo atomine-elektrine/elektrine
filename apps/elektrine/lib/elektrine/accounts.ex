@@ -31,6 +31,7 @@ defmodule Elektrine.Accounts do
   alias Elektrine.Accounts.MultiAccount
   alias Elektrine.Accounts.Muting
   alias Elektrine.Accounts.Tracking
+  alias Elektrine.Subscriptions.RegistrationCheckout
 
   require Logger
 
@@ -540,6 +541,41 @@ defmodule Elektrine.Accounts do
 
       {:error, :invite_use, reason, _changes_so_far} ->
         {:error, invite_registration_changeset(attrs, reason)}
+    end
+  end
+
+  @doc """
+  Registers a new user using either a valid invite code or a fulfilled paid registration checkout.
+  """
+  def register_user_with_access(attrs) do
+    invite_code = extract_invite_code(attrs)
+    registration_access_token = extract_registration_access_token(attrs)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:user, User.registration_changeset(%User{}, attrs))
+    |> Ecto.Multi.run(:registration_access, fn repo, %{user: user} ->
+      cond do
+        !blank_invite_code?(invite_code) ->
+          claim_invite_code(repo, invite_code, user.id)
+
+        !blank_registration_access_token?(registration_access_token) ->
+          claim_registration_checkout(repo, registration_access_token, user.id)
+
+        true ->
+          {:error, :invite_or_payment_required}
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{user: user}} ->
+        maybe_create_user_mailbox(user)
+        {:ok, Repo.get!(User, user.id)}
+
+      {:error, :user, changeset, _changes_so_far} ->
+        {:error, changeset}
+
+      {:error, :registration_access, reason, _changes_so_far} ->
+        {:error, access_registration_changeset(attrs, reason)}
     end
   end
 
@@ -1155,6 +1191,48 @@ defmodule Elektrine.Accounts do
     |> repo.insert()
   end
 
+  defp claim_registration_checkout(repo, lookup_token, user_id) do
+    case get_registration_checkout_for_update(repo, lookup_token) do
+      nil ->
+        {:error, :invalid_registration_access}
+
+      %RegistrationCheckout{} = checkout ->
+        case registration_checkout_validation_error(checkout) do
+          nil ->
+            checkout
+            |> RegistrationCheckout.fulfill_changeset(%{
+              redeemed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+              redeemed_by_user_id: user_id
+            })
+            |> repo.update()
+            |> case do
+              {:ok, updated_checkout} -> {:ok, updated_checkout}
+              {:error, _changeset} -> {:error, :invalid_registration_access}
+            end
+
+          reason ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp get_registration_checkout_for_update(repo, lookup_token) do
+    normalized_token = String.trim(to_string(lookup_token))
+
+    RegistrationCheckout
+    |> where([c], c.lookup_token == ^normalized_token)
+    |> lock("FOR UPDATE")
+    |> repo.one()
+  end
+
+  defp registration_checkout_validation_error(%RegistrationCheckout{} = checkout) do
+    cond do
+      checkout.status != "fulfilled" -> :registration_payment_pending
+      not is_nil(checkout.redeemed_at) -> :registration_access_already_used
+      true -> nil
+    end
+  end
+
   defp increment_invite_code_usage(repo, invite_code_id) do
     from(i in InviteCode,
       where: i.id == ^invite_code_id and i.uses_count < i.max_uses
@@ -1182,6 +1260,30 @@ defmodule Elektrine.Accounts do
     |> Ecto.Changeset.add_error(:invite_code, invite_code_error_message(reason))
   end
 
+  defp access_registration_changeset(attrs, reason) do
+    changeset = User.registration_changeset(%User{}, attrs)
+
+    case reason do
+      reason
+      when reason in [
+             :invalid_code,
+             :code_expired,
+             :code_exhausted,
+             :code_inactive,
+             :monthly_invite_use_limit_reached,
+             :already_used
+           ] ->
+        Ecto.Changeset.add_error(changeset, :invite_code, invite_code_error_message(reason))
+
+      _ ->
+        Ecto.Changeset.add_error(
+          changeset,
+          :registration_access_token,
+          registration_access_error_message(reason)
+        )
+    end
+  end
+
   defp invite_code_error_message(:invalid_code), do: "Invalid invite code"
   defp invite_code_error_message(:code_expired), do: "This invite code has expired"
 
@@ -1198,12 +1300,35 @@ defmodule Elektrine.Accounts do
 
   defp invite_code_error_message(_reason), do: "Invalid invite code"
 
+  defp registration_access_error_message(:registration_payment_pending),
+    do: "Your payment is still being confirmed. Please refresh and try again in a moment"
+
+  defp registration_access_error_message(:registration_access_already_used),
+    do: "This paid registration access has already been used"
+
+  defp registration_access_error_message(:invite_or_payment_required),
+    do: "An invite code or paid access is required to create an account"
+
+  defp registration_access_error_message(:invalid_registration_access),
+    do: "Paid registration access could not be verified"
+
+  defp registration_access_error_message(_reason),
+    do: "An invite code or paid access is required to create an account"
+
   defp extract_invite_code(attrs) when is_map(attrs) do
     Map.get(attrs, "invite_code") || Map.get(attrs, :invite_code)
   end
 
+  defp extract_registration_access_token(attrs) when is_map(attrs) do
+    Map.get(attrs, "registration_access_token") || Map.get(attrs, :registration_access_token)
+  end
+
   defp blank_invite_code?(code) do
     is_nil(code) or String.trim(to_string(code)) == ""
+  end
+
+  defp blank_registration_access_token?(token) do
+    is_nil(token) or String.trim(to_string(token)) == ""
   end
 
   defp ensure_self_service_invites_enabled do

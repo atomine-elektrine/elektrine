@@ -195,83 +195,95 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         </div>
       <% end %>
 
-      <div
-        id={"#{@id_prefix}-card-#{@post.id}"}
-        class={[
-          "card glass-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer hover:shadow-md transition-shadow",
-          if(@has_thread_context, do: "ml-6 border border-primary/25"),
-          if(@is_reply,
-            do: "border-l-4 border-l-error bg-error/5 border-t border-r border-b border-base-300",
-            else: "border border-base-300"
-          )
-        ]}
-        data-post-id={@post.id}
-        data-source={@source}
-        phx-hook="PostClick"
-        data-click-event={@click_event}
-        data-id={@post.id}
-        data-url={
-          if @post.federated && @post.activitypub_id,
-            do: URI.encode_www_form(@post.activitypub_id),
-            else: nil
-        }
-      >
-        <div class="card-body timeline-post-card-body p-4 min-w-0">
-          <!-- Boosted By Indicator -->
-          <.boost_indicator post={@post} />
-          
+      <div class="relative">
+        <div
+          id={"#{@id_prefix}-card-#{@post.id}"}
+          class={[
+            "card glass-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer overflow-visible relative z-0 hover:shadow-md transition-shadow",
+            if(@has_thread_context, do: "ml-6 border border-primary/25"),
+            if(@is_reply,
+              do: "border-l-4 border-l-error bg-error/5 border-t border-r border-b border-base-300",
+              else: "border border-base-300"
+            )
+          ]}
+          data-post-id={@post.id}
+          data-source={@source}
+          phx-hook="PostClick"
+          data-click-event={@click_event}
+          data-id={@post.id}
+          data-url={
+            if @post.federated && @post.activitypub_id,
+              do: URI.encode_www_form(@post.activitypub_id),
+              else: nil
+          }
+        >
+          <div class="card-body timeline-post-card-body p-4 min-w-0 overflow-visible">
+            <!-- Boosted By Indicator -->
+            <.boost_indicator post={@post} />
+            
     <!-- Post Header -->
-          <.post_header
-            post={@post}
-            current_user={@current_user}
-            timezone={@timezone}
-            time_format={@time_format}
-            user_statuses={@user_statuses}
-            id_prefix={@id_prefix}
-            on_navigate_profile={@on_navigate_profile}
-            show_admin_actions={@show_admin_actions}
-            show_post_dropdown={@show_post_dropdown}
-          />
-          
-    <!-- Content Journey Trail -->
-          <.content_journey message={@post} context={@source} />
-          
-    <!-- Post Content -->
-          <.post_content
-            post={@post}
-            current_user={@current_user}
-            is_gallery_post={@is_gallery_post}
-            on_image_click={@on_image_click}
-          />
-          
-    <!-- Post Actions -->
-          <.post_footer
-            post={@post}
-            current_user={@current_user}
-            user_likes={@user_likes}
-            user_boosts={@user_boosts}
-            user_saves={@user_saves}
-            user_follows={@user_follows}
-            pending_follows={@pending_follows}
-            remote_follow_overrides={@remote_follow_overrides}
-            display_like_count={@display_like_count}
-            display_comment_count={@display_comment_count}
-            show_follow_button={@show_follow_button}
-            show_view_button={@show_view_button}
-            on_comment={@on_comment}
-            show_quote_button={@show_quote_button}
-            show_save_button={@show_save_button}
-          />
-          
-    <!-- Emoji Reactions -->
-          <div class="mt-2 pt-2 border-t border-base-200" phx-click="stop_propagation">
-            <.post_reactions
-              post_id={@post.id}
-              reactions={@reactions}
+            <.post_header
+              post={@post}
               current_user={@current_user}
-              size={:xs}
+              timezone={@timezone}
+              time_format={@time_format}
+              user_statuses={@user_statuses}
+              id_prefix={@id_prefix}
+              on_navigate_profile={@on_navigate_profile}
+              show_admin_actions={@show_admin_actions}
+              show_post_dropdown={false}
             />
+            
+    <!-- Content Journey Trail -->
+            <.content_journey message={@post} context={@source} />
+            
+    <!-- Post Content -->
+            <.post_content
+              post={@post}
+              current_user={@current_user}
+              is_gallery_post={@is_gallery_post}
+              on_image_click={@on_image_click}
+            />
+            
+    <!-- Post Actions -->
+            <.post_footer
+              post={@post}
+              current_user={@current_user}
+              user_likes={@user_likes}
+              user_boosts={@user_boosts}
+              user_saves={@user_saves}
+              user_follows={@user_follows}
+              pending_follows={@pending_follows}
+              remote_follow_overrides={@remote_follow_overrides}
+              display_like_count={@display_like_count}
+              display_comment_count={@display_comment_count}
+              show_follow_button={@show_follow_button}
+              show_view_button={@show_view_button}
+              on_comment={@on_comment}
+              show_quote_button={@show_quote_button}
+              show_save_button={@show_save_button}
+            />
+            
+    <!-- Emoji Reactions -->
+            <div class="mt-2 pt-2 border-t border-base-200" phx-click="stop_propagation">
+              <.post_reactions
+                post_id={@post.id}
+                reactions={@reactions}
+                current_user={@current_user}
+                size={:xs}
+              />
+            </div>
           </div>
+
+          <%= if @current_user && @show_post_dropdown do %>
+            <div class="absolute right-4 top-4 z-[320]" phx-click="stop_propagation">
+              <.post_dropdown
+                post={@post}
+                current_user={@current_user}
+                show_admin_actions={@show_admin_actions}
+              />
+            </div>
+          <% end %>
         </div>
       </div>
     </div>
@@ -348,7 +360,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
   defp post_header(assigns) do
     ~H"""
-    <div class="flex items-center gap-3 mb-3">
+    <div class="flex items-center gap-3 mb-3 overflow-visible relative z-10 pr-10">
       <%= if @post.federated && Ecto.assoc_loaded?(@post.remote_actor) && @post.remote_actor do %>
         <!-- Remote federated post -->
         <.remote_author_header
@@ -547,7 +559,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   defp post_dropdown(assigns) do
     ~H"""
     <div
-      class="dropdown timeline-post-dropdown dropdown-end ml-auto flex-shrink-0"
+      class="dropdown timeline-post-dropdown dropdown-end flex-shrink-0"
       id={"post-dropdown-#{@post.id}"}
     >
       <label tabindex="0" class="btn btn-ghost btn-xs btn-square h-7 w-7 min-h-0 sm:h-8 sm:w-8">

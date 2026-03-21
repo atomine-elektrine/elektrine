@@ -1,13 +1,17 @@
 <div class="flex flex-col gap-4">
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold">Account Deletion Requests</h1>
-  </div>
+  <.section_header
+    title="Account Deletion Requests"
+    description="Review pending requests to permanently remove user accounts."
+    class="mb-6"
+  />
 
   <%= if Enum.empty?(@requests) do %>
-    <div class="alert alert-info">
-      <.icon name="hero-information-circle" class="h-6 w-6" />
-      <span>No account deletion requests found.</span>
-    </div>
+    <.empty_state
+      icon="hero-information-circle"
+      title="No account deletion requests found"
+      description="New requests will appear here when users submit them."
+      size="sm"
+    />
   <% else %>
     <div class="overflow-x-auto">
       <table class="table table-zebra w-full">

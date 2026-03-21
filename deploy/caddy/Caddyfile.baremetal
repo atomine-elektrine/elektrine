@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL}
+	storage file_system /data/caddy
+
+	on_demand_tls {
+		ask {$CADDY_ASK_URL}?token={$CADDY_EDGE_API_KEY}
+	}
+}
+
+http:// {
+	redir https://{host}{uri} 308
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+
+	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}

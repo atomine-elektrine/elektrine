@@ -10,6 +10,7 @@ defmodule ElektrineWeb.EmailLive.Index do
   alias Elektrine.Email
   alias Elektrine.Email.Cached
   alias Elektrine.Email.RateLimiter
+  alias Elektrine.Telemetry.Events
   alias ElektrineWeb.EmailLive.Router
 
   require Logger
@@ -222,6 +223,7 @@ defmodule ElektrineWeb.EmailLive.Index do
 
   @impl true
   def handle_info(:load_sidebar_data, socket) do
+    started_at = System.monotonic_time(:millisecond)
     user = socket.assigns.current_user
     mailbox = socket.assigns.mailbox
 
@@ -252,6 +254,13 @@ defmodule ElektrineWeb.EmailLive.Index do
     if storage_info && storage_info.used_bytes == 0 do
       Task.start(fn -> Elektrine.Accounts.Storage.update_user_storage(user.id) end)
     end
+
+    Events.db_hot_path(
+      :email_live,
+      :load_sidebar_data,
+      System.monotonic_time(:millisecond) - started_at,
+      %{user_id: user.id, mailbox_id: mailbox.id}
+    )
 
     {:noreply,
      socket
@@ -393,6 +402,7 @@ defmodule ElektrineWeb.EmailLive.Index do
   end
 
   defp load_tab_content(socket, tab, params, page \\ 1) do
+    started_at = System.monotonic_time(:millisecond)
     mailbox = socket.assigns.mailbox
     user = socket.assigns.current_user
     per_page = 20
@@ -596,6 +606,13 @@ defmodule ElektrineWeb.EmailLive.Index do
 
     grouped_messages = group_messages_for_list(socket.assigns[:messages] || [], tab)
 
+    Events.db_hot_path(
+      :email_live,
+      :load_tab_content,
+      System.monotonic_time(:millisecond) - started_at,
+      %{tab: tab, page: page, mailbox_id: mailbox.id}
+    )
+
     socket
     |> assign(:messages, grouped_messages)
     |> assign(:selected_messages, [])
@@ -656,6 +673,7 @@ defmodule ElektrineWeb.EmailLive.Index do
   defp maybe_open_calendar_composer(socket, "calendar", %{"composer" => composer})
        when composer in ["event", "task"] do
     {:noreply, socket} = handle_calendar_event("new_event", %{"template" => composer}, socket)
+
     socket
   end
 

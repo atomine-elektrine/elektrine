@@ -9,11 +9,14 @@ defmodule Elektrine.Notifications do
   alias Elektrine.Messaging.Message
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
+  alias Elektrine.Telemetry.Events
 
   @doc """
   Creates a notification.
   """
   def create_notification(attrs \\ %{}) do
+    started_at = System.monotonic_time(:millisecond)
+
     notification =
       %Notification{}
       |> Notification.changeset(attrs)
@@ -33,6 +36,13 @@ defmodule Elektrine.Notifications do
 
         # Also broadcast count update
         new_count = get_unread_count(notif.user_id)
+
+        Events.db_hot_path(
+          :notifications,
+          :create_notification,
+          System.monotonic_time(:millisecond) - started_at,
+          %{user_id: notif.user_id, type: notif.type}
+        )
 
         Phoenix.PubSub.broadcast(
           Elektrine.PubSub,
@@ -271,14 +281,32 @@ defmodule Elektrine.Notifications do
   Gets unread notification count for a user.
   """
   def get_unread_count(user_id) do
+    started_at = System.monotonic_time(:millisecond)
+
     case Elektrine.AppCache.get_notification_unread_count(user_id, fn ->
            query_unread_count(user_id)
          end) do
       {:ok, count} ->
+        Events.db_hot_path(
+          :notifications,
+          :get_unread_count,
+          System.monotonic_time(:millisecond) - started_at,
+          %{user_id: user_id, cache: :hit}
+        )
+
         count
 
       _ ->
-        query_unread_count(user_id)
+        count = query_unread_count(user_id)
+
+        Events.db_hot_path(
+          :notifications,
+          :get_unread_count,
+          System.monotonic_time(:millisecond) - started_at,
+          %{user_id: user_id, cache: :miss}
+        )
+
+        count
     end
   end
 

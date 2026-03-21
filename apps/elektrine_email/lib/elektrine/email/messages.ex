@@ -10,6 +10,7 @@ defmodule Elektrine.Email.Messages do
   alias Elektrine.Email.{CacheHooks, Mailbox, MailboxEncryption, Message}
   alias Elektrine.JMAP
   alias Elektrine.Repo
+  alias Elektrine.Telemetry.Events
 
   # Private helper to decrypt email messages
   defp decrypt_email_messages(messages, mailbox_id) when is_list(messages) do
@@ -910,12 +911,18 @@ defmodule Elektrine.Email.Messages do
   Returns the unread message count for a mailbox.
   """
   def unread_count(mailbox_id) do
-    Message
-    |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
-    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-    |> where([m], m.category not in ["feed", "ledger", "stack"])
-    |> where([m], is_nil(m.reply_later_at))
-    |> Repo.aggregate(:count)
+    started_at = System.monotonic_time(:millisecond)
+
+    count =
+      Message
+      |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
+      |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
+      |> where([m], m.category not in ["feed", "ledger", "stack"])
+      |> where([m], is_nil(m.reply_later_at))
+      |> Repo.aggregate(:count)
+
+    emit_db_hot_path(:email_messages, :unread_count, started_at, %{mailbox_id: mailbox_id})
+    count
   end
 
   # Broadcasts an unread count update for a mailbox.
@@ -999,6 +1006,8 @@ defmodule Elektrine.Email.Messages do
   Returns a map with keys: :inbox, :feed, :ledger, :stack, :reply_later
   """
   def get_all_unread_counts(mailbox_id) do
+    started_at = System.monotonic_time(:millisecond)
+
     result =
       Message
       |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
@@ -1015,7 +1024,20 @@ defmodule Elektrine.Email.Messages do
       })
       |> Repo.one()
 
+    emit_db_hot_path(:email_messages, :get_all_unread_counts, started_at, %{
+      mailbox_id: mailbox_id
+    })
+
     result || %{inbox: 0, feed: 0, ledger: 0, stack: 0, reply_later: 0}
+  end
+
+  defp emit_db_hot_path(component, operation, started_at, metadata) do
+    Events.db_hot_path(
+      component,
+      operation,
+      System.monotonic_time(:millisecond) - started_at,
+      metadata
+    )
   end
 
   @doc """

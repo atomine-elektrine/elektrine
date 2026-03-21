@@ -621,6 +621,13 @@ defmodule ElektrineWeb.ProfileLive.Show do
     user_badges = Task.await(badges_task, 5000)
     discord_data = Task.await(discord_task, 5000)
 
+    pinned_post_ids = MapSet.new(Enum.map(pinned_posts, & &1.id))
+
+    timeline_posts =
+      timeline_posts
+      |> Enum.reject(&MapSet.member?(pinned_post_ids, &1.id))
+      |> group_reply_chains()
+
     {:noreply,
      socket
      |> assign(:user_timeline_posts, timeline_posts)
@@ -722,4 +729,37 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
     {to_string(ip_address), to_string(user_agent), referer}
   end
+
+  defp group_reply_chains(posts) when is_list(posts) do
+    ids_in_feed = MapSet.new(Enum.map(posts, & &1.id))
+
+    local_parent_ids =
+      posts |> Enum.map(& &1.reply_to_id) |> Enum.filter(&is_integer/1) |> MapSet.new()
+
+    thread_keys_by_id =
+      Enum.reduce(posts, %{}, fn post, acc ->
+        key =
+          cond do
+            is_integer(post.reply_to_id) and MapSet.member?(ids_in_feed, post.reply_to_id) ->
+              {:thread, post.reply_to_id}
+
+            MapSet.member?(local_parent_ids, post.id) ->
+              {:thread, post.id}
+
+            true ->
+              {:post, post.id}
+          end
+
+        Map.put(acc, post.id, key)
+      end)
+
+    posts
+    |> Enum.group_by(fn post -> Map.get(thread_keys_by_id, post.id, {:post, post.id}) end)
+    |> Enum.map(fn {_key, grouped_posts} ->
+      Enum.max_by(grouped_posts, &{&1.inserted_at, &1.id})
+    end)
+    |> Enum.sort_by(&{&1.inserted_at, &1.id}, {:desc, NaiveDateTime})
+  end
+
+  defp group_reply_chains(posts), do: posts
 end

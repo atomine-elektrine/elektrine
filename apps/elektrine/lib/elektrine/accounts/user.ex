@@ -12,6 +12,7 @@ defmodule Elektrine.Accounts.User do
     field :password_confirmation, :string, virtual: true
     field :current_password, :string, virtual: true
     field :invite_code, :string, virtual: true
+    field :registration_access_token, :string, virtual: true
     field :avatar, :string
     field :avatar_size, :integer, default: 0
     field :is_admin, :boolean, default: false
@@ -147,6 +148,7 @@ defmodule Elektrine.Accounts.User do
       :password,
       :password_confirmation,
       :invite_code,
+      :registration_access_token,
       :registration_ip,
       :registered_via_onion
     ])

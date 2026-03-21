@@ -173,6 +173,22 @@ defmodule Elektrine.Telemetry.Events do
     :ok
   end
 
+  @spec db_hot_path(atom() | binary(), atom() | binary(), integer() | nil, map()) :: :ok
+  def db_hot_path(component, operation, duration_ms \\ nil, metadata \\ %{}) do
+    :telemetry.execute(
+      [:elektrine, :db, :hot_path],
+      base_measurements(duration_ms),
+      metadata
+      |> Map.merge(%{
+        component: normalize_tag(component),
+        operation: normalize_tag(operation)
+      })
+      |> normalize_metadata()
+    )
+
+    :ok
+  end
+
   defp base_measurements(nil), do: %{count: 1}
   defp base_measurements(duration_ms), do: %{count: 1, duration: duration_ms}
 

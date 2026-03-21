@@ -35,25 +35,22 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   def render(assigns) do
     ~H"""
     <div class="admin-page">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-warning/80">
-            Moderation
-          </div>
-          <h1 class="mt-2 text-3xl font-semibold tracking-tight">Reports</h1>
-          <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70 sm:text-base">
-            Review, triage, and resolve user reports across messages, users, and conversations.
-          </p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <.link href={~p"/pripyat/content-moderation"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Moderation Queue
-          </.link>
-          <.link href={~p"/pripyat/content-moderation?type=chat"} class="btn btn-sm btn-ghost">
-            <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Chat Queue
-          </.link>
-        </div>
-      </div>
+      <.section_header
+        eyebrow="Moderation"
+        title="Reports"
+        description="Review, triage, and resolve user reports across messages, users, and conversations."
+      >
+        <:actions>
+          <.action_toolbar>
+            <.link href={~p"/pripyat/content-moderation"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Moderation Queue
+            </.link>
+            <.link href={~p"/pripyat/content-moderation?type=chat"} class="btn btn-sm btn-ghost">
+              <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Chat Queue
+            </.link>
+          </.action_toolbar>
+        </:actions>
+      </.section_header>
 
       <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <button
@@ -219,16 +216,12 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
       <div class="card glass-card">
         <div class="card-body p-0">
           <%= if @reports == [] do %>
-            <div class="p-10 text-center">
-              <.icon
-                name="hero-document-magnifying-glass"
-                class="w-12 h-12 mx-auto mb-3 text-base-content/40"
-              />
-              <h3 class="text-lg font-semibold">No reports found</h3>
-              <p class="text-sm text-base-content/70 mt-1">
-                Try a different status/type/priority combination.
-              </p>
-            </div>
+            <.empty_state
+              icon="hero-document-magnifying-glass"
+              title="No reports found"
+              description="Try a different status/type/priority combination."
+              size="sm"
+            />
           <% else %>
             <div class="hidden lg:block overflow-x-auto overflow-y-visible">
               <table class="table table-zebra">
