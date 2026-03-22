@@ -66,7 +66,7 @@ defmodule ElektrineWeb.ProfileController do
     handle =
       Map.get(params, "handle") || conn.assigns[:subdomain_handle]
 
-    if !is_binary(handle) or handle == "" do
+    if !is_binary(handle) or handle == "" or not String.valid?(handle) do
       conn
       |> put_status(:not_found)
       |> put_view(html: ElektrineWeb.ErrorHTML)
