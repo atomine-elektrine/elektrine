@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: elektrine_db
     environment:
       POSTGRES_USER: elektrine
@@ -26,6 +26,10 @@ services:
       args:
         RELEASE_NAME: ${RELEASE_NAME:-elektrine}
         ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-chat,social,vault}
+        PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-localhost}
+        EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-localhost}}
+        SUPPORTED_DOMAINS: ${SUPPORTED_DOMAINS:-${PRIMARY_DOMAIN:-localhost}}
+        PROFILE_BASE_DOMAINS: ${PROFILE_BASE_DOMAINS:-${PRIMARY_DOMAIN:-localhost}}
     container_name: elektrine_app
     depends_on:
       postgres:

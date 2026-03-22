@@ -16,17 +16,18 @@ another does not reuse stale compiled app manifests.
 `deploy/docker/Dockerfile` also uses `scripts/release/deploy_release.sh`, so container builds now
 go through `release_builder/` by default instead of the root umbrella release.
 
-## Fly Deploy
+## Docker deploy
 
-Use the Fly wrapper for module-specific deployments:
+Use the Docker wrapper for module-specific deployments:
 
 ```bash
-scripts/deploy/fly_deploy.sh --modules chat,social --app your-fly-app
+scripts/deploy/docker_deploy.sh --modules chat,social --profile caddy
 ```
 
-It renders a temporary Fly config that matches the selected module set, updates
-`ELEKTRINE_RELEASE_MODULES` and `ELEKTRINE_ENABLED_MODULES`, and removes the
-POP3/IMAP/SMTP service blocks when `email` is not selected.
+It renders a temporary Compose file that matches the selected module set,
+updates `ELEKTRINE_RELEASE_MODULES`, `ELEKTRINE_ENABLED_MODULES`, and
+`ELEKTRINE_ENABLE_MAIL`, and removes POP3/IMAP/SMTP port bindings when `email`
+is not selected.
 
 ## Supported module ids
 

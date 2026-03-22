@@ -11,6 +11,7 @@ Start with `core`, then add only the pieces you actually need.
 
 Guides:
 
+- `docker.md`
 - `core.md`
 - `mail.md`
 - `vpn.md`

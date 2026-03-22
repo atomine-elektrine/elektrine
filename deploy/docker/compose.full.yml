@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: elektrine_db
     environment:
       POSTGRES_USER: elektrine
@@ -24,6 +24,10 @@ services:
       args:
         RELEASE_NAME: ${RELEASE_NAME:-elektrine}
         ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
+        PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-example.com}
+        EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-example.com}}
+        SUPPORTED_DOMAINS: ${SUPPORTED_DOMAINS:-${PRIMARY_DOMAIN:-example.com}}
+        PROFILE_BASE_DOMAINS: ${PROFILE_BASE_DOMAINS:-${PRIMARY_DOMAIN:-example.com}}
     container_name: elektrine_app
     depends_on:
       postgres:
@@ -37,10 +41,17 @@ services:
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
+      ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # BEGIN EMAIL PORTS
     ports:
+      - "${APP_HTTP_BIND:-127.0.0.1:8080:8080}"
       - "${SMTP_TLS_BIND:-465:2587}"
       - "${IMAP_TLS_BIND:-993:2143}"
       - "${POP3_TLS_BIND:-995:2110}"
+    # END EMAIL PORTS
     volumes:
       - uploads:/app/uploads
       - app_data:/data
@@ -55,6 +66,10 @@ services:
       args:
         RELEASE_NAME: ${RELEASE_NAME:-elektrine}
         ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
+        PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-example.com}
+        EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-example.com}}
+        SUPPORTED_DOMAINS: ${SUPPORTED_DOMAINS:-${PRIMARY_DOMAIN:-example.com}}
+        PROFILE_BASE_DOMAINS: ${PROFILE_BASE_DOMAINS:-${PRIMARY_DOMAIN:-example.com}}
     container_name: elektrine_worker
     depends_on:
       postgres:
@@ -67,6 +82,10 @@ services:
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: worker
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
+      ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - uploads:/app/uploads
       - app_data:/data

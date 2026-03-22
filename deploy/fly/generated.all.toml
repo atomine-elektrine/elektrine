@@ -47,9 +47,9 @@ kill_signal = 'SIGTERM'
   MIGRATION_RETRY_DELAY_MS = '3000'
 
 # =========================================================================
-# Internal web upstream for the Caddy edge app
-# Public web traffic should terminate at deploy/fly/caddy-edge.toml and proxy
-# to this service over Fly private networking on port 8080.
+# Web service for the app process.
+# Caddy edge still proxies to this app over Fly private networking on port 8080,
+# but Fly now requires every [[services]] block to declare at least one port.
 # =========================================================================
 [[services]]
   processes = ['app']
@@ -58,6 +58,14 @@ kill_signal = 'SIGTERM'
   auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
 
   [[services.http_checks]]
     interval = '30s'

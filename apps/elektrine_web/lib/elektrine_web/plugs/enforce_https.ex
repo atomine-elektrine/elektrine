@@ -11,7 +11,14 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
 
   @behaviour Plug
 
-  @http_allowed_paths ["/health", "/_edge/tls/v1/allow"]
+  @http_allowed_paths [
+    "/health",
+    "/_edge/tls/v1/allow",
+    "/api/haraka/inbound",
+    "/api/haraka/verify-recipient",
+    "/api/haraka/auth",
+    "/api/haraka/domains"
+  ]
 
   @impl Plug
   def init(opts), do: opts

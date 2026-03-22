@@ -71,21 +71,28 @@ defmodule ElektrineWeb.PageLive.Home do
         </header>
 
         <main class="flex flex-1 items-center py-8 lg:py-10">
-          <div class="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div class="grid w-full items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_23rem]">
             <section class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
-              <div class="card-body gap-6 p-6 sm:p-8">
+              <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
                 <div class="space-y-4">
-                  <p class="text-xs uppercase tracking-[0.24em] opacity-60">
-                    For operators
-                  </p>
-                  <h1 class="text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                    Software you can own.
-                  </h1>
-                  <p class="max-w-xl text-base leading-7 text-base-content/70 sm:text-lg">
-                    Elektrine is a modular platform for operators who want to run internet
-                    services under their own control.
-                  </p>
+                  <div class="inline-flex items-center rounded-full border border-base-300 bg-base-200/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-base-content/65">
+                    The Elektrine Doctrine
+                  </div>
+                  <div class="space-y-4">
+                    <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
+                      Infrastructure for sovereignty.
+                    </h1>
+                    <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
+                      Elektrine is a modular platform for people who want to run communications,
+                      identity, and infrastructure under their own control.
+                    </p>
+                  </div>
                 </div>
+
+                <p class="max-w-2xl text-sm leading-6 text-base-content/58 sm:text-base">
+                  Self-hostable by default. Modular and composable by design. Built for people
+                  who want their services, identity, and infrastructure to remain theirs.
+                </p>
 
                 <div class="flex flex-wrap items-center gap-3">
                   <%= if @current_user do %>
@@ -113,7 +120,7 @@ defmodule ElektrineWeb.PageLive.Home do
                   <% end %>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-4 text-sm text-base-content/60">
+                <div class="flex flex-wrap items-center gap-4 border-t border-base-300/80 pt-5 text-sm text-base-content/60">
                   <.link
                     href={github_repo_url()}
                     target="_blank"
@@ -145,26 +152,52 @@ defmodule ElektrineWeb.PageLive.Home do
               </div>
             </section>
 
-            <section class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
-              <div class="card-body gap-4 p-4 sm:p-5">
-                <p class="text-xs uppercase tracking-[0.22em] opacity-60">Modules</p>
-
-                <div class="space-y-2">
-                  <%= for module <- home_modules() do %>
-                    <div class="flex items-center rounded-lg border border-base-300 bg-base-200/45 px-3 py-3">
-                      <div class="flex items-center gap-3">
-                        <div class="rounded-lg border border-base-300 bg-base-200 p-2">
-                          <.icon name={module.icon} class="h-4 w-4 opacity-80" />
-                        </div>
-                        <div>
-                          <p class="text-sm font-medium text-white">{module.name}</p>
-                          <p class="text-xs uppercase tracking-[0.18em] opacity-50">
-                            {module.detail}
-                          </p>
-                        </div>
+            <section class="space-y-4">
+              <div class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
+                <div class="card-body gap-3 p-4 sm:p-5">
+                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">Principles</p>
+                  <div class="space-y-3">
+                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
+                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Ownership</div>
+                      <div class="mt-1 text-sm font-medium text-white">Host it yourself</div>
+                    </div>
+                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
+                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Composition</div>
+                      <div class="mt-1 text-sm font-medium text-white">
+                        Compose only what you need
                       </div>
                     </div>
-                  <% end %>
+                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
+                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Identity</div>
+                      <div class="mt-1 text-sm font-medium text-white">
+                        Accounts and domains stay yours
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
+                <div class="card-body gap-4 p-4 sm:p-5">
+                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">Modules</p>
+
+                  <div class="space-y-2">
+                    <%= for module <- home_modules() do %>
+                      <div class="flex items-center rounded-lg border border-base-300 bg-base-200/45 px-3 py-3">
+                        <div class="flex items-center gap-3">
+                          <div class="rounded-lg border border-base-300 bg-base-200 p-2">
+                            <.icon name={module.icon} class="h-4 w-4 opacity-80" />
+                          </div>
+                          <div>
+                            <p class="text-sm font-medium text-white">{module.name}</p>
+                            <p class="text-xs uppercase tracking-[0.18em] opacity-50">
+                              {module.detail}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
                 </div>
               </div>
             </section>
@@ -201,10 +234,10 @@ defmodule ElektrineWeb.PageLive.Home do
       %{
         icon: "hero-finger-print-mini",
         name: "Accounts",
-        detail: "Domains / identity / passkeys"
+        detail: "Domains / identity / auth"
       },
       %{icon: "hero-chat-bubble-left-right-mini", name: "Chat", detail: "Arblarg"},
-      %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / Bluesky"},
+      %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / ATProto"},
       %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
       %{icon: "hero-key-mini", name: "Passwords", detail: "Vault"}
     ]
