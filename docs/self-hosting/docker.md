@@ -21,6 +21,12 @@ Deploy manually:
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
 ```
 
+Keep the repo owned by your deploy user and avoid running `git` operations as `root` inside the checkout. Use `sudo` only for Docker commands. If a generated compose file ever becomes unwritable because of ownership drift, render to a writable temporary path instead of the tracked repo file:
+
+```bash
+scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --modules chat,social,vault --profile caddy
+```
+
 Enable email ports only when the `email` module is compiled in:
 
 ```bash
@@ -45,5 +51,12 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
 - `DEPLOY_PORT` optional, defaults to `22`
-- `ELEKTRINE_RELEASE_MODULES` optional, defaults to `all`
 - `DOCKER_PROFILES` optional, defaults to `caddy`
+
+GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
+
+- `ELEKTRINE_RELEASE_MODULES` optional, defaults to `all`
+- `DOCKER_BUILD_PRIMARY_DOMAIN`
+- `DOCKER_BUILD_EMAIL_DOMAIN`
+- `DOCKER_BUILD_SUPPORTED_DOMAINS`
+- `DOCKER_BUILD_PROFILE_BASE_DOMAINS`

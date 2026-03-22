@@ -82,6 +82,13 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
+  echo "Error: output path is not writable: $OUTPUT_PATH" >&2
+  echo "Hint: render to a writable temporary file with --output /tmp/elektrine.generated.docker.yml" >&2
+  echo "Hint: if this is a repo-owned generated file, fix ownership instead of running git operations as root" >&2
+  exit 1
+fi
+
 bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --output "$OUTPUT_PATH"
 
 COMPOSE_ARGS=(-f "$OUTPUT_PATH")

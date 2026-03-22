@@ -125,7 +125,9 @@ jobs:
           git checkout "$DEPLOY_BRANCH"
           git pull --ff-only origin "$DEPLOY_BRANCH"
 
+          OUTPUT_FILE="/tmp/elektrine.generated.docker.yml"
           OVERRIDE_FILE="docker-image.override.yml"
+          trap 'rm -f "$OVERRIDE_FILE" "$OUTPUT_FILE"' EXIT
           cat > "\$OVERRIDE_FILE" <<'OVERRIDE'
           services:
             app:
@@ -136,12 +138,11 @@ jobs:
 
           ${DEPLOY_PREFIX} bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_RELEASE_MODULES" \
+            --output "$OUTPUT_FILE" \
             --pull \
             --skip-build \
             --compose-override "\$OVERRIDE_FILE" \
             $PROFILE_ARGS
-
-          rm -f "\$OVERRIDE_FILE"
           EOF
 
       - name: Health check
@@ -154,5 +155,5 @@ jobs:
             DOCKER_CMD="sudo -n docker"
           fi
           cd "$DEPLOY_PATH"
-          \$DOCKER_CMD compose -f deploy/docker/generated.docker.yml ps
+          \$DOCKER_CMD compose -f /tmp/elektrine.generated.docker.yml ps || \$DOCKER_CMD ps
           EOF
