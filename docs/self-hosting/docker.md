@@ -1,6 +1,6 @@
 # Docker deploy
 
-This keeps the same Docker-based shape as the Fly setup:
+This keeps the main app and worker in a single Docker deployment:
 
 - one `app` container
 - one `worker` container

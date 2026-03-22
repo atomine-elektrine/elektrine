@@ -189,7 +189,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Vault is the password-manager module. When enabled, it stores encrypted entries tied to your account.
+                    Vault stores encrypted entries tied to your account when the vault module is enabled.
                   </p>
                 </div>
               </div>

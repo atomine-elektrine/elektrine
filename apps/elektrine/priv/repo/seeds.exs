@@ -2133,11 +2133,12 @@ if Mix.env() == :dev do
         encrypted_notes: seed_encrypted_payload.("Workspace owner: Orbit Dev")
       },
       %{
-        title: "Fly.io",
+        title: "Docker",
         login_username: "deployments@#{local_mail_domain}",
-        website: "https://fly.io",
-        encrypted_password: seed_encrypted_payload.("fly-password-seed"),
-        encrypted_notes: seed_encrypted_payload.("Remember to check release health after deploy")
+        website: "https://docker.com",
+        encrypted_password: seed_encrypted_payload.("docker-password-seed"),
+        encrypted_notes:
+          seed_encrypted_payload.("Remember to check container health after deploy")
       }
     ],
     fn entry_attrs ->

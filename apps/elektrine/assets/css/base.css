@@ -22,15 +22,15 @@ body {
   color: #ffffff;
 }
 
-/* Custom scrollbar - subtle dark theme */
+/* Custom scrollbar */
 * {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: rgba(168, 85, 247, 0.25) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -39,7 +39,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background-color: rgba(168, 85, 247, 0.25);
-  border-radius: 3px;
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {

@@ -59,7 +59,6 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:loading_profile, true)
      |> assign(:loading_security, true)
      |> assign(:loading_timeline, true)
-     |> assign(:loading_password_manager, true)
      |> assign(:loading_developer, true)
      |> assign(:loading_danger, true)
      |> assign(:pending_deletion, nil)
@@ -68,10 +67,6 @@ defmodule ElektrineWeb.UserSettingsLive do
      |> assign(:new_feed_url, "")
      |> assign(:adding_feed, false)
      |> assign(:rss_error, nil)
-     |> assign(:password_manager_entries, [])
-     |> assign(:password_manager_vault_configured, false)
-     |> assign(:password_manager_vault_verifier, nil)
-     |> assign(:password_manager_form, password_manager_entry_form(user.id))
      |> assign(:api_tokens, [])
      |> assign(:webhooks, [])
      |> assign(:recent_webhook_deliveries, [])
@@ -172,14 +167,6 @@ defmodule ElektrineWeb.UserSettingsLive do
     end
   end
 
-  defp load_tab_data(socket, "password-manager") do
-    if socket.assigns.loading_password_manager do
-      load_password_manager_data(socket)
-    else
-      socket
-    end
-  end
-
   defp load_tab_data(socket, "developer") do
     if socket.assigns.loading_developer do
       socket
@@ -234,134 +221,6 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     tab = normalize_selected_tab(tab)
     {:noreply, push_patch(socket, to: ~p"/account?tab=#{tab}")}
-  end
-
-  @impl true
-  def handle_event("password_manager_validate", %{"entry" => params}, socket) do
-    user = socket.assigns.current_user
-    form = password_manager_entry_form(user.id, params, :validate)
-    {:noreply, assign(socket, :password_manager_form, form)}
-  end
-
-  @impl true
-  def handle_event("password_manager_create", %{"entry" => params}, socket) do
-    user = socket.assigns.current_user
-
-    with true <- Integrations.vault_available?(),
-         {:ok, params} <- decode_encrypted_params(params),
-         {:ok, _entry} <- Integrations.vault_create_entry(user.id, params) do
-      {:noreply,
-       socket
-       |> assign(:password_manager_entries, Integrations.vault_list_entries(user.id))
-       |> assign(:password_manager_form, password_manager_entry_form(user.id))
-       |> put_flash(:info, "Vault entry saved")}
-    else
-      false ->
-        {:noreply, put_flash(socket, :error, "Vault module is unavailable in this build.")}
-
-      {:error, :invalid_payload} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Vault payload is invalid. Unlock your vault and try again.")}
-
-      {:error, :vault_not_configured} ->
-        {:noreply,
-         socket |> put_flash(:error, "Set up your vault passphrase before saving entries.")}
-
-      {:error, changeset} ->
-        changeset = %{changeset | action: :insert}
-        {:noreply, assign(socket, :password_manager_form, to_form(changeset, as: :entry))}
-    end
-  end
-
-  @impl true
-  def handle_event("password_manager_setup_vault", %{"vault" => params}, socket) do
-    user = socket.assigns.current_user
-
-    with true <- Integrations.vault_available?(),
-         {:ok, params} <- decode_setup_params(params),
-         {:ok, settings} <- Integrations.vault_setup(user.id, params) do
-      {:noreply,
-       socket
-       |> assign(:password_manager_vault_configured, true)
-       |> assign(:password_manager_vault_verifier, settings.encrypted_verifier)
-       |> assign(:password_manager_entries, Integrations.vault_list_entries(user.id))
-       |> put_flash(:info, "Vault configured")}
-    else
-      false ->
-        {:noreply, put_flash(socket, :error, "Vault module is unavailable in this build.")}
-
-      {:error, :invalid_payload} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           "Vault setup payload is invalid. Use the setup form to continue."
-         )}
-
-      {:error, changeset} ->
-        details =
-          changeset.errors
-          |> Keyword.keys()
-          |> Enum.map_join(", ", &to_string/1)
-
-        message =
-          if details == "" do
-            "Could not configure vault."
-          else
-            "Could not configure vault (#{details})."
-          end
-
-        {:noreply, socket |> put_flash(:error, message)}
-    end
-  end
-
-  @impl true
-  def handle_event("password_manager_delete", %{"id" => id}, socket) do
-    user = socket.assigns.current_user
-
-    with true <- Integrations.vault_available?(),
-         {:ok, entry_id} <- parse_entry_id(id),
-         {:ok, _entry} <- Integrations.vault_delete_entry(user.id, entry_id) do
-      {:noreply,
-       socket
-       |> assign(:password_manager_entries, Integrations.vault_list_entries(user.id))
-       |> put_flash(:info, "Vault entry deleted")}
-    else
-      false ->
-        {:noreply, put_flash(socket, :error, "Vault module is unavailable in this build.")}
-
-      :error ->
-        {:noreply, put_flash(socket, :error, "Invalid entry id")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Entry not found")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not delete entry")}
-    end
-  end
-
-  @impl true
-  def handle_event("password_manager_delete_vault", _params, socket) do
-    user = socket.assigns.current_user
-
-    with true <- Integrations.vault_available?(),
-         {:ok, _result} <- Integrations.vault_delete_vault(user.id) do
-      {:noreply,
-       socket
-       |> assign(:password_manager_entries, [])
-       |> assign(:password_manager_vault_configured, false)
-       |> assign(:password_manager_vault_verifier, nil)
-       |> assign(:password_manager_form, password_manager_entry_form(user.id))
-       |> put_flash(:info, "Vault deleted. Create a new passphrase to start over.")}
-    else
-      false ->
-        {:noreply, put_flash(socket, :error, "Vault module is unavailable in this build.")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not delete vault")}
-    end
   end
 
   @impl true
@@ -1798,73 +1657,8 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   def wkd_hash(username), do: Integrations.wkd_hash(username)
 
-  defp password_manager_entry_form(user_id, attrs \\ %{}, action \\ nil) do
-    case Integrations.vault_entry_changeset(user_id, attrs) do
-      nil ->
-        attrs
-        |> default_password_manager_form_data()
-        |> Map.put("user_id", user_id)
-        |> to_form(as: :entry)
-
-      changeset ->
-        to_form(%{changeset | action: action}, as: :entry)
-    end
-  end
-
-  defp load_password_manager_data(socket) do
-    user = socket.assigns.user
-
-    vault_settings = Integrations.vault_settings(user.id)
-    vault_configured = not is_nil(vault_settings)
-
-    entries =
-      if vault_configured do
-        Integrations.vault_list_entries(user.id)
-      else
-        []
-      end
-
-    socket
-    |> assign(:password_manager_vault_configured, vault_configured)
-    |> assign(
-      :password_manager_vault_verifier,
-      vault_settings && vault_settings.encrypted_verifier
-    )
-    |> assign(:password_manager_entries, entries)
-    |> assign(:loading_password_manager, false)
-  end
-
-  defp tab_enabled?("password-manager"), do: Modules.enabled?(:vault)
   defp tab_enabled?("email"), do: Modules.enabled?(:email)
   defp tab_enabled?(_tab), do: true
-
-  defp default_password_manager_form_data(attrs) do
-    %{
-      "title" => "",
-      "website" => "",
-      "login_username" => "",
-      "encrypted_password" => "",
-      "encrypted_notes" => ""
-    }
-    |> Map.merge(stringify_map_keys(attrs))
-  end
-
-  defp stringify_map_keys(attrs) when is_map(attrs) do
-    Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
-  end
-
-  defp stringify_map_keys(_attrs), do: %{}
-
-  defp parse_entry_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {entry_id, ""} -> {:ok, entry_id}
-      _ -> :error
-    end
-  end
-
-  defp parse_entry_id(_id) do
-    :error
-  end
 
   defp parse_token_expiration(nil), do: {:ok, nil}
   defp parse_token_expiration(""), do: {:ok, nil}
@@ -1950,48 +1744,6 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp invite_code_usage_percent(_invite_code), do: 0
 
-  defp decode_setup_params(params) when is_map(params) do
-    decode_payload_field(params, "encrypted_verifier", required: true)
-  end
-
-  defp decode_setup_params(_params), do: {:error, :invalid_payload}
-
-  defp decode_encrypted_params(params) when is_map(params) do
-    case decode_payload_field(params, "encrypted_password", required: true) do
-      {:ok, decoded_params} ->
-        decode_payload_field(decoded_params, "encrypted_notes", required: false)
-
-      error ->
-        error
-    end
-  end
-
-  defp decode_encrypted_params(_params), do: {:error, :invalid_payload}
-
-  defp decode_payload_field(params, field, opts) do
-    required? = Keyword.get(opts, :required, false)
-
-    case Map.get(params, field) do
-      nil ->
-        if required?, do: {:error, :invalid_payload}, else: {:ok, params}
-
-      "" ->
-        if required?, do: {:error, :invalid_payload}, else: {:ok, Map.put(params, field, nil)}
-
-      value when is_map(value) ->
-        {:ok, params}
-
-      value when is_binary(value) ->
-        case Jason.decode(value) do
-          {:ok, decoded} when is_map(decoded) -> {:ok, Map.put(params, field, decoded)}
-          _ -> {:error, :invalid_payload}
-        end
-
-      _ ->
-        {:error, :invalid_payload}
-    end
-  end
-
   def email_tab_content(assigns) do
     case Integrations.user_settings_email_component() do
       nil ->
@@ -2010,9 +1762,6 @@ defmodule ElektrineWeb.UserSettingsLive do
         module.email_tab(assigns)
     end
   end
-
-  defp encode_payload(nil), do: ""
-  defp encode_payload(payload) when is_map(payload), do: Jason.encode!(payload)
 
   defp handle_email_settings_event(event, params, socket) do
     case Integrations.handle_user_settings_email_event(event, params, socket) do

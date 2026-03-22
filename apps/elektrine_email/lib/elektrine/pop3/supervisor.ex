@@ -33,7 +33,6 @@ defmodule Elektrine.POP3.Supervisor do
   end
 
   defp pop3_enabled? do
-    # Re-enabled: Blocking at Fly.io level instead
     Application.get_env(:elektrine, :pop3_enabled, true)
   end
 

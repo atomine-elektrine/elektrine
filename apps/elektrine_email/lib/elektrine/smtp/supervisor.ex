@@ -35,7 +35,6 @@ defmodule Elektrine.SMTP.Supervisor do
   end
 
   defp smtp_enabled? do
-    # Re-enabled: Blocking at Fly.io level instead
     Application.get_env(:elektrine, :smtp_enabled, true)
   end
 

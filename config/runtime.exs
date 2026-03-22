@@ -349,16 +349,6 @@ runtime_email_domain =
   System.get_env("EMAIL_DOMAIN") ||
     Application.get_env(:elektrine, :email, []) |> Keyword.get(:domain, runtime_primary_domain)
 
-config(
-  :elektrine,
-  :fly_redirect_host,
-  case System.get_env("FLY_REDIRECT_HOST") do
-    nil -> nil
-    "" -> nil
-    value -> String.trim(value)
-  end
-)
-
 if System.get_env("EMAIL_SERVICE") == "haraka" do
   config :elektrine, Elektrine.Mailer,
     adapter: Elektrine.Email.HarakaAdapter,
@@ -458,7 +448,7 @@ if config_env() == :prod do
 
   ecto_ipv6 =
     case System.get_env("ECTO_IPV6") do
-      nil -> not is_nil(System.get_env("FLY_APP_NAME"))
+      nil -> false
       value -> value in ~w(true 1)
     end
 
@@ -835,7 +825,7 @@ if config_env() == :prod do
     end
 
   # Allowed origins for WebSocket connections
-  # Includes primary domains, subdomains, and fly.dev for staging
+  # Includes primary domains, profile subdomains, and onion hosts.
   allowed_origins =
     all_public_domains
     |> Enum.flat_map(fn domain ->
@@ -845,14 +835,7 @@ if config_env() == :prod do
         "//*.#{domain}"
       ]
     end)
-    |> Kernel.++(["//*.onion", "//*.fly.dev"])
-    |> Kernel.++(
-      case System.get_env("FLY_APP_NAME") do
-        nil -> []
-        "" -> []
-        app_name -> ["https://#{app_name}.fly.dev"]
-      end
-    )
+    |> Kernel.++(["//*.onion"])
     |> Enum.uniq()
 
   endpoint_config = [
@@ -870,7 +853,7 @@ if config_env() == :prod do
       endpoint_config
     end
 
-  # Fly terminates TLS at the edge for clearnet traffic.
+  # Clearnet traffic usually terminates TLS at the reverse proxy.
   # Onion traffic can terminate TLS in-app on :https when cert/key files are present.
   config :elektrine, ElektrineWeb.Endpoint, endpoint_config
 

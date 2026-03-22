@@ -139,7 +139,7 @@ defmodule Elektrine.Domains do
   Optional DNS target hostname to show when onboarding custom profile domains.
 
   Set this to the hostname of your external profile edge, such as a dedicated
-  Caddy Fly app, when custom domains should not point directly at the main app.
+  Caddy deployment, when custom domains should not point directly at the main app.
   """
   def profile_custom_domain_edge_target do
     System.get_env("PROFILE_CUSTOM_DOMAIN_EDGE_TARGET")

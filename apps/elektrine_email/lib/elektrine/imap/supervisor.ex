@@ -33,7 +33,6 @@ defmodule Elektrine.IMAP.Supervisor do
   end
 
   defp imap_enabled? do
-    # Re-enabled: Blocking at Fly.io level instead
     Application.get_env(:elektrine, :imap_enabled, true)
   end
 

@@ -21,16 +21,10 @@ defmodule ElektrineWeb.ClientIP do
 
   @spec client_ip_tuple(Plug.Conn.t()) :: ip_tuple() | nil
   def client_ip_tuple(conn) do
-    remote_ip = conn.remote_ip
-    trusted_remote? = trusted_proxy?(remote_ip)
+    remote_ip = normalize_ip_tuple(conn.remote_ip)
 
-    fly_client_ip =
-      if trusted_remote? and running_on_fly?() do
-        header_ip(conn, "fly-client-ip")
-      end
-
-    if trusted_remote? do
-      forwarded_ip(conn) || fly_client_ip || remote_ip
+    if trusted_proxy?(remote_ip) do
+      forwarded_ip(conn) || remote_ip
     else
       remote_ip
     end
@@ -38,12 +32,13 @@ defmodule ElektrineWeb.ClientIP do
 
   @spec forwarded_as_https?(Plug.Conn.t()) :: boolean()
   def forwarded_as_https?(conn) do
-    header_forwarded_as_https?(conn) and
-      (trusted_proxy?(conn.remote_ip) or forwarded_from_fly_edge?(conn))
+    header_forwarded_as_https?(conn) and trusted_proxy?(conn.remote_ip)
   end
 
   @spec trusted_proxy?(ip_tuple() | nil) :: boolean()
   def trusted_proxy?(ip) when is_tuple(ip) do
+    ip = normalize_ip_tuple(ip)
+
     trusted_proxy_cidrs()
     |> Enum.any?(&ip_in_cidr?(ip, &1))
   end
@@ -134,32 +129,6 @@ defmodule ElektrineWeb.ClientIP do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp running_on_fly? do
-    case System.get_env("FLY_APP_NAME") do
-      nil -> false
-      "" -> false
-      _ -> true
-    end
-  end
-
-  # Fly terminates TLS at the edge and forwards cleartext HTTP to the app.
-  # We keep client IP resolution strict, but scheme detection can safely
-  # trust Fly's edge marker to avoid redirect loops when TRUSTED_PROXY_CIDRS
-  # has not been configured yet on a deploy.
-  defp forwarded_from_fly_edge?(conn) do
-    running_on_fly?() and fly_client_ip_present?(conn)
-  end
-
-  defp fly_client_ip_present?(conn) do
-    case get_req_header(conn, "fly-client-ip") do
-      [value | _] ->
-        match?({:ok, _}, parse_ip_string(value))
-
-      _ ->
-        false
-    end
-  end
-
   defp header_forwarded_as_https?(conn) do
     case get_req_header(conn, "x-forwarded-proto") do
       [value | _] ->
@@ -182,7 +151,8 @@ defmodule ElektrineWeb.ClientIP do
       [ip] ->
         case parse_ip_string(ip) do
           {:ok, ip_tuple} ->
-            {ip_tuple, max_prefix(ip_tuple)}
+            normalized_ip = normalize_ip_tuple(ip_tuple)
+            {normalized_ip, max_prefix(normalized_ip)}
 
           _ ->
             nil
@@ -190,9 +160,10 @@ defmodule ElektrineWeb.ClientIP do
 
       [ip, prefix] ->
         with {:ok, ip_tuple} <- parse_ip_string(ip),
+             normalized_ip = normalize_ip_tuple(ip_tuple),
              {prefix_int, ""} <- Integer.parse(prefix),
-             true <- valid_prefix?(ip_tuple, prefix_int) do
-          {ip_tuple, prefix_int}
+             true <- valid_prefix?(normalized_ip, prefix_int) do
+          {normalized_ip, prefix_int}
         else
           _ -> nil
         end
@@ -265,6 +236,14 @@ defmodule ElektrineWeb.ClientIP do
 
   defp maybe_unwrap_mapped_ipv4(ip), do: ip
 
+  defp normalize_ip_tuple({0, 0, 0, 0, 0, 0xFFFF, g, h}) do
+    {g >>> 8, g &&& 0xFF, h >>> 8, h &&& 0xFF}
+  end
+
+  defp normalize_ip_tuple(ip), do: ip
+
   defp format_ip(nil), do: "unknown"
-  defp format_ip(ip) when is_tuple(ip), do: ip |> :inet.ntoa() |> to_string()
+
+  defp format_ip(ip) when is_tuple(ip),
+    do: ip |> normalize_ip_tuple() |> :inet.ntoa() |> to_string()
 end

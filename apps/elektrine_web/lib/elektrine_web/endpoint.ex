@@ -74,7 +74,6 @@ defmodule ElektrineWeb.Endpoint do
   plug Sentry.PlugContext
   plug Plug.MethodOverride
   plug Plug.Head
-  plug ElektrineWeb.Plugs.FlyRedirect
   plug ElektrineWeb.Plugs.EnforceHTTPS
   plug ElektrineWeb.Plugs.RuntimeSession
   plug ElektrineWeb.Plugs.ProfileSubdomain
