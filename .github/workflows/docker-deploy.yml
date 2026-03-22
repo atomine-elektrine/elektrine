@@ -1,10 +1,14 @@
-name: Deploy Docker Stack
+name: Deploy Docker Images
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   quality_gate:
@@ -13,24 +17,76 @@ jobs:
     with:
       allow_format_failure: true
 
-  deploy_to_docker:
-    name: Deploy Application
+  build_and_publish_image:
+    name: Build and Publish Image
     needs: quality_gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      BUILD_PRIMARY_DOMAIN: ${{ vars.DOCKER_BUILD_PRIMARY_DOMAIN || secrets.DOCKER_BUILD_PRIMARY_DOMAIN || 'example.com' }}
+      BUILD_EMAIL_DOMAIN: ${{ vars.DOCKER_BUILD_EMAIL_DOMAIN || secrets.DOCKER_BUILD_EMAIL_DOMAIN || 'example.com' }}
+      BUILD_SUPPORTED_DOMAINS: ${{ vars.DOCKER_BUILD_SUPPORTED_DOMAINS || secrets.DOCKER_BUILD_SUPPORTED_DOMAINS || 'example.com' }}
+      BUILD_PROFILE_BASE_DOMAINS: ${{ vars.DOCKER_BUILD_PROFILE_BASE_DOMAINS || secrets.DOCKER_BUILD_PROFILE_BASE_DOMAINS || 'example.com' }}
+      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=,format=long
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            RELEASE_NAME=elektrine
+            ELEKTRINE_RELEASE_MODULES=${{ env.ELEKTRINE_RELEASE_MODULES }}
+            PRIMARY_DOMAIN=${{ env.BUILD_PRIMARY_DOMAIN }}
+            EMAIL_DOMAIN=${{ env.BUILD_EMAIL_DOMAIN }}
+            SUPPORTED_DOMAINS=${{ env.BUILD_SUPPORTED_DOMAINS }}
+            PROFILE_BASE_DOMAINS=${{ env.BUILD_PROFILE_BASE_DOMAINS }}
+
+  deploy_to_docker:
+    name: Deploy Application
+    needs: build_and_publish_image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine/app' }}
-      ELEKTRINE_RELEASE_MODULES: ${{ secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine' }}
+      DEPLOY_BRANCH: ${{ secrets.DEPLOY_BRANCH || 'main' }}
+      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
       DOCKER_PROFILES: ${{ secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy' }}
+      TARGET_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
     concurrency:
       group: deploy-production
       cancel-in-progress: false
 
     steps:
-      - uses: actions/checkout@v6
-
       - name: Validate deploy settings
         run: |
           if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
@@ -45,17 +101,6 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
-      - name: Upload release tree
-        run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH'"
-          tar \
-            --exclude=.git \
-            --exclude=_build \
-            --exclude=deps \
-            --exclude=apps/elektrine/assets/node_modules \
-            --exclude=deploy/docker/generated.docker.yml \
-            -czf - . | ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf - -C '$DEPLOY_PATH'"
-
       - name: Deploy over SSH
         run: |
           PROFILE_ARGS=""
@@ -65,11 +110,49 @@ jobs:
 
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s" <<EOF
           set -euo pipefail
+
+          if docker info >/dev/null 2>&1; then
+            DEPLOY_PREFIX=""
+          elif sudo -n docker info >/dev/null 2>&1; then
+            DEPLOY_PREFIX="sudo -n"
+          else
+            echo "No Docker access for deploy user"
+            exit 1
+          fi
+
           cd "$DEPLOY_PATH"
-          scripts/deploy/docker_deploy.sh --modules "$ELEKTRINE_RELEASE_MODULES" $PROFILE_ARGS
+          git fetch --all --tags
+          git checkout "$DEPLOY_BRANCH"
+          git pull --ff-only origin "$DEPLOY_BRANCH"
+
+          OVERRIDE_FILE="docker-image.override.yml"
+          cat > "\$OVERRIDE_FILE" <<'OVERRIDE'
+          services:
+            app:
+              image: ${TARGET_IMAGE}
+            worker:
+              image: ${TARGET_IMAGE}
+          OVERRIDE
+
+          ${DEPLOY_PREFIX} bash scripts/deploy/docker_deploy.sh \
+            --modules "$ELEKTRINE_RELEASE_MODULES" \
+            --pull \
+            --skip-build \
+            --compose-override "\$OVERRIDE_FILE" \
+            $PROFILE_ARGS
+
+          rm -f "\$OVERRIDE_FILE"
           EOF
 
       - name: Health check
         run: |
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "docker compose -f '$DEPLOY_PATH/deploy/docker/generated.docker.yml' ps"
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s" <<EOF
+          set -euo pipefail
+          if docker info >/dev/null 2>&1; then
+            DOCKER_CMD="docker"
+          else
+            DOCKER_CMD="sudo -n docker"
+          fi
+          cd "$DEPLOY_PATH"
+          \$DOCKER_CMD compose -f deploy/docker/generated.docker.yml ps
+          EOF

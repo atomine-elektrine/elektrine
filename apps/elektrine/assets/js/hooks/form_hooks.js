@@ -42,6 +42,12 @@ export const FormSubmit = {
  */
 export const TagInputHook = {
   mounted() {
+    this.handleEvent("clear-tag-input", ({ field }) => {
+      if (field === this.el.dataset.field) {
+        this.el.value = ''
+      }
+    })
+
     this.el.addEventListener('input', (e) => {
       this.pushEvent("update_tag_input", {
         field: this.el.dataset.field,

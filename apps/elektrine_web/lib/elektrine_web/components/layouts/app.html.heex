@@ -420,16 +420,6 @@
                 </.link>
               </li>
             <% end %>
-            <%= if platform_module_enabled?(:vault) do %>
-              <li>
-                <.link
-                  navigate={~p"/account/password-manager"}
-                  class="gap-3 hover:bg-accent/20 hover:text-accent hover:border-l-4 hover:border-accent transition-all duration-200 rounded-md px-3 py-2"
-                >
-                  <.icon name="hero-key" class="w-4 h-4" /> {gettext("Vault")}
-                </.link>
-              </li>
-            <% end %>
             <%= if platform_module_enabled?(:vpn) do %>
               <li>
                 <.link

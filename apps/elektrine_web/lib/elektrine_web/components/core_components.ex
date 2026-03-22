@@ -300,7 +300,6 @@ defmodule ElektrineWeb.CoreComponents do
     [
       {"profile", "hero-user", :default},
       {"security", "hero-shield-check", :default},
-      {"password-manager", "hero-lock-closed", :default},
       {"privacy", "hero-lock-closed", :default},
       {"preferences", "hero-cog-6-tooth", :default},
       {"notifications", "hero-bell", :default},
@@ -315,7 +314,6 @@ defmodule ElektrineWeb.CoreComponents do
 
   defp account_setting_label("profile"), do: gettext("Profile")
   defp account_setting_label("security"), do: gettext("Security")
-  defp account_setting_label("password-manager"), do: gettext("Password Manager")
   defp account_setting_label("privacy"), do: gettext("Privacy")
   defp account_setting_label("preferences"), do: gettext("Preferences")
   defp account_setting_label("notifications"), do: gettext("Notifications")
@@ -349,7 +347,6 @@ defmodule ElektrineWeb.CoreComponents do
     end
   end
 
-  defp account_setting_enabled?("password-manager"), do: Modules.enabled?(:vault)
   defp account_setting_enabled?("email"), do: Modules.enabled?(:email)
   defp account_setting_enabled?(_tab), do: true
 

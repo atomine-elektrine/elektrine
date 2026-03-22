@@ -375,6 +375,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
           |> assign(tags_key, tags)
           |> assign(input_key, last_input)
           |> assign(error_key, has_invalid)
+          |> maybe_clear_tag_input(field, last_input)
         else
           socket
         end
@@ -435,6 +436,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
          |> assign(error_key, false)
          |> assign(suggestions_key, [])
          |> assign(showing_key, false)
+         |> maybe_clear_tag_input(field)
          |> assign_encryption_state()}
       else
         {:noreply, socket}
@@ -909,18 +911,35 @@ defmodule ElektrineWeb.EmailLive.Compose do
           |> assign(tags_key, current_tags ++ [email])
           |> assign(input_key, "")
           |> assign(error_key, false)
+          |> maybe_clear_tag_input(field)
           |> assign_encryption_state()
 
         valid_email?(email) ->
-          socket |> assign(input_key, "") |> assign(error_key, false) |> assign_encryption_state()
+          socket
+          |> assign(input_key, "")
+          |> assign(error_key, false)
+          |> maybe_clear_tag_input(field)
+          |> assign_encryption_state()
 
         true ->
-          socket |> assign(input_key, "") |> assign(error_key, false) |> assign_encryption_state()
+          socket
+          |> assign(input_key, "")
+          |> assign(error_key, false)
+          |> maybe_clear_tag_input(field)
+          |> assign_encryption_state()
       end
     else
       socket
     end
   end
+
+  defp maybe_clear_tag_input(socket, field, input_value \\ "")
+
+  defp maybe_clear_tag_input(socket, field, input_value) when input_value in [nil, ""] do
+    push_event(socket, "clear-tag-input", %{field: field})
+  end
+
+  defp maybe_clear_tag_input(socket, _field, _input_value), do: socket
 
   @impl true
   def handle_info(
