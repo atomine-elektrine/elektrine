@@ -61,7 +61,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       "default-src 'self'",
       # Scripts: allow self, Cloudflare (Turnstile + Insights)
       # Note: 'unsafe-inline' needed for LiveView's inline event handlers
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://feed.informer.com blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloud.umami.is blob:",
       # Styles: allow self and unsafe-inline for LiveView and Tailwind
       "style-src 'self' 'unsafe-inline'",
       # Images: allow self, data URIs, HTTPS (for R2/S3 storage, Giphy, avatars)

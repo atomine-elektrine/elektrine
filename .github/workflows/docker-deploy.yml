@@ -1,0 +1,75 @@
+name: Deploy Docker Stack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  quality_gate:
+    name: Quality Gate
+    uses: ./.github/workflows/ci.yml
+    with:
+      allow_format_failure: true
+
+  deploy_to_docker:
+    name: Deploy Application
+    needs: quality_gate
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine/app' }}
+      ELEKTRINE_RELEASE_MODULES: ${{ secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+      DOCKER_PROFILES: ${{ secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy' }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate deploy settings
+        run: |
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "::error::Missing deploy settings. Set DEPLOY_HOST, DEPLOY_USER, and DEPLOY_SSH_KEY repository/org secrets."
+            exit 1
+          fi
+
+      - name: Install SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' '${{ secrets.DEPLOY_SSH_KEY }}' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release tree
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH'"
+          tar \
+            --exclude=.git \
+            --exclude=_build \
+            --exclude=deps \
+            --exclude=apps/elektrine/assets/node_modules \
+            --exclude=deploy/docker/generated.docker.yml \
+            -czf - . | ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "tar -xzf - -C '$DEPLOY_PATH'"
+
+      - name: Deploy over SSH
+        run: |
+          PROFILE_ARGS=""
+          for profile in ${DOCKER_PROFILES}; do
+            PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
+          done
+
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s" <<EOF
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          scripts/deploy/docker_deploy.sh --modules "$ELEKTRINE_RELEASE_MODULES" $PROFILE_ARGS
+          EOF
+
+      - name: Health check
+        run: |
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker compose -f '$DEPLOY_PATH/deploy/docker/generated.docker.yml' ps"

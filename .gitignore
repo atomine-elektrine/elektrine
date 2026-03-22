@@ -90,3 +90,4 @@ npm-debug.log*
 .mix
 .hex
 _deploy_release
+deploy/docker/generated*.yml

@@ -88,16 +88,17 @@ scripts/release/deploy_release.sh --modules email,vpn
 This builds assets, selects the requested module apps, and writes the release
 to `_deploy_release/`. `deploy/docker/Dockerfile` uses the same path.
 
-For Fly deployments, use the wrapper instead of deploying the root template
-directly:
+For Docker deployments, use the wrapper instead of invoking
+`docker compose` against `deploy/docker/compose.full.yml` directly:
 
 ```bash
-scripts/deploy/fly_deploy.sh --modules chat,social --app your-app
+scripts/deploy/docker_deploy.sh --modules chat,social --profile caddy
 ```
 
-The wrapper renders a module-aware Fly config first. If `email` is not enabled,
-it strips the POP3, IMAP, and SMTP service blocks so a non-mail deployment does
-not publish mail ports.
+The wrapper renders a module-aware Compose file first, updates
+`ELEKTRINE_RELEASE_MODULES`, `ELEKTRINE_ENABLED_MODULES`, and
+`ELEKTRINE_ENABLE_MAIL`, and removes the POP3, IMAP, and SMTP port bindings
+when `email` is not selected.
 
 ## Self-hosting profiles
 
@@ -111,6 +112,7 @@ The self-hosting docs are split by profile:
 Start with:
 
 - `docs/self-hosting/README.md`
+- `docs/self-hosting/docker.md`
 - `docs/self-hosting/core.md`
 - `docs/self-hosting/mail.md`
 - `docs/self-hosting/vpn.md`
@@ -132,7 +134,8 @@ the worker that posts cleaned inbound message data back into Phoenix.
 
 If you enable the `email` module, deploy `elektrine-haraka` alongside it and
 configure `HARAKA_BASE_URL`, an outbound Haraka API key, and an inbound webhook
-key.
+key. Both deployments can live on the same bare-metal server as separate Docker
+projects.
 
 ## Bluesky integration
 
