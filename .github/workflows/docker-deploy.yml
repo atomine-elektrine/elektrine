@@ -127,7 +127,7 @@ jobs:
 
           OUTPUT_FILE="/tmp/elektrine.generated.docker.yml"
           OVERRIDE_FILE="docker-image.override.yml"
-          trap 'rm -f "$OVERRIDE_FILE" "$OUTPUT_FILE"' EXIT
+          trap 'rm -f "\$OVERRIDE_FILE" "\$OUTPUT_FILE"' EXIT
           cat > "\$OVERRIDE_FILE" <<'OVERRIDE'
           services:
             app:
@@ -136,9 +136,9 @@ jobs:
               image: ${TARGET_IMAGE}
           OVERRIDE
 
-          ${DEPLOY_PREFIX} bash scripts/deploy/docker_deploy.sh \
+          \${DEPLOY_PREFIX} bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_RELEASE_MODULES" \
-            --output "$OUTPUT_FILE" \
+            --output "\$OUTPUT_FILE" \
             --pull \
             --skip-build \
             --compose-override "\$OVERRIDE_FILE" \
