@@ -13,7 +13,6 @@ defmodule ElektrineWeb.UserSettingsLive do
   @setting_tabs [
     {"profile", "hero-user", :default},
     {"security", "hero-shield-check", :default},
-    {"password-manager", "hero-lock-closed", :default},
     {"privacy", "hero-lock-closed", :default},
     {"preferences", "hero-cog-6-tooth", :default},
     {"notifications", "hero-bell", :default},
@@ -1460,10 +1459,6 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp tab_label("security") do
     gettext("Security")
-  end
-
-  defp tab_label("password-manager") do
-    gettext("Password Manager")
   end
 
   defp tab_label("privacy") do

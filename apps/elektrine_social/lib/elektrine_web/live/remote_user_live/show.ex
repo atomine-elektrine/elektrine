@@ -2585,7 +2585,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   defp thread_self_refs(post) do
-    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url), post["id"]]
+    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url), map_string_key(post, "id")]
     |> Enum.map(&normalize_thread_ref/1)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
@@ -2615,10 +2615,13 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp normalize_thread_ref(_), do: nil
 
   defp post_group_id(post) when is_map(post) do
-    Map.get(post, :id) || post["id"]
+    Map.get(post, :id) || map_string_key(post, "id")
   end
 
   defp post_group_id(_post), do: nil
+
+  defp map_string_key(post, key) when is_map(post), do: Map.get(post, key)
+  defp map_string_key(_post, _key), do: nil
 
   defp get_post_activity(post) when is_map(post) do
     cond do

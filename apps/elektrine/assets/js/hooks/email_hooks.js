@@ -1,5 +1,23 @@
 // Email-related LiveView hooks
 
+function isEditableTarget(target) {
+  if (!(target instanceof Element)) return false
+
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+    return true
+  }
+
+  if (target.contentEditable === 'true' || target.isContentEditable) {
+    return true
+  }
+
+  return Boolean(
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"], .ProseMirror, .ql-editor'
+    )
+  )
+}
+
 export const KeyboardShortcuts = {
   mounted() {
     this.setupKeyboardShortcuts()
@@ -32,10 +50,7 @@ export const KeyboardShortcuts = {
     // Store the bound handler so we can remove it later
     this.keyHandler = (e) => {
       // Don't interfere when typing in inputs, textareas, or contenteditable elements
-      if (e.target.tagName === 'INPUT' ||
-          e.target.tagName === 'TEXTAREA' ||
-          e.target.contentEditable === 'true' ||
-          e.target.closest('.dropdown.dropdown-open')) {
+      if (isEditableTarget(e.target) || e.target.closest('.dropdown.dropdown-open')) {
         return
       }
 
@@ -495,10 +510,7 @@ export const EmailShowKeyboardShortcuts = {
   mounted() {
     this.keyHandler = (e) => {
       // Don't interfere when typing in inputs, textareas, or contenteditable elements
-      if (e.target.tagName === 'INPUT' ||
-          e.target.tagName === 'TEXTAREA' ||
-          e.target.contentEditable === 'true' ||
-          e.target.closest('.dropdown.dropdown-open')) {
+      if (isEditableTarget(e.target) || e.target.closest('.dropdown.dropdown-open')) {
         return
       }
 
@@ -814,9 +826,7 @@ export const EmailComposeKeyboardShortcuts = {
 
         case 'escape':
           // Don't trigger if typing in input/textarea
-          if (e.target.tagName === 'INPUT' ||
-              e.target.tagName === 'TEXTAREA' ||
-              e.target.contentEditable === 'true') {
+          if (isEditableTarget(e.target)) {
             return
           }
           e.preventDefault()
@@ -829,9 +839,7 @@ export const EmailComposeKeyboardShortcuts = {
 
         case 'g':
           // Don't trigger if typing
-          if (e.target.tagName === 'INPUT' ||
-              e.target.tagName === 'TEXTAREA' ||
-              e.target.contentEditable === 'true') {
+          if (isEditableTarget(e.target)) {
             return
           }
           if (!ctrl) {
@@ -842,9 +850,7 @@ export const EmailComposeKeyboardShortcuts = {
 
         case '?':
           // Don't trigger if typing
-          if (e.target.tagName === 'INPUT' ||
-              e.target.tagName === 'TEXTAREA' ||
-              e.target.contentEditable === 'true') {
+          if (isEditableTarget(e.target)) {
             return
           }
           e.preventDefault()

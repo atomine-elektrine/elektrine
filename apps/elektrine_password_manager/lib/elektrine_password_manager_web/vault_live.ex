@@ -140,7 +140,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.e_nav active_tab="password_manager" current_user={@current_user} class="mb-6" />
+      <.e_nav active_tab="vault" current_user={@current_user} class="mb-6" />
 
       <div
         id="password-vault-live"

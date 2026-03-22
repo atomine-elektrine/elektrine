@@ -416,7 +416,7 @@ end
 
 if config_env() == :prod do
   config :elektrine, :environment, :prod
-  config :elektrine, :enforce_https, true
+  config :elektrine, :enforce_https, parse_bool_env.("FORCE_SSL", true)
   config :elektrine, :allow_insecure_dav_jmap_auth, false
 
   Elektrine.Platform.RuntimeConfigValidator.validate!(

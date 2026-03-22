@@ -194,7 +194,7 @@
                 <.form :let={_f} for={%{}} phx-change="change_from_address" class="w-full">
                   <select
                     name="from_address"
-                    class="select select-bordered w-full font-medium text-sm"
+                    class="select select-bordered w-full !block font-medium text-sm"
                     value={@from_address}
                   >
                     <%= for address <- @available_from_addresses do %>
@@ -454,7 +454,6 @@
               phx-submit="save"
               phx-change="validate_and_autosave"
               phx-debounce="2000"
-              phx-disable-with={gettext("Sending...")}
               class="space-y-6"
               id="compose-form"
               phx-hook="PreserveFocus"
@@ -1128,22 +1127,20 @@
               
 <!-- Action Buttons -->
               <div class="flex flex-col sm:flex-row gap-3 pt-4 items-center">
-                <button
+                <.button
                   type="submit"
-                  class="btn btn-secondary min-w-[10rem]"
-                  disabled={@rate_limit_status.daily.remaining == 0 || @sending}
+                  variant="secondary"
+                  class="min-w-[10rem] h-11 px-4"
+                  disabled={@rate_limit_status.daily.remaining == 0}
+                  loading={@sending}
+                  loading_text={gettext("Sending...")}
+                  icon_right="hero-arrow-right"
                 >
-                  <%= if @sending do %>
-                    <.spinner size="md" class="mr-2" /> {gettext("Sending...")}
-                  <% else %>
-                    <.icon name="hero-paper-airplane" class="h-5 w-5 mr-2" /> {gettext(
-                      "Send Message"
-                    )}
-                  <% end %>
-                </button>
+                  {gettext("Send Message")}
+                </.button>
                 <.link
                   navigate={email_return_url(assigns)}
-                  class="btn btn-ghost"
+                  class="btn btn-ghost h-11 px-4"
                 >
                   <.icon name="hero-arrow-left" class="h-5 w-5 mr-2" /> {email_back_button_text(
                     assigns

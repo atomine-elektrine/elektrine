@@ -14,7 +14,7 @@ defmodule Elektrine.HTTP.SafeFetch do
 
     initial = %{status: nil, headers: [], body: [], body_size: 0, too_large?: false}
 
-    case Finch.stream(
+    case Finch.stream_while(
            request,
            finch_name,
            initial,
@@ -34,6 +34,9 @@ defmodule Elektrine.HTTP.SafeFetch do
 
       {:ok, _acc} ->
         {:error, :invalid_response}
+
+      {:error, reason, _acc} ->
+        {:error, reason}
 
       {:error, reason} ->
         {:error, reason}

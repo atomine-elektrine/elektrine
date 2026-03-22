@@ -6,8 +6,11 @@ REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
 OUTPUT_PATH="$ROOT_DIR/deploy/docker/generated.docker.yml"
 ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
+COMPOSE_OVERRIDE_FILES=()
 DO_UP=1
 DO_MIGRATE=1
+DO_BUILD=1
+DO_PULL=0
 PASSTHROUGH_ARGS=()
 
 # shellcheck source=scripts/lib/module_selection.sh
@@ -15,7 +18,7 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--skip-migrate] [--skip-up] [additional docker compose args...]
+Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--skip-up] [additional docker compose args...]
 
 Renders a module-aware Compose file and deploys the Docker stack.
 EOF
@@ -38,6 +41,18 @@ while [[ $# -gt 0 ]]; do
     --env-file)
       ENV_FILE="$2"
       shift 2
+      ;;
+    --compose-override)
+      COMPOSE_OVERRIDE_FILES+=("$2")
+      shift 2
+      ;;
+    --pull)
+      DO_PULL=1
+      shift
+      ;;
+    --skip-build)
+      DO_BUILD=0
+      shift
       ;;
     --skip-migrate)
       DO_MIGRATE=0
@@ -69,22 +84,35 @@ fi
 
 bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --output "$OUTPUT_PATH"
 
+COMPOSE_ARGS=(-f "$OUTPUT_PATH")
+for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do
+  COMPOSE_ARGS+=(-f "$override_file")
+done
+
 if [[ "$DO_UP" -eq 1 ]]; then
-  docker compose -f "$OUTPUT_PATH" "${PROFILE_ARGS[@]}" up -d --build postgres
-  docker compose -f "$OUTPUT_PATH" "${PROFILE_ARGS[@]}" build app worker
+  docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d postgres
+  if [[ "$DO_BUILD" -eq 1 ]]; then
+    docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build app worker
+  elif [[ "$DO_PULL" -eq 1 ]]; then
+    docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull app worker
+  fi
 fi
 
 if [[ "$DO_MIGRATE" -eq 1 ]]; then
   MIGRATION_POOL_SIZE="${MIGRATION_POOL_SIZE:-2}"
-  docker compose -f "$OUTPUT_PATH" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" app bin/elektrine eval "Elektrine.Release.migrate()"
+  docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" app bin/elektrine eval "Elektrine.Release.migrate()"
 fi
 
 if [[ "$DO_UP" -eq 1 ]]; then
-  exec docker compose -f "$OUTPUT_PATH" "${PROFILE_ARGS[@]}" up -d --build "${PASSTHROUGH_ARGS[@]}"
+  if [[ "$DO_BUILD" -eq 1 ]]; then
+    exec docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${PASSTHROUGH_ARGS[@]}"
+  fi
+
+  exec docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${PASSTHROUGH_ARGS[@]}"
 fi
 
 if [[ "${#PASSTHROUGH_ARGS[@]}" -gt 0 ]]; then
-  exec docker compose -f "$OUTPUT_PATH" "${PROFILE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+  exec docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
 fi
 
 echo "Rendered config only: $OUTPUT_PATH"

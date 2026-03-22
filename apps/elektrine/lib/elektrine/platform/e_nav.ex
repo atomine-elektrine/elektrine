@@ -76,6 +76,14 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-envelope-solid"
       },
       %{
+        id: "vault",
+        label: "Vault",
+        href: "/account/password-manager",
+        platform_module: :vault,
+        icon: "hero-key",
+        active_icon: "hero-key-solid"
+      },
+      %{
         id: "vpn",
         label: "VPN",
         href: "/vpn",
