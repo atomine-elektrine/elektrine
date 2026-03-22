@@ -19,6 +19,5 @@ Current platform module ids:
 Operational rules:
 
 - use `scripts/release/deploy_release.sh` for hoster builds
-- use `scripts/deploy/fly_deploy.sh` for Fly deployments
 - use `deploy/docker/compose.core.yml` as the default self-host path
 - treat `email`, `vpn`, `onion`, and client artifacts as add-ons

@@ -80,7 +80,7 @@ defmodule Elektrine.IMAP.Server do
   defp accept_loop(socket) do
     case :gen_tcp.accept(socket) do
       {:ok, client} ->
-        # Parse PROXY protocol to get real client IP (Fly.io support)
+        # Parse PROXY protocol to get the real client IP when present.
         {client_ip, initial_data} =
           case ProxyProtocol.parse_client_ip(client) do
             {:ok, ip, data} ->

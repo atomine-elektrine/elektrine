@@ -6,7 +6,6 @@ import Config
 # which you should run after static files are built and
 # before starting your production server.
 config :elektrine, ElektrineWeb.Endpoint, cache_static_manifest: "priv/static/cache_manifest.json"
-# SSL is handled by Fly.io proxy, no force_ssl needed
 
 # Configures Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Finch, finch_name: Elektrine.Finch
@@ -17,7 +16,7 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
-# Configure JSON logging for production so cloud platforms (Fly.io) can parse log levels
+# Configure JSON logging for production so log aggregators can parse log levels
 config :logger, :console,
   format: {ElektrineWeb.JsonLogFormatter, :format},
   metadata: [:request_id, :user_id]

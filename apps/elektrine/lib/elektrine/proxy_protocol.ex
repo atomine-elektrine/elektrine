@@ -1,10 +1,10 @@
 defmodule Elektrine.ProxyProtocol do
   @moduledoc """
-  PROXY protocol v1 parser for Fly.io TCP services.
+  PROXY protocol v1 parser for TCP services behind a proxy.
 
   The PROXY protocol allows proxies to pass the real client IP address
-  to backend services over TCP connections. Fly.io uses this for services
-  like IMAP, SMTP, and POP3.
+  to backend services over TCP connections for services like IMAP, SMTP,
+  and POP3.
 
   Format: PROXY TCP4 <client_ip> <proxy_ip> <client_port> <proxy_port>\r\n
   Example: PROXY TCP4 192.168.1.1 172.16.17.162 12345 143\r\n

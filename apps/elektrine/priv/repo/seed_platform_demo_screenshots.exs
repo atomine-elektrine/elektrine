@@ -696,11 +696,12 @@ if Mix.env() == :dev do
         encrypted_notes: seed_encrypted_payload.("Shared with Pixel Vera for mobile review")
       },
       %{
-        title: "Fly.io",
+        title: "Docker",
         login_username: "platform-ops@#{local_mail_domain}",
-        website: "https://fly.io",
-        encrypted_password: seed_encrypted_payload.("fly-demo-password"),
-        encrypted_notes: seed_encrypted_payload.("Check health after the screenshot deploy")
+        website: "https://docker.com",
+        encrypted_password: seed_encrypted_payload.("docker-demo-password"),
+        encrypted_notes:
+          seed_encrypted_payload.("Check container health after the screenshot deploy")
       },
       %{
         title: "Sentry",
@@ -796,7 +797,7 @@ if Mix.env() == :dev do
   IO.puts("  /chat/#{captures_identifier}")
   IO.puts("  /calendar")
   IO.puts("  /notifications")
-  IO.puts("  /account/password-manager")
+  IO.puts("  /account/password-manager  # Vault")
   IO.puts("  /#{screenshot_username}")
 else
   IO.puts("Skipping screenshot seed - not in development environment")

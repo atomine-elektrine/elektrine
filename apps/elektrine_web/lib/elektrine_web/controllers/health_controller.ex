@@ -1,6 +1,6 @@
 defmodule ElektrineWeb.HealthController do
   @moduledoc """
-  Health check endpoint for Fly.io and load balancers.
+  Health check endpoint for load balancers and uptime probes.
   """
   use ElektrineWeb, :controller
 

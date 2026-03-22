@@ -262,7 +262,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: true)
   end
 
-  # Health check endpoint for Fly.io (no auth required)
+  # Health check endpoint (no auth required)
   scope "/", ElektrineWeb do
     pipe_through(:api)
 

@@ -57,7 +57,7 @@ Same-server networking guidance:
 - keep Elektrine and Haraka as separate Compose projects
 - publish Haraka's public SMTP ports on the host used for mail delivery
 - keep Elektrine web traffic on Caddy/Phoenix
-- for same-server Docker, point `HARAKA_BASE_URL` at `http://host.docker.internal:18080`
+- for same-server Docker, point `HARAKA_BASE_URL` at Haraka's shared-network API endpoint such as `http://haraka-outbound:8080`
 - if Haraka owns public SMTPS on `465`, move Phoenix's `SMTP_TLS_BIND` off that port (for example `127.0.0.1:2465:2587`)
 - share only the API credentials and webhook secrets, not the Compose project itself
 

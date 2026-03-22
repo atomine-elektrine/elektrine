@@ -1,8 +1,7 @@
 defmodule ElektrineWeb.JsonLogFormatter do
   @moduledoc """
   JSON log formatter for production environments.
-  Outputs logs in JSON format that cloud platforms like Fly.io can parse
-  to properly detect log levels.
+  Outputs logs in JSON format so log pipelines can parse levels reliably.
   """
 
   @doc """
