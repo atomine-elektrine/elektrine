@@ -362,8 +362,36 @@ defmodule Elektrine.Social do
     pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
+    source_filter = Keyword.get(opts, :source_filter, "all")
     preloads = [conversation: []] ++ MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
+
+    source_scope_filter =
+      case source_filter do
+        "federated" ->
+          dynamic(
+            [m, c],
+            (m.federated == true and
+               (c.type == "community" or
+                  fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata))) or
+              c.is_federated_mirror == true
+          )
+
+        "local" ->
+          dynamic(
+            [m, c],
+            c.type == "community" and
+              (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false) and
+              m.federated != true
+          )
+
+        _ ->
+          dynamic(
+            [m, c],
+            c.type == "community" or
+              fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata)
+          )
+      end
 
     query =
       from m in Message,
@@ -371,13 +399,11 @@ defmodule Elektrine.Social do
         on: c.id == m.conversation_id,
         where:
           m.visibility == "public" and
-            m.federated == true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             is_nil(m.reply_to_id) and
             fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
-            (c.type == "community" or
-               fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata)),
+            ^source_scope_filter,
         order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads

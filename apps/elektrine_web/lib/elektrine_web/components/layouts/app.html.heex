@@ -428,6 +428,16 @@
                 </.link>
               </li>
             <% end %>
+            <%= if platform_module_enabled?(:dns) do %>
+              <li>
+                <.link
+                  navigate={~p"/dns"}
+                  class="gap-3 hover:bg-accent/20 hover:text-accent hover:border-l-4 hover:border-accent transition-all duration-200 rounded-md px-3 py-2"
+                >
+                  <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("DNS")}
+                </.link>
+              </li>
+            <% end %>
 
             <%= if @current_user.is_admin do %>
               <div class="divider my-1"></div>
@@ -532,7 +542,7 @@
     </div>
   </div>
 
-  <div class="container mx-auto px-4 py-8 max-w-6xl relative z-10">
+  <div class="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <!-- Main Footer Content -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8 text-center md:text-left">
       <!-- Company -->
