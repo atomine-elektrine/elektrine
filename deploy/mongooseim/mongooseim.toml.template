@@ -11,11 +11,11 @@
   transport.num_acceptors = 10
   transport.max_connections = 1024
 
-  [[listen.http.handlers.mod_bosh]]
+  [[listen.http.handlers.mongoose_bosh_handler]]
     host = "_"
     path = "/http-bind"
 
-  [[listen.http.handlers.mod_websockets]]
+  [[listen.http.handlers.mongoose_websocket_handler]]
     host = "_"
     path = "/ws-xmpp"
 
@@ -68,8 +68,6 @@
   backend = "cets"
 
 [modules.mod_adhoc]
-
-[modules.mod_bosh]
 
 [modules.mod_carboncopy]
 
