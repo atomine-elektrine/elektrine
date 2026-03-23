@@ -17,6 +17,7 @@ PASSTHROUGH_ARGS=()
 DOCKER_BIN=(docker)
 POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
 RENDER_PROFILES=""
+XMPP_CONFIG_OUTPUT=""
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -49,6 +50,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --compose-override)
       COMPOSE_OVERRIDE_FILES+=("$2")
+      shift 2
+      ;;
+    --xmpp-config-output)
+      XMPP_CONFIG_OUTPUT="$2"
       shift 2
       ;;
     --pull)
@@ -124,8 +129,11 @@ fi
 DOCKER_PROFILES="$RENDER_PROFILES" bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --profiles "$RENDER_PROFILES" --output "$OUTPUT_PATH"
 
 if [[ " $RENDER_PROFILES " == *" xmpp "* ]]; then
-  MONGOOSEIM_CONFIG_OUTPUT="$(dirname "$COMPOSE_PROJECT_DIR")/mongooseim/generated/mongooseim.toml"
-  bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh" --output "$MONGOOSEIM_CONFIG_OUTPUT"
+  if [[ -z "$XMPP_CONFIG_OUTPUT" ]]; then
+    XMPP_CONFIG_OUTPUT="$(dirname "$COMPOSE_PROJECT_DIR")/mongooseim/generated/mongooseim.toml"
+  fi
+
+  bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh" --output "$XMPP_CONFIG_OUTPUT"
 fi
 
 COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")
