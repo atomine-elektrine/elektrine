@@ -1,7 +1,6 @@
 [general]
   loglevel = "warning"
   hosts = ["__PRIMARY_DOMAIN__"]
-  host_types = ["xmpp"]
   default_server_domain = "__PRIMARY_DOMAIN__"
   registration_timeout = "infinity"
   language = "en"
