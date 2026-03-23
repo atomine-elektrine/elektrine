@@ -5,6 +5,9 @@
   default_server_domain = "__PRIMARY_DOMAIN__"
   registration_timeout = "infinity"
   language = "en"
+  sm_backend = "cets"
+  component_backend = "cets"
+  s2s_backend = "cets"
 
 [[listen.http]]
   port = 5280
