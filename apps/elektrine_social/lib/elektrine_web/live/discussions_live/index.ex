@@ -1145,6 +1145,13 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_info({:new_discussion_post, post}, socket) do
+    socket =
+      if should_include_post_in_feed?(socket, post) do
+        update_feed_with_new_post(socket, post)
+      else
+        socket
+      end
+
     if socket.assigns.current_view == "trending" do
       {:noreply,
        Phoenix.Component.update(socket, :trending_discussions, fn posts -> [post | posts] end)}
@@ -1517,6 +1524,16 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   defp get_followed_community_posts(user_id, opts) do
     limit = Keyword.get(opts, :limit, 20)
 
+    joined_community_ids =
+      from(cm in Messaging.ConversationMember,
+        join: c in Messaging.Conversation,
+        on: c.id == cm.conversation_id,
+        where: cm.user_id == ^user_id and is_nil(cm.left_at) and c.type == "community",
+        select: c.id
+      )
+      |> Repo.all()
+      |> Enum.uniq()
+
     followed_groups_from_follows =
       from(f in Profiles.Follow,
         join: a in Actor,
@@ -1557,17 +1574,18 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> Enum.filter(fn uri -> is_binary(uri) && String.trim(uri) != "" end)
       |> Enum.uniq()
 
-    mirror_community_ids =
-      federated_mirror_memberships
-      |> Enum.map(& &1.conversation_id)
-      |> Enum.filter(&is_integer/1)
-      |> Enum.uniq()
-
-    if Enum.empty?(followed_actor_ids) and Enum.empty?(followed_uris) and
-         Enum.empty?(mirror_community_ids) do
+    if Enum.empty?(joined_community_ids) and Enum.empty?(followed_actor_ids) and
+         Enum.empty?(followed_uris) do
       []
     else
       community_filter = dynamic([_m], false)
+
+      community_filter =
+        if Enum.empty?(joined_community_ids) do
+          community_filter
+        else
+          dynamic([m], ^community_filter or m.conversation_id in ^joined_community_ids)
+        end
 
       community_filter =
         if Enum.empty?(followed_actor_ids) do
@@ -1577,13 +1595,6 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
             [m],
             ^community_filter or m.remote_actor_id in ^followed_actor_ids
           )
-        end
-
-      community_filter =
-        if Enum.empty?(mirror_community_ids) do
-          community_filter
-        else
-          dynamic([m], ^community_filter or m.conversation_id in ^mirror_community_ids)
         end
 
       community_filter =
@@ -1600,8 +1611,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       Messaging.Message
       |> where(
         [m],
-        m.federated == true and m.visibility == "public" and is_nil(m.deleted_at) and
-          is_nil(m.reply_to_id) and
+        m.visibility == "public" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
           fragment("?->>'inReplyTo' IS NULL OR ? IS NULL", m.media_metadata, m.media_metadata)
       )
       |> where([m], ^community_filter)
@@ -2190,6 +2200,70 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
         _ -> false
       end)
     end)
+  end
+
+  defp should_include_post_in_feed?(socket, post) when is_map(post) do
+    public_root_post?(post) and
+      (joined_local_community_post?(socket, post) or followed_remote_community_post?(socket, post))
+  end
+
+  defp should_include_post_in_feed?(_socket, _post), do: false
+
+  defp public_root_post?(post) do
+    Map.get(post, :visibility) == "public" and is_nil(Map.get(post, :deleted_at)) and
+      is_nil(Map.get(post, :reply_to_id)) and
+      is_nil(get_in(Map.get(post, :media_metadata) || %{}, ["inReplyTo"]))
+  end
+
+  defp joined_local_community_post?(socket, post) do
+    conversation_id = Map.get(post, :conversation_id)
+
+    case socket.assigns[:joined_community_ids] do
+      %MapSet{} = joined_community_ids ->
+        is_integer(conversation_id) and MapSet.member?(joined_community_ids, conversation_id)
+
+      _ ->
+        false
+    end
+  end
+
+  defp followed_remote_community_post?(socket, post) do
+    followed_remote_communities = socket.assigns[:followed_remote_communities] || []
+    followed_actor_ids = MapSet.new(Enum.map(followed_remote_communities, & &1.id))
+
+    followed_uris =
+      followed_remote_communities
+      |> Enum.map(& &1.uri)
+      |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+      |> MapSet.new()
+
+    Map.get(post, :remote_actor_id) in followed_actor_ids or
+      MapSet.member?(
+        followed_uris,
+        get_in(Map.get(post, :media_metadata) || %{}, ["community_actor_uri"])
+      )
+  end
+
+  defp update_feed_with_new_post(socket, post) do
+    followed_community_posts =
+      prepend_unique_post(socket.assigns.followed_community_posts || [], post)
+
+    filtered_community_posts =
+      followed_community_posts
+      |> filter_community_posts_by_category(socket.assigns.selected_category)
+      |> sort_feed_posts(
+        socket.assigns.feed_sort,
+        socket.assigns.lemmy_counts,
+        socket.assigns.session_context
+      )
+
+    socket
+    |> assign(:followed_community_posts, followed_community_posts)
+    |> assign(:filtered_community_posts, filtered_community_posts)
+  end
+
+  defp prepend_unique_post(posts, post) do
+    [post | Enum.reject(posts, &(is_map(&1) and Map.get(&1, :id) == Map.get(post, :id)))]
   end
 
   defp load_with_fallback(key, loader, fallback) when is_function(loader, 0) do

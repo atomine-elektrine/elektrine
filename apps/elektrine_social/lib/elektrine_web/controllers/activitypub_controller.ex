@@ -776,39 +776,21 @@ defmodule ElektrineWeb.ActivityPubController do
 
   @doc """
   Returns the Group actor document for a community.
-  Only responds to ActivityPub requests (checks Accept header).
-  Browsers requesting HTML will fall through to LiveView.
   """
   def community_actor(conn, %{"name" => community_name}) do
-    # Check if this is an ActivityPub request
-    accept_header = get_req_header(conn, "accept") |> List.first() || ""
+    case fetch_public_community(community_name) do
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> put_resp_content_type("application/activity+json")
+        |> json(%{error: "Community not found"})
 
-    is_activitypub_request =
-      String.contains?(accept_header, "application/activity+json") ||
-        String.contains?(accept_header, "application/ld+json")
+      {:ok, community} ->
+        actor_data = Builder.build_group(community)
 
-    if is_activitypub_request do
-      # Return ActivityPub JSON
-      case fetch_public_community(community_name) do
-        {:error, :not_found} ->
-          conn
-          |> put_status(:not_found)
-          |> put_resp_content_type("application/activity+json")
-          |> json(%{error: "Community not found"})
-
-        {:ok, community} ->
-          actor_data = Builder.build_group(community)
-
-          conn
-          |> put_resp_content_type("application/activity+json")
-          |> json(actor_data)
-      end
-    else
-      # Browser request - pass through (will hit LiveView route)
-      conn
-      |> put_status(404)
-      |> put_resp_content_type("text/plain")
-      |> send_resp(404, "Not Found")
+        conn
+        |> put_resp_content_type("application/activity+json")
+        |> json(actor_data)
     end
   end
 
@@ -836,28 +818,13 @@ defmodule ElektrineWeb.ActivityPubController do
             :ok ->
               case validate_incoming_activity(activity, actor_uri) do
                 {:ok, validated_activity} ->
-                  result =
-                    Elektrine.ActivityPub.Handler.process_activity_async(
-                      validated_activity,
-                      actor_uri,
-                      nil
-                    )
+                  log_inbound_group_activity(community, validated_activity, actor_uri)
 
-                  case result do
-                    {:error, reason} ->
-                      if Elektrine.ActivityPub.Handler.retryable_error?(reason) do
-                        community_inbox_retryable_error(conn, reason)
-                      else
-                        conn
-                        |> put_status(:accepted)
-                        |> json(%{})
-                      end
+                  _ = InboxQueue.enqueue(validated_activity, actor_uri, nil)
 
-                    _ ->
-                      conn
-                      |> put_status(:accepted)
-                      |> json(%{})
-                  end
+                  conn
+                  |> put_status(:accepted)
+                  |> json(%{})
 
                 {:error, :invalid_activity} ->
                   conn
@@ -1227,34 +1194,15 @@ defmodule ElektrineWeb.ActivityPubController do
 
   defp preserve_original_object_routing(object, _), do: object
 
-  defp community_inbox_retryable_error(conn, :undo_activity_fetch_failed) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{error: "Failed to fetch referenced activity"})
-  end
+  defp log_inbound_group_activity(community, activity, actor_uri) do
+    activity_type = Map.get(activity, "type", "unknown")
+    object = Map.get(activity, "object")
 
-  defp community_inbox_retryable_error(conn, reason)
-       when reason in [
-              :create_object_fetch_failed,
-              :update_object_fetch_failed,
-              :announce_object_fetch_failed
-            ] do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{error: "Failed to fetch referenced object"})
-  end
-
-  defp community_inbox_retryable_error(conn, reason)
-       when reason in [:move_actor_fetch_failed, :update_actor_fetch_failed] do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{error: "Failed to fetch referenced actor"})
-  end
-
-  defp community_inbox_retryable_error(conn, _reason) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{error: "Temporary processing failure"})
+    if activity_type in ["Follow", "Accept", "Create", "Announce"] do
+      Logger.info(
+        "Community inbox accepted #{activity_type} for #{community.name} from #{actor_uri} object=#{inspect(object)}"
+      )
+    end
   end
 
   defp validate_incoming_activity(activity, actor_uri) do

@@ -8,6 +8,7 @@ This keeps the main app and worker in a single Docker deployment:
 - optional Caddy edge via `--profile caddy`
 - optional Bluesky PDS via `--profile bluesky`
 - optional authoritative DNS via `--profile dns`
+- optional onion service inside the `app` container when `ELEKTRINE_ENABLE_TOR=true`
 
 Recommended host layout:
 
@@ -40,13 +41,36 @@ Enable the separate authoritative DNS service with:
 scripts/deploy/docker_deploy.sh --modules all --profile dns
 ```
 
+Enable onion hosting in the Docker deploy by merging `env/onion.env.example`
+into `.env.production` or by exporting the same variables before you deploy:
+
+```bash
+cat env/onion.env.example >> .env.production
+scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
+```
+
+The Docker deploy keeps Tor off by default. Turn it on with:
+
+- `ELEKTRINE_ENABLE_TOR=true`
+- `ONION_TLS_ENABLED=true`
+- persistent `/data` storage so the hidden-service keys survive restarts
+
 The deploy wrapper:
 
 - renders `deploy/docker/generated.docker.yml`
 - keeps `app` and `worker` in the stack
 - runs database migrations through the app release
+- provisions required Postgres extensions such as `vector`
 - suppresses POP3, IMAP, and SMTP port publishing when `email` is absent
 - can start the dedicated `dns` service when the `dns` profile is enabled
+- can expose the app as an onion service when Tor is enabled in `.env.production`
+
+Postgres notes:
+
+- Docker deploy uses `pgvector/pgvector:pg16` for the `postgres` service
+- fresh databases load `vector` from `deploy/docker/initdb/010-extensions.sql`
+- every deploy also runs `CREATE EXTENSION IF NOT EXISTS` for extensions listed in `POSTGRES_EXTENSIONS`
+- `POSTGRES_EXTENSIONS` defaults to `vector`; set a comma-separated list in `.env.production` if you need more
 
 Mail on the same server is supported too, but as a second Docker deployment.
 Use this repo for Phoenix/mailbox/JMAP/WKD and run `elektrine-haraka` beside it

@@ -936,17 +936,7 @@ defmodule Elektrine.Profiles do
 
   defp maybe_join_remote_group_mirror(_user_id, _remote_actor), do: :ok
 
-  defp maybe_trigger_community_fetch(%Elektrine.ActivityPub.Actor{actor_type: "Group"}) do
-    case Process.whereis(Elektrine.ActivityPub.CommunityFetcher) do
-      pid when is_pid(pid) ->
-        send(pid, :fetch_community_posts)
-
-      _ ->
-        :ok
-    end
-
-    :ok
-  end
+  defp maybe_trigger_community_fetch(%Elektrine.ActivityPub.Actor{actor_type: "Group"}), do: :ok
 
   defp maybe_trigger_community_fetch(_remote_actor), do: :ok
 

@@ -7,13 +7,15 @@ OUTPUT_PATH="$ROOT_DIR/deploy/docker/generated.docker.yml"
 ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
 COMPOSE_OVERRIDE_FILES=()
-COMPOSE_BASE_ARGS=(--project-directory "$ROOT_DIR")
+COMPOSE_PROJECT_DIR="${COMPOSE_PROJECT_DIRECTORY:-$ROOT_DIR}"
+COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR")
 DO_UP=1
 DO_MIGRATE=1
 DO_BUILD=1
 DO_PULL=0
 PASSTHROUGH_ARGS=()
 DOCKER_BIN=(docker)
+POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -109,6 +111,28 @@ done
 
 if [[ "$DO_UP" -eq 1 ]]; then
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d postgres
+
+  if [[ -n "$POSTGRES_EXTENSIONS_RAW" ]]; then
+    IFS=',' read -r -a POSTGRES_EXTENSIONS <<< "$POSTGRES_EXTENSIONS_RAW"
+
+    for extension in "${POSTGRES_EXTENSIONS[@]}"; do
+      extension="$(printf '%s' "$extension" | xargs)"
+
+      if [[ -z "$extension" ]]; then
+        continue
+      fi
+
+      if [[ ! "$extension" =~ ^[A-Za-z0-9_]+$ ]]; then
+        echo "Error: invalid Postgres extension name: $extension" >&2
+        exit 1
+      fi
+
+      "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" exec -T postgres \
+        psql -U "${POSTGRES_USER:-elektrine}" -d "${POSTGRES_DB:-elektrine_prod}" \
+        -c "CREATE EXTENSION IF NOT EXISTS \"$extension\";"
+    done
+  fi
+
   if [[ "$DO_BUILD" -eq 1 ]]; then
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build app worker
   elif [[ "$DO_PULL" -eq 1 ]]; then

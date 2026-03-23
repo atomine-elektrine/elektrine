@@ -104,7 +104,8 @@ defmodule Elektrine.ActivityPub.Fetcher do
             {:error, :invalid_json}
         end
 
-      {:ok, %Finch.Response{status: 401}} when sign_fetches == false ->
+      {:ok, %Finch.Response{status: status}}
+      when status in [401, 403] and sign_fetches == false ->
         # Instance requires signed fetches - retry with signature
         Logger.debug("Instance #{uri} requires signed fetch, retrying...")
         do_signed_fetch(uri, Keyword.put(opts, :sign, true))

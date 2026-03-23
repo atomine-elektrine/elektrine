@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: elektrine_db
     environment:
       POSTGRES_USER: elektrine
@@ -8,6 +8,7 @@ services:
       POSTGRES_DB: elektrine_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/docker/initdb:/docker-entrypoint-initdb.d:ro
     networks:
       - elektrine_network
     restart: unless-stopped
@@ -42,6 +43,8 @@ services:
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      ELEKTRINE_ENABLE_TOR: ${ELEKTRINE_ENABLE_TOR:-false}
+      ONION_TLS_ENABLED: ${ONION_TLS_ENABLED:-true}
       MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
     # BEGIN EMAIL PORTS
     ports:
@@ -81,6 +84,7 @@ services:
       ELEKTRINE_RUNTIME_ROLE: worker
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      ELEKTRINE_ENABLE_TOR: "false"
       MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
     volumes:
       - uploads:/app/uploads

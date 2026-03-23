@@ -11,14 +11,6 @@ Initial architecture:
 - `Elektrine.DNS.ZoneCache` mirrors authoritative zones into ETS for fast lookups
 - `Elektrine.DNS.Authority` is the starting point for the novel UDP/TCP authority process
 
-Planned implementation phases:
-
-1. zone and record CRUD
-2. nameserver delegation onboarding
-3. authoritative query pipeline for A/AAAA/CNAME/TXT/MX/NS/SRV/CAA
-4. UDP and TCP listeners in the dedicated DNS release
-5. audit logs, templates, and automatic mail/web record helpers
-
 External API scopes:
 
 - `read:dns` lists zones and records
@@ -35,8 +27,6 @@ Current PAT endpoints:
 - `POST /api/ext/v1/dns/zones/:zone_id/records`
 - `PUT /api/ext/v1/dns/zones/:zone_id/records/:id`
 - `DELETE /api/ext/v1/dns/zones/:zone_id/records/:id`
-
-The initial scaffold intentionally separates the management plane from the future packet-serving runtime so the DNS service can evolve as an Elektrine-native product instead of wrapping an external daemon.
 
 Docker deployment notes:
 

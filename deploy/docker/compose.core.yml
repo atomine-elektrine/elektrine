@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: elektrine_db
     environment:
       POSTGRES_USER: elektrine
@@ -10,6 +10,7 @@ services:
       POSTGRES_DB: elektrine_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/docker/initdb:/docker-entrypoint-initdb.d:ro
     networks:
       - elektrine_network
     restart: unless-stopped
