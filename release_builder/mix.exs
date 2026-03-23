@@ -38,21 +38,12 @@ defmodule ElektrineReleaseBuilder.MixProject do
   defp releases do
     [
       elektrine: [
-        applications: release_applications(:elektrine)
-      ],
-      elektrine_dns: [
-        applications: release_applications(:elektrine_dns)
+        applications: release_applications()
       ]
     ]
   end
 
-  defp release_applications(:elektrine) do
-    ElektrineReleaseBuilder.ModuleSelection.selected_apps()
-    |> Enum.map(&{&1, :permanent})
-    |> Kernel.++(elektrine_release_builder: :load)
-  end
-
-  defp release_applications(:elektrine_dns) do
+  defp release_applications do
     ElektrineReleaseBuilder.ModuleSelection.selected_apps()
     |> Kernel.++([:elektrine_dns])
     |> Enum.uniq()
