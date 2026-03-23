@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   caddy_edge:
-    image: caddy:2.10.2
+    build:
+      context: ../..
+      dockerfile: deploy/caddy/Dockerfile
     container_name: elektrine_caddy_edge
     depends_on:
       app:
@@ -13,6 +15,7 @@ services:
       ACME_EMAIL: ${CADDY_ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"
       - "${CADDY_HTTPS_BIND:-443:443}"

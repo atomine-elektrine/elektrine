@@ -43,6 +43,16 @@ Deploy manually:
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
 ```
 
+Fast path for local iteration:
+
+```bash
+scripts/deploy/build_and_push_image.sh --tag dev-$(git rev-parse --short HEAD)
+scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git rev-parse --short HEAD)
+```
+
+That path builds the main Elektrine image locally, pushes it to GHCR, then tells the
+remote host to pull and deploy it without rebuilding the app image there.
+
 For wildcard certificates, set these in `.env.production` before first deploy:
 
 - `CLOUDFLARE_API_TOKEN` - token with DNS edit access for `elektrine.com` and `z.org`
