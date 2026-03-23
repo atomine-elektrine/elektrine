@@ -43,6 +43,7 @@ defmodule Elektrine.Developer.ApiToken do
     read:calendar write:calendar
     read:account write:account
     read:vault write:vault
+    read:dns write:dns
     export webhook
   )
   @token_presets [
@@ -82,6 +83,12 @@ defmodule Elektrine.Developer.ApiToken do
       name: "Vault access",
       description: "Read and write encrypted password vault entries.",
       scopes: ["read:vault", "write:vault"]
+    },
+    %{
+      id: "dns_admin",
+      name: "DNS admin",
+      description: "Read and write managed DNS zones and records.",
+      scopes: ["read:dns", "write:dns"]
     }
   ]
 
@@ -175,6 +182,10 @@ defmodule Elektrine.Developer.ApiToken do
       "Vault" => [
         {"read:vault", "Read encrypted password vault entries"},
         {"write:vault", "Create, update, and delete vault entries"}
+      ],
+      "DNS" => [
+        {"read:dns", "Read managed DNS zones and records"},
+        {"write:dns", "Create, update, verify, and delete DNS zones and records"}
       ],
       "Developer" => [
         {"export", "Trigger and download data exports"},

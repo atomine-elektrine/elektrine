@@ -84,6 +84,14 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-key-solid"
       },
       %{
+        id: "dns",
+        label: "DNS",
+        href: "/dns",
+        platform_module: :dns,
+        icon: "hero-globe-alt",
+        active_icon: "hero-globe-alt-solid"
+      },
+      %{
         id: "vpn",
         label: "VPN",
         href: "/vpn",

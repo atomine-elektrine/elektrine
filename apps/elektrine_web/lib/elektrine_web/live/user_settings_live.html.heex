@@ -2434,7 +2434,7 @@
                   </p>
                   <p class="text-base-content/60">
                     {gettext(
-                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, exports, vault access, and webhook management."
+                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, exports, vault access, and webhook management."
                     )}
                   </p>
                   <p>
@@ -2530,6 +2530,21 @@
                           <td><code>DELETE /api/ext/v1/password-manager/vault</code></td>
                           <td><code>write:vault</code></td>
                           <td>{gettext("Delete the encrypted vault and all saved entries")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>GET /api/ext/v1/dns/zones</code></td>
+                          <td><code>read:dns</code></td>
+                          <td>{gettext("List managed DNS zones and records")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>POST /api/ext/v1/dns/zones/:id/verify</code></td>
+                          <td><code>write:dns</code></td>
+                          <td>{gettext("Verify delegation to Elektrine nameservers")}</td>
+                        </tr>
+                        <tr>
+                          <td><code>POST /api/ext/v1/dns/zones/:zone_id/records</code></td>
+                          <td><code>write:dns</code></td>
+                          <td>{gettext("Create a DNS record in a managed zone")}</td>
                         </tr>
                         <tr>
                           <td><code>POST /api/ext/v1/exports</code></td>

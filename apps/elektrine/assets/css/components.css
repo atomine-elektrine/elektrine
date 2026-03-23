@@ -34,6 +34,7 @@
     0 0 24px -16px var(--btn-glow);
 }
 
+
 .btn:active {
   transform: translateY(0);
   box-shadow:
@@ -145,6 +146,17 @@
     0 0 18px -14px var(--btn-glow);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+.notification-bell-btn {
+  --btn-glow: transparent;
+}
+
+.notification-bell-btn .ui-icon,
+.notification-bell-btn:hover .ui-icon,
+.notification-bell-btn:focus-visible .ui-icon {
+  text-shadow: none;
+  filter: none;
 }
 
 /* Ghost with orange active state (for filters) */
@@ -661,21 +673,6 @@
   background-color: #ef4444 !important;
   border-color: #ef4444 !important;
   color: white !important;
-}
-
-/* Notification bell */
-.indicator .btn-circle,
-.indicator .btn-circle:hover,
-.indicator .btn-ghost.btn-circle,
-.indicator .btn-ghost.btn-circle:hover {
-  border-radius: 9999px !important;
-  overflow: hidden;
-}
-
-.indicator .btn-circle:hover,
-.indicator .btn-ghost.btn-circle:hover {
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3) !important;
-  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* --------------------------------------------------------------------------

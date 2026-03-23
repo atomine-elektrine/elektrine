@@ -7,11 +7,13 @@ OUTPUT_PATH="$ROOT_DIR/deploy/docker/generated.docker.yml"
 ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
 COMPOSE_OVERRIDE_FILES=()
+COMPOSE_BASE_ARGS=(--project-directory "$ROOT_DIR")
 DO_UP=1
 DO_MIGRATE=1
 DO_BUILD=1
 DO_PULL=0
 PASSTHROUGH_ARGS=()
+DOCKER_BIN=(docker)
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -89,37 +91,46 @@ if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
   exit 1
 fi
 
+if ! docker info >/dev/null 2>&1; then
+  if sudo -n docker info >/dev/null 2>&1; then
+    DOCKER_BIN=(sudo -n docker)
+  else
+    echo "Error: Docker daemon is not accessible for the current user" >&2
+    exit 1
+  fi
+fi
+
 bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --output "$OUTPUT_PATH"
 
-COMPOSE_ARGS=(-f "$OUTPUT_PATH")
+COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")
 for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do
   COMPOSE_ARGS+=(-f "$override_file")
 done
 
 if [[ "$DO_UP" -eq 1 ]]; then
-  docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d postgres
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d postgres
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build app worker
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build app worker
   elif [[ "$DO_PULL" -eq 1 ]]; then
-    docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull app worker
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull app worker
   fi
 fi
 
 if [[ "$DO_MIGRATE" -eq 1 ]]; then
   MIGRATION_POOL_SIZE="${MIGRATION_POOL_SIZE:-2}"
-  docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" app bin/elektrine eval "Elektrine.Release.migrate()"
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" app bin/elektrine eval "Elektrine.Release.migrate()"
 fi
 
 if [[ "$DO_UP" -eq 1 ]]; then
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    exec docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${PASSTHROUGH_ARGS[@]}"
+    exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${PASSTHROUGH_ARGS[@]}"
   fi
 
-  exec docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${PASSTHROUGH_ARGS[@]}"
+  exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${PASSTHROUGH_ARGS[@]}"
 fi
 
 if [[ "${#PASSTHROUGH_ARGS[@]}" -gt 0 ]]; then
-  exec docker compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+  exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
 fi
 
 echo "Rendered config only: $OUTPUT_PATH"

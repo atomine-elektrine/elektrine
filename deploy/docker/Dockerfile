@@ -73,6 +73,7 @@ COPY apps/elektrine_chat/mix.exs apps/elektrine_chat/mix.exs
 COPY apps/elektrine_web/mix.exs apps/elektrine_web/mix.exs
 COPY apps/elektrine_email/mix.exs apps/elektrine_email/mix.exs
 COPY apps/elektrine_social/mix.exs apps/elektrine_social/mix.exs
+COPY apps/elektrine_dns/mix.exs apps/elektrine_dns/mix.exs
 COPY apps/elektrine_password_manager/mix.exs apps/elektrine_password_manager/mix.exs
 COPY apps/elektrine_vpn/mix.exs apps/elektrine_vpn/mix.exs
 COPY config/config.exs config/prod.exs config/

@@ -279,7 +279,7 @@
         <!-- Notification Bell -->
         <.link
           href="/notifications"
-          class="indicator flex items-center no-glow flex-shrink-0"
+          class="indicator btn btn-ghost notification-bell-btn rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
           title={gettext("Notifications")}
         >
           <%= if assigns[:notification_count] && @notification_count > 0 do %>
@@ -291,13 +291,11 @@
               </span>
             </span>
           <% end %>
-          <div class="btn btn-ghost btn-circle flex items-center justify-center">
-            <%= if assigns[:notification_count] && @notification_count > 0 do %>
-              <.icon name="hero-bell-alert" class="w-5 h-5" />
-            <% else %>
-              <.icon name="hero-bell" class="w-5 h-5" />
-            <% end %>
-          </div>
+          <%= if assigns[:notification_count] && @notification_count > 0 do %>
+            <.icon name="hero-bell-alert" class="w-5 h-5" />
+          <% else %>
+            <.icon name="hero-bell" class="w-5 h-5" />
+          <% end %>
         </.link>
 
         <div class="dropdown dropdown-end flex-shrink-0" data-test="user-menu">

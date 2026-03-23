@@ -7,6 +7,7 @@ defmodule ElektrineWeb.PlatformAccess do
 
   @path_prefixes [
     {:vault, ["/account/password-manager", "/api/ext/v1/password-manager"]},
+    {:dns, ["/dns", "/api/dns", "/pripyat/dns"]},
     {:email,
      [
        "/email",
@@ -102,6 +103,9 @@ defmodule ElektrineWeb.PlatformAccess do
     ],
     vault: [
       ElektrinePasswordManagerWeb.VaultLive
+    ],
+    dns: [
+      ElektrineWeb.DNSLive.Index
     ]
   }
 

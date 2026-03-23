@@ -26,11 +26,18 @@ defmodule ElektrineUmbrella.MixProject do
         applications: [
           elektrine: :permanent,
           elektrine_chat: :permanent,
+          elektrine_dns: :permanent,
           elektrine_web: :permanent,
           elektrine_email: :permanent,
           elektrine_social: :permanent,
           elektrine_vpn: :permanent,
           elektrine_password_manager: :permanent
+        ]
+      ],
+      elektrine_dns: [
+        applications: [
+          elektrine: :permanent,
+          elektrine_dns: :permanent
         ]
       ]
     ]

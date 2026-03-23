@@ -7,6 +7,7 @@ This keeps the main app and worker in a single Docker deployment:
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
 - optional Bluesky PDS via `--profile bluesky`
+- optional authoritative DNS via `--profile dns`
 
 Recommended host layout:
 
@@ -33,12 +34,19 @@ Enable email ports only when the `email` module is compiled in:
 scripts/deploy/docker_deploy.sh --modules chat,social,email,vault --profile caddy
 ```
 
+Enable the separate authoritative DNS service with:
+
+```bash
+scripts/deploy/docker_deploy.sh --modules all --profile dns
+```
+
 The deploy wrapper:
 
 - renders `deploy/docker/generated.docker.yml`
 - keeps `app` and `worker` in the stack
 - runs database migrations through the app release
 - suppresses POP3, IMAP, and SMTP port publishing when `email` is absent
+- can start the dedicated `dns` service when the `dns` profile is enabled
 
 Mail on the same server is supported too, but as a second Docker deployment.
 Use this repo for Phoenix/mailbox/JMAP/WKD and run `elektrine-haraka` beside it

@@ -172,6 +172,14 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:account"])
   end
 
+  pipeline :api_pat_dns_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:dns", "write:dns"], any: true)
+  end
+
+  pipeline :api_pat_dns_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:dns"])
+  end
+
   pipeline :api_pat_vault_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth,
       scopes: ["read:vault", "write:vault"],
@@ -1240,6 +1248,29 @@ defmodule ElektrineWeb.Router do
     end
   end
 
+  scope "/api/ext/v1/dns", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_dns_read_scope])
+
+    scope "/", alias: false do
+      get("/zones", ElektrineWeb.API.DNSController, :index)
+      get("/zones/:id", ElektrineWeb.API.DNSController, :show)
+    end
+  end
+
+  scope "/api/ext/v1/dns", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_dns_write_scope])
+
+    scope "/", alias: false do
+      post("/zones", ElektrineWeb.API.DNSController, :create)
+      put("/zones/:id", ElektrineWeb.API.DNSController, :update)
+      delete("/zones/:id", ElektrineWeb.API.DNSController, :delete)
+      post("/zones/:id/verify", ElektrineWeb.API.DNSController, :verify)
+      post("/zones/:zone_id/records", ElektrineWeb.API.DNSController, :create_record)
+      put("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :update_record)
+      delete("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :delete_record)
+    end
+  end
+
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
     pipe_through([:api_vault_authenticated, :api_pat_vault_write_scope])
 
@@ -1311,6 +1342,29 @@ defmodule ElektrineWeb.Router do
     scope "/", alias: false do
       get("/entries", ElektrinePasswordManagerWeb.API.VaultController, :index)
       get("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :show)
+    end
+  end
+
+  scope "/api/ext/dns", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_dns_read_scope])
+
+    scope "/", alias: false do
+      get("/zones", ElektrineWeb.API.DNSController, :index)
+      get("/zones/:id", ElektrineWeb.API.DNSController, :show)
+    end
+  end
+
+  scope "/api/ext/dns", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_dns_write_scope])
+
+    scope "/", alias: false do
+      post("/zones", ElektrineWeb.API.DNSController, :create)
+      put("/zones/:id", ElektrineWeb.API.DNSController, :update)
+      delete("/zones/:id", ElektrineWeb.API.DNSController, :delete)
+      post("/zones/:id/verify", ElektrineWeb.API.DNSController, :verify)
+      post("/zones/:zone_id/records", ElektrineWeb.API.DNSController, :create_record)
+      put("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :update_record)
+      delete("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :delete_record)
     end
   end
 
@@ -1521,6 +1575,9 @@ defmodule ElektrineWeb.Router do
 
       # VPN
       live("/vpn", VPNLive.Index, :index)
+
+      # DNS
+      live("/dns", DNSLive.Index, :index)
 
       # Contacts
       live("/contacts", ContactsLive.Index, :index)

@@ -63,6 +63,8 @@ defmodule ElektrineWeb.MixProject do
       ElektrineWeb.ChatLive.Index,
       ElektrineWeb.ContactsLive.Index,
       ElektrineWeb.DAV.AddressBookController,
+      ElektrineWeb.API.DNSController,
+      ElektrineWeb.DNSLive.Index,
       ElektrineWeb.DiscussionsLive.Community,
       ElektrineWeb.DiscussionsLive.Index,
       ElektrineWeb.DiscussionsLive.Post,

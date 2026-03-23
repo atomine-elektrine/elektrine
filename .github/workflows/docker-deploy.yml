@@ -136,7 +136,7 @@ jobs:
               image: ${TARGET_IMAGE}
           OVERRIDE
 
-          \${DEPLOY_PREFIX} bash scripts/deploy/docker_deploy.sh \
+          bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_RELEASE_MODULES" \
             --output "\$OUTPUT_FILE" \
             --pull \
