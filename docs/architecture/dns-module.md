@@ -6,7 +6,7 @@ Initial architecture:
 
 - `apps/elektrine_dns` contains the DNS runtime, schemas, and LiveView surface
 - the main `elektrine` release includes the DNS module for account/UI access
-- a separate `elektrine_dns` release is reserved for the dedicated authoritative runtime
+- the dedicated DNS container runs the main `elektrine` release with DNS authority enabled at runtime
 - zone and record state live in Postgres
 - `Elektrine.DNS.ZoneCache` mirrors authoritative zones into ETS for fast lookups
 - `Elektrine.DNS.Authority` is the starting point for the novel UDP/TCP authority process
@@ -32,5 +32,5 @@ Docker deployment notes:
 
 - main app/web stays on the standard `elektrine` release
 - authoritative DNS runs through the `dns` Compose profile
-- the DNS service builds the `elektrine_dns` release from the same Dockerfile
+- the DNS service reuses the main `elektrine` release from the same Dockerfile and disables unrelated runtime components
 - default internal listening ports are UDP/TCP `5300`, mapped to host port `53`

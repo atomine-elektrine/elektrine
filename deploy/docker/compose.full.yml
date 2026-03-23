@@ -131,7 +131,7 @@ services:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
       args:
-        RELEASE_NAME: ${DNS_RELEASE_NAME:-elektrine_dns}
+        RELEASE_NAME: ${RELEASE_NAME:-elektrine}
         ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
         PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-localhost}
         EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-localhost}}
@@ -146,7 +146,7 @@ services:
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
       MIX_ENV: prod
-      RELEASE_NAME: ${DNS_RELEASE_NAME:-elektrine_dns}
+      RELEASE_NAME: ${RELEASE_NAME:-elektrine}
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       ELEKTRINE_RUNTIME_ROLE: worker
       ELEKTRINE_ENABLE_WEB: "false"
