@@ -57,6 +57,7 @@ cd "$ROOT_DIR/release_builder"
 mix tailwind elektrine --minify
 mix esbuild elektrine --minify
 mix phx.digest ../apps/elektrine/priv/static --no-compile
+rm -rf ../_build/release_builder
 mix clean
 mix compile
 mix release "$RELEASE_NAME" --overwrite
