@@ -393,17 +393,22 @@ defmodule Elektrine.Social do
           )
       end
 
+    where_filter =
+      dynamic(
+        [m, c],
+        m.visibility == "public" and
+          is_nil(m.deleted_at) and
+          (m.approval_status == "approved" or is_nil(m.approval_status)) and
+          is_nil(m.reply_to_id) and
+          fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
+          ^source_scope_filter
+      )
+
     query =
       from m in Message,
         left_join: c in Conversation,
         on: c.id == m.conversation_id,
-        where:
-          m.visibility == "public" and
-            is_nil(m.deleted_at) and
-            (m.approval_status == "approved" or is_nil(m.approval_status)) and
-            is_nil(m.reply_to_id) and
-            fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
-            ^source_scope_filter,
+        where: ^where_filter,
         order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads
