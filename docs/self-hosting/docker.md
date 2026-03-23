@@ -5,12 +5,17 @@ This keeps the main app and worker in a single Docker deployment:
 - one `app` container
 - one `worker` container
 - optional `mail` container for SMTP, IMAP, and POP3 via `--profile email`
+- optional `mail_edge` nginx stream container for IMAPS, POP3S, and SMTPS via `--profile email`
 - optional `xmpp` container for MongooseIM via `--profile xmpp`
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
 - optional Bluesky PDS via `--profile bluesky`
 - optional authoritative DNS via `--profile dns`
 - optional onion service inside the `app` container via `--profile tor`
+
+The Caddy edge build includes the Cloudflare DNS provider module so it can issue
+wildcard certificates for `elektrine.com` / `*.elektrine.com` and `z.org` /
+`*.z.org` with the ACME DNS challenge.
 
 Deployment model:
 
@@ -37,6 +42,18 @@ Deploy manually:
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
 ```
+
+For wildcard certificates, set these in `.env.production` before first deploy:
+
+- `CLOUDFLARE_API_TOKEN` - token with DNS edit access for `elektrine.com` and `z.org`
+- `CADDY_ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
+
+Then point these records at your edge:
+
+- `elektrine.com`
+- `*.elektrine.com`
+- `z.org`
+- `*.z.org`
 
 Preview what a deploy will run:
 
@@ -104,10 +121,12 @@ The deploy wrapper:
 - renders `deploy/docker/generated.docker.yml`
 - keeps `app` and `worker` in the stack
 - can start the dedicated `mail` service when the `email` profile is enabled
+- can start the dedicated `mail_edge` TLS proxy when the `email` profile is enabled
 - runs database migrations through the app release
 - provisions required Postgres extensions such as `vector`
 - can start the dedicated `dns` service when the `dns` profile is enabled
 - can expose the app as an onion service when the `tor` profile is enabled
+- builds a Cloudflare-enabled Caddy image when the `caddy` profile is enabled
 
 Postgres notes:
 
@@ -129,6 +148,7 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_PORT` optional, defaults to `22`
 - `DOCKER_PROFILES` optional, defaults to `caddy`
 - `MONGOOSEIM_API_KEY` required when using the `xmpp` profile
+- `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required when using the built-in `email` profile securely
 
 GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
 
