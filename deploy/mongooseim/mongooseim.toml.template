@@ -1,0 +1,96 @@
+[general]
+  loglevel = "warning"
+  hosts = ["__PRIMARY_DOMAIN__"]
+  host_types = ["xmpp"]
+  default_server_domain = "__PRIMARY_DOMAIN__"
+  registration_timeout = "infinity"
+  language = "en"
+
+[[listen.http]]
+  port = 5280
+  transport.num_acceptors = 10
+  transport.max_connections = 1024
+
+  [[listen.http.handlers.mod_bosh]]
+    host = "_"
+    path = "/http-bind"
+
+  [[listen.http.handlers.mod_websockets]]
+    host = "_"
+    path = "/ws-xmpp"
+
+[[listen.c2s]]
+  port = 5222
+  access = "c2s"
+  shaper = "normal"
+  max_stanza_size = 65536
+  allowed_auth_methods = ["http"]
+
+[[listen.s2s]]
+  port = 5269
+  shaper = "fast"
+  max_stanza_size = 131072
+
+[auth]
+  methods = ["http"]
+
+  [auth.password]
+    format = "plain"
+
+  [auth.http]
+    basic_auth = "elektrine:__MONGOOSEIM_API_KEY__"
+
+[outgoing_pools.http.auth]
+  scope = "global"
+
+  [outgoing_pools.http.auth.connection]
+    host = "http://app:8080"
+    path_prefix = "/_mongooseim/identity/v1/"
+    request_timeout = 5000
+
+[services.service_mongoose_system_metrics]
+
+[modules.mod_adhoc]
+
+[modules.mod_bosh]
+
+[modules.mod_carboncopy]
+
+[modules.mod_disco]
+  users_can_see_hidden_services = false
+
+[modules.mod_offline]
+
+[modules.mod_presence]
+
+[modules.mod_privacy]
+
+[modules.mod_private]
+
+[modules.mod_roster]
+
+[modules.mod_sic]
+
+[modules.mod_stream_management]
+
+[acl]
+  local = [{}]
+
+[access]
+  max_user_sessions = [
+    {acl = "all", value = 10}
+  ]
+
+  local = [
+    {acl = "local", value = "allow"}
+  ]
+
+  c2s = [
+    {acl = "all", value = "allow"}
+  ]
+
+[shaper.normal]
+  max_rate = 16384
+
+[shaper.fast]
+  max_rate = 50000

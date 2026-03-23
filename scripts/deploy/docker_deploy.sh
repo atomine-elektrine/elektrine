@@ -16,6 +16,7 @@ DO_PULL=0
 PASSTHROUGH_ARGS=()
 DOCKER_BIN=(docker)
 POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
+RENDER_PROFILES=""
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -86,6 +87,22 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+for ((i = 0; i < ${#PROFILE_ARGS[@]}; i += 2)); do
+  profile_name="${PROFILE_ARGS[i + 1]}"
+
+  if [[ -n "$profile_name" ]]; then
+    if [[ -n "$RENDER_PROFILES" ]]; then
+      RENDER_PROFILES+=" "
+    fi
+
+    RENDER_PROFILES+="$profile_name"
+  fi
+done
+
+if [[ -z "$RENDER_PROFILES" ]]; then
+  RENDER_PROFILES="${DOCKER_PROFILES:-caddy}"
+fi
+
 COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR" --env-file "$ENV_FILE")
 
 if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
@@ -104,7 +121,11 @@ if ! docker info >/dev/null 2>&1; then
   fi
 fi
 
-bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --output "$OUTPUT_PATH"
+DOCKER_PROFILES="$RENDER_PROFILES" bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --profiles "$RENDER_PROFILES" --output "$OUTPUT_PATH"
+
+if [[ " $RENDER_PROFILES " == *" xmpp "* ]]; then
+  bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh"
+fi
 
 COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")
 for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do

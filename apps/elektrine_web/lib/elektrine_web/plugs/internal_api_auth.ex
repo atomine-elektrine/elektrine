@@ -34,7 +34,27 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   end
 
   defp provided_key(conn, opts) do
-    List.first(get_req_header(conn, "x-api-key")) || query_param_key(conn, opts)
+    List.first(get_req_header(conn, "x-api-key")) ||
+      authorization_key(conn) ||
+      query_param_key(conn, opts)
+  end
+
+  defp authorization_key(conn) do
+    case List.first(get_req_header(conn, "authorization")) do
+      "Bearer " <> token when token != "" -> token
+      "Basic " <> credentials -> basic_auth_password(credentials)
+      _ -> nil
+    end
+  end
+
+  defp basic_auth_password(credentials) do
+    with {:ok, decoded} <- Base.decode64(credentials),
+         [_, password] <- String.split(decoded, ":", parts: 2),
+         false <- password == "" do
+      password
+    else
+      _ -> nil
+    end
   end
 
   defp query_param_key(conn, opts) do
