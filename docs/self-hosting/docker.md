@@ -5,19 +5,20 @@ This keeps the main app and worker in a single Docker deployment:
 - one `app` container
 - one `worker` container
 - optional `mail` container for SMTP, IMAP, and POP3 via `--profile email`
+- optional `xmpp` container for MongooseIM via `--profile xmpp`
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
 - optional Bluesky PDS via `--profile bluesky`
 - optional authoritative DNS via `--profile dns`
-- optional onion service inside the `app` container when `ELEKTRINE_ENABLE_TOR=true`
+- optional onion service inside the `app` container via `--profile tor`
 
 Deployment model:
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
 | product capabilities | `ELEKTRINE_RELEASE_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
-| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `caddy`, `bluesky` |
-| runtime behavior inside a container | env vars | `ELEKTRINE_ENABLE_TOR=true` |
+| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `xmpp`, `caddy`, `bluesky` |
+| runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
 Rule of thumb:
 
@@ -40,7 +41,7 @@ scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
 Preview what a deploy will run:
 
 ```bash
-scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email"
+scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor xmpp"
 ```
 
 Keep the repo owned by your deploy user and avoid running `git` operations as `root` inside the checkout. Use `sudo` only for Docker commands. If a generated compose file ever becomes unwritable because of ownership drift, render to a writable temporary path instead of the tracked repo file:
@@ -61,17 +62,30 @@ Enable the separate authoritative DNS service with:
 scripts/deploy/docker_deploy.sh --modules all --profile dns
 ```
 
+Enable the separate MongooseIM XMPP service with:
+
+```bash
+scripts/deploy/docker_deploy.sh --modules all --profile xmpp
+```
+
+The MongooseIM profile uses Elektrine's existing internal auth endpoints at
+`/_mongooseim/identity/v1/*` and renders a config file from:
+
+- `deploy/mongooseim/mongooseim.toml.template`
+- `scripts/deploy/render_mongooseim_config.sh`
+
+Set `MONGOOSEIM_API_KEY` in `.env.production` to match the internal API auth key.
+
 Enable onion hosting in the Docker deploy by merging `env/onion.env.example`
 into `.env.production` or by exporting the same variables before you deploy:
 
 ```bash
 cat env/onion.env.example >> .env.production
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile tor
 ```
 
-The Docker deploy keeps Tor off by default. Turn it on with:
+The Docker deploy keeps Tor off by default. Turn it on with the `tor` profile plus:
 
-- `ELEKTRINE_ENABLE_TOR=true`
 - `ONION_TLS_ENABLED=true`
 - persistent `/data` storage so the hidden-service keys survive restarts
 
@@ -83,7 +97,7 @@ The deploy wrapper:
 - runs database migrations through the app release
 - provisions required Postgres extensions such as `vector`
 - can start the dedicated `dns` service when the `dns` profile is enabled
-- can expose the app as an onion service when Tor is enabled in `.env.production`
+- can expose the app as an onion service when the `tor` profile is enabled
 
 Postgres notes:
 
@@ -104,6 +118,7 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
 - `DEPLOY_PORT` optional, defaults to `22`
 - `DOCKER_PROFILES` optional, defaults to `caddy`
+- `MONGOOSEIM_API_KEY` required when using the `xmpp` profile
 
 GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
 

@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: elektrine_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./deploy/docker/initdb:/docker-entrypoint-initdb.d:ro
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     networks:
       - elektrine_network
     restart: unless-stopped
@@ -163,6 +163,24 @@ services:
       - elektrine_network
     restart: unless-stopped
 
+  xmpp:
+    profiles: ["xmpp"]
+    image: erlangsolutions/mongooseim:latest
+    container_name: elektrine_xmpp
+    depends_on:
+      app:
+        condition: service_started
+    ports:
+      - "${XMPP_CLIENT_BIND:-5222:5222}"
+      - "${XMPP_S2S_BIND:-5269:5269}"
+      - "${XMPP_HTTP_BIND:-5280:5280}"
+    volumes:
+      - ../mongooseim/generated:/member:ro
+      - xmpp_data:/var/lib/mongooseim
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
   caddy_edge:
     image: caddy:2.10.2
     container_name: elektrine_caddy_edge
@@ -221,6 +239,7 @@ volumes:
   app_data:
   caddy_data:
   bluesky_pds_data:
+  xmpp_data:
 
 networks:
   elektrine_network:

@@ -32,6 +32,15 @@ defmodule ElektrineWeb.MongooseIMAuthControllerTest do
       assert conn.status == 401
     end
 
+    test "accepts HTTP basic auth password as the internal API key", %{api_key: api_key} do
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Basic " <> Base.encode64("elektrine:" <> api_key))
+        |> post("/_mongooseim/identity/v1/check_credentials", %{})
+
+      assert conn.status == 200
+    end
+
     test "returns true for valid username/password credentials", %{conn: conn} do
       user = user_fixture()
 
