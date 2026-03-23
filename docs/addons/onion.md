@@ -15,4 +15,11 @@ To enable it:
 2. make sure `/data` is persistent
 3. if you deploy on Fly, use `scripts/onion/sync-onion-key-secrets.sh` after the hidden service is created
 
+Docker deploy notes:
+
+- Docker keeps Tor off by default; set `ELEKTRINE_ENABLE_TOR=true` to enable it
+- the `app` container runs Tor and the Phoenix release together
+- `/data/tor/elektrine/hostname` inside the persistent volume holds the generated onion host
+- if you replace the volume, `ONION_HOST`, `ONION_HS_SECRET_KEY_B64`, and `ONION_HS_PUBLIC_KEY_B64` can restore the hidden-service identity
+
 If you do not need an onion address, leave Tor off entirely.

@@ -21,7 +21,7 @@ configure_role() {
   local web_default="true"
   local jobs_default="true"
   local mail_default="true"
-  local tor_default="true"
+  local tor_default="false"
 
   case "$role" in
     all)

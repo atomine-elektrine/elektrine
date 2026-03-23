@@ -142,8 +142,7 @@ defmodule Elektrine.Application do
         Elektrine.ActivityPub.InboxRateLimiter,
         Elektrine.ActivityPub.DomainThrottler,
         Elektrine.ActivityPub.InboxQueue,
-        Elektrine.ActivityPub.Nodeinfo,
-        Elektrine.ActivityPub.CommunityFetcher
+        Elektrine.ActivityPub.Nodeinfo
       ]
     else
       []

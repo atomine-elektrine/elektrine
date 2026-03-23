@@ -82,6 +82,7 @@ jobs:
       ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
       DOCKER_PROFILES: ${{ secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
+      DEPLOY_REF: ${{ github.sha }}
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -122,12 +123,20 @@ jobs:
 
           cd "$DEPLOY_PATH"
           git fetch --all --tags
-          git checkout "$DEPLOY_BRANCH"
-          git pull --ff-only origin "$DEPLOY_BRANCH"
+
+          WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree"
 
           OUTPUT_FILE="/tmp/elektrine.generated.docker.yml"
-          OVERRIDE_FILE="docker-image.override.yml"
-          trap 'rm -f "\$OVERRIDE_FILE" "\$OUTPUT_FILE"' EXIT
+          OVERRIDE_FILE="/tmp/elektrine.docker-image.override.yml"
+          trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"; rm -f "\$OVERRIDE_FILE" "\$OUTPUT_FILE"' EXIT
+
+          if [ -d "$WORKTREE_PATH" ]; then
+            git worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"
+          fi
+
+          git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
+          cd "$WORKTREE_PATH"
+
           cat > "\$OVERRIDE_FILE" <<'OVERRIDE'
           services:
             app:
@@ -136,7 +145,7 @@ jobs:
               image: ${TARGET_IMAGE}
           OVERRIDE
 
-          bash scripts/deploy/docker_deploy.sh \
+          COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH" bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_RELEASE_MODULES" \
             --output "\$OUTPUT_FILE" \
             --pull \
