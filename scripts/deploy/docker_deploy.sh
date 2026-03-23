@@ -124,7 +124,8 @@ fi
 DOCKER_PROFILES="$RENDER_PROFILES" bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --profiles "$RENDER_PROFILES" --output "$OUTPUT_PATH"
 
 if [[ " $RENDER_PROFILES " == *" xmpp "* ]]; then
-  bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh"
+  MONGOOSEIM_CONFIG_OUTPUT="$(dirname "$COMPOSE_PROJECT_DIR")/mongooseim/generated/mongooseim.toml"
+  bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh" --output "$MONGOOSEIM_CONFIG_OUTPUT"
 fi
 
 COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")

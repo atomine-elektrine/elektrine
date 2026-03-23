@@ -75,6 +75,7 @@ The MongooseIM profile uses Elektrine's existing internal auth endpoints at
 - `scripts/deploy/render_mongooseim_config.sh`
 
 Set `MONGOOSEIM_API_KEY` in `.env.production` to match the internal API auth key.
+If it is unset, the deploy renderer falls back to `PHOENIX_API_KEY`.
 
 Enable onion hosting in the Docker deploy by merging `env/onion.env.example`
 into `.env.production` or by exporting the same variables before you deploy:

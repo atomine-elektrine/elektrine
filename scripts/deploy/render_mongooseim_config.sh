@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE_PATH="$ROOT_DIR/deploy/mongooseim/mongooseim.toml.template"
 OUTPUT_PATH="${OUTPUT_PATH:-$ROOT_DIR/deploy/mongooseim/generated/mongooseim.toml}"
 PRIMARY_DOMAIN_VALUE="${PRIMARY_DOMAIN:-example.com}"
-MONGOOSEIM_API_KEY_VALUE="${MONGOOSEIM_API_KEY:-change-me}"
+MONGOOSEIM_API_KEY_VALUE="${MONGOOSEIM_API_KEY:-${PHOENIX_API_KEY:-change-me}}"
 
 usage() {
   cat <<'EOF'
