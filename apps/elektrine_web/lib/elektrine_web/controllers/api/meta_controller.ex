@@ -258,6 +258,62 @@ defmodule ElektrineWeb.API.MetaController do
       },
       %{
         method: "GET",
+        path: "/api/ext/v1/dns/zones",
+        summary: "List managed DNS zones",
+        required_scopes: ["read:dns", "write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "GET",
+        path: "/api/ext/v1/dns/zones/:id",
+        summary: "Get one managed DNS zone with records",
+        required_scopes: ["read:dns", "write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/dns/zones",
+        summary: "Create a managed DNS zone",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "PUT",
+        path: "/api/ext/v1/dns/zones/:id",
+        summary: "Update zone metadata and SOA settings",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/dns/zones/:id/verify",
+        summary: "Verify DNS delegation to Elektrine nameservers",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/dns/zones/:zone_id/records",
+        summary: "Create a DNS record in a managed zone",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "PUT",
+        path: "/api/ext/v1/dns/zones/:zone_id/records/:id",
+        summary: "Update a DNS record",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "DELETE",
+        path: "/api/ext/v1/dns/zones/:zone_id/records/:id",
+        summary: "Delete a DNS record",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "GET",
         path: "/api/ext/v1/calendars",
         summary: "List calendars",
         required_scopes: ["read:calendar", "write:calendar"],

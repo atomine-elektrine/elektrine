@@ -171,13 +171,21 @@ config :elektrine, :email,
   custom_domain_dmarc_aspf: "s",
   custom_domain_dmarc_rua: nil
 
+config :elektrine, :dns,
+  authority_enabled: false,
+  udp_port: 5300,
+  tcp_port: 5300,
+  nameservers: ["ns1.elektrine.com", "ns2.elektrine.com"],
+  soa_rname: "hostmaster.elektrine.com",
+  default_ttl: 300
+
 config :elektrine, :profile_base_domains, profile_base_domains
 config :elektrine, :profile_host_scope, profile_host_scope
 config :elektrine, :primary_domain, primary_domain
 
-config :elektrine, :compiled_platform_modules, [:chat, :social, :email, :vault, :vpn]
+config :elektrine, :compiled_platform_modules, [:chat, :social, :email, :vault, :vpn, :dns]
 
-config :elektrine, :platform_modules, enabled: [:chat, :social, :email, :vault, :vpn]
+config :elektrine, :platform_modules, enabled: [:chat, :social, :email, :vault, :vpn, :dns]
 
 # Process Haraka inbound payloads asynchronously through Oban.
 # Can be overridden with HARAKA_ASYNC_INGEST at runtime.

@@ -89,6 +89,44 @@ services:
       - elektrine_network
     restart: unless-stopped
 
+  dns:
+    profiles: ["dns"]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        RELEASE_NAME: ${DNS_RELEASE_NAME:-elektrine_dns}
+        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
+        PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-localhost}
+        EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-localhost}}
+        SUPPORTED_DOMAINS: ${SUPPORTED_DOMAINS:-${PRIMARY_DOMAIN:-localhost}}
+        PROFILE_BASE_DOMAINS: ${PROFILE_BASE_DOMAINS:-${PRIMARY_DOMAIN:-localhost}}
+    container_name: elektrine_dns
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.production
+    environment:
+      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      MIX_ENV: prod
+      RELEASE_NAME: ${DNS_RELEASE_NAME:-elektrine_dns}
+      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
+      ELEKTRINE_RUNTIME_ROLE: worker
+      ELEKTRINE_ENABLE_WEB: "false"
+      ELEKTRINE_ENABLE_JOBS: "false"
+      ELEKTRINE_ENABLE_MAIL: "false"
+      ELEKTRINE_ENABLE_TOR: "false"
+      DNS_AUTHORITY_ENABLED: "true"
+    ports:
+      - "${DNS_UDP_BIND:-53:5300/udp}"
+      - "${DNS_TCP_BIND:-53:5300/tcp}"
+    volumes:
+      - app_data:/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
   caddy_edge:
     image: caddy:2.10.2
     container_name: elektrine_caddy_edge

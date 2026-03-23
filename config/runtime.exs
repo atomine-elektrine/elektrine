@@ -176,6 +176,19 @@ enabled_platform_modules =
 
 config :elektrine, :platform_modules, enabled: enabled_platform_modules
 
+config :elektrine, :dns,
+  authority_enabled: parse_bool_env.("DNS_AUTHORITY_ENABLED", false),
+  udp_port:
+    parse_int_env.(
+      "DNS_UDP_PORT",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:udp_port, 5300)
+    ),
+  tcp_port:
+    parse_int_env.(
+      "DNS_TCP_PORT",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:tcp_port, 5300)
+    )
+
 messaging_federation_delivery_concurrency =
   parse_int_env.("MESSAGING_FEDERATION_DELIVERY_CONCURRENCY", 6)
 

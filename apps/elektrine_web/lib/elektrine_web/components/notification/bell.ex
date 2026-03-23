@@ -14,7 +14,7 @@ defmodule ElektrineWeb.Components.Notification.Bell do
       <% end %>
       <.link
         href="/notifications"
-        class="btn btn-ghost btn-circle btn-sm"
+        class="btn btn-ghost notification-bell-btn btn-circle btn-sm"
         title={gettext("Notifications")}
       >
         <.icon name="hero-bell" class="w-5 h-5" />
@@ -33,7 +33,7 @@ defmodule ElektrineWeb.Components.Notification.Bell do
       <% end %>
       <.link
         href="/notifications"
-        class="btn btn-ghost btn-circle btn-sm"
+        class="btn btn-ghost notification-bell-btn btn-circle btn-sm"
         title={gettext("Notifications") <> if(@count > 0, do: " (#{@count})", else: "")}
       >
         <%= if @count > 0 do %>

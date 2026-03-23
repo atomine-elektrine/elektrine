@@ -7,7 +7,7 @@ defmodule Elektrine.Platform.Modules do
   exposed and which module-specific runtimes are started.
   """
 
-  @type module_id :: :chat | :social | :email | :vault | :vpn
+  @type module_id :: :chat | :social | :email | :vault | :vpn | :dns
 
   @modules [
     %{
@@ -39,6 +39,12 @@ defmodule Elektrine.Platform.Modules do
       label: "VPN",
       app: :elektrine_vpn,
       description: "WireGuard VPN management, configs, and host integrations."
+    },
+    %{
+      id: :dns,
+      label: "DNS",
+      app: :elektrine_dns,
+      description: "Managed authoritative DNS zones, records, and delegation."
     }
   ]
 
@@ -48,7 +54,8 @@ defmodule Elektrine.Platform.Modules do
     social: Elektrine.Social,
     email: Elektrine.Email,
     vault: Elektrine.PasswordManager,
-    vpn: Elektrine.VPN
+    vpn: Elektrine.VPN,
+    dns: Elektrine.DNS
   }
 
   @spec all() :: [module_id()]
@@ -169,6 +176,7 @@ defmodule Elektrine.Platform.Modules do
       "password_manager" -> :vault
       "password-manager" -> :vault
       "vpn" -> :vpn
+      "dns" -> :dns
       _ -> nil
     end
   end
