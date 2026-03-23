@@ -4,11 +4,25 @@ This keeps the main app and worker in a single Docker deployment:
 
 - one `app` container
 - one `worker` container
+- optional `mail` container for SMTP, IMAP, and POP3 via `--profile email`
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
 - optional Bluesky PDS via `--profile bluesky`
 - optional authoritative DNS via `--profile dns`
 - optional onion service inside the `app` container when `ELEKTRINE_ENABLE_TOR=true`
+
+Deployment model:
+
+| Concern | Uses | Examples |
+| --- | --- | --- |
+| product capabilities | `ELEKTRINE_RELEASE_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
+| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `caddy`, `bluesky` |
+| runtime behavior inside a container | env vars | `ELEKTRINE_ENABLE_TOR=true` |
+
+Rule of thumb:
+
+- if it is a feature in the app, treat it as a module
+- if it opens ports or runs a dedicated daemon, treat it as a profile-backed service
 
 Recommended host layout:
 
@@ -23,16 +37,22 @@ Deploy manually:
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
 ```
 
+Preview what a deploy will run:
+
+```bash
+scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email"
+```
+
 Keep the repo owned by your deploy user and avoid running `git` operations as `root` inside the checkout. Use `sudo` only for Docker commands. If a generated compose file ever becomes unwritable because of ownership drift, render to a writable temporary path instead of the tracked repo file:
 
 ```bash
 scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --modules chat,social,vault --profile caddy
 ```
 
-Enable email ports only when the `email` module is compiled in:
+Enable the separate mail protocol service with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,email,vault --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,email,vault --profile caddy --profile email
 ```
 
 Enable the separate authoritative DNS service with:
@@ -59,9 +79,9 @@ The deploy wrapper:
 
 - renders `deploy/docker/generated.docker.yml`
 - keeps `app` and `worker` in the stack
+- can start the dedicated `mail` service when the `email` profile is enabled
 - runs database migrations through the app release
 - provisions required Postgres extensions such as `vector`
-- suppresses POP3, IMAP, and SMTP port publishing when `email` is absent
 - can start the dedicated `dns` service when the `dns` profile is enabled
 - can expose the app as an onion service when Tor is enabled in `.env.production`
 

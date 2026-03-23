@@ -14,7 +14,6 @@ usage() {
 Usage: scripts/deploy/render_docker_compose.sh [--modules chat,social] [--output /tmp/elektrine.compose.yml]
 
 Renders a module-aware Docker Compose file.
-Mail port bindings are omitted when the email module is not selected.
 EOF
 }
 
@@ -42,40 +41,9 @@ done
 
 normalize_platform_modules "$REQUESTED_MODULES"
 
-MAIL_ENABLED="false"
-if platform_module_selected email; then
-  MAIL_ENABLED="true"
-fi
-
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
-awk -v release_modules="$NORMALIZED_MODULES" -v enabled_modules="$NORMALIZED_MODULES" -v mail_enabled="$MAIL_ENABLED" '
-  BEGIN {
-    skip_email_ports = 0
-  }
-
-  /# BEGIN EMAIL PORTS/ {
-    if (mail_enabled == "true") {
-      print
-    } else {
-      skip_email_ports = 1
-    }
-    next
-  }
-
-  /# END EMAIL PORTS/ {
-    if (skip_email_ports == 1) {
-      skip_email_ports = 0
-    } else {
-      print
-    }
-    next
-  }
-
-  skip_email_ports == 1 {
-    next
-  }
-
+awk -v release_modules="$NORMALIZED_MODULES" -v enabled_modules="$NORMALIZED_MODULES" '
   /ELEKTRINE_RELEASE_MODULES:/ {
     sub(/\$\{ELEKTRINE_RELEASE_MODULES:-[^}]*\}/, "${ELEKTRINE_RELEASE_MODULES:-" release_modules "}")
     print
@@ -84,12 +52,6 @@ awk -v release_modules="$NORMALIZED_MODULES" -v enabled_modules="$NORMALIZED_MOD
 
   /ELEKTRINE_ENABLED_MODULES:/ {
     sub(/\$\{ELEKTRINE_ENABLED_MODULES:-[^}]*\}/, "${ELEKTRINE_ENABLED_MODULES:-" enabled_modules "}")
-    print
-    next
-  }
-
-  /ELEKTRINE_ENABLE_MAIL:/ {
-    sub(/\$\{ELEKTRINE_ENABLE_MAIL:-[^}]*\}/, "${ELEKTRINE_ENABLE_MAIL:-" mail_enabled "}")
     print
     next
   }
