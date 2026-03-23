@@ -1266,6 +1266,24 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end
   end
 
+  defp community_uri_from_local_message(%{conversation: %{remote_group_actor: %{uri: uri}}})
+       when is_binary(uri) do
+    case String.trim(uri) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp community_uri_from_local_message(%{
+         conversation: %{federated_source: uri, is_federated_mirror: true}
+       })
+       when is_binary(uri) do
+    case String.trim(uri) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
   defp community_uri_from_local_message(_), do: nil
 
   # Find community URI from post object - check multiple possible fields
@@ -1680,7 +1698,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   end
 
   defp preload_cached_message_associations(message) do
-    Elektrine.Repo.preload(message, Elektrine.Messaging.Messages.timeline_post_preloads())
+    preloads =
+      Elektrine.Messaging.Messages.timeline_post_preloads()
+      |> Enum.map(fn
+        {:conversation, _} -> {:conversation, [:remote_group_actor]}
+        other -> other
+      end)
+
+    Elektrine.Repo.preload(message, preloads)
   end
 
   defp message_in_reply_to(message) when is_map(message) do

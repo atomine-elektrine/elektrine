@@ -1277,10 +1277,15 @@ defmodule ElektrineWeb.TimelineLive.Index do
           Social.get_public_community_posts(
             limit: 20,
             user_id: user.id,
+            source_filter: filter,
             search_query: search_query
           )
         else
-          Social.get_public_community_posts(limit: 20, search_query: search_query)
+          Social.get_public_community_posts(
+            limit: 20,
+            source_filter: filter,
+            search_query: search_query
+          )
         end
 
       "replies" ->
