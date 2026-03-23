@@ -77,6 +77,14 @@ The MongooseIM profile uses Elektrine's existing internal auth endpoints at
 Set `MONGOOSEIM_API_KEY` in `.env.production` to match the internal API auth key.
 If it is unset, the deploy renderer falls back to `PHOENIX_API_KEY`.
 
+For PostgreSQL-backed XMPP storage, also set:
+
+- `MONGOOSEIM_DB_NAME` (for example `mongooseim`)
+- `MONGOOSEIM_DB_USER` (for example `mongooseim`)
+- `MONGOOSEIM_DB_PASSWORD`
+
+Create the matching Postgres role/database before first boot.
+
 Enable onion hosting in the Docker deploy by merging `env/onion.env.example`
 into `.env.production` or by exporting the same variables before you deploy:
 

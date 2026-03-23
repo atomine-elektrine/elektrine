@@ -40,6 +40,20 @@
   [auth.http]
     basic_auth = "elektrine:__MONGOOSEIM_API_KEY__"
 
+[internal_databases.cets]
+  backend = "rdbms"
+
+[outgoing_pools.rdbms.default]
+  scope = "global"
+
+  [outgoing_pools.rdbms.default.connection]
+    driver = "pgsql"
+    host = "postgres"
+    port = 5432
+    database = "__MONGOOSEIM_DB_NAME__"
+    username = "__MONGOOSEIM_DB_USER__"
+    password = "__MONGOOSEIM_DB_PASSWORD__"
+
 [outgoing_pools.http.auth]
   scope = "global"
 
@@ -49,6 +63,9 @@
     request_timeout = 5000
 
 [services.service_mongoose_system_metrics]
+
+[services.service_bosh]
+  backend = "cets"
 
 [modules.mod_adhoc]
 
@@ -60,18 +77,23 @@
   users_can_see_hidden_services = false
 
 [modules.mod_offline]
+  backend = "rdbms"
 
 [modules.mod_presence]
 
 [modules.mod_privacy]
+  backend = "rdbms"
 
 [modules.mod_private]
+  backend = "rdbms"
 
 [modules.mod_roster]
+  backend = "rdbms"
 
 [modules.mod_sic]
 
 [modules.mod_stream_management]
+  backend = "cets"
 
 [acl]
   local = [{}]

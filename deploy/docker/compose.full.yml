@@ -170,6 +170,10 @@ services:
     depends_on:
       app:
         condition: service_started
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.production
     ports:
       - "${XMPP_CLIENT_BIND:-5222:5222}"
       - "${XMPP_S2S_BIND:-5269:5269}"
