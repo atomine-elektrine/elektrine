@@ -73,6 +73,7 @@ The MongooseIM profile uses Elektrine's existing internal auth endpoints at
 
 - `deploy/mongooseim/mongooseim.toml.template`
 - `scripts/deploy/render_mongooseim_config.sh`
+- rendered output lives at `deploy/docker/generated.mongooseim.toml`
 
 Set `MONGOOSEIM_API_KEY` in `.env.production` to match the internal API auth key.
 If it is unset, the deploy renderer falls back to `PHOENIX_API_KEY`.

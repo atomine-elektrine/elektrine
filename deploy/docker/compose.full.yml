@@ -179,7 +179,7 @@ services:
       - "${XMPP_S2S_BIND:-5269:5269}"
       - "${XMPP_HTTP_BIND:-5280:5280}"
     volumes:
-      - ../mongooseim/generated/mongooseim.toml:/usr/lib/mongooseim/etc/mongooseim.toml:ro
+      - ./generated.mongooseim.toml:/usr/lib/mongooseim/etc/mongooseim.toml:ro
       - xmpp_data:/var/lib/mongooseim
     networks:
       - elektrine_network
