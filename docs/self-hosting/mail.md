@@ -63,7 +63,23 @@ Same-server networking guidance:
 
 Suggested split:
 
-- Elektrine: `80/443` for web, plus `993/995` and optionally a remapped `SMTP_TLS_BIND` only if you want Phoenix mail protocol ports exposed
+- Elektrine: `80/443` for web, plus direct plaintext/starttls mail ports `143/110/587`
 - Haraka: `25` for inbound SMTP, `587` or `465` for submission, `443` for Haraka admin/API if that repo exposes it through HTTPS
+
+## Built-in mail edge
+
+When using Elektrine's own mail protocol servers directly in Docker, the `email` profile now runs:
+
+- `elektrine_mail` on internal plaintext ports `2143`, `2110`, `2587`
+- `elektrine_mail_edge` (nginx stream) on public TLS ports `993`, `995`, `465`
+
+Required env:
+
+```dotenv
+MAIL_TLS_CERT_PATH=/opt/elektrine/certs/mail.crt
+MAIL_TLS_KEY_PATH=/opt/elektrine/certs/mail.key
+```
+
+Those files must contain a valid certificate/key pair for your mail hostname.
 
 If you do not want to run a second deployment, do not enable the `email` module.

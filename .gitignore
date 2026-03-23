@@ -66,6 +66,7 @@ npm-debug.log*
 # Deploy-time generated configs
 /deploy/docker/generated*.yml
 /deploy/docker/generated.mongooseim.toml
+/deploy/docker/generated.mail.nginx.conf
 
 # =============================================================================
 # IDE / Editor
