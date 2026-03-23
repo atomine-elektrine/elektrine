@@ -11,6 +11,7 @@ defmodule Elektrine.IMAP.Server do
   require Logger
   alias Elektrine.Constants
   alias Elektrine.IMAP.{Commands, Helpers}
+  alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.ProxyProtocol
 
@@ -26,23 +27,31 @@ defmodule Elektrine.IMAP.Server do
   # GenServer callbacks
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   def init(opts) do
     port = Keyword.get(opts, :port, Application.get_env(:elektrine, :imap_port, 2143))
+    transport = Keyword.get(opts, :transport, :tcp)
+    tls_opts = Keyword.get(opts, :tls_opts, [])
 
-    case :gen_tcp.listen(port, [
-           {:active, false},
-           {:packet, :line},
-           {:packet_size, 8192},
-           {:reuseaddr, true},
-           {:ip, {0, 0, 0, 0}},
-           {:backlog, 100},
-           {:keepalive, true},
-           {:send_timeout, Constants.imap_send_timeout_ms()},
-           {:send_timeout_close, true}
-         ]) do
+    case Socket.listen(
+           transport,
+           port,
+           [
+             {:active, false},
+             {:packet, :line},
+             {:packet_size, 8192},
+             {:reuseaddr, true},
+             {:ip, {0, 0, 0, 0}},
+             {:backlog, 100},
+             {:keepalive, true},
+             {:send_timeout, Constants.imap_send_timeout_ms()},
+             {:send_timeout_close, true}
+           ],
+           tls_opts
+         ) do
       {:ok, socket} ->
         # Create ETS tables for connection tracking and honeypot detection
         :ets.new(:imap_idle_connections, [:set, :public, :named_table])
@@ -53,12 +62,13 @@ defmodule Elektrine.IMAP.Server do
         # Start periodic cleanup task for stale IDLE connections
         spawn_link(fn -> periodic_idle_cleanup() end)
 
-        spawn_link(fn -> accept_loop(socket) end)
+        spawn_link(fn -> accept_loop(socket, transport) end)
 
         {:ok,
          %{
            socket: socket,
            port: port,
+           transport: transport,
            connections: 0,
            connections_per_ip: %{}
          }}
@@ -67,39 +77,36 @@ defmodule Elektrine.IMAP.Server do
         Logger.error("IMAP server failed: Port #{port} is already in use")
 
         {:ok,
-         %{socket: nil, port: port, connections: 0, connections_per_ip: %{}, error: :port_in_use}}
+         %{
+           socket: nil,
+           port: port,
+           transport: transport,
+           connections: 0,
+           connections_per_ip: %{},
+           error: :port_in_use
+         }}
 
       {:error, reason} ->
         Logger.error("Failed to start IMAP server on port #{port}: #{inspect(reason)}")
-        {:ok, %{socket: nil, port: port, connections: 0, connections_per_ip: %{}, error: reason}}
+
+        {:ok,
+         %{
+           socket: nil,
+           port: port,
+           transport: transport,
+           connections: 0,
+           connections_per_ip: %{},
+           error: reason
+         }}
     end
   end
 
   # Connection handling
 
-  defp accept_loop(socket) do
-    case :gen_tcp.accept(socket) do
+  defp accept_loop(socket, transport) do
+    case Socket.accept(transport, socket) do
       {:ok, client} ->
-        # Parse PROXY protocol to get the real client IP when present.
-        {client_ip, initial_data} =
-          case ProxyProtocol.parse_client_ip(client) do
-            {:ok, ip, data} ->
-              {ip, data}
-
-            {:error, _reason} ->
-              # Failed to read PROXY protocol, try to get peer IP as fallback
-              case :inet.peername(client) do
-                {:ok, {ip, _port}} ->
-                  ip_string = :inet.ntoa(ip) |> to_string()
-                  :gen_tcp.close(client)
-                  {ip_string, nil}
-
-                {:error, _} ->
-                  # Connection already closed, skip this client
-                  :gen_tcp.close(client)
-                  {nil, nil}
-              end
-          end
+        {client_ip, initial_data} = client_ip_and_data(client, transport)
 
         cond do
           # Connection already closed during PROXY parsing
@@ -111,11 +118,11 @@ defmodule Elektrine.IMAP.Server do
           !can_accept_connection?(client_ip) ->
             Logger.warning("Connection rejected from #{client_ip}: connection limit exceeded")
             Helpers.send_response(client, "* BYE Too many connections from your IP address")
-            :gen_tcp.close(client)
+            Socket.close(client)
 
           # Accept the connection
           true ->
-            :inet.setopts(client, [
+            Socket.setopts(client, [
               {:keepalive, true},
               {:nodelay, true},
               {:send_timeout, Constants.imap_send_timeout_ms()},
@@ -134,12 +141,42 @@ defmodule Elektrine.IMAP.Server do
             end)
         end
 
-        accept_loop(socket)
+        accept_loop(socket, transport)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
-        accept_loop(socket)
+        accept_loop(socket, transport)
+    end
+  end
+
+  defp client_ip_and_data(client, :ssl) do
+    case Socket.peername(client) do
+      {:ok, {ip, _port}} ->
+        {:inet.ntoa(ip) |> to_string(), nil}
+
+      {:error, _} ->
+        Socket.close(client)
+        {nil, nil}
+    end
+  end
+
+  defp client_ip_and_data(client, :tcp) do
+    case ProxyProtocol.parse_client_ip(client) do
+      {:ok, ip, data} ->
+        {ip, data}
+
+      {:error, _reason} ->
+        case Socket.peername(client) do
+          {:ok, {ip, _port}} ->
+            ip_string = :inet.ntoa(ip) |> to_string()
+            Socket.close(client)
+            {ip_string, nil}
+
+          {:error, _} ->
+            Socket.close(client)
+            {nil, nil}
+        end
     end
   end
 
@@ -224,12 +261,12 @@ defmodule Elektrine.IMAP.Server do
       # Check total connection timeout (1 hour)
       now - state.connection_start > @connection_timeout_ms ->
         Helpers.send_response(state.socket, "* BYE Connection time limit exceeded")
-        :gen_tcp.close(state.socket)
+        Socket.close(state.socket)
 
       # Check inactivity timeout (15 minutes)
       now - state.last_activity > @inactivity_timeout_ms ->
         Helpers.send_response(state.socket, "* BYE Inactivity timeout")
-        :gen_tcp.close(state.socket)
+        Socket.close(state.socket)
 
       true ->
         # If we have initial_data from PROXY protocol parsing, use it first
@@ -238,7 +275,7 @@ defmodule Elektrine.IMAP.Server do
             {state.initial_data, %{state | initial_data: nil}}
           else
             # Use shorter timeout (5 minutes) for recv to allow periodic timeout checks
-            case :gen_tcp.recv(state.socket, 0, 300_000) do
+            case Socket.recv(state.socket, 0, 300_000) do
               {:ok, data} ->
                 {data, state}
 
@@ -248,12 +285,12 @@ defmodule Elektrine.IMAP.Server do
                 {nil, state}
 
               {:error, :closed} ->
-                :gen_tcp.close(state.socket)
+                Socket.close(state.socket)
                 {nil, state}
 
               {:error, reason} ->
                 Logger.error("IMAP receive error: #{inspect(reason)}")
-                :gen_tcp.close(state.socket)
+                Socket.close(state.socket)
                 {nil, state}
             end
           end
@@ -267,7 +304,7 @@ defmodule Elektrine.IMAP.Server do
               client_loop(new_state)
 
             {:logout, _new_state} ->
-              :gen_tcp.close(state.socket)
+              Socket.close(state.socket)
           end
         end
     end

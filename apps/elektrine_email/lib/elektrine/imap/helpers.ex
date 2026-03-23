@@ -1,5 +1,6 @@
 defmodule Elektrine.IMAP.Helpers do
   @moduledoc "Helper functions for IMAP server operations including parsing, validation,\npattern matching, and utility functions.\n"
+  alias Elektrine.Mail.Socket
   require Logger
   @doc "Parse LOGIN command arguments"
   def parse_login_args(nil) do
@@ -1021,6 +1022,6 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Send response to IMAP client"
   def send_response(socket, message) do
-    :gen_tcp.send(socket, "#{message}\r\n")
+    Socket.send(socket, "#{message}\r\n")
   end
 end

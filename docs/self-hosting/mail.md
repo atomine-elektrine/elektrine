@@ -63,23 +63,37 @@ Same-server networking guidance:
 
 Suggested split:
 
-- Elektrine: `80/443` for web, plus direct plaintext/starttls mail ports `143/110/587`
+- Elektrine: `80/443` for web, plus mailbox access on `143/110` and native secure mailbox access on `993/995`
 - Haraka: `25` for inbound SMTP, `587` or `465` for submission, `443` for Haraka admin/API if that repo exposes it through HTTPS
 
-## Built-in mail edge
+SMTP delivery/submission stays with Haraka in this split setup.
+Elektrine does not bind public `25`, `465`, or `587` when Haraka is the SMTP edge.
 
-When using Elektrine's own mail protocol servers directly in Docker, the `email` profile now runs:
+Elektrine can expose native secure mailbox access directly for clients:
 
-- `elektrine_mail` on internal plaintext ports `2143`, `2110`, `2587`
-- `elektrine_mail_edge` (nginx stream) on public TLS ports `993`, `995`, `465`
+- `143` for IMAP
+- `110` for POP3
+- `993` for IMAPS
+- `995` for POP3S
 
-Required env:
+Internally, Elektrine keeps non-privileged listener ports and Docker maps the standard
+public ports onto them:
+
+- `143 -> 2143`
+- `110 -> 2110`
+- `993 -> 2993`
+- `995 -> 2995`
+
+Recommended client settings:
+
+- prefer `993` (IMAPS) or `995` (POP3S)
+- use `143` / `110` only for clients that need plain IMAP/POP compatibility
+
+Required env for native TLS mailbox access:
 
 ```dotenv
 MAIL_TLS_CERT_PATH=/opt/elektrine/certs/mail.crt
 MAIL_TLS_KEY_PATH=/opt/elektrine/certs/mail.key
 ```
-
-Those files must contain a valid certificate/key pair for your mail hostname.
 
 If you do not want to run a second deployment, do not enable the `email` module.

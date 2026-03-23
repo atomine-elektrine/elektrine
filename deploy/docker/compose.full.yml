@@ -114,34 +114,18 @@ services:
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
       ELEKTRINE_ENABLE_TOR: "false"
-    ports:
-      - "${SMTP_BIND:-587:2587}"
-      - "${IMAP_BIND:-143:2143}"
-      - "${POP3_BIND:-110:2110}"
+      IMAPS_PORT: 2993
+      POP3S_PORT: 2995
     volumes:
       - uploads:/app/uploads
       - app_data:/data
     networks:
       - elektrine_network
-    restart: unless-stopped
-
-  mail_edge:
-    profiles: ["email"]
-    image: nginx:1.27-alpine
-    container_name: elektrine_mail_edge
-    depends_on:
-      mail:
-        condition: service_started
     ports:
-      - "${SMTP_TLS_BIND:-465:465}"
-      - "${IMAP_TLS_BIND:-993:993}"
-      - "${POP3_TLS_BIND:-995:995}"
-    volumes:
-      - ./generated.mail.nginx.conf:/etc/nginx/nginx.conf:ro
-      - ${MAIL_TLS_CERT_PATH:-/opt/elektrine/certs/mail.crt}:/etc/nginx/certs/mail.crt:ro
-      - ${MAIL_TLS_KEY_PATH:-/opt/elektrine/certs/mail.key}:/etc/nginx/certs/mail.key:ro
-    networks:
-      - elektrine_network
+      - "${IMAP_BIND:-143:2143}"
+      - "${POP3_BIND:-110:2110}"
+      - "${IMAP_TLS_BIND:-993:2993}"
+      - "${POP3_TLS_BIND:-995:2995}"
     restart: unless-stopped
 
   dns:
@@ -217,7 +201,7 @@ services:
     env_file:
       - ../../.env.production
     environment:
-      ACME_EMAIL: ${CADDY_ACME_EMAIL:-admin@example.com}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
