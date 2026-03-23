@@ -130,7 +130,7 @@ DOCKER_PROFILES="$RENDER_PROFILES" bash "$ROOT_DIR/scripts/deploy/render_docker_
 
 if [[ " $RENDER_PROFILES " == *" xmpp "* ]]; then
   if [[ -z "$XMPP_CONFIG_OUTPUT" ]]; then
-    XMPP_CONFIG_OUTPUT="$(dirname "$COMPOSE_PROJECT_DIR")/mongooseim/generated/mongooseim.toml"
+    XMPP_CONFIG_OUTPUT="$COMPOSE_PROJECT_DIR/generated.mongooseim.toml"
   fi
 
   bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh" --output "$XMPP_CONFIG_OUTPUT"
