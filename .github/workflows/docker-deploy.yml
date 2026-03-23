@@ -136,6 +136,7 @@ jobs:
           fi
 
           git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
+          ln -sfn "$DEPLOY_PATH/.env.production" "$WORKTREE_PATH/.env.production"
           cd "$WORKTREE_PATH"
 
           cat > "$OVERRIDE_FILE" <<OVERRIDE
