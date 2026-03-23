@@ -123,7 +123,7 @@ defmodule ElektrineWeb.AuthLive.Register do
   defp maybe_put_prefilled_invite_code(form_data, _params), do: form_data
 
   defp maybe_put_prefilled_registration_access(form_data, session, params) do
-    access_token = params["access"] || session["registration_access_token"]
+    access_token = registration_access_param(params) || session["registration_access_token"]
 
     cond do
       !is_binary(access_token) -> form_data
@@ -134,7 +134,7 @@ defmodule ElektrineWeb.AuthLive.Register do
   end
 
   defp registration_access(session, params) do
-    access_token = params["access"] || session["registration_access_token"]
+    access_token = registration_access_param(params) || session["registration_access_token"]
 
     case access_token do
       token when is_binary(token) ->
@@ -162,6 +162,9 @@ defmodule ElektrineWeb.AuthLive.Register do
         nil
     end
   end
+
+  defp registration_access_param(%{} = params), do: Map.get(params, "access")
+  defp registration_access_param(_), do: nil
 
   defp format_registration_price(%Product{} = product) do
     Product.format_price(product.one_time_price_cents, product.currency)
