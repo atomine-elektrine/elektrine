@@ -144,6 +144,10 @@ jobs:
               image: ${TARGET_IMAGE}
             worker:
               image: ${TARGET_IMAGE}
+            mail:
+              image: ${TARGET_IMAGE}
+            dns:
+              image: ${TARGET_IMAGE}
           OVERRIDE
 
           COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" bash scripts/deploy/docker_deploy.sh \
