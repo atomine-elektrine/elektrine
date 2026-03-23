@@ -127,7 +127,7 @@ jobs:
 
           WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree"
 
-          OUTPUT_FILE="$DEPLOY_PATH/deploy/docker/generated.docker.yml"
+          OUTPUT_FILE="$WORKTREE_PATH/deploy/docker/generated.docker.yml"
           OVERRIDE_FILE="$(mktemp /tmp/elektrine.docker-image.override.XXXXXX.yml)"
           trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"; rm -f "$OVERRIDE_FILE"' EXIT
 
@@ -150,11 +150,11 @@ jobs:
               image: ${TARGET_IMAGE}
           OVERRIDE
 
-          COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" bash scripts/deploy/docker_deploy.sh \
+          COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$WORKTREE_PATH/deploy/docker" bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_RELEASE_MODULES" \
             --env-file "$DEPLOY_PATH/.env.production" \
             --output "$OUTPUT_FILE" \
-            --xmpp-config-output "$DEPLOY_PATH/deploy/docker/generated.mongooseim.toml" \
+            --xmpp-config-output "$WORKTREE_PATH/deploy/docker/generated.mongooseim.toml" \
             --pull \
             --skip-build \
             --compose-override "$OVERRIDE_FILE" \
