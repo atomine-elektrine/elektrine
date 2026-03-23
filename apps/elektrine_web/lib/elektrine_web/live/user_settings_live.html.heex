@@ -2085,6 +2085,31 @@
 
                 <div class="divider"></div>
 
+                <div class="rounded-xl border border-base-300/60 bg-base-200/30 p-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p class="font-semibold">{gettext("OAuth / OpenID Connect Clients")}</p>
+                      <p class="mt-1 text-sm text-base-content/65">
+                        {gettext(
+                          "Register apps that use your Elektrine account as an identity provider."
+                        )}
+                      </p>
+                    </div>
+                    <.link
+                      href={~p"/account/developer/oidc/clients"}
+                      class="btn btn-outline btn-sm rounded-full"
+                    >
+                      {gettext("Manage Clients")}
+                    </.link>
+                    <.link
+                      href={~p"/account/developer/oidc/grants"}
+                      class="btn btn-ghost btn-sm rounded-full"
+                    >
+                      {gettext("Granted Apps")}
+                    </.link>
+                  </div>
+                </div>
+
                 <div class="text-sm text-base-content/60">
                   <p class="font-semibold mb-2">{gettext("API Documentation")}</p>
                   <p class="mb-2">

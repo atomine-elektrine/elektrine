@@ -79,7 +79,12 @@ defmodule Elektrine.ActivityPub.Instances do
   """
   def get_instance(domain) when is_binary(domain) do
     domain = normalize_domain(domain)
-    Repo.get_by(Instance, domain: domain)
+
+    Instance
+    |> where([i], i.domain == ^domain)
+    |> order_by([i], desc: i.metadata_updated_at, desc: i.updated_at, desc: i.id)
+    |> limit(1)
+    |> Repo.one()
   end
 
   @doc """

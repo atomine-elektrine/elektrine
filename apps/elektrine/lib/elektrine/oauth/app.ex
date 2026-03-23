@@ -91,12 +91,64 @@ defmodule Elektrine.OAuth.App do
   end
 
   @doc """
+  Updates an existing OAuth app owned by a user.
+  """
+  @spec update_user_app(User.t(), pos_integer(), map()) ::
+          {:ok, t()} | {:error, Ecto.Changeset.t()} | nil
+  def update_user_app(%User{} = user, id, params) do
+    case get_user_app(user, id) do
+      %__MODULE__{} = app ->
+        app
+        |> changeset(params)
+        |> validate_redirect_uris()
+        |> Repo.update()
+
+      nil ->
+        nil
+    end
+  end
+
+  @doc """
   Gets an app by client_id.
   """
   @spec get_by_client_id(String.t()) :: t() | nil
   def get_by_client_id(client_id) do
     Repo.get_by(__MODULE__, client_id: client_id)
   end
+
+  @doc """
+  Returns the registered redirect URIs for an app.
+  """
+  @spec redirect_uri_list(t()) :: [String.t()]
+  def redirect_uri_list(%__MODULE__{redirect_uris: redirect_uris})
+      when is_binary(redirect_uris) do
+    redirect_uris
+    |> String.split()
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def redirect_uri_list(_), do: []
+
+  @doc """
+  Returns the default redirect URI when exactly one is registered.
+  """
+  @spec default_redirect_uri(t()) :: String.t() | nil
+  def default_redirect_uri(%__MODULE__{} = app) do
+    case redirect_uri_list(app) do
+      [redirect_uri] -> redirect_uri
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Checks whether the provided redirect URI is registered for the app.
+  """
+  @spec redirect_uri_allowed?(t(), String.t()) :: boolean()
+  def redirect_uri_allowed?(%__MODULE__{} = app, redirect_uri) when is_binary(redirect_uri) do
+    redirect_uri in redirect_uri_list(app)
+  end
+
+  def redirect_uri_allowed?(_, _), do: false
 
   @doc """
   Gets an app by client_id and client_secret.
@@ -133,6 +185,14 @@ defmodule Elektrine.OAuth.App do
   end
 
   @doc """
+  Gets a specific app owned by a user.
+  """
+  @spec get_user_app(User.t(), pos_integer()) :: t() | nil
+  def get_user_app(%User{id: user_id}, id) do
+    Repo.get_by(__MODULE__, id: id, user_id: user_id)
+  end
+
+  @doc """
   Deletes an OAuth app.
   """
   @spec delete(pos_integer()) :: {:ok, t()} | {:error, Ecto.Changeset.t()} | nil
@@ -140,6 +200,22 @@ defmodule Elektrine.OAuth.App do
     case Repo.get(__MODULE__, id) do
       %__MODULE__{} = app -> Repo.delete(app)
       nil -> nil
+    end
+  end
+
+  @doc """
+  Rotates the client secret for an app owned by a user.
+  """
+  @spec rotate_secret(User.t(), pos_integer()) :: {:ok, t()} | {:error, Ecto.Changeset.t()} | nil
+  def rotate_secret(%User{} = user, id) do
+    case get_user_app(user, id) do
+      %__MODULE__{} = app ->
+        app
+        |> change(%{client_secret: generate_token()})
+        |> Repo.update()
+
+      nil ->
+        nil
     end
   end
 

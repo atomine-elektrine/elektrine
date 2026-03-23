@@ -27,6 +27,8 @@ defmodule Elektrine.OAuth.Token do
     field(:refresh_token, :string)
     field(:scopes, {:array, :string}, default: [])
     field(:valid_until, :utc_datetime)
+    field(:oidc_nonce, :string)
+    field(:oidc_auth_time, :utc_datetime)
 
     belongs_to(:user, User)
     belongs_to(:app, App, foreign_key: :app_id)
@@ -99,7 +101,11 @@ defmodule Elektrine.OAuth.Token do
          true <- auth.app_id == app.id do
       user = if auth.user_id, do: Repo.get(User, auth.user_id), else: nil
 
-      create(app, user, %{scopes: auth.scopes})
+      create(app, user, %{
+        scopes: auth.scopes,
+        oidc_nonce: auth.nonce,
+        oidc_auth_time: auth.inserted_at
+      })
     else
       false -> {:error, "app mismatch"}
       error -> error
@@ -150,9 +156,14 @@ defmodule Elektrine.OAuth.Token do
     |> cast(%{scopes: attrs[:scopes] || app.scopes}, [:scopes])
     |> validate_required([:scopes, :app_id])
     |> put_valid_until(attrs)
+    |> put_oidc_attrs(attrs)
     |> put_token()
     |> put_refresh_token(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, token} -> {:ok, Repo.preload(token, [:user, :app])}
+      error -> error
+    end
   end
 
   @doc """
@@ -165,7 +176,11 @@ defmodule Elektrine.OAuth.Token do
       Repo.delete(old_token)
 
       # Create a new token with the same scopes
-      create(app, old_token.user, %{scopes: old_token.scopes})
+      create(app, old_token.user, %{
+        scopes: old_token.scopes,
+        oidc_nonce: old_token.oidc_nonce,
+        oidc_auth_time: old_token.oidc_auth_time
+      })
     end
   end
 
@@ -201,6 +216,28 @@ defmodule Elektrine.OAuth.Token do
   end
 
   @doc """
+  Gets all tokens granted by a user to a specific app.
+  """
+  @spec get_user_app_tokens(User.t(), pos_integer()) :: [t()]
+  def get_user_app_tokens(%User{id: user_id}, app_id) do
+    from(t in __MODULE__,
+      where: t.user_id == ^user_id and t.app_id == ^app_id,
+      preload: [:app],
+      order_by: [desc: t.inserted_at]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Deletes all tokens for a user granted to a specific app.
+  """
+  @spec delete_user_app_tokens(User.t(), pos_integer()) :: {integer(), any()}
+  def delete_user_app_tokens(%User{id: user_id}, app_id) do
+    from(t in __MODULE__, where: t.user_id == ^user_id and t.app_id == ^app_id)
+    |> Repo.delete_all()
+  end
+
+  @doc """
   Revokes (deletes) a token by its access token string.
   """
   @spec revoke(String.t()) :: :ok | {:error, :not_found}
@@ -226,10 +263,18 @@ defmodule Elektrine.OAuth.Token do
   defp put_valid_until(changeset, attrs) do
     valid_until =
       Map.get_lazy(attrs, :valid_until, fn ->
-        DateTime.add(DateTime.utc_now(), lifespan(), :second)
+        DateTime.utc_now()
+        |> DateTime.truncate(:second)
+        |> DateTime.add(lifespan(), :second)
       end)
 
     put_change(changeset, :valid_until, valid_until)
+  end
+
+  defp put_oidc_attrs(changeset, attrs) do
+    changeset
+    |> put_change(:oidc_nonce, Map.get(attrs, :oidc_nonce))
+    |> put_change(:oidc_auth_time, truncate_datetime(Map.get(attrs, :oidc_auth_time)))
   end
 
   defp put_token(changeset) do
@@ -253,4 +298,7 @@ defmodule Elektrine.OAuth.Token do
   defp generate_token do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
+
+  defp truncate_datetime(%DateTime{} = datetime), do: DateTime.truncate(datetime, :second)
+  defp truncate_datetime(value), do: value
 end

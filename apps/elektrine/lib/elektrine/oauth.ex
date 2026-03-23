@@ -46,17 +46,37 @@ defmodule Elektrine.OAuth do
   def get_user_apps(user), do: App.get_user_apps(user)
 
   @doc """
+  Gets a specific app owned by a user.
+  """
+  @spec get_user_app(User.t(), pos_integer()) :: App.t() | nil
+  def get_user_app(user, id), do: App.get_user_app(user, id)
+
+  @doc """
   Deletes an OAuth app.
   """
   @spec delete_app(integer()) :: {:ok, App.t()} | {:error, Ecto.Changeset.t()} | nil
   def delete_app(id), do: App.delete(id)
+
+  @doc """
+  Updates an OAuth app owned by a user.
+  """
+  @spec update_user_app(User.t(), pos_integer(), map()) ::
+          {:ok, App.t()} | {:error, Ecto.Changeset.t()} | nil
+  def update_user_app(user, id, params), do: App.update_user_app(user, id, params)
+
+  @doc """
+  Rotates the secret for an OAuth app owned by a user.
+  """
+  @spec rotate_app_secret(User.t(), pos_integer()) ::
+          {:ok, App.t()} | {:error, Ecto.Changeset.t()} | nil
+  def rotate_app_secret(user, id), do: App.rotate_secret(user, id)
 
   # Authorization functions
 
   @doc """
   Creates an authorization code for the OAuth flow.
   """
-  @spec create_authorization(App.t(), User.t(), [String.t()] | nil) ::
+  @spec create_authorization(App.t(), User.t(), [String.t()] | map() | nil) ::
           {:ok, Authorization.t()} | {:error, Ecto.Changeset.t()}
   def create_authorization(app, user, scopes \\ nil) do
     Authorization.create_authorization(app, user, scopes)
@@ -95,6 +115,16 @@ defmodule Elektrine.OAuth do
   """
   @spec get_user_tokens(User.t()) :: [Token.t()]
   def get_user_tokens(user), do: Token.get_user_tokens(user)
+
+  @doc """
+  Revokes all grants a user has issued to an app.
+  """
+  @spec revoke_user_app_grants(User.t(), pos_integer()) :: :ok
+  def revoke_user_app_grants(user, app_id) do
+    Token.delete_user_app_tokens(user, app_id)
+    Authorization.delete_user_app_authorizations(user, app_id)
+    :ok
+  end
 
   @doc """
   Refreshes an access token using a refresh token.

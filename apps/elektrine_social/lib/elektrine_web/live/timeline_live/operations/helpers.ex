@@ -325,7 +325,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
     Enum.filter(posts, fn post ->
       cond do
         !post.federated ->
-          false
+          true
 
         post.remote_actor && !match?(%Ecto.Association.NotLoaded{}, post.remote_actor) ->
           instance_sw = Map.get(software_map, post.remote_actor.domain)

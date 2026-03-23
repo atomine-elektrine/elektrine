@@ -6,6 +6,8 @@ defmodule ElektrineWeb.RemoteUserLive.FollowButtonTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Messaging.Conversation
+  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
 
   defp log_in_user(conn, user) do
@@ -123,6 +125,60 @@ defmodule ElektrineWeb.RemoteUserLive.FollowButtonTest do
       |> live("/remote/!#{actor.username}@#{actor.domain}")
 
     assert html =~ "!#{actor.username}@#{actor.domain}"
+  end
+
+  test "remote community page shows mirrored community posts stored on community conversations",
+       %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    system_user = AccountsFixtures.user_fixture(%{username: "mirrorowner"})
+
+    actor =
+      remote_actor_fixture(%{
+        actor_type: "Group",
+        uri: "https://lemmy.example/c/elixir",
+        username: "elixir",
+        domain: "lemmy.example",
+        display_name: "Elixir",
+        inbox_url: "https://lemmy.example/inbox"
+      })
+
+    community =
+      %Conversation{}
+      |> Conversation.changeset(%{
+        name: "elixir_lemmy_example",
+        description: "mirror",
+        type: "community",
+        is_public: true,
+        allow_public_posts: true,
+        discussion_style: "forum",
+        creator_id: system_user.id,
+        is_federated_mirror: true,
+        remote_group_actor_id: actor.id,
+        federated_source: actor.uri
+      })
+      |> Repo.insert!()
+
+    %Message{}
+    |> Message.changeset(%{
+      conversation_id: community.id,
+      sender_id: system_user.id,
+      remote_actor_id: actor.id,
+      content: "Mirrored Lemmy post",
+      visibility: "public",
+      federated: true,
+      post_type: "discussion",
+      activitypub_id: "https://lemmy.example/post/123",
+      activitypub_url: "https://lemmy.example/post/123",
+      media_metadata: %{"community_actor_uri" => actor.uri, "type" => "Page"}
+    })
+    |> Repo.insert!()
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/!#{actor.username}@#{actor.domain}")
+
+    assert html =~ "Mirrored Lemmy post"
   end
 
   test "local-domain handles redirect to the local profile route", %{conn: conn} do

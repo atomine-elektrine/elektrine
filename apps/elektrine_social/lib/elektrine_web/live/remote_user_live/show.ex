@@ -795,7 +795,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
           left_join: c in Elektrine.Messaging.Conversation,
           on: c.id == m.conversation_id,
           where: fragment("?->>'community_actor_uri' = ?", m.media_metadata, ^remote_actor.uri),
-          where: is_nil(c.id) or c.type == "timeline",
+          where: is_nil(c.id) or c.type in ["timeline", "community"],
           where: m.visibility == "public" or is_nil(m.visibility),
           where: is_nil(m.deleted_at),
           where: is_nil(m.reply_to_id),

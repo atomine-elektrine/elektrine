@@ -34,6 +34,24 @@ Requests enter through `ElektrineWeb.Router`, pass through the shared plugs and
 module guards, and then land in the controller or LiveView owned by the
 relevant app. Persistence stays centralized in `Elektrine.Repo`.
 
+## Identity provider slice
+
+Elektrine now exposes a first OpenID Connect-compatible identity provider layer
+on top of the existing OAuth app tables:
+
+- discovery: `/.well-known/openid-configuration`
+- browser consent: `/oauth/authorize`
+- public keys: `/oauth/jwks`
+- token exchange: `/oauth/token`
+- user info: `/oauth/userinfo`
+- app management UI: `/account/developer/oidc/clients`
+- grant review UI: `/account/developer/oidc/grants`
+- dynamic registration: `POST /oauth/register` while signed in
+
+Register OAuth apps with `openid`, `profile`, and `email` scopes to use the IdP
+flow. The current implementation supports the authorization code flow and
+issues `RS256` `id_token`s for confidential clients.
+
 ## Release modules and runtime modules
 
 Elektrine separates build-time selection from runtime exposure:
