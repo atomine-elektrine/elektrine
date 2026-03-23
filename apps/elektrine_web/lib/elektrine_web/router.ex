@@ -644,6 +644,21 @@ defmodule ElektrineWeb.Router do
     post("/account/two_factor/disable", UserSettingsController, :two_factor_disable)
     post("/account/two_factor/regenerate", UserSettingsController, :two_factor_regenerate_codes)
     delete("/account", UserSettingsController, :confirm_delete)
+    get("/account/developer/oidc/clients", OIDCClientController, :index)
+    get("/account/developer/oidc/clients/new", OIDCClientController, :new)
+    get("/account/developer/oidc/clients/:id/edit", OIDCClientController, :edit)
+    post("/account/developer/oidc/clients", OIDCClientController, :create)
+    put("/account/developer/oidc/clients/:id", OIDCClientController, :update)
+
+    post(
+      "/account/developer/oidc/clients/:id/rotate-secret",
+      OIDCClientController,
+      :rotate_secret
+    )
+
+    delete("/account/developer/oidc/clients/:id", OIDCClientController, :delete)
+    get("/account/developer/oidc/grants", OIDCGrantController, :index)
+    delete("/account/developer/oidc/grants/:id", OIDCGrantController, :delete)
 
     # Announcement dismissal
     post("/announcements/:id/dismiss", UserSettingsController, :dismiss_announcement)
@@ -880,6 +895,14 @@ defmodule ElektrineWeb.Router do
 
     delete("/logout", UserSessionController, :delete)
     get("/locale/switch", LocaleController, :switch)
+    get("/oauth/authorize", OIDCController, :authorize)
+    post("/oauth/authorize", OIDCController, :approve)
+  end
+
+  scope "/.well-known", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/openid-configuration", OIDCController, :configuration)
   end
 
   # ===========================================================================
@@ -894,6 +917,20 @@ defmodule ElektrineWeb.Router do
 
     post("/token", OAuthController, :token)
     post("/revoke", OAuthController, :revoke)
+  end
+
+  scope "/oauth", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/jwks", OIDCController, :jwks)
+    get("/userinfo", OIDCController, :userinfo)
+    post("/userinfo", OIDCController, :userinfo)
+  end
+
+  scope "/oauth", ElektrineWeb do
+    pipe_through([:browser_api, :require_authenticated_user])
+
+    post("/register", OIDCController, :dynamic_register)
   end
 
   # Mastodon API v1 - Public endpoints (no auth required)

@@ -73,6 +73,54 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     refute html =~ "Community timeline post"
   end
 
+  test "software filters keep local posts and communities visible", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, _local_post} =
+      Social.create_timeline_post(author.id, "Local timeline post", visibility: "public")
+
+    {:ok, _community_post} =
+      Social.create_timeline_post(author.id, "Local community post",
+        visibility: "public",
+        community_actor_uri: "https://elektrine.example/c/local"
+      )
+
+    remote_actor = remote_actor_fixture(%{domain: "mastodon.example"})
+
+    {:ok, _federated_post} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: remote_actor.id,
+        content: "Remote mastodon post",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://mastodon.example/users/alice/statuses/1",
+        activitypub_url: "https://mastodon.example/users/alice/statuses/1"
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    render_hook(view, "set_software_filter", %{"software" => "mastodon"})
+
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "Local timeline post" && rendered =~ "Local community post" do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Local timeline post"
+    assert html =~ "Local community post"
+  end
+
   test "composer character counter updates immediately while typing", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 

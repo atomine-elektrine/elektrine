@@ -26,6 +26,11 @@ defmodule Elektrine.OAuth.Authorization do
     field(:scopes, {:array, :string}, default: [])
     field(:valid_until, :utc_datetime)
     field(:used, :boolean, default: false)
+    field(:redirect_uri, :string)
+    field(:state, :string)
+    field(:nonce, :string)
+    field(:code_challenge, :string)
+    field(:code_challenge_method, :string)
 
     belongs_to(:user, User)
     belongs_to(:app, App, foreign_key: :app_id)
@@ -36,14 +41,20 @@ defmodule Elektrine.OAuth.Authorization do
   @doc """
   Creates a new authorization for the given app and user.
   """
-  @spec create_authorization(App.t(), User.t(), [String.t()] | nil) ::
+  @spec create_authorization(App.t(), User.t(), [String.t()] | map() | nil) ::
           {:ok, Authorization.t()} | {:error, Ecto.Changeset.t()}
-  def create_authorization(%App{} = app, %User{} = user, scopes \\ nil) do
-    %{
-      scopes: scopes || app.scopes,
-      user_id: user.id,
-      app_id: app.id
-    }
+  def create_authorization(%App{} = app, %User{} = user, attrs_or_scopes \\ nil) do
+    attrs =
+      case attrs_or_scopes do
+        nil -> %{}
+        scopes when is_list(scopes) -> %{scopes: scopes}
+        attrs when is_map(attrs) -> attrs
+      end
+
+    attrs
+    |> Map.put_new(:scopes, app.scopes)
+    |> Map.put(:user_id, user.id)
+    |> Map.put(:app_id, app.id)
     |> create_changeset()
     |> Repo.insert()
   end
@@ -54,8 +65,20 @@ defmodule Elektrine.OAuth.Authorization do
   @spec create_changeset(map()) :: Ecto.Changeset.t()
   def create_changeset(attrs \\ %{}) do
     %Authorization{}
-    |> cast(attrs, [:user_id, :app_id, :scopes, :valid_until])
+    |> cast(attrs, [
+      :user_id,
+      :app_id,
+      :scopes,
+      :valid_until,
+      :redirect_uri,
+      :state,
+      :nonce,
+      :code_challenge,
+      :code_challenge_method
+    ])
     |> validate_required([:app_id, :scopes])
+    |> validate_inclusion(:code_challenge_method, ["plain", "S256"])
+    |> validate_code_challenge_requirements()
     |> add_token()
     |> add_lifetime()
   end
@@ -117,6 +140,15 @@ defmodule Elektrine.OAuth.Authorization do
     |> Repo.delete_all()
   end
 
+  @doc """
+  Deletes all authorizations for a user and app.
+  """
+  @spec delete_user_app_authorizations(User.t(), pos_integer()) :: {integer(), any()}
+  def delete_user_app_authorizations(%User{id: user_id}, app_id) do
+    from(a in __MODULE__, where: a.user_id == ^user_id and a.app_id == ^app_id)
+    |> Repo.delete_all()
+  end
+
   # Private functions
 
   defp use_changeset(%Authorization{} = auth, params) do
@@ -131,7 +163,28 @@ defmodule Elektrine.OAuth.Authorization do
   end
 
   defp add_lifetime(changeset) do
-    valid_until = DateTime.add(DateTime.utc_now(), @authorization_lifetime, :second)
+    valid_until =
+      DateTime.utc_now()
+      |> DateTime.truncate(:second)
+      |> DateTime.add(@authorization_lifetime, :second)
+
     put_change(changeset, :valid_until, valid_until)
+  end
+
+  defp validate_code_challenge_requirements(changeset) do
+    code_challenge = get_field(changeset, :code_challenge)
+    code_challenge_method = get_field(changeset, :code_challenge_method)
+
+    cond do
+      is_binary(code_challenge) and code_challenge != "" and is_nil(code_challenge_method) ->
+        put_change(changeset, :code_challenge_method, "plain")
+
+      is_binary(code_challenge_method) and code_challenge_method != "" and
+          not is_binary(code_challenge) ->
+        add_error(changeset, :code_challenge, "is required when code_challenge_method is set")
+
+      true ->
+        changeset
+    end
   end
 end

@@ -8,6 +8,10 @@ defmodule Elektrine.OAuth.Scopes do
 
   # All valid OAuth scopes
   @valid_scopes [
+    # OpenID Connect scopes
+    "openid",
+    "profile",
+    "email",
     # Read scopes
     "read",
     "read:accounts",
