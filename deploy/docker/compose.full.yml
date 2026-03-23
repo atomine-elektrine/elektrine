@@ -42,17 +42,12 @@ services:
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
-      ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      ELEKTRINE_ENABLE_MAIL: "false"
       ELEKTRINE_ENABLE_TOR: ${ELEKTRINE_ENABLE_TOR:-false}
       ONION_TLS_ENABLED: ${ONION_TLS_ENABLED:-true}
       MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
-    # BEGIN EMAIL PORTS
     ports:
       - "${APP_HTTP_BIND:-127.0.0.1:8080:8080}"
-      - "${SMTP_TLS_BIND:-465:2587}"
-      - "${IMAP_TLS_BIND:-993:2143}"
-      - "${POP3_TLS_BIND:-995:2110}"
-    # END EMAIL PORTS
     volumes:
       - uploads:/app/uploads
       - app_data:/data
@@ -83,9 +78,46 @@ services:
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: worker
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
-      ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      ELEKTRINE_ENABLE_MAIL: "false"
       ELEKTRINE_ENABLE_TOR: "false"
       MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
+    volumes:
+      - uploads:/app/uploads
+      - app_data:/data
+    networks:
+      - elektrine_network
+    restart: unless-stopped
+
+  mail:
+    profiles: ["email"]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        RELEASE_NAME: ${RELEASE_NAME:-elektrine}
+        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-all}
+        PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-example.com}
+        EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-example.com}}
+        SUPPORTED_DOMAINS: ${SUPPORTED_DOMAINS:-${PRIMARY_DOMAIN:-example.com}}
+        PROFILE_BASE_DOMAINS: ${PROFILE_BASE_DOMAINS:-${PRIMARY_DOMAIN:-example.com}}
+    container_name: elektrine_mail
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.production
+    environment:
+      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      PHX_HOST: ${PHX_HOST:-example.com}
+      MIX_ENV: prod
+      ELEKTRINE_RUNTIME_ROLE: mail
+      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
+      ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
+      ELEKTRINE_ENABLE_TOR: "false"
+    ports:
+      - "${SMTP_TLS_BIND:-465:2587}"
+      - "${IMAP_TLS_BIND:-993:2143}"
+      - "${POP3_TLS_BIND:-995:2110}"
     volumes:
       - uploads:/app/uploads
       - app_data:/data
