@@ -48,11 +48,6 @@ defmodule ElektrineWeb.DNSLive.Index do
   end
 
   @impl true
-  def handle_event("connection_changed", _params, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
   def handle_event("zone_validate", %{"zone" => params}, socket) do
     changeset =
       %Zone{}

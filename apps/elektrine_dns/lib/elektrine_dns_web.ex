@@ -25,11 +25,17 @@ defmodule ElektrineDNSWeb do
       use Phoenix.LiveView,
         layout: {ElektrineWeb.Layouts, :app}
 
+      use ElektrineWeb.Live.Hooks.PresenceEvents
+
       on_mount ElektrineWeb.Live.AnnouncementCache
 
       import ElektrineWeb.Live.NotificationHelpers
 
       unquote(html_helpers())
+
+      def handle_event("set_timezone", %{"timezone" => timezone}, socket) do
+        {:noreply, assign(socket, :timezone, timezone)}
+      end
     end
   end
 

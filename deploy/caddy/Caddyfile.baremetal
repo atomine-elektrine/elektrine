@@ -11,6 +11,28 @@ http:// {
 	redir https://{host}{uri} 308
 }
 
+elektrine.com, *.elektrine.com {
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	}
+
+	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}
+
+z.org, *.z.org {
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	}
+
+	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}
+
 https:// {
 	tls {
 		on_demand
