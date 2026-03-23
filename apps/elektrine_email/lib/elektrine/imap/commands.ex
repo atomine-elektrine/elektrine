@@ -5,6 +5,7 @@ defmodule Elektrine.IMAP.Commands do
   alias Elektrine.Domains
   alias Elektrine.Email.AttachmentStorage
   alias Elektrine.IMAP.{Helpers, Response}
+  alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
   @max_message_size Constants.imap_max_message_size()
@@ -200,7 +201,7 @@ defmodule Elektrine.IMAP.Commands do
       {:ok, "PLAIN", nil} ->
         Helpers.send_response(state.socket, "+")
 
-        case :gen_tcp.recv(state.socket, 0, 60_000) do
+        case Socket.recv(state.socket, 0, 60_000) do
           {:ok, data} ->
             authenticate_plain_payload(tag, data, state)
 
@@ -215,7 +216,7 @@ defmodule Elektrine.IMAP.Commands do
       {:ok, "LOGIN", nil} ->
         Helpers.send_response(state.socket, "+ VXNlcm5hbWU6")
 
-        case :gen_tcp.recv(state.socket, 0, 60_000) do
+        case Socket.recv(state.socket, 0, 60_000) do
           {:ok, username_data} ->
             case Helpers.decode_auth_login_line(username_data) do
               {:ok, "*"} ->
@@ -225,7 +226,7 @@ defmodule Elektrine.IMAP.Commands do
               {:ok, username} ->
                 Helpers.send_response(state.socket, "+ UGFzc3dvcmQ6")
 
-                case :gen_tcp.recv(state.socket, 0, 60_000) do
+                case Socket.recv(state.socket, 0, 60_000) do
                   {:ok, password_data} ->
                     case Helpers.decode_auth_login_line(password_data) do
                       {:ok, "*"} ->
@@ -1990,7 +1991,7 @@ defmodule Elektrine.IMAP.Commands do
     if size > @max_message_size do
       {:error, :message_too_large}
     else
-      :inet.setopts(socket, packet: :raw, active: false)
+      Socket.setopts(socket, packet: :raw, active: false)
 
       result =
         try do
@@ -2000,7 +2001,7 @@ defmodule Elektrine.IMAP.Commands do
             Logger.error("IMAP APPEND: Exception during receive: #{inspect(e)}")
             {:error, :receive_exception}
         after
-          :inet.setopts(socket, packet: :line, active: false)
+          Socket.setopts(socket, packet: :line, active: false)
         end
 
       result
@@ -2011,7 +2012,7 @@ defmodule Elektrine.IMAP.Commands do
     remaining = total_size - received_so_far
 
     if remaining <= 0 do
-      case :gen_tcp.recv(socket, 2, 5000) do
+      case Socket.recv(socket, 2, 5000) do
         {:ok, data} when data == "\r\n" or data == ~c"\r\n" ->
           {:ok, to_string(acc)}
 
@@ -2035,7 +2036,7 @@ defmodule Elektrine.IMAP.Commands do
     else
       chunk_size = min(remaining, 65_536)
 
-      case :gen_tcp.recv(socket, chunk_size, 60_000) do
+      case Socket.recv(socket, chunk_size, 60_000) do
         {:ok, chunk_raw} ->
           chunk =
             if is_list(chunk_raw) do
@@ -2683,12 +2684,22 @@ defmodule Elektrine.IMAP.Commands do
   defp idle_loop(state, start_time) do
     elapsed = System.monotonic_time(:millisecond) - start_time
     timeout = max(1000, @idle_timeout_ms - elapsed)
-    :inet.setopts(state.socket, active: :once)
+    Socket.setopts(state.socket, active: :once)
 
     receive do
       {:tcp, _socket, data} ->
         command = data |> to_string() |> String.trim() |> String.upcase()
-        :inet.setopts(state.socket, active: false)
+        Socket.setopts(state.socket, active: false)
+
+        if command == "DONE" do
+          {:done, state}
+        else
+          idle_loop(state, start_time)
+        end
+
+      {:ssl, _socket, data} ->
+        command = data |> to_string() |> String.trim() |> String.upcase()
+        Socket.setopts(state.socket, active: false)
 
         if command == "DONE" do
           {:done, state}
@@ -2699,7 +2710,14 @@ defmodule Elektrine.IMAP.Commands do
       {:tcp_closed, _socket} ->
         {:done, state}
 
+      {:ssl_closed, _socket} ->
+        {:done, state}
+
       {:tcp_error, _socket, reason} ->
+        Logger.error("IDLE socket error: #{inspect(reason)}")
+        {:done, state}
+
+      {:ssl_error, _socket, reason} ->
         Logger.error("IDLE socket error: #{inspect(reason)}")
         {:done, state}
 
@@ -2719,7 +2737,7 @@ defmodule Elektrine.IMAP.Commands do
         end
     after
       timeout ->
-        :inet.setopts(state.socket, active: false)
+        Socket.setopts(state.socket, active: false)
         {:timeout, state}
     end
   end

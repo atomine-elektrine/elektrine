@@ -10,6 +10,7 @@ defmodule Elektrine.POP3.Server do
   alias Elektrine.Constants
   alias Elektrine.Email
   alias Elektrine.Email.AttachmentStorage
+  alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
   alias Elektrine.POP3.RateLimiter
@@ -21,66 +22,86 @@ defmodule Elektrine.POP3.Server do
   @slow_command_threshold_us 500_000
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   def init(opts) do
     port = Keyword.get(opts, :port, Application.get_env(:elektrine, :pop3_port, 2110))
+    transport = Keyword.get(opts, :transport, :tcp)
+    tls_opts = Keyword.get(opts, :tls_opts, [])
 
     Logger.info("Attempting to start POP3 server on port #{port}")
 
-    case :gen_tcp.listen(port, [
-           {:active, false},
-           {:packet, :line},
-           # Security: limit command line length
-           {:packet_size, 8192},
-           {:reuseaddr, true},
-           {:ip, {0, 0, 0, 0}},
-           {:backlog, 100},
-           {:keepalive, true},
-           {:send_timeout, Constants.pop3_send_timeout_ms()},
-           {:send_timeout_close, true}
-         ]) do
+    case Socket.listen(
+           transport,
+           port,
+           [
+             {:active, false},
+             {:packet, :line},
+             # Security: limit command line length
+             {:packet_size, 8192},
+             {:reuseaddr, true},
+             {:ip, {0, 0, 0, 0}},
+             {:backlog, 100},
+             {:keepalive, true},
+             {:send_timeout, Constants.pop3_send_timeout_ms()},
+             {:send_timeout_close, true}
+           ],
+           tls_opts
+         ) do
       {:ok, socket} ->
         Logger.info("POP3 server successfully listening on port #{port}")
         # Create ETS table for connection tracking
         :ets.new(:pop3_active_connections, [:set, :public, :named_table])
         :ets.insert(:pop3_active_connections, {:total, 0})
-        spawn_link(fn -> accept_loop(socket) end)
-        {:ok, %{socket: socket, port: port, connections: 0}}
+        spawn_link(fn -> accept_loop(socket, transport) end)
+        {:ok, %{socket: socket, port: port, transport: transport, connections: 0}}
 
       {:error, :eaddrinuse} ->
         Logger.error("POP3 server failed: Port #{port} is already in use")
         # Don't crash the supervisor - just log the error
-        {:ok, %{socket: nil, port: port, connections: 0, error: :port_in_use}}
+        {:ok,
+         %{socket: nil, port: port, transport: transport, connections: 0, error: :port_in_use}}
 
       {:error, reason} ->
         Logger.error("Failed to start POP3 server on port #{port}: #{inspect(reason)}")
         # Don't crash the supervisor - just log the error
-        {:ok, %{socket: nil, port: port, connections: 0, error: reason}}
+        {:ok, %{socket: nil, port: port, transport: transport, connections: 0, error: reason}}
     end
   end
 
-  defp accept_loop(socket) do
-    case :gen_tcp.accept(socket) do
+  defp accept_loop(socket, transport) do
+    case Socket.accept(transport, socket) do
       {:ok, client} ->
-        handle_accepted_client(client)
+        handle_accepted_client(client, transport)
 
-        accept_loop(socket)
+        accept_loop(socket, transport)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
-        accept_loop(socket)
+        accept_loop(socket, transport)
     end
   end
 
-  defp handle_accepted_client(client) do
-    {client_ip, initial_data} = parse_client_ip_and_data(client)
+  defp handle_accepted_client(client, transport) do
+    {client_ip, initial_data} = parse_client_ip_and_data(client, transport)
     maybe_start_client_session(client, client_ip, initial_data)
   end
 
-  defp parse_client_ip_and_data(client) do
+  defp parse_client_ip_and_data(client, :ssl) do
+    case Socket.peername(client) do
+      {:ok, {ip, _port}} ->
+        {normalize_ipv6_subnet(:inet.ntoa(ip) |> to_string()), nil}
+
+      {:error, _reason} ->
+        Socket.close(client)
+        {nil, nil}
+    end
+  end
+
+  defp parse_client_ip_and_data(client, :tcp) do
     case ProxyProtocol.parse_client_ip(client) do
       {:ok, ip, data} ->
         {normalize_ipv6_subnet(ip), data}
@@ -91,15 +112,15 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp fallback_client_ip(client) do
-    case :inet.peername(client) do
+    case Socket.peername(client) do
       {:ok, {ip, _port}} ->
         ip_string = :inet.ntoa(ip) |> to_string() |> normalize_ipv6_subnet()
-        :gen_tcp.close(client)
+        Socket.close(client)
         {ip_string, nil}
 
       {:error, _} ->
         # Connection already closed, skip this client
-        :gen_tcp.close(client)
+        Socket.close(client)
         {nil, nil}
     end
   end
@@ -117,7 +138,7 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp configure_client_socket(client) do
-    :inet.setopts(client, [
+    Socket.setopts(client, [
       {:keepalive, true},
       {:nodelay, true},
       {:send_timeout, Constants.pop3_send_timeout_ms()}
@@ -137,7 +158,7 @@ defmodule Elektrine.POP3.Server do
   defp reject_client_connection(client, client_ip) do
     Logger.warning("POP3 connection rejected from #{client_ip}: connection limit exceeded")
     send_response(client, "-ERR Too many connections from your IP address")
-    :gen_tcp.close(client)
+    Socket.close(client)
   end
 
   defp handle_client(socket, client_ip, initial_data) do
@@ -166,23 +187,23 @@ defmodule Elektrine.POP3.Server do
         {state.initial_data, %{state | initial_data: nil}}
       else
         # POP3 timeout is typically 10 minutes (600000 ms)
-        case :gen_tcp.recv(state.socket, 0, 600_000) do
+        case Socket.recv(state.socket, 0, 600_000) do
           {:ok, data} ->
             {data, state}
 
           {:error, :timeout} ->
             # Send timeout message and close
             send_response(state.socket, "-ERR Connection timeout")
-            :gen_tcp.close(state.socket)
+            Socket.close(state.socket)
             {nil, state}
 
           {:error, :closed} ->
-            :gen_tcp.close(state.socket)
+            Socket.close(state.socket)
             {nil, state}
 
           {:error, reason} ->
             Logger.error("POP3 receive error: #{inspect(reason)}")
-            :gen_tcp.close(state.socket)
+            Socket.close(state.socket)
             {nil, state}
         end
       end
@@ -552,7 +573,7 @@ defmodule Elektrine.POP3.Server do
       end)
     end
 
-    :gen_tcp.close(state.socket)
+    Socket.close(state.socket)
   end
 
   defp check_auth_rate_limits(ip_string, username) do
@@ -1028,7 +1049,7 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp send_response(socket, message) do
-    :gen_tcp.send(socket, "#{message}\r\n")
+    Socket.send(socket, "#{message}\r\n")
   end
 
   # Normalizes IPv6 addresses to /64 subnet to prevent brute-force via address rotation
@@ -1058,9 +1079,9 @@ defmodule Elektrine.POP3.Server do
     data = String.replace(data, "\n.", "\n..")
 
     if String.ends_with?(data, "\r\n") do
-      :gen_tcp.send(socket, data)
+      Socket.send(socket, data)
     else
-      :gen_tcp.send(socket, "#{data}\r\n")
+      Socket.send(socket, "#{data}\r\n")
     end
   end
 end

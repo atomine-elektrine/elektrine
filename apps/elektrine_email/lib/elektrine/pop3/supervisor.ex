@@ -13,21 +13,29 @@ defmodule Elektrine.POP3.Supervisor do
   def init(_init_arg) do
     port = pop3_port()
     enabled = pop3_enabled?()
+    tls_port = pop3s_port()
+    tls_enabled = pop3s_enabled?()
+    tls_opts = pop3_tls_opts()
 
     require Logger
-    Logger.info("POP3 Supervisor: enabled=#{enabled}, port=#{port}")
+
+    Logger.info(
+      "POP3 Supervisor: enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port}"
+    )
 
     children =
-      if enabled do
-        [
-          # Rate limiter for auth attempts
-          Elektrine.POP3.RateLimiter,
-          # POP3 Server
-          {Elektrine.POP3.Server, [port: port]}
-        ]
-      else
-        []
-      end
+      [Elektrine.POP3.RateLimiter] ++
+        if(enabled,
+          do: [{Elektrine.POP3.Server, [name: Elektrine.POP3.Server, port: port]}],
+          else: []
+        ) ++
+        if(tls_enabled,
+          do: [
+            {Elektrine.POP3.Server,
+             [name: Elektrine.POP3.TLSServer, port: tls_port, transport: :ssl, tls_opts: tls_opts]}
+          ],
+          else: []
+        )
 
     Supervisor.init(children, strategy: :one_for_one)
   end
@@ -37,8 +45,18 @@ defmodule Elektrine.POP3.Supervisor do
   end
 
   defp pop3_port do
-    # Use port 2110 by default (non-privileged port)
-    # Can be overridden with POP3_PORT env var
     Application.get_env(:elektrine, :pop3_port, 2110)
+  end
+
+  defp pop3s_enabled? do
+    Application.get_env(:elektrine, :pop3s_enabled, false)
+  end
+
+  defp pop3s_port do
+    Application.get_env(:elektrine, :pop3s_port, 995)
+  end
+
+  defp pop3_tls_opts do
+    Application.get_env(:elektrine, :mail_tls_opts, [])
   end
 end

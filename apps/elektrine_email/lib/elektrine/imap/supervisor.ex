@@ -13,21 +13,29 @@ defmodule Elektrine.IMAP.Supervisor do
   def init(_init_arg) do
     port = imap_port()
     enabled = imap_enabled?()
+    tls_port = imaps_port()
+    tls_enabled = imaps_enabled?()
+    tls_opts = imap_tls_opts()
 
     require Logger
-    Logger.info("IMAP Supervisor: enabled=#{enabled}, port=#{port}")
+
+    Logger.info(
+      "IMAP Supervisor: enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port}"
+    )
 
     children =
-      if enabled do
-        [
-          # Rate limiter for auth attempts
-          Elektrine.IMAP.RateLimiter,
-          # IMAP Server
-          {Elektrine.IMAP.Server, [port: port]}
-        ]
-      else
-        []
-      end
+      [Elektrine.IMAP.RateLimiter] ++
+        if(enabled,
+          do: [{Elektrine.IMAP.Server, [name: Elektrine.IMAP.Server, port: port]}],
+          else: []
+        ) ++
+        if(tls_enabled,
+          do: [
+            {Elektrine.IMAP.Server,
+             [name: Elektrine.IMAP.TLSServer, port: tls_port, transport: :ssl, tls_opts: tls_opts]}
+          ],
+          else: []
+        )
 
     Supervisor.init(children, strategy: :one_for_one)
   end
@@ -37,8 +45,18 @@ defmodule Elektrine.IMAP.Supervisor do
   end
 
   defp imap_port do
-    # Use port 2143 by default (non-privileged port)
-    # Can be overridden with IMAP_PORT env var
     Application.get_env(:elektrine, :imap_port, 2143)
+  end
+
+  defp imaps_enabled? do
+    Application.get_env(:elektrine, :imaps_enabled, false)
+  end
+
+  defp imaps_port do
+    Application.get_env(:elektrine, :imaps_port, 993)
+  end
+
+  defp imap_tls_opts do
+    Application.get_env(:elektrine, :mail_tls_opts, [])
   end
 end

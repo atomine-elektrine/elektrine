@@ -985,14 +985,25 @@ end
 # Keep test isolated from host mail daemons by letting test.exs own these ports.
 if config_env() != :test do
   mail_enabled = parse_bool_env.("ELEKTRINE_ENABLE_MAIL", true)
+  mail_tls_cert_path = System.get_env("MAIL_TLS_CERT_PATH")
+  mail_tls_key_path = System.get_env("MAIL_TLS_KEY_PATH")
+
+  mail_tls_enabled =
+    mail_enabled and present?.(mail_tls_cert_path) and present?.(mail_tls_key_path) and
+      File.regular?(mail_tls_cert_path) and File.regular?(mail_tls_key_path)
 
   config :elektrine,
     pop3_enabled: mail_enabled and parse_bool_env.("POP3_ENABLED", true),
     pop3_port: parse_int_env.("POP3_PORT", 2110),
+    pop3s_enabled: mail_tls_enabled and parse_bool_env.("POP3S_ENABLED", true),
+    pop3s_port: parse_int_env.("POP3S_PORT", 2995),
     imap_enabled: mail_enabled and parse_bool_env.("IMAP_ENABLED", true),
     imap_port: parse_int_env.("IMAP_PORT", 2143),
+    imaps_enabled: mail_tls_enabled and parse_bool_env.("IMAPS_ENABLED", true),
+    imaps_port: parse_int_env.("IMAPS_PORT", 2993),
     smtp_enabled: mail_enabled and parse_bool_env.("SMTP_ENABLED", true),
-    smtp_port: parse_int_env.("SMTP_PORT", 2587)
+    smtp_port: parse_int_env.("SMTP_PORT", 2587),
+    mail_tls_opts: [certfile: mail_tls_cert_path, keyfile: mail_tls_key_path]
 end
 
 # Stripe configuration for subscriptions

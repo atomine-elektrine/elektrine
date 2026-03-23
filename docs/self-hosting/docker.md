@@ -4,8 +4,7 @@ This keeps the main app and worker in a single Docker deployment:
 
 - one `app` container
 - one `worker` container
-- optional `mail` container for SMTP, IMAP, and POP3 via `--profile email`
-- optional `mail_edge` nginx stream container for IMAPS, POP3S, and SMTPS via `--profile email`
+- optional `mail` container when the `email` profile is enabled
 - optional `xmpp` container for MongooseIM via `--profile xmpp`
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
@@ -56,7 +55,7 @@ remote host to pull and deploy it without rebuilding the app image there.
 For wildcard certificates, set these in `.env.production` before first deploy:
 
 - `CLOUDFLARE_API_TOKEN` - token with DNS edit access for `elektrine.com` and `z.org`
-- `CADDY_ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
+- `ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
 
 Then point these records at your edge:
 
@@ -131,7 +130,6 @@ The deploy wrapper:
 - renders `deploy/docker/generated.docker.yml`
 - keeps `app` and `worker` in the stack
 - can start the dedicated `mail` service when the `email` profile is enabled
-- can start the dedicated `mail_edge` TLS proxy when the `email` profile is enabled
 - runs database migrations through the app release
 - provisions required Postgres extensions such as `vector`
 - can start the dedicated `dns` service when the `dns` profile is enabled
@@ -158,7 +156,8 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_PORT` optional, defaults to `22`
 - `DOCKER_PROFILES` optional, defaults to `caddy`
 - `MONGOOSEIM_API_KEY` required when using the `xmpp` profile
-- `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required when using the built-in `email` profile securely
+- `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
+- secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)
 
 GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
 

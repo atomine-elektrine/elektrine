@@ -136,10 +136,6 @@ if [[ " $RENDER_PROFILES " == *" xmpp "* ]]; then
   bash "$ROOT_DIR/scripts/deploy/render_mongooseim_config.sh" --output "$XMPP_CONFIG_OUTPUT"
 fi
 
-if [[ " $RENDER_PROFILES " == *" email "* ]]; then
-  bash "$ROOT_DIR/scripts/deploy/render_mail_nginx_config.sh" --output "$COMPOSE_PROJECT_DIR/generated.mail.nginx.conf"
-fi
-
 COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")
 for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do
   COMPOSE_ARGS+=(-f "$override_file")
