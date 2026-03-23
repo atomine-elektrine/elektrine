@@ -109,7 +109,8 @@ jobs:
             PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
           done
 
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s" <<EOF
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
           set -euo pipefail
 
           if docker info >/dev/null 2>&1; then
@@ -126,9 +127,9 @@ jobs:
 
           WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree"
 
-          OUTPUT_FILE="/tmp/elektrine.generated.docker.yml"
-          OVERRIDE_FILE="/tmp/elektrine.docker-image.override.yml"
-          trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"; rm -f "\$OVERRIDE_FILE" "\$OUTPUT_FILE"' EXIT
+          OUTPUT_FILE="$DEPLOY_PATH/deploy/docker/generated.docker.yml"
+          OVERRIDE_FILE="$(mktemp /tmp/elektrine.docker-image.override.XXXXXX.yml)"
+          trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"; rm -f "$OVERRIDE_FILE"' EXIT
 
           if [ -d "$WORKTREE_PATH" ]; then
             git worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"
@@ -137,7 +138,7 @@ jobs:
           git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
           cd "$WORKTREE_PATH"
 
-          cat > "\$OVERRIDE_FILE" <<'OVERRIDE'
+          cat > "$OVERRIDE_FILE" <<OVERRIDE
           services:
             app:
               image: ${TARGET_IMAGE}
@@ -145,12 +146,13 @@ jobs:
               image: ${TARGET_IMAGE}
           OVERRIDE
 
-          COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH" bash scripts/deploy/docker_deploy.sh \
+          COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_RELEASE_MODULES" \
-            --output "\$OUTPUT_FILE" \
+            --env-file "$DEPLOY_PATH/.env.production" \
+            --output "$OUTPUT_FILE" \
             --pull \
             --skip-build \
-            --compose-override "\$OVERRIDE_FILE" \
+            --compose-override "$OVERRIDE_FILE" \
             $PROFILE_ARGS
           EOF
 

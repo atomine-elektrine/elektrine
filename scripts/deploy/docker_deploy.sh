@@ -8,7 +8,7 @@ ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
 COMPOSE_OVERRIDE_FILES=()
 COMPOSE_PROJECT_DIR="${COMPOSE_PROJECT_DIRECTORY:-$ROOT_DIR}"
-COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR")
+COMPOSE_BASE_ARGS=()
 DO_UP=1
 DO_MIGRATE=1
 DO_BUILD=1
@@ -85,6 +85,8 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
 fi
+
+COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR" --env-file "$ENV_FILE")
 
 if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
   echo "Error: output path is not writable: $OUTPUT_PATH" >&2
