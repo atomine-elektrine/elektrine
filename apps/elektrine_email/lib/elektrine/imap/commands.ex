@@ -1393,14 +1393,14 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_idle(tag, state) do
-    idle_count = count_idle_connections(state.client_ip)
+    idle_count = count_idle_connections(state)
 
     if idle_count >= @max_idle_per_ip do
       Helpers.send_response(state.socket, "#{tag} NO Too many IDLE connections from your IP")
       {:continue, state}
     else
       session_id = Helpers.generate_session_id()
-      track_idle_connection(state.client_ip, session_id)
+      track_idle_connection(state, state.client_ip, session_id)
       Process.put(:imap_idle_session_id, session_id)
       mailbox_topic = "mailbox:#{state.mailbox.id}"
       Phoenix.PubSub.subscribe(Elektrine.PubSub, mailbox_topic)
@@ -1423,14 +1423,14 @@ defmodule Elektrine.IMAP.Commands do
         result
       after
         Phoenix.PubSub.unsubscribe(Elektrine.PubSub, mailbox_topic)
-        untrack_idle_connection(state.client_ip, session_id)
+        untrack_idle_connection(state, state.client_ip, session_id)
         Process.delete(:imap_idle_session_id)
       end
     end
   end
 
   defp handle_unrecognized(tag, cmd, state) do
-    track_invalid_command(state.client_ip, cmd)
+    track_invalid_command(state, state.client_ip, cmd)
     Logger.warning("IMAP unrecognized command from #{state.client_ip}: #{cmd}")
     Helpers.send_response(state.socket, "#{tag} BAD Command not recognized")
     {:continue, state}
@@ -2742,11 +2742,13 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp count_idle_connections(ip) do
-    if :ets.whereis(:imap_idle_connections) != :undefined do
-      case :ets.lookup(:imap_idle_connections, ip) do
-        [{^ip, sessions}] ->
-          active_sessions = persist_active_idle_sessions(ip, sessions)
+  defp count_idle_connections(state) do
+    table = idle_table_name(state)
+
+    if :ets.whereis(table) != :undefined do
+      case :ets.lookup(table, state.client_ip) do
+        [{ip, sessions}] when ip == state.client_ip ->
+          active_sessions = persist_active_idle_sessions(table, state.client_ip, sessions)
           length(active_sessions)
 
         [] ->
@@ -2757,12 +2759,14 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp track_idle_connection(ip, session_id) do
-    if :ets.whereis(:imap_idle_connections) != :undefined do
+  defp track_idle_connection(state, ip, session_id) do
+    table = idle_table_name(state)
+
+    if :ets.whereis(table) != :undefined do
       now = System.monotonic_time(:millisecond)
 
       sessions =
-        case :ets.lookup(:imap_idle_connections, ip) do
+        case :ets.lookup(table, ip) do
           [{^ip, existing}] ->
             existing
             |> normalize_idle_sessions(now)
@@ -2775,13 +2779,15 @@ defmodule Elektrine.IMAP.Commands do
             [{session_id, now}]
         end
 
-      :ets.insert(:imap_idle_connections, {ip, sessions})
+      :ets.insert(table, {ip, sessions})
     end
   end
 
-  defp untrack_idle_connection(ip, session_id) do
-    if :ets.whereis(:imap_idle_connections) != :undefined do
-      case :ets.lookup(:imap_idle_connections, ip) do
+  defp untrack_idle_connection(state, ip, session_id) do
+    table = idle_table_name(state)
+
+    if :ets.whereis(table) != :undefined do
+      case :ets.lookup(table, ip) do
         [{^ip, sessions}] ->
           new_sessions =
             sessions
@@ -2791,9 +2797,9 @@ defmodule Elektrine.IMAP.Commands do
             end)
 
           if new_sessions == [] do
-            :ets.delete(:imap_idle_connections, ip)
+            :ets.delete(table, ip)
           else
-            :ets.insert(:imap_idle_connections, {ip, new_sessions})
+            :ets.insert(table, {ip, new_sessions})
           end
 
         [] ->
@@ -2802,7 +2808,7 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp persist_active_idle_sessions(ip, sessions) do
+  defp persist_active_idle_sessions(table, ip, sessions) do
     now = System.monotonic_time(:millisecond)
 
     active_sessions =
@@ -2813,9 +2819,9 @@ defmodule Elektrine.IMAP.Commands do
       end)
 
     if active_sessions == [] do
-      :ets.delete(:imap_idle_connections, ip)
+      :ets.delete(table, ip)
     else
-      :ets.insert(:imap_idle_connections, {ip, active_sessions})
+      :ets.insert(table, {ip, active_sessions})
     end
 
     active_sessions
@@ -2836,23 +2842,25 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp track_invalid_command(ip, _command) do
-    if :ets.whereis(:imap_invalid_commands) != :undefined do
+  defp track_invalid_command(state, ip, _command) do
+    table = invalid_table_name(state)
+
+    if :ets.whereis(table) != :undefined do
       now = System.system_time(:second)
-      table_size = :ets.info(:imap_invalid_commands, :size)
+      table_size = :ets.info(table, :size)
       max_tracked_ips = 10_000
 
       if table_size >= max_tracked_ips do
-        cleanup_old_invalid_command_entries(now)
+        cleanup_old_invalid_command_entries(table, now)
       end
 
       {count, first_seen} =
-        case :ets.lookup(:imap_invalid_commands, ip) do
+        case :ets.lookup(table, ip) do
           [{^ip, c, t}] -> {c + 1, t}
           [] -> {1, now}
         end
 
-      :ets.insert(:imap_invalid_commands, {ip, count, first_seen})
+      :ets.insert(table, {ip, count, first_seen})
 
       if count >= 5 do
         Logger.error(
@@ -2866,21 +2874,27 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
-  defp cleanup_old_invalid_command_entries(now) do
-    if :ets.whereis(:imap_invalid_commands) != :undefined do
+  defp cleanup_old_invalid_command_entries(table, now) do
+    if :ets.whereis(table) != :undefined do
       cutoff = now - 3600
 
       :ets.foldl(
         fn {ip, _count, first_seen}, acc ->
           if first_seen < cutoff do
-            :ets.delete(:imap_invalid_commands, ip)
+            :ets.delete(table, ip)
           end
 
           acc
         end,
         nil,
-        :imap_invalid_commands
+        table
       )
     end
   end
+
+  defp idle_table_name(%{transport: :ssl}), do: :imap_idle_connections_tls
+  defp idle_table_name(_state), do: :imap_idle_connections
+
+  defp invalid_table_name(%{transport: :ssl}), do: :imap_invalid_commands_tls
+  defp invalid_table_name(_state), do: :imap_invalid_commands
 end

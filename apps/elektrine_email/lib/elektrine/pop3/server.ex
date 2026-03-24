@@ -53,8 +53,9 @@ defmodule Elektrine.POP3.Server do
       {:ok, socket} ->
         Logger.info("POP3 server successfully listening on port #{port}")
         # Create ETS table for connection tracking
-        :ets.new(:pop3_active_connections, [:set, :public, :named_table])
-        :ets.insert(:pop3_active_connections, {:total, 0})
+        active_table = active_table_name(transport)
+        ensure_table(active_table)
+        :ets.insert(active_table, {:total, 0})
         spawn_link(fn -> accept_loop(socket, transport) end)
         {:ok, %{socket: socket, port: port, transport: transport, connections: 0}}
 
@@ -128,9 +129,11 @@ defmodule Elektrine.POP3.Server do
   defp maybe_start_client_session(_client, nil, _initial_data), do: :ok
 
   defp maybe_start_client_session(client, client_ip, initial_data) do
-    if can_accept_connection?(client_ip) do
+    transport = transport_for_socket(client)
+
+    if can_accept_connection?(client_ip, transport) do
       configure_client_socket(client)
-      increment_connection_count(client_ip)
+      increment_connection_count(client_ip, transport)
       spawn_client_handler(client, client_ip, initial_data)
     else
       reject_client_connection(client, client_ip)
@@ -147,10 +150,12 @@ defmodule Elektrine.POP3.Server do
 
   defp spawn_client_handler(client, client_ip, initial_data) do
     spawn(fn ->
+      Process.put(:pop3_socket_transport, transport_for_socket(client))
+
       try do
         handle_client(client, client_ip, initial_data)
       after
-        decrement_connection_count(client_ip)
+        decrement_connection_count(client_ip, transport_for_socket(client))
       end
     end)
   end
@@ -942,16 +947,18 @@ defmodule Elektrine.POP3.Server do
   end
 
   # Connection limit enforcement (DOS protection)
-  defp can_accept_connection?(ip) do
+  defp can_accept_connection?(ip, transport) do
+    table = active_table_name(transport)
+
     # Check total connections
-    [{:total, total}] = :ets.lookup(:pop3_active_connections, :total)
+    [{:total, total}] = :ets.lookup(table, :total)
 
     if total >= @max_connections do
       false
     else
       # Check per-IP limit
       ip_count =
-        case :ets.lookup(:pop3_active_connections, ip) do
+        case :ets.lookup(table, ip) do
           [{^ip, count}] -> count
           [] -> 0
         end
@@ -960,33 +967,37 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
-  defp increment_connection_count(ip) do
+  defp increment_connection_count(ip, transport) do
+    table = active_table_name(transport)
+
     # Increment total
-    :ets.update_counter(:pop3_active_connections, :total, {2, 1})
+    :ets.update_counter(table, :total, {2, 1})
 
     # Increment per-IP
-    case :ets.lookup(:pop3_active_connections, ip) do
+    case :ets.lookup(table, ip) do
       [{^ip, count}] ->
-        :ets.insert(:pop3_active_connections, {ip, count + 1})
+        :ets.insert(table, {ip, count + 1})
 
       [] ->
-        :ets.insert(:pop3_active_connections, {ip, 1})
+        :ets.insert(table, {ip, 1})
     end
 
-    emit_session_count(ip)
+    emit_session_count(ip, transport)
   end
 
-  defp decrement_connection_count(ip) do
+  defp decrement_connection_count(ip, transport) do
+    table = active_table_name(transport)
+
     # Decrement total
-    :ets.update_counter(:pop3_active_connections, :total, {2, -1})
+    :ets.update_counter(table, :total, {2, -1})
 
     # Decrement per-IP
-    case :ets.lookup(:pop3_active_connections, ip) do
+    case :ets.lookup(table, ip) do
       [{^ip, count}] when count > 1 ->
-        :ets.insert(:pop3_active_connections, {ip, count - 1})
+        :ets.insert(table, {ip, count - 1})
 
       [{^ip, 1}] ->
-        :ets.delete(:pop3_active_connections, ip)
+        :ets.delete(table, ip)
 
       [] ->
         Logger.warning(
@@ -994,18 +1005,20 @@ defmodule Elektrine.POP3.Server do
         )
     end
 
-    emit_session_count(ip)
+    emit_session_count(ip, transport)
   end
 
-  defp emit_session_count(ip) do
+  defp emit_session_count(ip, transport) do
+    table = active_table_name(transport)
+
     total =
-      case :ets.lookup(:pop3_active_connections, :total) do
+      case :ets.lookup(table, :total) do
         [{:total, count}] -> count
         [] -> 0
       end
 
     ip_count =
-      case :ets.lookup(:pop3_active_connections, ip) do
+      case :ets.lookup(table, ip) do
         [{^ip, count}] -> count
         [] -> 0
       end
@@ -1084,4 +1097,16 @@ defmodule Elektrine.POP3.Server do
       Socket.send(socket, "#{data}\r\n")
     end
   end
+
+  defp ensure_table(table) do
+    if :ets.whereis(table) == :undefined do
+      :ets.new(table, [:set, :public, :named_table])
+    end
+  end
+
+  defp transport_for_socket({:sslsocket, _, _}), do: :ssl
+  defp transport_for_socket(_socket), do: :tcp
+
+  defp active_table_name(:ssl), do: :pop3_active_connections_tls
+  defp active_table_name(_transport), do: :pop3_active_connections
 end
