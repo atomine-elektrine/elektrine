@@ -20,7 +20,7 @@ defmodule Elektrine.IMAP.Supervisor do
     require Logger
 
     Logger.info(
-      "IMAP Supervisor: enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port}"
+      "Startup: imap supervisor configured (enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port})"
     )
 
     children =

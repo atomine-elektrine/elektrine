@@ -10,6 +10,9 @@ defmodule ElektrineWeb.AuthLive.Register do
   alias Elektrine.Subscriptions.Product
 
   def mount(params, session, socket) do
+    params = normalize_mount_map(params)
+    session = normalize_mount_map(session)
+
     changeset = registration_changeset(session, params)
     invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
     via_tor = via_tor_request?(socket, session)
@@ -165,6 +168,9 @@ defmodule ElektrineWeb.AuthLive.Register do
 
   defp registration_access_param(%{} = params), do: Map.get(params, "access")
   defp registration_access_param(_), do: nil
+
+  defp normalize_mount_map(%{} = value), do: value
+  defp normalize_mount_map(_value), do: %{}
 
   defp format_registration_price(%Product{} = product) do
     Product.format_price(product.one_time_price_cents, product.currency)

@@ -49,7 +49,7 @@ defmodule Elektrine.VPN.StatsAggregator do
     # Schedule periodic flush to database
     schedule_flush()
 
-    Logger.info("VPN StatsAggregator started")
+    Logger.info("Startup: vpn stats aggregator ready")
 
     {:ok,
      %{

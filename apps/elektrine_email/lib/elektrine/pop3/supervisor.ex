@@ -20,7 +20,7 @@ defmodule Elektrine.POP3.Supervisor do
     require Logger
 
     Logger.info(
-      "POP3 Supervisor: enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port}"
+      "Startup: pop3 supervisor configured (enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port})"
     )
 
     children =

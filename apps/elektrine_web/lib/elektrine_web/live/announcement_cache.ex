@@ -11,7 +11,7 @@ defmodule ElektrineWeb.Live.AnnouncementCache do
     # Caching in Elektrine.Admin ensures this is efficient
     announcements =
       case socket.assigns[:current_user] do
-        nil -> []
+        nil -> ElektrineWeb.Layouts.get_active_announcements()
         user -> ElektrineWeb.Layouts.get_active_announcements_for_user(user.id)
       end
 

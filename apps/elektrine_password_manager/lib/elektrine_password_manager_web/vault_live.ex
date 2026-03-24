@@ -16,6 +16,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     user = socket.assigns.current_user
     vault_settings = PasswordManager.get_vault_settings(user.id)
     vault_configured = not is_nil(vault_settings)
+    active_announcements = Elektrine.Admin.list_active_announcements_for_user(user.id)
 
     entries =
       if vault_configured,
@@ -25,6 +26,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     {:ok,
      socket
      |> assign(:page_title, "Password Manager")
+     |> assign(:active_announcements, active_announcements)
      |> assign(:vault_configured, vault_configured)
      |> assign(:vault_verifier, vault_settings && vault_settings.encrypted_verifier)
      |> assign(:entries, entries)
