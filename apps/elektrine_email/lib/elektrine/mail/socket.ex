@@ -4,12 +4,15 @@ defmodule Elektrine.Mail.Socket do
   def listen(:tcp, port, opts, _tls_opts), do: :gen_tcp.listen(port, opts)
 
   def listen(:ssl, port, opts, tls_opts) do
+    ssl_opts = Enum.reject(opts, fn {key, _value} -> key == :packet end)
+
     :ssl.listen(
       port,
-      opts ++
+      ssl_opts ++
         [
           {:certfile, Keyword.fetch!(tls_opts, :certfile)},
           {:keyfile, Keyword.fetch!(tls_opts, :keyfile)},
+          {:mode, :binary},
           {:verify, :verify_none},
           {:reuse_sessions, true},
           {:versions, [:"tlsv1.2", :"tlsv1.3"]}

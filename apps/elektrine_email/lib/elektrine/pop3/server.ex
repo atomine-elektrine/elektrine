@@ -31,7 +31,7 @@ defmodule Elektrine.POP3.Server do
     transport = Keyword.get(opts, :transport, :tcp)
     tls_opts = Keyword.get(opts, :tls_opts, [])
 
-    Logger.info("Attempting to start POP3 server on port #{port}")
+    Logger.info("Startup: pop3 listener starting (port=#{port}, transport=#{transport})")
 
     case Socket.listen(
            transport,
@@ -51,7 +51,7 @@ defmodule Elektrine.POP3.Server do
            tls_opts
          ) do
       {:ok, socket} ->
-        Logger.info("POP3 server successfully listening on port #{port}")
+        Logger.info("Startup: pop3 listener ready (port=#{port}, transport=#{transport})")
         # Create ETS table for connection tracking
         active_table = active_table_name(transport)
         ensure_table(active_table)
@@ -142,6 +142,8 @@ defmodule Elektrine.POP3.Server do
 
   defp configure_client_socket(client) do
     Socket.setopts(client, [
+      {:active, false},
+      {:packet, :line},
       {:keepalive, true},
       {:nodelay, true},
       {:send_timeout, Constants.pop3_send_timeout_ms()}
