@@ -18,8 +18,8 @@ The edge has two configurable explicit certificate blocks:
 Each value is a space-separated site list. Typical values look like:
 
 ```env
-CADDY_MANAGED_SITE_1=example.com *.example.com mail.example.com imap.example.com pop.example.com smtp.example.com
-CADDY_MANAGED_SITE_2=alt.example.net *.alt.example.net mail.alt.example.net imap.alt.example.net pop.alt.example.net smtp.alt.example.net
+CADDY_MANAGED_SITE_1="example.com *.example.com mail.example.com imap.example.com pop.example.com smtp.example.com"
+CADDY_MANAGED_SITE_2="alt.example.net *.alt.example.net mail.alt.example.net imap.alt.example.net pop.alt.example.net smtp.alt.example.net"
 ```
 
 This lets self-hosters swap out bundled domains without editing the Caddyfile.
