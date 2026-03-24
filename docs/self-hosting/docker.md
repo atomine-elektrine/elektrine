@@ -57,7 +57,7 @@ For wildcard certificates, merge `env/caddy.env.example` into
 
 - `CLOUDFLARE_API_TOKEN` - token with DNS edit access for your managed zones
 - `ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
-- `CADDY_MANAGED_SITE_1` - first explicit site list for wildcard + mail hostnames
+- `CADDY_MANAGED_SITE_1` - first explicit site list for wildcard + mail hostnames (quote the whole value)
 
 Then point the domains in your managed site lists at your edge.
 
