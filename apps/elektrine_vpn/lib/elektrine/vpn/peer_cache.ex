@@ -67,7 +67,7 @@ defmodule Elektrine.VPN.PeerCache do
     # Start Cachex cache
     {:ok, _pid} = Cachex.start_link(@cache_name, [])
 
-    Logger.info("VPN PeerCache started")
+    Logger.info("Startup: vpn peer cache ready")
     {:ok, %{}}
   end
 end

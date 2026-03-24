@@ -74,7 +74,7 @@ defmodule Elektrine.Encryption.KeyCache do
     # Schedule periodic cleanup of expired keys
     schedule_cleanup()
 
-    Logger.info("Encryption key cache started")
+    Logger.info("Startup: encryption key cache ready")
     {:ok, %{}}
   end
 

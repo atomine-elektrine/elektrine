@@ -72,7 +72,7 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
     :ets.new(:domain_failures, [:named_table, :public, :set])
 
     Logger.info(
-      "DomainThrottler started (max #{@max_concurrent_per_domain} concurrent per domain)"
+      "Startup: domain throttler ready (max_concurrent_per_domain=#{@max_concurrent_per_domain})"
     )
 
     {:ok, %{}}

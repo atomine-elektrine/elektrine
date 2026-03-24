@@ -45,7 +45,7 @@ defmodule Elektrine.VPN.HealthMonitor do
     # Schedule periodic health checks
     schedule_health_check()
 
-    Logger.info("VPN HealthMonitor started")
+    Logger.info("Startup: vpn health monitor ready")
     {:ok, %{heartbeats: %{}}}
   end
 

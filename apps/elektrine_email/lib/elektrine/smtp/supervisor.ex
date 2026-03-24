@@ -15,7 +15,7 @@ defmodule Elektrine.SMTP.Supervisor do
     enabled = smtp_enabled?()
 
     require Logger
-    Logger.info("SMTP Supervisor: enabled=#{enabled}, port=#{port}")
+    Logger.info("Startup: smtp supervisor configured (enabled=#{enabled}, port=#{port})")
 
     children =
       if enabled do

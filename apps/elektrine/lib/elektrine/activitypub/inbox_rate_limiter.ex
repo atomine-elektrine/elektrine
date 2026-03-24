@@ -88,7 +88,7 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
     # Schedule cleanup
     schedule_cleanup()
 
-    Logger.info("InboxRateLimiter started")
+    Logger.info("Startup: inbox rate limiter ready")
     {:ok, %{}}
   end
 

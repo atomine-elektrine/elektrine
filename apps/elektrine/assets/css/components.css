@@ -500,6 +500,7 @@
   transform-origin: top right;
   will-change: transform, opacity, filter;
   animation: app-flash-enter 320ms cubic-bezier(0.19, 0.9, 0.24, 1);
+  background-color: oklch(var(--b1));
 }
 
 .alert.app-flash::before {
@@ -783,11 +784,11 @@
 .modal-box {
   position: relative;
   isolation: isolate;
-  background: oklch(var(--b2) / 0.88);
+  background: oklch(var(--b1) / 0.96);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 0.75rem !important;
-  border: 1px solid oklch(var(--bc) / 0.2) !important;
+  border: 1px solid oklch(var(--bc) / 0.1) !important;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.05),
     0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
@@ -798,10 +799,10 @@
 .admin-page .modal-box {
   background: oklch(var(--b1) / 0.95);
   color: oklch(var(--bc));
-  border: 1px solid oklch(var(--bc) / 0.12) !important;
+  border: 1px solid oklch(var(--bc) / 0.1) !important;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 24px 60px -18px rgba(0, 0, 0, 0.55) !important;
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
 }
 
 @keyframes modal-pop {

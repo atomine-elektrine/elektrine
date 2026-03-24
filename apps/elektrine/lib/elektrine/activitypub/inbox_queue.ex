@@ -62,7 +62,7 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     :ets.new(@table_name, [:named_table, :public, :set, write_concurrency: true])
     :ets.new(:inbox_dedup, [:named_table, :public, :set, write_concurrency: true])
     schedule_flush()
-    Logger.info("InboxQueue started - activities will be batched every #{@flush_interval}ms")
+    Logger.info("Startup: inbox queue ready (flush_interval_ms=#{@flush_interval})")
     {:ok, %{}}
   end
 

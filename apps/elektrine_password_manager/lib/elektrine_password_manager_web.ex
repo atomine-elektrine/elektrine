@@ -25,6 +25,10 @@ defmodule ElektrinePasswordManagerWeb do
       def handle_event("set_timezone", %{"timezone" => timezone}, socket) do
         {:noreply, assign(socket, :timezone, timezone)}
       end
+
+      def handle_event("connection_changed", _params, socket) do
+        {:noreply, socket}
+      end
     end
   end
 
