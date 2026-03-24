@@ -26,13 +26,26 @@ defmodule Elektrine.IMAP.Supervisor do
     children =
       [Elektrine.IMAP.RateLimiter] ++
         if(enabled,
-          do: [{Elektrine.IMAP.Server, [name: Elektrine.IMAP.Server, port: port]}],
+          do: [
+            Supervisor.child_spec(
+              {Elektrine.IMAP.Server, [name: Elektrine.IMAP.Server, port: port]},
+              id: Elektrine.IMAP.Server
+            )
+          ],
           else: []
         ) ++
         if(tls_enabled,
           do: [
-            {Elektrine.IMAP.Server,
-             [name: Elektrine.IMAP.TLSServer, port: tls_port, transport: :ssl, tls_opts: tls_opts]}
+            Supervisor.child_spec(
+              {Elektrine.IMAP.Server,
+               [
+                 name: Elektrine.IMAP.TLSServer,
+                 port: tls_port,
+                 transport: :ssl,
+                 tls_opts: tls_opts
+               ]},
+              id: Elektrine.IMAP.TLSServer
+            )
           ],
           else: []
         )
