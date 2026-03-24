@@ -70,6 +70,6 @@ defmodule Elektrine.IMAP.Supervisor do
   end
 
   defp imap_tls_opts do
-    Application.get_env(:elektrine, :mail_tls_opts, [])
+    Application.get_env(:elektrine, :imap_tls_opts, [])
   end
 end

@@ -70,6 +70,6 @@ defmodule Elektrine.POP3.Supervisor do
   end
 
   defp pop3_tls_opts do
-    Application.get_env(:elektrine, :mail_tls_opts, [])
+    Application.get_env(:elektrine, :pop3_tls_opts, [])
   end
 end
