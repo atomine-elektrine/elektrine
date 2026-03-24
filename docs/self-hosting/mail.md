@@ -96,4 +96,13 @@ MAIL_TLS_CERT_PATH=/opt/elektrine/certs/mail.crt
 MAIL_TLS_KEY_PATH=/opt/elektrine/certs/mail.key
 ```
 
+Optional per-protocol cert overrides:
+
+```dotenv
+IMAP_TLS_CERT_PATH=/opt/elektrine/certs/imap.crt
+IMAP_TLS_KEY_PATH=/opt/elektrine/certs/imap.key
+POP3_TLS_CERT_PATH=/opt/elektrine/certs/pop.crt
+POP3_TLS_KEY_PATH=/opt/elektrine/certs/pop.key
+```
+
 If you do not want to run a second deployment, do not enable the `email` module.
