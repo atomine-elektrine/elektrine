@@ -34,6 +34,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
       title={gettext("Passkeys")}
       subtitle={gettext("Sign in without a password using your device's biometrics or security key")}
       sidebar_tab="security"
+      current_user={@current_user}
     >
       <div
         id="passkey-manage-card"

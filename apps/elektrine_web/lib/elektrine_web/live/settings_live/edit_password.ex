@@ -23,6 +23,7 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
       title="Change Password"
       subtitle="Update your account password and confirm the change with your current credentials."
       sidebar_tab="security"
+      current_user={@current_user}
     >
       <div
         id="edit-password-card"

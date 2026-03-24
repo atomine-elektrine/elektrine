@@ -142,8 +142,6 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.e_nav active_tab="vault" current_user={@current_user} class="mb-6" />
-
       <div
         id="password-vault-live"
         phx-hook="PasswordVault"
@@ -152,9 +150,8 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
         data-vault-verifier={Payloads.encode_payload(@vault_verifier)}
       >
         <.account_page
-          title="Password Manager"
-          subtitle="Vault secrets are encrypted and decrypted in your browser with your vault passphrase."
           max_width="max-w-7xl"
+          current_user={@current_user}
         >
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="card glass-card border border-base-300 shadow-lg">
@@ -532,18 +529,17 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
     """
   end
 
-  attr :title, :string, required: true
+  attr :title, :string, default: nil
   attr :subtitle, :string, default: nil
   attr :max_width, :string, default: "max-w-5xl"
+  attr :current_user, :any, default: nil
+  attr :nav_tab, :string, default: "vault"
   slot :inner_block, required: true
 
   defp account_page(assigns) do
     ~H"""
-    <section class={["mx-auto w-full space-y-6 sm:space-y-8", @max_width]}>
-      <header class="space-y-2">
-        <h1 class="text-2xl font-bold text-base-content sm:text-3xl">{@title}</h1>
-        <p :if={@subtitle} class="text-base-content/70">{@subtitle}</p>
-      </header>
+    <section class={["mx-auto w-full space-y-4 sm:space-y-6", @max_width]}>
+      <.e_nav active_tab={@nav_tab} current_user={@current_user} />
       {render_slot(@inner_block)}
     </section>
     """

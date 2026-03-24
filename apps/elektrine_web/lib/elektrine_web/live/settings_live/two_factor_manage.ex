@@ -25,6 +25,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
       title="Two-Factor Authentication"
       subtitle="Your account is protected with an authenticator app and backup codes."
       sidebar_tab="security"
+      current_user={@current_user}
     >
       <div
         id="2fa-manage-card"
