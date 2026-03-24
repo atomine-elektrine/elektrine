@@ -12,14 +12,6 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-squares-2x2-solid"
       },
       %{
-        id: "search",
-        label: "Search",
-        href: "/search",
-        platform_module: nil,
-        icon: "hero-magnifying-glass",
-        active_icon: "hero-magnifying-glass"
-      },
-      %{
         id: "chat",
         label: "Chat",
         href: "/chat",

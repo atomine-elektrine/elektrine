@@ -29,7 +29,7 @@ defmodule ElektrineWeb.Components.ReportModal do
   def render(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box max-w-md">
+      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-6 text-center text-error">
           Report {format_reportable_type(@reportable_type)}
         </h3>
@@ -100,7 +100,7 @@ defmodule ElektrineWeb.Components.ReportModal do
             </label>
           </div>
 
-          <div class="alert alert-info mb-6">
+          <div class="alert alert-info mb-6 shadow-sm">
             <.icon name="hero-information-circle" class="w-4 h-4" />
             <div>
               <p class="text-sm">Moderators will review this report and take action if needed.</p>
@@ -111,7 +111,7 @@ defmodule ElektrineWeb.Components.ReportModal do
           </div>
 
           <%= if @cooldown_remaining > 0 do %>
-            <div class="alert alert-warning mb-6">
+            <div class="alert alert-warning mb-6 shadow-sm">
               <.icon name="hero-clock" class="w-4 h-4" />
               <span>Please wait {@cooldown_remaining} seconds before submitting another report.</span>
             </div>

@@ -32,7 +32,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
     ~H"""
     <%= if @show do %>
       <div class="modal modal-open" phx-hook="ImageModal" id={@modal_id}>
-        <div class="modal-box max-w-7xl p-0 relative">
+        <div class="modal-box card glass-card max-w-7xl p-0 relative border border-base-300/60 shadow-xl">
           <!-- Close button -->
           <button
             type="button"

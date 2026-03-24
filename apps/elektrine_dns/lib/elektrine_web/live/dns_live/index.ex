@@ -17,7 +17,6 @@ defmodule ElektrineWeb.DNSLive.Index do
        socket
        |> assign(:page_title, "DNS")
        |> assign(:nameservers, DNS.nameservers())
-       |> assign(:authority_enabled, DNS.authority_enabled?())
        |> assign(:record_types, DNS.supported_record_types())
        |> assign(:zones, zones)
        |> assign(:active_zone, active_zone)
@@ -232,14 +231,6 @@ defmodule ElektrineWeb.DNSLive.Index do
             <div>
               <h1 class="card-title text-2xl">DNS</h1>
               <p class="text-base-content/70">Manage authoritative zones on Elektrine nameservers.</p>
-            </div>
-
-            <div class="badge badge-outline">
-              <%= if @authority_enabled do %>
-                Authority runtime enabled
-              <% else %>
-                Authority runtime disabled
-              <% end %>
             </div>
           </div>
 

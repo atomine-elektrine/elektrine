@@ -773,7 +773,7 @@
 <!-- Moderator Note Modal -->
   <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
+      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-6 text-center">Moderator Notes</h3>
 
         <div class="flex items-center justify-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -867,7 +867,7 @@
 <!-- Timeout Modal -->
   <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-md">
+      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-6 text-center">Timeout User</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -938,7 +938,7 @@
 <!-- Warning Modal -->
   <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-md">
+      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1007,7 +1007,7 @@
 <!-- User Moderation Status Modal -->
   <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-3xl">
+      <div class="modal-box card glass-card max-w-3xl border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-6 text-center">User Moderation Status</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1221,7 +1221,7 @@
 <!-- Ban User Modal -->
   <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-md">
+      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">

@@ -1405,12 +1405,12 @@ defmodule ElektrineWeb.UserSettingsLive do
     <!-- Create Token Modal -->
     <%= if @show_create_token_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-md">
+        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
           <h3 class="font-bold text-lg mb-4">{gettext("Create API Token")}</h3>
 
           <%= if @new_token do %>
             <!-- Token Created Successfully -->
-            <div class="alert alert-warning mb-4">
+            <div class="alert alert-warning mb-4 shadow-sm">
               <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
               <span>{gettext("Copy this token now. It will only be shown once!")}</span>
             </div>
@@ -1419,23 +1419,25 @@ defmodule ElektrineWeb.UserSettingsLive do
               <label class="label">
                 <span class="label-text font-medium">{gettext("Your new token")}</span>
               </label>
-              <div class="join w-full">
-                <input
-                  type="text"
-                  value={@new_token}
-                  readonly
-                  class="input input-bordered join-item flex-1 font-mono text-sm"
-                  id="new-token-input"
-                />
-                <button
-                  type="button"
-                  class="btn btn-primary join-item"
-                  phx-hook="CopyToClipboard"
-                  id="copy-token-btn"
-                  data-copy-target="new-token-input"
-                >
-                  <.icon name="hero-clipboard-document" class="w-4 h-4" />
-                </button>
+              <div class="rounded-xl border border-base-300/70 bg-base-200/40 p-3 backdrop-blur-sm">
+                <div class="join w-full">
+                  <input
+                    type="text"
+                    value={@new_token}
+                    readonly
+                    class="input input-bordered join-item flex-1 font-mono text-sm"
+                    id="new-token-input"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-primary join-item"
+                    phx-hook="CopyToClipboard"
+                    id="copy-token-btn"
+                    data-copy-target="new-token-input"
+                  >
+                    <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1578,7 +1580,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     <!-- Create Webhook Modal -->
     <%= if @show_create_webhook_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-md">
+        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
           <h3 class="font-bold text-lg mb-4">{gettext("Add Webhook")}</h3>
 
           <.form for={@webhook_form} phx-submit="create_webhook" class="space-y-4">
