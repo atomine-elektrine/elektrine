@@ -16,6 +16,14 @@ elektrine.com, *.elektrine.com {
 		dns cloudflare {$CLOUDFLARE_API_TOKEN}
 	}
 
+	@bluesky host bsky.elektrine.com
+	handle @bluesky {
+		reverse_proxy bluesky_pds:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-Proto https
+		}
+	}
+
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
