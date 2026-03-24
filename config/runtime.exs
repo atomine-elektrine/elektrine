@@ -988,8 +988,11 @@ if config_env() != :test do
   mail_tls_cert_path = System.get_env("MAIL_TLS_CERT_PATH")
   mail_tls_key_path = System.get_env("MAIL_TLS_KEY_PATH")
 
+  mail_tls_path_present? = fn value -> is_binary(value) and String.trim(value) != "" end
+
   mail_tls_enabled =
-    mail_enabled and present?.(mail_tls_cert_path) and present?.(mail_tls_key_path) and
+    mail_enabled and mail_tls_path_present?.(mail_tls_cert_path) and
+      mail_tls_path_present?.(mail_tls_key_path) and
       File.regular?(mail_tls_cert_path) and File.regular?(mail_tls_key_path)
 
   config :elektrine,
