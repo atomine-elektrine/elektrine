@@ -31,6 +31,10 @@ defmodule Elektrine.Mail.Socket do
       Logger.info("Mail TLS accept: transport accepted")
 
       case :ssl.handshake(client) do
+        {:ok, tls_client} ->
+          Logger.info("Mail TLS accept: handshake completed")
+          {:ok, tls_client}
+
         :ok ->
           Logger.info("Mail TLS accept: handshake completed")
           {:ok, client}
