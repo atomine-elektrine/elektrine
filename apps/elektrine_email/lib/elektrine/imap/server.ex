@@ -53,14 +53,18 @@ defmodule Elektrine.IMAP.Server do
            tls_opts
          ) do
       {:ok, socket} ->
+        idle_table = idle_table_name(transport)
+        invalid_table = invalid_table_name(transport)
+        active_table = active_table_name(transport)
+
         # Create ETS tables for connection tracking and honeypot detection
-        :ets.new(:imap_idle_connections, [:set, :public, :named_table])
-        :ets.new(:imap_invalid_commands, [:set, :public, :named_table])
-        :ets.new(:imap_active_connections, [:set, :public, :named_table])
-        :ets.insert(:imap_active_connections, {:total, 0})
+        ensure_table(idle_table)
+        ensure_table(invalid_table)
+        ensure_table(active_table)
+        :ets.insert(active_table, {:total, 0})
 
         # Start periodic cleanup task for stale IDLE connections
-        spawn_link(fn -> periodic_idle_cleanup() end)
+        spawn_link(fn -> periodic_idle_cleanup(transport) end)
 
         spawn_link(fn -> accept_loop(socket, transport) end)
 
@@ -115,7 +119,7 @@ defmodule Elektrine.IMAP.Server do
             :ok
 
           # Connection limit exceeded
-          !can_accept_connection?(client_ip) ->
+          !can_accept_connection?(client_ip, transport) ->
             Logger.warning("Connection rejected from #{client_ip}: connection limit exceeded")
             Helpers.send_response(client, "* BYE Too many connections from your IP address")
             Socket.close(client)
@@ -130,13 +134,15 @@ defmodule Elektrine.IMAP.Server do
               {:sndbuf, 65_536}
             ])
 
-            increment_connection_count(client_ip)
+            increment_connection_count(client_ip, transport)
 
             spawn(fn ->
+              Process.put(:imap_socket_transport, transport)
+
               try do
                 handle_client(client, client_ip, initial_data)
               after
-                decrement_connection_count(client_ip)
+                decrement_connection_count(client_ip, transport)
               end
             end)
         end
@@ -203,6 +209,7 @@ defmodule Elektrine.IMAP.Server do
       messages: [],
       uid_validity: 1,
       state: :not_authenticated,
+      transport: socket_transport(),
       message_flags: %{},
       idle_session_id: nil,
       connection_start: now,
@@ -232,8 +239,10 @@ defmodule Elektrine.IMAP.Server do
   end
 
   defp cleanup_idle_session(ip, session_id) do
-    if :ets.whereis(:imap_idle_connections) != :undefined do
-      case :ets.lookup(:imap_idle_connections, ip) do
+    table = idle_table_name(socket_transport())
+
+    if :ets.whereis(table) != :undefined do
+      case :ets.lookup(table, ip) do
         [{^ip, sessions}] ->
           new_sessions =
             sessions
@@ -243,9 +252,9 @@ defmodule Elektrine.IMAP.Server do
             end)
 
           if new_sessions == [] do
-            :ets.delete(:imap_idle_connections, ip)
+            :ets.delete(table, ip)
           else
-            :ets.insert(:imap_idle_connections, {ip, new_sessions})
+            :ets.insert(table, {ip, new_sessions})
           end
 
         [] ->
@@ -335,9 +344,11 @@ defmodule Elektrine.IMAP.Server do
 
   # Connection limit enforcement
 
-  defp can_accept_connection?(ip) do
+  defp can_accept_connection?(ip, transport) do
+    table = active_table_name(transport)
+
     # Check if table exists before checking connection limits
-    if :ets.whereis(:imap_active_connections) == :undefined do
+    if :ets.whereis(table) == :undefined do
       # Table doesn't exist - probably during server startup/shutdown
       Logger.warning(
         "IMAP connection count table does not exist, rejecting connection from #{ip}"
@@ -346,7 +357,7 @@ defmodule Elektrine.IMAP.Server do
       false
     else
       total =
-        case :ets.lookup(:imap_active_connections, :total) do
+        case :ets.lookup(table, :total) do
           [{:total, count}] -> count
           [] -> 0
         end
@@ -355,7 +366,7 @@ defmodule Elektrine.IMAP.Server do
         false
       else
         ip_count =
-          case :ets.lookup(:imap_active_connections, ip) do
+          case :ets.lookup(table, ip) do
             [{^ip, count}] -> count
             [] -> 0
           end
@@ -365,54 +376,60 @@ defmodule Elektrine.IMAP.Server do
     end
   end
 
-  defp increment_connection_count(ip) do
-    # Check if table exists before trying to update it
-    if :ets.whereis(:imap_active_connections) != :undefined do
-      :ets.update_counter(:imap_active_connections, :total, {2, 1})
+  defp increment_connection_count(ip, transport) do
+    table = active_table_name(transport)
 
-      case :ets.lookup(:imap_active_connections, ip) do
+    # Check if table exists before trying to update it
+    if :ets.whereis(table) != :undefined do
+      :ets.update_counter(table, :total, {2, 1})
+
+      case :ets.lookup(table, ip) do
         [{^ip, count}] ->
-          :ets.insert(:imap_active_connections, {ip, count + 1})
+          :ets.insert(table, {ip, count + 1})
 
         [] ->
-          :ets.insert(:imap_active_connections, {ip, 1})
+          :ets.insert(table, {ip, 1})
       end
 
-      emit_session_count(ip)
+      emit_session_count(ip, transport)
     else
       Logger.warning("IMAP connection count table does not exist, skipping increment for #{ip}")
     end
   end
 
-  defp decrement_connection_count(ip) do
-    # Check if table exists before trying to update it
-    if :ets.whereis(:imap_active_connections) != :undefined do
-      :ets.update_counter(:imap_active_connections, :total, {2, -1})
+  defp decrement_connection_count(ip, transport) do
+    table = active_table_name(transport)
 
-      case :ets.lookup(:imap_active_connections, ip) do
+    # Check if table exists before trying to update it
+    if :ets.whereis(table) != :undefined do
+      :ets.update_counter(table, :total, {2, -1})
+
+      case :ets.lookup(table, ip) do
         [{^ip, count}] when count > 1 ->
-          :ets.insert(:imap_active_connections, {ip, count - 1})
+          :ets.insert(table, {ip, count - 1})
 
         [{^ip, 1}] ->
-          :ets.delete(:imap_active_connections, ip)
+          :ets.delete(table, ip)
 
         [] ->
           :ok
       end
 
-      emit_session_count(ip)
+      emit_session_count(ip, transport)
     end
   end
 
-  defp emit_session_count(ip) do
+  defp emit_session_count(ip, transport) do
+    table = active_table_name(transport)
+
     total =
-      case :ets.lookup(:imap_active_connections, :total) do
+      case :ets.lookup(table, :total) do
         [{:total, count}] -> count
         [] -> 0
       end
 
     ip_count =
-      case :ets.lookup(:imap_active_connections, ip) do
+      case :ets.lookup(table, ip) do
         [{^ip, count}] -> count
         [] -> 0
       end
@@ -456,17 +473,19 @@ defmodule Elektrine.IMAP.Server do
   end
 
   # Periodic cleanup of stale IDLE connections
-  defp periodic_idle_cleanup do
+  defp periodic_idle_cleanup(transport) do
     :timer.sleep(@idle_cleanup_interval_ms)
 
-    if :ets.whereis(:imap_idle_connections) != :undefined do
-      prune_stale_idle_connections()
+    table = idle_table_name(transport)
+
+    if :ets.whereis(table) != :undefined do
+      prune_stale_idle_connections(table)
     end
 
-    periodic_idle_cleanup()
+    periodic_idle_cleanup(transport)
   end
 
-  defp prune_stale_idle_connections do
+  defp prune_stale_idle_connections(table) do
     now = System.monotonic_time(:millisecond)
     stale_cutoff = now - Constants.imap_idle_timeout_ms() - @idle_stale_grace_ms
 
@@ -480,17 +499,39 @@ defmodule Elektrine.IMAP.Server do
           end)
 
         if active_sessions == [] do
-          :ets.delete(:imap_idle_connections, ip)
+          :ets.delete(table, ip)
         else
-          :ets.insert(:imap_idle_connections, {ip, active_sessions})
+          :ets.insert(table, {ip, active_sessions})
         end
 
         nil
       end,
       nil,
-      :imap_idle_connections
+      table
     )
   end
+
+  defp ensure_table(table) do
+    if :ets.whereis(table) == :undefined do
+      :ets.new(table, [:set, :public, :named_table])
+    end
+  end
+
+  defp socket_transport do
+    case Process.get(:imap_socket_transport) do
+      transport when transport in [:tcp, :ssl] -> transport
+      _ -> :tcp
+    end
+  end
+
+  defp idle_table_name(:ssl), do: :imap_idle_connections_tls
+  defp idle_table_name(_), do: :imap_idle_connections
+
+  defp invalid_table_name(:ssl), do: :imap_invalid_commands_tls
+  defp invalid_table_name(_), do: :imap_invalid_commands
+
+  defp active_table_name(:ssl), do: :imap_active_connections_tls
+  defp active_table_name(_), do: :imap_active_connections
 
   defp normalize_idle_sessions(sessions, now) do
     Enum.map(sessions, fn
