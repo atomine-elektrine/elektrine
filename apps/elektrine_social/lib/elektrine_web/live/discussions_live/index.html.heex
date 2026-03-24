@@ -1089,7 +1089,7 @@
 
   <%= if @show_create_community do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-3xl">
+      <div class="modal-box card glass-card max-w-3xl border border-base-300/60 shadow-xl">
         <div class="flex items-start justify-between gap-4 mb-4">
           <div>
             <h3 class="font-bold text-2xl">Create Community</h3>
@@ -1105,7 +1105,7 @@
 
         <.form for={%{}} phx-submit="create_community" class="space-y-4">
           <div class="grid gap-4 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div class="space-y-4">
+            <div class="space-y-4 rounded-2xl border border-base-300/60 bg-base-200/25 p-4 backdrop-blur-sm">
               <div>
                 <label class="label">
                   <span class="label-text">Community Name</span>
@@ -1145,7 +1145,7 @@
               </div>
             </div>
 
-            <div>
+            <div class="rounded-2xl border border-base-300/60 bg-base-200/25 p-4 backdrop-blur-sm">
               <label class="label">
                 <span class="label-text">Category</span>
               </label>
@@ -1352,7 +1352,7 @@
 <!-- Media Upload Modal -->
   <%= if @show_image_upload_modal && @current_user do %>
     <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
+      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
         <div class="flex justify-between items-center mb-4">
           <h3 class="font-bold text-lg">Add Media to Post</h3>
           <button

@@ -123,7 +123,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
     <!-- New Token Modal -->
       <%= if @new_token do %>
         <div class="modal modal-open">
-          <div class="modal-box max-w-md">
+          <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
             <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-success">
               <.icon name="hero-check-circle" class="w-6 h-6" /> App Password Created!
             </h3>

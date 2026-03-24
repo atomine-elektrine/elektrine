@@ -13,8 +13,8 @@ This keeps the main app and worker in a single Docker deployment:
 - optional onion service inside the `app` container via `--profile tor`
 
 The Caddy edge build includes the Cloudflare DNS provider module so it can issue
-wildcard certificates for `elektrine.com` / `*.elektrine.com` and `z.org` /
-`*.z.org` with the ACME DNS challenge.
+certificates for two configurable managed site blocks using the ACME DNS
+challenge. See `docs/self-hosting/caddy.md`.
 
 Deployment model:
 
@@ -52,17 +52,16 @@ scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git
 That path builds the main Elektrine image locally, pushes it to GHCR, then tells the
 remote host to pull and deploy it without rebuilding the app image there.
 
-For wildcard certificates, set these in `.env.production` before first deploy:
+For wildcard certificates, merge `env/caddy.env.example` into
+`.env.production` before first deploy and set at least:
 
-- `CLOUDFLARE_API_TOKEN` - token with DNS edit access for `elektrine.com` and `z.org`
+- `CLOUDFLARE_API_TOKEN` - token with DNS edit access for your managed zones
 - `ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
+- `CADDY_MANAGED_SITE_1` - first explicit site list for wildcard + mail hostnames
 
-Then point these records at your edge:
+Then point the domains in your managed site lists at your edge.
 
-- `elektrine.com`
-- `*.elektrine.com`
-- `z.org`
-- `*.z.org`
+- Example: `example.com`, `*.example.com`, `mail.example.com`, `imap.example.com`, `pop.example.com`, `smtp.example.com`
 
 Preview what a deploy will run:
 

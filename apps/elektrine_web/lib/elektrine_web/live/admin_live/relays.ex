@@ -672,7 +672,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
   defp add_relay_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box">
+      <div class="modal-box card glass-card border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-4">
           <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Subscribe to Relay
         </h3>

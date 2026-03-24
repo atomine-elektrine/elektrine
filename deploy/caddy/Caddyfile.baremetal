@@ -7,11 +7,7 @@
 	}
 }
 
-http:// {
-	redir https://{host}{uri} 308
-}
-
-elektrine.com, *.elektrine.com {
+{$CADDY_MANAGED_SITE_1} {
 	tls {
 		dns cloudflare {$CLOUDFLARE_API_TOKEN}
 	}
@@ -30,7 +26,7 @@ elektrine.com, *.elektrine.com {
 	}
 }
 
-z.org, *.z.org {
+{$CADDY_MANAGED_SITE_2} {
 	tls {
 		dns cloudflare {$CLOUDFLARE_API_TOKEN}
 	}
@@ -39,6 +35,10 @@ z.org, *.z.org {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
 	}
+}
+
+http:// {
+	redir https://{host}{uri} 308
 }
 
 https:// {

@@ -258,7 +258,7 @@
 <!-- Post Composer Modal -->
 <%= if @show_post_composer && @current_user do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-2xl">
+    <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-4">Create Post with #{@hashtag_name}</h3>
 
       <.form for={%{}} phx-submit="create_hashtag_post">

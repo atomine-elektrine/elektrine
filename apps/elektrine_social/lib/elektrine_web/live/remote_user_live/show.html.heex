@@ -1739,7 +1739,7 @@
 <!-- Quote Modal -->
 <%= if @show_quote_modal && @quote_target_post do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-2xl">
+    <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-lg">Quote Post</h3>
         <button
@@ -1823,7 +1823,7 @@
 <!-- Media Upload Modal -->
 <%= if @show_image_upload_modal && @current_user do %>
   <div class="modal modal-open" style="z-index: 60;">
-    <div class="modal-box max-w-2xl">
+    <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
 
       <.form for={%{}} phx-submit="upload_community_images" phx-change="validate_community_upload">

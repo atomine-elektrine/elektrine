@@ -1381,7 +1381,7 @@
 <!-- Event Modal -->
 <%= if @show_event_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-lg">
+    <div class="modal-box card glass-card max-w-lg border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-4">
         {cond do
           @editing_event -> gettext("Edit Event")
@@ -1557,7 +1557,7 @@
 <!-- Calendar Modal -->
 <%= if @show_calendar_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-sm">
+    <div class="modal-box card glass-card max-w-sm border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-4">
         {if @editing_calendar, do: gettext("Edit Calendar"), else: gettext("New Calendar")}
       </h3>
@@ -1632,7 +1632,10 @@
 <!-- Boomerang Reply Later Modal -->
 <%= if assigns[:show_reply_later_modal] && @show_reply_later_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-md" phx-click-away="cancel_reply_later">
+    <div
+      class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl"
+      phx-click-away="cancel_reply_later"
+    >
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-bold flex items-center gap-2">
           <.icon name="hero-arrow-uturn-left" class="h-5 w-5 text-secondary" />
@@ -1712,7 +1715,7 @@
 <!-- Contact Modal -->
 <%= if assigns[:show_contact_modal] && @show_contact_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-md">
+    <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-6 text-center">
         {if assigns[:editing_contact] && @editing_contact, do: "Edit Contact", else: "Add Contact"}
       </h3>
@@ -1820,7 +1823,7 @@
 <!-- Group Modal -->
 <%= if assigns[:show_group_modal] && @show_group_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-md">
+    <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-6 text-center">
         {if assigns[:editing_group] && @editing_group, do: "Edit Group", else: "New Group"}
       </h3>

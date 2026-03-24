@@ -861,7 +861,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
   defp policy_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
+      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-4">
           <.icon name="hero-cog-6-tooth" class="w-5 h-5 inline mr-2" /> ActivityPub MRF Policies for
           <span class="font-mono">{@instance.domain}</span>
@@ -1024,7 +1024,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
   defp add_instance_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box max-w-2xl">
+      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg mb-4">
           <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Add ActivityPub Instance Policy
         </h3>

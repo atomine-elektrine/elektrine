@@ -82,7 +82,7 @@ defmodule ElektrineWeb.Components.Chat.Call do
   def incoming_call_modal(assigns) do
     ~H"""
     <div :if={@show} class="modal modal-open">
-      <div class="modal-box">
+      <div class="modal-box card glass-card border border-base-300/60 shadow-xl">
         <h3 class="font-bold text-lg">Incoming {@call.call_type} call</h3>
         <div class="py-4">
           <div class="flex items-center gap-4">

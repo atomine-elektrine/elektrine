@@ -658,7 +658,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Flair Modal -->
     <%= if @show_flair_modal && @is_moderator do %>
       <div class="modal modal-open">
-        <div class="modal-box">
+        <div class="modal-box card glass-card border border-base-300/60 shadow-xl">
           <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold text-lg">
               {if @editing_flair, do: "Edit Flair", else: "Add New Flair"}
@@ -727,7 +727,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Voters Modal -->
     <%= if @show_voters_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-2xl">
+        <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
           <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold text-lg">Votes</h3>
             <button
@@ -810,7 +810,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- User Moderation Status Modal -->
     <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-3xl">
+        <div class="modal-box card glass-card max-w-3xl border border-base-300/60 shadow-xl">
           <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-lg">User Moderation Status</h3>
             <button
@@ -1033,7 +1033,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Moderator Note Modal -->
     <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-2xl">
+        <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
           <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-lg">Moderator Notes</h3>
             <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm btn-circle">
@@ -1132,7 +1132,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Timeout Modal -->
     <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-md">
+        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
           <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-lg">Timeout User</h3>
             <button type="button" phx-click="cancel_timeout" class="btn btn-ghost btn-sm btn-circle">
@@ -1208,7 +1208,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Warning Modal -->
     <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-md">
+        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
           <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
 
           <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1277,7 +1277,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Auto-Mod Rule Modal -->
     <%= if @show_rule_modal && (@is_moderator || @current_user.is_admin) do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-lg">
+        <div class="modal-box card glass-card max-w-lg border border-base-300/60 shadow-xl">
           <h3 class="font-bold text-lg mb-6 text-center">Add Auto-Mod Rule</h3>
 
           <.form for={%{}} phx-submit="create_automod_rule">
@@ -1348,7 +1348,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Ban User Modal -->
     <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-md">
+        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
           <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
 
           <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1419,7 +1419,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Media Upload Modal -->
     <%= if @show_image_upload_modal && @current_user do %>
       <div class="modal modal-open">
-        <div class="modal-box max-w-2xl">
+        <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
           <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
 
           <.form

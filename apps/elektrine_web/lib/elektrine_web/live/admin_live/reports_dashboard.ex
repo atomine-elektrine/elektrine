@@ -485,7 +485,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
       <%= if @selected_report do %>
         <div class="modal modal-open">
           <div
-            class="modal-box max-w-5xl w-full p-0 overflow-hidden"
+            class="modal-box card glass-card max-w-5xl w-full p-0 overflow-hidden border border-base-300/60 shadow-xl"
             phx-click-away="close_report_modal"
           >
             <div class="border-b border-base-300 px-6 py-5">

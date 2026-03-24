@@ -2047,7 +2047,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
   defp render_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box max-w-2xl border border-purple-500/30">
+      <div class="modal-box card glass-card max-w-2xl border border-purple-500/30 shadow-xl">
         <%= case @show_modal do %>
           <% "filter" -> %>
             <!-- Header -->

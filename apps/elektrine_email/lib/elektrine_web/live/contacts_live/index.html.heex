@@ -376,7 +376,7 @@
 <!-- Contact Modal -->
 <%= if @show_contact_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-lg">
+    <div class="modal-box card glass-card max-w-lg border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-4">
         {if @editing_contact, do: gettext("Edit Contact"), else: gettext("New Contact")}
       </h3>
@@ -526,7 +526,7 @@
 <!-- Group Modal -->
 <%= if @show_group_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box max-w-sm">
+    <div class="modal-box card glass-card max-w-sm border border-base-300/60 shadow-xl">
       <h3 class="font-bold text-lg mb-4">
         {if @editing_group, do: gettext("Edit Group"), else: gettext("New Group")}
       </h3>
