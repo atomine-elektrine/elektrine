@@ -16,11 +16,11 @@
     nil
   end %>
 <div
-  class="mx-auto flex h-[calc(100dvh-5rem)] min-h-0 w-full max-w-none flex-col overflow-hidden px-4 sm:px-6 lg:px-8 text-base-content"
+  class="mx-auto flex h-[calc(100dvh-5rem)] min-h-0 w-full max-w-none flex-col px-4 sm:px-6 lg:px-8 text-base-content"
   id="chat-container"
 >
   <!-- Z Platform Navigation -->
-  <.e_nav active_tab="chat" current_user={@current_user} />
+  <.e_nav active_tab="chat" class="mb-4" current_user={@current_user} />
   
 <!-- Hidden elements for call hooks -->
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>

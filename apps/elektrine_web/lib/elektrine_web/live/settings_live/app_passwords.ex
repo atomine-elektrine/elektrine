@@ -13,6 +13,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
      socket
      |> assign(:app_passwords, app_passwords)
      |> assign(:new_token, nil)
+     |> assign(:form_version, 0)
      |> assign(:form, app_password_form())}
   end
 
@@ -58,11 +59,13 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
     case Accounts.create_app_password(user.id, %{name: name, expires_at: expires_at}) do
       {:ok, app_password} ->
         app_passwords = Accounts.list_app_passwords(user.id)
+        fresh_form = app_password_form()
 
         {:noreply,
          socket
          |> assign(:app_passwords, app_passwords)
-         |> assign(:form, app_password_form())
+         |> assign(:form, fresh_form)
+         |> update(:form_version, &(&1 + 1))
          |> assign(:new_token, app_password.token)
          |> put_flash(:info, "App password created successfully")}
 
@@ -119,80 +122,23 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
           </div>
         </div>
       </div>
-      
-    <!-- New Token Modal -->
-      <%= if @new_token do %>
-        <div class="modal modal-open">
-          <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
-            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-success">
-              <.icon name="hero-check-circle" class="w-6 h-6" /> App Password Created!
-            </h3>
-
-            <div class="alert alert-warning mb-4">
-              <.icon name="hero-exclamation-triangle" class="w-5 h-5 flex-shrink-0" />
-              <span class="text-sm">This password won't be shown again. Copy it now!</span>
-            </div>
-
-            <div class="form-control mb-4">
-              <label class="label">
-                <span class="label-text text-sm font-semibold">Your app password:</span>
-              </label>
-              <div class="bg-base-200 rounded-lg p-4 text-center">
-                <code class="text-lg font-mono select-all">{@new_token}</code>
-              </div>
-            </div>
-
-            <div class="bg-base-200 rounded-lg p-3 mb-4">
-              <p class="text-xs text-base-content/70 font-semibold mb-3">
-                Email client configuration:
-              </p>
-              <div class="text-xs text-base-content/60 space-y-3">
-                <div>
-                  <p class="font-semibold mb-1">IMAP (Recommended):</p>
-                  <p>• Server: {EmailAddresses.imap_host()}</p>
-                  <p>• Port: 993 (IMAP with TLS)</p>
-                </div>
-                <div>
-                  <p class="font-semibold mb-1">SMTP (Outgoing):</p>
-                  <p>• Server: {EmailAddresses.smtp_host()}</p>
-                  <p>• Port: 465 (SMTP with TLS)</p>
-                </div>
-                <div>
-                  <p class="font-semibold mb-1">POP3 (Alternative):</p>
-                  <p>• Server: {EmailAddresses.pop_host()}</p>
-                  <p>• Port: 995 (POP3 with TLS)</p>
-                </div>
-                <div class="pt-2 border-t border-base-300">
-                  <p>• Username: Your elektrine username</p>
-                  <p>• Password: The app password shown above</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-action">
-              <button phx-click="dismiss_token" class="btn btn-primary">
-                I've saved this password
-              </button>
-            </div>
-          </div>
-          <div class="modal-backdrop" phx-click="dismiss_token"></div>
-        </div>
-      <% end %>
 
       <div class="grid gap-6 lg:grid-cols-2">
         <!-- Create New App Password -->
         <div class="card glass-card border border-base-300 shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg mb-4">Create App Password</h2>
-            <.form id="create-app-password-form" for={@form} phx-submit="create">
+            <.form id={"create-app-password-form-#{@form_version}"} for={@form} phx-submit="create">
               <div class="form-control">
                 <.input
                   field={@form[:name]}
+                  id={"app-password-name-#{@form_version}"}
                   type="text"
                   label="App name"
                   placeholder="e.g., Thunderbird on laptop"
                   required
                   maxlength="100"
+                  autocomplete="off"
                 />
                 <label class="label">
                   <span class="label-text-alt text-xs">
@@ -204,6 +150,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               <div class="form-control mt-4">
                 <.input
                   field={@form[:expires_at]}
+                  id={"app-password-expiration-#{@form_version}"}
                   type="select"
                   label="Expires"
                   options={[
@@ -254,6 +201,75 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
           </div>
         </div>
       </div>
+      
+    <!-- Newly created password -->
+      <%= if @new_token do %>
+        <div class="card glass-card border border-success/40 shadow-lg">
+          <div class="card-body p-4 sm:p-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 class="text-lg font-bold flex items-center gap-2 text-success">
+                  <.icon name="hero-check-circle" class="w-6 h-6" /> App Password Created
+                </h2>
+                <p class="mt-2 text-sm text-base-content/70">
+                  This password will only be shown once. Copy it now before leaving this page.
+                </p>
+              </div>
+
+              <button phx-click="dismiss_token" class="btn btn-ghost btn-sm self-start">
+                <.icon name="hero-x-mark" class="w-4 h-4" /> Dismiss
+              </button>
+            </div>
+
+            <div class="alert alert-warning mt-1">
+              <.icon name="hero-exclamation-triangle" class="w-5 h-5 flex-shrink-0" />
+              <span class="text-sm">Save it in your password manager or client settings now.</span>
+            </div>
+
+            <div class="form-control mt-4">
+              <label class="label">
+                <span class="label-text text-sm font-semibold">Your app password</span>
+              </label>
+              <div class="rounded-lg bg-base-200 p-4 text-center">
+                <code class="text-lg font-mono select-all break-all">{@new_token}</code>
+              </div>
+            </div>
+
+            <div class="bg-base-200 rounded-lg p-3 mt-4">
+              <p class="text-xs text-base-content/70 font-semibold mb-3">
+                Email client configuration:
+              </p>
+              <div class="text-xs text-base-content/60 space-y-3">
+                <div>
+                  <p class="font-semibold mb-1">IMAP (Recommended):</p>
+                  <p>• Server: {EmailAddresses.imap_host()}</p>
+                  <p>• Port: 993 (IMAP with TLS)</p>
+                </div>
+                <div>
+                  <p class="font-semibold mb-1">SMTP (Outgoing):</p>
+                  <p>• Server: {EmailAddresses.smtp_host()}</p>
+                  <p>• Port: 465 (SMTP with TLS)</p>
+                </div>
+                <div>
+                  <p class="font-semibold mb-1">POP3 (Alternative):</p>
+                  <p>• Server: {EmailAddresses.pop_host()}</p>
+                  <p>• Port: 995 (POP3 with TLS)</p>
+                </div>
+                <div class="pt-2 border-t border-base-300">
+                  <p>• Username: Your elektrine username</p>
+                  <p>• Password: The app password shown above</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-actions mt-4 justify-end">
+              <button phx-click="dismiss_token" class="btn btn-primary">
+                I saved it
+              </button>
+            </div>
+          </div>
+        </div>
+      <% end %>
       
     <!-- Existing App Passwords -->
       <div class="card glass-card border border-base-300 shadow-lg">
