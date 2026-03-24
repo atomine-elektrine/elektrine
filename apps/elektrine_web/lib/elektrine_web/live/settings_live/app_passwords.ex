@@ -102,6 +102,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       title={gettext("App Passwords")}
       subtitle={gettext("Manage app-specific passwords for email clients")}
       sidebar_tab="security"
+      current_user={@current_user}
     >
       <!-- Information Card -->
       <div class="card glass-card border border-base-300 shadow-lg">

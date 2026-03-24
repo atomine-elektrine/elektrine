@@ -66,6 +66,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
       title="Set Up Two-Factor Authentication"
       subtitle="Secure your account with an authenticator app."
       sidebar_tab="security"
+      current_user={@current_user}
     >
       <div class="space-y-4 sm:space-y-6">
         <div
