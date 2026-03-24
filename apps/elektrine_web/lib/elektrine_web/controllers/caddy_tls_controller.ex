@@ -65,9 +65,19 @@ defmodule ElektrineWeb.CaddyTLSController do
       Application.get_env(:elektrine, :email, [])
       |> Keyword.get(:supported_domains, [])
 
+    mail_service_hosts =
+      email_supported_domains
+      |> Enum.flat_map(fn domain ->
+        domain = to_string(domain)
+
+        ["mail.", "imap.", "pop.", "smtp."]
+        |> Enum.map(&(&1 <> domain))
+      end)
+
     exact_domains =
       [Application.get_env(:elektrine, :primary_domain)] ++
         email_supported_domains ++
+        mail_service_hosts ++
         ["www." <> to_string(Application.get_env(:elektrine, :primary_domain, ""))]
 
     profile_base_domains = Application.get_env(:elektrine, :profile_base_domains, [])
