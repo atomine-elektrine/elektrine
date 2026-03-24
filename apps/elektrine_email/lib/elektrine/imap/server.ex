@@ -127,6 +127,8 @@ defmodule Elektrine.IMAP.Server do
           # Accept the connection
           true ->
             Socket.setopts(client, [
+              {:active, false},
+              {:packet, :line},
               {:keepalive, true},
               {:nodelay, true},
               {:send_timeout, Constants.imap_send_timeout_ms()},
