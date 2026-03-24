@@ -119,6 +119,7 @@ services:
     volumes:
       - uploads:/app/uploads
       - app_data:/data
+      - ${MAIL_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs:ro
     networks:
       - elektrine_network
     ports:

@@ -109,47 +109,73 @@ defmodule Elektrine.Email.Mailboxes do
         create_mailbox(user)
 
       mailbox ->
-        # Check if mailbox email matches current username
-        domain = Domains.primary_email_domain()
-        expected_email = "#{user.username}@#{domain}"
-
-        if mailbox.email != expected_email do
-          Logger.warning(
-            "Mailbox email mismatch for user #{user.id}: #{mailbox.email} vs expected #{expected_email}"
-          )
-
-          # Check if expected email is available before updating
-          case get_mailbox_by_email(expected_email) do
+        if mailbox_belongs_to_user?(mailbox, user) do
+          {:ok, mailbox}
+        else
+          case preferred_mailbox_email_for_user(user) do
             nil ->
-              # Expected email is available, safe to update
-              case update_mailbox_email(mailbox, expected_email) do
-                {:ok, updated_mailbox} ->
-                  Logger.info(
-                    "Fixed mailbox email for user #{user.id}: #{mailbox.email} -> #{expected_email}"
-                  )
+              {:ok, mailbox}
 
-                  {:ok, updated_mailbox}
+            expected_email ->
+              Logger.warning(
+                "Mailbox email mismatch for user #{user.id}: #{mailbox.email} vs expected #{expected_email}"
+              )
 
-                {:error, reason} ->
+              case get_mailbox_by_email(expected_email) do
+                nil ->
+                  case update_mailbox_email(mailbox, expected_email) do
+                    {:ok, updated_mailbox} ->
+                      Logger.info(
+                        "Fixed mailbox email for user #{user.id}: #{mailbox.email} -> #{expected_email}"
+                      )
+
+                      {:ok, updated_mailbox}
+
+                    {:error, reason} ->
+                      Logger.warning(
+                        "Could not update mailbox email for user #{user.id}: #{inspect(reason)}"
+                      )
+
+                      {:ok, mailbox}
+                  end
+
+                existing_mailbox ->
                   Logger.warning(
-                    "Could not update mailbox email for user #{user.id}: #{inspect(reason)}"
+                    "Cannot fix mailbox email for user #{user.id} - #{expected_email} is taken by mailbox #{existing_mailbox.id}"
                   )
 
                   {:ok, mailbox}
               end
-
-            existing_mailbox ->
-              # Expected email is taken by another user
-              Logger.warning(
-                "Cannot fix mailbox email for user #{user.id} - #{expected_email} is taken by mailbox #{existing_mailbox.id}"
-              )
-
-              # Return existing mailbox - user keeps their current email
-              {:ok, mailbox}
           end
-        else
-          {:ok, mailbox}
         end
+    end
+  end
+
+  defp mailbox_belongs_to_user?(%Mailbox{email: email}, user) when is_binary(email) do
+    case String.split(email, "@", parts: 2) do
+      [local, domain] ->
+        local == user.username and domain in Domains.available_email_domains_for_user(user.id)
+
+      _ ->
+        false
+    end
+  end
+
+  defp mailbox_belongs_to_user?(_mailbox, _user), do: false
+
+  defp preferred_mailbox_email_for_user(user) do
+    preferred_domain = user.preferred_email_domain
+    available_domains = Domains.available_email_domains_for_user(user.id)
+
+    cond do
+      is_binary(preferred_domain) and preferred_domain in available_domains ->
+        "#{user.username}@#{preferred_domain}"
+
+      available_domains != [] ->
+        "#{user.username}@#{hd(available_domains)}"
+
+      true ->
+        nil
     end
   end
 
