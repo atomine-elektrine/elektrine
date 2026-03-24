@@ -26,13 +26,26 @@ defmodule Elektrine.POP3.Supervisor do
     children =
       [Elektrine.POP3.RateLimiter] ++
         if(enabled,
-          do: [{Elektrine.POP3.Server, [name: Elektrine.POP3.Server, port: port]}],
+          do: [
+            Supervisor.child_spec(
+              {Elektrine.POP3.Server, [name: Elektrine.POP3.Server, port: port]},
+              id: Elektrine.POP3.Server
+            )
+          ],
           else: []
         ) ++
         if(tls_enabled,
           do: [
-            {Elektrine.POP3.Server,
-             [name: Elektrine.POP3.TLSServer, port: tls_port, transport: :ssl, tls_opts: tls_opts]}
+            Supervisor.child_spec(
+              {Elektrine.POP3.Server,
+               [
+                 name: Elektrine.POP3.TLSServer,
+                 port: tls_port,
+                 transport: :ssl,
+                 tls_opts: tls_opts
+               ]},
+              id: Elektrine.POP3.TLSServer
+            )
           ],
           else: []
         )
