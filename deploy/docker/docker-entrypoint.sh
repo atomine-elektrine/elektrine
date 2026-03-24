@@ -4,6 +4,7 @@ set -euo pipefail
 TOR_HS_DIR="/data/tor/elektrine"
 TOR_DATA_DIR="/data/tor/data"
 CERTS_DIR="/data/certs"
+TLS_RUNTIME_DIR="$CERTS_DIR/runtime"
 ROLE="${1:-${ELEKTRINE_RUNTIME_ROLE:-all}}"
 
 decode_b64_to_file() {
@@ -26,9 +27,35 @@ decode_b64_to_file() {
   return 1
 }
 
+stage_mail_tls_file() {
+  local env_name="$1"
+  local source_path="${!env_name:-}"
+
+  [ -z "$source_path" ] && return 0
+
+  if [ ! -f "$source_path" ]; then
+    echo "Warning: ${env_name} points to a missing file: $source_path"
+    return 0
+  fi
+
+  mkdir -p "$TLS_RUNTIME_DIR"
+
+  local target_path="$TLS_RUNTIME_DIR/${env_name,,}"
+  cp "$source_path" "$target_path"
+  chmod 600 "$target_path"
+  export "$env_name=$target_path"
+}
+
 # Create and fix ownership of data directories (volume mount may have wrong perms)
 mkdir -p "$TOR_HS_DIR" "$TOR_DATA_DIR" "$CERTS_DIR" 2>/dev/null || true
 chmod 700 "$TOR_HS_DIR" 2>/dev/null || true
+
+stage_mail_tls_file MAIL_TLS_CERT_PATH
+stage_mail_tls_file MAIL_TLS_KEY_PATH
+stage_mail_tls_file IMAP_TLS_CERT_PATH
+stage_mail_tls_file IMAP_TLS_KEY_PATH
+stage_mail_tls_file POP3_TLS_CERT_PATH
+stage_mail_tls_file POP3_TLS_KEY_PATH
 
 # Restore Tor hidden-service identity if /data was replaced and backup secrets are available.
 if [ ! -s "$TOR_HS_DIR/hs_ed25519_secret_key" ] && [ -n "${ONION_HS_SECRET_KEY_B64:-}" ]; then

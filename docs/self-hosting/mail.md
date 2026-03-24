@@ -94,7 +94,13 @@ Required env for native TLS mailbox access:
 ```dotenv
 MAIL_TLS_CERT_PATH=/opt/elektrine/certs/mail.crt
 MAIL_TLS_KEY_PATH=/opt/elektrine/certs/mail.key
+MAIL_TLS_MOUNT_DIR=/opt/elektrine/certs
 ```
+
+`MAIL_TLS_MOUNT_DIR` is the host directory bind-mounted into the mail container at
+`/opt/elektrine/certs`. The entrypoint copies configured cert/key files into
+`/data/certs/runtime` before dropping privileges, so the mounted files only need to
+be readable by root inside the container.
 
 Optional per-protocol cert overrides:
 

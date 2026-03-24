@@ -156,6 +156,7 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DOCKER_PROFILES` optional, defaults to `caddy`
 - `MONGOOSEIM_API_KEY` required when using the `xmpp` profile
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
+- `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)
 
 GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
