@@ -15,8 +15,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
       xml = response(conn, 200)
 
       assert xml =~ "<domain>#{domain}</domain>"
-      assert xml =~ "<hostname>imap.#{domain}</hostname>"
-      assert xml =~ "<hostname>smtp.#{domain}</hostname>"
+      assert xml =~ "<hostname>mail.#{domain}</hostname>"
       assert xml =~ "<port>993</port>"
       assert xml =~ "<port>587</port>"
       assert xml =~ "<socketType>SSL</socketType>"
@@ -44,8 +43,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
 
       xml = response(conn, 200)
 
-      assert xml =~ "<Server>imap.#{domain}</Server>"
-      assert xml =~ "<Server>smtp.#{domain}</Server>"
+      assert xml =~ "<Server>mail.#{domain}</Server>"
       assert xml =~ "<Port>993</Port>"
       assert xml =~ "<Port>587</Port>"
       assert xml =~ "<SSL>on</SSL>"

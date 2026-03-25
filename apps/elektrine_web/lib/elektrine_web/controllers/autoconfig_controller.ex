@@ -18,8 +18,7 @@ defmodule ElektrineWeb.AutoconfigController do
   def mozilla_autoconfig(conn, _params) do
     domain = get_domain(conn)
     xml_domain = xml_escape(domain)
-    xml_imap_host = xml_escape(mail_service_host(domain, "imap"))
-    xml_smtp_host = xml_escape(mail_service_host(domain, "smtp"))
+    xml_mail_host = xml_escape(mail_service_host(domain))
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -30,7 +29,7 @@ defmodule ElektrineWeb.AutoconfigController do
         <displayShortName>Elektrine</displayShortName>
 
         <incomingServer type="imap">
-          <hostname>#{xml_imap_host}</hostname>
+          <hostname>#{xml_mail_host}</hostname>
           <port>993</port>
           <socketType>SSL</socketType>
           <authentication>password-cleartext</authentication>
@@ -38,7 +37,7 @@ defmodule ElektrineWeb.AutoconfigController do
         </incomingServer>
 
         <outgoingServer type="smtp">
-          <hostname>#{xml_smtp_host}</hostname>
+          <hostname>#{xml_mail_host}</hostname>
           <port>587</port>
           <socketType>STARTTLS</socketType>
           <authentication>password-cleartext</authentication>
@@ -62,8 +61,7 @@ defmodule ElektrineWeb.AutoconfigController do
     {:ok, body, conn} = read_body(conn)
     email = sanitize_email(extract_email_from_autodiscover(body))
     domain = get_domain(conn)
-    xml_imap_host = xml_escape(mail_service_host(domain, "imap"))
-    xml_smtp_host = xml_escape(mail_service_host(domain, "smtp"))
+    xml_mail_host = xml_escape(mail_service_host(domain))
     xml_email = xml_escape(email)
 
     xml = """
@@ -75,7 +73,7 @@ defmodule ElektrineWeb.AutoconfigController do
           <Action>settings</Action>
           <Protocol>
             <Type>IMAP</Type>
-            <Server>#{xml_imap_host}</Server>
+            <Server>#{xml_mail_host}</Server>
             <Port>993</Port>
             <SSL>on</SSL>
             <AuthRequired>on</AuthRequired>
@@ -83,7 +81,7 @@ defmodule ElektrineWeb.AutoconfigController do
           </Protocol>
           <Protocol>
             <Type>SMTP</Type>
-            <Server>#{xml_smtp_host}</Server>
+            <Server>#{xml_mail_host}</Server>
             <Port>587</Port>
             <SSL>off</SSL>
             <AuthRequired>on</AuthRequired>
@@ -109,16 +107,14 @@ defmodule ElektrineWeb.AutoconfigController do
     email = sanitize_email(params["email"] || "")
     username = sanitize_username(params["username"] || List.first(String.split(email, "@")) || "")
     domain = get_domain(conn)
-    imap_host = mail_service_host(domain, "imap")
-    smtp_host = mail_service_host(domain, "smtp")
+    mail_host = mail_service_host(domain)
     uuid1 = Ecto.UUID.generate()
     uuid2 = Ecto.UUID.generate()
     uuid3 = Ecto.UUID.generate()
 
     plist_email = xml_escape(email)
     plist_username = xml_escape(username)
-    plist_imap_host = xml_escape(imap_host)
-    plist_smtp_host = xml_escape(smtp_host)
+    plist_mail_host = xml_escape(mail_host)
 
     # Mobileconfig is a plist XML format
     plist = """
@@ -140,7 +136,7 @@ defmodule ElektrineWeb.AutoconfigController do
           <key>IncomingMailServerAuthentication</key>
           <string>EmailAuthPassword</string>
           <key>IncomingMailServerHostName</key>
-          <string>#{plist_imap_host}</string>
+          <string>#{plist_mail_host}</string>
           <key>IncomingMailServerPortNumber</key>
           <integer>993</integer>
           <key>IncomingMailServerUseSSL</key>
@@ -150,7 +146,7 @@ defmodule ElektrineWeb.AutoconfigController do
           <key>OutgoingMailServerAuthentication</key>
           <string>EmailAuthPassword</string>
           <key>OutgoingMailServerHostName</key>
-          <string>#{plist_smtp_host}</string>
+          <string>#{plist_mail_host}</string>
           <key>OutgoingMailServerPortNumber</key>
           <integer>465</integer>
           <key>OutgoingMailServerUseSSL</key>
@@ -220,9 +216,8 @@ defmodule ElektrineWeb.AutoconfigController do
       _ -> ""
     end
   end
-
-  defp mail_service_host(domain, service) when is_binary(domain) and is_binary(service) do
-    "#{service}.#{domain}"
+  defp mail_service_host(domain) when is_binary(domain) do
+    "mail.#{domain}"
   end
 
   defp sanitize_email(value) when is_binary(value) do
