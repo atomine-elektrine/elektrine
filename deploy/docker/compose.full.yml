@@ -49,8 +49,8 @@ services:
     ports:
       - "${APP_HTTP_BIND:-127.0.0.1:8080:8080}"
     volumes:
-      - uploads:/app/uploads
       - app_data:/data
+      - uploads:/data/uploads
     networks:
       - elektrine_network
     restart: unless-stopped
@@ -82,8 +82,8 @@ services:
       ELEKTRINE_ENABLE_TOR: "false"
       MIGRATION_POOL_SIZE: ${MIGRATION_POOL_SIZE:-2}
     volumes:
-      - uploads:/app/uploads
       - app_data:/data
+      - uploads:/data/uploads
     networks:
       - elektrine_network
     restart: unless-stopped
@@ -117,8 +117,8 @@ services:
       IMAPS_PORT: 2993
       POP3S_PORT: 2995
     volumes:
-      - uploads:/app/uploads
       - app_data:/data
+      - uploads:/data/uploads
       - ${MAIL_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs:ro
     networks:
       - elektrine_network

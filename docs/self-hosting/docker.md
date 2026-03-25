@@ -32,14 +32,27 @@ Rule of thumb:
 Recommended host layout:
 
 1. clone this repo to `/opt/elektrine/app`
-2. copy `env/core.env.example` to `/opt/elektrine/app/.env.production`
+2. copy `.env.example` to `/opt/elektrine/app/.env.production`
 3. install Docker Engine with the Compose plugin
 4. install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts
+
+Recommended simplification:
+
+- treat `.env.example` as the one main template
+- edit only `.env.production` for your deployment
+- use the smaller files under `env/` only as reference if you want examples for a specific add-on
+
+Local uploads without R2:
+
+- if `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, and `R2_BUCKET_NAME` are unset, uploads stay on local disk
+- Docker persists those files in the named `uploads` volume mounted at `/data/uploads`
+- the container entrypoint links that volume into the release `priv/static/uploads` path so `/uploads/...` URLs keep working
+- keep the `uploads` volume if you want avatars, attachments, and media to survive container replacement
 
 Deploy manually:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,vpn --profile caddy --profile dns
 ```
 
 Fast path for local iteration:
@@ -52,8 +65,7 @@ scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git
 That path builds the main Elektrine image locally, pushes it to GHCR, then tells the
 remote host to pull and deploy it without rebuilding the app image there.
 
-For wildcard certificates, merge `env/caddy.env.example` into
-`.env.production` before first deploy and set at least:
+For wildcard certificates, set these keys in `.env.production` before first deploy:
 
 - `CLOUDFLARE_API_TOKEN` - token with DNS edit access for your managed zones
 - `ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
@@ -111,11 +123,10 @@ For PostgreSQL-backed XMPP storage, also set:
 
 Create the matching Postgres role/database before first boot.
 
-Enable onion hosting in the Docker deploy by merging `env/onion.env.example`
-into `.env.production` or by exporting the same variables before you deploy:
+Enable onion hosting in the Docker deploy by setting the onion variables already
+present in `.env.example`, then deploy with:
 
 ```bash
-cat env/onion.env.example >> .env.production
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile tor
 ```
 

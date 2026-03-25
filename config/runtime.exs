@@ -424,6 +424,7 @@ if config_env() == :prod do
 
   Elektrine.Platform.RuntimeConfigValidator.validate!(
     env: System.get_env(),
+    environment: :prod,
     compiled_modules: Application.get_env(:elektrine, :compiled_platform_modules, []),
     enabled_modules: enabled_platform_modules
   )
@@ -938,6 +939,7 @@ if config_env() == :prod do
   r2_endpoint = System.get_env("R2_ENDPOINT")
   r2_bucket_name = System.get_env("R2_BUCKET_NAME")
   r2_public_url = System.get_env("R2_PUBLIC_URL")
+  local_uploads_dir = Path.join(to_string(:code.priv_dir(:elektrine)), "static/uploads")
 
   r2_configured =
     Enum.all?(
@@ -972,7 +974,7 @@ if config_env() == :prod do
   else
     config :elektrine, :uploads,
       adapter: :local,
-      uploads_dir: "priv/static/uploads",
+      uploads_dir: local_uploads_dir,
       max_file_size: 5 * 1024 * 1024,
       max_background_size: 10 * 1024 * 1024,
       max_image_width: 2048,

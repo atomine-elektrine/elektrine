@@ -11,7 +11,7 @@ Relevant files:
 
 To enable it:
 
-1. merge settings from `env/onion.env.example`
+1. fill in the onion section already present in `.env.example` / `.env.production`
 2. make sure `/data` is persistent
 3. if you deploy on Fly, use `scripts/onion/sync-onion-key-secrets.sh` after the hidden service is created
 

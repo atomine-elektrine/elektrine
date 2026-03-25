@@ -1198,6 +1198,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
         user_addresses -> normalize_sidebar_mailbox_addresses(mailbox, user_addresses)
       end
     end)
+    |> filter_sidebar_mailbox_addresses(mailbox)
   end
 
   defp default_sidebar_mailbox_addresses(%{email: email}) when is_binary(email) do
@@ -1224,6 +1225,45 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     |> Enum.reject(&(&1 == ""))
     |> Enum.uniq_by(&String.downcase/1)
   end
+
+  defp filter_sidebar_mailbox_addresses(addresses, %{email: email}) when is_binary(email) do
+    if show_local_development_mailbox_addresses?() do
+      addresses
+    else
+      primary_address = String.downcase(String.trim(email))
+
+      Enum.filter(addresses, fn address ->
+        normalized_address = String.downcase(String.trim(address))
+
+        normalized_address == primary_address or
+          not local_development_mailbox_address?(normalized_address)
+      end)
+    end
+  end
+
+  defp filter_sidebar_mailbox_addresses(addresses, _), do: addresses
+
+  defp show_local_development_mailbox_addresses? do
+    Elektrine.Domains.primary_email_domain()
+    |> local_development_email_domain?()
+  end
+
+  defp local_development_mailbox_address?(address) when is_binary(address) do
+    case String.split(address, "@", parts: 2) do
+      [_local_part, domain] -> local_development_email_domain?(domain)
+      _ -> false
+    end
+  end
+
+  defp local_development_mailbox_address?(_), do: false
+
+  defp local_development_email_domain?(domain) when is_binary(domain) do
+    normalized_domain = String.downcase(String.trim(domain))
+
+    normalized_domain == "localhost" or String.ends_with?(normalized_domain, ".localhost")
+  end
+
+  defp local_development_email_domain?(_), do: false
 
   @doc """
   Decode MIME-encoded headers (RFC 2047)

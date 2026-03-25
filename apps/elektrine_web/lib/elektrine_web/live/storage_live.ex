@@ -313,22 +313,8 @@ defmodule ElektrineWeb.StorageLive do
         # Generate presigned URL for first image
         preview_url =
           case Enum.take(uploaded_urls, 1) do
-            [s3_key] ->
-              bucket = Application.get_env(:elektrine, :uploads)[:bucket]
-              config = ExAws.Config.new(:s3)
-
-              # Add both inline disposition AND content-type override
-              case ExAws.S3.presigned_url(config, :get, bucket, s3_key,
-                     expires_in: 3600,
-                     virtual_host: false,
-                     query_params: [
-                       {"response-content-disposition", "inline"},
-                       {"response-content-type", "image/jpeg"}
-                     ]
-                   ) do
-                {:ok, signed_url} -> signed_url
-                _ -> nil
-              end
+            [media_key] ->
+              Elektrine.Uploads.attachment_url(media_key, message.conversation)
 
             _ ->
               nil

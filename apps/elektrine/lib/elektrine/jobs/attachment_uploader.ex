@@ -53,15 +53,11 @@ defmodule Elektrine.Jobs.AttachmentUploader do
   defp upload_attachments_to_s3(mailbox_id, message_id, attachments) when is_map(attachments) do
     attachments
     |> Enum.map(fn {attachment_id, attachment_data} ->
-      # Check if attachment already uploaded to S3
-      if attachment_data["storage_type"] == "s3" do
-        # Already in S3, keep as-is
+      if AttachmentStorage.stored_attachment?(attachment_data) do
         {attachment_id, attachment_data}
       else
-        # Upload to S3
         case upload_single_attachment(mailbox_id, message_id, attachment_id, attachment_data) do
           {:ok, storage_metadata} ->
-            # Merge S3 metadata and remove the data field to save DB space
             updated_data =
               Map.merge(attachment_data, storage_metadata)
               |> Map.delete("data")

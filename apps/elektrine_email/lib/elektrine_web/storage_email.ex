@@ -33,10 +33,7 @@ defmodule ElektrineWeb.StorageEmail do
 
             preview_url =
               if is_image do
-                case Email.AttachmentStorage.generate_presigned_url(attachment, 3600) do
-                  {:ok, url} -> url
-                  _ -> nil
-                end
+                "/email/message/#{message.id}/attachment/#{key}/download"
               end
 
             %{
