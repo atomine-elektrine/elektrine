@@ -46,6 +46,9 @@ npm-debug.log*
 .env
 .env.local
 .env.*.local
+.env.production
+.env.*
+!.env.example
 
 # =============================================================================
 # Generated / Runtime Files
@@ -94,3 +97,5 @@ npm-debug.log*
 .mix
 .hex
 _deploy_release
+/certs/
+/generated.mongooseim.toml
