@@ -150,6 +150,8 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
         data-vault-verifier={Payloads.encode_payload(@vault_verifier)}
       >
         <.account_page
+          title="Password Manager"
+          subtitle="Store credentials in your encrypted vault and manage browser access."
           max_width="max-w-7xl"
           current_user={@current_user}
         >
