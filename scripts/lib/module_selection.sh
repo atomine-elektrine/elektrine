@@ -11,7 +11,7 @@ normalize_platform_modules() {
   if [[ -z "$trimmed" || "$trimmed" == "all" || "$trimmed" == "*" ]]; then
     NORMALIZED_MODULES="all"
     BUILD_SLUG="all"
-    NORMALIZED_MODULE_ARRAY=(chat social email vault vpn)
+    NORMALIZED_MODULE_ARRAY=(chat social email vault vpn dns)
     return
   fi
 
@@ -22,7 +22,7 @@ normalize_platform_modules() {
     return
   fi
 
-  IFS=',' read -r -a requested <<< "$trimmed"
+  IFS="," read -r -a requested <<< "$trimmed"
 
   local canonical_requested=()
   local normalized=()
@@ -42,16 +42,16 @@ normalize_platform_modules() {
   }
 
   for token in "${requested[@]}"; do
-    token="$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')"
+    token="$(printf "%s" "$token" | tr "[:upper:]" "[:lower:]")"
 
     case "$token" in
-      chat|social|email|vault|vpn)
+      chat|social|email|vault|vpn|dns)
         append_unique_module "$token"
         ;;
       password-manager|password_manager)
         append_unique_module "vault"
         ;;
-      all|none|'')
+      all|none|"")
         echo "ELEKTRINE_RELEASE_MODULES cannot mix special values with explicit modules: $raw" >&2
         return 1
         ;;
@@ -63,7 +63,7 @@ normalize_platform_modules() {
   done
 
   local candidate=""
-  for candidate in chat social email vault vpn; do
+  for candidate in chat social email vault vpn dns; do
     for token in "${canonical_requested[@]:-}"; do
       if [[ "$token" == "$candidate" ]]; then
         normalized+=("$candidate")
@@ -79,7 +79,12 @@ normalize_platform_modules() {
 
   NORMALIZED_MODULE_ARRAY=("${normalized[@]}")
   NORMALIZED_MODULES="$(IFS=,; echo "${normalized[*]}")"
-  BUILD_SLUG="$(IFS=-; echo "${normalized[*]}")"
+
+  if [[ "$NORMALIZED_MODULES" == "chat,social,email,vault,vpn,dns" ]]; then
+    BUILD_SLUG="all"
+  else
+    BUILD_SLUG="$(IFS=-; echo "${normalized[*]}")"
+  fi
 }
 
 platform_module_selected() {
