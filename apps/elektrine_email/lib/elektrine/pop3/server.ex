@@ -924,7 +924,8 @@ defmodule Elektrine.POP3.Server do
     end)
   end
 
-  defp attachment_data(%{"storage_type" => "s3"} = attachment) do
+  defp attachment_data(%{"storage_type" => storage_type} = attachment)
+       when storage_type in ["local", "s3"] do
     case AttachmentStorage.download_attachment(attachment) do
       {:ok, content} -> Base.encode64(content)
       {:error, _} -> attachment["data"] || ""

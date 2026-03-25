@@ -338,21 +338,29 @@ defmodule ElektrineWeb.API.EmailController do
               conn |> put_status(:not_found) |> json(%{error: "Attachment not found"})
 
             attachment ->
-              case AttachmentStorage.generate_presigned_url(attachment) do
-                {:ok, url} ->
-                  conn
-                  |> put_status(:ok)
-                  |> json(%{
-                    download_url: url,
-                    filename: attachment_field(attachment, "filename", :filename),
-                    content_type: attachment_field(attachment, "content_type", :content_type),
-                    expires_in: 3600
-                  })
+              download_url =
+                if Map.get(attachment, "storage_type") == "s3" do
+                  case AttachmentStorage.generate_presigned_url(attachment) do
+                    {:ok, url} -> url
+                    {:error, _reason} -> nil
+                  end
+                else
+                  "/email/message/#{message_id}/attachment/#{att_id}/download"
+                end
 
-                {:error, _reason} ->
-                  conn
-                  |> put_status(:internal_server_error)
-                  |> json(%{error: "Failed to generate download URL"})
+              if is_binary(download_url) do
+                conn
+                |> put_status(:ok)
+                |> json(%{
+                  download_url: download_url,
+                  filename: attachment_field(attachment, "filename", :filename),
+                  content_type: attachment_field(attachment, "content_type", :content_type),
+                  expires_in: 3600
+                })
+              else
+                conn
+                |> put_status(:internal_server_error)
+                |> json(%{error: "Failed to generate download URL"})
               end
           end
 

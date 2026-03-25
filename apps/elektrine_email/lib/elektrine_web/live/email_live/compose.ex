@@ -705,13 +705,13 @@ defmodule ElektrineWeb.EmailLive.Compose do
           |> Enum.reject(&MailboxEncryption.attachment_encrypted?/1)
           |> Enum.map(fn att ->
             att_with_data =
-              if att["storage_type"] == "s3" do
+              if AttachmentStorage.stored_attachment?(att) do
                 case AttachmentStorage.download_attachment(att) do
                   {:ok, content} ->
                     Map.put(att, "data", Base.encode64(content))
 
                   {:error, _} ->
-                    Logger.warning("Failed to download forwarded attachment from S3")
+                    Logger.warning("Failed to download forwarded attachment from storage")
                     att
                 end
               else

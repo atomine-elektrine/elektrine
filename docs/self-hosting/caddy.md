@@ -26,7 +26,7 @@ This lets self-hosters swap out bundled domains without editing the Caddyfile.
 
 ## Required environment
 
-Merge `env/caddy.env.example` into `.env.production` and set at least:
+Set these keys in `.env.production` and use `.env.example` as the starting point:
 
 - `ACME_EMAIL`
 - `CLOUDFLARE_API_TOKEN`

@@ -10,7 +10,7 @@ You can run both deployments on the same bare-metal server.
 To enable mail:
 
 1. add the `email` module in `ELEKTRINE_RELEASE_MODULES` and `ELEKTRINE_ENABLED_MODULES`
-2. merge settings from `env/mail.env.example`
+2. fill in the mail section already present in `.env.example` / `.env.production`
 3. deploy Haraka separately
 4. connect the two systems with `HARAKA_BASE_URL`, outbound API auth, and inbound webhook auth
 

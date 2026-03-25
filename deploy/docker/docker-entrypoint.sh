@@ -4,8 +4,32 @@ set -euo pipefail
 TOR_HS_DIR="/data/tor/elektrine"
 TOR_DATA_DIR="/data/tor/data"
 CERTS_DIR="/data/certs"
+UPLOADS_DATA_DIR="/data/uploads"
 TLS_RUNTIME_DIR="$CERTS_DIR/runtime"
 ROLE="${1:-${ELEKTRINE_RUNTIME_ROLE:-all}}"
+
+link_release_uploads_dir() {
+  local priv_dir
+
+  for priv_dir in /app/lib/elektrine-*/priv; do
+    [ -d "$priv_dir" ] || continue
+
+    local static_dir="$priv_dir/static"
+    local uploads_path="$static_dir/uploads"
+
+    mkdir -p "$static_dir" "$UPLOADS_DATA_DIR"
+
+    if [ -L "$uploads_path" ]; then
+      rm -f "$uploads_path"
+    elif [ -d "$uploads_path" ]; then
+      rm -rf "$uploads_path"
+    elif [ -e "$uploads_path" ]; then
+      rm -f "$uploads_path"
+    fi
+
+    ln -sfn "$UPLOADS_DATA_DIR" "$uploads_path"
+  done
+}
 
 decode_b64_to_file() {
   local value="$1"
@@ -47,8 +71,9 @@ stage_mail_tls_file() {
 }
 
 # Create and fix ownership of data directories (volume mount may have wrong perms)
-mkdir -p "$TOR_HS_DIR" "$TOR_DATA_DIR" "$CERTS_DIR" 2>/dev/null || true
+mkdir -p "$TOR_HS_DIR" "$TOR_DATA_DIR" "$CERTS_DIR" "$UPLOADS_DATA_DIR" 2>/dev/null || true
 chmod 700 "$TOR_HS_DIR" 2>/dev/null || true
+link_release_uploads_dir
 
 stage_mail_tls_file MAIL_TLS_CERT_PATH
 stage_mail_tls_file MAIL_TLS_KEY_PATH

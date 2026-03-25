@@ -465,7 +465,7 @@ defmodule Elektrine.IMAP.Response do
         # Properly encode attachment data with line wrapping per RFC 2045
         data =
           case attachment do
-            %{"storage_type" => "s3"} ->
+            %{"storage_type" => storage_type} when storage_type in ["local", "s3"] ->
               case AttachmentStorage.download_attachment(attachment) do
                 {:ok, content} -> Helpers.base64_encode_wrapped(content)
                 {:error, _} -> attachment["data"] || ""

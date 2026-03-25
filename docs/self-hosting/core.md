@@ -9,7 +9,7 @@
 - no onion
 - no edge proxy
 
-1. Copy `env/core.env.example` to `.env.production` and fill in real values.
+1. Copy `.env.example` to `.env.production` and fill in real values.
    For the bundled Docker Postgres service, keep `DATABASE_SSL_ENABLED=false`.
 2. Start the stack:
 

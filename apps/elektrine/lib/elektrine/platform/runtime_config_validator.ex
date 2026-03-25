@@ -19,6 +19,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   def validate(opts) when is_list(opts) do
     env = Keyword.get(opts, :env, %{})
+    environment = Keyword.get(opts, :environment, :prod)
 
     compiled_modules =
       opts
@@ -33,6 +34,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
     errors =
       []
+      |> maybe_validate_session_secrets(environment, env)
       |> maybe_validate_email(enabled_modules, env)
       |> maybe_validate_vpn(enabled_modules, env)
 
@@ -41,6 +43,20 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
       _ -> {:error, Enum.reverse(errors)}
     end
   end
+
+  defp maybe_validate_session_secrets(errors, :prod, env) do
+    errors
+    |> require_present(
+      env_value(env, "SESSION_SIGNING_SALT"),
+      "production requires SESSION_SIGNING_SALT so LiveView and cookie sessions stay consistent across instances"
+    )
+    |> require_present(
+      env_value(env, "SESSION_ENCRYPTION_SALT"),
+      "production requires SESSION_ENCRYPTION_SALT so cookie sessions can be decrypted consistently across instances"
+    )
+  end
+
+  defp maybe_validate_session_secrets(errors, _environment, _env), do: errors
 
   defp maybe_validate_email(errors, enabled_modules, env) do
     if :email in enabled_modules do

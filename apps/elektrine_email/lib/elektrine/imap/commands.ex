@@ -2645,7 +2645,7 @@ defmodule Elektrine.IMAP.Commands do
       if attachment["content_id"] do
         raw_data =
           case attachment do
-            %{"storage_type" => "s3"} ->
+            %{"storage_type" => storage_type} when storage_type in ["local", "s3"] ->
               case AttachmentStorage.download_attachment(attachment) do
                 {:ok, content} -> content
                 {:error, _} -> attachment["data"]
