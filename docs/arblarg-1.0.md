@@ -40,7 +40,7 @@ Arblarg 1.0 is optimized for:
 
 Arblarg 1.0 is intentionally not:
 
-- a Matrix-style state DAG
+- a state DAG inspired by room-based messaging systems
 - a general-purpose XML messaging substrate
 - an end-to-end encrypted device protocol
 - a media transport for voice or video
@@ -815,5 +815,5 @@ The following are intentionally outside Arblarg 1.0:
 
 - native voice and video media transport
 - end-to-end device identity and key graph semantics
-- Matrix-style DAG state resolution
+- DAG-based state resolution
 - richer transport profiles beyond the current HTTP and websocket model

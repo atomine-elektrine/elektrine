@@ -280,7 +280,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         <div class="card-body p-4 sm:p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 class="card-title text-base sm:text-lg">
-              <.icon name="hero-server-stack" class="w-5 h-5" /> Arblarg Peer Policy Matrix
+              <.icon name="hero-server-stack" class="w-5 h-5" /> Arblarg Peer Policy Grid
               <span class="badge badge-neutral">{@filtered_peer_total_count}</span>
             </h2>
 

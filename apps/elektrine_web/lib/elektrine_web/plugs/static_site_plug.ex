@@ -264,7 +264,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     wellknown .well-known jmap captcha uploads
     overview communities discussions timeline hashtag lists gallery remote chat friends notifications
     media_proxy federation relay tags mail autodiscover oauth webhook vpn
-    nodeinfo sitemap.xml robots.txt _matrix-internal announcements l c
+    nodeinfo sitemap.xml robots.txt announcements l c
   )
 
   defp reserved_path?(path) do
