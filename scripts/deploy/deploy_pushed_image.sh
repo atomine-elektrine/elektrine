@@ -10,7 +10,7 @@ DEPLOY_USER="${DEPLOY_USER:-}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/elektrine}"
 RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
-DOCKER_PROFILES_VALUE="${DOCKER_PROFILES:-caddy dns email tor xmpp}"
+DOCKER_PROFILES_VALUE="${DOCKER_PROFILES:-caddy dns email tor}"
 
 usage() {
   cat <<'EOF'
@@ -97,7 +97,6 @@ COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/doc
   --modules "$ELEKTRINE_RELEASE_MODULES" \
   --env-file "$DEPLOY_PATH/.env.production" \
   --output "$DEPLOY_PATH/deploy/docker/generated.docker.yml" \
-  --xmpp-config-output "$DEPLOY_PATH/deploy/docker/generated.mongooseim.toml" \
   --pull \
   --skip-build \
   --compose-override "$override_file" \

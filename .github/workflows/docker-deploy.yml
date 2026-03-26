@@ -155,7 +155,6 @@ jobs:
             --modules "$ELEKTRINE_RELEASE_MODULES" \
             --env-file "$DEPLOY_PATH/.env.production" \
             --output "$OUTPUT_FILE" \
-            --xmpp-config-output "$WORKTREE_PATH/deploy/docker/generated.mongooseim.toml" \
             --pull \
             --skip-build \
             --compose-override "$OVERRIDE_FILE" \

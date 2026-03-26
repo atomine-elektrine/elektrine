@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
-RAW_PROFILES="${DOCKER_PROFILES:-caddy dns email tor xmpp}"
+RAW_PROFILES="${DOCKER_PROFILES:-caddy dns email tor}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -69,7 +69,6 @@ printf '\n'
 printf 'Code included in release:\n'
 printf '  - chat/social/email/vault/vpn come from ELEKTRINE_RELEASE_MODULES\n'
 printf '  - dns is built as a separate release-backed service\n'
-printf '  - xmpp delegates auth back to Elektrine internal endpoints\n'
 printf '\n'
 printf 'Containers expected to run:\n'
 printf '  - postgres: yes\n'
@@ -78,7 +77,6 @@ printf '  - worker: yes\n'
 printf '  - mail: %s\n' "$(bool_label has_profile email)"
 printf '  - dns: %s\n' "$(bool_label has_profile dns)"
 printf '  - tor: %s\n' "$(bool_label has_profile tor)"
-printf '  - xmpp: %s\n' "$(bool_label has_profile xmpp)"
 printf '  - caddy_edge: %s\n' "$(bool_label has_profile caddy)"
 printf '  - bluesky_pds: %s\n' "$(bool_label has_profile bluesky)"
 printf '\n'

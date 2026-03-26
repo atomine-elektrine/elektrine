@@ -5,7 +5,6 @@ This keeps the main app and worker in a single Docker deployment:
 - one `app` container
 - one `worker` container
 - optional `mail` container when the `email` profile is enabled
-- optional `xmpp` container for MongooseIM via `--profile xmpp`
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
 - optional Bluesky PDS via `--profile bluesky`
@@ -21,7 +20,7 @@ Deployment model:
 | Concern | Uses | Examples |
 | --- | --- | --- |
 | product capabilities | `ELEKTRINE_RELEASE_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
-| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `xmpp`, `caddy`, `bluesky` |
+| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
 Rule of thumb:
@@ -78,7 +77,7 @@ Then point the domains in your managed site lists at your edge.
 Preview what a deploy will run:
 
 ```bash
-scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor xmpp"
+scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor"
 ```
 
 Keep the repo owned by your deploy user and avoid running `git` operations as `root` inside the checkout. Use `sudo` only for Docker commands. If a generated compose file ever becomes unwritable because of ownership drift, render to a writable temporary path instead of the tracked repo file:
@@ -98,30 +97,6 @@ Enable the separate authoritative DNS service with:
 ```bash
 scripts/deploy/docker_deploy.sh --modules all --profile dns
 ```
-
-Enable the separate MongooseIM XMPP service with:
-
-```bash
-scripts/deploy/docker_deploy.sh --modules all --profile xmpp
-```
-
-The MongooseIM profile uses Elektrine's existing internal auth endpoints at
-`/_mongooseim/identity/v1/*` and renders a config file from:
-
-- `deploy/mongooseim/mongooseim.toml.template`
-- `scripts/deploy/render_mongooseim_config.sh`
-- rendered output lives at `deploy/docker/generated.mongooseim.toml`
-
-Set `MONGOOSEIM_API_KEY` in `.env.production` to match the internal API auth key.
-If it is unset, the deploy renderer falls back to `PHOENIX_API_KEY`.
-
-For PostgreSQL-backed XMPP storage, also set:
-
-- `MONGOOSEIM_DB_NAME` (for example `mongooseim`)
-- `MONGOOSEIM_DB_USER` (for example `mongooseim`)
-- `MONGOOSEIM_DB_PASSWORD`
-
-Create the matching Postgres role/database before first boot.
 
 Enable onion hosting in the Docker deploy by setting the onion variables already
 present in `.env.example`, then deploy with:
@@ -165,7 +140,6 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
 - `DEPLOY_PORT` optional, defaults to `22`
 - `DOCKER_PROFILES` optional, defaults to `caddy`
-- `MONGOOSEIM_API_KEY` required when using the `xmpp` profile
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
 - `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)

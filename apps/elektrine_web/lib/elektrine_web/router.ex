@@ -57,18 +57,6 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
-  pipeline :matrix_internal_api do
-    plug(ElektrineWeb.Plugs.InternalAPIAuth,
-      env_names: ["MATRIX_INTERNAL_API_KEY", "PHOENIX_API_KEY"]
-    )
-  end
-
-  pipeline :mongooseim_internal_api do
-    plug(ElektrineWeb.Plugs.InternalAPIAuth,
-      env_names: ["MONGOOSEIM_API_KEY", "PHOENIX_API_KEY"]
-    )
-  end
-
   pipeline :caddy_internal_api do
     plug(ElektrineWeb.Plugs.InternalAPIAuth,
       env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"],
@@ -284,23 +272,6 @@ defmodule ElektrineWeb.Router do
     post("/stripe", StripeWebhookController, :webhook)
   end
 
-  # Matrix internal auth compatibility endpoint (for Synapse REST auth provider)
-  scope "/_matrix-internal/identity/v1", ElektrineWeb do
-    pipe_through([:api, :matrix_internal_api, :api_rate_limited])
-
-    post("/check_credentials", MatrixInternalAuthController, :check_credentials)
-  end
-
-  # MongooseIM internal auth compatibility endpoint
-  scope "/_mongooseim/identity/v1", ElektrineWeb do
-    pipe_through([:api, :mongooseim_internal_api, :api_rate_limited])
-
-    post("/check_credentials", MongooseIMAuthController, :check_credentials)
-    post("/check_password", MongooseIMAuthController, :check_password)
-    get("/user_exists", MongooseIMAuthController, :user_exists)
-    post("/user_exists", MongooseIMAuthController, :user_exists)
-  end
-
   # Internal Caddy on-demand TLS allowlist endpoint.
   # This stays on the private/origin app hostname and should be called only by the Caddy edge.
   scope "/_edge/tls/v1", ElektrineWeb do
@@ -361,14 +332,6 @@ defmodule ElektrineWeb.Router do
 
     get("/_arblarg", MessagingFederationController, :well_known)
     get("/_arblarg/:version", MessagingFederationController, :well_known_versioned)
-  end
-
-  # Matrix well-known discovery/delegation endpoints
-  scope "/.well-known/matrix", ElektrineWeb do
-    pipe_through(:api)
-
-    get("/server", MatrixWellKnownController, :server)
-    get("/client", MatrixWellKnownController, :client)
   end
 
   # Email client autodiscovery
