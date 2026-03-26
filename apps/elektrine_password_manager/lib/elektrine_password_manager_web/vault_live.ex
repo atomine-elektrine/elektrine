@@ -8,8 +8,6 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   alias Elektrine.PasswordManager
   alias Elektrine.PasswordManager.Payloads
   alias Elektrine.PasswordManager.VaultEntry
-  alias Elektrine.Platform.Modules
-  alias Elektrine.Platform.ENavComponent
 
   @impl true
   def mount(_params, _session, socket) do
@@ -149,12 +147,12 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
         data-vault-configured={to_string(@vault_configured)}
         data-vault-verifier={Payloads.encode_payload(@vault_verifier)}
       >
-        <.account_page
-          title="Password Manager"
-          subtitle="Store credentials in your encrypted vault and manage browser access."
-          max_width="max-w-7xl"
-          current_user={@current_user}
-        >
+        <section class="mx-auto w-full max-w-7xl space-y-6">
+          <ElektrineWeb.Components.Platform.ENav.e_nav
+            active_tab="vault"
+            current_user={@current_user}
+          />
+
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="card glass-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
@@ -525,41 +523,10 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
               <% end %>
             </div>
           </div>
-        </.account_page>
+        </section>
       </div>
     </div>
     """
-  end
-
-  attr :title, :string, default: nil
-  attr :subtitle, :string, default: nil
-  attr :max_width, :string, default: "max-w-5xl"
-  attr :current_user, :any, default: nil
-  attr :nav_tab, :string, default: "vault"
-  slot :inner_block, required: true
-
-  defp account_page(assigns) do
-    ~H"""
-    <section class={["mx-auto w-full space-y-4 sm:space-y-6", @max_width]}>
-      <.e_nav active_tab={@nav_tab} current_user={@current_user} />
-      {render_slot(@inner_block)}
-    </section>
-    """
-  end
-
-  # Keep rendering local, but pull shared nav definitions from the base app so
-  # all pages stay in sync.
-  attr :active_tab, :string, required: true
-  attr :class, :string, default: "mb-4"
-  attr :current_user, :any, default: nil
-
-  def e_nav(assigns) do
-    assigns =
-      assigns
-      |> assign(:items, nav_items())
-      |> assign(:secondary_items, secondary_items(assigns.current_user))
-
-    ENavComponent.render(assigns)
   end
 
   defp entry_form(user_id, attrs \\ %{}, action \\ nil) do
@@ -582,15 +549,6 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
       _ -> :error
     end
   end
-
-  defp nav_items, do: Elektrine.Platform.ENav.primary_items() |> Enum.filter(&module_visible?/1)
-
-  defp secondary_items(nil), do: []
-
-  defp secondary_items(_current_user), do: Elektrine.Platform.ENav.secondary_items()
-
-  defp module_visible?(%{platform_module: nil}), do: true
-  defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
 
   defp translate_error({message, opts}) do
     Regex.replace(~r"%{(\w+)}", message, fn _, key ->

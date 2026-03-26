@@ -151,6 +151,7 @@ defmodule ElektrineWeb.CoreComponents do
       <ElektrineWeb.Components.Platform.ENav.e_nav
         active_tab={@nav_tab}
         current_user={@current_user}
+        class="mb-6 sm:mb-8"
       />
 
       <div class="mb-6 sm:mb-8">
