@@ -2,9 +2,11 @@ defmodule ElektrineWeb.OverviewLiveTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+
   import Elektrine.SocialFixtures, only: [post_fixture: 1]
 
-  alias Elektrine.{AccountsFixtures, Friends, Profiles, Social}
+  alias Elektrine.{AccountsFixtures, Friends, Messaging, Profiles, Repo, Social}
+  alias Elektrine.ActivityPub.Actor
 
   defp log_in_user(conn, user) do
     token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
@@ -122,7 +124,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     assert html =~ "data-feed-loading-skeleton"
   end
 
-  test "overview uses a stream-backed feed container", %{conn: conn} do
+  test "overview uses the infinite scroll feed container", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, view, _html} =
@@ -130,7 +132,8 @@ defmodule ElektrineWeb.OverviewLiveTest do
       |> log_in_user(user)
       |> live(~p"/overview")
 
-    assert has_element?(view, ~s(#overview-posts-stream[phx-update="stream"]))
+    assert has_element?(view, ~s(#overview-infinite-scroll[phx-hook="InfiniteScroll"]))
+    assert has_element?(view, ~s(#overview-posts-list))
   end
 
   test "overview feed stays capped to a dashboard-sized batch", %{conn: conn} do
@@ -258,5 +261,55 @@ defmodule ElektrineWeb.OverviewLiveTest do
     |> render_click()
 
     refute render(view) =~ "Overview dismissal target"
+  end
+
+  test "overview renders community posts with the same lemmy layout as timeline", %{conn: _conn} do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://community.example/users/poster#{unique}",
+        username: "poster#{unique}",
+        domain: "community.example",
+        display_name: "Poster #{unique}",
+        inbox_url: "https://community.example/inbox",
+        public_key: "test-public-key-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, post} =
+      Messaging.create_federated_message(%{
+        content: "Thread body",
+        title: "Overview community thread",
+        visibility: "public",
+        post_type: "discussion",
+        federated: true,
+        activitypub_id: "https://community.example/post/#{unique}",
+        activitypub_url: "https://community.example/post/#{unique}",
+        remote_actor_id: remote_actor.id,
+        media_metadata: %{"community_actor_uri" => "https://community.example/c/test"}
+      })
+
+    post = Repo.preload(post, [:link_preview, :conversation, remote_actor: []])
+
+    html =
+      render_component(ElektrineWeb.Components.Social.OverviewStreamPost,
+        id: "overview-stream-post-#{post.id}",
+        post: post,
+        current_user: nil,
+        timezone: "UTC",
+        time_format: "12h",
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        user_statuses: %{},
+        post_reactions: %{}
+      )
+
+    assert html =~ post.title
+    assert html =~ ~s(id="lemmy-post-#{post.id}")
   end
 end

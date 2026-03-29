@@ -20,6 +20,14 @@ defmodule ElektrineWeb.GalleryLiveTest do
     conversation = attrs[:conversation] || SocialFixtures.timeline_conversation_fixture(user)
     title = attrs[:title] || "Gallery Post #{System.unique_integer([:positive])}"
 
+    inserted_at =
+      attrs[:inserted_at] ||
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.truncate(:second)
+        |> NaiveDateTime.add(-System.unique_integer([:positive]), :second)
+
+    updated_at = attrs[:updated_at] || inserted_at
+
     {:ok, message} =
       %Message{
         conversation_id: conversation.id,
@@ -33,7 +41,9 @@ defmodule ElektrineWeb.GalleryLiveTest do
         category: attrs[:category] || "photography",
         like_count: attrs[:like_count] || 0,
         reply_count: attrs[:reply_count] || 0,
-        share_count: attrs[:share_count] || 0
+        share_count: attrs[:share_count] || 0,
+        inserted_at: inserted_at,
+        updated_at: updated_at
       }
       |> Repo.insert()
 
@@ -219,6 +229,38 @@ defmodule ElektrineWeb.GalleryLiveTest do
     assert html =~ "Alice"
     assert html =~ "custom-emoji"
     assert html =~ "blobcat.png"
+  end
+
+  test "gallery loads more photos through the infinite scroll event", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    creator = AccountsFixtures.user_fixture()
+
+    for index <- 1..65 do
+      timestamp =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.truncate(:second)
+        |> NaiveDateTime.add(-index, :second)
+
+      gallery_post_fixture(creator,
+        title: "Paged Gallery #{index}",
+        inserted_at: timestamp,
+        updated_at: timestamp
+      )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/gallery")
+
+    initial_html = render_async(view)
+
+    assert initial_html =~ "Paged Gallery 1"
+    refute initial_html =~ "Paged Gallery 65"
+
+    load_more_html = render_hook(view, "load-more", %{})
+
+    assert load_more_html =~ "Paged Gallery 65"
   end
 
   defp remote_gallery_post_fixture(attrs) do
