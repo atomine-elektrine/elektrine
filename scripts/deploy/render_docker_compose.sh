@@ -56,17 +56,21 @@ normalize_platform_modules "$REQUESTED_RELEASE_MODULES"
 RELEASE_MODULES="$NORMALIZED_MODULES"
 
 TOR_ENABLED="false"
+COTURN_ENABLED="false"
 CADDY_DEFAULT_CONFIG_PATH="${CADDY_DEFAULT_CONFIG_PATH:-../caddy/Caddyfile.baremetal}"
 for profile in $RAW_PROFILES; do
   if [[ "$profile" == "tor" ]]; then
     TOR_ENABLED="true"
-    break
+  fi
+
+  if [[ "$profile" == "turn" ]]; then
+    COTURN_ENABLED="true"
   fi
 done
 
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
-awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v tor_enabled="$TOR_ENABLED" -v caddy_config_default="$CADDY_DEFAULT_CONFIG_PATH" '
+awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v tor_enabled="$TOR_ENABLED" -v turn_enabled="$COTURN_ENABLED" -v caddy_config_default="$CADDY_DEFAULT_CONFIG_PATH" '
   /ELEKTRINE_RELEASE_MODULES:/ {
     sub(/\$\{ELEKTRINE_RELEASE_MODULES:-[^}]*\}/, "${ELEKTRINE_RELEASE_MODULES:-" release_modules "}")
     print
@@ -81,6 +85,12 @@ awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" 
 
   /ELEKTRINE_ENABLE_TOR:/ {
     sub(/\$\{ELEKTRINE_ENABLE_TOR:-[^}]*\}/, "${ELEKTRINE_ENABLE_TOR:-" tor_enabled "}")
+    print
+    next
+  }
+
+  /TURN_ENABLED:/ {
+    sub(/\$\{TURN_ENABLED:-[^}]*\}/, "${TURN_ENABLED:-" turn_enabled "}")
     print
     next
   }

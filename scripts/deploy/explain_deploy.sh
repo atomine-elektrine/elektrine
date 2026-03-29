@@ -90,6 +90,7 @@ printf '  - worker: yes\n'
 printf '  - mail: %s\n' "$(bool_label has_profile email)"
 printf '  - dns: %s\n' "$(bool_label has_profile dns)"
 printf '  - tor: %s\n' "$(bool_label has_profile tor)"
+printf '  - turn: %s\n' "$(bool_label has_profile turn)"
 printf '  - caddy_edge: %s\n' "$(bool_label has_profile caddy)"
 printf '  - bluesky_pds: %s\n' "$(bool_label has_profile bluesky)"
 printf '\n'

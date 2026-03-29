@@ -14,6 +14,7 @@ Guides:
 - `docker.md`
 - `core.md`
 - `mail.md`
+- `turn.md`
 - `vpn.md`
 - `../addons/onion.md`
 - `../clients/password-manager-extension.md`
