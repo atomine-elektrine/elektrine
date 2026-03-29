@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQUESTED_MODULES=""
-RAW_PROFILES="${DOCKER_PROFILES:-caddy dns email tor}"
+RAW_PROFILES="${DOCKER_PROFILES:-caddy dns email tor turn bluesky}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
