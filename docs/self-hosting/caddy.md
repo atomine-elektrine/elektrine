@@ -23,6 +23,8 @@ CADDY_MANAGED_SITE_1="example.com *.example.com mail.example.com imap.example.co
 CADDY_MANAGED_SITE_2="alt.example.net *.alt.example.net mail.alt.example.net imap.alt.example.net pop.alt.example.net smtp.alt.example.net"
 ```
 
+Keep the two lists disjoint. If `*.example.com` appears in `CADDY_MANAGED_SITE_1`, do not repeat it in `CADDY_MANAGED_SITE_2` or Caddy will reject the config as an ambiguous site definition. If you only manage one domain family, leave `CADDY_MANAGED_SITE_2` unset.
+
 This lets self-hosters swap out bundled domains without editing the Caddyfile.
 Managed domains use Caddy's normal ACME flow.
 If you need a wildcard certificate for lots of username subdomains, you can also
