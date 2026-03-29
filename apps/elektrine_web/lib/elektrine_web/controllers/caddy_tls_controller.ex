@@ -70,7 +70,7 @@ defmodule ElektrineWeb.CaddyTLSController do
       |> Enum.flat_map(fn domain ->
         domain = to_string(domain)
 
-        ["mail.", "imap.", "pop.", "smtp."]
+        ["mail.", "imap.", "pop.", "smtp.", "mta-sts."]
         |> Enum.map(&(&1 <> domain))
       end)
 

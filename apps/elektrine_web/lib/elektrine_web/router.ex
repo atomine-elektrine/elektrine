@@ -341,6 +341,12 @@ defmodule ElektrineWeb.Router do
     get("/config-v1.1.xml", AutoconfigController, :mozilla_autoconfig)
   end
 
+  scope "/.well-known", ElektrineWeb do
+    pipe_through(:well_known_text)
+
+    get("/mta-sts.txt", MailSecurityController, :mta_sts)
+  end
+
   # Alternative autoconfig paths (for autoconfig.domain.com subdomain)
   scope "/mail", ElektrineWeb do
     pipe_through(:autoconfig)

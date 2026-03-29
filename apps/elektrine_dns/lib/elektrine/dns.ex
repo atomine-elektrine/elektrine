@@ -12,7 +12,7 @@ defmodule Elektrine.DNS do
   alias Elektrine.DNS.ZoneServiceConfig
   alias Elektrine.Repo
 
-  @record_types ~w(A AAAA CAA CNAME MX NS SRV TXT)
+  @record_types ~w(A AAAA CAA CNAME DNSKEY DS MX NS SRV TLSA TXT)
 
   def list_user_zones(%User{id: user_id}), do: list_user_zones(user_id)
 

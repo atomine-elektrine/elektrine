@@ -12,6 +12,9 @@ defmodule Elektrine.DNS.Packet do
     txt: 16,
     aaaa: 28,
     srv: 33,
+    ds: 43,
+    dnskey: 48,
+    tlsa: 52,
     caa: 257,
     any: 255
   }
@@ -147,6 +150,36 @@ defmodule Elektrine.DNS.Packet do
     <<flags || 0::8, byte_size(tag)::8, tag::binary, content::binary>>
   end
 
+  defp encode_rdata(%{
+         type: :dnskey,
+         content: content,
+         flags: flags,
+         protocol: protocol,
+         algorithm: algorithm
+       }) do
+    <<flags || 0::16, protocol || 3::8, algorithm || 0::8, decode_base64_data(content)::binary>>
+  end
+
+  defp encode_rdata(%{
+         type: :ds,
+         content: content,
+         key_tag: key_tag,
+         algorithm: algorithm,
+         digest_type: digest_type
+       }) do
+    <<key_tag || 0::16, algorithm || 0::8, digest_type || 0::8, decode_hex_data(content)::binary>>
+  end
+
+  defp encode_rdata(%{
+         type: :tlsa,
+         content: content,
+         usage: usage,
+         selector: selector,
+         matching_type: matching_type
+       }) do
+    <<usage || 0::8, selector || 0::8, matching_type || 0::8, decode_hex_data(content)::binary>>
+  end
+
   defp encode_rdata(%{content: content}) when is_binary(content), do: content
   defp encode_rdata(%{value: value}) when is_binary(value), do: value
 
@@ -170,6 +203,26 @@ defmodule Elektrine.DNS.Packet do
     |> :binary.bin_to_list()
     |> Enum.chunk_every(255)
     |> Enum.map_join(fn chunk -> <<length(chunk)>> <> :erlang.list_to_binary(chunk) end)
+  end
+
+  defp decode_base64_data(content) when is_binary(content) do
+    case Base.decode64(content) do
+      {:ok, decoded} ->
+        decoded
+
+      :error ->
+        case Base.decode64(content, padding: false) do
+          {:ok, decoded} -> decoded
+          :error -> raise ArgumentError, "invalid DNS base64 record content"
+        end
+    end
+  end
+
+  defp decode_hex_data(content) when is_binary(content) do
+    case Base.decode16(content, case: :mixed) do
+      {:ok, decoded} -> decoded
+      :error -> raise ArgumentError, "invalid DNS hexadecimal record content"
+    end
   end
 
   defp encode_name(name) do

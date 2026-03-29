@@ -14,6 +14,21 @@ To enable mail:
 3. deploy Haraka separately
 4. connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted
 
+Managed DNS for mail also provisions:
+
+- `_mta-sts` TXT for MTA-STS discovery
+- `_smtp._tls` TXT for TLS-RPT reporting
+- `mta-sts.<domain>` as the HTTPS policy host alias
+
+Phoenix serves the MTA-STS policy at:
+
+```text
+https://mta-sts.<domain>/.well-known/mta-sts.txt
+```
+
+If you want SMTP DANE, add a manual `TLSA` record for your SMTP listener such as
+`_25._tcp.mail` once you have the certificate association data to publish.
+
 ## Same-server option
 
 Recommended layout on one host:

@@ -17,6 +17,7 @@ defmodule ElektrineWeb.PlatformAccess do
        "/jmap",
        "/calendar",
        "/.well-known/jmap",
+       "/.well-known/mta-sts.txt",
        "/.well-known/autoconfig",
        "/autoconfig",
        "/unsubscribe",

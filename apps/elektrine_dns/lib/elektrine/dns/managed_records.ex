@@ -163,13 +163,15 @@ defmodule Elektrine.DNS.ManagedRecords do
 
   defp desired_records(_zone, _service, _settings), do: []
 
-  defp prepare_settings(_zone, "mail", settings) do
+  defp prepare_settings(%Zone{} = zone, "mail", settings) do
     settings
     |> Map.put_new_lazy("dkim_selector", fn ->
       dkim_module().generate_domain_key_material().selector
     end)
     |> ensure_dkim_material()
-    |> Map.put_new("mail_target", dkim_module().mx_host())
+    |> put_default_setting("mail_target", dkim_module().mx_host())
+    |> put_default_setting("mta_sts_mode", "enforce")
+    |> put_default_setting("tls_rpt_rua", "mailto:postmaster@#{zone.domain}")
   end
 
   defp prepare_settings(_zone, _service, settings), do: settings
@@ -283,6 +285,13 @@ defmodule Elektrine.DNS.ManagedRecords do
       port: Map.get(record, :port),
       tag: Map.get(record, :tag),
       flags: Map.get(record, :flags),
+      protocol: Map.get(record, :protocol),
+      algorithm: Map.get(record, :algorithm),
+      key_tag: Map.get(record, :key_tag),
+      digest_type: Map.get(record, :digest_type),
+      usage: Map.get(record, :usage),
+      selector: Map.get(record, :selector),
+      matching_type: Map.get(record, :matching_type),
       value: Map.get(record, :value)
     }
   end
@@ -333,7 +342,24 @@ defmodule Elektrine.DNS.ManagedRecords do
   defp record_check_status(_desired, nil), do: "missing"
 
   defp record_check_status(desired, actual) do
-    comparable = [:name, :type, :content, :priority, :port, :weight, :ttl]
+    comparable = [
+      :name,
+      :type,
+      :content,
+      :priority,
+      :port,
+      :weight,
+      :ttl,
+      :flags,
+      :tag,
+      :protocol,
+      :algorithm,
+      :key_tag,
+      :digest_type,
+      :usage,
+      :selector,
+      :matching_type
+    ]
 
     if Enum.all?(comparable, fn key -> Map.get(desired, key) == Map.get(actual, key) end) do
       "ok"
@@ -352,6 +378,14 @@ defmodule Elektrine.DNS.ManagedRecords do
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""
   defp blank?(nil), do: true
   defp blank?(_), do: false
+
+  defp put_default_setting(settings, key, value) do
+    if blank?(Map.get(settings, key)) do
+      Map.put(settings, key, value)
+    else
+      settings
+    end
+  end
 
   defp dkim_module,
     do: Application.get_env(:elektrine, :managed_dns_dkim_module, Elektrine.Email.DKIM)

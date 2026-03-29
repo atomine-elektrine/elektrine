@@ -68,6 +68,24 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       assert response(conn, 200) == "allowed"
     end
 
+    test "allows built-in mta-sts domains", %{conn: conn, api_key: api_key} do
+      previous_email = Application.get_env(:elektrine, :email, [])
+      domain = Application.get_env(:elektrine, :primary_domain, "example.com") |> to_string()
+
+      Application.put_env(
+        :elektrine,
+        :email,
+        Keyword.put(previous_email, :supported_domains, [domain])
+      )
+
+      on_exit(fn -> Application.put_env(:elektrine, :email, previous_email) end)
+
+      conn = get(conn, allow_path(api_key, "mta-sts.#{domain}"))
+
+      assert conn.status == 200
+      assert response(conn, 200) == "allowed"
+    end
+
     test "rejects unknown domains", %{conn: conn, api_key: api_key} do
       conn = get(conn, allow_path(api_key, "unknown-profile-domain.test"))
 
