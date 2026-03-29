@@ -25,6 +25,7 @@ defmodule Elektrine.DNS.Zone do
 
     belongs_to :user, Elektrine.Accounts.User
     has_many :records, Elektrine.DNS.Record, foreign_key: :zone_id
+    has_many :service_configs, Elektrine.DNS.ZoneServiceConfig, foreign_key: :zone_id
 
     timestamps(type: :utc_datetime)
   end

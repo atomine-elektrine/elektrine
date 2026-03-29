@@ -45,8 +45,14 @@ defmodule Elektrine.DNS.Packet do
     end
   end
 
+  def encode_query(%{id: id, rd: rd, qname: qname, qtype: qtype}) do
+    flags = if rd in [1, true], do: 1 <<< 8, else: 0
+    question = encode_name(qname) <> <<encode_type(qtype)::16, 1::16>>
+    <<id::16, flags::16, 1::16, 0::16, 0::16, 0::16, question::binary>>
+  end
+
   def encode_response(query, answers, rcode, opts \\ []) do
-    flags = flags_for_reply(query.rd, rcode)
+    flags = flags_for_reply(query.rd, rcode, opts)
     question = encode_name(query.qname) <> <<encode_type(query.qtype)::16, 1::16>>
     answer_bin = Enum.map_join(answers, &encode_record(&1))
     authority = Keyword.get(opts, :authority, [])
@@ -59,8 +65,11 @@ defmodule Elektrine.DNS.Packet do
       additional_bin::binary>>
   end
 
-  defp flags_for_reply(rd, rcode) do
-    1 <<< 15 ||| 1 <<< 10 ||| rd <<< 8 ||| Map.fetch!(@rcode_map, rcode)
+  defp flags_for_reply(rd, rcode, opts \\ []) do
+    aa = if Keyword.get(opts, :authoritative, false), do: 1 <<< 10, else: 0
+    ra = if Keyword.get(opts, :recursion_available, false), do: 1 <<< 7, else: 0
+
+    1 <<< 15 ||| aa ||| rd <<< 8 ||| ra ||| Map.fetch!(@rcode_map, rcode)
   end
 
   defp decode_name(data, packet), do: decode_name(data, packet, [], 0)

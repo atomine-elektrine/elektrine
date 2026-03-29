@@ -158,6 +158,7 @@ services:
       ELEKTRINE_ENABLE_MAIL: "false"
       ELEKTRINE_ENABLE_TOR: "false"
       DNS_AUTHORITY_ENABLED: "true"
+      DNS_RECURSIVE_ENABLED: ${DNS_RECURSIVE_ENABLED:-true}
     ports:
       - "${DNS_UDP_BIND:-53:5300/udp}"
       - "${DNS_TCP_BIND:-53:5300/tcp}"
@@ -183,12 +184,12 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"
       - "${CADDY_HTTPS_BIND:-443:443}"
     volumes:
-      - ../caddy/Caddyfile.baremetal:/etc/caddy/Caddyfile:ro
+      - ${CADDY_CONFIG_PATH:-../caddy/Caddyfile.baremetal}:/etc/caddy/Caddyfile:ro
+      - ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs:ro
       - caddy_data:/data
     networks:
       - elektrine_network

@@ -789,14 +789,14 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
   defp authenticate(conn) do
     webhook_api_key =
-      ["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY"]
+      ["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY", "INTERNAL_API_KEY"]
       |> Enum.find_value(fn env_name ->
         case System.get_env(env_name) do
           nil -> nil
           "" -> nil
           value -> value
         end
-      end)
+      end) || Application.get_env(:elektrine, :internal_api_key)
 
     if is_nil(webhook_api_key) || webhook_api_key == "" do
       Logger.error("SECURITY: Webhook authentication configuration error")
@@ -1061,8 +1061,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp valid_internal_origin_signature?(params, from) do
-    with secret when is_binary(secret) and secret != "" <-
-           System.get_env("HARAKA_INTERNAL_SIGNING_SECRET"),
+    with secret when is_binary(secret) and secret != "" <- internal_signing_secret(),
          headers when is_map(headers) <- params["headers"] || %{},
          "internal" <- header_value(headers, ["x-elektrine-origin", "X-Elektrine-Origin"]),
          ts when is_binary(ts) and ts != "" <-
@@ -1077,6 +1076,11 @@ defmodule ElektrineWeb.HarakaWebhookController do
     else
       _ -> false
     end
+  end
+
+  defp internal_signing_secret do
+    System.get_env("HARAKA_INTERNAL_SIGNING_SECRET") ||
+      Application.get_env(:elektrine, :email, []) |> Keyword.get(:internal_signing_secret)
   end
 
   defp header_value(headers, candidates) do

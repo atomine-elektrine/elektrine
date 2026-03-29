@@ -3,9 +3,19 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   alias Elektrine.Platform.Modules
 
-  @supported_email_services ["haraka"]
-  @haraka_outbound_keys ["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY"]
-  @haraka_inbound_keys ["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY"]
+  @haraka_outbound_keys [
+    "HARAKA_HTTP_API_KEY",
+    "HARAKA_OUTBOUND_API_KEY",
+    "HARAKA_API_KEY",
+    "INTERNAL_API_KEY"
+  ]
+  @haraka_inbound_keys [
+    "PHOENIX_API_KEY",
+    "HARAKA_INBOUND_API_KEY",
+    "HARAKA_API_KEY",
+    "INTERNAL_API_KEY"
+  ]
+  @derived_secret_roots ["ELEKTRINE_MASTER_SECRET", "SECRET_KEY_BASE"]
 
   def validate!(opts \\ []) do
     case validate(opts) do
@@ -46,13 +56,15 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   defp maybe_validate_session_secrets(errors, :prod, env) do
     errors
-    |> require_present(
-      env_value(env, "SESSION_SIGNING_SALT"),
-      "production requires SESSION_SIGNING_SALT so LiveView and cookie sessions stay consistent across instances"
+    |> require_any(
+      env,
+      ["SESSION_SIGNING_SALT" | @derived_secret_roots],
+      "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so LiveView and cookie sessions stay consistent across instances"
     )
-    |> require_present(
-      env_value(env, "SESSION_ENCRYPTION_SALT"),
-      "production requires SESSION_ENCRYPTION_SALT so cookie sessions can be decrypted consistently across instances"
+    |> require_any(
+      env,
+      ["SESSION_ENCRYPTION_SALT" | @derived_secret_roots],
+      "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances"
     )
   end
 
@@ -60,37 +72,31 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   defp maybe_validate_email(errors, enabled_modules, env) do
     if :email in enabled_modules do
-      email_service = env_value(env, "EMAIL_SERVICE")
-
       errors
       |> require_any(env, ["PRIMARY_DOMAIN"], "email module requires PRIMARY_DOMAIN")
-      |> require_present(email_service, "email module requires EMAIL_SERVICE=haraka")
-      |> require_supported_email_service(email_service)
-      |> maybe_validate_haraka(email_service, env)
+      |> maybe_validate_haraka(env)
     else
       errors
     end
   end
 
-  defp maybe_validate_haraka(errors, "haraka", env) do
+  defp maybe_validate_haraka(errors, env) do
     errors
     |> require_present(
       env_value(env, "HARAKA_BASE_URL"),
-      "email module with EMAIL_SERVICE=haraka requires HARAKA_BASE_URL"
+      "email module requires HARAKA_BASE_URL"
     )
     |> require_any(
       env,
-      @haraka_outbound_keys,
-      "email module with EMAIL_SERVICE=haraka requires one of #{Enum.join(@haraka_outbound_keys, ", ")}"
+      @haraka_outbound_keys ++ @derived_secret_roots,
+      "email module requires one of #{Enum.join(@haraka_outbound_keys, ", ")} or ELEKTRINE_MASTER_SECRET"
     )
     |> require_any(
       env,
-      @haraka_inbound_keys,
-      "email module with EMAIL_SERVICE=haraka requires one of #{Enum.join(@haraka_inbound_keys, ", ")}"
+      @haraka_inbound_keys ++ @derived_secret_roots,
+      "email module requires one of #{Enum.join(@haraka_inbound_keys, ", ")} or ELEKTRINE_MASTER_SECRET"
     )
   end
-
-  defp maybe_validate_haraka(errors, _email_service, _env), do: errors
 
   defp maybe_validate_vpn(errors, enabled_modules, env) do
     if :vpn in enabled_modules do
@@ -101,20 +107,6 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
       )
     else
       errors
-    end
-  end
-
-  defp require_supported_email_service(errors, nil), do: errors
-  defp require_supported_email_service(errors, ""), do: errors
-
-  defp require_supported_email_service(errors, email_service) do
-    if email_service in @supported_email_services do
-      errors
-    else
-      [
-        "email module does not support EMAIL_SERVICE=#{email_service}; supported values: #{Enum.join(@supported_email_services, ", ")}"
-        | errors
-      ]
     end
   end
 

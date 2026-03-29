@@ -143,7 +143,7 @@ defmodule Elektrine.Email.HarakaAdapter do
 
   # Get the API key (no domain-specific logic needed)
   defp get_api_key_for_email(_from_address, default_key) do
-    ["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY"]
+    ["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY", "INTERNAL_API_KEY"]
     |> Enum.find_value(fn env_name ->
       case System.get_env(env_name) do
         nil -> nil

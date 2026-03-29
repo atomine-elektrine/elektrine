@@ -151,6 +151,49 @@ function notifyAdminSecurityError(message) {
   }
 }
 
+function requestFormSubmit(form, submitter) {
+  if (typeof form.requestSubmit === 'function') {
+    if (submitter) {
+      form.requestSubmit(submitter)
+    } else {
+      form.requestSubmit()
+    }
+
+    return
+  }
+
+  const submitEvent = new Event('submit', { bubbles: true, cancelable: true })
+
+  if (form.dispatchEvent(submitEvent)) {
+    HTMLFormElement.prototype.submit.call(form)
+  }
+}
+
+function bindSensitiveConfirm(submitter, form) {
+  if (!submitter) return
+  if (submitter.dataset.adminResignConfirmBound === 'true') return
+  if (!submitter.hasAttribute('data-confirm')) return
+
+  submitter.dataset.adminResignConfirmBound = 'true'
+
+  submitter.addEventListener(
+    'click',
+    (event) => {
+      if (submitter.form !== form) return
+      if (!window.confirm(submitter.getAttribute('data-confirm') || 'Are you sure?')) {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        return
+      }
+
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      requestFormSubmit(form, submitter)
+    },
+    true
+  )
+}
+
 async function signFormAction(form) {
   const method = resolveFormMethod(form)
   const path = parseActionPath(form.getAttribute('action') || window.location.pathname)
@@ -179,6 +222,10 @@ function bindSensitiveForm(form) {
   if (!shouldInterceptForm(form) || form.dataset.adminResignBound === 'true') return
 
   form.dataset.adminResignBound = 'true'
+
+  form
+    .querySelectorAll("button[type='submit'][data-confirm], input[type='submit'][data-confirm]")
+    .forEach((submitter) => bindSensitiveConfirm(submitter, form))
 
   form.addEventListener('submit', async (event) => {
     if (form.dataset.adminResignInFlight === 'true') return

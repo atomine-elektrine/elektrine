@@ -29,11 +29,11 @@ defmodule ElektrineWeb.SessionConfig do
   end
 
   def signing_salt do
-    System.get_env("SESSION_SIGNING_SALT") || default_signing_salt()
+    Application.get_env(:elektrine, :session_signing_salt) || default_signing_salt()
   end
 
   def encryption_salt do
-    System.get_env("SESSION_ENCRYPTION_SALT") || default_encryption_salt()
+    Application.get_env(:elektrine, :session_encryption_salt) || default_encryption_salt()
   end
 
   def secure_cookies? do

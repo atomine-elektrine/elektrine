@@ -76,6 +76,36 @@ defmodule Elektrine.Email.DKIM do
     end
   end
 
+  @spec sync_domain(String.t(), String.t(), String.t()) :: :ok | {:error, String.t()}
+  def sync_domain(domain, selector, private_key)
+      when is_binary(domain) and is_binary(selector) and is_binary(private_key) do
+    with true <- String.trim(selector) != "" and String.trim(private_key) != "",
+         {:ok, request_config} <- request_config(domain) do
+      body = Jason.encode!(%{selector: selector, private_key: private_key})
+
+      case http_client().request(
+             :put,
+             request_config.url,
+             request_config.headers,
+             body,
+             receive_timeout: request_config.timeout
+           ) do
+        {:ok, %Finch.Response{status: status}} when status in 200..299 ->
+          :ok
+
+        {:ok, %Finch.Response{status: status, body: response_body}} ->
+          {:error,
+           "Haraka DKIM sync failed with status #{status}: #{normalize_error_body(response_body)}"}
+
+        {:error, reason} ->
+          {:error, "Haraka DKIM sync failed: #{inspect(reason)}"}
+      end
+    else
+      false -> {:error, "DKIM key material is missing"}
+      error -> error
+    end
+  end
+
   @spec delete_custom_domain(CustomDomain.t()) :: :ok | {:error, String.t()}
   def delete_custom_domain(%CustomDomain{} = custom_domain) do
     with {:ok, request_config} <- request_config(custom_domain.domain) do

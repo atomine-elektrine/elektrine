@@ -12,7 +12,7 @@ To enable mail:
 1. add the `email` module in `ELEKTRINE_RELEASE_MODULES` and `ELEKTRINE_ENABLED_MODULES`
 2. fill in the mail section already present in `.env.example` / `.env.production`
 3. deploy Haraka separately
-4. connect the two systems with `HARAKA_BASE_URL`, outbound API auth, and inbound webhook auth
+4. connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted
 
 ## Same-server option
 
@@ -33,16 +33,12 @@ Elektrine-side env values usually look like:
 
 ```dotenv
 PRIMARY_DOMAIN=example.com
-PHX_HOST=example.com
+ELEKTRINE_MASTER_SECRET=replace-with-long-random-secret
 EMAIL_DOMAIN=example.com
-SUPPORTED_DOMAINS=example.com
 ELEKTRINE_RELEASE_MODULES=chat,social,email,vault
 ELEKTRINE_ENABLED_MODULES=chat,social,email,vault
 
-EMAIL_SERVICE=haraka
 HARAKA_BASE_URL=https://mail.example.com
-HARAKA_HTTP_API_KEY=replace-me
-PHOENIX_API_KEY=replace-me
 DATABASE_SSL_ENABLED=false
 ```
 
@@ -60,6 +56,7 @@ Same-server networking guidance:
 - for same-server Docker, point `HARAKA_BASE_URL` at Haraka's shared-network API endpoint such as `http://haraka-outbound:8080`
 - if Haraka owns public SMTPS on `465`, move Phoenix's `SMTP_TLS_BIND` off that port (for example `127.0.0.1:2465:2587`)
 - share only the API credentials and webhook secrets, not the Compose project itself
+- by default Elektrine derives `INTERNAL_API_KEY`, `HARAKA_HTTP_API_KEY`, `PHOENIX_API_KEY`, `HARAKA_INTERNAL_SIGNING_SECRET`, and `EMAIL_RECEIVER_WEBHOOK_SECRET` from `ELEKTRINE_MASTER_SECRET`
 
 Suggested split:
 

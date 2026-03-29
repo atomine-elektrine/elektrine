@@ -1,5 +1,7 @@
 import Config
 
+alias Elektrine.RuntimeSecrets
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -19,6 +21,8 @@ import Config
 if System.get_env("PHX_SERVER") do
   config :elektrine, ElektrineWeb.Endpoint, server: true
 end
+
+runtime_env = System.get_env()
 
 # Lightweight messaging federation runtime configuration
 messaging_federation_enabled =
@@ -176,8 +180,25 @@ enabled_platform_modules =
 
 config :elektrine, :platform_modules, enabled: enabled_platform_modules
 
+dns_nameservers =
+  case System.get_env("DNS_NAMESERVERS") do
+    nil -> Application.get_env(:elektrine, :dns, []) |> Keyword.get(:nameservers, [])
+    "" -> []
+    value -> value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+  end
+
+dns_soa_rname =
+  case System.get_env("DNS_SOA_RNAME") do
+    nil -> Application.get_env(:elektrine, :dns, []) |> Keyword.get(:soa_rname)
+    "" -> nil
+    value -> String.trim(value)
+  end
+
 config :elektrine, :dns,
   authority_enabled: parse_bool_env.("DNS_AUTHORITY_ENABLED", false),
+  recursive_enabled: parse_bool_env.("DNS_RECURSIVE_ENABLED", false),
+  nameservers: dns_nameservers,
+  soa_rname: dns_soa_rname,
   udp_port:
     parse_int_env.(
       "DNS_UDP_PORT",
@@ -187,6 +208,11 @@ config :elektrine, :dns,
     parse_int_env.(
       "DNS_TCP_PORT",
       Application.get_env(:elektrine, :dns, []) |> Keyword.get(:tcp_port, 5300)
+    ),
+  recursive_timeout:
+    parse_int_env.(
+      "DNS_RECURSIVE_TIMEOUT_MS",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:recursive_timeout, 3000)
     )
 
 messaging_federation_delivery_concurrency =
@@ -353,7 +379,7 @@ email_auto_suppression_enabled =
 
 config :elektrine, :email_auto_suppression, email_auto_suppression_enabled
 
-# Configure Haraka HTTP API adapter if EMAIL_SERVICE is set to haraka (any environment)
+# Configure the Haraka mail adapter whenever the email module is enabled.
 runtime_primary_domain =
   System.get_env("PRIMARY_DOMAIN") ||
     Application.get_env(:elektrine, :primary_domain, "example.com")
@@ -362,11 +388,24 @@ runtime_email_domain =
   System.get_env("EMAIL_DOMAIN") ||
     Application.get_env(:elektrine, :email, []) |> Keyword.get(:domain, runtime_primary_domain)
 
-if System.get_env("EMAIL_SERVICE") == "haraka" do
+derived_internal_api_key = RuntimeSecrets.internal_api_key(runtime_env)
+derived_haraka_signing_secret = RuntimeSecrets.haraka_internal_signing_secret(runtime_env)
+derived_receiver_webhook_secret = RuntimeSecrets.email_receiver_webhook_secret(runtime_env)
+
+config :elektrine,
+  internal_api_key: derived_internal_api_key,
+  session_signing_salt: RuntimeSecrets.session_signing_salt(runtime_env),
+  session_encryption_salt: RuntimeSecrets.session_encryption_salt(runtime_env)
+
+if :email in enabled_platform_modules do
   config :elektrine, Elektrine.Mailer,
     adapter: Elektrine.Email.HarakaAdapter,
     api_key:
-      first_present_env.(["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY"]),
+      first_present_env.([
+        "HARAKA_HTTP_API_KEY",
+        "HARAKA_OUTBOUND_API_KEY",
+        "HARAKA_API_KEY"
+      ]) || derived_internal_api_key,
     base_url: first_present_env.(["HARAKA_BASE_URL"]) || "https://mail.#{runtime_email_domain}",
     timeout: 30_000
 
@@ -376,9 +415,9 @@ end
 
 # Configure encryption.
 # In production, encryption is optional: if secrets are missing, encryption is disabled.
-encryption_master_secret = System.get_env("ENCRYPTION_MASTER_SECRET")
-encryption_key_salt = System.get_env("ENCRYPTION_KEY_SALT")
-encryption_search_salt = System.get_env("ENCRYPTION_SEARCH_SALT")
+encryption_master_secret = RuntimeSecrets.encryption_master_secret(runtime_env)
+encryption_key_salt = RuntimeSecrets.encryption_key_salt(runtime_env)
+encryption_search_salt = RuntimeSecrets.encryption_search_salt(runtime_env)
 
 non_prod_encryption_master_secret =
   :crypto.hash(:sha256, "elektrine:nonprod:encryption_master_secret")
@@ -624,14 +663,14 @@ if config_env() == :prod do
   # to check this value into version control, so we use an environment
   # variable instead.
   secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
+    RuntimeSecrets.secret_key_base(runtime_env) ||
       raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
+      one of ELEKTRINE_MASTER_SECRET or SECRET_KEY_BASE must be set.
+      ELEKTRINE_MASTER_SECRET is recommended for deriving internal runtime secrets.
       """
 
   session_signing_salt =
-    System.get_env("SESSION_SIGNING_SALT") || "chat_auth_signing_salt"
+    RuntimeSecrets.session_signing_salt(runtime_env) || "chat_auth_signing_salt"
 
   present? = fn value -> is_binary(value) and String.trim(value) != "" end
 
@@ -700,8 +739,8 @@ if config_env() == :prod do
 
   custom_domain_mx_host =
     case System.get_env("CUSTOM_DOMAIN_MX_HOST") do
-      nil -> primary_domain
-      "" -> primary_domain
+      nil -> normalize_domain.("mail.#{email_domain}")
+      "" -> normalize_domain.("mail.#{email_domain}")
       value -> normalize_domain.(value)
     end
 
@@ -725,7 +764,7 @@ if config_env() == :prod do
 
   custom_domain_haraka_base_url =
     case first_present_env.(["CUSTOM_DOMAIN_HARAKA_BASE_URL", "HARAKA_BASE_URL"]) do
-      nil -> nil
+      nil -> "https://mail.#{email_domain}"
       value -> String.trim_trailing(value, "/")
     end
 
@@ -736,7 +775,7 @@ if config_env() == :prod do
            "HARAKA_OUTBOUND_API_KEY",
            "HARAKA_API_KEY"
          ]) do
-      nil -> nil
+      nil -> derived_internal_api_key
       value -> value
     end
 
@@ -780,6 +819,8 @@ if config_env() == :prod do
   config :elektrine, :email,
     domain: email_domain,
     allow_insecure_receiver_webhook: false,
+    receiver_webhook_secret: derived_receiver_webhook_secret,
+    internal_signing_secret: derived_haraka_signing_secret,
     supported_domains: supported_email_domains,
     custom_domain_mx_host: custom_domain_mx_host,
     custom_domain_mx_priority: custom_domain_mx_priority,

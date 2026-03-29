@@ -1,13 +1,15 @@
 defmodule Elektrine.DNS do
   @moduledoc """
-  Core context for Elektrine's managed authoritative DNS service.
+  Core context for Elektrine's managed DNS service.
   """
 
   import Ecto.Query, warn: false
 
   alias Elektrine.Accounts.User
+  alias Elektrine.DNS.ManagedRecords
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
+  alias Elektrine.DNS.ZoneServiceConfig
   alias Elektrine.Repo
 
   @record_types ~w(A AAAA CAA CNAME MX NS SRV TXT)
@@ -18,7 +20,7 @@ defmodule Elektrine.DNS do
     Zone
     |> where(user_id: ^user_id)
     |> order_by([z], asc: z.domain)
-    |> preload(:records)
+    |> preload([:records, :service_configs])
     |> Repo.all()
   end
 
@@ -38,7 +40,7 @@ defmodule Elektrine.DNS do
   def get_zone(id, user_id) when is_integer(id) and is_integer(user_id) do
     Zone
     |> where([z], z.id == ^id and z.user_id == ^user_id)
-    |> preload(:records)
+    |> preload([:records, :service_configs])
     |> Repo.one()
   end
 
@@ -49,7 +51,7 @@ defmodule Elektrine.DNS do
 
     Zone
     |> where([z], fragment("lower(?)", z.domain) == ^normalized)
-    |> preload(:records)
+    |> preload([:records, :service_configs])
     |> Repo.one()
   end
 
@@ -61,6 +63,10 @@ defmodule Elektrine.DNS do
     %Zone{}
     |> Zone.changeset(Map.put(attrs, "user_id", user_id))
     |> Repo.insert()
+    |> case do
+      {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
+      error -> error
+    end
   end
 
   def create_zone(_, _), do: {:error, :invalid_attributes}
@@ -79,6 +85,10 @@ defmodule Elektrine.DNS do
     zone
     |> Zone.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
+      error -> error
+    end
   end
 
   def delete_zone(%Zone{} = zone), do: Repo.delete(zone)
@@ -119,6 +129,33 @@ defmodule Elektrine.DNS do
     Record.changeset(%Record{}, %{zone_id: zone_id, ttl: default_ttl(), type: "A", name: "@"})
   end
 
+  def list_zone_service_configs(%Zone{id: zone_id}), do: list_zone_service_configs(zone_id)
+
+  def list_zone_service_configs(zone_id) when is_integer(zone_id) do
+    ManagedRecords.list_service_configs(zone_id)
+  end
+
+  def list_zone_service_configs(_), do: []
+
+  def get_zone_service_config(%Zone{id: zone_id}, service),
+    do: get_zone_service_config(zone_id, service)
+
+  def get_zone_service_config(zone_id, service) when is_integer(zone_id) do
+    Repo.get_by(ZoneServiceConfig, zone_id: zone_id, service: normalize_service(service))
+  end
+
+  def get_zone_service_config(_, _), do: nil
+
+  def apply_zone_service(%Zone{} = zone, service, attrs \\ %{}) do
+    ManagedRecords.apply_service(zone, service, attrs)
+  end
+
+  def disable_zone_service(%Zone{} = zone, service) do
+    ManagedRecords.apply_service(zone, service, %{"enabled" => false})
+  end
+
+  def zone_service_health(%Zone{} = zone), do: ManagedRecords.service_health(zone)
+
   def default_ttl do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:default_ttl, 300)
@@ -145,13 +182,70 @@ defmodule Elektrine.DNS do
   def zone_onboarding_records(%Zone{} = zone), do: Zone.nameserver_records(zone)
 
   def nameservers do
-    Application.get_env(:elektrine, :dns, [])
-    |> Keyword.get(:nameservers, ["ns1.elektrine.com", "ns2.elektrine.com"])
+    configured =
+      Application.get_env(:elektrine, :dns, [])
+      |> Keyword.get(:nameservers, [])
+
+    case Enum.reject(configured, &is_nil_or_blank/1) do
+      [] -> derive_nameservers()
+      nameservers -> nameservers
+    end
   end
 
   def authority_enabled? do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:authority_enabled, false)
+  end
+
+  def recursive_enabled? do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_enabled, false)
+  end
+
+  def recursive_upstreams do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_upstreams, [])
+  end
+
+  def recursive_root_hints do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_root_hints, [
+      {{198, 41, 0, 4}, 53},
+      {{170, 247, 170, 2}, 53},
+      {{192, 33, 4, 12}, 53},
+      {{199, 7, 91, 13}, 53},
+      {{192, 203, 230, 10}, 53},
+      {{192, 5, 5, 241}, 53},
+      {{192, 112, 36, 4}, 53},
+      {{198, 97, 190, 53}, 53},
+      {{192, 36, 148, 17}, 53},
+      {{192, 58, 128, 30}, 53},
+      {{193, 0, 14, 129}, 53},
+      {{199, 7, 83, 42}, 53},
+      {{202, 12, 27, 33}, 53}
+    ])
+  end
+
+  def recursive_timeout do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_timeout, 3_000)
+  end
+
+  def recursive_transport do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_transport, Elektrine.DNS.RecursiveTransport)
+  end
+
+  def recursive_allow_cidrs do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:recursive_allow_cidrs, [
+      "127.0.0.0/8",
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16",
+      "::1/128",
+      "fc00::/7"
+    ])
   end
 
   def udp_port do
@@ -165,9 +259,33 @@ defmodule Elektrine.DNS do
   end
 
   def soa_rname do
-    Application.get_env(:elektrine, :dns, [])
-    |> Keyword.get(:soa_rname, "hostmaster.elektrine.com")
+    case Application.get_env(:elektrine, :dns, []) |> Keyword.get(:soa_rname) do
+      value when is_binary(value) and value != "" -> value
+      _ -> derive_soa_rname()
+    end
   end
+
+  defp derive_nameservers do
+    case primary_domain() do
+      nil -> ["ns1.example.com", "ns2.example.com"]
+      domain -> ["ns1.#{domain}", "ns2.#{domain}"]
+    end
+  end
+
+  defp derive_soa_rname do
+    case primary_domain() do
+      nil -> "hostmaster.example.com"
+      domain -> "hostmaster.#{domain}"
+    end
+  end
+
+  defp primary_domain do
+    Application.get_env(:elektrine, :primary_domain)
+  end
+
+  defp is_nil_or_blank(nil), do: true
+  defp is_nil_or_blank(value) when is_binary(value), do: String.trim(value) == ""
+  defp is_nil_or_blank(_), do: false
 
   defp verify_nameservers(%Zone{domain: domain}) do
     expected = nameservers() |> Enum.map(&String.downcase/1) |> Enum.sort()
@@ -187,4 +305,7 @@ defmodule Elektrine.DNS do
   rescue
     error -> {:error, "NS lookup failed: #{inspect(error)}"}
   end
+
+  defp normalize_service(service) when is_binary(service), do: String.downcase(service)
+  defp normalize_service(service), do: to_string(service) |> String.downcase()
 end

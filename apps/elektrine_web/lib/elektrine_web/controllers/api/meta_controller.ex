@@ -293,6 +293,20 @@ defmodule ElektrineWeb.API.MetaController do
       },
       %{
         method: "POST",
+        path: "/api/ext/v1/dns/zones/:id/services/:service/apply",
+        summary: "Apply managed DNS records for a zone service",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "DELETE",
+        path: "/api/ext/v1/dns/zones/:id/services/:service",
+        summary: "Disable managed DNS records for a zone service",
+        required_scopes: ["write:dns"],
+        platform_module: :dns
+      },
+      %{
+        method: "POST",
         path: "/api/ext/v1/dns/zones/:zone_id/records",
         summary: "Create a DNS record in a managed zone",
         required_scopes: ["write:dns"],

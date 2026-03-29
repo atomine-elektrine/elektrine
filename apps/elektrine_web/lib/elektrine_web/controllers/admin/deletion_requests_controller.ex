@@ -88,6 +88,36 @@ defmodule ElektrineWeb.Admin.DeletionRequestsController do
     approve(conn, %{"id" => id, "admin_notes" => ""})
   end
 
+  def bulk_approve(conn, params) do
+    admin = conn.assigns.current_user
+    admin_notes = Map.get(params, "admin_notes", "")
+
+    request_ids =
+      params
+      |> Map.get("request_ids", [])
+      |> List.wrap()
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.uniq()
+
+    case request_ids do
+      [] ->
+        conn
+        |> put_flash(:error, "Select at least one pending request to approve.")
+        |> redirect(to: ~p"/pripyat/deletion-requests")
+
+      _ ->
+        {approved_count, skipped_count} =
+          approve_selected_requests(request_ids, admin, admin_notes, conn)
+
+        conn
+        |> put_flash(
+          flash_kind(approved_count),
+          bulk_approval_message(approved_count, skipped_count)
+        )
+        |> redirect(to: ~p"/pripyat/deletion-requests")
+    end
+  end
+
   def deny(conn, %{"id" => id, "admin_notes" => admin_notes}) do
     request = Accounts.get_deletion_request!(id)
     admin = conn.assigns.current_user
@@ -131,5 +161,65 @@ defmodule ElektrineWeb.Admin.DeletionRequestsController do
 
   defp get_remote_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)
+  end
+
+  defp approve_selected_requests(request_ids, admin, admin_notes, conn) do
+    Enum.reduce(request_ids, {0, 0}, fn request_id, {approved_count, skipped_count} ->
+      try do
+        case Accounts.get_deletion_request!(request_id) do
+          %{status: "pending"} = request ->
+            case Accounts.review_deletion_request(request, admin, "approved", %{
+                   admin_notes: admin_notes
+                 }) do
+              {:ok, _updated_request} ->
+                log_approval(conn, admin, request, admin_notes)
+                {approved_count + 1, skipped_count}
+
+              {:error, _reason} ->
+                {approved_count, skipped_count + 1}
+            end
+
+          _request ->
+            {approved_count, skipped_count + 1}
+        end
+      rescue
+        Ecto.NoResultsError ->
+          {approved_count, skipped_count + 1}
+      end
+    end)
+  end
+
+  defp log_approval(conn, admin, request, admin_notes) do
+    Elektrine.AuditLog.log(
+      admin.id,
+      "approve",
+      "deletion_request",
+      details: %{
+        request_id: request.id,
+        deleted_user_id: request.user_id,
+        deleted_username: request.user.username,
+        admin_notes: admin_notes,
+        requested_at: request.inserted_at,
+        bulk: true
+      },
+      ip_address: get_remote_ip(conn),
+      user_agent: get_req_header(conn, "user-agent") |> List.first()
+    )
+  end
+
+  defp flash_kind(approved_count) when approved_count > 0, do: :info
+  defp flash_kind(_approved_count), do: :error
+
+  defp bulk_approval_message(approved_count, skipped_count) do
+    cond do
+      approved_count > 0 and skipped_count == 0 ->
+        "Approved #{approved_count} deletion request(s) and deleted the selected account(s)."
+
+      approved_count > 0 ->
+        "Approved #{approved_count} deletion request(s). Skipped #{skipped_count} request(s) that were missing, already reviewed, or failed."
+
+      true ->
+        "None of the selected requests could be approved. They may already be reviewed or no longer exist."
+    end
   end
 end
