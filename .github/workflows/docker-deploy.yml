@@ -127,15 +127,11 @@ jobs:
           cd "$DEPLOY_PATH"
           git fetch --all --tags
 
-          WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree"
+          WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree.$(date +%s).$$"
 
           OUTPUT_FILE="$WORKTREE_PATH/deploy/docker/generated.docker.yml"
           OVERRIDE_FILE="$(mktemp /tmp/elektrine.docker-image.override.XXXXXX.yml)"
           trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"; rm -f "$OVERRIDE_FILE"' EXIT
-
-          if [ -d "$WORKTREE_PATH" ]; then
-            git worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"
-          fi
 
           git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
           ln -sfn "$DEPLOY_PATH/.env.production" "$WORKTREE_PATH/.env.production"
