@@ -10,6 +10,9 @@ defmodule ElektrineWeb.GalleryLive.Index do
 
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   import ElektrineWeb.Live.NotificationHelpers
+
+  @gallery_page_size 60
+
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -89,7 +92,8 @@ defmodule ElektrineWeb.GalleryLive.Index do
        |> assign(:gallery_posts, posts)
        |> assign(:user_likes, user_likes)
        |> assign(:user_saved_posts, user_saved_posts)
-       |> assign(:end_of_feed, false)
+       |> assign(:loading_more, false)
+       |> assign(:end_of_feed, length(posts) < @gallery_page_size)
        |> apply_gallery_filter()}
     end
   end
@@ -779,6 +783,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
      |> assign(:suggested_photographers, suggested_photographers)
      |> assign(:trending_tags, trending_tags)
      |> assign(:loading_gallery, false)
+     |> assign(:end_of_feed, length(gallery_posts) < @gallery_page_size)
      |> apply_gallery_filter()}
   end
 
@@ -807,7 +812,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
   defp get_gallery_feed("discover", _user, opts) do
     import Ecto.Query
     before_timestamp = Keyword.get(opts, :before_timestamp)
-    limit = Keyword.get(opts, :limit, 60)
+    limit = Keyword.get(opts, :limit, @gallery_page_size)
     before_naive = normalize_to_naive(before_timestamp)
 
     local_query =
@@ -864,7 +869,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
     if user do
       import Ecto.Query
       before_timestamp = Keyword.get(opts, :before_timestamp)
-      limit = Keyword.get(opts, :limit, 60)
+      limit = Keyword.get(opts, :limit, @gallery_page_size)
       before_naive = normalize_to_naive(before_timestamp)
 
       following_user_ids =
@@ -949,7 +954,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
     if user do
       import Ecto.Query
       before_timestamp = Keyword.get(opts, :before_timestamp)
-      limit = Keyword.get(opts, :limit, 60)
+      limit = Keyword.get(opts, :limit, @gallery_page_size)
       before_naive = normalize_to_naive(before_timestamp)
 
       query =
@@ -983,7 +988,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
     if user do
       import Ecto.Query
       before_timestamp = Keyword.get(opts, :before_timestamp)
-      limit = Keyword.get(opts, :limit, 60)
+      limit = Keyword.get(opts, :limit, @gallery_page_size)
       before_naive = normalize_to_naive(before_timestamp)
 
       query =
@@ -1016,7 +1021,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
   defp get_gallery_feed("trending", _user, opts) do
     import Ecto.Query
     before_timestamp = Keyword.get(opts, :before_timestamp)
-    limit = Keyword.get(opts, :limit, 60)
+    limit = Keyword.get(opts, :limit, @gallery_page_size)
     before_naive = normalize_to_naive(before_timestamp)
 
     local_query =

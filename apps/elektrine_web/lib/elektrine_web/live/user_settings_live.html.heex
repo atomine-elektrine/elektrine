@@ -3,7 +3,11 @@
   phx-hook="GlassCardContainer"
   class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
 >
-  <ElektrineWeb.Components.Platform.ENav.e_nav active_tab="account" current_user={@current_user} />
+  <ElektrineWeb.Components.Platform.ENav.e_nav
+    active_tab="account"
+    current_user={@current_user}
+    class="mb-6 sm:mb-8"
+  />
 
   <div class="mb-6 sm:mb-8">
     <h1 class="text-2xl sm:text-3xl font-bold text-base-content">

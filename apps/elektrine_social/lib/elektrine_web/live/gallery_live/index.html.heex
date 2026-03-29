@@ -358,6 +358,8 @@
       phx-hook="InfiniteScroll"
       id="gallery-infinite-scroll"
       data-offset="500"
+      data-no-more={@end_of_feed}
+      data-loading-more={@loading_gallery || @loading_more}
     >
       <%= if @loading_gallery do %>
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -395,7 +397,10 @@
               all_urls = Jason.encode!(gallery_image_urls(photo))
               is_liked = MapSet.member?(@user_likes, photo.id)
               is_saved = MapSet.member?(@user_saved_posts, photo.id) %>
-              <div class="card border border-base-300 bg-base-100/90 shadow-sm overflow-hidden">
+              <div
+                class="card border border-base-300 bg-base-100/90 shadow-sm overflow-hidden"
+                data-post-id={photo.id}
+              >
                 <div
                   class="relative aspect-[4/5] cursor-pointer"
                   phx-click="open_image_modal"
@@ -527,6 +532,14 @@
               No more photos to load
             </div>
           <% end %>
+
+          <div
+            :if={!@end_of_feed}
+            class="h-px w-full"
+            data-infinite-scroll-sentinel
+            aria-hidden="true"
+          >
+          </div>
         <% end %>
       <% end %>
     </div>
