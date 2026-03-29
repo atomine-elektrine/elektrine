@@ -254,6 +254,45 @@ defmodule Elektrine.DNS.Recursive do
           ttl: rr_ttl(rr)
         }
 
+      :ds ->
+        {key_tag, algorithm, digest_type, digest} = rr_data(rr)
+
+        %{
+          name: rr_domain(rr),
+          type: :ds,
+          key_tag: key_tag,
+          algorithm: algorithm,
+          digest_type: digest_type,
+          content: Base.encode16(digest, case: :upper),
+          ttl: rr_ttl(rr)
+        }
+
+      :dnskey ->
+        {flags, protocol, algorithm, public_key} = rr_data(rr)
+
+        %{
+          name: rr_domain(rr),
+          type: :dnskey,
+          flags: flags,
+          protocol: protocol,
+          algorithm: algorithm,
+          content: Base.encode64(public_key),
+          ttl: rr_ttl(rr)
+        }
+
+      :tlsa ->
+        {usage, selector, matching_type, association_data} = rr_data(rr)
+
+        %{
+          name: rr_domain(rr),
+          type: :tlsa,
+          usage: usage,
+          selector: selector,
+          matching_type: matching_type,
+          content: Base.encode16(association_data, case: :upper),
+          ttl: rr_ttl(rr)
+        }
+
       :soa ->
         {mname, rname, serial, refresh, retry, expire, minimum} = rr_data(rr)
 

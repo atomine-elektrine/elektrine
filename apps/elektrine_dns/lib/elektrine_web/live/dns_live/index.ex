@@ -461,7 +461,7 @@ defmodule ElektrineWeb.DNSLive.Index do
                         >
                           <input type="hidden" name="service" value={health.service} />
                           <%= if health.service == "mail" do %>
-                            <div class="grid gap-4 md:grid-cols-2">
+                            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:mail_target]}
                                 label="Mail target"
@@ -475,6 +475,21 @@ defmodule ElektrineWeb.DNSLive.Index do
                                   {"reject", "reject"},
                                   {"none", "none"}
                                 ]}
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:mta_sts_mode]}
+                                type="select"
+                                label="MTA-STS mode"
+                                options={[
+                                  {"enforce", "enforce"},
+                                  {"testing", "testing"},
+                                  {"none", "none"}
+                                ]}
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:tls_rpt_rua]}
+                                label="TLS-RPT rua"
+                                placeholder={"mailto:postmaster@" <> @active_zone.domain}
                               />
                             </div>
                           <% end %>
@@ -542,22 +557,22 @@ defmodule ElektrineWeb.DNSLive.Index do
                           label="Type"
                           options={Enum.map(@record_types, &{&1, &1})}
                         />
+                        <% value_spec = record_value_spec(@record_form) %>
                         <.input
                           field={@record_form[:content]}
-                          label="Value"
-                          placeholder="198.51.100.42"
+                          label={value_spec.label}
+                          placeholder={value_spec.placeholder}
                           required
                         />
                         <.input field={@record_form[:ttl]} type="number" label="TTL" />
-                        <.input
-                          field={@record_form[:priority]}
-                          type="number"
-                          label="Priority (MX/SRV)"
-                        />
-                        <.input field={@record_form[:weight]} type="number" label="Weight (SRV)" />
-                        <.input field={@record_form[:port]} type="number" label="Port (SRV)" />
-                        <.input field={@record_form[:flags]} type="number" label="Flags (CAA)" />
-                        <.input field={@record_form[:tag]} label="Tag (CAA)" placeholder="issue" />
+                        <%= for spec <- record_param_specs(@record_form) do %>
+                          <.input
+                            field={@record_form[spec.field]}
+                            type={spec.type}
+                            label={spec.label}
+                            placeholder={spec.placeholder}
+                          />
+                        <% end %>
                       </div>
                       <:actions>
                         <.button>Save changes</.button>
@@ -604,7 +619,7 @@ defmodule ElektrineWeb.DNSLive.Index do
                               </div>
                             </td>
                             <td>{record.type}</td>
-                            <td class="font-mono text-xs break-all">{record.content}</td>
+                            <td class="font-mono text-xs break-all">{record_rdata(record)}</td>
                             <td>{record.ttl}</td>
                             <td>
                               <div class="flex gap-2">
@@ -661,18 +676,22 @@ defmodule ElektrineWeb.DNSLive.Index do
                       label="Type"
                       options={Enum.map(@record_types, &{&1, &1})}
                     />
+                    <% value_spec = record_value_spec(@record_form) %>
                     <.input
                       field={@record_form[:content]}
-                      label="Value"
-                      placeholder="198.51.100.42"
+                      label={value_spec.label}
+                      placeholder={value_spec.placeholder}
                       required
                     />
                     <.input field={@record_form[:ttl]} type="number" label="TTL" />
-                    <.input field={@record_form[:priority]} type="number" label="Priority (MX/SRV)" />
-                    <.input field={@record_form[:weight]} type="number" label="Weight (SRV)" />
-                    <.input field={@record_form[:port]} type="number" label="Port (SRV)" />
-                    <.input field={@record_form[:flags]} type="number" label="Flags (CAA)" />
-                    <.input field={@record_form[:tag]} label="Tag (CAA)" placeholder="issue" />
+                    <%= for spec <- record_param_specs(@record_form) do %>
+                      <.input
+                        field={@record_form[spec.field]}
+                        type={spec.type}
+                        label={spec.label}
+                        placeholder={spec.placeholder}
+                      />
+                    <% end %>
                   </div>
                   <:actions>
                     <.button>Add DNS record</.button>
@@ -752,7 +771,15 @@ defmodule ElektrineWeb.DNSLive.Index do
   defp service_forms(nil) do
     %{
       "mail" =>
-        to_form(%{"mail_target" => "", "dmarc_policy" => "quarantine"}, as: :service_config),
+        to_form(
+          %{
+            "mail_target" => "",
+            "dmarc_policy" => "quarantine",
+            "mta_sts_mode" => "enforce",
+            "tls_rpt_rua" => ""
+          },
+          as: :service_config
+        ),
       "web" => to_form(%{"www_target" => ""}, as: :service_config)
     }
   end
@@ -764,7 +791,12 @@ defmodule ElektrineWeb.DNSLive.Index do
       "mail" =>
         service_form_from_health(
           Enum.find(health, &(&1.service == "mail")),
-          %{"mail_target" => dkim_module().mx_host(), "dmarc_policy" => "quarantine"}
+          %{
+            "mail_target" => dkim_module().mx_host(),
+            "dmarc_policy" => "quarantine",
+            "mta_sts_mode" => "enforce",
+            "tls_rpt_rua" => "mailto:postmaster@#{zone.domain}"
+          }
         ),
       "web" =>
         service_form_from_health(
@@ -818,9 +850,118 @@ defmodule ElektrineWeb.DNSLive.Index do
     }
   end
 
-  defp service_summary("mail"), do: "MX, SPF, DMARC, and common mail aliases."
+  defp service_summary("mail"),
+    do: "MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, and common mail aliases."
+
   defp service_summary("web"), do: "WWW alias and future web onboarding records."
   defp service_summary(_), do: "Managed DNS package."
+
+  defp record_value_spec(form) do
+    case record_form_type(form) do
+      "DNSKEY" -> %{label: "Public key", placeholder: "AwEAAc..."}
+      "DS" -> %{label: "Digest", placeholder: "2BB183AF5F22588179A53B0A98631FAD1A292118"}
+      "TLSA" -> %{label: "Certificate data", placeholder: "A1B2C3D4..."}
+      "TXT" -> %{label: "Text value", placeholder: "v=spf1 mx ~all"}
+      _ -> %{label: "Value", placeholder: "198.51.100.42"}
+    end
+  end
+
+  defp record_param_specs(form) do
+    case record_form_type(form) do
+      "MX" ->
+        [%{field: :priority, label: "Priority", placeholder: "10", type: "number"}]
+
+      "SRV" ->
+        [
+          %{field: :priority, label: "Priority", placeholder: "10", type: "number"},
+          %{field: :weight, label: "Weight", placeholder: "5", type: "number"},
+          %{field: :port, label: "Port", placeholder: "443", type: "number"}
+        ]
+
+      "CAA" ->
+        [
+          %{field: :flags, label: "Flags", placeholder: "0", type: "number"},
+          %{field: :tag, label: "Tag", placeholder: "issue", type: "text"}
+        ]
+
+      "DNSKEY" ->
+        [
+          %{field: :flags, label: "Flags", placeholder: "257", type: "number"},
+          %{field: :protocol, label: "Protocol", placeholder: "3", type: "number"},
+          %{field: :algorithm, label: "Algorithm", placeholder: "13", type: "number"}
+        ]
+
+      "DS" ->
+        [
+          %{field: :key_tag, label: "Key tag", placeholder: "12345", type: "number"},
+          %{field: :algorithm, label: "Algorithm", placeholder: "13", type: "number"},
+          %{field: :digest_type, label: "Digest type", placeholder: "2", type: "number"}
+        ]
+
+      "TLSA" ->
+        [
+          %{field: :usage, label: "Usage", placeholder: "3", type: "number"},
+          %{field: :selector, label: "Selector", placeholder: "1", type: "number"},
+          %{field: :matching_type, label: "Matching type", placeholder: "1", type: "number"}
+        ]
+
+      _ ->
+        []
+    end
+  end
+
+  defp record_form_type(form) do
+    form
+    |> Phoenix.HTML.Form.input_value(:type)
+    |> case do
+      nil -> "A"
+      value -> value |> to_string() |> String.upcase()
+    end
+  end
+
+  defp record_rdata(%{type: "MX", priority: priority, content: content}),
+    do: "#{priority || 10} #{content}"
+
+  defp record_rdata(%{
+         type: "SRV",
+         priority: priority,
+         weight: weight,
+         port: port,
+         content: content
+       }),
+       do: "#{priority || 0} #{weight || 0} #{port || 0} #{content}"
+
+  defp record_rdata(%{type: "CAA", flags: flags, tag: tag, content: content}),
+    do: "#{flags || 0} #{tag || "issue"} #{content}"
+
+  defp record_rdata(%{
+         type: "DNSKEY",
+         flags: flags,
+         protocol: protocol,
+         algorithm: algorithm,
+         content: content
+       }),
+       do: "#{flags || 0} #{protocol || 3} #{algorithm || 0} #{content}"
+
+  defp record_rdata(%{
+         type: "DS",
+         key_tag: key_tag,
+         algorithm: algorithm,
+         digest_type: digest_type,
+         content: content
+       }),
+       do: "#{key_tag || 0} #{algorithm || 0} #{digest_type || 0} #{content}"
+
+  defp record_rdata(%{
+         type: "TLSA",
+         usage: usage,
+         selector: selector,
+         matching_type: matching_type,
+         content: content
+       }),
+       do: "#{usage || 0} #{selector || 0} #{matching_type || 0} #{content}"
+
+  defp record_rdata(record), do: record.content
 
   defp zone_status_badge_class("verified"), do: "badge badge-success badge-outline"
   defp zone_status_badge_class("pending"), do: "badge badge-warning badge-outline"

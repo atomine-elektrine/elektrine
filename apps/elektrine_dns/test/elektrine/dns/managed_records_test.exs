@@ -48,7 +48,8 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
         "name" => "@",
         "type" => "MX",
         "ttl" => 300,
-        "content" => zone.domain
+        "content" => zone.domain,
+        "priority" => 10
       })
 
     assert {:ok, config} = DNS.apply_zone_service(zone, "mail")
@@ -136,6 +137,23 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
 
     zone = DNS.get_zone(zone.id, user.id)
     assert Enum.any?(zone.records, &(&1.service == "mail" and &1.managed_key == "mail:dkim"))
+
+    assert Enum.any?(
+             zone.records,
+             &(&1.service == "mail" and &1.managed_key == "mail:mta-sts-txt")
+           )
+
+    assert Enum.any?(zone.records, &(&1.service == "mail" and &1.managed_key == "mail:tls-rpt"))
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.name == "_mta-sts" and
+               String.starts_with?(record.content, "v=STSv1; id=")
+           end)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.name == "_smtp._tls" and
+               record.content == "v=TLSRPTv1; rua=mailto:postmaster@#{zone.domain}"
+           end)
   end
 
   test "service health reports managed record checks" do

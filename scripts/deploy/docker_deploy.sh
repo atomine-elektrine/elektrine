@@ -107,6 +107,43 @@ if [[ -z "$RENDER_PROFILES" ]]; then
   RENDER_PROFILES="${DOCKER_PROFILES:-caddy}"
 fi
 
+infer_caddy_config_default() {
+  if [[ -n "${CADDY_CONFIG_PATH:-}" ]]; then
+    printf '%s' "$CADDY_CONFIG_PATH"
+    return 0
+  fi
+
+  local default_path="../caddy/Caddyfile.baremetal"
+  local external_path="../caddy/Caddyfile.baremetal.external-certs"
+  local wildcard_path="../caddy/Caddyfile.baremetal.wildcard-external"
+
+  local site_values="${CADDY_MANAGED_SITE_1:-} ${CADDY_MANAGED_SITE_2:-}"
+  local has_wildcard=0
+  local has_external_cert=0
+
+  if [[ "$site_values" == *"*."* ]]; then
+    has_wildcard=1
+  fi
+
+  if [[ -n "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" && -n "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
+    has_external_cert=1
+  fi
+
+  if [[ -n "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" && -n "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ]]; then
+    has_external_cert=1
+  fi
+
+  if [[ "$has_external_cert" -eq 1 && "$has_wildcard" -eq 1 ]]; then
+    printf '%s' "$wildcard_path"
+  elif [[ "$has_external_cert" -eq 1 ]]; then
+    printf '%s' "$external_path"
+  else
+    printf '%s' "$default_path"
+  fi
+}
+
+INFERRED_CADDY_CONFIG_PATH="$(infer_caddy_config_default)"
+
 COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR" --env-file "$ENV_FILE")
 
 if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
@@ -125,7 +162,7 @@ if ! docker info >/dev/null 2>&1; then
   fi
 fi
 
-DOCKER_PROFILES="$RENDER_PROFILES" bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --profiles "$RENDER_PROFILES" --output "$OUTPUT_PATH"
+DOCKER_PROFILES="$RENDER_PROFILES" CADDY_DEFAULT_CONFIG_PATH="$INFERRED_CADDY_CONFIG_PATH" bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --profiles "$RENDER_PROFILES" --output "$OUTPUT_PATH"
 
 COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")
 for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do

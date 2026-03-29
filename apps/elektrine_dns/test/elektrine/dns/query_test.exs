@@ -15,7 +15,34 @@ defmodule Elektrine.DNS.QueryTest do
         %Record{name: "*", type: "A", content: "203.0.113.30", ttl: 300},
         %Record{name: "alias", type: "CNAME", content: "www.example.com", ttl: 300},
         %Record{name: "mail", type: "MX", content: "mx.example.com", ttl: 300, priority: 10},
-        %Record{name: "mx", type: "A", content: "203.0.113.40", ttl: 300}
+        %Record{name: "mx", type: "A", content: "203.0.113.40", ttl: 300},
+        %Record{
+          name: "@",
+          type: "DNSKEY",
+          content: "AQAB",
+          ttl: 300,
+          flags: 257,
+          protocol: 3,
+          algorithm: 13
+        },
+        %Record{
+          name: "delegated",
+          type: "DS",
+          content: "A1B2C3D4",
+          ttl: 300,
+          key_tag: 12345,
+          algorithm: 13,
+          digest_type: 2
+        },
+        %Record{
+          name: "_25._tcp.mail",
+          type: "TLSA",
+          content: "AABBCCDD",
+          ttl: 300,
+          usage: 3,
+          selector: 1,
+          matching_type: 1
+        }
       ]
     }
 
@@ -62,6 +89,30 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).ancount == 1
     assert header(response).arcount == 1
     assert response =~ <<203, 0, 113, 40>>
+  end
+
+  test "answers DNSKEY queries" do
+    response = Query.answer(build_query("example.com", 48))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<1, 1, 3, 13, 1, 0, 1>>
+  end
+
+  test "answers DS queries" do
+    response = Query.answer(build_query("delegated.example.com", 43))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<0x30, 0x39, 13, 2, 0xA1, 0xB2, 0xC3, 0xD4>>
+  end
+
+  test "answers TLSA queries" do
+    response = Query.answer(build_query("_25._tcp.mail.example.com", 52))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<3, 1, 1, 0xAA, 0xBB, 0xCC, 0xDD>>
   end
 
   defp build_query(name, type) do

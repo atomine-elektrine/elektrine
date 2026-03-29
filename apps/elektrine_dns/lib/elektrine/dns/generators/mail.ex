@@ -1,10 +1,12 @@
 defmodule Elektrine.DNS.Generators.Mail do
   @moduledoc false
 
+  alias Elektrine.DNS.MailSecurity
+
   def generate(zone, settings \\ %{}) do
     domain = zone.domain
     ttl = zone.default_ttl || 300
-    mail_target = Map.get(settings, "mail_target", domain)
+    mail_target = MailSecurity.mail_target(domain, settings)
     dmarc_policy = Map.get(settings, "dmarc_policy", "quarantine")
     dkim_selector = Map.get(settings, "dkim_selector", "default")
     dkim_value = Map.get(settings, "dkim_value", "")
@@ -46,6 +48,24 @@ defmodule Elektrine.DNS.Generators.Mail do
         content: dkim_value,
         required: true,
         metadata: %{"label" => "DKIM public key"}
+      },
+      %{
+        managed_key: "mail:mta-sts-txt",
+        name: "_mta-sts",
+        type: "TXT",
+        ttl: ttl,
+        content: MailSecurity.mta_sts_txt_value(domain, settings),
+        required: false,
+        metadata: %{"label" => "MTA-STS policy id"}
+      },
+      %{
+        managed_key: "mail:tls-rpt",
+        name: "_smtp._tls",
+        type: "TXT",
+        ttl: ttl,
+        content: MailSecurity.tls_rpt_txt_value(domain, settings),
+        required: false,
+        metadata: %{"label" => "TLS-RPT reporting policy"}
       }
     ] ++ aliases(domain, ttl)
   end
@@ -56,6 +76,7 @@ defmodule Elektrine.DNS.Generators.Mail do
           {"imap", "IMAP alias"},
           {"pop", "POP alias"},
           {"smtp", "SMTP alias"},
+          {"mta-sts", "MTA-STS policy host"},
           {"autoconfig", "Mail autoconfig alias"},
           {"autodiscover", "Mail autodiscover alias"}
         ] do

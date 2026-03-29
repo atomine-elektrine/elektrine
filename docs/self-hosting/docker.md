@@ -87,15 +87,17 @@ hostnames you actually use. If you only have an IP at first, bootstrap through
 plain `http://<server-ip>` and add a domain later.
 
 If you need one wildcard cert for many username subdomains, switch to the
-alternate Caddyfile with:
+wildcard external-cert Caddyfile with:
 
-- `CADDY_CONFIG_PATH=../caddy/Caddyfile.external-certs`
+- `CADDY_MANAGED_SITE_1="example.com *.example.com"`
 - `CADDY_TLS_MOUNT_DIR=/opt/elektrine/certs`
 - `CADDY_MANAGED_SITE_1_CERT_PATH=/opt/elektrine/certs/example.com.fullchain.pem`
 - `CADDY_MANAGED_SITE_1_KEY_PATH=/opt/elektrine/certs/example.com.key.pem`
 
 Then renew that wildcard certificate outside Docker and keep the host cert
-directory mounted read-only into the Caddy container.
+directory mounted read-only into the Caddy container. `scripts/deploy/docker_deploy.sh`
+auto-selects the wildcard Caddyfile for this combination, so `CADDY_CONFIG_PATH`
+usually does not need to be set manually.
 
 Preview what a deploy will run:
 

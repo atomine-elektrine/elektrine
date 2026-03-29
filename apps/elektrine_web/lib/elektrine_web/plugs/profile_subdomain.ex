@@ -25,6 +25,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
     pop3
     webmail
     jmap
+    mta-sts
     caldav
     carddav
     autodiscover

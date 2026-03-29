@@ -1,0 +1,58 @@
+{
+	email {$ACME_EMAIL}
+	storage file_system /data/caddy
+
+	servers :443 {
+		listener_wrappers {
+			proxy_protocol {
+				timeout 2s
+				allow 172.16.0.0/12
+				fallback_policy skip
+			}
+			tls
+		}
+	}
+
+	servers :80 {
+		listener_wrappers {
+			proxy_protocol {
+				timeout 2s
+				allow 172.16.0.0/12
+				fallback_policy skip
+			}
+		}
+	}
+}
+
+{$CADDY_MANAGED_SITE_1} {
+	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
+
+	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}
+
+{$CADDY_MANAGED_SITE_2} {
+	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
+
+	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+	}
+}
+
+http://{$CADDY_MANAGED_SITE_1} {
+	redir https://{host}{uri} 308
+}
+
+http://{$CADDY_MANAGED_SITE_2} {
+	redir https://{host}{uri} 308
+}
+
+:80 {
+	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto http
+	}
+}
