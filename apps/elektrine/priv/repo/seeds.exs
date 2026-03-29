@@ -134,27 +134,42 @@ if Mix.env() == :dev do
         ensure_test_password.(existing_user)
     end
 
-  # Helper function to get mailbox by email
-  get_mailbox_by_email = fn email ->
-    Email.Mailbox
-    |> where(email: ^email)
-    |> Repo.one()
+  preferred_mailbox_email = fn user ->
+    available_domains = Elektrine.Domains.available_email_domains_for_user(user.id)
+    preferred_domain = String.trim(user.preferred_email_domain || "")
+
+    mailbox_domain =
+      if preferred_domain != "" and preferred_domain in available_domains do
+        preferred_domain
+      else
+        List.first(available_domains) || Elektrine.Domains.default_user_handle_domain()
+      end
+
+    "#{user.username}@#{mailbox_domain}"
+  end
+
+  ensure_local_mailbox = fn user ->
+    expected_email = preferred_mailbox_email.(user)
+
+    case Enum.find(Email.list_mailboxes(user.id), &(&1.email == expected_email)) do
+      %Email.Mailbox{} = mailbox ->
+        {:ok, mailbox}
+
+      nil ->
+        Email.create_mailbox(%{email: expected_email, username: user.username, user_id: user.id})
+    end
   end
 
   # Create mailboxes for both users if they don't exist
-  _admin_mailbox =
+  admin_mailbox =
     if admin_user do
-      admin_email = "#{admin_user.username}@example.com"
-
-      case get_mailbox_by_email.(admin_email) do
-        nil ->
-          {:ok, mailbox} = Email.create_mailbox(%{email: admin_email, user_id: admin_user.id})
-          IO.puts("✓ Created admin mailbox: #{admin_email}")
+      case ensure_local_mailbox.(admin_user) do
+        {:ok, mailbox} ->
+          IO.puts("✓ Ensured admin mailbox: #{mailbox.email}")
           mailbox
 
-        existing ->
-          IO.puts("✓ Admin mailbox already exists: #{admin_email}")
-          existing
+        {:error, reason} ->
+          raise "Failed to ensure admin mailbox for #{admin_user.username}: #{inspect(reason)}"
       end
     else
       IO.puts("✗ Skipping admin mailbox creation (no admin user)")
@@ -162,17 +177,13 @@ if Mix.env() == :dev do
     end
 
   test_mailbox =
-    case get_mailbox_by_email.("testuser@example.com") do
-      nil ->
-        {:ok, mailbox} =
-          Email.create_mailbox(%{email: "testuser@example.com", user_id: test_user.id})
-
-        IO.puts("✓ Created test mailbox: testuser@example.com")
+    case ensure_local_mailbox.(test_user) do
+      {:ok, mailbox} ->
+        IO.puts("✓ Ensured test mailbox: #{mailbox.email}")
         mailbox
 
-      existing ->
-        IO.puts("✓ Test mailbox already exists")
-        existing
+      {:error, reason} ->
+        raise "Failed to ensure test mailbox for #{test_user.username}: #{inspect(reason)}"
     end
 
   IO.puts("Seeding email coverage...")
@@ -1085,22 +1096,13 @@ if Mix.env() == :dev do
   end
 
   ensure_user_mailbox = fn user ->
-    email = "#{user.username}@#{local_mail_domain}"
-
-    case get_mailbox_by_email.(email) do
-      nil ->
-        case Email.create_mailbox(%{email: email, user_id: user.id}) do
-          {:ok, mailbox} ->
-            IO.puts("✓ Created mailbox for '#{user.username}': #{email}")
-            mailbox
-
-          {:error, reason} ->
-            raise "Failed to create mailbox for #{user.username}: #{inspect(reason)}"
-        end
-
-      mailbox ->
-        IO.puts("✓ Mailbox already exists for '#{user.username}': #{email}")
+    case ensure_local_mailbox.(user) do
+      {:ok, mailbox} ->
+        IO.puts("✓ Ensured mailbox for '#{user.username}': #{mailbox.email}")
         mailbox
+
+      {:error, reason} ->
+        raise "Failed to ensure mailbox for #{user.username}: #{inspect(reason)}"
     end
   end
 
@@ -2173,12 +2175,12 @@ if Mix.env() == :dev do
   IO.puts("Available accounts:")
 
   if admin_user do
-    IO.puts("  Admin: #{admin_user.username} (#{admin_user.username}@example.com)")
+    IO.puts("  Admin: #{admin_user.username} (#{admin_mailbox.email})")
   else
     IO.puts("  Admin: [FAILED TO CREATE]")
   end
 
-  IO.puts("  Test User: testuser (testuser@example.com)")
+  IO.puts("  Test User: testuser (#{test_mailbox.email})")
 
   Enum.each(demo_user_specs, fn %{username: username} ->
     IO.puts("  Demo: #{username} (#{username}@#{local_mail_domain})")

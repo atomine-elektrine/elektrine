@@ -43,6 +43,32 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       assert Email.get_mailbox_by_email("nonexistent@example.com") == nil
     end
 
+    test "get_user_mailbox prefers the canonical mailbox when legacy duplicates exist", %{
+      user: user
+    } do
+      {:ok, canonical_mailbox} = Email.ensure_user_has_mailbox(user)
+
+      {:ok, _legacy_mailbox} =
+        Email.create_mailbox(%{email: "#{user.username}@example.net", user_id: user.id})
+
+      retrieved = Email.get_user_mailbox(user.id)
+      assert retrieved.id == canonical_mailbox.id
+      assert retrieved.username == user.username
+    end
+
+    test "ensure_user_has_mailbox returns the canonical mailbox when legacy duplicates exist", %{
+      user: user
+    } do
+      {:ok, canonical_mailbox} = Email.ensure_user_has_mailbox(user)
+
+      {:ok, _legacy_mailbox} =
+        Email.create_mailbox(%{email: "#{user.username}@example.net", user_id: user.id})
+
+      assert {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      assert mailbox.id == canonical_mailbox.id
+      assert mailbox.username == user.username
+    end
+
     test "update_mailbox_email keeps username in sync for cross-domain lookup", %{user: user} do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
       new_email = "renamed@example.com"

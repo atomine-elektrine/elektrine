@@ -33,7 +33,7 @@ defmodule Elektrine.JMAP.Thread do
   Finds or creates a thread for a message based on:
   1. In-Reply-To header (exact match)
   2. References header (any match)
-  3. Normalized subject hash
+  3. Normalized subject hash when reply headers exist but the parent message is missing
 
   Returns {:ok, thread_id} or {:error, reason}
   """
@@ -50,13 +50,22 @@ defmodule Elektrine.JMAP.Thread do
 
     subject = attrs[:subject] || attrs["subject"] || ""
 
-    # Try to find existing thread
+    # Try to find an existing thread. Subject-only threading is too fuzzy for
+    # fresh root messages and can merge unrelated conversations that share a title.
     thread_id =
       find_thread_by_in_reply_to(in_reply_to, mailbox_id) ||
         find_thread_by_references(references, mailbox_id) ||
-        find_or_create_thread_by_subject(subject, mailbox_id)
+        maybe_find_thread_by_subject(subject, mailbox_id, in_reply_to, references)
 
     {:ok, thread_id}
+  end
+
+  defp maybe_find_thread_by_subject(subject, mailbox_id, in_reply_to, references) do
+    if is_binary(in_reply_to) or references != [] do
+      find_or_create_thread_by_subject(subject, mailbox_id)
+    else
+      nil
+    end
   end
 
   @doc """

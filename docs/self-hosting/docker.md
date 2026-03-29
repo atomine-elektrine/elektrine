@@ -19,7 +19,7 @@ Deployment model:
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
-| product capabilities | `ELEKTRINE_RELEASE_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
+| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
 | long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
@@ -169,7 +169,8 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 
 GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
 
-- `ELEKTRINE_RELEASE_MODULES` optional, defaults to `all`
+- `ELEKTRINE_ENABLED_MODULES` optional, defaults to `all`
+- `ELEKTRINE_RELEASE_MODULES` optional advanced build override
 - `DOCKER_BUILD_PRIMARY_DOMAIN`
 - `DOCKER_BUILD_EMAIL_DOMAIN`
 - `DOCKER_BUILD_SUPPORTED_DOMAINS`

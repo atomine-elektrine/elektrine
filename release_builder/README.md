@@ -25,7 +25,8 @@ scripts/deploy/docker_deploy.sh --modules chat,social --profile caddy
 ```
 
 It renders a temporary Compose file that matches the selected module set,
-updates `ELEKTRINE_RELEASE_MODULES`, `ELEKTRINE_ENABLED_MODULES`, and
+updates `ELEKTRINE_ENABLED_MODULES`, derives `ELEKTRINE_RELEASE_MODULES` from it
+by default, and
 `ELEKTRINE_ENABLE_MAIL`, and removes POP3/IMAP/SMTP port bindings when `email`
 is not selected.
 
@@ -47,4 +48,5 @@ The builder always includes:
 - `elektrine`
 - `elektrine_web`
 
-Everything else is selected from `ELEKTRINE_RELEASE_MODULES`.
+Everything else is selected from `ELEKTRINE_ENABLED_MODULES` by default.
+`ELEKTRINE_RELEASE_MODULES` is still available as an advanced build override.

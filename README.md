@@ -54,15 +54,15 @@ issues `RS256` `id_token`s for confidential clients.
 
 ## Release modules and runtime modules
 
-Elektrine separates build-time selection from runtime exposure:
+Elektrine uses one public module switch for normal deployments:
 
-- `ELEKTRINE_RELEASE_MODULES` controls which apps and module-specific code are
-  compiled into a release
-- `ELEKTRINE_ENABLED_MODULES` controls which compiled modules are exposed in the
-  UI, routes, and optional runtime children
+- `ELEKTRINE_ENABLED_MODULES` controls which product modules are turned on
+- release builds default to that same module list
+- `ELEKTRINE_RELEASE_MODULES` still exists as an advanced override when you need
+  to compile more modules than you expose at runtime
 
-Use the first to build a smaller release. Use the second to hide or disable a
-compiled module at runtime.
+In normal use, set `ELEKTRINE_ENABLED_MODULES` and leave
+`ELEKTRINE_RELEASE_MODULES` unset.
 
 ## Local development
 
@@ -114,7 +114,7 @@ scripts/deploy/docker_deploy.sh --modules chat,social --profile caddy
 ```
 
 The wrapper renders a module-aware Compose file first, updates
-`ELEKTRINE_RELEASE_MODULES`, `ELEKTRINE_ENABLED_MODULES`, and
+`ELEKTRINE_ENABLED_MODULES`, derives release modules from it by default, and
 `ELEKTRINE_ENABLE_MAIL`, and removes the POP3, IMAP, and SMTP port bindings
 when `email` is not selected.
 

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIX_ENV="${MIX_ENV:-prod}"
 RELEASE_NAME="${RELEASE_NAME:-elektrine}"
-REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
+REQUESTED_MODULES=""
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -43,6 +43,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -z "$REQUESTED_MODULES" ]]; then
+  REQUESTED_MODULES="$(default_release_modules)"
+fi
 
 normalize_platform_modules "$REQUESTED_MODULES"
 

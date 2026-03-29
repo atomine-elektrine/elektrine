@@ -24,8 +24,10 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   use ElektrineSocialWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
   alias Elektrine.Accounts.Blocking
   alias Elektrine.Accounts.Muting
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging.Message
   alias Elektrine.Profiles
   alias Elektrine.Repo
@@ -41,7 +43,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   end
 
   def verify_credentials(%{assigns: %{user: user}} = conn, _params) do
-    json(conn, render_account(user, user, with_source: true))
+    json(conn, render_account(preload_account_subject(user), user, with_source: true))
   end
 
   @doc "GET /api/v1/accounts/lookup"
@@ -89,7 +91,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         {:error, :not_found}
 
       user ->
-        followers = get_followers(user, params)
+        followers = get_followers(user, params) |> preload_account_subjects()
         json(conn, Enum.map(followers, &render_account(&1, for_user)))
     end
   end
@@ -103,7 +105,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         {:error, :not_found}
 
       user ->
-        following = get_following(user, params)
+        following = get_following(user, params) |> preload_account_subjects()
         json(conn, Enum.map(following, &render_account(&1, for_user)))
     end
   end
@@ -248,39 +250,45 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   # Private functions
 
   defp get_user_by_id_or_nickname(id_or_nickname) do
-    cond do
-      # Try as numeric ID
-      is_integer(id_or_nickname) ->
-        Repo.get(Elektrine.Accounts.User, id_or_nickname)
+    user =
+      cond do
+        # Try as numeric ID
+        is_integer(id_or_nickname) ->
+          Repo.get(User, id_or_nickname)
 
-      String.match?(id_or_nickname, ~r/^\d+$/) ->
-        Repo.get(Elektrine.Accounts.User, String.to_integer(id_or_nickname))
+        String.match?(id_or_nickname, ~r/^\d+$/) ->
+          Repo.get(User, String.to_integer(id_or_nickname))
 
-      # Try as username
-      true ->
-        Accounts.get_user_by_username(id_or_nickname)
-    end
+        # Try as username
+        true ->
+          Accounts.get_user_by_username(id_or_nickname)
+      end
+
+    preload_account_subject(user)
   end
 
   defp find_user_by_acct(acct) do
     # Handle both local usernames and full addresses (user@domain)
-    case String.split(acct, "@") do
-      [username] ->
-        Accounts.get_user_by_username(username)
-
-      [username, domain] ->
-        host = ElektrineWeb.Endpoint.host()
-
-        if domain == host do
+    user =
+      case String.split(acct, "@") do
+        [username] ->
           Accounts.get_user_by_username(username)
-        else
-          # Remote account lookup is not supported in this endpoint.
-          nil
-        end
 
-      _ ->
-        nil
-    end
+        [username, domain] ->
+          host = ElektrineWeb.Endpoint.host()
+
+          if domain == host do
+            Accounts.get_user_by_username(username)
+          else
+            # Remote account lookup is not supported in this endpoint.
+            nil
+          end
+
+        _ ->
+          nil
+      end
+
+    preload_account_subject(user)
   end
 
   defp get_id_list(%{"id" => ids}) when is_list(ids), do: ids
@@ -300,7 +308,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         where: is_nil(m.deleted_at),
         order_by: [desc: m.inserted_at],
         limit: ^limit,
-        preload: [:sender, :link_preview, reactions: :user]
+        preload: [:link_preview, reactions: :user, sender: [profile: :links]]
       )
 
     # Filter based on params
@@ -371,32 +379,70 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
 
   # Rendering functions
 
-  defp render_account(user, _for_user, opts \\ []) do
+  defp render_account(subject, for_user, opts \\ [])
+
+  defp render_account(%{type: "local", user: %User{} = user}, for_user, opts) do
+    render_account(user, for_user, opts)
+  end
+
+  defp render_account(%{type: "remote", remote_actor: %Actor{} = actor}, _for_user, _opts) do
+    acct = remote_actor_acct(actor)
+
+    %{
+      id: to_string(actor.id),
+      username: actor.username,
+      acct: acct,
+      display_name: actor.display_name || actor.username,
+      locked: actor.manually_approves_followers || false,
+      bot: actor.actor_type in ["Application", "Service"],
+      discoverable: true,
+      group: actor.actor_type == "Group",
+      created_at: format_datetime(actor.published_at || actor.inserted_at),
+      note: actor.summary || "",
+      url: actor.uri || "",
+      avatar: actor.avatar_url || "",
+      avatar_static: actor.avatar_url || "",
+      header: actor.header_url || "",
+      header_static: actor.header_url || "",
+      followers_count: 0,
+      following_count: 0,
+      statuses_count: 0,
+      last_status_at: nil,
+      emojis: [],
+      fields: []
+    }
+  end
+
+  defp render_account(user, _for_user, opts) do
     base_url = ElektrineWeb.Endpoint.url()
     created_at = format_datetime(user.inserted_at)
+    note = account_note(user)
+    header = account_header(user)
+    fields = render_fields(user)
 
     account = %{
       id: to_string(user.id),
       username: user.username,
       acct: user.username,
       display_name: user.display_name || user.username,
-      locked: user.private || false,
+      locked:
+        Map.get(user, :private, Map.get(user, :activitypub_manually_approve_followers, false)),
       bot: false,
-      discoverable: true,
+      discoverable: Map.get(user, :profile_visibility, "public") == "public",
       group: false,
       created_at: created_at,
-      note: user.bio || "",
+      note: note,
       url: "#{base_url}/#{user.username}",
       avatar: Elektrine.Uploads.avatar_url(user.avatar),
       avatar_static: Elektrine.Uploads.avatar_url(user.avatar),
-      header: Elektrine.Uploads.background_url(user.background),
-      header_static: Elektrine.Uploads.background_url(user.background),
+      header: Elektrine.Uploads.background_url(header),
+      header_static: Elektrine.Uploads.background_url(header),
       followers_count: get_followers_count(user),
       following_count: get_following_count(user),
       statuses_count: get_statuses_count(user),
       last_status_at: get_last_status_at(user),
       emojis: [],
-      fields: render_fields(user)
+      fields: fields
     }
 
     # Add source for verify_credentials
@@ -405,8 +451,8 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         privacy: "public",
         sensitive: false,
         language: user.locale || "en",
-        note: user.bio || "",
-        fields: render_fields(user)
+        note: note,
+        fields: fields
       })
     else
       account
@@ -443,7 +489,33 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
     ElektrineWeb.MastodonAPI.StatusView.render_status(post, for_user)
   end
 
+  defp render_fields(%{profile: %{links: links}}) when is_list(links) do
+    links
+    |> Enum.filter(&(&1.is_active != false))
+    |> Enum.map(fn link ->
+      %{
+        name: link.title || "",
+        value: link.url || "",
+        verified_at: nil
+      }
+    end)
+  end
+
+  defp render_fields(%{profile: %{links: %Ecto.Association.NotLoaded{}}} = user) do
+    render_legacy_fields(Map.get(user, :custom_fields))
+  end
+
+  defp render_fields(%{profile: nil} = user) do
+    render_legacy_fields(Map.get(user, :custom_fields))
+  end
+
   defp render_fields(%{custom_fields: fields}) when is_list(fields) do
+    render_legacy_fields(fields)
+  end
+
+  defp render_fields(_), do: []
+
+  defp render_legacy_fields(fields) when is_list(fields) do
     Enum.map(fields, fn field ->
       %{
         name: field["name"] || field[:name] || "",
@@ -453,7 +525,78 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
     end)
   end
 
-  defp render_fields(_), do: []
+  defp render_legacy_fields(_), do: []
+
+  defp preload_account_subject(nil), do: nil
+
+  defp preload_account_subject(%User{} = user) do
+    Repo.preload(user, profile: :links)
+  end
+
+  defp preload_account_subject(subject), do: subject
+
+  defp preload_account_subjects(subjects) when is_list(subjects) do
+    user_ids =
+      subjects
+      |> Enum.flat_map(fn
+        %{type: "local", user: %User{id: id}} -> [id]
+        %User{id: id} -> [id]
+        _ -> []
+      end)
+      |> Enum.uniq()
+
+    if user_ids == [] do
+      subjects
+    else
+      users_by_id =
+        User
+        |> where([u], u.id in ^user_ids)
+        |> preload(profile: :links)
+        |> Repo.all()
+        |> Map.new(&{&1.id, &1})
+
+      Enum.map(subjects, fn
+        %{type: "local", user: %User{id: id}} = subject ->
+          %{subject | user: Map.get(users_by_id, id, subject.user)}
+
+        %User{id: id} = user ->
+          Map.get(users_by_id, id, user)
+
+        subject ->
+          subject
+      end)
+    end
+  end
+
+  defp account_note(%{profile: %Ecto.Association.NotLoaded{}} = user),
+    do: Map.get(user, :bio) || ""
+
+  defp account_note(%{profile: nil} = user), do: Map.get(user, :bio) || ""
+
+  defp account_note(%{profile: profile} = user) when is_map(profile) do
+    Map.get(profile, :description) || Map.get(user, :bio) || ""
+  end
+
+  defp account_note(user), do: Map.get(user, :bio) || ""
+
+  defp account_header(%{profile: %Ecto.Association.NotLoaded{}} = user),
+    do: Map.get(user, :background)
+
+  defp account_header(%{profile: nil} = user), do: Map.get(user, :background)
+
+  defp account_header(%{profile: profile} = user) when is_map(profile) do
+    Map.get(profile, :banner_url) || Map.get(profile, :background_url) ||
+      Map.get(user, :background)
+  end
+
+  defp account_header(user), do: Map.get(user, :background)
+
+  defp remote_actor_acct(%Actor{username: username, domain: domain})
+       when is_binary(domain) and domain != "" do
+    "#{username}@#{domain}"
+  end
+
+  defp remote_actor_acct(%Actor{username: username}), do: username
 
   defp get_followers_count(%{id: user_id}) do
     Repo.one(

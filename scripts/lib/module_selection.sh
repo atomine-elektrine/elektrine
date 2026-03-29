@@ -1,5 +1,25 @@
 #!/bin/bash
 
+default_release_modules() {
+  if [[ -n "${ELEKTRINE_RELEASE_MODULES:-}" ]]; then
+    printf '%s' "$ELEKTRINE_RELEASE_MODULES"
+  elif [[ -n "${ELEKTRINE_ENABLED_MODULES:-}" ]]; then
+    printf '%s' "$ELEKTRINE_ENABLED_MODULES"
+  else
+    printf 'all'
+  fi
+}
+
+default_enabled_modules() {
+  if [[ -n "${ELEKTRINE_ENABLED_MODULES:-}" ]]; then
+    printf '%s' "$ELEKTRINE_ENABLED_MODULES"
+  elif [[ -n "${ELEKTRINE_RELEASE_MODULES:-}" ]]; then
+    printf '%s' "$ELEKTRINE_RELEASE_MODULES"
+  else
+    printf 'all'
+  fi
+}
+
 normalize_platform_modules() {
   local raw="$1"
   local trimmed="${raw//[[:space:]]/}"
@@ -52,11 +72,11 @@ normalize_platform_modules() {
         append_unique_module "vault"
         ;;
       all|none|"")
-        echo "ELEKTRINE_RELEASE_MODULES cannot mix special values with explicit modules: $raw" >&2
+        echo "Platform module list cannot mix special values with explicit modules: $raw" >&2
         return 1
         ;;
       *)
-        echo "Unknown platform module in ELEKTRINE_RELEASE_MODULES: $token" >&2
+        echo "Unknown platform module: $token" >&2
         return 1
         ;;
     esac
@@ -73,7 +93,7 @@ normalize_platform_modules() {
   done
 
   if [[ "${#normalized[@]}" -eq 0 ]]; then
-    echo "ELEKTRINE_RELEASE_MODULES did not include any supported modules: $raw" >&2
+    echo "Platform module list did not include any supported modules: $raw" >&2
     return 1
   fi
 

@@ -194,6 +194,7 @@ defmodule Elektrine.Email.Messages do
       |> where([m], m.mailbox_id == ^mailbox_id and m.thread_id == ^message.thread_id)
       |> order_by([m], asc: m.inserted_at, asc: m.id)
       |> Repo.all()
+      |> filter_related_thread_messages(message)
       |> decrypt_email_messages(mailbox_id)
     else
       []
@@ -201,6 +202,53 @@ defmodule Elektrine.Email.Messages do
   end
 
   def list_thread_messages(_message, _mailbox_id), do: []
+
+  defp filter_related_thread_messages(messages, %Message{id: current_message_id}) do
+    identity_sets = Map.new(messages, &{&1.id, thread_identity_set(&1)})
+
+    if Map.has_key?(identity_sets, current_message_id) do
+      connected_ids =
+        collect_connected_thread_message_ids(MapSet.new([current_message_id]), identity_sets)
+
+      Enum.filter(messages, &MapSet.member?(connected_ids, &1.id))
+    else
+      messages
+    end
+  end
+
+  defp collect_connected_thread_message_ids(connected_ids, identity_sets) do
+    expanded_ids =
+      Enum.reduce(identity_sets, connected_ids, fn {message_id, identity_set}, acc ->
+        if MapSet.member?(acc, message_id) or
+             connected_to_thread_component?(identity_set, acc, identity_sets) do
+          MapSet.put(acc, message_id)
+        else
+          acc
+        end
+      end)
+
+    if MapSet.equal?(expanded_ids, connected_ids) do
+      expanded_ids
+    else
+      collect_connected_thread_message_ids(expanded_ids, identity_sets)
+    end
+  end
+
+  defp connected_to_thread_component?(identity_set, connected_ids, identity_sets) do
+    Enum.any?(connected_ids, fn connected_id ->
+      case Map.get(identity_sets, connected_id) do
+        nil -> false
+        connected_identity_set -> not MapSet.disjoint?(identity_set, connected_identity_set)
+      end
+    end)
+  end
+
+  defp thread_identity_set(message) do
+    [normalize_message_id(message.message_id), normalize_message_id(message.in_reply_to)]
+    |> Kernel.++(parse_reference_ids(message.references))
+    |> Enum.reject(&blank_value?/1)
+    |> MapSet.new()
+  end
 
   @doc """
   Returns the list of non-spam, non-archived messages for a mailbox, excluding bulk and paper trail.

@@ -29,7 +29,8 @@ jobs:
       BUILD_EMAIL_DOMAIN: ${{ vars.DOCKER_BUILD_EMAIL_DOMAIN || secrets.DOCKER_BUILD_EMAIL_DOMAIN || 'example.com' }}
       BUILD_SUPPORTED_DOMAINS: ${{ vars.DOCKER_BUILD_SUPPORTED_DOMAINS || secrets.DOCKER_BUILD_SUPPORTED_DOMAINS || 'example.com' }}
       BUILD_PROFILE_BASE_DOMAINS: ${{ vars.DOCKER_BUILD_PROFILE_BASE_DOMAINS || secrets.DOCKER_BUILD_PROFILE_BASE_DOMAINS || 'example.com' }}
-      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+      ELEKTRINE_ENABLED_MODULES: ${{ vars.ELEKTRINE_ENABLED_MODULES || secrets.ELEKTRINE_ENABLED_MODULES || vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || '' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -60,7 +61,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             RELEASE_NAME=elektrine
-            ELEKTRINE_RELEASE_MODULES=${{ env.ELEKTRINE_RELEASE_MODULES }}
+            ELEKTRINE_RELEASE_MODULES=${{ env.ELEKTRINE_RELEASE_MODULES || env.ELEKTRINE_ENABLED_MODULES }}
             PRIMARY_DOMAIN=${{ env.BUILD_PRIMARY_DOMAIN }}
             EMAIL_DOMAIN=${{ env.BUILD_EMAIL_DOMAIN }}
             SUPPORTED_DOMAINS=${{ env.BUILD_SUPPORTED_DOMAINS }}
@@ -79,7 +80,8 @@ jobs:
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine' }}
       DEPLOY_BRANCH: ${{ secrets.DEPLOY_BRANCH || 'main' }}
-      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+      ELEKTRINE_ENABLED_MODULES: ${{ vars.ELEKTRINE_ENABLED_MODULES || secrets.ELEKTRINE_ENABLED_MODULES || vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
+      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || '' }}
       DOCKER_PROFILES: ${{ secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
       DEPLOY_REF: ${{ github.sha }}
@@ -110,7 +112,7 @@ jobs:
           done
 
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
           set -euo pipefail
 
           if docker info >/dev/null 2>&1; then
@@ -152,7 +154,7 @@ jobs:
           OVERRIDE
 
           COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$WORKTREE_PATH/deploy/docker" bash scripts/deploy/docker_deploy.sh \
-            --modules "$ELEKTRINE_RELEASE_MODULES" \
+            --modules "$ELEKTRINE_ENABLED_MODULES" \
             --env-file "$DEPLOY_PATH/.env.production" \
             --output "$OUTPUT_FILE" \
             --pull \

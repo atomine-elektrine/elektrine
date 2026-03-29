@@ -1,12 +1,13 @@
 # Composable Platform
 
-Elektrine has two different module switches:
+Elektrine has one public module switch and one advanced override:
 
-- `ELEKTRINE_RELEASE_MODULES` controls what gets compiled into a release
-- `ELEKTRINE_ENABLED_MODULES` controls what stays visible at runtime
+- `ELEKTRINE_ENABLED_MODULES` controls the normal deployment module set
+- `ELEKTRINE_RELEASE_MODULES` optionally overrides build-time selection only
 
-That split is useful for hosters because it lets you build a smaller release
-and still hide compiled modules later if you need to.
+That means most deploys only need `ELEKTRINE_ENABLED_MODULES`. The release
+override stays available for hosters who want to compile a broader image and
+hide some compiled modules later.
 
 Current platform module ids:
 
