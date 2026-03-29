@@ -82,7 +82,7 @@ jobs:
       DEPLOY_BRANCH: ${{ secrets.DEPLOY_BRANCH || 'main' }}
       ELEKTRINE_ENABLED_MODULES: ${{ vars.ELEKTRINE_ENABLED_MODULES || secrets.ELEKTRINE_ENABLED_MODULES || vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
       ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || '' }}
-      DOCKER_PROFILES: ${{ secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy' }}
+      DOCKER_PROFILES: ${{ vars.DOCKER_PROFILES || secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy dns email tor turn bluesky' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
       DEPLOY_REF: ${{ github.sha }}
     concurrency:

@@ -116,6 +116,27 @@ if [[ -z "$RENDER_PROFILES" ]]; then
 fi
 
 infer_caddy_config_default() {
+  local site1_values="${CADDY_MANAGED_SITE_1:-}"
+  local site2_values="${CADDY_MANAGED_SITE_2:-}"
+
+  if [[ "$site1_values" == *"*."* ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
+      echo "Error: CADDY_MANAGED_SITE_1 contains wildcard hosts but no matching external cert/key paths are set." >&2
+      echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_1 for the stock Caddy setup." >&2
+      echo "Hint: or provide CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH for a wildcard certificate." >&2
+      return 1
+    fi
+  fi
+
+  if [[ "$site2_values" == *"*."* ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ]]; then
+      echo "Error: CADDY_MANAGED_SITE_2 contains wildcard hosts but no matching external cert/key paths are set." >&2
+      echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_2 for the stock Caddy setup." >&2
+      echo "Hint: or provide CADDY_MANAGED_SITE_2_CERT_PATH and CADDY_MANAGED_SITE_2_KEY_PATH for a wildcard certificate." >&2
+      return 1
+    fi
+  fi
+
   if [[ -n "${CADDY_CONFIG_PATH:-}" ]]; then
     printf '%s' "$CADDY_CONFIG_PATH"
     return 0
@@ -125,7 +146,7 @@ infer_caddy_config_default() {
   local external_path="../caddy/Caddyfile.baremetal.external-certs"
   local wildcard_path="../caddy/Caddyfile.baremetal.wildcard-external"
 
-  local site_values="${CADDY_MANAGED_SITE_1:-} ${CADDY_MANAGED_SITE_2:-}"
+  local site_values="$site1_values $site2_values"
   local has_wildcard=0
   local has_external_cert=0
 
