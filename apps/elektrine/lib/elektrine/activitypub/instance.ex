@@ -92,7 +92,7 @@ defmodule Elektrine.ActivityPub.Instance do
     ])
     |> validate_required([:domain])
     |> validate_domain()
-    |> unique_constraint(:domain)
+    |> unique_constraint(:domain, name: :activitypub_instances_domain_ci_unique)
   end
 
   @doc """

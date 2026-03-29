@@ -95,13 +95,33 @@ defmodule Elektrine.ActivityPub.Instances do
 
     case get_instance(domain) do
       nil ->
-        %Instance{}
-        |> Instance.changeset(%{domain: domain})
-        |> Repo.insert()
+        case upsert_instance(domain) do
+          {:ok, %Instance{id: id} = instance} when is_integer(id) ->
+            {:ok, instance}
+
+          {:ok, _instance} ->
+            {:ok, get_instance(domain)}
+
+          {:error, changeset} ->
+            if Keyword.has_key?(changeset.errors, :domain) do
+              {:ok, get_instance(domain)}
+            else
+              {:error, changeset}
+            end
+        end
 
       instance ->
         {:ok, instance}
     end
+  end
+
+  defp upsert_instance(domain) do
+    %Instance{}
+    |> Instance.changeset(%{domain: domain})
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: {:unsafe_fragment, "(lower(domain))"}
+    )
   end
 
   @doc """
