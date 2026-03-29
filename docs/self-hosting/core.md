@@ -26,5 +26,6 @@ scripts/deploy/docker_deploy.sh --modules chat,social,vault --skip-up
 Optional add-ons:
 
 - add Caddy with `--profile caddy`
+- add self-hosted STUN/TURN for chat calls with `--profile turn`
 - add Bluesky PDS with `-f deploy/docker/compose.bluesky.yml`
-- see `mail.md`, `vpn.md`, and `../addons/onion.md` for advanced modules
+- see `mail.md`, `turn.md`, `vpn.md`, and `../addons/onion.md` for advanced modules

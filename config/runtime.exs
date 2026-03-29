@@ -394,6 +394,71 @@ derived_internal_api_key = RuntimeSecrets.internal_api_key(runtime_env)
 derived_haraka_signing_secret = RuntimeSecrets.haraka_internal_signing_secret(runtime_env)
 derived_receiver_webhook_secret = RuntimeSecrets.email_receiver_webhook_secret(runtime_env)
 
+turn_enabled = parse_bool_env.("TURN_ENABLED", false)
+turn_host = first_present_env.(["TURN_HOST", "PHX_HOST"]) || runtime_primary_domain
+turn_port = parse_int_env.("TURN_PORT", 3478)
+turn_realm = first_present_env.(["TURN_REALM"]) || turn_host
+turn_username_ttl_seconds = parse_int_env.("TURN_USERNAME_TTL_SECONDS", 3600)
+
+turn_shared_secret =
+  first_present_env.(["TURN_SHARED_SECRET"]) || RuntimeSecrets.master_secret(runtime_env)
+
+stun_uris =
+  case System.get_env("STUN_URIS") do
+    nil ->
+      if turn_enabled do
+        ["stun:#{turn_host}:#{turn_port}"]
+      else
+        []
+      end
+
+    "" ->
+      []
+
+    value ->
+      value
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+  end
+
+turn_uris =
+  case System.get_env("TURN_URIS") do
+    nil ->
+      if turn_enabled do
+        [
+          "turn:#{turn_host}:#{turn_port}?transport=udp",
+          "turn:#{turn_host}:#{turn_port}?transport=tcp"
+        ]
+      else
+        []
+      end
+
+    "" ->
+      []
+
+    value ->
+      value
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+  end
+
+if turn_enabled or stun_uris != [] or turn_uris != [] do
+  ice_servers = if stun_uris == [], do: [], else: [%{urls: stun_uris}]
+
+  config :elektrine,
+         :webrtc,
+         Application.get_env(:elektrine, :webrtc, [])
+         |> Keyword.merge(
+           ice_servers: ice_servers,
+           turn_uris: turn_uris,
+           turn_shared_secret: turn_shared_secret,
+           turn_username_ttl_seconds: turn_username_ttl_seconds,
+           turn_realm: turn_realm
+         )
+end
+
 config :elektrine,
   internal_api_key: derived_internal_api_key,
   session_signing_salt: RuntimeSecrets.session_signing_salt(runtime_env),

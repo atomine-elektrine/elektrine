@@ -7,6 +7,7 @@ This keeps the main app and worker in a single Docker deployment:
 - optional `mail` container when the `email` profile is enabled
 - one Postgres container
 - optional Caddy edge via `--profile caddy`
+- optional TURN/STUN daemon via `--profile turn`
 - optional Bluesky PDS via `--profile bluesky`
 - optional authoritative DNS via `--profile dns`
 - optional onion service inside the `app` container via `--profile tor`
@@ -20,7 +21,7 @@ Deployment model:
 | Concern | Uses | Examples |
 | --- | --- | --- |
 | product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
-| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `caddy`, `bluesky` |
+| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
 Rule of thumb:
@@ -130,6 +131,16 @@ present in `.env.example`, then deploy with:
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile tor
 ```
 
+Enable self-hosted STUN/TURN for chat calls with:
+
+```bash
+scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile turn
+```
+
+This runs coturn on the host network and auto-wires the app's WebRTC ICE
+configuration to your own instance domain. See `turn.md` if you need firewall,
+NAT, or DNS details.
+
 The Docker deploy keeps Tor off by default. Turn it on with the `tor` profile plus:
 
 - `ONION_TLS_ENABLED=true`
@@ -168,6 +179,7 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
 - `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)
+- TURN profile exposes `3478` plus relay ports `49160-49200` on the host; adjust `TURN_PORT`, `TURN_MIN_PORT`, and `TURN_MAX_PORT` if needed
 
 GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
 

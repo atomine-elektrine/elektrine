@@ -80,7 +80,7 @@ defmodule ElektrineWeb.PageLive.Home do
                   </div>
                   <div class="space-y-4">
                     <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
-                      Infrastructure for sovereignty.
+                      Software for sovereignty.
                     </h1>
                     <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
                       Elektrine is a modular platform for people who want to run communications,

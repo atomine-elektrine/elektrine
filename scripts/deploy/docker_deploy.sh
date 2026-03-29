@@ -17,6 +17,7 @@ PASSTHROUGH_ARGS=()
 DOCKER_BIN=(docker)
 POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
 RENDER_PROFILES=""
+FORCE_RECREATE_ARGS=(--force-recreate)
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -76,6 +77,13 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
   esac
+done
+
+for arg in "${PASSTHROUGH_ARGS[@]}"; do
+  if [[ "$arg" == "--no-recreate" ]]; then
+    FORCE_RECREATE_ARGS=()
+    break
+  fi
 done
 
 if [[ -f "$ENV_FILE" ]]; then
@@ -207,10 +215,10 @@ fi
 
 if [[ "$DO_UP" -eq 1 ]]; then
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${PASSTHROUGH_ARGS[@]}"
+    exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
   fi
 
-  exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${PASSTHROUGH_ARGS[@]}"
+  exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
 fi
 
 if [[ "${#PASSTHROUGH_ARGS[@]}" -gt 0 ]]; then
