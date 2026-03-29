@@ -1,21 +1,41 @@
 defmodule Elektrine.DNS.Query do
   @moduledoc false
 
+  import Bitwise
+
   alias Elektrine.DNS
   alias Elektrine.DNS.Packet
 
-  def answer(packet) when is_binary(packet) do
+  def answer(packet, opts \\ []) when is_binary(packet) do
     with {:ok, query} <- Packet.decode_query(packet),
          {:ok, zone} <- fetch_zone(query.qname) do
       answer_for_zone(query, zone)
     else
-      {:error, :not_authoritative} -> Packet.encode_error(packet, :refused)
-      {:error, :format_error} -> Packet.encode_error(packet, :formerr)
-      {:error, :name_error, query} -> Packet.encode_response(query, [], :nxdomain)
-      {:error, _, query} -> Packet.encode_response(query, [], :servfail)
-      _ -> Packet.encode_error(packet, :servfail)
+      {:error, :not_authoritative} ->
+        if query_recursion_desired?(packet) and DNS.recursive_enabled?() do
+          Elektrine.DNS.Recursive.resolve(packet, opts)
+        else
+          Packet.encode_response(query_from_packet(packet), [], :refused)
+        end
+
+      {:error, :format_error} ->
+        Packet.encode_error(packet, :formerr)
+
+      {:error, :name_error, query} ->
+        Packet.encode_response(query, [], :nxdomain)
+
+      {:error, _, query} ->
+        Packet.encode_response(query, [], :servfail)
+
+      _ ->
+        Packet.encode_error(packet, :servfail)
     end
   end
+
+  defp query_recursion_desired?(<<_id::16, flags::16, _rest::binary>>),
+    do: (flags &&& 0x0100) != 0
+
+  defp query_recursion_desired?(_), do: false
 
   defp fetch_zone(qname) do
     qname = normalize_name(qname)
@@ -41,13 +61,23 @@ defmodule Elektrine.DNS.Query do
 
     cond do
       records != [] ->
-        Packet.encode_response(query, records, :noerror, additional: additional)
+        Packet.encode_response(query, records, :noerror,
+          additional: additional,
+          authoritative: true
+        )
 
       name_exists?(zone, query.qname) ->
-        Packet.encode_response(query, [], :noerror, authority: authority)
+        Packet.encode_response(query, [], :noerror, authority: authority, authoritative: true)
 
       true ->
-        Packet.encode_response(query, [], :nxdomain, authority: authority)
+        Packet.encode_response(query, [], :nxdomain, authority: authority, authoritative: true)
+    end
+  end
+
+  defp query_from_packet(packet) do
+    case Packet.decode_query(packet) do
+      {:ok, query} -> query
+      _ -> %{id: 0, rd: 0, qname: "", qtype: :any}
     end
   end
 

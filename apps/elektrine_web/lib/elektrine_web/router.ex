@@ -649,11 +649,7 @@ defmodule ElektrineWeb.Router do
 
   # Impersonation exit route (must be accessible while acting as a non-admin user)
   scope "/pripyat", ElektrineWeb do
-    pipe_through([
-      :browser,
-      :require_authenticated_user,
-      ElektrineWeb.Plugs.RequireElektrineDomain
-    ])
+    pipe_through([:browser, :require_authenticated_user])
 
     get("/stop-impersonation", Admin.UsersController, :stop_impersonation)
     post("/stop-impersonation", Admin.UsersController, :stop_impersonation)
@@ -661,12 +657,7 @@ defmodule ElektrineWeb.Router do
 
   # Admin security routes (elevation + per-action passkey re-sign)
   scope "/pripyat/security", ElektrineWeb do
-    pipe_through([
-      :browser,
-      :require_authenticated_user,
-      :require_admin_user,
-      ElektrineWeb.Plugs.RequireElektrineDomain
-    ])
+    pipe_through([:browser, :require_authenticated_user, :require_admin_user])
 
     get("/elevate", Admin.SecurityController, :elevate)
     post("/elevate/start", Admin.SecurityController, :start_elevation)
@@ -675,13 +666,9 @@ defmodule ElektrineWeb.Router do
     post("/action/finish", Admin.SecurityController, :finish_action)
   end
 
-  # Admin routes - require admin privileges and an approved local instance domain
+  # Admin routes - require admin privileges
   scope "/pripyat", ElektrineWeb do
-    pipe_through([
-      :browser,
-      :require_admin_access,
-      ElektrineWeb.Plugs.RequireElektrineDomain
-    ])
+    pipe_through([:browser, :require_admin_access])
 
     # Main dashboard
     get("/", AdminController, :dashboard)
@@ -742,6 +729,7 @@ defmodule ElektrineWeb.Router do
     # Deletion requests (Admin.DeletionRequestsController)
     get("/deletion-requests", Admin.DeletionRequestsController, :index)
     get("/deletion-requests/:id", Admin.DeletionRequestsController, :show)
+    post("/deletion-requests/bulk-approve", Admin.DeletionRequestsController, :bulk_approve)
     post("/deletion-requests/:id/approve", Admin.DeletionRequestsController, :approve)
     post("/deletion-requests/:id/deny", Admin.DeletionRequestsController, :deny)
 
@@ -814,9 +802,9 @@ defmodule ElektrineWeb.Router do
     post("/vpn/users/:id/reset-quota", Admin.VPNController, :reset_user_quota)
   end
 
-  # Admin LiveView routes - wrapped in live_session for authentication and domain restriction
+  # Admin LiveView routes - wrapped in live_session for authentication
   scope "/pripyat", ElektrineWeb do
-    pipe_through([:browser, :require_admin_access, ElektrineWeb.Plugs.RequireElektrineDomain])
+    pipe_through([:browser, :require_admin_access])
 
     live_session :admin,
       on_mount: [
@@ -1265,6 +1253,8 @@ defmodule ElektrineWeb.Router do
       put("/zones/:id", ElektrineWeb.API.DNSController, :update)
       delete("/zones/:id", ElektrineWeb.API.DNSController, :delete)
       post("/zones/:id/verify", ElektrineWeb.API.DNSController, :verify)
+      post("/zones/:id/services/:service/apply", ElektrineWeb.API.DNSController, :apply_service)
+      delete("/zones/:id/services/:service", ElektrineWeb.API.DNSController, :disable_service)
       post("/zones/:zone_id/records", ElektrineWeb.API.DNSController, :create_record)
       put("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :update_record)
       delete("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :delete_record)
@@ -1362,6 +1352,8 @@ defmodule ElektrineWeb.Router do
       put("/zones/:id", ElektrineWeb.API.DNSController, :update)
       delete("/zones/:id", ElektrineWeb.API.DNSController, :delete)
       post("/zones/:id/verify", ElektrineWeb.API.DNSController, :verify)
+      post("/zones/:id/services/:service/apply", ElektrineWeb.API.DNSController, :apply_service)
+      delete("/zones/:id/services/:service", ElektrineWeb.API.DNSController, :disable_service)
       post("/zones/:zone_id/records", ElektrineWeb.API.DNSController, :create_record)
       put("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :update_record)
       delete("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :delete_record)
@@ -1409,9 +1401,9 @@ defmodule ElektrineWeb.Router do
   # Enable LiveDashboard and Swoosh mailbox preview
   import Phoenix.LiveDashboard.Router
 
-  # LiveDashboard for admins in production - require an approved local instance domain
+  # LiveDashboard for admins in production
   scope "/pripyat" do
-    pipe_through([:browser, :require_admin_access, ElektrineWeb.Plugs.RequireElektrineDomain])
+    pipe_through([:browser, :require_admin_access])
 
     live_dashboard("/dashboard",
       metrics: ElektrineWeb.Telemetry,

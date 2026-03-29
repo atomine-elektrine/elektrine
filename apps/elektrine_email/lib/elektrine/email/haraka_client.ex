@@ -136,11 +136,11 @@ defmodule Elektrine.Email.HarakaClient do
     case configured_api_key() do
       nil ->
         {:error,
-         "HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is not set"}
+         "HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY / INTERNAL_API_KEY fallback) is not set"}
 
       "" ->
         {:error,
-         "HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY fallback) is empty"}
+         "HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY (or HARAKA_API_KEY / INTERNAL_API_KEY fallback) is empty"}
 
       api_key ->
         {:ok, {api_key, base_url}}
@@ -166,6 +166,7 @@ defmodule Elektrine.Email.HarakaClient do
       System.get_env("HARAKA_HTTP_API_KEY"),
       System.get_env("HARAKA_OUTBOUND_API_KEY"),
       System.get_env("HARAKA_API_KEY"),
+      System.get_env("INTERNAL_API_KEY"),
       mailer_config()[:api_key]
     ]
     |> Enum.find_value(&present_string/1)
@@ -552,7 +553,7 @@ defmodule Elektrine.Email.HarakaClient do
   defp attachment_field(attachment, key) when is_map(attachment), do: Map.get(attachment, key)
 
   defp add_internal_origin_headers(params) do
-    case System.get_env("HARAKA_INTERNAL_SIGNING_SECRET") do
+    case internal_signing_secret() do
       secret when is_binary(secret) and secret != "" ->
         ts = Integer.to_string(System.system_time(:second))
         payload = internal_origin_payload(params[:from], ts)
@@ -570,6 +571,11 @@ defmodule Elektrine.Email.HarakaClient do
       _ ->
         params
     end
+  end
+
+  defp internal_signing_secret do
+    System.get_env("HARAKA_INTERNAL_SIGNING_SECRET") ||
+      Application.get_env(:elektrine, :email, []) |> Keyword.get(:internal_signing_secret)
   end
 
   defp internal_origin_payload(from_address, ts) do

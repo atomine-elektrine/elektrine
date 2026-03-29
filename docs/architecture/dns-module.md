@@ -1,6 +1,6 @@
 # DNS Module
 
-Elektrine DNS is a first-party authoritative DNS service implemented inside the umbrella.
+Elektrine DNS is a first-party DNS service implemented inside the umbrella.
 
 Initial architecture:
 
@@ -10,6 +10,7 @@ Initial architecture:
 - zone and record state live in Postgres
 - `Elektrine.DNS.ZoneCache` mirrors authoritative zones into ETS for fast lookups
 - `Elektrine.DNS.Authority` is the starting point for the novel UDP/TCP authority process
+- `Elektrine.DNS.Recursive` provides an optional recursive forwarding path for non-authoritative queries
 
 External API scopes:
 
@@ -34,3 +35,11 @@ Docker deployment notes:
 - authoritative DNS runs through the `dns` Compose profile
 - the DNS service reuses the main `elektrine` release from the same Dockerfile and disables unrelated runtime components
 - default internal listening ports are UDP/TCP `5300`, mapped to host port `53`
+- the Docker `dns` profile enables recursive mode by default with `DNS_RECURSIVE_ENABLED=true`
+
+Recursive mode notes:
+
+- set `:dns, recursive_enabled: true` to resolve recursion-desired queries that are outside hosted zones
+- recursion starts from the configured `recursive_root_hints` list instead of depending on a public forwarder by default
+- recursive answers are cached in ETS with positive and negative TTL-based entries
+- recursion is restricted to private/local CIDRs by default via `recursive_allow_cidrs`

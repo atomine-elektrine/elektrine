@@ -7,7 +7,9 @@ defmodule Elektrine.DNS.Application do
   def start(_type, _args) do
     children =
       [
-        Elektrine.DNS.ZoneCache
+        Elektrine.DNS.ZoneCache,
+        Elektrine.DNS.RecursiveCache,
+        {Task.Supervisor, name: Elektrine.DNS.TaskSupervisor}
       ] ++ authority_children()
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Elektrine.DNS.Supervisor)

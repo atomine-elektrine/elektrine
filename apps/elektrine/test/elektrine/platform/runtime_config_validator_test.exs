@@ -21,20 +21,19 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                environment: :prod
              )
 
-    assert "production requires SESSION_SIGNING_SALT so LiveView and cookie sessions stay consistent across instances" in errors
+    assert "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so LiveView and cookie sessions stay consistent across instances" in errors
 
-    assert "production requires SESSION_ENCRYPTION_SALT so cookie sessions can be decrypted consistently across instances" in errors
+    assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances" in errors
 
     assert "email module requires PRIMARY_DOMAIN" in errors
-    assert "email module requires EMAIL_SERVICE=haraka" in errors
+    assert "email module requires HARAKA_BASE_URL" in errors
   end
 
-  test "requires Haraka credentials when email uses Haraka" do
+  test "requires Haraka credentials when email is enabled" do
     assert {:error, errors} =
              RuntimeConfigValidator.validate(
                env: %{
                  "PRIMARY_DOMAIN" => "example.com",
-                 "EMAIL_SERVICE" => "haraka",
                  "SESSION_SIGNING_SALT" => "signing-salt",
                  "SESSION_ENCRYPTION_SALT" => "encryption-salt"
                },
@@ -42,11 +41,11 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                environment: :prod
              )
 
-    assert "email module with EMAIL_SERVICE=haraka requires HARAKA_BASE_URL" in errors
+    assert "email module requires HARAKA_BASE_URL" in errors
 
-    assert "email module with EMAIL_SERVICE=haraka requires one of HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY, HARAKA_API_KEY" in errors
+    assert "email module requires one of HARAKA_HTTP_API_KEY, HARAKA_OUTBOUND_API_KEY, HARAKA_API_KEY, INTERNAL_API_KEY or ELEKTRINE_MASTER_SECRET" in errors
 
-    assert "email module with EMAIL_SERVICE=haraka requires one of PHOENIX_API_KEY, HARAKA_INBOUND_API_KEY, HARAKA_API_KEY" in errors
+    assert "email module requires one of PHOENIX_API_KEY, HARAKA_INBOUND_API_KEY, HARAKA_API_KEY, INTERNAL_API_KEY or ELEKTRINE_MASTER_SECRET" in errors
   end
 
   test "requires a VPN fleet registration key when vpn is enabled" do
@@ -57,9 +56,9 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                environment: :prod
              )
 
-    assert "production requires SESSION_SIGNING_SALT so LiveView and cookie sessions stay consistent across instances" in errors
+    assert "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so LiveView and cookie sessions stay consistent across instances" in errors
 
-    assert "production requires SESSION_ENCRYPTION_SALT so cookie sessions can be decrypted consistently across instances" in errors
+    assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances" in errors
 
     assert "vpn module requires VPN_FLEET_REGISTRATION_KEY" in errors
   end
@@ -81,13 +80,40 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                  "PRIMARY_DOMAIN" => "example.com",
                  "SESSION_SIGNING_SALT" => "signing-salt",
                  "SESSION_ENCRYPTION_SALT" => "encryption-salt",
-                 "EMAIL_SERVICE" => "haraka",
                  "HARAKA_BASE_URL" => "https://mail.example.com",
                  "HARAKA_HTTP_API_KEY" => "outbound-key",
                  "PHOENIX_API_KEY" => "inbound-key",
                  "VPN_FLEET_REGISTRATION_KEY" => "fleet-key"
                },
                enabled_modules: [:email, :vpn],
+               environment: :prod
+             )
+  end
+
+  test "accepts internal api key as shared Haraka credential" do
+    assert :ok =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "PRIMARY_DOMAIN" => "example.com",
+                 "SESSION_SIGNING_SALT" => "signing-salt",
+                 "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                 "HARAKA_BASE_URL" => "https://mail.example.com",
+                 "INTERNAL_API_KEY" => "shared-internal-key"
+               },
+               enabled_modules: [:email],
+               environment: :prod
+             )
+  end
+
+  test "accepts master secret as source for derived session and Haraka secrets" do
+    assert :ok =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "PRIMARY_DOMAIN" => "example.com",
+                 "HARAKA_BASE_URL" => "https://mail.example.com",
+                 "ELEKTRINE_MASTER_SECRET" => "master-secret"
+               },
+               enabled_modules: [:email],
                environment: :prod
              )
   end

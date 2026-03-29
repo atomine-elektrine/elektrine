@@ -11,9 +11,9 @@ This keeps the main app and worker in a single Docker deployment:
 - optional authoritative DNS via `--profile dns`
 - optional onion service inside the `app` container via `--profile tor`
 
-The Caddy edge build includes the Cloudflare DNS provider module so it can issue
-certificates for two configurable managed site blocks using the ACME DNS
-challenge. See `docs/self-hosting/caddy.md`.
+The optional Caddy edge handles HTTP bootstrap on the server IP, automatic HTTPS
+for your configured domains, optional mounted wildcard certs from an external
+ACME client, and on-demand TLS for custom domains. See `docs/self-hosting/caddy.md`.
 
 Deployment model:
 
@@ -31,15 +31,29 @@ Rule of thumb:
 Recommended host layout:
 
 1. clone this repo to `/opt/elektrine/app`
-2. copy `.env.example` to `/opt/elektrine/app/.env.production`
+2. copy `.env.minimal.example` to `/opt/elektrine/app/.env.production`
 3. install Docker Engine with the Compose plugin
 4. install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts
 
 Recommended simplification:
 
-- treat `.env.example` as the one main template
-- edit only `.env.production` for your deployment
-- use the smaller files under `env/` only as reference if you want examples for a specific add-on
+- start from `.env.minimal.example` for the easiest first deploy
+- use `.env.example` only when you want the larger advanced template
+- use the smaller files under `env/` as reference for feature-specific overrides
+
+Minimal first-run values are usually just:
+
+- `PRIMARY_DOMAIN`
+- `DB_PASSWORD`
+- `ELEKTRINE_MASTER_SECRET`
+- `ACME_EMAIL` if you want automatic HTTPS via Caddy
+
+By default, the DNS service derives:
+
+- nameservers as `ns1.<PRIMARY_DOMAIN>` and `ns2.<PRIMARY_DOMAIN>`
+- SOA contact as `hostmaster.<PRIMARY_DOMAIN>`
+
+Override those only if you want custom DNS branding via `DNS_NAMESERVERS` or `DNS_SOA_RNAME`.
 
 Local uploads without R2:
 
@@ -64,15 +78,24 @@ scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git
 That path builds the main Elektrine image locally, pushes it to GHCR, then tells the
 remote host to pull and deploy it without rebuilding the app image there.
 
-For wildcard certificates, set these keys in `.env.production` before first deploy:
+For automatic HTTPS, set this key in `.env.production` before first deploy:
 
-- `CLOUDFLARE_API_TOKEN` - token with DNS edit access for your managed zones
 - `ACME_EMAIL` - ACME account email for Let's Encrypt / ZeroSSL
-- `CADDY_MANAGED_SITE_1` - first explicit site list for wildcard + mail hostnames (quote the whole value)
 
-Then point the domains in your managed site lists at your edge.
+Then point your domains at the edge and let Caddy issue certificates for the
+hostnames you actually use. If you only have an IP at first, bootstrap through
+plain `http://<server-ip>` and add a domain later.
 
-- Example: `example.com`, `*.example.com`, `mail.example.com`, `imap.example.com`, `pop.example.com`, `smtp.example.com`
+If you need one wildcard cert for many username subdomains, switch to the
+alternate Caddyfile with:
+
+- `CADDY_CONFIG_PATH=../caddy/Caddyfile.external-certs`
+- `CADDY_TLS_MOUNT_DIR=/opt/elektrine/certs`
+- `CADDY_MANAGED_SITE_1_CERT_PATH=/opt/elektrine/certs/example.com.fullchain.pem`
+- `CADDY_MANAGED_SITE_1_KEY_PATH=/opt/elektrine/certs/example.com.key.pem`
+
+Then renew that wildcard certificate outside Docker and keep the host cert
+directory mounted read-only into the Caddy container.
 
 Preview what a deploy will run:
 
@@ -119,7 +142,7 @@ The deploy wrapper:
 - provisions required Postgres extensions such as `vector`
 - can start the dedicated `dns` service when the `dns` profile is enabled
 - can expose the app as an onion service when the `tor` profile is enabled
-- builds a Cloudflare-enabled Caddy image when the `caddy` profile is enabled
+- runs a stock Caddy edge when the `caddy` profile is enabled
 
 Postgres notes:
 

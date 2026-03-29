@@ -71,14 +71,18 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   end
 
   defp configured_api_key(opts) do
-    opts
-    |> Keyword.fetch!(:env_names)
-    |> Enum.find_value(fn env_name ->
-      case System.get_env(env_name) do
-        value when is_binary(value) and value != "" -> value
-        _ -> nil
-      end
-    end)
+    env_value =
+      opts
+      |> Keyword.fetch!(:env_names)
+      |> Kernel.++(["INTERNAL_API_KEY"])
+      |> Enum.find_value(fn env_name ->
+        case System.get_env(env_name) do
+          value when is_binary(value) and value != "" -> value
+          _ -> nil
+        end
+      end)
+
+    env_value || Application.get_env(:elektrine, :internal_api_key)
   end
 
   defp secure_compare(provided_key, expected_key) do

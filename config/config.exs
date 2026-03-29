@@ -173,10 +173,35 @@ config :elektrine, :email,
 
 config :elektrine, :dns,
   authority_enabled: false,
+  recursive_enabled: false,
   udp_port: 5300,
   tcp_port: 5300,
-  nameservers: ["ns1.elektrine.com", "ns2.elektrine.com"],
-  soa_rname: "hostmaster.elektrine.com",
+  nameservers: [],
+  soa_rname: nil,
+  recursive_timeout: 3000,
+  recursive_root_hints: [
+    {{198, 41, 0, 4}, 53},
+    {{170, 247, 170, 2}, 53},
+    {{192, 33, 4, 12}, 53},
+    {{199, 7, 91, 13}, 53},
+    {{192, 203, 230, 10}, 53},
+    {{192, 5, 5, 241}, 53},
+    {{192, 112, 36, 4}, 53},
+    {{198, 97, 190, 53}, 53},
+    {{192, 36, 148, 17}, 53},
+    {{192, 58, 128, 30}, 53},
+    {{193, 0, 14, 129}, 53},
+    {{199, 7, 83, 42}, 53},
+    {{202, 12, 27, 33}, 53}
+  ],
+  recursive_allow_cidrs: [
+    "127.0.0.0/8",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "::1/128",
+    "fc00::/7"
+  ],
   default_ttl: 300
 
 config :elektrine, :profile_base_domains, profile_base_domains

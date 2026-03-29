@@ -60,6 +60,82 @@ defmodule ElektrineWeb.Admin.DeletionRequestsControllerTest do
     end
   end
 
+  describe "POST /pripyat/deletion-requests/bulk-approve" do
+    test "approves only the selected pending requests", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture() |> make_admin()
+      user_one = AccountsFixtures.user_fixture()
+      user_two = AccountsFixtures.user_fixture()
+      user_three = AccountsFixtures.user_fixture()
+
+      {:ok, request_one} = Accounts.create_deletion_request(user_one, %{reason: "Delete one"})
+      {:ok, request_two} = Accounts.create_deletion_request(user_two, %{reason: "Delete two"})
+
+      {:ok, request_three} =
+        Accounts.create_deletion_request(user_three, %{reason: "Leave this one"})
+
+      request_path = "/pripyat/deletion-requests/bulk-approve"
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> AdminSecurity.initialize_admin_session(admin, auth_method: :passkey)
+
+      action_grant = AdminSecurity.issue_action_grant(conn, admin, "POST", request_path)
+
+      conn =
+        post(conn, request_path, %{
+          "_admin_action_grant" => action_grant,
+          "request_ids" => [Integer.to_string(request_one.id), Integer.to_string(request_two.id)],
+          "admin_notes" => "Bulk approved"
+        })
+
+      assert redirected_to(conn) == "/pripyat/deletion-requests"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) ==
+               "Approved 2 deletion request(s) and deleted the selected account(s)."
+
+      assert Repo.get(Accounts.User, user_one.id) == nil
+      assert Repo.get(Accounts.User, user_two.id) == nil
+      assert Repo.get(Accounts.User, user_three.id) != nil
+
+      request_three = Accounts.get_deletion_request!(request_three.id)
+      assert request_three.status == "pending"
+
+      log_one = latest_deletion_request_log(admin.id, request_one.id)
+      log_two = latest_deletion_request_log(admin.id, request_two.id)
+
+      assert log_one.details["bulk"] == true
+      assert log_two.details["bulk"] == true
+      assert log_one.details["admin_notes"] == "Bulk approved"
+      assert log_two.details["admin_notes"] == "Bulk approved"
+    end
+
+    test "shows an error when nothing is selected", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture() |> make_admin()
+      request_path = "/pripyat/deletion-requests/bulk-approve"
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> AdminSecurity.initialize_admin_session(admin, auth_method: :passkey)
+
+      action_grant = AdminSecurity.issue_action_grant(conn, admin, "POST", request_path)
+
+      conn =
+        post(conn, request_path, %{
+          "_admin_action_grant" => action_grant,
+          "request_ids" => []
+        })
+
+      assert redirected_to(conn) == "/pripyat/deletion-requests"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Select at least one pending request to approve."
+    end
+  end
+
   defp latest_deletion_request_log(admin_id, request_id) do
     Repo.one!(
       from(a in AuditLog,

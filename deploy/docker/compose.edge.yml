@@ -15,12 +15,12 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"
       - "${CADDY_HTTPS_BIND:-443:443}"
     volumes:
-      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDY_CONFIG_PATH:-../caddy/Caddyfile}:/etc/caddy/Caddyfile:ro
+      - ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs:ro
       - caddy_data:/data
     networks:
       - elektrine_network

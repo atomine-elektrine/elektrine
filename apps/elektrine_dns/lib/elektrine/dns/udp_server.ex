@@ -22,8 +22,11 @@ defmodule Elektrine.DNS.UDPServer do
 
   @impl true
   def handle_info({:udp, socket, host, port, packet}, state) do
-    response = Elektrine.DNS.Query.answer(packet)
-    :gen_udp.send(socket, host, port, response)
+    Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
+      response = Elektrine.DNS.Query.answer(packet, client_ip: host)
+      :gen_udp.send(socket, host, port, response)
+    end)
+
     {:noreply, state}
   end
 end

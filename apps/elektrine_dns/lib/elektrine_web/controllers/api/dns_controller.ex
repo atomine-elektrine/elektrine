@@ -208,6 +208,57 @@ defmodule ElektrineWeb.API.DNSController do
     end
   end
 
+  def apply_service(conn, %{"id" => id, "service" => service} = params) do
+    user = conn.assigns.current_user
+    attrs = Map.get(params, "service_config", %{})
+
+    with {:ok, zone_id} <- parse_id(id),
+         %Zone{} = zone <- DNS.get_zone(zone_id, user.id),
+         {:ok, config} <- DNS.apply_zone_service(zone, service, attrs) do
+      Response.ok(conn, %{service_config: format_service_config(config)})
+    else
+      {:error, :bad_request} ->
+        Response.error(conn, :bad_request, "invalid_id", "Invalid zone id")
+
+      nil ->
+        Response.error(conn, :not_found, "not_found", "Zone not found")
+
+      {:error, changeset} ->
+        Response.error(
+          conn,
+          :unprocessable_entity,
+          "validation_failed",
+          "Invalid service configuration",
+          errors_on(changeset)
+        )
+    end
+  end
+
+  def disable_service(conn, %{"id" => id, "service" => service}) do
+    user = conn.assigns.current_user
+
+    with {:ok, zone_id} <- parse_id(id),
+         %Zone{} = zone <- DNS.get_zone(zone_id, user.id),
+         {:ok, config} <- DNS.disable_zone_service(zone, service) do
+      Response.ok(conn, %{service_config: format_service_config(config)})
+    else
+      {:error, :bad_request} ->
+        Response.error(conn, :bad_request, "invalid_id", "Invalid zone id")
+
+      nil ->
+        Response.error(conn, :not_found, "not_found", "Zone not found")
+
+      {:error, changeset} ->
+        Response.error(
+          conn,
+          :unprocessable_entity,
+          "validation_failed",
+          "Invalid service configuration",
+          errors_on(changeset)
+        )
+    end
+  end
+
   defp parse_id(value) when is_integer(value) and value > 0, do: {:ok, value}
 
   defp parse_id(value) when is_binary(value) do
@@ -234,8 +285,13 @@ defmodule ElektrineWeb.API.DNSController do
       last_checked_at: Map.get(zone, :last_checked_at),
       last_published_at: zone.last_published_at,
       last_error: zone.last_error,
+      service_configs: Enum.map(loaded_assoc(zone.service_configs), &format_service_config/1),
+      service_health: DNS.zone_service_health(zone),
       records:
-        if(include_records?, do: Enum.map(zone.records || [], &format_record/1), else: nil),
+        if(include_records?,
+          do: Enum.map(loaded_assoc(zone.records), &format_record/1),
+          else: nil
+        ),
       onboarding_records:
         if(include_onboarding?, do: DNS.zone_onboarding_records(zone), else: nil)
     }
@@ -254,8 +310,30 @@ defmodule ElektrineWeb.API.DNSController do
       port: record.port,
       flags: record.flags,
       tag: record.tag,
+      source: record.source,
+      service: record.service,
+      managed: record.managed,
+      managed_key: record.managed_key,
+      required: record.required,
+      metadata: record.metadata,
       inserted_at: record.inserted_at,
       updated_at: record.updated_at
+    }
+  end
+
+  defp format_service_config(config) do
+    %{
+      id: config.id,
+      zone_id: config.zone_id,
+      service: config.service,
+      enabled: config.enabled,
+      mode: config.mode,
+      status: config.status,
+      settings: config.settings,
+      last_applied_at: config.last_applied_at,
+      last_error: config.last_error,
+      inserted_at: config.inserted_at,
+      updated_at: config.updated_at
     }
   end
 
@@ -266,4 +344,8 @@ defmodule ElektrineWeb.API.DNSController do
       end)
     end)
   end
+
+  defp loaded_assoc(%Ecto.Association.NotLoaded{}), do: []
+  defp loaded_assoc(nil), do: []
+  defp loaded_assoc(value), do: value
 end
