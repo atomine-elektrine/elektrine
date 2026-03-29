@@ -121,6 +121,7 @@ defmodule Elektrine.Security.URLValidator do
     |> String.trim()
     |> String.trim_leading("[")
     |> String.trim_trailing("]")
+    |> String.trim_trailing(".")
     |> String.split("%", parts: 2)
     |> List.first()
   end
@@ -138,14 +139,18 @@ defmodule Elektrine.Security.URLValidator do
         {:ok, [ip]}
 
       :error ->
-        a_records = :inet_res.lookup(String.to_charlist(host), :in, :a)
-        aaaa_records = :inet_res.lookup(String.to_charlist(host), :in, :aaaa)
-        records = Enum.uniq(a_records ++ aaaa_records)
+        try do
+          a_records = :inet_res.lookup(String.to_charlist(host), :in, :a)
+          aaaa_records = :inet_res.lookup(String.to_charlist(host), :in, :aaaa)
+          records = Enum.uniq(a_records ++ aaaa_records)
 
-        if records == [] do
-          {:error, :dns_resolution_failed}
-        else
-          {:ok, records}
+          if records == [] do
+            {:error, :dns_resolution_failed}
+          else
+            {:ok, records}
+          end
+        rescue
+          _ -> {:error, :dns_resolution_failed}
         end
     end
   end

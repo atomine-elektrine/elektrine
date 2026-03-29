@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
+REQUESTED_MODULES=""
 OUTPUT_PATH="$ROOT_DIR/deploy/docker/generated.docker.yml"
 ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
@@ -78,14 +78,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-normalize_platform_modules "$REQUESTED_MODULES"
-
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
   set +a
 fi
+
+if [[ -z "$REQUESTED_MODULES" ]]; then
+  REQUESTED_MODULES="$(default_enabled_modules)"
+fi
+
+normalize_platform_modules "$REQUESTED_MODULES"
 
 for ((i = 0; i < ${#PROFILE_ARGS[@]}; i += 2)); do
   profile_name="${PROFILE_ARGS[i + 1]}"

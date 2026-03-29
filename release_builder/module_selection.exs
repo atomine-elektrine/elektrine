@@ -11,15 +11,15 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
     dns: :elektrine_dns
   }
 
-  def selected_modules(value \\ System.get_env("ELEKTRINE_RELEASE_MODULES")) do
+  def selected_modules(value \\ requested_module_value()) do
     normalize_modules(value)
   end
 
-  def selected_apps(value \\ System.get_env("ELEKTRINE_RELEASE_MODULES")) do
+  def selected_apps(value \\ requested_module_value()) do
     @core_apps ++ Enum.map(selected_modules(value), &Map.fetch!(@module_apps, &1))
   end
 
-  def build_slug(value \\ System.get_env("ELEKTRINE_RELEASE_MODULES")) do
+  def build_slug(value \\ requested_module_value()) do
     case selected_modules(value) do
       [] ->
         "none"
@@ -55,6 +55,10 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
   end
 
   def normalize_modules(_value), do: @known_modules
+
+  defp requested_module_value do
+    System.get_env("ELEKTRINE_RELEASE_MODULES") || System.get_env("ELEKTRINE_ENABLED_MODULES")
+  end
 
   defp normalize_module(value) when value in @known_modules, do: value
 

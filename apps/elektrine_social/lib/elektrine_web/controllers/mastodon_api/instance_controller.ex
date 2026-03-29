@@ -18,6 +18,7 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub.Instance
   alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
 
   import Ecto.Query
 
@@ -284,13 +285,14 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
       username ->
         case Accounts.get_user_by_username(username) do
           nil -> nil
-          user -> render_account_minimal(user)
+          user -> render_account_minimal(Repo.preload(user, :profile))
         end
     end
   end
 
   defp render_account_minimal(user) do
     base_url = ElektrineWeb.Endpoint.url()
+    header = account_header(user)
 
     %{
       id: to_string(user.id),
@@ -300,10 +302,22 @@ defmodule ElektrineWeb.MastodonAPI.InstanceController do
       url: "#{base_url}/#{user.username}",
       avatar: Elektrine.Uploads.avatar_url(user.avatar),
       avatar_static: Elektrine.Uploads.avatar_url(user.avatar),
-      header: Elektrine.Uploads.background_url(user.background),
-      header_static: Elektrine.Uploads.background_url(user.background)
+      header: Elektrine.Uploads.background_url(header),
+      header_static: Elektrine.Uploads.background_url(header)
     }
   end
+
+  defp account_header(%{profile: %Ecto.Association.NotLoaded{}} = user),
+    do: Map.get(user, :background)
+
+  defp account_header(%{profile: nil} = user), do: Map.get(user, :background)
+
+  defp account_header(%{profile: profile} = user) when is_map(profile) do
+    Map.get(profile, :banner_url) || Map.get(profile, :background_url) ||
+      Map.get(user, :background)
+  end
+
+  defp account_header(user), do: Map.get(user, :background)
 
   defp get_instance_rules do
     # Return instance rules

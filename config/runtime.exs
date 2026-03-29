@@ -1,5 +1,6 @@
 import Config
 
+alias Elektrine.Platform.Modules
 alias Elektrine.RuntimeSecrets
 
 # config/runtime.exs is executed for all environments, including
@@ -172,11 +173,12 @@ enabled_platform_modules =
   case System.get_env("ELEKTRINE_ENABLED_MODULES") do
     nil ->
       Application.get_env(:elektrine, :platform_modules, [])
-      |> Keyword.get(:enabled, [:chat, :social, :email, :vault, :vpn])
+      |> Keyword.get(:enabled, Modules.default_enabled())
 
     value ->
       value
   end
+  |> Modules.normalize_enabled_modules()
 
 config :elektrine, :platform_modules, enabled: enabled_platform_modules
 

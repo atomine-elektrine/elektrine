@@ -607,15 +607,91 @@ defmodule Elektrine.Email.MessageOperationsTest do
           status: "received"
         })
 
-      assert is_integer(root.thread_id)
-      assert reply.thread_id == root.thread_id
-      assert followup.thread_id == root.thread_id
+      root_after = Email.get_message(root.id, mailbox.id)
+
+      assert is_integer(root_after.thread_id)
+      assert reply.thread_id == root_after.thread_id
+      assert followup.thread_id == root_after.thread_id
 
       assert reply.references == root_message_id
       assert followup.references == "#{root_message_id} #{reply_message_id}"
 
       thread_messages = Email.list_thread_messages(followup, mailbox.id)
       assert Enum.map(thread_messages, & &1.id) == [root.id, reply.id, followup.id]
+    end
+
+    test "does not thread unrelated messages that only share a subject", %{mailbox: mailbox} do
+      {:ok, first} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "alice@example.com",
+          to: mailbox.email,
+          subject: "Status update",
+          text_body: "First message",
+          message_id: "status-update-1-#{System.unique_integer([:positive])}@example.com",
+          status: "received"
+        })
+
+      {:ok, second} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "bob@example.com",
+          to: mailbox.email,
+          subject: "Status update",
+          text_body: "Separate conversation",
+          message_id: "status-update-2-#{System.unique_integer([:positive])}@example.com",
+          status: "received"
+        })
+
+      refute is_integer(first.thread_id)
+      refute is_integer(second.thread_id)
+      assert Email.list_thread_messages(second, mailbox.id) == []
+    end
+
+    test "list_thread_messages excludes unrelated messages from polluted legacy threads", %{
+      mailbox: mailbox
+    } do
+      root_message_id = "legacy-root-#{System.unique_integer([:positive])}@example.com"
+
+      {:ok, root} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "alice@example.com",
+          to: mailbox.email,
+          subject: "Project Alpha",
+          text_body: "Initial message",
+          message_id: root_message_id,
+          status: "received"
+        })
+
+      {:ok, reply} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: mailbox.email,
+          to: "alice@example.com",
+          subject: "Re: Project Alpha",
+          text_body: "Reply",
+          message_id: "legacy-reply-#{System.unique_integer([:positive])}@example.com",
+          in_reply_to: root_message_id,
+          status: "sent"
+        })
+
+      unrelated =
+        create_test_message(mailbox.id, %{
+          from: "carol@example.com",
+          to: mailbox.email,
+          subject: "Project Alpha",
+          text_body: "Different conversation with the same subject",
+          message_id: "legacy-unrelated-#{System.unique_integer([:positive])}@example.com",
+          thread_id: reply.thread_id,
+          in_reply_to: nil,
+          references: nil
+        })
+
+      thread_messages = Email.list_thread_messages(reply, mailbox.id)
+
+      assert Enum.map(thread_messages, & &1.id) == [root.id, reply.id]
+      refute Enum.any?(thread_messages, &(&1.id == unrelated.id))
     end
 
     test "attaches legacy parent messages to thread when replying", %{mailbox: mailbox} do

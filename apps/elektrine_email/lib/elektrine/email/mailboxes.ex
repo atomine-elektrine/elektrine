@@ -12,12 +12,13 @@ defmodule Elektrine.Email.Mailboxes do
   alias Elektrine.Repo
 
   @doc """
-  Gets a user's mailbox.
+  Gets a user's primary mailbox.
   Returns nil if the Mailbox does not exist.
   """
   def get_user_mailbox(user_id) do
     Mailbox
     |> where(user_id: ^user_id)
+    |> preferred_mailbox_query()
     |> Repo.one()
   end
 
@@ -55,7 +56,7 @@ defmodule Elektrine.Email.Mailboxes do
   """
   def get_mailbox_by_email(email) when is_binary(email) do
     # First try direct email lookup for backwards compatibility
-    case Mailbox |> where(email: ^email) |> Repo.one() do
+    case Mailbox |> where(email: ^email) |> preferred_mailbox_query() |> Repo.one() do
       %Mailbox{} = mailbox ->
         mailbox
 
@@ -70,6 +71,7 @@ defmodule Elektrine.Email.Mailboxes do
   def get_mailbox_by_username(username) when is_binary(username) do
     Mailbox
     |> where(username: ^username)
+    |> preferred_mailbox_query()
     |> Repo.one()
   end
 
@@ -177,6 +179,18 @@ defmodule Elektrine.Email.Mailboxes do
       true ->
         nil
     end
+  end
+
+  defp preferred_mailbox_query(query) do
+    query
+    |> order_by(
+      [m],
+      asc: fragment("CASE WHEN ? IS NULL THEN 1 ELSE 0 END", m.user_id),
+      asc: fragment("CASE WHEN ? IS NULL OR ? = '' THEN 1 ELSE 0 END", m.username, m.username),
+      desc: m.updated_at,
+      desc: m.id
+    )
+    |> limit(1)
   end
 
   @doc """

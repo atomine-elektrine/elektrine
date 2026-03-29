@@ -9,7 +9,7 @@ You can run both deployments on the same bare-metal server.
 
 To enable mail:
 
-1. add the `email` module in `ELEKTRINE_RELEASE_MODULES` and `ELEKTRINE_ENABLED_MODULES`
+1. add the `email` module in `ELEKTRINE_ENABLED_MODULES`
 2. fill in the mail section already present in `.env.example` / `.env.production`
 3. deploy Haraka separately
 4. connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted
@@ -35,7 +35,6 @@ Elektrine-side env values usually look like:
 PRIMARY_DOMAIN=example.com
 ELEKTRINE_MASTER_SECRET=replace-with-long-random-secret
 EMAIL_DOMAIN=example.com
-ELEKTRINE_RELEASE_MODULES=chat,social,email,vault
 ELEKTRINE_ENABLED_MODULES=chat,social,email,vault
 
 HARAKA_BASE_URL=https://mail.example.com

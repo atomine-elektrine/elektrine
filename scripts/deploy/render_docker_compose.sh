@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE_PATH="$ROOT_DIR/deploy/docker/compose.full.yml"
-REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
+REQUESTED_ENABLED_MODULES=""
 RAW_PROFILES="${DOCKER_PROFILES:-caddy}"
 OUTPUT_PATH="${OUTPUT_PATH:-$ROOT_DIR/deploy/docker/generated.docker.yml}"
 
@@ -21,7 +21,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --modules)
-      REQUESTED_MODULES="$2"
+      REQUESTED_ENABLED_MODULES="$2"
       shift 2
       ;;
     --output)
@@ -44,7 +44,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-normalize_platform_modules "$REQUESTED_MODULES"
+if [[ -z "$REQUESTED_ENABLED_MODULES" ]]; then
+  REQUESTED_ENABLED_MODULES="$(default_enabled_modules)"
+fi
+
+normalize_platform_modules "$REQUESTED_ENABLED_MODULES"
+ENABLED_MODULES="$NORMALIZED_MODULES"
+
+REQUESTED_RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES:-$ENABLED_MODULES}"
+normalize_platform_modules "$REQUESTED_RELEASE_MODULES"
+RELEASE_MODULES="$NORMALIZED_MODULES"
 
 TOR_ENABLED="false"
 for profile in $RAW_PROFILES; do
@@ -56,7 +65,7 @@ done
 
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
-awk -v release_modules="$NORMALIZED_MODULES" -v enabled_modules="$NORMALIZED_MODULES" -v tor_enabled="$TOR_ENABLED" '
+awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v tor_enabled="$TOR_ENABLED" '
   /ELEKTRINE_RELEASE_MODULES:/ {
     sub(/\$\{ELEKTRINE_RELEASE_MODULES:-[^}]*\}/, "${ELEKTRINE_RELEASE_MODULES:-" release_modules "}")
     print
@@ -80,4 +89,8 @@ awk -v release_modules="$NORMALIZED_MODULES" -v enabled_modules="$NORMALIZED_MOD
   }
 ' "$TEMPLATE_PATH" > "$OUTPUT_PATH"
 
-echo "Rendered Docker Compose config for modules ${NORMALIZED_MODULES} at $OUTPUT_PATH"
+if [[ "$RELEASE_MODULES" == "$ENABLED_MODULES" ]]; then
+  echo "Rendered Docker Compose config for modules ${ENABLED_MODULES} at $OUTPUT_PATH"
+else
+  echo "Rendered Docker Compose config for enabled modules ${ENABLED_MODULES} (release modules ${RELEASE_MODULES}) at $OUTPUT_PATH"
+fi

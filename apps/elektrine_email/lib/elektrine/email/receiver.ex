@@ -444,24 +444,15 @@ defmodule Elektrine.Email.Receiver do
   end
 
   defp find_direct_mailbox(recipient) do
-    import Ecto.Query
-    mailbox = Mailbox |> where(email: ^recipient) |> Repo.one()
-
-    case mailbox do
+    case Email.get_mailbox_by_email(recipient) do
       nil ->
-        case find_mailbox_by_cross_domain_lookup(recipient) do
-          nil ->
-            case auto_create_mailbox_if_valid(recipient) do
-              {:ok, new_mailbox} ->
-                {:ok, new_mailbox}
+        case auto_create_mailbox_if_valid(recipient) do
+          {:ok, new_mailbox} ->
+            {:ok, new_mailbox}
 
-              {:error, reason} ->
-                Logger.warning("No mailbox found for recipient: #{recipient}, reason: #{reason}")
-                {:error, :no_mailbox_found}
-            end
-
-          found_mailbox ->
-            {:ok, found_mailbox}
+          {:error, reason} ->
+            Logger.warning("No mailbox found for recipient: #{recipient}, reason: #{reason}")
+            {:error, :no_mailbox_found}
         end
 
       mailbox ->
@@ -477,25 +468,6 @@ defmodule Elektrine.Email.Receiver do
         else
           {:ok, mailbox}
         end
-    end
-  end
-
-  defp find_mailbox_by_cross_domain_lookup(email) do
-    case extract_username_and_domain(email) do
-      {username, domain} ->
-        supported_domains =
-          Elektrine.Domains.supported_email_domains()
-
-        if domain in supported_domains do
-          import Ecto.Query
-          like_patterns = Enum.map(supported_domains, fn d -> "#{username}@#{d}" end)
-          Mailbox |> where([m], m.email in ^like_patterns) |> Repo.one()
-        else
-          nil
-        end
-
-      _ ->
-        nil
     end
   end
 
@@ -818,12 +790,13 @@ defmodule Elektrine.Email.Receiver do
               {:error, :user_not_found}
 
             user ->
-              case Email.create_mailbox(%{"email" => email, "user_id" => user.id}) do
+              # Supported local domains should resolve to one canonical mailbox row per user.
+              case Email.ensure_user_has_mailbox(user) do
                 {:ok, mailbox} ->
                   {:ok, mailbox}
 
                 {:error, changeset} ->
-                  Logger.error("Failed to create mailbox #{email}: #{inspect(changeset.errors)}")
+                  Logger.error("Failed to ensure mailbox #{email}: #{inspect(changeset.errors)}")
                   {:error, :mailbox_creation_failed}
               end
           end

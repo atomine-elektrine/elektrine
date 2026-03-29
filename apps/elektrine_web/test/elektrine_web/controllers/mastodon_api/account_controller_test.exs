@@ -2,6 +2,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   import Elektrine.AccountsFixtures
+  import Elektrine.SocialFixtures
 
   alias Elektrine.OAuth
 
@@ -78,6 +79,31 @@ defmodule ElektrineWeb.MastodonAPI.AccountControllerTest do
 
       assert body["muting"] == false
       assert body["muting_notifications"] == false
+    end
+  end
+
+  describe "GET /api/v1/accounts/lookup" do
+    test "renders an account without legacy user fields", %{conn: conn, target: target} do
+      conn = get(conn, ~p"/api/v1/accounts/lookup", %{acct: target.username})
+      body = json_response(conn, 200)
+
+      assert body["id"] == to_string(target.id)
+      assert body["username"] == target.username
+      assert body["note"] == ""
+      assert is_boolean(body["locked"])
+    end
+  end
+
+  describe "GET /api/v1/accounts/:id/statuses" do
+    test "renders nested account data without legacy user fields", %{conn: conn, target: target} do
+      post = post_fixture(user: target)
+
+      conn = get(conn, ~p"/api/v1/accounts/#{target.id}/statuses")
+      body = json_response(conn, 200)
+
+      assert [%{"id" => post_id, "account" => %{"id" => account_id}}] = body
+      assert post_id == to_string(post.id)
+      assert account_id == to_string(target.id)
     end
   end
 end

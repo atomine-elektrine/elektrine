@@ -239,9 +239,13 @@ defmodule Elektrine.Email.PGP do
 
     case String.split(clean_email, "@") do
       [local_part, domain] ->
+        normalized_domain = normalize_wkd_domain(domain)
         hash = wkd_hash(local_part)
-        advanced_url = "https://openpgpkey.#{domain}/.well-known/openpgpkey/#{domain}/hu/#{hash}"
-        direct_url = "https://#{domain}/.well-known/openpgpkey/hu/#{hash}"
+
+        advanced_url =
+          "https://openpgpkey.#{normalized_domain}/.well-known/openpgpkey/#{normalized_domain}/hu/#{hash}"
+
+        direct_url = "https://#{normalized_domain}/.well-known/openpgpkey/hu/#{hash}"
 
         case fetch_wkd_key(advanced_url) do
           {:ok, key} ->
@@ -263,6 +267,12 @@ defmodule Elektrine.Email.PGP do
       _ ->
         {:error, :invalid_email}
     end
+  end
+
+  defp normalize_wkd_domain(domain) do
+    domain
+    |> String.trim()
+    |> String.trim_trailing(".")
   end
 
   defp fetch_wkd_key(url) do

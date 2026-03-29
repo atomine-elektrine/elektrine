@@ -58,23 +58,25 @@ defmodule ElektrineWeb.MastodonAPI.StatusView do
 
   defp render_account(user, _for_user) do
     base_url = ElektrineWeb.Endpoint.url()
+    header = account_header(user)
 
     %{
       id: to_string(user.id),
       username: user.username,
       acct: user.username,
       display_name: user.display_name || user.username,
-      locked: user.private || false,
+      locked:
+        Map.get(user, :private, Map.get(user, :activitypub_manually_approve_followers, false)),
       bot: false,
-      discoverable: true,
+      discoverable: Map.get(user, :profile_visibility, "public") == "public",
       group: false,
       created_at: format_datetime(user.inserted_at),
-      note: user.bio || "",
+      note: account_note(user),
       url: "#{base_url}/#{user.username}",
       avatar: Elektrine.Uploads.avatar_url(user.avatar),
       avatar_static: Elektrine.Uploads.avatar_url(user.avatar),
-      header: Elektrine.Uploads.background_url(user.background),
-      header_static: Elektrine.Uploads.background_url(user.background),
+      header: Elektrine.Uploads.background_url(header),
+      header_static: Elektrine.Uploads.background_url(header),
       followers_count: 0,
       following_count: 0,
       statuses_count: 0,
@@ -168,6 +170,29 @@ defmodule ElektrineWeb.MastodonAPI.StatusView do
   rescue
     _ -> false
   end
+
+  defp account_note(%{profile: %Ecto.Association.NotLoaded{}} = user),
+    do: Map.get(user, :bio) || ""
+
+  defp account_note(%{profile: nil} = user), do: Map.get(user, :bio) || ""
+
+  defp account_note(%{profile: profile} = user) when is_map(profile) do
+    Map.get(profile, :description) || Map.get(user, :bio) || ""
+  end
+
+  defp account_note(user), do: Map.get(user, :bio) || ""
+
+  defp account_header(%{profile: %Ecto.Association.NotLoaded{}} = user),
+    do: Map.get(user, :background)
+
+  defp account_header(%{profile: nil} = user), do: Map.get(user, :background)
+
+  defp account_header(%{profile: profile} = user) when is_map(profile) do
+    Map.get(profile, :banner_url) || Map.get(profile, :background_url) ||
+      Map.get(user, :background)
+  end
+
+  defp account_header(user), do: Map.get(user, :background)
 
   defp format_datetime(nil), do: nil
 

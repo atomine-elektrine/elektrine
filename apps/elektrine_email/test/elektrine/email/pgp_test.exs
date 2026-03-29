@@ -71,6 +71,15 @@ defmodule Elektrine.Email.PGPTest do
 
       assert log =~ "WKD: blocked unsafe lookup"
     end
+
+    test "normalizes domains with trailing dots before validation" do
+      log =
+        capture_log(fn ->
+          assert {:error, :not_found} = PGP.lookup_wkd("user@localhost.")
+        end)
+
+      assert log =~ "WKD: blocked unsafe lookup"
+    end
   end
 
   describe "parse_public_key/1" do

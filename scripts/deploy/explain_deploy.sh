@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REQUESTED_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
+REQUESTED_MODULES=""
 RAW_PROFILES="${DOCKER_PROFILES:-caddy dns email tor}"
 
 # shellcheck source=scripts/lib/module_selection.sh
@@ -38,7 +38,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$REQUESTED_MODULES" ]]; then
+  REQUESTED_MODULES="$(default_enabled_modules)"
+fi
+
 normalize_platform_modules "$REQUESTED_MODULES"
+ENABLED_MODULES="$NORMALIZED_MODULES"
+
+REQUESTED_RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES:-$ENABLED_MODULES}"
+normalize_platform_modules "$REQUESTED_RELEASE_MODULES"
+RELEASE_MODULES="$NORMALIZED_MODULES"
 
 read -r -a PROFILE_ARRAY <<< "$RAW_PROFILES"
 
@@ -63,11 +72,15 @@ bool_label() {
   fi
 }
 
-printf 'Modules: %s\n' "$NORMALIZED_MODULES"
+printf 'Enabled modules: %s\n' "$ENABLED_MODULES"
+printf 'Release modules: %s\n' "$RELEASE_MODULES"
 printf 'Profiles: %s\n' "$RAW_PROFILES"
 printf '\n'
 printf 'Code included in release:\n'
-printf '  - chat/social/email/vault/vpn come from ELEKTRINE_RELEASE_MODULES\n'
+printf '  - by default this matches --modules / ELEKTRINE_ENABLED_MODULES\n'
+if [[ "$RELEASE_MODULES" != "$ENABLED_MODULES" ]]; then
+  printf '  - ELEKTRINE_RELEASE_MODULES is overriding build-time selection\n'
+fi
 printf '  - dns is built as a separate release-backed service\n'
 printf '\n'
 printf 'Containers expected to run:\n'
