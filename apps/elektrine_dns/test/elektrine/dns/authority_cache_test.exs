@@ -47,6 +47,14 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
       Application.put_env(:elektrine, :managed_dns_dkim_module, old_dkim)
 
       if Process.whereis(ZoneCache) do
+        :sys.replace_state(ZoneCache, fn state ->
+          Map.put(
+            state,
+            :refresh_interval_ms,
+            Keyword.get(old_dns, :zone_cache_refresh_interval_ms, 5_000)
+          )
+        end)
+
         ZoneCache.refresh()
       end
     end)
