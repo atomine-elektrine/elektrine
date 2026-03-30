@@ -217,6 +217,11 @@ defmodule Elektrine.DNS do
     |> Keyword.get(:recursive_enabled, false)
   end
 
+  def zone_cache_refresh_interval_ms do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:zone_cache_refresh_interval_ms, 5_000)
+  end
+
   def recursive_upstreams do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:recursive_upstreams, [])

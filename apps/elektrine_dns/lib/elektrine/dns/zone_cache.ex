@@ -27,14 +27,28 @@ defmodule Elektrine.DNS.ZoneCache do
   end
 
   @impl true
-  def init(_opts) do
+  def init(opts) do
     :ets.new(@table, [:named_table, :public, read_concurrency: true])
-    {:ok, refresh_cache(%{})}
+
+    state = %{
+      refresh_interval_ms:
+        Keyword.get(opts, :refresh_interval_ms, Elektrine.DNS.zone_cache_refresh_interval_ms())
+    }
+
+    schedule_refresh(state.refresh_interval_ms)
+
+    {:ok, refresh_cache(state)}
   end
 
   @impl true
   def handle_call(:refresh, _from, state) do
     {:reply, :ok, refresh_cache(state)}
+  end
+
+  @impl true
+  def handle_info(:refresh, state) do
+    schedule_refresh(state.refresh_interval_ms)
+    {:noreply, refresh_cache(state)}
   end
 
   defp refresh_cache(state) do
@@ -53,4 +67,11 @@ defmodule Elektrine.DNS.ZoneCache do
 
     state
   end
+
+  defp schedule_refresh(refresh_interval_ms)
+       when is_integer(refresh_interval_ms) and refresh_interval_ms > 0 do
+    Process.send_after(self(), :refresh, refresh_interval_ms)
+  end
+
+  defp schedule_refresh(_refresh_interval_ms), do: :ok
 end

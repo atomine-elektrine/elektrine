@@ -268,6 +268,12 @@ dns_recursive_upstreams =
 config :elektrine, :dns,
   authority_enabled: parse_bool_env.("DNS_AUTHORITY_ENABLED", false),
   recursive_enabled: parse_bool_env.("DNS_RECURSIVE_ENABLED", false),
+  zone_cache_refresh_interval_ms:
+    parse_int_env.(
+      "DNS_ZONE_CACHE_REFRESH_INTERVAL_MS",
+      Application.get_env(:elektrine, :dns, [])
+      |> Keyword.get(:zone_cache_refresh_interval_ms, 5_000)
+    ),
   nameservers: dns_nameservers,
   soa_rname: dns_soa_rname,
   recursive_upstreams: dns_recursive_upstreams,
