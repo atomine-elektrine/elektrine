@@ -28,14 +28,14 @@
 	}
 }
 
-{$CADDY_MANAGED_SITE_1} {
+https://{$CADDY_MANAGED_SITE_1} {
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
 	}
 }
 
-{$CADDY_MANAGED_SITE_2} {
+https://{$CADDY_MANAGED_SITE_2} {
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
