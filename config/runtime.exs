@@ -501,8 +501,7 @@ turn_port = parse_int_env.("TURN_PORT", 3478)
 turn_realm = first_present_env.(["TURN_REALM"]) || turn_host
 turn_username_ttl_seconds = parse_int_env.("TURN_USERNAME_TTL_SECONDS", 3600)
 
-turn_shared_secret =
-  first_present_env.(["TURN_SHARED_SECRET"]) || RuntimeSecrets.master_secret(runtime_env)
+turn_shared_secret = RuntimeSecrets.turn_shared_secret(runtime_env)
 
 stun_uris =
   case System.get_env("STUN_URIS") do

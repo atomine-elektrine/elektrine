@@ -3,6 +3,7 @@ defmodule Elektrine.Email.PGP do
   alias Elektrine.Accounts.User
   alias Elektrine.Email.Contact
   alias Elektrine.Email.PgpKeyCache
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
   alias Elektrine.Security.URLValidator
   import Ecto.Query
@@ -285,7 +286,10 @@ defmodule Elektrine.Email.PGP do
 
         request = Finch.build(:get, url, headers)
 
-        case Finch.request(request, Elektrine.Finch, receive_timeout: @wkd_timeout) do
+        case SafeFetch.request(request, Elektrine.Finch,
+               receive_timeout: @wkd_timeout,
+               max_body_bytes: 1_000_000
+             ) do
           {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) > 0 ->
             armored = armor_public_key(body)
             {:ok, armored}

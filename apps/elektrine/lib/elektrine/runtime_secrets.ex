@@ -38,6 +38,9 @@ defmodule Elektrine.RuntimeSecrets do
       env_value(env, "EMAIL_RECEIVER_WEBHOOK_SECRET") ||
         derive(env, "email_receiver_webhook_secret", 32)
 
+  def turn_shared_secret(env \\ System.get_env()),
+    do: env_value(env, "TURN_SHARED_SECRET") || derive(env, "turn_shared_secret", 32)
+
   def derive(env, label, bytes) when is_map(env) and is_binary(label) and bytes > 0 do
     case master_secret(env) do
       nil ->

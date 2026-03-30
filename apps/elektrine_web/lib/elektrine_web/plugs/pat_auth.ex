@@ -35,6 +35,7 @@ defmodule ElektrineWeb.Plugs.PATAuth do
   import Plug.Conn
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.Developer
   alias Elektrine.Developer.ApiToken
   alias ElektrineWeb.API.Response
@@ -169,7 +170,12 @@ defmodule ElektrineWeb.Plugs.PATAuth do
   defp verify_api_token(token) do
     with {:ok, user_id} <- APIAuth.verify_token_internal(token) do
       try do
-        {:ok, Accounts.get_user!(user_id)}
+        user = Accounts.get_user!(user_id)
+
+        case Authentication.ensure_user_active(user) do
+          :ok -> {:ok, user}
+          {:error, reason} -> {:error, reason}
+        end
       rescue
         Ecto.NoResultsError -> {:error, :invalid_token}
       end
@@ -219,6 +225,8 @@ defmodule ElektrineWeb.Plugs.PATAuth do
         :invalid_token -> "Invalid or unknown token"
         :token_expired -> "Token has expired"
         :token_revoked -> "Token has been revoked"
+        :account_banned -> "Account is not allowed to authenticate"
+        :account_suspended -> "Account is not allowed to authenticate"
         _ -> "Authentication failed"
       end
 

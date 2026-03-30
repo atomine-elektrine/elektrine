@@ -12,6 +12,7 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   import Phoenix.Controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.Auth.APITokenRevocation
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
@@ -26,29 +27,16 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   def call(conn, _opts) do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] ->
-        case verify_token(token) do
-          {:ok, user_id, should_refresh} ->
-            try do
-              user = Accounts.get_user!(user_id)
-              Events.auth(:api_token, :success, %{reason: :token_valid})
-              conn = assign(conn, :current_user, user)
+        case verify_token_with_user(token) do
+          {:ok, user, should_refresh} ->
+            Events.auth(:api_token, :success, %{reason: :token_valid})
+            conn = assign(conn, :current_user, user)
 
-              # Sliding window: refresh token if close to expiration
-              if should_refresh do
-                {:ok, new_token} = generate_token(user_id)
-                put_resp_header(conn, "x-refreshed-token", new_token)
-              else
-                conn
-              end
-            rescue
-              Ecto.NoResultsError ->
-                Events.auth(:api_token, :failure, %{reason: :user_not_found})
-
-                conn
-                |> put_status(:unauthorized)
-                |> put_view(json: ElektrineWeb.ErrorJSON)
-                |> render(:"401")
-                |> halt()
+            if should_refresh do
+              {:ok, new_token} = generate_token(user.id)
+              put_resp_header(conn, "x-refreshed-token", new_token)
+            else
+              conn
             end
 
           {:error, _reason} ->
@@ -90,8 +78,15 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   Returns {:ok, user_id} or {:error, reason}
   """
   def verify_token_internal(token) do
-    case verify_token(token) do
-      {:ok, user_id, _should_refresh} -> {:ok, user_id}
+    case verify_token_with_user(token) do
+      {:ok, user, _should_refresh} -> {:ok, user.id}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def verify_user_token(token) do
+    case verify_token_with_user(token) do
+      {:ok, user, _should_refresh} -> {:ok, user}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -151,6 +146,28 @@ defmodule ElektrineWeb.Plugs.APIAuth do
       {:ok, true} -> {:error, :token_revoked}
       {:error, reason} -> {:error, reason}
       _ -> {:error, :invalid_token}
+    end
+  end
+
+  defp verify_token_with_user(token) do
+    with {:ok, user_id, should_refresh} <- verify_token(token),
+         {:ok, user} <- fetch_active_user(user_id) do
+      {:ok, user, should_refresh}
+    end
+  end
+
+  defp fetch_active_user(user_id) do
+    try do
+      user = Accounts.get_user!(user_id)
+
+      case Authentication.ensure_user_active(user) do
+        :ok -> {:ok, user}
+        {:error, reason} -> {:error, reason}
+      end
+    rescue
+      Ecto.NoResultsError ->
+        Events.auth(:api_token, :failure, %{reason: :user_not_found})
+        {:error, :invalid_token}
     end
   end
 

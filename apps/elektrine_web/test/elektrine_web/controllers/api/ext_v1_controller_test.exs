@@ -5,6 +5,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   import Elektrine.EmailFixtures
   import Elektrine.SocialFixtures
 
+  alias Elektrine.Accounts
   alias Elektrine.Calendar, as: CalendarContext
   alias Elektrine.Developer
   alias Elektrine.Email
@@ -421,7 +422,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert data["vault_verifier"]["kdf"] == "PBKDF2-SHA256"
     end
 
-    test "password manager endpoints accept standard account auth tokens", %{conn: conn} do
+    test "password manager endpoints reject standard account auth tokens", %{conn: conn} do
       user = user_fixture()
       {:ok, token} = APIAuth.generate_token(user.id)
 
@@ -430,12 +431,11 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
         |> put_req_header("authorization", "Bearer #{token}")
         |> get("/api/ext/v1/password-manager/entries")
 
-      assert %{"data" => data} = json_response(conn, 200)
-      assert data["vault_configured"] == false
-      assert data["entries"] == []
+      assert %{"error" => error} = json_response(conn, 401)
+      assert error["code"] == "invalid_token_format"
     end
 
-    test "password manager write endpoints accept standard account auth tokens", %{conn: conn} do
+    test "password manager write endpoints reject standard account auth tokens", %{conn: conn} do
       user = user_fixture()
       {:ok, token} = APIAuth.generate_token(user.id)
 
@@ -446,14 +446,12 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
           "vault" => %{"encrypted_verifier" => valid_client_payload()}
         })
 
-      assert %{"data" => data} = json_response(conn, 201)
-      assert data["message"] == "Vault configured"
-      assert data["vault_configured"] == true
+      assert %{"error" => error} = json_response(conn, 401)
+      assert error["code"] == "invalid_token_format"
     end
 
     test "password manager delete vault endpoint removes verifier and entries", %{conn: conn} do
       user = user_fixture()
-      {:ok, token} = APIAuth.generate_token(user.id)
 
       assert {:ok, _settings} =
                PasswordManager.setup_vault(user.id, %{
@@ -466,9 +464,10 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
                  encrypted_password: valid_client_payload()
                })
 
+      delete_conn = with_pat(conn, user.id, ["write:vault"])
+
       delete_conn =
-        conn
-        |> put_req_header("authorization", "Bearer #{token}")
+        delete_conn
         |> delete("/api/ext/v1/password-manager/vault")
 
       assert %{"data" => data} = json_response(delete_conn, 200)
@@ -478,7 +477,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       list_conn =
         build_conn()
-        |> put_req_header("authorization", "Bearer #{token}")
+        |> with_pat(user.id, ["read:vault"])
         |> get("/api/ext/v1/password-manager/entries")
 
       assert %{"data" => list_data} = json_response(list_conn, 200)
@@ -494,6 +493,17 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       assert %{"error" => error} = json_response(conn, 403)
       assert error["code"] == "insufficient_scope"
+    end
+
+    test "password manager endpoints reject banned PAT users", %{conn: conn} do
+      user = user_fixture()
+      {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+      conn = with_pat(conn, user.id, ["read:vault"])
+
+      conn = get(conn, "/api/ext/v1/password-manager/entries")
+
+      assert %{"error" => error} = json_response(conn, 401)
+      assert error["code"] == "account_inactive"
     end
 
     test "password manager update endpoint updates an existing entry", %{conn: conn} do

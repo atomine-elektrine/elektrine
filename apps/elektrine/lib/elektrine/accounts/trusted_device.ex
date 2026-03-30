@@ -41,20 +41,23 @@ defmodule Elektrine.Accounts.TrustedDevice do
   Devices are trusted for 30 days by default.
   """
   def new_trusted_device(user_id, attrs \\ %{}) do
-    device_token = generate_device_token()
+    raw_device_token = generate_device_token()
     expires_at = DateTime.utc_now() |> DateTime.add(30, :day)
 
     default_attrs = %{
       user_id: user_id,
-      device_token: device_token,
+      device_token: hash_device_token(raw_device_token),
       last_used_at: DateTime.utc_now(),
       expires_at: expires_at
     }
 
     attrs = Map.merge(default_attrs, attrs)
 
-    %__MODULE__{}
-    |> changeset(attrs)
+    changeset =
+      %__MODULE__{}
+      |> changeset(attrs)
+
+    {changeset, raw_device_token}
   end
 
   @doc """
@@ -63,6 +66,11 @@ defmodule Elektrine.Accounts.TrustedDevice do
   def generate_device_token do
     :crypto.strong_rand_bytes(32)
     |> Base.url_encode64(padding: false)
+  end
+
+  def hash_device_token(token) when is_binary(token) do
+    :crypto.hash(:sha256, token)
+    |> Base.encode16(case: :lower)
   end
 
   @doc """

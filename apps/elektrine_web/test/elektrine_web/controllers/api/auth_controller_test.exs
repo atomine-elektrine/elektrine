@@ -1,7 +1,9 @@
 defmodule ElektrineWeb.API.AuthControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
+  alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Accounts.Authentication
   alias ElektrineWeb.Plugs.APIAuth
 
   describe "POST /api/auth/login" do
@@ -23,6 +25,37 @@ defmodule ElektrineWeb.API.AuthControllerTest do
       assert response["token"]
       assert response["user"]["id"] == user.id
       assert response["user"]["username"] == user.username
+    end
+
+    test "requires a two-factor code when the account has 2FA enabled", %{conn: conn, user: user} do
+      user = enable_two_factor_for_user(user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/login", %{
+          username: user.username,
+          password: AccountsFixtures.valid_user_password()
+        })
+
+      assert %{"reason" => "two_factor_required"} = json_response(conn, 401)
+    end
+
+    test "accepts a valid two-factor code for API login", %{conn: conn, user: user} do
+      user = enable_two_factor_for_user(user)
+      code = NimbleTOTP.verification_code(decode_two_factor_secret(user.two_factor_secret))
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/login", %{
+          username: user.username,
+          password: AccountsFixtures.valid_user_password(),
+          two_factor_code: code
+        })
+
+      assert %{"token" => token} = json_response(conn, 200)
+      assert is_binary(token)
     end
 
     test "returns 401 with invalid password", %{conn: conn, user: user} do
@@ -82,6 +115,18 @@ defmodule ElektrineWeb.API.AuthControllerTest do
 
       assert conn.status == 401
     end
+
+    test "returns 401 for a banned user token", %{conn: conn, user: user} do
+      {:ok, token} = APIAuth.generate_token(user.id)
+      {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get("/api/auth/me")
+
+      assert conn.status == 401
+    end
   end
 
   describe "POST /api/auth/logout" do
@@ -115,6 +160,23 @@ defmodule ElektrineWeb.API.AuthControllerTest do
         |> get("/api/auth/me")
 
       assert conn.status == 401
+    end
+  end
+
+  defp enable_two_factor_for_user(user) do
+    {:ok, setup} = Authentication.initiate_two_factor_setup(user)
+    code = NimbleTOTP.verification_code(setup.secret)
+
+    {:ok, updated_user} =
+      Authentication.enable_two_factor(user, setup.secret, setup.hashed_backup_codes, code)
+
+    updated_user
+  end
+
+  defp decode_two_factor_secret(encoded_secret) do
+    case Base.decode64(encoded_secret) do
+      {:ok, secret} -> secret
+      :error -> encoded_secret
     end
   end
 end

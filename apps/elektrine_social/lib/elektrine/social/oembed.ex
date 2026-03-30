@@ -18,6 +18,8 @@ defmodule Elektrine.Social.OEmbed do
       end
   """
 
+  alias Elektrine.HTTP.SafeFetch
+
   require Logger
 
   @known_providers %{
@@ -188,7 +190,10 @@ defmodule Elektrine.Social.OEmbed do
 
         request = Finch.build(:get, url, headers)
 
-        case Finch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
+        case SafeFetch.request(request, Elektrine.Finch,
+               receive_timeout: 10_000,
+               max_body_bytes: 1_000_000
+             ) do
           {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 ->
             {:ok, body}
 

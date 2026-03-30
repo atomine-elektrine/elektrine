@@ -58,6 +58,15 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
+  @doc "Returns :ok when a user is allowed to access authenticated surfaces."
+  def ensure_user_active(%User{} = user) do
+    cond do
+      user.banned -> {:error, :account_banned}
+      user_suspended?(user) -> {:error, :account_suspended}
+      true -> :ok
+    end
+  end
+
   defp verify_password_hash(password, hash) do
     if bcrypt_hash?(hash) do
       Bcrypt.verify_pass(password, hash)

@@ -9,7 +9,6 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   def init(opts) do
     opts
     |> Keyword.put_new(:env_names, ["PHOENIX_API_KEY"])
-    |> Keyword.put_new(:query_param, nil)
   end
 
   def call(conn, opts) do
@@ -33,10 +32,8 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
     end
   end
 
-  defp provided_key(conn, opts) do
-    List.first(get_req_header(conn, "x-api-key")) ||
-      authorization_key(conn) ||
-      query_param_key(conn, opts)
+  defp provided_key(conn, _opts) do
+    List.first(get_req_header(conn, "x-api-key")) || authorization_key(conn)
   end
 
   defp authorization_key(conn) do
@@ -54,19 +51,6 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
       password
     else
       _ -> nil
-    end
-  end
-
-  defp query_param_key(conn, opts) do
-    case Keyword.fetch!(opts, :query_param) do
-      nil ->
-        nil
-
-      query_param ->
-        conn
-        |> fetch_query_params()
-        |> Map.get(:params, %{})
-        |> Map.get(query_param)
     end
   end
 

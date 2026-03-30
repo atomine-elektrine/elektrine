@@ -16,6 +16,8 @@ defmodule Elektrine.Developer do
     WebhookDeliveryWorker
   }
 
+  alias Elektrine.Accounts.Authentication
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
 
   # =============================================================================
@@ -147,6 +149,9 @@ defmodule Elektrine.Developer do
 
           ApiToken.revoked?(token) ->
             {:error, :token_revoked}
+
+          Authentication.ensure_user_active(token.user) != :ok ->
+            {:error, :account_inactive}
 
           true ->
             touch_api_token(token, ip_address)
@@ -446,7 +451,12 @@ defmodule Elektrine.Developer do
         request = Finch.build(:post, webhook.url, headers, body)
         duration_ms = fn -> System.monotonic_time(:millisecond) - started_ms end
 
-        case Finch.request(request, Elektrine.Finch, receive_timeout: 5_000, pool_timeout: 5_000) do
+        case SafeFetch.request(request, Elektrine.Finch,
+               receive_timeout: 5_000,
+               pool_timeout: 5_000,
+               max_body_bytes: 256_000,
+               allow_localhost: Mix.env() in [:dev, :test]
+             ) do
           {:ok, %Finch.Response{status: status}} when status >= 200 and status < 300 ->
             _ =
               update_webhook_delivery_result(delivery, %{

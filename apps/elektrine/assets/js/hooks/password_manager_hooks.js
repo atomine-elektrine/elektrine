@@ -97,21 +97,34 @@ function createPassword() {
   const digits = "0123456789"
   const symbols = "!@#$%^&*()-_=+"
   const all = lowercase + uppercase + digits + symbols
+  const cryptoValues = new Uint32Array(PASSWORD_LENGTH * 2)
+  crypto.getRandomValues(cryptoValues)
+  let randomIndex = 0
+
+  const pick = (characters) => {
+    const value = cryptoValues[randomIndex]
+    randomIndex += 1
+    return characters[value % characters.length]
+  }
 
   const required = [
-    lowercase[Math.floor(Math.random() * lowercase.length)],
-    uppercase[Math.floor(Math.random() * uppercase.length)],
-    digits[Math.floor(Math.random() * digits.length)],
-    symbols[Math.floor(Math.random() * symbols.length)]
+    pick(lowercase),
+    pick(uppercase),
+    pick(digits),
+    pick(symbols)
   ]
 
   while (required.length < PASSWORD_LENGTH) {
-    required.push(all[Math.floor(Math.random() * all.length)])
+    required.push(pick(all))
   }
 
-  return required
-    .sort(() => Math.random() - 0.5)
-    .join("")
+  for (let i = required.length - 1; i > 0; i -= 1) {
+    const swapIndex = cryptoValues[randomIndex] % (i + 1)
+    randomIndex += 1
+    ;[required[i], required[swapIndex]] = [required[swapIndex], required[i]]
+  }
+
+  return required.join("")
 }
 
 function parsePayload(raw) {

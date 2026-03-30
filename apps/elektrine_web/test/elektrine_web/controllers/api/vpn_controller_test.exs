@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.API.VPNControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
+  alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
   alias ElektrineWeb.Plugs.APIAuth
 
@@ -29,6 +30,21 @@ defmodule ElektrineWeb.API.VPNControllerTest do
 
     test "returns 401 without auth", %{conn: conn} do
       conn = get(conn, "/api/vpn/servers")
+      assert json_response(conn, 401)
+    end
+
+    test "returns 401 for banned users with existing API tokens", %{
+      conn: conn,
+      user: user,
+      token: token
+    } do
+      {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
+
+      conn =
+        conn
+        |> auth_conn(token)
+        |> get("/api/vpn/servers")
+
       assert json_response(conn, 401)
     end
   end

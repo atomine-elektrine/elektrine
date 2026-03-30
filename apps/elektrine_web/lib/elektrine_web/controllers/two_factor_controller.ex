@@ -177,7 +177,7 @@ defmodule ElektrineWeb.TwoFactorController do
     device_name = parse_device_name(user_agent)
 
     # Create trusted device
-    changeset =
+    {changeset, raw_device_token} =
       TrustedDevice.new_trusted_device(user.id, %{
         device_name: device_name,
         user_agent: user_agent,
@@ -185,14 +185,14 @@ defmodule ElektrineWeb.TwoFactorController do
       })
 
     case Elektrine.Repo.insert(changeset) do
-      {:ok, trusted_device} ->
+      {:ok, _trusted_device} ->
         # Log device creation without exposing the full token
-        token_preview = String.slice(trusted_device.device_token, 0, 8) <> "..."
+        token_preview = String.slice(raw_device_token, 0, 8) <> "..."
         Logger.info("Created trusted device for user #{user.id}: #{token_preview}")
 
         # Set the device token in a cookie (valid for 30 days)
         conn
-        |> put_resp_cookie("device_token", trusted_device.device_token,
+        |> put_resp_cookie("device_token", raw_device_token,
           # 30 days
           max_age: 30 * 24 * 60 * 60,
           http_only: true,
