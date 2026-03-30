@@ -67,28 +67,91 @@ defmodule Elektrine.DNS.Generators.Mail do
         required: false,
         metadata: %{"label" => "TLS-RPT reporting policy"}
       }
-    ] ++ aliases(domain, ttl)
+    ] ++ mail_host_records(zone, mail_target) ++ aliases(domain, ttl, mail_target)
   end
 
-  defp aliases(domain, ttl) do
-    for {key, label} <- [
-          {"mail", "Mail host alias"},
-          {"imap", "IMAP alias"},
-          {"pop", "POP alias"},
-          {"smtp", "SMTP alias"},
-          {"mta-sts", "MTA-STS policy host"},
-          {"autoconfig", "Mail autoconfig alias"},
-          {"autodiscover", "Mail autodiscover alias"}
-        ] do
+  defp mail_host_records(zone, mail_target) do
+    case same_zone_relative_name(zone.domain, mail_target) do
+      nil ->
+        []
+
+      "@" ->
+        []
+
+      relative_name ->
+        zone
+        |> apex_address_records()
+        |> Enum.sort_by(&{&1.type, &1.content})
+        |> Enum.with_index()
+        |> Enum.map(fn {record, idx} ->
+          %{
+            managed_key: "mail:host:#{String.downcase(record.type)}:#{idx}",
+            name: relative_name,
+            type: record.type,
+            ttl: record.ttl,
+            content: record.content,
+            required: true,
+            metadata: %{"label" => "Mail exchanger address"}
+          }
+        end)
+    end
+  end
+
+  defp aliases(domain, ttl, mail_target) do
+    mail_target_relative = same_zone_relative_name(domain, mail_target)
+
+    for {key, label, target} <- [
+          {"mail", "Mail host alias", mail_target},
+          {"imap", "IMAP alias", mail_target},
+          {"pop", "POP alias", mail_target},
+          {"smtp", "SMTP alias", mail_target},
+          {"mta-sts", "MTA-STS policy host", domain},
+          {"autoconfig", "Mail autoconfig alias", mail_target},
+          {"autodiscover", "Mail autodiscover alias", mail_target}
+        ],
+        mail_target_relative != key do
       %{
         managed_key: "mail:#{key}",
         name: key,
         type: "CNAME",
         ttl: ttl,
-        content: domain,
+        content: target,
         required: false,
         metadata: %{"label" => label}
       }
     end
   end
+
+  defp apex_address_records(zone) do
+    zone_domain = normalize_name(zone.domain)
+
+    zone.records
+    |> List.wrap()
+    |> Enum.filter(fn record ->
+      record.type in ["A", "AAAA"] and normalize_name(record.name) in ["@", zone_domain]
+    end)
+  end
+
+  defp same_zone_relative_name(domain, fqdn) do
+    normalized_domain = normalize_name(domain)
+    normalized_fqdn = normalize_name(fqdn)
+
+    cond do
+      normalized_fqdn == normalized_domain ->
+        "@"
+
+      String.ends_with?(normalized_fqdn, "." <> normalized_domain) ->
+        normalized_fqdn
+        |> String.trim_trailing("." <> normalized_domain)
+        |> String.trim_trailing(".")
+
+      true ->
+        nil
+    end
+  end
+
+  defp normalize_name(nil), do: nil
+
+  defp normalize_name(name),
+    do: name |> String.trim() |> String.downcase() |> String.trim_trailing(".")
 end

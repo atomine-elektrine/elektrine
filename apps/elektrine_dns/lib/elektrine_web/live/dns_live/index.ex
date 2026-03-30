@@ -2,6 +2,7 @@ defmodule ElektrineWeb.DNSLive.Index do
   use ElektrineDNSWeb, :live_view
 
   alias Elektrine.DNS
+  alias Elektrine.DNS.MailSecurity
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
 
@@ -860,7 +861,7 @@ defmodule ElektrineWeb.DNSLive.Index do
         service_form_from_health(
           Enum.find(health, &(&1.service == "mail")),
           %{
-            "mail_target" => zone.domain,
+            "mail_target" => MailSecurity.default_mail_target(zone),
             "dmarc_policy" => "quarantine",
             "mta_sts_mode" => "enforce",
             "tls_rpt_rua" => "mailto:postmaster@#{zone.domain}"
