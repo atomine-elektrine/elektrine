@@ -14,6 +14,7 @@ defmodule Elektrine.DNS.TCPServer do
         :binary,
         packet: 0,
         active: false,
+        backlog: Elektrine.DNS.tcp_max_inflight(),
         reuseaddr: true,
         ip: {0, 0, 0, 0}
       ])
@@ -25,7 +26,23 @@ defmodule Elektrine.DNS.TCPServer do
   @impl true
   def handle_info(:accept, state) do
     {:ok, socket} = :gen_tcp.accept(state.listen_socket)
-    Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn -> serve_client(socket) end)
+
+    case :inet.peername(socket) do
+      {:ok, {client_ip, _client_port}} ->
+        case Elektrine.DNS.RequestGuard.begin_request(client_ip, :tcp) do
+          {:ok, :tcp} ->
+            Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
+              serve_client(socket)
+            end)
+
+          {:error, _reason} ->
+            :gen_tcp.close(socket)
+        end
+
+      {:error, _reason} ->
+        :gen_tcp.close(socket)
+    end
+
     send(self(), :accept)
     {:noreply, state}
   end
@@ -33,12 +50,15 @@ defmodule Elektrine.DNS.TCPServer do
   defp serve_client(socket) do
     {:ok, {client_ip, _client_port}} = :inet.peername(socket)
 
-    with {:ok, <<length::16>>} <- :gen_tcp.recv(socket, 2, 5_000),
-         {:ok, packet} <- :gen_tcp.recv(socket, length, 5_000) do
-      response = Elektrine.DNS.Query.answer(packet, client_ip: client_ip)
-      :gen_tcp.send(socket, <<byte_size(response)::16, response::binary>>)
+    try do
+      with {:ok, <<length::16>>} <- :gen_tcp.recv(socket, 2, 5_000),
+           {:ok, packet} <- :gen_tcp.recv(socket, length, 5_000) do
+        response = Elektrine.DNS.Query.answer(packet, client_ip: client_ip, transport: :tcp)
+        :gen_tcp.send(socket, <<byte_size(response)::16, response::binary>>)
+      end
+    after
+      Elektrine.DNS.RequestGuard.finish_request(:tcp)
+      :gen_tcp.close(socket)
     end
-
-    :gen_tcp.close(socket)
   end
 end

@@ -5,9 +5,11 @@
 	on_demand_tls {
 		ask {$CADDY_ASK_URL}?token={$CADDY_EDGE_API_KEY}
 	}
+
+	auto_https disable_redirects
 }
 
-https://{$CADDY_MANAGED_SITE_1} {
+{$CADDY_MANAGED_SITE_1} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
 
 	@bluesky host bsky.elektrine.com
@@ -24,7 +26,7 @@ https://{$CADDY_MANAGED_SITE_1} {
 	}
 }
 
-https://{$CADDY_MANAGED_SITE_2} {
+{$CADDY_MANAGED_SITE_2} {
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
@@ -33,15 +35,10 @@ https://{$CADDY_MANAGED_SITE_2} {
 	}
 }
 
-http://{$CADDY_MANAGED_SITE_1} {
-	redir https://{host}{uri} 308
-}
-
-http://{$CADDY_MANAGED_SITE_2} {
-	redir https://{host}{uri} 308
-}
-
 :80 {
+	@managed_hosts host {$CADDY_MANAGED_SITE_1} {$CADDY_MANAGED_SITE_2}
+	redir @managed_hosts https://{host}{uri} 308
+
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto http

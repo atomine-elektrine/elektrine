@@ -115,6 +115,13 @@ defmodule Elektrine.DNS.QueryTest do
     assert response =~ <<3, 1, 1, 0xAA, 0xBB, 0xCC, 0xDD>>
   end
 
+  test "refuses ANY queries" do
+    response = Query.answer(build_query("example.com", 255))
+
+    assert header(response).ancount == 0
+    assert header(response).rcode == 5
+  end
+
   defp build_query(name, type) do
     <<0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       encode_name(name)::binary, type::16, 1::16>>

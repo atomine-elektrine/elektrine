@@ -12,7 +12,7 @@ defmodule Elektrine.DNS.TestRecursiveTransport do
     Agent.get_and_update(__MODULE__, fn %{handler: handler, calls: calls} = state ->
       {:ok, query} = Elektrine.DNS.Packet.decode_query(packet)
       result = handler.(ip, port, packet, timeout, query)
-      {result, %{state | calls: [{ip, port, query.qname, query.qtype} | calls]}}
+      {result, %{state | calls: [{ip, port, query.id, query.qname, query.qtype} | calls]}}
     end)
   end
 
@@ -40,6 +40,10 @@ defmodule Elektrine.DNS.RecursiveTest do
       recursive_transport: Elektrine.DNS.TestRecursiveTransport,
       recursive_allow_cidrs: ["127.0.0.0/8"]
     )
+
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn _ip, _port, _packet, _timeout, _query ->
+      {:error, :unexpected_call}
+    end)
 
     clear_table(Elektrine.DNS.ZoneCache)
     clear_table(Elektrine.DNS.RecursiveCache)
@@ -72,8 +76,16 @@ defmodule Elektrine.DNS.RecursiveTest do
       )
 
     assert response =~ <<203, 0, 113, 9>>
-    assert {{1, 1, 1, 1}, 53, "example.net", :a} in Elektrine.DNS.TestRecursiveTransport.calls()
-    assert {{2, 2, 2, 2}, 53, "example.net", :a} in Elektrine.DNS.TestRecursiveTransport.calls()
+
+    assert Enum.any?(Elektrine.DNS.TestRecursiveTransport.calls(), fn {ip, port, _id, qname,
+                                                                       qtype} ->
+             ip == {1, 1, 1, 1} and port == 53 and qname == "example.net" and qtype == :a
+           end)
+
+    assert Enum.any?(Elektrine.DNS.TestRecursiveTransport.calls(), fn {ip, port, _id, qname,
+                                                                       qtype} ->
+             ip == {2, 2, 2, 2} and port == 53 and qname == "example.net" and qtype == :a
+           end)
   end
 
   test "ignores out-of-bailiwick glue and resolves the nameserver separately" do
@@ -119,7 +131,8 @@ defmodule Elektrine.DNS.RecursiveTest do
 
     assert response =~ <<192, 0, 2, 55>>
 
-    assert Enum.any?(Elektrine.DNS.TestRecursiveTransport.calls(), fn {_ip, _port, qname, qtype} ->
+    assert Enum.any?(Elektrine.DNS.TestRecursiveTransport.calls(), fn {_ip, _port, _id, qname,
+                                                                       qtype} ->
              qname == "ns.bad.com" and qtype == :a
            end)
   end
@@ -165,6 +178,102 @@ defmodule Elektrine.DNS.RecursiveTest do
     assert ttl_ms <= 30_500
   end
 
+  test "randomizes upstream ids instead of reusing client ids" do
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn _ip, _port, _packet, _timeout, query ->
+      {:ok,
+       Packet.encode_response(
+         query,
+         [%{name: query.qname, type: :a, content: "203.0.113.11", ttl: 300}],
+         :noerror
+       )}
+    end)
+
+    packet = Packet.encode_query(%{id: 4444, rd: 1, qname: "example.net", qtype: :a})
+    response = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert response =~ <<203, 0, 113, 11>>
+
+    assert [{{1, 1, 1, 1}, 53, upstream_id, "example.net", :a} | _] =
+             Elektrine.DNS.TestRecursiveTransport.calls()
+
+    assert upstream_id != 0
+    assert upstream_id != 4444
+  end
+
+  test "refuses recursive ANY queries" do
+    packet = Packet.encode_query(%{id: 333, rd: 1, qname: "example.net", qtype: :any})
+    response = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert header(response).rcode == 5
+    assert Elektrine.DNS.TestRecursiveTransport.calls() == []
+  end
+
+  test "uses configured recursive upstreams as forwarders" do
+    put_dns_config(recursive_upstreams: [{{9, 9, 9, 9}, 53}])
+
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn ip, _port, _packet, _timeout, query ->
+      response =
+        case ip do
+          {9, 9, 9, 9} ->
+            Packet.encode_response(
+              query,
+              [%{name: query.qname, type: :a, content: "203.0.113.44", ttl: 300}],
+              :noerror,
+              authentic_data: true
+            )
+
+          _ ->
+            raise "unexpected upstream #{inspect(ip)}"
+        end
+
+      {:ok, response}
+    end)
+
+    packet = Packet.encode_query(%{id: 555, rd: 1, qname: "example.net", qtype: :a})
+    response = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert response =~ <<203, 0, 113, 44>>
+    assert header(response).ad == 1
+
+    assert [{{9, 9, 9, 9}, 53, _id, "example.net", :a}] =
+             Elektrine.DNS.TestRecursiveTransport.calls()
+  end
+
+  test "allows dnssec record lookups when forwarding upstreams are configured" do
+    put_dns_config(recursive_upstreams: [{{9, 9, 9, 9}, 53}])
+
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn {9, 9, 9, 9},
+                                                        _port,
+                                                        _packet,
+                                                        _timeout,
+                                                        query ->
+      {:ok,
+       Packet.encode_response(
+         query,
+         [
+           %{
+             name: query.qname,
+             type: :ds,
+             key_tag: 12345,
+             algorithm: 13,
+             digest_type: 2,
+             content: "A1B2C3D4",
+             ttl: 300
+           }
+         ],
+         :noerror,
+         authentic_data: true
+       )}
+    end)
+
+    packet = Packet.encode_query(%{id: 556, rd: 1, qname: "delegated.example", qtype: :ds})
+    response = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert header(response).rcode == 0
+    assert header(response).ad == 1
+    assert response =~ <<0x30, 0x39, 13, 2, 0xA1, 0xB2, 0xC3, 0xD4>>
+  end
+
   defp clear_table(table) do
     case :ets.whereis(table) do
       :undefined -> :ok
@@ -173,7 +282,7 @@ defmodule Elektrine.DNS.RecursiveTest do
   end
 
   defp header(<<_id::16, flags::16, _qd::16, _an::16, _ns::16, _ar::16, _rest::binary>>) do
-    %{rcode: Bitwise.band(flags, 0x000F)}
+    %{rcode: Bitwise.band(flags, 0x000F), ad: Bitwise.band(Bitwise.bsr(flags, 5), 1)}
   end
 
   defp put_dns_config(overrides) do

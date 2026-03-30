@@ -80,6 +80,7 @@ keep using the stock `Caddyfile` and do not put wildcard hosts into
 
 - raw server IP access is expected to work over `http://` for first-run bootstrap
 - raw server IP access is not expected to work over `https://`
+- for full browser interactivity over raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>`
 - wildcard external mode keeps Caddy stock; certificate issuance happens outside Caddy
 - wildcard external mode is the recommended path for high-volume username subdomains
 - stock on-demand TLS is still available in the default Caddyfile for explicit-host setups

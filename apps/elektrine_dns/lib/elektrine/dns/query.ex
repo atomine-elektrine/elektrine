@@ -7,28 +7,50 @@ defmodule Elektrine.DNS.Query do
   alias Elektrine.DNS.Packet
 
   def answer(packet, opts \\ []) when is_binary(packet) do
-    with {:ok, query} <- Packet.decode_query(packet),
-         {:ok, zone} <- fetch_zone(query.qname) do
-      answer_for_zone(query, zone)
-    else
-      {:error, :not_authoritative} ->
-        if query_recursion_desired?(packet) and DNS.recursive_enabled?() do
-          Elektrine.DNS.Recursive.resolve(packet, opts)
-        else
-          Packet.encode_response(query_from_packet(packet), [], :refused)
+    case Packet.decode_query(packet) do
+      {:ok, query} ->
+        cond do
+          any_query?(query) ->
+            Packet.encode_response(query, [], :refused,
+              transport: Keyword.get(opts, :transport),
+              recursion_available: DNS.recursive_enabled?()
+            )
+
+          true ->
+            route_query(packet, query, opts)
         end
 
       {:error, :format_error} ->
         Packet.encode_error(packet, :formerr)
 
-      {:error, :name_error, query} ->
-        Packet.encode_response(query, [], :nxdomain)
-
-      {:error, _, query} ->
-        Packet.encode_response(query, [], :servfail)
-
       _ ->
         Packet.encode_error(packet, :servfail)
+    end
+  end
+
+  defp route_query(packet, query, opts) do
+    with {:ok, zone} <- fetch_zone(query.qname) do
+      answer_for_zone(query, zone, opts)
+    else
+      {:error, :not_authoritative} ->
+        if query_recursion_desired?(packet) and DNS.recursive_enabled?() do
+          Elektrine.DNS.Recursive.resolve(packet, opts)
+        else
+          Packet.encode_response(query, [], :refused, transport: Keyword.get(opts, :transport))
+        end
+
+      {:error, :name_error, failed_query} ->
+        Packet.encode_response(failed_query, [], :nxdomain,
+          transport: Keyword.get(opts, :transport)
+        )
+
+      {:error, _, failed_query} ->
+        Packet.encode_response(failed_query, [], :servfail,
+          transport: Keyword.get(opts, :transport)
+        )
+
+      _ ->
+        Packet.encode_response(query, [], :servfail, transport: Keyword.get(opts, :transport))
     end
   end
 
@@ -54,7 +76,7 @@ defmodule Elektrine.DNS.Query do
     end
   end
 
-  defp answer_for_zone(query, zone) do
+  defp answer_for_zone(query, zone, opts) do
     records = records_for_query(zone, query.qname, query.qtype)
     authority = [Elektrine.DNS.Zone.soa_record(zone)]
     additional = additional_records(zone, records)
@@ -63,21 +85,23 @@ defmodule Elektrine.DNS.Query do
       records != [] ->
         Packet.encode_response(query, records, :noerror,
           additional: additional,
-          authoritative: true
+          authoritative: true,
+          transport: Keyword.get(opts, :transport)
         )
 
       name_exists?(zone, query.qname) ->
-        Packet.encode_response(query, [], :noerror, authority: authority, authoritative: true)
+        Packet.encode_response(query, [], :noerror,
+          authority: authority,
+          authoritative: true,
+          transport: Keyword.get(opts, :transport)
+        )
 
       true ->
-        Packet.encode_response(query, [], :nxdomain, authority: authority, authoritative: true)
-    end
-  end
-
-  defp query_from_packet(packet) do
-    case Packet.decode_query(packet) do
-      {:ok, query} -> query
-      _ -> %{id: 0, rd: 0, qname: "", qtype: :any}
+        Packet.encode_response(query, [], :nxdomain,
+          authority: authority,
+          authoritative: true,
+          transport: Keyword.get(opts, :transport)
+        )
     end
   end
 
@@ -187,4 +211,7 @@ defmodule Elektrine.DNS.Query do
     do: type |> String.downcase() |> String.to_atom()
 
   defp normalize_type(type), do: type
+
+  defp any_query?(%{qtype: :any}), do: true
+  defp any_query?(_query), do: false
 end

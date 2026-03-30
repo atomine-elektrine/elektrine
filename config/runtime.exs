@@ -133,6 +133,61 @@ parse_bool_env = fn env_name, default ->
   end
 end
 
+parse_dns_endpoint = fn value ->
+  trimmed = String.trim(value)
+
+  case Regex.run(~r/^\[(.+)\](?::(\d+))?$/, trimmed) do
+    [_, host, port] ->
+      with {:ok, ip} <- :inet.parse_address(String.to_charlist(host)),
+           {parsed_port, ""} <- Integer.parse(port) do
+        {:ok, {ip, parsed_port}}
+      else
+        _ -> :error
+      end
+
+    [_, host] ->
+      with {:ok, ip} <- :inet.parse_address(String.to_charlist(host)) do
+        {:ok, {ip, 53}}
+      else
+        _ -> :error
+      end
+
+    nil ->
+      case String.split(trimmed, ":", parts: 2) do
+        [host, port] ->
+          with {:ok, ip} <- :inet.parse_address(String.to_charlist(host)),
+               {parsed_port, ""} <- Integer.parse(port) do
+            {:ok, {ip, parsed_port}}
+          else
+            _ -> :error
+          end
+
+        [host] ->
+          with {:ok, ip} <- :inet.parse_address(String.to_charlist(host)) do
+            {:ok, {ip, 53}}
+          else
+            _ -> :error
+          end
+
+        _ ->
+          :error
+      end
+  end
+end
+
+parse_dns_endpoints = fn value ->
+  value
+  |> String.split(",", trim: true)
+  |> Enum.map(&String.trim/1)
+  |> Enum.reject(&(&1 == ""))
+  |> Enum.map(parse_dns_endpoint)
+  |> Enum.flat_map(fn
+    {:ok, endpoint} -> [endpoint]
+    :error -> []
+  end)
+  |> Enum.uniq()
+end
+
 first_present_env = fn env_names ->
   Enum.find_value(env_names, fn env_name ->
     case System.get_env(env_name) do
@@ -196,11 +251,57 @@ dns_soa_rname =
     value -> String.trim(value)
   end
 
+dns_recursive_allow_cidrs =
+  case System.get_env("DNS_RECURSIVE_ALLOW_CIDRS") do
+    nil -> Application.get_env(:elektrine, :dns, []) |> Keyword.get(:recursive_allow_cidrs, [])
+    "" -> []
+    value -> value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+  end
+
+dns_recursive_upstreams =
+  case System.get_env("DNS_RECURSIVE_UPSTREAMS") do
+    nil -> Application.get_env(:elektrine, :dns, []) |> Keyword.get(:recursive_upstreams, [])
+    "" -> []
+    value -> parse_dns_endpoints.(value)
+  end
+
 config :elektrine, :dns,
   authority_enabled: parse_bool_env.("DNS_AUTHORITY_ENABLED", false),
   recursive_enabled: parse_bool_env.("DNS_RECURSIVE_ENABLED", false),
   nameservers: dns_nameservers,
   soa_rname: dns_soa_rname,
+  recursive_upstreams: dns_recursive_upstreams,
+  recursive_allow_cidrs: dns_recursive_allow_cidrs,
+  max_udp_payload:
+    parse_int_env.(
+      "DNS_MAX_UDP_PAYLOAD",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:max_udp_payload, 1232)
+    ),
+  rate_limit_window_ms:
+    parse_int_env.(
+      "DNS_RATE_LIMIT_WINDOW_MS",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:rate_limit_window_ms, 1000)
+    ),
+  udp_rate_limit_per_window:
+    parse_int_env.(
+      "DNS_UDP_RATE_LIMIT_PER_WINDOW",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:udp_rate_limit_per_window, 200)
+    ),
+  tcp_rate_limit_per_window:
+    parse_int_env.(
+      "DNS_TCP_RATE_LIMIT_PER_WINDOW",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:tcp_rate_limit_per_window, 50)
+    ),
+  udp_max_inflight:
+    parse_int_env.(
+      "DNS_UDP_MAX_INFLIGHT",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:udp_max_inflight, 1024)
+    ),
+  tcp_max_inflight:
+    parse_int_env.(
+      "DNS_TCP_MAX_INFLIGHT",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:tcp_max_inflight, 256)
+    ),
   udp_port:
     parse_int_env.(
       "DNS_UDP_PORT",
@@ -762,6 +863,23 @@ if config_env() == :prod do
     |> Enum.uniq()
   end
 
+  parse_origin_list = fn value ->
+    case value do
+      nil ->
+        []
+
+      "" ->
+        []
+
+      raw ->
+        raw
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.uniq()
+    end
+  end
+
   primary_domain_env = System.get_env("PRIMARY_DOMAIN")
 
   primary_domain =
@@ -958,6 +1076,7 @@ if config_env() == :prod do
       ]
     end)
     |> Kernel.++(["//*.onion"])
+    |> Kernel.++(parse_origin_list.(System.get_env("EXTRA_CHECK_ORIGINS")))
     |> Enum.uniq()
 
   endpoint_config = [

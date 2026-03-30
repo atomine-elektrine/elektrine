@@ -1,14 +1,16 @@
 defmodule ElektrineWeb.SessionConfig do
   @moduledoc false
 
-  def session_options do
+  alias ElektrineWeb.ClientIP
+
+  def session_options(conn \\ nil) do
     base_opts = [
       store: :cookie,
       key: session_cookie_key(),
       signing_salt: signing_salt(),
       max_age: 30 * 24 * 60 * 60,
       same_site: "Lax",
-      secure: secure_cookies?(),
+      secure: secure_cookies?(conn),
       http_only: true,
       path: "/",
       extra: "SameSite=Lax"
@@ -36,7 +38,22 @@ defmodule ElektrineWeb.SessionConfig do
     Application.get_env(:elektrine, :session_encryption_salt) || default_encryption_salt()
   end
 
-  def secure_cookies? do
+  def secure_cookies?(conn \\ nil)
+
+  def secure_cookies?(conn) when not is_nil(conn) do
+    case System.get_env("SESSION_COOKIE_SECURE") do
+      "true" ->
+        true
+
+      "false" ->
+        false
+
+      _ ->
+        https_request?(conn)
+    end
+  end
+
+  def secure_cookies?(nil) do
     case System.get_env("SESSION_COOKIE_SECURE") do
       "true" ->
         true
@@ -49,6 +66,10 @@ defmodule ElektrineWeb.SessionConfig do
           Application.get_env(:elektrine, :environment) == :prod or
           System.get_env("FORCE_SSL") == "true"
     end
+  end
+
+  defp https_request?(conn) do
+    conn.scheme == :https or ClientIP.forwarded_as_https?(conn)
   end
 
   defp default_signing_salt do
