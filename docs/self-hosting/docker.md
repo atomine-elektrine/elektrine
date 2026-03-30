@@ -85,7 +85,9 @@ For automatic HTTPS, set this key in `.env.production` before first deploy:
 
 Then point your domains at the edge and let Caddy issue certificates for the
 hostnames you actually use. If you only have an IP at first, bootstrap through
-plain `http://<server-ip>` and add a domain later.
+plain `http://<server-ip>` and add a domain later. For full LiveView/browser
+interactivity over the raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>` in
+`.env.production`.
 
 If you need one wildcard cert for many username subdomains, switch to the
 wildcard external-cert Caddyfile with:

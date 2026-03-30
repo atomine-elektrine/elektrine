@@ -9,6 +9,7 @@ defmodule Elektrine.DNS do
   alias Elektrine.DNS.ManagedRecords
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
+  alias Elektrine.DNS.ZoneCache
   alias Elektrine.DNS.ZoneServiceConfig
   alias Elektrine.Repo
 
@@ -67,6 +68,7 @@ defmodule Elektrine.DNS do
       {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
       error -> error
     end
+    |> refresh_authority_cache_after_write()
   end
 
   def create_zone(_, _), do: {:error, :invalid_attributes}
@@ -77,6 +79,7 @@ defmodule Elektrine.DNS do
     %Record{}
     |> Record.changeset(Map.put(attrs, "zone_id", zone_id))
     |> Repo.insert()
+    |> refresh_authority_cache_after_write()
   end
 
   def create_record(_, _), do: {:error, :invalid_attributes}
@@ -89,9 +92,14 @@ defmodule Elektrine.DNS do
       {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
       error -> error
     end
+    |> refresh_authority_cache_after_write()
   end
 
-  def delete_zone(%Zone{} = zone), do: Repo.delete(zone)
+  def delete_zone(%Zone{} = zone) do
+    zone
+    |> Repo.delete()
+    |> refresh_authority_cache_after_write()
+  end
 
   def change_zone(%Zone{} = zone, attrs \\ %{}), do: Zone.changeset(zone, attrs)
 
@@ -107,9 +115,14 @@ defmodule Elektrine.DNS do
     record
     |> Record.changeset(attrs)
     |> Repo.update()
+    |> refresh_authority_cache_after_write()
   end
 
-  def delete_record(%Record{} = record), do: Repo.delete(record)
+  def delete_record(%Record{} = record) do
+    record
+    |> Repo.delete()
+    |> refresh_authority_cache_after_write()
+  end
 
   def change_record(%Record{} = record, attrs \\ %{}), do: Record.changeset(record, attrs)
 
@@ -147,7 +160,9 @@ defmodule Elektrine.DNS do
   def get_zone_service_config(_, _), do: nil
 
   def apply_zone_service(%Zone{} = zone, service, attrs \\ %{}) do
-    ManagedRecords.apply_service(zone, service, attrs)
+    zone
+    |> ManagedRecords.apply_service(service, attrs)
+    |> refresh_authority_cache_after_write()
   end
 
   def disable_zone_service(%Zone{} = zone, service) do
@@ -231,9 +246,44 @@ defmodule Elektrine.DNS do
     |> Keyword.get(:recursive_timeout, 3_000)
   end
 
+  def max_udp_payload do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:max_udp_payload, 1232)
+  end
+
+  def rate_limit_window_ms do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:rate_limit_window_ms, 1_000)
+  end
+
+  def udp_rate_limit_per_window do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:udp_rate_limit_per_window, 200)
+  end
+
+  def tcp_rate_limit_per_window do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:tcp_rate_limit_per_window, 50)
+  end
+
+  def udp_max_inflight do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:udp_max_inflight, 1024)
+  end
+
+  def tcp_max_inflight do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:tcp_max_inflight, 256)
+  end
+
   def recursive_transport do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:recursive_transport, Elektrine.DNS.RecursiveTransport)
+  end
+
+  def dns_resolver do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:dns_resolver, :inet_res)
   end
 
   def recursive_allow_cidrs do
@@ -293,7 +343,7 @@ defmodule Elektrine.DNS do
     resolved =
       domain
       |> String.to_charlist()
-      |> :inet_res.lookup(:in, :ns, timeout: 5_000)
+      |> dns_resolver().lookup(:in, :ns, timeout: 5_000)
       |> Enum.map(&to_string/1)
       |> Enum.map(&String.trim_trailing(&1, "."))
       |> Enum.map(&String.downcase/1)
@@ -301,11 +351,32 @@ defmodule Elektrine.DNS do
 
     if expected == resolved,
       do: :ok,
-      else: {:error, "Delegation does not match the Elektrine nameservers"}
+      else: {:error, delegation_mismatch_message(expected, resolved)}
   rescue
-    error -> {:error, "NS lookup failed: #{inspect(error)}"}
+    error -> {:error, "NS lookup failed for #{domain}: #{inspect(error)}"}
   end
+
+  defp delegation_mismatch_message(expected, resolved) do
+    "Delegation mismatch for the configured nameservers. Expected: #{format_nameserver_list(expected)}. Observed: #{format_nameserver_list(resolved)}."
+  end
+
+  defp format_nameserver_list([]), do: "none"
+  defp format_nameserver_list(nameservers), do: Enum.join(nameservers, ", ")
 
   defp normalize_service(service) when is_binary(service), do: String.downcase(service)
   defp normalize_service(service), do: to_string(service) |> String.downcase()
+
+  defp refresh_authority_cache_after_write({:ok, _result} = result) do
+    refresh_authority_cache()
+    result
+  end
+
+  defp refresh_authority_cache_after_write(result), do: result
+
+  defp refresh_authority_cache do
+    case Process.whereis(ZoneCache) do
+      nil -> :ok
+      _pid -> ZoneCache.refresh()
+    end
+  end
 end

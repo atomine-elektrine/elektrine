@@ -15,6 +15,6 @@ defmodule ElektrineWeb.Plugs.RuntimeSession do
   end
 
   def call(conn, _session_config) do
-    Plug.Session.call(conn, Plug.Session.init(ElektrineWeb.SessionConfig.session_options()))
+    Plug.Session.call(conn, Plug.Session.init(ElektrineWeb.SessionConfig.session_options(conn)))
   end
 end

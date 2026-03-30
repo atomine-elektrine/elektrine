@@ -3,6 +3,8 @@ defmodule Elektrine.DNS.Packet do
 
   import Bitwise
 
+  alias Elektrine.DNS
+
   @type_map %{
     a: 1,
     ns: 2,
@@ -21,20 +23,25 @@ defmodule Elektrine.DNS.Packet do
   @rcode_map %{noerror: 0, formerr: 1, servfail: 2, nxdomain: 3, notimp: 4, refused: 5}
 
   def decode_query(packet) when is_binary(packet) do
-    with <<id::16, flags::16, qdcount::16, _ancount::16, _nscount::16, _arcount::16,
-           rest::binary>> <- packet,
-         true <- qdcount >= 1,
-         {:ok, qname, rest} <- decode_name(rest, packet),
-         <<qtype::16, qclass::16, _::binary>> <- rest,
-         true <- qclass == 1 do
+    with <<id::16, flags::16, qdcount::16, ancount::16, nscount::16, arcount::16, rest::binary>> <-
+           packet,
+         true <- qdcount == 1,
+         true <- opcode(flags) == 0,
+         true <- ancount == 0,
+         true <- nscount == 0,
+         {:ok, question, rest} <- decode_question(rest, packet),
+         true <- question.qclass == 1,
+         {:ok, options} <- decode_query_options(rest, packet, arcount) do
       {:ok,
        %{
          id: id,
          flags: flags,
          rd: flags >>> 8 &&& 1,
-         qname: qname,
-         qtype: decode_type(qtype),
-         qclass: qclass
+         qname: question.qname,
+         qtype: question.qtype,
+         qclass: question.qclass,
+         udp_size: options.udp_size,
+         dnssec_ok: options.dnssec_ok
        }}
     else
       _ -> {:error, :format_error}
@@ -48,10 +55,17 @@ defmodule Elektrine.DNS.Packet do
     end
   end
 
-  def encode_query(%{id: id, rd: rd, qname: qname, qtype: qtype}) do
+  def encode_query(%{id: id, rd: rd, qname: qname, qtype: qtype} = query) do
     flags = if rd in [1, true], do: 1 <<< 8, else: 0
     question = encode_name(qname) <> <<encode_type(qtype)::16, 1::16>>
-    <<id::16, flags::16, 1::16, 0::16, 0::16, 0::16, question::binary>>
+
+    case encode_opt_record(Map.get(query, :udp_size), Map.get(query, :dnssec_ok, false)) do
+      nil ->
+        <<id::16, flags::16, 1::16, 0::16, 0::16, 0::16, question::binary>>
+
+      opt_record ->
+        <<id::16, flags::16, 1::16, 0::16, 0::16, 1::16, question::binary, opt_record::binary>>
+    end
   end
 
   def encode_response(query, answers, rcode, opts \\ []) do
@@ -63,16 +77,105 @@ defmodule Elektrine.DNS.Packet do
     authority_bin = Enum.map_join(authority, &encode_record(&1))
     additional_bin = Enum.map_join(additional, &encode_record(&1))
 
-    <<query.id::16, flags::16, 1::16, length(answers)::16, length(authority)::16,
-      length(additional)::16, question::binary, answer_bin::binary, authority_bin::binary,
-      additional_bin::binary>>
+    response =
+      <<query.id::16, flags::16, 1::16, length(answers)::16, length(authority)::16,
+        length(additional)::16, question::binary, answer_bin::binary, authority_bin::binary,
+        additional_bin::binary>>
+
+    maybe_truncate_response(query, response, rcode, opts)
   end
 
   defp flags_for_reply(rd, rcode, opts \\ []) do
     aa = if Keyword.get(opts, :authoritative, false), do: 1 <<< 10, else: 0
     ra = if Keyword.get(opts, :recursion_available, false), do: 1 <<< 7, else: 0
+    tc = if Keyword.get(opts, :truncated, false), do: 1 <<< 9, else: 0
+    ad = if Keyword.get(opts, :authentic_data, false), do: 1 <<< 5, else: 0
 
-    1 <<< 15 ||| aa ||| rd <<< 8 ||| ra ||| Map.fetch!(@rcode_map, rcode)
+    1 <<< 15 ||| aa ||| tc ||| rd <<< 8 ||| ra ||| ad ||| Map.fetch!(@rcode_map, rcode)
+  end
+
+  defp maybe_truncate_response(query, response, rcode, opts) do
+    if Keyword.get(opts, :transport) == :udp and byte_size(response) > udp_payload_limit(query) do
+      encode_truncated_response(query, rcode, opts)
+    else
+      response
+    end
+  end
+
+  defp encode_truncated_response(query, rcode, opts) do
+    flags = flags_for_reply(query.rd, rcode, Keyword.put(opts, :truncated, true))
+    question = encode_name(query.qname) <> <<encode_type(query.qtype)::16, 1::16>>
+    <<query.id::16, flags::16, 1::16, 0::16, 0::16, 0::16, question::binary>>
+  end
+
+  defp udp_payload_limit(query) do
+    query
+    |> Map.get(:udp_size, 512)
+    |> max(512)
+    |> min(max(DNS.max_udp_payload(), 512))
+  end
+
+  defp opcode(flags), do: flags >>> 11 &&& 0xF
+
+  def decode_question(packet) when is_binary(packet) do
+    with <<_id::16, _flags::16, qdcount::16, _ancount::16, _nscount::16, _arcount::16,
+           rest::binary>> <- packet,
+         true <- qdcount == 1,
+         {:ok, question, _rest} <- decode_question(rest, packet) do
+      {:ok, question}
+    else
+      _ -> {:error, :format_error}
+    end
+  end
+
+  defp decode_question(rest, packet) do
+    with {:ok, qname, rest} <- decode_name(rest, packet),
+         <<qtype::16, qclass::16, rest::binary>> <- rest do
+      {:ok, %{qname: qname, qtype: decode_type(qtype), qclass: qclass}, rest}
+    else
+      _ -> {:error, :format_error}
+    end
+  end
+
+  defp decode_query_options(_rest, _packet, 0), do: {:ok, %{udp_size: 512, dnssec_ok: false}}
+
+  defp decode_query_options(rest, packet, arcount) do
+    decode_additional_records(rest, packet, arcount, %{udp_size: 512, dnssec_ok: false})
+  end
+
+  defp decode_additional_records(rest, _packet, 0, options) when is_binary(rest),
+    do: {:ok, options}
+
+  defp decode_additional_records(data, packet, remaining, options) when remaining > 0 do
+    with {:ok, name, rest} <- decode_name(data, packet),
+         <<type::16, class::16, ttl::32, rdlength::16, _rdata::binary-size(rdlength),
+           rest::binary>> <- rest do
+      options =
+        if type == 41 and name == "" do
+          %{
+            options
+            | udp_size: clamp_udp_size(class),
+              dnssec_ok: (ttl &&& 0x8000) != 0
+          }
+        else
+          options
+        end
+
+      decode_additional_records(rest, packet, remaining - 1, options)
+    else
+      _ -> {:error, :format_error}
+    end
+  end
+
+  defp clamp_udp_size(size) when size < 512, do: 512
+  defp clamp_udp_size(size), do: min(size, max(DNS.max_udp_payload(), 512))
+
+  defp encode_opt_record(nil, false), do: nil
+
+  defp encode_opt_record(udp_size, dnssec_ok) do
+    udp_size = udp_size || DNS.max_udp_payload()
+    flags = if dnssec_ok, do: 0x8000, else: 0
+    <<0, 41::16, clamp_udp_size(udp_size)::16, 0::8, 0::8, flags::16, 0::16>>
   end
 
   defp decode_name(data, packet), do: decode_name(data, packet, [], 0)
@@ -238,11 +341,12 @@ defmodule Elektrine.DNS.Packet do
   defp record_name(%{name: name}), do: name
 
   defp decode_type(type),
-    do: Enum.find_value(@type_map, :any, fn {key, value} -> if value == type, do: key end)
+    do: Enum.find_value(@type_map, type, fn {key, value} -> if value == type, do: key end)
 
   defp encode_type(type) when is_binary(type),
     do: type |> String.downcase() |> String.to_atom() |> encode_type()
 
+  defp encode_type(type) when is_integer(type), do: type
   defp encode_type(type) when is_atom(type), do: Map.get(@type_map, type, 255)
 
   defp normalize_type(type) when is_binary(type),
