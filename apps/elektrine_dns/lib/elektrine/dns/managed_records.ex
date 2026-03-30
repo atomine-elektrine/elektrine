@@ -35,6 +35,7 @@ defmodule Elektrine.DNS.ManagedRecords do
           |> Repo.insert_or_update()
 
         if enabled and mode == "managed" do
+          zone = Repo.preload(zone, :records, force: true)
           settings = prepare_settings(zone, service, settings)
           desired = desired_records(zone, service, settings)
           conflicts = conflicts_for(zone, service, desired)
@@ -185,8 +186,8 @@ defmodule Elektrine.DNS.ManagedRecords do
       dkim_module().generate_domain_key_material().selector
     end)
     |> ensure_dkim_material()
-    |> put_default_setting("mail_target", zone.domain)
-    |> Map.put("mail_target", MailSecurity.mail_target(zone.domain, settings))
+    |> put_default_setting("mail_target", MailSecurity.default_mail_target(zone))
+    |> then(&Map.put(&1, "mail_target", normalize_mail_target(zone, &1)))
     |> put_default_setting("mta_sts_mode", "enforce")
     |> put_default_setting("tls_rpt_rua", "mailto:postmaster@#{zone.domain}")
   end
@@ -247,6 +248,25 @@ defmodule Elektrine.DNS.ManagedRecords do
       )
 
     {:ok, updated}
+  end
+
+  defp normalize_mail_target(%Zone{} = zone, settings) do
+    target = MailSecurity.mail_target(zone.domain, settings)
+    default_target = MailSecurity.default_mail_target(zone)
+
+    if target == zone.domain and default_target != zone.domain and legacy_mail_alias?(zone) do
+      default_target
+    else
+      target
+    end
+  end
+
+  defp legacy_mail_alias?(%Zone{} = zone) do
+    Enum.any?(List.wrap(zone.records), fn record ->
+      record.managed == true and record.service == "mail" and record.managed_key == "mail:mail" and
+        record.type == "CNAME" and
+        normalize_domain(record.content) == normalize_domain(zone.domain)
+    end)
   end
 
   defp managed_attrs(attrs, service) do
@@ -395,6 +415,11 @@ defmodule Elektrine.DNS.ManagedRecords do
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""
   defp blank?(nil), do: true
   defp blank?(_), do: false
+
+  defp normalize_domain(value) when is_binary(value),
+    do: value |> String.trim() |> String.downcase() |> String.trim_trailing(".")
+
+  defp normalize_domain(value), do: value |> to_string() |> normalize_domain()
 
   defp put_default_setting(settings, key, value) do
     if blank?(Map.get(settings, key)) do

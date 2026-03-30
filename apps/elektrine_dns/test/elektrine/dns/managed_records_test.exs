@@ -109,23 +109,73 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert adopted.managed_key == "mail:mx"
   end
 
-  test "normalizes the default mail alias target to the zone apex" do
+  test "prefers a dedicated mail host when apex addresses exist" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    assert {:ok, config} =
-             DNS.apply_zone_service(zone, "mail", %{
-               "settings" => %{"mail_target" => "mail.#{zone.domain}"}
+    assert {:ok, _apex} =
+             DNS.create_record(zone, %{
+               "name" => "@",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "66.42.127.87"
              })
 
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail")
+
     assert config.status == "ok"
-    assert config.settings["mail_target"] == zone.domain
+    assert config.settings["mail_target"] == "mail.#{zone.domain}"
 
     zone = DNS.get_zone(zone.id, user.id)
 
     assert Enum.any?(zone.records, fn record ->
              record.service == "mail" and record.managed_key == "mail:mx" and
-               record.content == zone.domain
+               record.content == "mail.#{zone.domain}"
+           end)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.name == "mail" and record.type == "A" and
+               record.content == "66.42.127.87"
+           end)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.name == "smtp" and record.type == "CNAME" and
+               record.content == "mail.#{zone.domain}"
+           end)
+  end
+
+  test "repairs legacy apex-target mail configs to the dedicated mail host" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, _apex} =
+             DNS.create_record(zone, %{
+               "name" => "@",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "66.42.127.87"
+             })
+
+    assert {:ok, _config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{"mail_target" => zone.domain}
+             })
+
+    zone = DNS.get_zone(zone.id, user.id)
+
+    assert {:ok, repaired} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{"mail_target" => zone.domain}
+             })
+
+    assert repaired.settings["mail_target"] == "mail.#{zone.domain}"
+
+    zone = DNS.get_zone(zone.id, user.id)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.managed_key == "mail:mx" and
+               record.content == "mail.#{zone.domain}"
            end)
   end
 

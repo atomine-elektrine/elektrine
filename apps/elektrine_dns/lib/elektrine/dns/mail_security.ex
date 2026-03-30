@@ -20,12 +20,16 @@ defmodule Elektrine.DNS.MailSecurity do
     |> Kernel.<>("\n")
   end
 
-  def mail_target(domain, settings) do
-    case cleaned_binary(settings["mail_target"]) do
-      nil -> domain
-      "mail." <> same_domain when same_domain == domain -> domain
-      target -> target
+  def default_mail_target(%{domain: domain, records: records}) do
+    if apex_address_records(records, domain) == [] do
+      domain
+    else
+      "mail." <> domain
     end
+  end
+
+  def mail_target(domain, settings) do
+    cleaned_binary(settings["mail_target"]) || domain
   end
 
   def mta_sts_mode(settings) do
@@ -77,6 +81,17 @@ defmodule Elektrine.DNS.MailSecurity do
   defp default_if_empty([], fallback), do: fallback
   defp default_if_empty(values, _fallback), do: values
 
+  defp apex_address_records(records, domain) do
+    zone_domain = normalize_name(domain)
+
+    records
+    |> List.wrap()
+    |> Enum.filter(fn record ->
+      normalize_type(Map.get(record, :type)) in ["A", "AAAA"] and
+        normalize_name(Map.get(record, :name)) in ["@", zone_domain]
+    end)
+  end
+
   defp cleaned_binary(value) when is_binary(value) do
     case String.trim(value) do
       "" -> nil
@@ -85,6 +100,14 @@ defmodule Elektrine.DNS.MailSecurity do
   end
 
   defp cleaned_binary(_), do: nil
+
+  defp normalize_name(nil), do: nil
+
+  defp normalize_name(value),
+    do: value |> String.trim() |> String.downcase() |> String.trim_trailing(".")
+
+  defp normalize_type(nil), do: nil
+  defp normalize_type(value), do: value |> to_string() |> String.trim() |> String.upcase()
 
   defp parse_positive_int(value, _default) when is_integer(value) and value > 0, do: value
 
