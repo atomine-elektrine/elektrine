@@ -21,7 +21,11 @@ defmodule Elektrine.DNS.MailSecurity do
   end
 
   def mail_target(domain, settings) do
-    cleaned_binary(settings["mail_target"]) || domain
+    case cleaned_binary(settings["mail_target"]) do
+      nil -> domain
+      "mail." <> same_domain when same_domain == domain -> domain
+      target -> target
+    end
   end
 
   def mta_sts_mode(settings) do

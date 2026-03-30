@@ -464,7 +464,7 @@ defmodule ElektrineWeb.DNSLive.Index do
                             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:mail_target]}
-                                label="Mail target"
+                                label="MX target"
                               />
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:dmarc_policy]}
@@ -860,7 +860,7 @@ defmodule ElektrineWeb.DNSLive.Index do
         service_form_from_health(
           Enum.find(health, &(&1.service == "mail")),
           %{
-            "mail_target" => dkim_module().mx_host(),
+            "mail_target" => zone.domain,
             "dmarc_policy" => "quarantine",
             "mta_sts_mode" => "enforce",
             "tls_rpt_rua" => "mailto:postmaster@#{zone.domain}"
@@ -1106,7 +1106,4 @@ defmodule ElektrineWeb.DNSLive.Index do
     |> Map.merge(health.settings || %{})
     |> to_form(as: :service_config)
   end
-
-  defp dkim_module,
-    do: Application.get_env(:elektrine, :managed_dns_dkim_module, Elektrine.Email.DKIM)
 end

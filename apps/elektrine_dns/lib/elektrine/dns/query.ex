@@ -121,13 +121,27 @@ defmodule Elektrine.DNS.Query do
       if exact_records != [] do
         exact_records
       else
-        if name_exists?(zone, fqdn) do
-          []
-        else
-          wildcard_records_for_query(zone, fqdn, qtype)
+        cname_records = cname_records_for_name(zone, fqdn)
+
+        cond do
+          cname_records != [] ->
+            cname_records
+
+          name_exists?(zone, fqdn) ->
+            []
+
+          true ->
+            wildcard_records_for_query(zone, fqdn, qtype)
         end
       end
     end
+  end
+
+  defp cname_records_for_name(zone, fqdn) do
+    zone_records(zone)
+    |> Enum.filter(fn record ->
+      record_name(zone, record) == fqdn and normalize_type(record.type) == :cname
+    end)
   end
 
   defp name_exists?(zone, qname) do

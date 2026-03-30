@@ -96,10 +96,14 @@ defmodule Elektrine.DNS.QueryTest do
     assert ns2_response =~ <<198, 51, 100, 12>>
   end
 
-  test "returns noerror with zero answers for existing name with different type" do
+  test "returns cname answers for alias queries with requested A type" do
     response = Query.answer(build_query("alias.example.com", 1))
-    assert header(response).ancount == 0
+
+    assert header(response).ancount == 1
+    assert header(response).arcount == 1
     assert header(response).rcode == 0
+    assert response =~ "www"
+    assert response =~ <<203, 0, 113, 20>>
   end
 
   test "returns nxdomain for unknown names" do

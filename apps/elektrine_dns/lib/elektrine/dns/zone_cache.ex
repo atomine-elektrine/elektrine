@@ -16,9 +16,15 @@ defmodule Elektrine.DNS.ZoneCache do
   end
 
   def lookup(domain) when is_binary(domain) do
-    case :ets.lookup(@table, String.downcase(domain)) do
-      [{_domain, zone}] -> {:ok, zone}
-      [] -> :error
+    case :ets.whereis(@table) do
+      :undefined ->
+        :error
+
+      _table ->
+        case :ets.lookup(@table, String.downcase(domain)) do
+          [{_domain, zone}] -> {:ok, zone}
+          [] -> :error
+        end
     end
   end
 

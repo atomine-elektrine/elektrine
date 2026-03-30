@@ -48,7 +48,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
         "name" => "@",
         "type" => "MX",
         "ttl" => 300,
-        "content" => zone.domain,
+        "content" => "mx.external.example",
         "priority" => 10
       })
 
@@ -94,7 +94,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
         "name" => "@",
         "type" => "MX",
         "ttl" => 300,
-        "content" => "mail.example.com",
+        "content" => zone.domain,
         "priority" => 10
       })
 
@@ -107,6 +107,26 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert adopted.managed == true
     assert adopted.service == "mail"
     assert adopted.managed_key == "mail:mx"
+  end
+
+  test "normalizes the default mail alias target to the zone apex" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{"mail_target" => "mail.#{zone.domain}"}
+             })
+
+    assert config.status == "ok"
+    assert config.settings["mail_target"] == zone.domain
+
+    zone = DNS.get_zone(zone.id, user.id)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.managed_key == "mail:mx" and
+               record.content == zone.domain
+           end)
   end
 
   test "disabling a managed service removes its records" do
@@ -134,8 +154,15 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert is_binary(config.settings["dkim_public_key"])
     assert is_binary(config.settings["dkim_private_key"])
     assert String.contains?(config.settings["dkim_value"], "v=DKIM1")
+    assert config.settings["mail_target"] == zone.domain
 
     zone = DNS.get_zone(zone.id, user.id)
+
+    assert Enum.any?(
+             zone.records,
+             &(&1.service == "mail" and &1.managed_key == "mail:mx" and &1.content == zone.domain)
+           )
+
     assert Enum.any?(zone.records, &(&1.service == "mail" and &1.managed_key == "mail:dkim"))
 
     assert Enum.any?(
