@@ -3,7 +3,7 @@
 	storage file_system /data/caddy
 }
 
-{$CADDY_MANAGED_SITE_1} {
+https://{$CADDY_MANAGED_SITE_1} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
 
 	@bluesky host bsky.elektrine.com
@@ -20,7 +20,7 @@
 	}
 }
 
-{$CADDY_MANAGED_SITE_2} {
+https://{$CADDY_MANAGED_SITE_2} {
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
