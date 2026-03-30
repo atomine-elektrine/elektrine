@@ -54,17 +54,6 @@ http://{$CADDY_MANAGED_SITE_2} {
 	redir https://{host}{uri} 308
 }
 
-https:// {
-	tls {
-		on_demand
-	}
-
-	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
-		header_up Host {host}
-		header_up X-Forwarded-Proto https
-	}
-}
-
 :80 {
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}

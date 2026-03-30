@@ -112,7 +112,7 @@ jobs:
           done
 
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' DEPLOY_BRANCH='$DEPLOY_BRANCH' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
           set -euo pipefail
 
           if docker info >/dev/null 2>&1; then
@@ -126,6 +126,16 @@ jobs:
 
           cd "$DEPLOY_PATH"
           git fetch --all --tags
+
+          if [ -z "$(git status --porcelain)" ]; then
+            current_branch="$(git branch --show-current || true)"
+            if [ "$current_branch" != "$DEPLOY_BRANCH" ]; then
+              git checkout "$DEPLOY_BRANCH"
+            fi
+            git merge --ff-only "origin/$DEPLOY_BRANCH"
+          else
+            echo "Skipping checkout sync for $DEPLOY_PATH: local changes present"
+          fi
 
           WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree.$(date +%s).$$"
 
