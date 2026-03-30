@@ -115,17 +115,32 @@ export function createPassword() {
   const digits = "0123456789"
   const symbols = "!@#$%^&*()-_=+"
   const all = lowercase + uppercase + digits + symbols
+  const cryptoValues = new Uint32Array(PASSWORD_LENGTH * 2)
+  crypto.getRandomValues(cryptoValues)
+  let randomIndex = 0
+
+  const pick = (characters) => {
+    const value = cryptoValues[randomIndex]
+    randomIndex += 1
+    return characters[value % characters.length]
+  }
 
   const chars = [
-    lowercase[Math.floor(Math.random() * lowercase.length)],
-    uppercase[Math.floor(Math.random() * uppercase.length)],
-    digits[Math.floor(Math.random() * digits.length)],
-    symbols[Math.floor(Math.random() * symbols.length)]
+    pick(lowercase),
+    pick(uppercase),
+    pick(digits),
+    pick(symbols)
   ]
 
   while (chars.length < PASSWORD_LENGTH) {
-    chars.push(all[Math.floor(Math.random() * all.length)])
+    chars.push(pick(all))
   }
 
-  return chars.sort(() => Math.random() - 0.5).join("")
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const swapIndex = cryptoValues[randomIndex] % (i + 1)
+    randomIndex += 1
+    ;[chars[i], chars[swapIndex]] = [chars[swapIndex], chars[i]]
+  }
+
+  return chars.join("")
 }

@@ -6,6 +6,8 @@ defmodule Elektrine.ActivityPub.Nodeinfo do
   use GenServer
   require Logger
 
+  alias Elektrine.HTTP.SafeFetch
+
   @cache_ttl :timer.hours(24)
   @known_pixelfed_software ["pixelfed"]
 
@@ -191,7 +193,7 @@ defmodule Elektrine.ActivityPub.Nodeinfo do
 
     with {:ok, %Finch.Response{status: 200, body: body}} <-
            Finch.build(:get, well_known_url, [{"Accept", "application/json"}])
-           |> Finch.request(Elektrine.Finch, receive_timeout: 5000),
+           |> SafeFetch.request(Elektrine.Finch, receive_timeout: 5000, max_body_bytes: 50_000),
          {:ok, data} <- Jason.decode(body),
          nodeinfo_url when is_binary(nodeinfo_url) <- get_nodeinfo_url(data),
          {:ok, software} <- fetch_software_from_nodeinfo(nodeinfo_url) do
@@ -223,7 +225,7 @@ defmodule Elektrine.ActivityPub.Nodeinfo do
 
   defp fetch_software_from_nodeinfo(url) do
     case Finch.build(:get, url, [{"Accept", "application/json"}])
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5000) do
+         |> SafeFetch.request(Elektrine.Finch, receive_timeout: 5000, max_body_bytes: 50_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"software" => %{"name" => name}}} when is_binary(name) ->

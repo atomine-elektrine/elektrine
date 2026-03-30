@@ -21,6 +21,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
   require Logger
 
   alias Elektrine.ActivityPub.{Instance, Instances}
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
 
   @doc """
@@ -125,7 +126,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
 
     with {:ok, %Finch.Response{status: 200, body: body}} <-
            Finch.build(:get, well_known_url, [{"Accept", "application/json"}])
-           |> Finch.request(Elektrine.Finch, receive_timeout: 5000),
+           |> SafeFetch.request(Elektrine.Finch, receive_timeout: 5000, max_body_bytes: 50_000),
          {:ok, data} <- Jason.decode(body),
          nodeinfo_url when is_binary(nodeinfo_url) <- get_nodeinfo_url(data),
          {:ok, nodeinfo} <- fetch_nodeinfo_document(nodeinfo_url) do
@@ -160,7 +161,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
 
   defp fetch_nodeinfo_document(url) do
     case Finch.build(:get, url, [{"Accept", "application/json"}])
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5000) do
+         |> SafeFetch.request(Elektrine.Finch, receive_timeout: 5000, max_body_bytes: 50_000) do
       {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) < 50_000 ->
         Jason.decode(body)
 
@@ -189,7 +190,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
         # Fall back to checking common locations
         Enum.find_value(urls, fn url ->
           case Finch.build(:head, url)
-               |> Finch.request(Elektrine.Finch, receive_timeout: 3000) do
+               |> SafeFetch.request(Elektrine.Finch, receive_timeout: 3000, max_body_bytes: 0) do
             {:ok, %Finch.Response{status: status}} when status in 200..299 ->
               url
 
@@ -202,7 +203,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
 
   defp fetch_favicon_from_html(domain) do
     case Finch.build(:get, "https://#{domain}/", [{"Accept", "text/html"}])
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5000) do
+         |> SafeFetch.request(Elektrine.Finch, receive_timeout: 5000, max_body_bytes: 500_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case extract_favicon_from_html(body, domain) do
           nil -> :not_found

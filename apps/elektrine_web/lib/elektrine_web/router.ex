@@ -58,10 +58,7 @@ defmodule ElektrineWeb.Router do
   end
 
   pipeline :caddy_internal_api do
-    plug(ElektrineWeb.Plugs.InternalAPIAuth,
-      env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"],
-      query_param: "token"
-    )
+    plug(ElektrineWeb.Plugs.InternalAPIAuth, env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"])
   end
 
   # Browser-based JSON API pipeline
@@ -97,7 +94,7 @@ defmodule ElektrineWeb.Router do
   pipeline :api_vault_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
-    plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
+    plug(ElektrineWeb.Plugs.PATAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -171,13 +168,12 @@ defmodule ElektrineWeb.Router do
   pipeline :api_pat_vault_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth,
       scopes: ["read:vault", "write:vault"],
-      any: true,
-      allow_api_token: true
+      any: true
     )
   end
 
   pipeline :api_pat_vault_write_scope do
-    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"], allow_api_token: true)
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"])
   end
 
   pipeline :api_pat_export_scope do

@@ -6,7 +6,7 @@ defmodule Elektrine.DNS.ZoneServiceConfig do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @services ~w(mail web dns vpn bluesky)
+  @services ~w(mail web turn dns vpn bluesky)
   @modes ~w(managed manual)
   @statuses ~w(pending ok conflict disabled error)
 

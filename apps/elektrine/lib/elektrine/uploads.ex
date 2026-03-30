@@ -59,11 +59,10 @@ defmodule Elektrine.Uploads do
     image/png
     image/x-icon
     image/vnd.microsoft.icon
-    image/svg+xml
     image/jpeg
     image/jpg
   ]
-  @favicon_extensions ~w[.png .ico .svg .jpg .jpeg]
+  @favicon_extensions ~w[.png .ico .jpg .jpeg]
   @max_favicon_size Constants.max_favicon_size()
   @private_attachment_prefixes ~w[
     attachments/

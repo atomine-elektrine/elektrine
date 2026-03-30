@@ -335,22 +335,17 @@ defmodule ElektrineWeb.VPNAPIController do
         end
 
       existing_server ->
-        # Server already exists - return existing credentials
+        # Server already exists - do not disclose credentials through fleet bootstrap.
         Logger.info(
           "Server already registered: #{existing_server.name} (ID: #{existing_server.id})"
         )
 
-        # Optionally update public_key if it changed
-        if params["public_key"] && params["public_key"] != existing_server.public_key do
-          Logger.info("Updating public key for server #{existing_server.id}")
-          VPN.update_server(existing_server, %{public_key: params["public_key"]})
-        end
-
-        json(conn, %{
-          status: "already_registered",
+        conn
+        |> put_status(:conflict)
+        |> json(%{
+          error: "Server already registered",
           server_id: existing_server.id,
-          api_key: existing_server.api_key,
-          message: "Server already registered, returning existing credentials"
+          message: "Existing VPN server credentials cannot be recovered via fleet bootstrap"
         })
     end
   end

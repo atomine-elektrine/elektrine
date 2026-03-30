@@ -168,6 +168,72 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert Enum.any?(web.checks, &(&1.key == "web:www" and &1.status == "ok"))
   end
 
+  test "applies managed turn records per zone" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain(), "default_ttl" => 600})
+
+    assert {:ok, config} = DNS.apply_zone_service(zone, "turn")
+    assert config.service == "turn"
+    assert config.status == "ok"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    [turn] = Enum.filter(zone.records, &(&1.service == "turn"))
+
+    assert turn.managed == true
+    assert turn.source == "system"
+    assert turn.name == "turn"
+    assert turn.type == "CNAME"
+    assert turn.content == zone.domain
+  end
+
+  test "applies managed bluesky records per zone" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain(), "default_ttl" => 600})
+
+    assert {:ok, config} = DNS.apply_zone_service(zone, "bluesky")
+    assert config.service == "bluesky"
+    assert config.status == "ok"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    [bluesky] = Enum.filter(zone.records, &(&1.service == "bluesky"))
+
+    assert bluesky.managed == true
+    assert bluesky.source == "system"
+    assert bluesky.name == "bsky"
+    assert bluesky.type == "CNAME"
+    assert bluesky.content == zone.domain
+  end
+
+  test "applies managed vpn records with optional api alias" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain(), "default_ttl" => 600})
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "vpn", %{
+               "settings" => %{
+                 "vpn_host" => "vpn",
+                 "vpn_target" => zone.domain,
+                 "vpn_api_host" => "wg",
+                 "vpn_api_target" => "api.#{zone.domain}"
+               }
+             })
+
+    assert config.service == "vpn"
+    assert config.status == "ok"
+
+    zone = DNS.get_zone(zone.id, user.id)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "vpn" and record.name == "vpn" and record.type == "CNAME" and
+               record.content == zone.domain
+           end)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "vpn" and record.name == "wg" and record.type == "CNAME" and
+               record.content == "api.#{zone.domain}"
+           end)
+  end
+
   defp unique_domain do
     "zone#{System.unique_integer([:positive])}.example.com"
   end

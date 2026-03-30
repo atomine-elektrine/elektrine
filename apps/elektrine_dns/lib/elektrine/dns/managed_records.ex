@@ -161,6 +161,21 @@ defmodule Elektrine.DNS.ManagedRecords do
     |> Enum.map(&managed_attrs(&1, "web"))
   end
 
+  defp desired_records(zone, "turn", settings) do
+    Elektrine.DNS.Generators.Turn.generate(zone, settings)
+    |> Enum.map(&managed_attrs(&1, "turn"))
+  end
+
+  defp desired_records(zone, "vpn", settings) do
+    Elektrine.DNS.Generators.VPN.generate(zone, settings)
+    |> Enum.map(&managed_attrs(&1, "vpn"))
+  end
+
+  defp desired_records(zone, "bluesky", settings) do
+    Elektrine.DNS.Generators.Bluesky.generate(zone, settings)
+    |> Enum.map(&managed_attrs(&1, "bluesky"))
+  end
+
   defp desired_records(_zone, _service, _settings), do: []
 
   defp prepare_settings(%Zone{} = zone, "mail", settings) do

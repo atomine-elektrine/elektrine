@@ -2,17 +2,25 @@ defmodule ElektrineWeb.UserSocket do
   use Phoenix.Socket
   require Logger
 
+  alias Elektrine.Accounts
+  alias Elektrine.Accounts.Authentication
+
   # Channels
   channel "call:*", ElektrineWeb.CallChannel
   channel "mobile:*", ElektrineWeb.MobileChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do
-    # Verify user token (Phoenix session token) and assign user_id to socket
     case verify_phoenix_token(token) do
       {:ok, user_id} ->
-        socket = assign(socket, :user_id, user_id)
-        {:ok, socket}
+        case fetch_active_user(user_id) do
+          {:ok, user} ->
+            socket = assign(socket, :user_id, user.id)
+            {:ok, socket}
+
+          {:error, _reason} ->
+            :error
+        end
 
       {:error, _reason} ->
         :error
@@ -22,9 +30,9 @@ defmodule ElektrineWeb.UserSocket do
   # Support API token authentication for mobile apps
   @impl true
   def connect(%{"api_token" => token}, socket, _connect_info) do
-    case ElektrineWeb.Plugs.APIAuth.verify_token_internal(token) do
-      {:ok, user_id} ->
-        socket = assign(socket, :user_id, user_id)
+    case ElektrineWeb.Plugs.APIAuth.verify_user_token(token) do
+      {:ok, user} ->
+        socket = assign(socket, :user_id, user.id)
         {:ok, socket}
 
       {:error, _reason} ->
@@ -51,5 +59,16 @@ defmodule ElektrineWeb.UserSocket do
       {:ok, user_id} -> {:ok, user_id}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp fetch_active_user(user_id) do
+    user = Accounts.get_user!(user_id)
+
+    case Authentication.ensure_user_active(user) do
+      :ok -> {:ok, user}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    Ecto.NoResultsError -> {:error, :invalid_token}
   end
 end

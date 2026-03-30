@@ -503,6 +503,61 @@ defmodule ElektrineWeb.DNSLive.Index do
                             </div>
                           <% end %>
 
+                          <%= if health.service == "turn" do %>
+                            <div class="grid gap-4 md:grid-cols-2">
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:turn_host]}
+                                label="TURN host"
+                                placeholder="turn"
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:turn_target]}
+                                label="TURN target"
+                                placeholder={@active_zone.domain}
+                              />
+                            </div>
+                          <% end %>
+
+                          <%= if health.service == "vpn" do %>
+                            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_host]}
+                                label="VPN host"
+                                placeholder="vpn"
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_target]}
+                                label="VPN target"
+                                placeholder={@active_zone.domain}
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_api_host]}
+                                label="VPN API host"
+                                placeholder="wg"
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_api_target]}
+                                label="VPN API target"
+                                placeholder={@active_zone.domain}
+                              />
+                            </div>
+                          <% end %>
+
+                          <%= if health.service == "bluesky" do %>
+                            <div class="grid gap-4 md:grid-cols-2">
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:bluesky_host]}
+                                label="Bluesky host"
+                                placeholder="bsky"
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:bluesky_target]}
+                                label="Bluesky target"
+                                placeholder={@active_zone.domain}
+                              />
+                            </div>
+                          <% end %>
+
                           <:actions>
                             <.button>Apply / Repair</.button>
                           </:actions>
@@ -780,7 +835,20 @@ defmodule ElektrineWeb.DNSLive.Index do
           },
           as: :service_config
         ),
-      "web" => to_form(%{"www_target" => ""}, as: :service_config)
+      "web" => to_form(%{"www_target" => ""}, as: :service_config),
+      "turn" => to_form(%{"turn_host" => "turn", "turn_target" => ""}, as: :service_config),
+      "vpn" =>
+        to_form(
+          %{
+            "vpn_host" => "vpn",
+            "vpn_target" => "",
+            "vpn_api_host" => "",
+            "vpn_api_target" => ""
+          },
+          as: :service_config
+        ),
+      "bluesky" =>
+        to_form(%{"bluesky_host" => "bsky", "bluesky_target" => ""}, as: :service_config)
     }
   end
 
@@ -802,15 +870,36 @@ defmodule ElektrineWeb.DNSLive.Index do
         service_form_from_health(
           Enum.find(health, &(&1.service == "web")),
           %{"www_target" => zone.domain}
+        ),
+      "turn" =>
+        service_form_from_health(
+          Enum.find(health, &(&1.service == "turn")),
+          %{"turn_host" => "turn", "turn_target" => zone.domain}
+        ),
+      "vpn" =>
+        service_form_from_health(
+          Enum.find(health, &(&1.service == "vpn")),
+          %{
+            "vpn_host" => "vpn",
+            "vpn_target" => zone.domain,
+            "vpn_api_host" => "",
+            "vpn_api_target" => zone.domain
+          }
+        ),
+      "bluesky" =>
+        service_form_from_health(
+          Enum.find(health, &(&1.service == "bluesky")),
+          %{"bluesky_host" => "bsky", "bluesky_target" => zone.domain}
         )
     }
   end
 
-  defp service_health(nil), do: Enum.map(["mail", "web"], &blank_service_health/1)
+  defp service_health(nil),
+    do: Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &blank_service_health/1)
 
   defp service_health(%Zone{} = zone) do
     health = DNS.zone_service_health(zone)
-    Enum.map(["mail", "web"], &service_entry(health, &1))
+    Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &service_entry(health, &1))
   end
 
   defp save_record(zone, nil, params), do: DNS.create_record(zone, params)
@@ -854,6 +943,12 @@ defmodule ElektrineWeb.DNSLive.Index do
     do: "MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, and common mail aliases."
 
   defp service_summary("web"), do: "WWW alias and future web onboarding records."
+  defp service_summary("turn"), do: "TURN hostname alias for self-hosted WebRTC relay access."
+
+  defp service_summary("vpn"),
+    do: "VPN endpoint alias with an optional separate admin or API hostname."
+
+  defp service_summary("bluesky"), do: "Bluesky PDS hostname alias for managed handles."
   defp service_summary(_), do: "Managed DNS package."
 
   defp record_value_spec(form) do

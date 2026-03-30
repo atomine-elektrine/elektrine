@@ -246,6 +246,7 @@ defmodule Elektrine.Messaging.Message do
   defp normalize_federated_columns(changeset) do
     changeset
     |> update_change(:title, &truncate_varchar/1)
+    |> update_change(:activitypub_url, &sanitize_federated_remote_url/1)
     |> update_change(:media_urls, &sanitize_federated_media_urls/1)
   end
 
@@ -267,6 +268,19 @@ defmodule Elektrine.Messaging.Message do
   end
 
   defp sanitize_federated_media_urls(_), do: []
+
+  defp sanitize_federated_remote_url(url) when is_binary(url) do
+    case URI.parse(String.trim(url)) do
+      %URI{scheme: scheme} = parsed
+      when scheme in ["http", "https"] and is_binary(parsed.host) and parsed.host != "" ->
+        URI.to_string(parsed)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp sanitize_federated_remote_url(_), do: nil
 
   defp validate_content_or_media(changeset) do
     content = get_field(changeset, :content)
