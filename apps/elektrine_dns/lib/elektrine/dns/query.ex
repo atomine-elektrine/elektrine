@@ -108,20 +108,24 @@ defmodule Elektrine.DNS.Query do
   defp records_for_query(zone, qname, qtype) do
     fqdn = normalize_name(qname)
 
-    exact_records =
-      zone_records(zone)
-      |> Enum.filter(fn record ->
-        record_name(zone, record) == fqdn and
-          (qtype == :any or normalize_type(record.type) == qtype)
-      end)
-
-    if exact_records != [] do
-      exact_records
+    if qtype == :soa and fqdn == normalize_name(zone.domain) do
+      [Elektrine.DNS.Zone.soa_record(zone)]
     else
-      if name_exists?(zone, fqdn) do
-        []
+      exact_records =
+        zone_records(zone)
+        |> Enum.filter(fn record ->
+          record_name(zone, record) == fqdn and
+            (qtype == :any or normalize_type(record.type) == qtype)
+        end)
+
+      if exact_records != [] do
+        exact_records
       else
-        wildcard_records_for_query(zone, fqdn, qtype)
+        if name_exists?(zone, fqdn) do
+          []
+        else
+          wildcard_records_for_query(zone, fqdn, qtype)
+        end
       end
     end
   end
@@ -160,10 +164,23 @@ defmodule Elektrine.DNS.Query do
 
   defp record_name(_zone, %{host: host}), do: normalize_name(host)
 
-  defp record_name(zone, %{name: "@"}), do: normalize_name(zone.domain)
-
   defp record_name(zone, %{name: name}) when is_binary(name) do
-    normalize_name(name <> "." <> zone.domain)
+    zone_domain = normalize_name(zone.domain)
+    normalized_name = normalize_name(name)
+
+    cond do
+      normalized_name in ["", "@"] ->
+        zone_domain
+
+      normalized_name == zone_domain ->
+        zone_domain
+
+      String.ends_with?(normalized_name, "." <> zone_domain) ->
+        normalized_name
+
+      true ->
+        normalize_name(normalized_name <> "." <> zone.domain)
+    end
   end
 
   defp candidate_domains(qname) do
