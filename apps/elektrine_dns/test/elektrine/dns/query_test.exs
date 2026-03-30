@@ -65,6 +65,37 @@ defmodule Elektrine.DNS.QueryTest do
     assert response =~ <<203, 0, 113, 20>>
   end
 
+  test "answers SOA queries at the zone apex" do
+    response = Query.answer(build_query("example.com", 6))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+  end
+
+  test "answers apex records stored as absolute names" do
+    zone = %Zone{
+      domain: "absolute.example.com",
+      records: [
+        %Record{name: "absolute.example.com", type: "A", content: "198.51.100.10", ttl: 300},
+        %Record{name: "absolute.example.com", type: "TXT", content: "v=spf1 -all", ttl: 300},
+        %Record{name: "ns1.absolute.example.com", type: "A", content: "198.51.100.11", ttl: 300},
+        %Record{name: "ns2.absolute.example.com", type: "A", content: "198.51.100.12", ttl: 300}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"absolute.example.com", zone})
+
+    a_response = Query.answer(build_query("absolute.example.com", 1))
+    txt_response = Query.answer(build_query("absolute.example.com", 16))
+    ns1_response = Query.answer(build_query("ns1.absolute.example.com", 1))
+    ns2_response = Query.answer(build_query("ns2.absolute.example.com", 1))
+
+    assert a_response =~ <<198, 51, 100, 10>>
+    assert txt_response =~ "v=spf1 -all"
+    assert ns1_response =~ <<198, 51, 100, 11>>
+    assert ns2_response =~ <<198, 51, 100, 12>>
+  end
+
   test "returns noerror with zero answers for existing name with different type" do
     response = Query.answer(build_query("alias.example.com", 1))
     assert header(response).ancount == 0

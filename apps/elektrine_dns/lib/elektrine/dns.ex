@@ -75,9 +75,15 @@ defmodule Elektrine.DNS do
 
   def create_record(%Zone{id: zone_id}, attrs), do: create_record(zone_id, attrs)
 
+  def create_record(%Zone{} = zone, attrs) when is_map(attrs) do
+    create_record(zone.id, normalize_record_attrs(attrs, zone.domain))
+  end
+
   def create_record(zone_id, attrs) when is_integer(zone_id) and is_map(attrs) do
+    zone_domain = zone_domain(zone_id)
+
     %Record{}
-    |> Record.changeset(Map.put(attrs, "zone_id", zone_id))
+    |> Record.changeset(normalize_record_attrs(Map.put(attrs, "zone_id", zone_id), zone_domain))
     |> Repo.insert()
     |> refresh_authority_cache_after_write()
   end
@@ -112,8 +118,10 @@ defmodule Elektrine.DNS do
   def get_record(_, _), do: nil
 
   def update_record(%Record{} = record, attrs) when is_map(attrs) do
+    zone_domain = zone_domain(record.zone_id)
+
     record
-    |> Record.changeset(attrs)
+    |> Record.changeset(normalize_record_attrs(attrs, zone_domain))
     |> Repo.update()
     |> refresh_authority_cache_after_write()
   end
@@ -384,4 +392,50 @@ defmodule Elektrine.DNS do
       _pid -> ZoneCache.refresh()
     end
   end
+
+  defp normalize_record_attrs(attrs, nil), do: attrs
+
+  defp normalize_record_attrs(attrs, zone_domain) when is_map(attrs) do
+    case Map.fetch(attrs, "name") do
+      {:ok, name} -> Map.put(attrs, "name", normalize_record_name(name, zone_domain))
+      :error -> attrs
+    end
+  end
+
+  defp normalize_record_name(name, zone_domain) when is_binary(name) do
+    normalized_name = name |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+
+    normalized_zone =
+      zone_domain |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+
+    cond do
+      normalized_name in ["", "@"] ->
+        "@"
+
+      normalized_name == normalized_zone ->
+        "@"
+
+      String.ends_with?(normalized_name, "." <> normalized_zone) ->
+        normalized_name
+        |> String.trim_trailing("." <> normalized_zone)
+        |> case do
+          "" -> "@"
+          relative -> relative
+        end
+
+      true ->
+        normalized_name
+    end
+  end
+
+  defp normalize_record_name(name, _zone_domain), do: name
+
+  defp zone_domain(zone_id) when is_integer(zone_id) do
+    case Repo.get(Zone, zone_id) do
+      %Zone{domain: domain} -> domain
+      _ -> nil
+    end
+  end
+
+  defp zone_domain(_), do: nil
 end
