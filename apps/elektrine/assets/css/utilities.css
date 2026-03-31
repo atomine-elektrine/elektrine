@@ -411,36 +411,30 @@ div.message-selected:hover {
 .bg-glass-heavy,
 .bg-base-200-glass {
   background-color: var(--glass-utility-bg-fallback) !important;
-  backdrop-filter: blur(var(--glass-utility-blur));
-  -webkit-backdrop-filter: blur(var(--glass-utility-blur));
 }
 
 .bg-glass {
-  --glass-utility-bg-fallback: rgba(15, 23, 42, 0.8);
-  --glass-utility-bg: oklch(var(--b1) / 0.8);
-  --glass-utility-bg-no-blur: rgba(15, 23, 42, 0.9);
-  --glass-utility-blur: 8px;
+  --glass-utility-bg-fallback: var(--color-base-100);
+  --glass-utility-bg: oklch(var(--b1));
+  --glass-utility-bg-no-blur: var(--color-base-100);
 }
 
 .bg-glass-light {
-  --glass-utility-bg-fallback: rgba(15, 23, 42, 0.9);
-  --glass-utility-bg: oklch(var(--b1) / 0.9);
-  --glass-utility-bg-no-blur: rgba(15, 23, 42, 0.96);
-  --glass-utility-blur: 4px;
+  --glass-utility-bg-fallback: var(--color-base-100);
+  --glass-utility-bg: oklch(var(--b1));
+  --glass-utility-bg-no-blur: var(--color-base-100);
 }
 
 .bg-glass-heavy {
-  --glass-utility-bg-fallback: rgba(15, 23, 42, 0.7);
-  --glass-utility-bg: oklch(var(--b1) / 0.7);
-  --glass-utility-bg-no-blur: rgba(15, 23, 42, 0.82);
-  --glass-utility-blur: 12px;
+  --glass-utility-bg-fallback: var(--color-base-200);
+  --glass-utility-bg: oklch(var(--b2));
+  --glass-utility-bg-no-blur: var(--color-base-200);
 }
 
 .bg-base-200-glass {
-  --glass-utility-bg-fallback: rgba(17, 24, 39, 0.82);
-  --glass-utility-bg: oklch(var(--b2) / 0.8);
-  --glass-utility-bg-no-blur: rgba(17, 24, 39, 0.92);
-  --glass-utility-blur: 8px;
+  --glass-utility-bg-fallback: var(--color-base-200);
+  --glass-utility-bg: oklch(var(--b2));
+  --glass-utility-bg-no-blur: var(--color-base-200);
 }
 
 @supports (color: oklch(0 0 0)) {
