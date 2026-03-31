@@ -7,7 +7,7 @@
   <.e_nav active_tab="overview" current_user={@current_user} />
 
   <div class="mb-6 space-y-6">
-    <div class="card bg-base-100 shadow-sm border border-base-300">
+    <div class="card panel-card shadow-sm">
       <div class="card-body p-4 sm:p-5 gap-4">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -100,7 +100,7 @@
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-      <div class="card bg-base-100 shadow-sm border border-base-300">
+      <div class="card panel-card shadow-sm">
         <div class="card-body p-4">
           <% attention_count =
             if @attention_filter == "all" do
@@ -216,7 +216,7 @@
       </div>
 
       <div class="space-y-6">
-        <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card panel-card shadow-sm">
           <div class="card-body p-4">
             <div class="flex items-center justify-between mb-2">
               <h3 class="font-semibold flex items-center gap-2">
@@ -282,6 +282,7 @@
     <!-- Main Feed -->
     <div class="flex-1 min-w-0">
       <% posts = filtered_posts(@filtered_all_posts, @filter, assigns) %>
+      <% visible_posts = Enum.take(posts, @visible_post_limit) %>
       
 <!-- Dynamic Header -->
       <div class="mb-4">
@@ -357,7 +358,7 @@
           <!-- Loading skeleton for feed -->
           <div class="space-y-4 min-h-[60vh]" data-feed-loading-skeleton>
             <%= for _i <- 1..5 do %>
-              <div class="card glass-card shadow-lg animate-pulse">
+              <div class="card panel-card shadow-lg animate-pulse">
                 <div class="card-body">
                   <div class="flex items-start gap-3">
                     <div class="w-10 h-10 rounded-full bg-base-300"></div>
@@ -377,11 +378,8 @@
           </div>
         <% else %>
           <div id="overview-posts-list" class="space-y-4">
-            <%= for post <- @visible_overview_posts do %>
-              <div
-                id={"overview-post-#{post.id}"}
-                class="timeline-post-entry-stable overview-post-entry"
-              >
+            <%= for post <- visible_posts do %>
+              <div id={"overview-post-#{post.id}"} class="overview-post-entry">
                 <.live_component
                   module={ElektrineWeb.Components.Social.OverviewStreamPost}
                   id={"overview-stream-post-#{post.id}"}
@@ -421,7 +419,7 @@
           </div>
 
           <%= if Enum.empty?(posts) do %>
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card shadow-lg">
               <div class="card-body text-center py-12">
                 <%= case @filter do %>
                   <% "my_posts" -> %>
@@ -441,7 +439,7 @@
     <%= if @show_quote_modal && @quote_target_post do %>
       <div class="modal modal-open p-4" phx-click="close_quote_modal">
         <div
-          class="modal-box card glass-card max-w-xl w-full max-h-[90vh] overflow-y-auto"
+          class="modal-box max-w-xl w-full max-h-[90vh] overflow-y-auto"
           phx-click="stop_propagation"
           phx-window-keydown="close_quote_modal"
           phx-key="Escape"
@@ -513,7 +511,7 @@
 <!-- Right Sidebar - Stats -->
     <div class="hidden lg:block w-72 xl:w-80 flex-shrink-0">
       <!-- Personal Stats -->
-      <div class="card glass-card shadow-lg border border-base-300 mb-4">
+      <div class="card panel-card shadow-lg mb-4">
         <div class="card-body p-4">
           <h3 class="font-semibold mb-3 flex items-center gap-2">
             <.icon name="hero-chart-bar" class="w-5 h-5" /> Your Activity

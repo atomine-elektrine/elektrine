@@ -130,6 +130,13 @@ defmodule Elektrine.Platform.ENav do
         href: "/account/storage",
         icon: "hero-circle-stack",
         active_icon: "hero-circle-stack-solid"
+      },
+      %{
+        id: "files",
+        label: "Files",
+        href: "/account/files",
+        icon: "hero-folder",
+        active_icon: "hero-folder-solid"
       }
     ]
   end

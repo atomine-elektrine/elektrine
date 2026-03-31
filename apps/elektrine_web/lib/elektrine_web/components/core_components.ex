@@ -232,6 +232,12 @@ defmodule ElektrineWeb.CoreComponents do
             >
               <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
             </.link>
+            <.link
+              navigate="/account/files"
+              class={account_setting_secondary_link_class(@selected_link, "files")}
+            >
+              <.icon name="hero-folder" class="w-4 h-4" /> {gettext("Files")}
+            </.link>
           </div>
         </div>
       </div>
@@ -290,6 +296,49 @@ defmodule ElektrineWeb.CoreComponents do
                 </button>
               </li>
             <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :selected_page, :string, required: true
+
+  def developer_settings_sidebar(assigns) do
+    ~H"""
+    <div class="sticky top-24 self-start">
+      <div class="card glass-card shadow-lg">
+        <div class="card-body p-4">
+          <h3 class="font-semibold text-sm mb-4">{gettext("Developer")}</h3>
+
+          <ul class="menu menu-compact w-full p-0 space-y-1">
+            <li>
+              <.link navigate="/account?tab=developer" class={profile_utility_link_class()}>
+                <.icon name="hero-arrow-left" class="w-4 h-4" /> {gettext("Back to Settings")}
+              </.link>
+            </li>
+          </ul>
+
+          <div class="divider my-4"></div>
+
+          <ul class="menu menu-compact w-full p-0 space-y-1">
+            <li>
+              <.link
+                navigate="/account/developer/oidc/clients"
+                class={account_setting_secondary_link_class(@selected_page, "oidc-clients")}
+              >
+                <.icon name="hero-key" class="w-4 h-4" /> {gettext("OAuth Clients")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate="/account/developer/oidc/grants"
+                class={account_setting_secondary_link_class(@selected_page, "oidc-grants")}
+              >
+                <.icon name="hero-check-badge" class="w-4 h-4" /> {gettext("Granted Apps")}
+              </.link>
+            </li>
           </ul>
         </div>
       </div>

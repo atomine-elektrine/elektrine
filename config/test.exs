@@ -27,18 +27,26 @@ test_db_password =
 test_db_hostname = System.get_env("DB_HOST") || System.get_env("PGHOST") || "localhost"
 test_db_name = System.get_env("DB_NAME") || System.get_env("PGDATABASE") || "elektrine_test"
 
+test_db_connection_opts =
+  if ci_env? do
+    [password: test_db_password, hostname: test_db_hostname]
+  else
+    [socket_dir: "/var/run/postgresql"]
+  end
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-config :elektrine, Elektrine.Repo,
-  username: test_db_username,
-  password: test_db_password,
-  hostname: test_db_hostname,
-  database: "#{test_db_name}#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+config :elektrine,
+       Elektrine.Repo,
+       [
+         username: test_db_username,
+         database: "#{test_db_name}#{System.get_env("MIX_TEST_PARTITION")}",
+         pool: Ecto.Adapters.SQL.Sandbox,
+         pool_size: System.schedulers_online() * 2
+       ] ++ test_db_connection_opts
 
 # Isolate mail protocol listeners from any local services on default ports.
 config :elektrine,

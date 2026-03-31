@@ -27,7 +27,10 @@ defmodule Elektrine.Accounts.Storage do
     # Static site files
     static_site_storage = calculate_static_site_storage(user_id)
 
-    total = email_storage + chat_storage + profile_storage + static_site_storage
+    # Personal file library
+    files_storage = calculate_files_storage(user_id)
+
+    total = email_storage + chat_storage + profile_storage + static_site_storage + files_storage
 
     total
   end
@@ -233,6 +236,10 @@ defmodule Elektrine.Accounts.Storage do
 
   def calculate_static_site_storage(user_id) do
     Elektrine.StaticSites.total_storage_used(user_id)
+  end
+
+  def calculate_files_storage(user_id) do
+    Elektrine.Files.storage_used(user_id)
   end
 
   @doc """

@@ -47,17 +47,6 @@
   margin-bottom: 1rem;
 }
 
-.social-page-card {
-  border: 1px solid oklch(var(--bc) / 0.14);
-  background:
-    linear-gradient(140deg, oklch(var(--b1) / 0.94), oklch(var(--b2) / 0.88));
-  box-shadow:
-    0 18px 36px -30px rgba(0, 0, 0, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
 /* --------------------------------------------------------------------------
    CHAT
    -------------------------------------------------------------------------- */
@@ -351,11 +340,6 @@ div.message-selected:hover {
   contain: layout;
 }
 
-.timeline-post-entry-stable {
-  content-visibility: auto;
-  contain-intrinsic-size: 720px;
-}
-
 .overview-post-entry {
   content-visibility: visible;
   contain: none;
@@ -422,29 +406,59 @@ div.message-selected:hover {
    -------------------------------------------------------------------------- */
 
 /* Glass background variants */
+.bg-glass,
+.bg-glass-light,
+.bg-glass-heavy,
+.bg-base-200-glass {
+  background-color: var(--glass-utility-bg-fallback) !important;
+  backdrop-filter: blur(var(--glass-utility-blur));
+  -webkit-backdrop-filter: blur(var(--glass-utility-blur));
+}
+
 .bg-glass {
-  background-color: oklch(var(--b1) / 0.8) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  --glass-utility-bg-fallback: rgba(15, 23, 42, 0.8);
+  --glass-utility-bg: oklch(var(--b1) / 0.8);
+  --glass-utility-bg-no-blur: rgba(15, 23, 42, 0.9);
+  --glass-utility-blur: 8px;
 }
 
 .bg-glass-light {
-  background-color: oklch(var(--b1) / 0.9) !important;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  --glass-utility-bg-fallback: rgba(15, 23, 42, 0.9);
+  --glass-utility-bg: oklch(var(--b1) / 0.9);
+  --glass-utility-bg-no-blur: rgba(15, 23, 42, 0.96);
+  --glass-utility-blur: 4px;
 }
 
 .bg-glass-heavy {
-  background-color: oklch(var(--b1) / 0.7) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  --glass-utility-bg-fallback: rgba(15, 23, 42, 0.7);
+  --glass-utility-bg: oklch(var(--b1) / 0.7);
+  --glass-utility-bg-no-blur: rgba(15, 23, 42, 0.82);
+  --glass-utility-blur: 12px;
 }
 
-/* Base-200 glass variant */
 .bg-base-200-glass {
-  background-color: oklch(var(--b2) / 0.8) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  --glass-utility-bg-fallback: rgba(17, 24, 39, 0.82);
+  --glass-utility-bg: oklch(var(--b2) / 0.8);
+  --glass-utility-bg-no-blur: rgba(17, 24, 39, 0.92);
+  --glass-utility-blur: 8px;
+}
+
+@supports (color: oklch(0 0 0)) {
+  .bg-glass,
+  .bg-glass-light,
+  .bg-glass-heavy,
+  .bg-base-200-glass {
+    background-color: var(--glass-utility-bg) !important;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bg-glass,
+  .bg-glass-light,
+  .bg-glass-heavy,
+  .bg-base-200-glass {
+    background-color: var(--glass-utility-bg-no-blur) !important;
+  }
 }
 
 /* Colored glass variants matching home page */

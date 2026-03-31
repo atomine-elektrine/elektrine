@@ -20,7 +20,7 @@ defmodule ElektrineWeb.OIDCGrantController do
       end)
       |> Enum.sort_by(&DateTime.to_unix(&1.last_granted_at), :desc)
 
-    render(conn, :index, grants: grants)
+    render(conn, :index, grants: grants, current_user: conn.assigns.current_user)
   end
 
   def delete(conn, %{"id" => id}) do
