@@ -1,6 +1,7 @@
 defmodule Elektrine.Mail.Socket do
   @moduledoc false
 
+  alias Elektrine.Constants
   require Logger
 
   def listen(:tcp, port, opts, _tls_opts), do: :gen_tcp.listen(port, opts)
@@ -27,25 +28,30 @@ defmodule Elektrine.Mail.Socket do
   def accept(:ssl, socket) do
     Logger.info("Mail TLS accept: waiting for transport accept")
 
-    with {:ok, client} <- :ssl.transport_accept(socket) do
-      Logger.info("Mail TLS accept: transport accepted")
+    case :ssl.transport_accept(socket) do
+      {:ok, client} ->
+        Logger.info("Mail TLS accept: transport accepted")
+        {:ok, client}
 
-      case :ssl.handshake(client) do
-        {:ok, tls_client} ->
-          Logger.info("Mail TLS accept: handshake completed")
-          {:ok, tls_client}
-
-        :ok ->
-          Logger.info("Mail TLS accept: handshake completed")
-          {:ok, client}
-
-        error ->
-          Logger.error("Mail TLS accept: handshake failed #{inspect(error)}")
-          error
-      end
-    else
       error ->
         Logger.error("Mail TLS accept: transport accept failed #{inspect(error)}")
+        error
+    end
+  end
+
+  def handshake(socket, timeout \\ Constants.mail_tls_handshake_timeout_ms()) do
+    case :ssl.handshake(socket, timeout) do
+      {:ok, tls_client} ->
+        Logger.info("Mail TLS accept: handshake completed")
+        {:ok, tls_client}
+
+      :ok ->
+        Logger.info("Mail TLS accept: handshake completed")
+        {:ok, socket}
+
+      error ->
+        Logger.error("Mail TLS accept: handshake failed #{inspect(error)}")
+        close(socket)
         error
     end
   end

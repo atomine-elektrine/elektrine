@@ -127,7 +127,7 @@ defmodule Elektrine.Social.HashtagExtractor do
   defp get_or_create_hashtag(name) do
     normalized_name = String.downcase(name)
 
-    case Repo.get_by(Hashtag, normalized_name: normalized_name) do
+    case first_hashtag_by_normalized_name(normalized_name) do
       nil ->
         # Create new hashtag
         case %Hashtag{}
@@ -143,12 +143,21 @@ defmodule Elektrine.Social.HashtagExtractor do
 
           {:error, _} ->
             # Race condition - try to get existing
-            Repo.get_by(Hashtag, normalized_name: normalized_name)
+            first_hashtag_by_normalized_name(normalized_name)
         end
 
       hashtag ->
         hashtag
     end
+  end
+
+  defp first_hashtag_by_normalized_name(normalized_name) do
+    from(h in Hashtag,
+      where: h.normalized_name == ^normalized_name,
+      order_by: [asc: h.id],
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   defp create_post_hashtag_association(message_id, hashtag_id) do

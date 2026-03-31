@@ -574,6 +574,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
   # Alias Events
   @impl true
   def handle_event("create_alias", params, socket) do
+    params = normalize_alias_create_params(params)
     user_id = socket.assigns.current_user.id
     username = params["username"]
     domain = params["domain"]
@@ -611,8 +612,19 @@ defmodule ElektrineWeb.EmailLive.Settings do
         {:noreply, put_flash(socket, :error, "Alias not found")}
 
       alias_record ->
-        {:ok, _} = Aliases.update_alias(alias_record, %{enabled: !alias_record.enabled})
-        {:noreply, assign(socket, :aliases, Aliases.list_aliases(user_id))}
+        case Aliases.update_alias(alias_record, %{enabled: !alias_record.enabled}) do
+          {:ok, _updated_alias} ->
+            status = if alias_record.enabled, do: "disabled", else: "enabled"
+
+            {:noreply,
+             socket
+             |> put_flash(:info, "Alias #{status}")
+             |> assign(:aliases, Aliases.list_aliases(user_id))}
+
+          {:error, changeset} ->
+            error = get_changeset_error(changeset)
+            {:noreply, put_flash(socket, :error, "Failed to update alias: #{error}")}
+        end
     end
   end
 
@@ -831,6 +843,14 @@ defmodule ElektrineWeb.EmailLive.Settings do
   def handle_info(_msg, socket) do
     {:noreply, socket}
   end
+
+  defp normalize_alias_create_params(%{"alias" => params}) when is_map(params), do: params
+
+  defp normalize_alias_create_params(%{"type" => "create_alias", "value" => params})
+       when is_map(params),
+       do: params
+
+  defp normalize_alias_create_params(params) when is_map(params), do: params
 
   # Helper functions
   defp get_or_create_mailbox(user) do

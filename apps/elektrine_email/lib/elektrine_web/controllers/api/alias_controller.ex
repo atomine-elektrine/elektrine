@@ -58,7 +58,7 @@ defmodule ElektrineWeb.API.AliasController do
 
     # Check alias limit (15 for non-admin users)
     existing_count = length(Aliases.list_aliases(user.id))
-    max_aliases = if user.admin, do: :infinity, else: 15
+    max_aliases = if user.is_admin, do: :infinity, else: 15
 
     if max_aliases != :infinity && existing_count >= max_aliases do
       conn
@@ -110,11 +110,13 @@ defmodule ElektrineWeb.API.AliasController do
     case Aliases.get_alias(String.to_integer(id), user.id) do
       %Alias{} = alias_record ->
         # Build update attrs from allowed params
+        alias_params = Map.get(params, "alias", %{})
+
         update_attrs =
           %{}
-          |> maybe_put(:enabled, params["alias"]["enabled"] || params["enabled"])
-          |> maybe_put(:target_email, params["alias"]["target_email"] || params["target_email"])
-          |> maybe_put(:description, params["alias"]["description"] || params["description"])
+          |> maybe_put(:enabled, alias_params["enabled"] || params["enabled"])
+          |> maybe_put(:target_email, alias_params["target_email"] || params["target_email"])
+          |> maybe_put(:description, alias_params["description"] || params["description"])
 
         case Aliases.update_alias(alias_record, update_attrs) do
           {:ok, updated_alias} ->

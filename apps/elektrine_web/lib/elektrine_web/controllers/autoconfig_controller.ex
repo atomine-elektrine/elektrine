@@ -9,6 +9,8 @@ defmodule ElektrineWeb.AutoconfigController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Domains
+  alias Elektrine.MailClientSettings
+  alias ElektrineWeb.MailAutoconfig
 
   @doc """
   Mozilla Autoconfig format for Thunderbird, Apple Mail, etc.
@@ -17,9 +19,11 @@ defmodule ElektrineWeb.AutoconfigController do
   """
   def mozilla_autoconfig(conn, _params) do
     domain = get_domain(conn)
+    imap = MailClientSettings.imap(domain)
+    smtp = MailClientSettings.smtp(domain)
     xml_domain = xml_escape(domain)
-    xml_imap_host = xml_escape(mail_service_host(domain, "imap"))
-    xml_smtp_host = xml_escape(mail_service_host(domain, "smtp"))
+    xml_imap_host = xml_escape(imap.host)
+    xml_smtp_host = xml_escape(smtp.host)
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -31,16 +35,16 @@ defmodule ElektrineWeb.AutoconfigController do
 
         <incomingServer type="imap">
           <hostname>#{xml_imap_host}</hostname>
-          <port>993</port>
-          <socketType>SSL</socketType>
+          <port>#{imap.port}</port>
+          <socketType>#{MailClientSettings.socket_type(imap)}</socketType>
           <authentication>password-cleartext</authentication>
           <username>%EMAILADDRESS%</username>
         </incomingServer>
 
         <outgoingServer type="smtp">
           <hostname>#{xml_smtp_host}</hostname>
-          <port>587</port>
-          <socketType>STARTTLS</socketType>
+          <port>#{smtp.port}</port>
+          <socketType>#{MailClientSettings.socket_type(smtp)}</socketType>
           <authentication>password-cleartext</authentication>
           <username>%EMAILADDRESS%</username>
         </outgoingServer>
@@ -62,9 +66,12 @@ defmodule ElektrineWeb.AutoconfigController do
     {:ok, body, conn} = read_body(conn)
     email = sanitize_email(extract_email_from_autodiscover(body))
     domain = get_domain(conn)
-    xml_imap_host = xml_escape(mail_service_host(domain, "imap"))
-    xml_smtp_host = xml_escape(mail_service_host(domain, "smtp"))
+    imap = MailClientSettings.imap(domain)
+    smtp = MailClientSettings.smtp(domain)
+    xml_imap_host = xml_escape(imap.host)
+    xml_smtp_host = xml_escape(smtp.host)
     xml_email = xml_escape(email)
+    smtp_encryption = autodiscover_encryption_xml(smtp)
 
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -76,20 +83,19 @@ defmodule ElektrineWeb.AutoconfigController do
           <Protocol>
             <Type>IMAP</Type>
             <Server>#{xml_imap_host}</Server>
-            <Port>993</Port>
-            <SSL>on</SSL>
+            <Port>#{imap.port}</Port>
+            <SSL>#{MailAutoconfig.autodiscover_ssl_value(imap)}</SSL>
             <AuthRequired>on</AuthRequired>
             <LoginName>#{xml_email}</LoginName>
           </Protocol>
           <Protocol>
             <Type>SMTP</Type>
             <Server>#{xml_smtp_host}</Server>
-            <Port>587</Port>
-            <SSL>off</SSL>
+            <Port>#{smtp.port}</Port>
+            <SSL>#{MailAutoconfig.autodiscover_ssl_value(smtp)}</SSL>
             <AuthRequired>on</AuthRequired>
             <LoginName>#{xml_email}</LoginName>
-            <Encryption>TLS</Encryption>
-          </Protocol>
+    #{smtp_encryption}          </Protocol>
         </Account>
       </Response>
     </Autodiscover>
@@ -109,16 +115,18 @@ defmodule ElektrineWeb.AutoconfigController do
     email = sanitize_email(params["email"] || "")
     username = sanitize_username(params["username"] || List.first(String.split(email, "@")) || "")
     domain = get_domain(conn)
-    imap_host = mail_service_host(domain, "imap")
-    smtp_host = mail_service_host(domain, "smtp")
+    imap = MailClientSettings.imap(domain)
+    smtp = MailClientSettings.smtp(domain)
     uuid1 = Ecto.UUID.generate()
     uuid2 = Ecto.UUID.generate()
     uuid3 = Ecto.UUID.generate()
 
     plist_email = xml_escape(email)
     plist_username = xml_escape(username)
-    plist_imap_host = xml_escape(imap_host)
-    plist_smtp_host = xml_escape(smtp_host)
+    plist_imap_host = xml_escape(imap.host)
+    plist_smtp_host = xml_escape(smtp.host)
+    plist_imap_ssl = MailAutoconfig.plist_bool_tag(imap)
+    plist_smtp_ssl = MailAutoconfig.plist_bool_tag(smtp)
 
     # Mobileconfig is a plist XML format
     plist = """
@@ -142,9 +150,9 @@ defmodule ElektrineWeb.AutoconfigController do
           <key>IncomingMailServerHostName</key>
           <string>#{plist_imap_host}</string>
           <key>IncomingMailServerPortNumber</key>
-          <integer>993</integer>
+          <integer>#{imap.port}</integer>
           <key>IncomingMailServerUseSSL</key>
-          <true/>
+          #{plist_imap_ssl}
           <key>IncomingMailServerUsername</key>
           <string>#{plist_email}</string>
           <key>OutgoingMailServerAuthentication</key>
@@ -152,9 +160,9 @@ defmodule ElektrineWeb.AutoconfigController do
           <key>OutgoingMailServerHostName</key>
           <string>#{plist_smtp_host}</string>
           <key>OutgoingMailServerPortNumber</key>
-          <integer>465</integer>
+          <integer>#{smtp.port}</integer>
           <key>OutgoingMailServerUseSSL</key>
-          <true/>
+          #{plist_smtp_ssl}
           <key>OutgoingMailServerUsername</key>
           <string>#{plist_email}</string>
           <key>OutgoingPasswordSameAsIncomingPassword</key>
@@ -221,26 +229,6 @@ defmodule ElektrineWeb.AutoconfigController do
     end
   end
 
-  defp mail_service_host(domain, service) when is_binary(domain) and is_binary(service) do
-    env_mail_service_host(service) || System.get_env("MAIL_SERVICE_HOST") ||
-      "#{service}.#{domain}"
-  end
-
-  defp env_mail_service_host("imap"), do: present_env("IMAP_HOST")
-  defp env_mail_service_host("smtp"), do: present_env("SMTP_HOST")
-  defp env_mail_service_host(_service), do: nil
-
-  defp present_env(name) when is_binary(name) do
-    case System.get_env(name) do
-      value when is_binary(value) ->
-        value = String.trim(value)
-        if value == "", do: nil, else: value
-
-      _ ->
-        nil
-    end
-  end
-
   defp sanitize_email(value) when is_binary(value) do
     value = String.trim(value)
 
@@ -272,4 +260,11 @@ defmodule ElektrineWeb.AutoconfigController do
   end
 
   defp xml_escape(value), do: value |> to_string() |> xml_escape()
+
+  defp autodiscover_encryption_xml(settings) do
+    case MailAutoconfig.autodiscover_encryption(settings) do
+      nil -> ""
+      encryption -> "            <Encryption>#{encryption}</Encryption>\n"
+    end
+  end
 end

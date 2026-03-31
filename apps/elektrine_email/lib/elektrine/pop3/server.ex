@@ -86,7 +86,23 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
+  defp handle_accepted_client(client, :ssl) do
+    spawn(fn ->
+      case Socket.handshake(client) do
+        {:ok, tls_client} ->
+          handle_authenticated_client(tls_client, :ssl)
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
   defp handle_accepted_client(client, transport) do
+    handle_authenticated_client(client, transport)
+  end
+
+  defp handle_authenticated_client(client, transport) do
     {client_ip, initial_data} = parse_client_ip_and_data(client, transport)
     maybe_start_client_session(client, client_ip, initial_data)
   end

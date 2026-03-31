@@ -12,8 +12,9 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
   alias Elektrine.Email
   alias ElektrineWeb.UserErrorHelpers
 
-  def handle_event("create_alias", %{"alias" => alias_params}, socket) do
+  def handle_event("create_alias", params, socket) do
     user = socket.assigns.current_user
+    alias_params = normalize_alias_params(params)
 
     # Extract username and domain
     username = alias_params["username"]
@@ -203,4 +204,13 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
          |> notify_error("Failed to update mailbox forwarding")}
     end
   end
+
+  defp normalize_alias_params(%{"alias" => alias_params}) when is_map(alias_params),
+    do: alias_params
+
+  defp normalize_alias_params(%{"type" => "create_alias", "value" => alias_params})
+       when is_map(alias_params),
+       do: alias_params
+
+  defp normalize_alias_params(params) when is_map(params), do: params
 end

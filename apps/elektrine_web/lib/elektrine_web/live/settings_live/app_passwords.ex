@@ -2,7 +2,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
   use ElektrineWeb, :live_view
 
   alias Elektrine.Accounts
-  alias Elektrine.EmailAddresses
+  alias Elektrine.MailClientSettings
 
   @impl true
   def mount(_params, _session, socket) do
@@ -12,6 +12,9 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
     {:ok,
      socket
      |> assign(:app_passwords, app_passwords)
+     |> assign(:imap_settings, MailClientSettings.imap())
+     |> assign(:smtp_settings, MailClientSettings.smtp())
+     |> assign(:pop3_settings, MailClientSettings.pop3())
      |> assign(:new_token, nil)
      |> assign(:form_version, 0)
      |> assign(:form, app_password_form())}
@@ -243,18 +246,30 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               <div class="text-xs text-base-content/60 space-y-3">
                 <div>
                   <p class="font-semibold mb-1">IMAP (Recommended):</p>
-                  <p>• Server: {EmailAddresses.imap_host()}</p>
-                  <p>• Port: 993 (IMAP with TLS)</p>
+                  <p>• Server: {@imap_settings.host}</p>
+                  <p>
+                    • Port: {@imap_settings.port} (IMAP with {MailClientSettings.security_label(
+                      @imap_settings
+                    )})
+                  </p>
                 </div>
                 <div>
                   <p class="font-semibold mb-1">SMTP (Outgoing):</p>
-                  <p>• Server: {EmailAddresses.smtp_host()}</p>
-                  <p>• Port: 465 (SMTP with TLS)</p>
+                  <p>• Server: {@smtp_settings.host}</p>
+                  <p>
+                    • Port: {@smtp_settings.port} (SMTP with {MailClientSettings.security_label(
+                      @smtp_settings
+                    )})
+                  </p>
                 </div>
                 <div>
                   <p class="font-semibold mb-1">POP3 (Alternative):</p>
-                  <p>• Server: {EmailAddresses.pop_host()}</p>
-                  <p>• Port: 995 (POP3 with TLS)</p>
+                  <p>• Server: {@pop3_settings.host}</p>
+                  <p>
+                    • Port: {@pop3_settings.port} (POP3 with {MailClientSettings.security_label(
+                      @pop3_settings
+                    )})
+                  </p>
                 </div>
                 <div class="pt-2 border-t border-base-300">
                   <p>• Username: Your elektrine username</p>
