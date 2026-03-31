@@ -72,7 +72,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:dashboard_last_refreshed_at, nil)
        |> assign(:data_loaded, false)
        |> assign(:visible_post_limit, @overview_feed_limit)
-       |> assign(:visible_overview_posts, [])
        |> assign(:loading_more, false)
        |> assign(:no_more_posts, false)
        |> assign(:session_context, default_session_context())
@@ -2171,11 +2170,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> filtered_posts(socket.assigns.filter, socket.assigns)
       |> maybe_group_reply_chains(socket)
 
-    visible_posts = Enum.take(filtered_posts_for_view, socket.assigns.visible_post_limit)
     no_more_posts = length(filtered_posts_for_view) < socket.assigns.visible_post_limit
 
     socket
-    |> assign(:visible_overview_posts, visible_posts)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, no_more_posts)
   end
@@ -2319,7 +2316,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
             socket
             |> assign(:all_posts, [])
             |> assign(:filtered_all_posts, [])
-            |> assign(:visible_overview_posts, [])
             |> assign(:user_likes, %{})
             |> assign(:user_boosts, %{})
             |> assign(:user_saves, %{})

@@ -382,26 +382,55 @@
 }
 
 /* --------------------------------------------------------------------------
+   SURFACES
+   -------------------------------------------------------------------------- */
+
+:where(.surface-panel, .card, .glass-card, .social-page-card) {
+  border: 1px solid transparent;
+  border-color: var(--surface-panel-border);
+  background-color: var(--surface-panel-bg-fallback);
+  box-shadow: var(--surface-panel-shadow);
+  backdrop-filter: blur(var(--surface-panel-blur));
+  -webkit-backdrop-filter: blur(var(--surface-panel-blur));
+}
+
+@supports (color: oklch(0 0 0)) {
+  :where(.surface-panel, .card, .glass-card, .social-page-card) {
+    background-color: var(--surface-panel-bg);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :where(.surface-panel, .card, .glass-card, .social-page-card) {
+    background-color: var(--surface-panel-bg-no-blur);
+  }
+}
+
+/* --------------------------------------------------------------------------
    CARDS
    -------------------------------------------------------------------------- */
 
 .card {
-  border: 1px solid rgba(47, 51, 54, 0.7);
   transition: all 0.3s ease;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
-.card.glass-card {
-  background: oklch(var(--b2) / 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+.panel-card {
+  border-color: var(--color-base-300);
 }
 
-.modal .card.glass-card,
-.modal-box.card.glass-card {
-  background: oklch(var(--b1) / 0.96);
+.glass-card {
+  position: relative;
+  isolation: isolate;
+  transform: translateZ(0);
+}
+
+.glass-card.sticky {
+  contain: none;
+}
+
+.glass-card > .card-body {
+  position: relative;
+  z-index: 1;
 }
 
 .card:hover {
@@ -410,10 +439,11 @@
 
 /* Glass card variant for stronger effect */
 .card-glass {
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  --surface-panel-bg-fallback: rgba(15, 23, 42, 0.72);
+  --surface-panel-bg: oklch(var(--b1) / 0.72);
+  --surface-panel-bg-no-blur: rgba(15, 23, 42, 0.82);
+  --surface-panel-border: rgba(255, 255, 255, 0.1);
+  --surface-panel-blur: 20px;
 }
 
 .card-interactive:focus-visible,
@@ -691,13 +721,34 @@
    DROPDOWNS
    -------------------------------------------------------------------------- */
 
+:where(.surface-floating, .glass-floating, .dropdown-floating, .dropdown-content) {
+  border: 1px solid transparent;
+  border-color: var(--surface-floating-border);
+  background-color: var(--surface-floating-bg-fallback);
+  box-shadow: var(--surface-floating-shadow);
+  backdrop-filter: blur(var(--surface-floating-blur));
+  -webkit-backdrop-filter: blur(var(--surface-floating-blur));
+}
+
+@supports (color: oklch(0 0 0)) {
+  :where(.surface-floating, .glass-floating, .dropdown-floating, .dropdown-content) {
+    background-color: var(--surface-floating-bg);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :where(.surface-floating, .glass-floating, .dropdown-floating, .dropdown-content) {
+    background-color: var(--surface-floating-bg-no-blur);
+  }
+}
+
+.glass-floating {
+  position: relative;
+  isolation: isolate;
+}
+
 .dropdown-content {
-  background: rgba(0, 0, 0, 0.95) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(168, 85, 247, 0.3) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(168, 85, 247, 0.1);
-  z-index: 50 !important;
+  z-index: 50;
 }
 
 .dropdown {
@@ -722,7 +773,7 @@
 
 /* Ensure dropdowns escape glass-card overflow */
 .glass-card .dropdown-content {
-  z-index: 100 !important;
+  z-index: 100;
 }
 
 /* Timeline cards need higher stacking when menus are open */
@@ -730,11 +781,9 @@
   position: relative;
   overflow: visible !important;
   z-index: 1;
-  isolation: auto;
+  isolation: isolate;
   contain: none;
   transform: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }
 
 .timeline-post-card:hover,
@@ -755,7 +804,7 @@
 
 .timeline-post-dropdown .dropdown-content,
 .timeline-post-card .timeline-post-dropdown-menu {
-  z-index: 260 !important;
+  z-index: 260;
   position: absolute;
   overflow: visible;
 }
@@ -792,28 +841,32 @@
   -webkit-backdrop-filter: blur(6px);
 }
 
+:where(.surface-modal, .modal-box) {
+  border: 1px solid transparent;
+  border-color: var(--surface-modal-border);
+  background-color: var(--surface-modal-bg-fallback);
+  box-shadow: var(--surface-modal-shadow);
+  backdrop-filter: blur(var(--surface-modal-blur));
+  -webkit-backdrop-filter: blur(var(--surface-modal-blur));
+}
+
 .modal-box {
   position: relative;
   isolation: isolate;
-  background: oklch(var(--b1) / 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-radius: 0.75rem !important;
-  border: 1px solid oklch(var(--bc) / 0.1) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
   animation: modal-pop 0.2s ease-out;
 }
 
-.admin-layout .modal-box,
-.admin-page .modal-box {
-  background: oklch(var(--b1) / 0.95);
-  color: oklch(var(--bc));
-  border: 1px solid oklch(var(--bc) / 0.1) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+@supports (color: oklch(0 0 0)) {
+  :where(.surface-modal, .modal-box) {
+    background-color: var(--surface-modal-bg);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :where(.surface-modal, .modal-box) {
+    background-color: var(--surface-modal-bg-no-blur);
+  }
 }
 
 @keyframes modal-pop {

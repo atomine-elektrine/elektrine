@@ -26,9 +26,9 @@ defmodule Elektrine.Email.RateLimiterTest do
     end
 
     test "check_rate_limit returns ok when under limit", %{user: user} do
-      # New TL0 user on day 1 has day_limit of 5
+      # New TL0 user on day 1 can send 1 email per day
       assert {:ok, remaining} = RateLimiter.check_rate_limit(user.id)
-      assert remaining == 5
+      assert remaining == 1
     end
 
     test "check_rate_limit returns error when minute limit exceeded", %{user: user} do
@@ -40,19 +40,15 @@ defmodule Elektrine.Email.RateLimiterTest do
     end
 
     test "check_rate_limit returns error when daily limit exceeded", %{user: user} do
-      # day_1 tier has day_limit of 5 and hour_limit of 5
-      # Record 5 attempts spread across different hours to hit daily limit (not hourly)
+      # day_1 tier has day_limit of 1
+      # Record 1 attempt far enough back to avoid minute/hour limits and hit daily limit
       now = System.system_time(:second)
 
-      for i <- 1..5 do
-        # Spread attempts across different hours to avoid hourly limit
-        # Each attempt ~1 hour apart
-        timestamp = now - i * 3700
+      timestamp = now - 3700
 
-        case :ets.lookup(:email_rate_limiter, user.id) do
-          [] -> :ets.insert(:email_rate_limiter, {user.id, [timestamp]})
-          [{_, attempts}] -> :ets.insert(:email_rate_limiter, {user.id, [timestamp | attempts]})
-        end
+      case :ets.lookup(:email_rate_limiter, user.id) do
+        [] -> :ets.insert(:email_rate_limiter, {user.id, [timestamp]})
+        [{_, attempts}] -> :ets.insert(:email_rate_limiter, {user.id, [timestamp | attempts]})
       end
 
       assert {:error, :daily_limit_exceeded} = RateLimiter.check_rate_limit(user.id)
@@ -61,10 +57,10 @@ defmodule Elektrine.Email.RateLimiterTest do
     test "get_rate_limit_status returns correct status for new user", %{user: user} do
       status = RateLimiter.get_rate_limit_status(user.id)
 
-      # New TL0 user on day 1 has limits of {1, 5, 5, 3}
+      # New TL0 user on day 1 has limits of {1, 5, 1, 3}
       assert status.daily.sent == 0
-      assert status.daily.limit == 5
-      assert status.daily.remaining == 5
+      assert status.daily.limit == 1
+      assert status.daily.remaining == 1
       assert status.tier == :day_1
     end
 
@@ -76,8 +72,8 @@ defmodule Elektrine.Email.RateLimiterTest do
       status = RateLimiter.get_rate_limit_status(user.id)
 
       assert status.daily.sent == 2
-      assert status.daily.limit == 5
-      assert status.daily.remaining == 3
+      assert status.daily.limit == 1
+      assert status.daily.remaining == 0
     end
   end
 
@@ -213,10 +209,30 @@ defmodule Elektrine.Email.RateLimiterTest do
 
       status = RateLimiter.get_status(user.id)
       assert status.tier == :day_1
-      # day_1 limits: {1, 5, 5, 3}
-      assert status.attempts[86_400].limit == 5
+      # day_1 limits: {1, 5, 1, 3}
+      assert status.attempts[86_400].limit == 1
       assert status.attempts[3600].limit == 5
       assert status.attempts[60].limit == 1
+    end
+
+    test "older TL0 user still gets one email per day" do
+      {:ok, user} =
+        Accounts.create_user(%{
+          username: "oldertl0#{System.unique_integer([:positive])}",
+          password: "Test123456!",
+          password_confirmation: "Test123456!"
+        })
+
+      user
+      |> Ecto.Changeset.change(%{
+        inserted_at: DateTime.utc_now() |> DateTime.add(-20, :day) |> DateTime.truncate(:second)
+      })
+      |> Repo.update!()
+
+      status = RateLimiter.get_status(user.id)
+
+      assert status.tier == :weeks_3_4
+      assert status.attempts[86_400].limit == 1
     end
 
     test "TL1 user gets tl1 tier" do

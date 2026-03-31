@@ -6,14 +6,18 @@ defmodule ElektrineWeb.OIDCClientController do
   @recommended_scopes ["openid", "profile", "email", "read"]
 
   def index(conn, _params) do
-    render(conn, :index, apps: OAuth.get_user_apps(conn.assigns.current_user))
+    render(conn, :index,
+      apps: OAuth.get_user_apps(conn.assigns.current_user),
+      current_user: conn.assigns.current_user
+    )
   end
 
   def new(conn, _params) do
     render(conn, :new,
       changeset: OAuth.App.register_changeset(%OAuth.App{}, %{}),
       recommended_scopes: @recommended_scopes,
-      selected_scopes: @recommended_scopes
+      selected_scopes: @recommended_scopes,
+      current_user: conn.assigns.current_user
     )
   end
 
@@ -30,7 +34,8 @@ defmodule ElektrineWeb.OIDCClientController do
           changeset: OAuth.App.changeset(app, %{}),
           recommended_scopes: @recommended_scopes,
           selected_scopes: app.scopes,
-          redirect_uri_text: Enum.join(OAuth.App.redirect_uri_list(app), "\n")
+          redirect_uri_text: Enum.join(OAuth.App.redirect_uri_list(app), "\n"),
+          current_user: conn.assigns.current_user
         )
     end
   end
@@ -54,7 +59,8 @@ defmodule ElektrineWeb.OIDCClientController do
         render(conn, :new,
           changeset: changeset,
           recommended_scopes: @recommended_scopes,
-          selected_scopes: scopes
+          selected_scopes: scopes,
+          current_user: conn.assigns.current_user
         )
     end
   end
@@ -97,7 +103,8 @@ defmodule ElektrineWeb.OIDCClientController do
           changeset: changeset,
           recommended_scopes: @recommended_scopes,
           selected_scopes: scopes,
-          redirect_uri_text: app_params["redirect_uris"] || ""
+          redirect_uri_text: app_params["redirect_uris"] || "",
+          current_user: conn.assigns.current_user
         )
 
       nil ->

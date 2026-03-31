@@ -251,6 +251,7 @@ defmodule ElektrineWeb.StorageLive do
     chat_storage = Storage.calculate_chat_storage(user_id)
     profile_storage = Storage.calculate_profile_storage(user_id)
     static_site_storage = Storage.calculate_static_site_storage(user_id)
+    files_storage = Storage.calculate_files_storage(user_id)
 
     [
       %{
@@ -276,6 +277,12 @@ defmodule ElektrineWeb.StorageLive do
         bytes: static_site_storage,
         icon: "hero-globe-alt",
         color: "text-warning"
+      },
+      %{
+        category: "Files",
+        bytes: files_storage,
+        icon: "hero-folder",
+        color: "text-secondary"
       }
     ]
   end

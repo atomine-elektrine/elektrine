@@ -114,7 +114,7 @@ defmodule ElektrineWeb.DAV.ResponseHelpers do
     |> put_resp_header("dav", "1, 2, 3, calendar-access, addressbook")
     |> put_resp_header(
       "allow",
-      "GET, PUT, DELETE, OPTIONS, PROPFIND, PROPPATCH, REPORT, MKCOL, MKCALENDAR"
+      "GET, PUT, DELETE, OPTIONS, PROPFIND, PROPPATCH, REPORT, MKCOL, MKCALENDAR, MOVE, COPY"
     )
   end
 

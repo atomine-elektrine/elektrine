@@ -374,6 +374,18 @@ defmodule ElektrineWeb.Router do
     get("/carddav", DAVController, :carddav_discovery)
   end
 
+  scope "/files-dav", ElektrineWeb.DAV do
+    pipe_through(:dav)
+
+    match(:propfind, "/:username", FilesController, :propfind_home)
+    match(:propfind, "/:username/*path", FilesController, :propfind_resource)
+    match(:mkcol, "/:username/*path", FilesController, :mkcol)
+    match(:move, "/:username/*path", FilesController, :move_resource)
+    get("/:username/*path", FilesController, :get_file)
+    put("/:username/*path", FilesController, :put_file)
+    delete("/:username/*path", FilesController, :delete_resource)
+  end
+
   # WKD (Web Key Directory) for PGP public key discovery
   scope "/.well-known/openpgpkey", ElektrineWeb do
     pipe_through(:api)
@@ -473,6 +485,10 @@ defmodule ElektrineWeb.Router do
 
     # Link click tracking and redirect
     get("/l/:id", LinkController, :click)
+
+    # Public file shares
+    get("/files/share/:token", FileShareController, :show)
+    post("/files/share/:token", FileShareController, :authorize)
 
     # Unsubscribe routes (RFC 8058 support) - POST routes stay as controllers
     post("/unsubscribe/:token", UnsubscribeController, :one_click)
@@ -637,6 +653,10 @@ defmodule ElektrineWeb.Router do
       AttachmentController,
       :download
     )
+
+    # Personal file downloads
+    get("/account/files/:id/download", FilesController, :download)
+    get("/account/files/:id/preview", FilesController, :preview)
 
     # NOTE: All LiveView routes moved to single public_content live_session at end of router
     # for seamless navigation. Auth is enforced by pipe_through :require_authenticated_user
@@ -1534,6 +1554,7 @@ defmodule ElektrineWeb.Router do
       live("/account/profile/domains", ProfileLive.Domains, :index)
       live("/account/profile/analytics", ProfileLive.Analytics, :analytics)
       live("/account/storage", StorageLive)
+      live("/account/files", FilesLive)
 
       # Chat/Messaging
       live("/chat", ChatLive.Index, :index)

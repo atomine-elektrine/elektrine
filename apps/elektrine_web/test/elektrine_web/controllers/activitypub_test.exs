@@ -200,7 +200,8 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       response = json_response(conn, 200)
       assert response["subject"] == "acct:#{user.username}@z.example.com"
 
-      legacy_actor_url = "#{ActivityPub.instance_url_for_domain("z.example.com")}/users/#{user.username}"
+      legacy_actor_url =
+        "#{ActivityPub.instance_url_for_domain("z.example.com")}/users/#{user.username}"
 
       assert Enum.any?(response["links"], fn link ->
                link["rel"] == "self" and link["href"] == legacy_actor_url

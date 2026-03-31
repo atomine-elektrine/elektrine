@@ -1,61 +1,77 @@
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-  <section class="rounded-[2rem] border border-base-300/60 bg-base-100/90 p-6 shadow-xl backdrop-blur sm:p-8">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
-        <h1 class="mt-2 text-3xl font-black tracking-tight text-base-content">Granted Apps</h1>
-        <p class="mt-3 max-w-2xl text-sm text-base-content/70">
-          Review which apps can access your Elektrine identity and revoke them when needed.
-        </p>
-      </div>
-    </div>
+<.account_page
+  title="Granted Apps"
+  subtitle="Review the apps that can access your Elektrine identity and revoke them when needed."
+  current_user={@current_user}
+  sidebar_tab="developer"
+>
+  <:sidebar>
+    <.developer_settings_sidebar selected_page="oidc-grants" />
+  </:sidebar>
 
-    <div class="mt-6 space-y-4">
+  <div class="card glass-card shadow-lg">
+    <div class="card-body gap-6 p-4 sm:p-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="space-y-2">
+          <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
+          <p class="max-w-2xl text-sm text-base-content/70">
+            This view shows active authorizations created through OAuth and OpenID Connect flows.
+          </p>
+        </div>
+
+        <.link href={~p"/account/developer/oidc/clients"} class="btn btn-ghost rounded-full">
+          Manage Clients
+        </.link>
+      </div>
+
       <%= if Enum.empty?(@grants) do %>
         <div class="rounded-2xl border border-dashed border-base-300/70 bg-base-200/30 p-10 text-center text-base-content/60">
           No active app grants.
         </div>
       <% else %>
-        <%= for grant <- @grants do %>
-          <article class="rounded-2xl border border-base-300/60 bg-base-200/30 p-5">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div class="space-y-3">
-                <div>
-                  <h2 class="text-xl font-bold text-base-content">{grant.app.client_name}</h2>
-                  <%= if grant.app.website do %>
-                    <p class="mt-1 break-all text-sm text-base-content/65">{grant.app.website}</p>
-                  <% end %>
+        <div class="space-y-4">
+          <%= for grant <- @grants do %>
+            <article class="rounded-2xl border border-base-300/60 bg-base-200/30 p-5">
+              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="space-y-3">
+                  <div>
+                    <h2 class="text-xl font-bold text-base-content">{grant.app.client_name}</h2>
+                    <%= if grant.app.website do %>
+                      <p class="mt-1 break-all text-sm text-base-content/65">
+                        {grant.app.website}
+                      </p>
+                    <% end %>
+                  </div>
+
+                  <div class="text-sm text-base-content/65">
+                    <p>Last granted {Calendar.strftime(grant.last_granted_at, "%b %d, %Y")}</p>
+                    <p>Active sessions {grant.active_token_count}</p>
+                  </div>
+
+                  <div class="flex flex-wrap gap-2">
+                    <%= for scope <- grant.scopes do %>
+                      <span class="badge badge-outline">{scope}</span>
+                    <% end %>
+                  </div>
                 </div>
 
-                <div class="text-sm text-base-content/65">
-                  <p>Last granted {Calendar.strftime(grant.last_granted_at, "%b %d, %Y")}</p>
-                  <p>Active sessions {grant.active_token_count}</p>
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  <%= for scope <- grant.scopes do %>
-                    <span class="badge badge-outline">{scope}</span>
-                  <% end %>
-                </div>
-              </div>
-
-              <.form
-                for={%{}}
-                action={~p"/account/developer/oidc/grants/#{grant.app.id}"}
-                method="delete"
-              >
-                <button
-                  type="submit"
-                  class="btn btn-ghost text-error rounded-full"
-                  data-confirm="Revoke this app's access?"
+                <.form
+                  for={%{}}
+                  action={~p"/account/developer/oidc/grants/#{grant.app.id}"}
+                  method="delete"
                 >
-                  Revoke Access
-                </button>
-              </.form>
-            </div>
-          </article>
-        <% end %>
+                  <button
+                    type="submit"
+                    class="btn btn-ghost text-error rounded-full"
+                    data-confirm="Revoke this app's access?"
+                  >
+                    Revoke Access
+                  </button>
+                </.form>
+              </div>
+            </article>
+          <% end %>
+        </div>
       <% end %>
     </div>
-  </section>
-</div>
+  </div>
+</.account_page>
