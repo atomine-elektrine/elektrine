@@ -54,6 +54,11 @@ config :elektrine,
   pop3_port: 32_110,
   smtp_port: 32_587
 
+config :elektrine, :mail_client_settings,
+  imap: [port: 32_143, security: :plain],
+  pop3: [port: 32_110, security: :plain],
+  smtp: [port: 32_587, security: :plain]
+
 # Enable server for Wallaby browser tests
 config :elektrine, ElektrineWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4002")],

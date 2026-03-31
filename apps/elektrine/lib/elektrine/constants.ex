@@ -48,6 +48,12 @@ defmodule Elektrine.Constants do
   def smtp_send_timeout_ms, do: @smtp_send_timeout_ms
   def smtp_timeout_ms, do: @smtp_timeout_ms
 
+  # Mail TLS handshake limits
+  # Keep short so slow or abusive clients do not block native TLS listeners.
+  @mail_tls_handshake_timeout_ms 10_000
+
+  def mail_tls_handshake_timeout_ms, do: @mail_tls_handshake_timeout_ms
+
   # IMAP Server Limits
   # Raised from 100 to better support concurrent client syncs.
   @imap_max_connections 200

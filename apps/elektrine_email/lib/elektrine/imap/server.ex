@@ -110,51 +110,66 @@ defmodule Elektrine.IMAP.Server do
   defp accept_loop(socket, transport) do
     case Socket.accept(transport, socket) do
       {:ok, client} ->
-        {client_ip, initial_data} = client_ip_and_data(client, transport)
-
-        cond do
-          # Connection already closed during PROXY parsing
-          is_nil(client_ip) ->
-            # Skip and continue accepting
-            :ok
-
-          # Connection limit exceeded
-          !can_accept_connection?(client_ip, transport) ->
-            Logger.warning("Connection rejected from #{client_ip}: connection limit exceeded")
-            Helpers.send_response(client, "* BYE Too many connections from your IP address")
-            Socket.close(client)
-
-          # Accept the connection
-          true ->
-            Socket.setopts(client, [
-              {:active, false},
-              {:packet, :line},
-              {:keepalive, true},
-              {:nodelay, true},
-              {:send_timeout, Constants.imap_send_timeout_ms()},
-              {:recbuf, 65_536},
-              {:sndbuf, 65_536}
-            ])
-
-            increment_connection_count(client_ip, transport)
-
-            spawn(fn ->
-              Process.put(:imap_socket_transport, transport)
-
-              try do
-                handle_client(client, client_ip, initial_data)
-              after
-                decrement_connection_count(client_ip, transport)
-              end
-            end)
-        end
-
+        handle_accepted_client(client, transport)
         accept_loop(socket, transport)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
         accept_loop(socket, transport)
+    end
+  end
+
+  defp handle_accepted_client(client, :ssl) do
+    spawn(fn ->
+      case Socket.handshake(client) do
+        {:ok, tls_client} ->
+          handle_authenticated_client(tls_client, :ssl)
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
+  defp handle_accepted_client(client, transport) do
+    handle_authenticated_client(client, transport)
+  end
+
+  defp handle_authenticated_client(client, transport) do
+    {client_ip, initial_data} = client_ip_and_data(client, transport)
+
+    cond do
+      is_nil(client_ip) ->
+        :ok
+
+      !can_accept_connection?(client_ip, transport) ->
+        Logger.warning("Connection rejected from #{client_ip}: connection limit exceeded")
+        Helpers.send_response(client, "* BYE Too many connections from your IP address")
+        Socket.close(client)
+
+      true ->
+        Socket.setopts(client, [
+          {:active, false},
+          {:packet, :line},
+          {:keepalive, true},
+          {:nodelay, true},
+          {:send_timeout, Constants.imap_send_timeout_ms()},
+          {:recbuf, 65_536},
+          {:sndbuf, 65_536}
+        ])
+
+        increment_connection_count(client_ip, transport)
+
+        spawn(fn ->
+          Process.put(:imap_socket_transport, transport)
+
+          try do
+            handle_client(client, client_ip, initial_data)
+          after
+            decrement_connection_count(client_ip, transport)
+          end
+        end)
     end
   end
 

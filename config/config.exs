@@ -19,6 +19,11 @@ config :elektrine,
   # Empty by default: no proxy headers are trusted unless explicitly configured.
   trusted_proxy_cidrs: []
 
+config :elektrine, :mail_client_settings,
+  imap: [port: 993, security: :ssl],
+  pop3: [port: 995, security: :ssl],
+  smtp: [port: 465, security: :ssl]
+
 # Oban background job processing
 # Worker counts optimized with Lemmy-style per-domain throttling
 config :elektrine, Oban,

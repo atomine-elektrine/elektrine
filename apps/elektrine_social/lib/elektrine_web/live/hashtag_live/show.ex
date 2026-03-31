@@ -641,7 +641,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
   defp get_hashtag_info(hashtag_name) do
     normalized_name = String.downcase(hashtag_name)
 
-    case Elektrine.Repo.get_by(Elektrine.Social.Hashtag, normalized_name: normalized_name) do
+    case Elektrine.Social.get_hashtag_by_normalized_name(normalized_name) do
       nil ->
         %{name: hashtag_name, use_count: 0, last_used_at: nil}
 
