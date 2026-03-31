@@ -385,25 +385,15 @@
    SURFACES
    -------------------------------------------------------------------------- */
 
-:where(.surface-panel, .card, .glass-card, .social-page-card) {
+.surface-panel,
+.card,
+.glass-card,
+.social-page-card {
   border: 1px solid transparent;
   border-color: var(--surface-panel-border);
-  background-color: var(--surface-panel-bg-fallback);
+  background-color: #080808 !important;
+  background-image: none !important;
   box-shadow: var(--surface-panel-shadow);
-  backdrop-filter: blur(var(--surface-panel-blur));
-  -webkit-backdrop-filter: blur(var(--surface-panel-blur));
-}
-
-@supports (color: oklch(0 0 0)) {
-  :where(.surface-panel, .card, .glass-card, .social-page-card) {
-    background-color: var(--surface-panel-bg);
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :where(.surface-panel, .card, .glass-card, .social-page-card) {
-    background-color: var(--surface-panel-bg-no-blur);
-  }
 }
 
 /* --------------------------------------------------------------------------
@@ -439,11 +429,11 @@
 
 /* Glass card variant for stronger effect */
 .card-glass {
-  --surface-panel-bg-fallback: rgba(15, 23, 42, 0.72);
-  --surface-panel-bg: oklch(var(--b1) / 0.72);
-  --surface-panel-bg-no-blur: rgba(15, 23, 42, 0.82);
-  --surface-panel-border: rgba(255, 255, 255, 0.1);
-  --surface-panel-blur: 20px;
+  --surface-panel-bg-fallback: var(--color-base-100);
+  --surface-panel-bg: oklch(var(--b1));
+  --surface-panel-bg-no-blur: var(--color-base-100);
+  --surface-panel-border: var(--color-base-300);
+  --surface-panel-shadow: 0 18px 44px -28px rgba(0, 0, 0, 0.82);
 }
 
 .card-interactive:focus-visible,
@@ -721,25 +711,15 @@
    DROPDOWNS
    -------------------------------------------------------------------------- */
 
-:where(.surface-floating, .glass-floating, .dropdown-floating, .dropdown-content) {
+.surface-floating,
+.glass-floating,
+.dropdown-floating,
+.dropdown-content {
   border: 1px solid transparent;
   border-color: var(--surface-floating-border);
-  background-color: var(--surface-floating-bg-fallback);
+  background-color: #090909 !important;
+  background-image: none !important;
   box-shadow: var(--surface-floating-shadow);
-  backdrop-filter: blur(var(--surface-floating-blur));
-  -webkit-backdrop-filter: blur(var(--surface-floating-blur));
-}
-
-@supports (color: oklch(0 0 0)) {
-  :where(.surface-floating, .glass-floating, .dropdown-floating, .dropdown-content) {
-    background-color: var(--surface-floating-bg);
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :where(.surface-floating, .glass-floating, .dropdown-floating, .dropdown-content) {
-    background-color: var(--surface-floating-bg-no-blur);
-  }
 }
 
 .glass-floating {
@@ -841,13 +821,13 @@
   -webkit-backdrop-filter: blur(6px);
 }
 
-:where(.surface-modal, .modal-box) {
+.surface-modal,
+.modal-box {
   border: 1px solid transparent;
   border-color: var(--surface-modal-border);
-  background-color: var(--surface-modal-bg-fallback);
+  background-color: #060606 !important;
+  background-image: none !important;
   box-shadow: var(--surface-modal-shadow);
-  backdrop-filter: blur(var(--surface-modal-blur));
-  -webkit-backdrop-filter: blur(var(--surface-modal-blur));
 }
 
 .modal-box {
@@ -855,18 +835,6 @@
   isolation: isolate;
   border-radius: 0.75rem !important;
   animation: modal-pop 0.2s ease-out;
-}
-
-@supports (color: oklch(0 0 0)) {
-  :where(.surface-modal, .modal-box) {
-    background-color: var(--surface-modal-bg);
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :where(.surface-modal, .modal-box) {
-    background-color: var(--surface-modal-bg-no-blur);
-  }
 }
 
 @keyframes modal-pop {
